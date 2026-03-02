@@ -94,6 +94,13 @@ class Cmd:
             "If not specified, loads $PWD/.env if it exists."
         },
     )
+    no_docker: bool = field(
+        default=False,
+        alias=["--no-docker"],
+        metadata={
+            "help": "Run local executor tasks directly on host without launching Docker containers. Equivalent to setting execution.use_docker=false."
+        },
+    )
 
     def _parse_requested_tasks(self) -> list[str]:
         """Parse -t arguments into a list of task names.
@@ -206,6 +213,16 @@ class Cmd:
                 config=self.config,
                 hydra_overrides=self.override,
             )
+
+        if self.no_docker:
+            if config.execution.type != "local":
+                raise ValueError(
+                    "--no-docker is only supported with execution.type=local."
+                )
+            is_struct = OmegaConf.is_struct(config)
+            OmegaConf.set_struct(config, False)
+            config.execution.use_docker = False
+            OmegaConf.set_struct(config, is_struct)
 
         # Apply task filtering if -t is specified
         if requested_tasks:

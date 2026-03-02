@@ -2,13 +2,13 @@
 
 # Local Executor
 
-The Local executor runs evaluations on your machine using Docker. It provides a fast way to iterate if you have Docker installed, evaluating existing endpoints.
+The Local executor runs evaluations on your machine. By default it uses Docker containers, and it can also run evaluations directly on the host process (`execution.use_docker: false`).
 
 See common concepts and commands in {ref}`executors-overview`.
 
 ## Prerequisites
 
-- Docker
+- Docker (required only when `execution.use_docker: true`, which is the default)
 - Python environment with the NeMo Evaluator Launcher CLI available (install the launcher by following {ref}`gs-install`)
 
 ## Quick Start
@@ -28,6 +28,22 @@ Here's a quick overview for the Local executor:
 # Run evaluation
 nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
   -o target.api_endpoint.api_key_name=NGC_API_KEY
+```
+
+### Run without Docker containers
+
+```bash
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
+  --no-docker \
+  -o target.api_endpoint.api_key_name=NGC_API_KEY
+```
+
+Equivalent YAML:
+
+```yaml
+execution:
+  type: local
+  use_docker: false
 ```
 
 ## Environment Variables and Secrets
@@ -58,6 +74,7 @@ The Local executor uses Docker volume mounts for data persistence:
 You can customize your local executor by specifying `extra_docker_args`.
 This parameter allows you to pass any flag to the `docker run` command that is executed by the NeMo Evaluator Launcher.
 You can use it to mount additional volumes, set environment variables or customize your network settings.
+`extra_docker_args` is ignored when `execution.use_docker: false`.
 
 For example, if you would like your job to use a specific docker network, you can specify:
 

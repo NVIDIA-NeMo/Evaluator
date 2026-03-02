@@ -93,3 +93,34 @@ def test_get_eval_factory_command_basic(monkeypatch):
 
     # The command to run eval is present
     assert "&& $cmd run_eval --run_config config_ef.yaml" in result.cmd
+
+
+def test_get_eval_factory_command_custom_output_dir():
+    cfg = OmegaConf.create(
+        {
+            "evaluation": {"nemo_evaluator_config": {"config": {}}},
+            "deployment": {"type": "none"},
+            "target": {
+                "api_endpoint": {
+                    "url": "https://example.test/api",
+                    "model_id": "model-123",
+                    "api_key_name": "MY_API_KEY",
+                }
+            },
+        }
+    )
+    user_task_config = OmegaConf.create({"nemo_evaluator_config": {"config": {}}})
+    task_definition = {"endpoint_type": "chat", "task": "my_task"}
+
+    result = get_eval_factory_command(
+        cfg,
+        user_task_config,
+        task_definition,
+        output_dir="/tmp/nel/results",
+    )
+
+    b64 = _extract_b64_from_echo_cmd(result.cmd)
+    decoded_yaml = base64.b64decode(b64.encode("utf-8")).decode("utf-8")
+    merged = yaml.safe_load(decoded_yaml)
+
+    assert merged["config"]["output_dir"] == "/tmp/nel/results"

@@ -819,3 +819,49 @@ class TestCLIConfigParameter:
             run_cmd.execute()
             call_kwargs = mock_compose.call_args.kwargs
             assert call_kwargs["config_name"] == "test_config"
+
+    def test_no_docker_flag_sets_execution_use_docker_false(
+        self, mock_execdb, mock_api_endpoint_check, mock_print
+    ):
+        config_dict = {
+            "deployment": {"type": "none"},
+            "execution": {"type": "local", "output_dir": "/tmp/test_output"},
+            "target": {
+                "api_endpoint": {"api_key_name": "test_key", "model_id": "test_model"}
+            },
+            "evaluation": {"tasks": [{"name": "test_task_1"}]},
+        }
+
+        with (
+            patch("nemo_evaluator_launcher.api.types.hydra.compose") as mock_compose,
+            patch("nemo_evaluator_launcher.api.functional.run_eval") as mock_run_eval,
+        ):
+            mock_compose.return_value = OmegaConf.create(config_dict)
+            mock_run_eval.return_value = None
+
+            run_cmd = RunCmd(no_docker=True, dry_run=True)
+            run_cmd.execute()
+
+            called_cfg = mock_run_eval.call_args.args[0]
+            assert called_cfg.execution.use_docker is False
+
+    def test_no_docker_flag_rejects_non_local_executor(
+        self, mock_execdb, mock_api_endpoint_check, mock_print
+    ):
+        config_dict = {
+            "deployment": {"type": "none"},
+            "execution": {"type": "dummy", "output_dir": "/tmp/test_output"},
+            "target": {
+                "api_endpoint": {"api_key_name": "test_key", "model_id": "test_model"}
+            },
+            "evaluation": {"tasks": [{"name": "test_task_1"}]},
+        }
+
+        with patch("nemo_evaluator_launcher.api.types.hydra.compose") as mock_compose:
+            mock_compose.return_value = OmegaConf.create(config_dict)
+
+            with pytest.raises(
+                ValueError,
+                match="--no-docker is only supported with execution.type=local",
+            ):
+                RunCmd(no_docker=True, dry_run=True).execute()
