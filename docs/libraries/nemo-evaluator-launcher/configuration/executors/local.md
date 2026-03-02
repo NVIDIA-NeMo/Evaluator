@@ -46,6 +46,8 @@ execution:
   use_docker: false
 ```
 
+When using `use_docker: false`, the requested benchmark task must be available from locally installed NeMo Evaluator packages (harness wheels). The launcher now validates this before execution and fails early if the harness/task is not installed.
+
 ## Environment Variables and Secrets
 
 Environment variables use the unified prefix syntax (`$host:`, `$lit:`, `$runtime:`) described in {ref}`env-vars-configuration`. Declare them at the top-level `env_vars:` section, at `evaluation.env_vars`, or per-task. Secret values are stored in a `.secrets.env` file alongside the generated `run.sh` and sourced at runtime — they never appear in the script itself.

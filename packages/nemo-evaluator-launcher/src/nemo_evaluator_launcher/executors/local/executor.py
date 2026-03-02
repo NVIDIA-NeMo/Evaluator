@@ -68,6 +68,61 @@ from nemo_evaluator_launcher.executors.base import (
 from nemo_evaluator_launcher.executors.registry import register_executor
 
 
+def _get_local_available_tasks() -> dict[str, set[str]]:
+    """Return locally installed NeMo Evaluator tasks grouped by harness."""
+    try:
+        from nemo_evaluator.api import get_available_evaluations
+    except ImportError as e:
+        raise RuntimeError(
+            "execution.use_docker=false requires `nemo-evaluator` to be installed locally. "
+            "Install nemo-evaluator (with the harness/task wheels you need), or enable Docker execution."
+        ) from e
+
+    framework_task_mapping, _, _ = get_available_evaluations()
+    return {
+        framework: set(tasks.keys())
+        for framework, tasks in framework_task_mapping.items()
+    }
+
+
+def _validate_task_available_locally(
+    *,
+    task_query: str,
+    task_definition: dict,
+    available_tasks_by_harness: dict[str, set[str]],
+) -> None:
+    """Validate that a task exists in locally installed NeMo Evaluator packages."""
+    harness_name = str(task_definition.get("harness") or "")
+    task_name = str(task_definition.get("task") or "")
+
+    if harness_name:
+        harness_tasks = available_tasks_by_harness.get(harness_name)
+        if harness_tasks is None:
+            available_harnesses = sorted(available_tasks_by_harness.keys())
+            raise ValueError(
+                f"Task '{task_query}' requires harness '{harness_name}', but this harness is not installed locally. "
+                f"Installed harnesses: {available_harnesses or ['<none>']}. "
+                "Install the corresponding NeMo Evaluator wheel, or run with Docker."
+            )
+        if task_name not in harness_tasks:
+            available_tasks = sorted(harness_tasks)
+            raise ValueError(
+                f"Task '{task_query}' is not available in installed harness '{harness_name}'. "
+                f"Available tasks in this harness: {available_tasks or ['<none>']}. "
+                "Install a wheel that contains this task, or run with Docker."
+            )
+        return
+
+    matching_harnesses = [
+        harness for harness, tasks in available_tasks_by_harness.items() if task_name in tasks
+    ]
+    if not matching_harnesses:
+        raise ValueError(
+            f"Task '{task_query}' is not available in locally installed NeMo Evaluator packages. "
+            "Install a wheel that contains this task, or run with Docker."
+        )
+
+
 @register_executor("local")
 class LocalExecutor(BaseExecutor):
     @classmethod
@@ -96,6 +151,9 @@ class LocalExecutor(BaseExecutor):
             raise ValueError(
                 "execution.use_docker=false is only supported with deployment.type=none."
             )
+        local_available_tasks: dict[str, set[str]] | None = None
+        if not use_docker:
+            local_available_tasks = _get_local_available_tasks()
 
         # Generate invocation ID for this evaluation run
         invocation_id = generate_invocation_id()
@@ -143,6 +201,12 @@ class LocalExecutor(BaseExecutor):
                 container=task.get("container"),
                 endpoint_type=task.get("endpoint_type"),
             )
+            if not use_docker:
+                _validate_task_available_locally(
+                    task_query=task.name,
+                    task_definition=task_definition,
+                    available_tasks_by_harness=local_available_tasks or {},
+                )
 
             # Track unlisted tasks for safeguard check
             if task_definition.get("is_unlisted", False):

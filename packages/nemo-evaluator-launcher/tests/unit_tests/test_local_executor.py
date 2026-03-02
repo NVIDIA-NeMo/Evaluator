@@ -276,6 +276,9 @@ class TestLocalExecutorDryRun:
                     "nemo_evaluator_launcher.executors.local.executor.load_tasks_mapping"
                 ) as mock_load_mapping,
                 patch(
+                    "nemo_evaluator_launcher.executors.local.executor._get_local_available_tasks"
+                ) as mock_get_local_tasks,
+                patch(
                     "nemo_evaluator_launcher.executors.local.executor.get_task_definition_for_job"
                 ) as mock_get_task_def,
                 patch(
@@ -284,6 +287,10 @@ class TestLocalExecutorDryRun:
                 patch("builtins.print"),
             ):
                 mock_load_mapping.return_value = mock_tasks_mapping
+                mock_get_local_tasks.return_value = {
+                    "lm-eval": {"test_task_1"},
+                    "helm": {"test_task_2"},
+                }
 
                 def mock_get_task_def_side_effect(*_args, **kwargs):
                     task_name = kwargs.get("task_query")
@@ -336,6 +343,51 @@ class TestLocalExecutorDryRun:
             match="execution.use_docker=false is only supported with deployment.type=none",
         ):
             LocalExecutor.execute_eval(sample_config, dry_run=True)
+
+    def test_execute_eval_no_docker_missing_local_task_raises(
+        self, sample_config, mock_tasks_mapping
+    ):
+        sample_config.execution.use_docker = False
+        os.environ["TEST_API_KEY"] = "test_key_value"
+        os.environ["GLOBAL_VALUE"] = "global_env_value"
+        os.environ["TASK_VALUE"] = "task_env_value"
+
+        try:
+            with (
+                patch(
+                    "nemo_evaluator_launcher.executors.local.executor.load_tasks_mapping"
+                ) as mock_load_mapping,
+                patch(
+                    "nemo_evaluator_launcher.executors.local.executor._get_local_available_tasks"
+                ) as mock_get_local_tasks,
+                patch(
+                    "nemo_evaluator_launcher.executors.local.executor.get_task_definition_for_job"
+                ) as mock_get_task_def,
+            ):
+                mock_load_mapping.return_value = mock_tasks_mapping
+                mock_get_local_tasks.return_value = {
+                    "lm-eval": {"some_other_task"},
+                    "helm": {"test_task_2"},
+                }
+
+                def mock_get_task_def_side_effect(*_args, **kwargs):
+                    task_name = kwargs.get("task_query")
+                    mapping = kwargs.get("base_mapping", {})
+                    for (_harness, name), definition in mapping.items():
+                        if name == task_name:
+                            return definition
+                    raise KeyError(f"Task {task_name} not found")
+
+                mock_get_task_def.side_effect = mock_get_task_def_side_effect
+
+                with pytest.raises(
+                    ValueError, match="not available in installed harness"
+                ):
+                    LocalExecutor.execute_eval(sample_config, dry_run=True)
+        finally:
+            for env_var in ["TEST_API_KEY", "GLOBAL_VALUE", "TASK_VALUE"]:
+                if env_var in os.environ:
+                    del os.environ[env_var]
 
 
 class TestLocalExecutorGetStatus:
