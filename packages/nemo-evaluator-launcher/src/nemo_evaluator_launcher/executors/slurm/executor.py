@@ -1432,8 +1432,9 @@ def _read_files_from_remote(
             )
         )
     cat_outputs = completed_process.stdout.decode("utf-8")
-    cat_outputs = cat_outputs.replace("\n", " ")
-    matches = re.findall(r"(?<=_START_OF_FILE_)(.*?)(?=_END_OF_FILE_)", cat_outputs)
+    matches = re.findall(
+        r"_START_OF_FILE_\n(.*?)\n?_END_OF_FILE_", cat_outputs, re.DOTALL
+    )
     outputs = [match.strip() for match in matches]
     return outputs
 

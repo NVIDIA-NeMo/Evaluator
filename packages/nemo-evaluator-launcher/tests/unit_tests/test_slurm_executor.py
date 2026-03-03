@@ -2430,9 +2430,10 @@ class TestSlurmExecutorSystemCalls:
         )
 
         def mock_subprocess_run(*args, **kwargs):
+            # Simulate real SSH output: echo adds newlines around file content
             return Mock(
                 returncode=0,
-                stdout=b"_START_OF_FILE_ content1 _END_OF_FILE_ _START_OF_FILE_ content2 _END_OF_FILE_",
+                stdout=b"_START_OF_FILE_\ncontent1\n_END_OF_FILE_\n_START_OF_FILE_\ncontent2\n_END_OF_FILE_\n",
             )
 
         monkeypatch.setattr("subprocess.run", mock_subprocess_run, raising=True)
@@ -2445,6 +2446,53 @@ class TestSlurmExecutorSystemCalls:
         )
 
         assert result == ["content1", "content2"]
+
+    def test_read_files_from_remote_preserves_newlines(self, monkeypatch):
+        """Test that _read_files_from_remote preserves newlines in multi-line files."""
+        from nemo_evaluator_launcher.executors.slurm.executor import (
+            _read_files_from_remote,
+        )
+
+        def mock_subprocess_run(*args, **kwargs):
+            return Mock(
+                returncode=0,
+                stdout=b"_START_OF_FILE_\nline1\nline2\nline3\n_END_OF_FILE_\n",
+            )
+
+        monkeypatch.setattr("subprocess.run", mock_subprocess_run, raising=True)
+
+        result = _read_files_from_remote(
+            filepaths=[Path("/file1")],
+            username="user",
+            hostname="host",
+            socket="/tmp/sock",
+        )
+
+        assert result == ["line1\nline2\nline3"]
+
+    def test_read_files_from_remote_no_trailing_newline(self, monkeypatch):
+        """Test _read_files_from_remote with files that have no trailing newline."""
+        from nemo_evaluator_launcher.executors.slurm.executor import (
+            _read_files_from_remote,
+        )
+
+        def mock_subprocess_run(*args, **kwargs):
+            # File without trailing newline: cat outputs "42" directly before echo
+            return Mock(
+                returncode=0,
+                stdout=b"_START_OF_FILE_\n42_END_OF_FILE_\n",
+            )
+
+        monkeypatch.setattr("subprocess.run", mock_subprocess_run, raising=True)
+
+        result = _read_files_from_remote(
+            filepaths=[Path("/file1")],
+            username="user",
+            hostname="host",
+            socket="/tmp/sock",
+        )
+
+        assert result == ["42"]
 
     def test_read_files_from_remote_failure(self, monkeypatch):
         """Test _read_files_from_remote with failed cat."""
