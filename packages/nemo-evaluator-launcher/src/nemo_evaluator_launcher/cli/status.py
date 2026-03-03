@@ -65,7 +65,7 @@ class Cmd:
         first_data = jobs[0].get("data", {}) if jobs else {}
         executor_key = next((k for k in executor_headers if k in first_data), None)
         info_header = executor_headers.get(executor_key, "Executor Info")
-        headers = ["Job ID", "Status", "Progress", info_header, "Location"]
+        headers = ["Job ID", "Status", "Requests Processed", info_header, "Location"]
 
         # Build rows
         rows = []
@@ -165,10 +165,10 @@ class Cmd:
                 "unknown", or None.
 
         Returns:
-            Formatted string for the Progress column.
+            Formatted string for the Requests Processed column.
         """
         if isinstance(progress, int):
-            return f"{progress} requests"
+            return str(progress)
         return "-"
 
     def _strip_ansi_codes(self, text: str) -> str:

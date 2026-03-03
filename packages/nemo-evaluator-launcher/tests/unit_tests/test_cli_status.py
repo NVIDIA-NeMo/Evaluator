@@ -22,10 +22,10 @@ class TestFormatProgress:
     """Tests for Cmd._format_progress static method."""
 
     def test_int_request_count(self):
-        assert Cmd._format_progress(1234) == "1234 requests"
+        assert Cmd._format_progress(1234) == "1234"
 
     def test_int_zero(self):
-        assert Cmd._format_progress(0) == "0 requests"
+        assert Cmd._format_progress(0) == "0"
 
     def test_unknown_string(self):
         assert Cmd._format_progress("unknown") == "-"
@@ -56,7 +56,7 @@ class TestExtractProgressFromJob:
 
     def test_dict_wrapped_int(self):
         job = {"progress": {"progress": 42}}
-        assert Cmd._format_progress(self._extract_progress(job)) == "42 requests"
+        assert Cmd._format_progress(self._extract_progress(job)) == "42"
 
     def test_dict_wrapped_none(self):
         job = {"progress": {"progress": None}}
