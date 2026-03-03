@@ -209,6 +209,8 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
         # This avoids inflating the count from retries (failed attempts return
         # non-200) and from cache replays during auto-chained Slurm jobs
         # (cached responses carry cache_hit=True).
+        # NOTE: log field renamed from samples_processed → requests_processed
+        # to reflect that the counter tracks API requests, not evaluation samples.
         if ar.rctx.cache_hit or ar.r.status_code != 200:
             return ar
 

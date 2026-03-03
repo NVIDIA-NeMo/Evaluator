@@ -220,6 +220,38 @@ class TestProgressTrackingInterceptor:
         # Verify that the request was attempted
         mock_request.assert_called_once()
 
+    def test_post_eval_hook_zero_progress_all_cached(self, tmp_path):
+        """Test post_eval_hook when all responses were cache hits (zero progress).
+
+        This scenario occurs in auto-chained Slurm jobs where the second chain
+        replays all requests from cache. The interceptor should not send any
+        progress update since nothing changed.
+        """
+        params = ProgressTrackingInterceptor.Params(
+            progress_tracking_url="http://localhost:9999",
+            progress_tracking_interval=1,
+            output_dir=str(tmp_path),
+        )
+        interceptor = ProgressTrackingInterceptor(params)
+
+        context = AdapterGlobalContext(output_dir=str(tmp_path), url="http://test")
+
+        # Simulate all cache hits — none should increment counter
+        for _ in range(10):
+            cached_rctx = AdapterRequestContext()
+            cached_rctx.cache_hit = True
+            cached_response = AdapterResponse(r=_make_ok_response(), rctx=cached_rctx)
+            interceptor.intercept_response(cached_response, context)
+
+        assert interceptor._samples_processed == 0
+
+        # post_eval_hook should hit early return (0 == 0, nothing to send)
+        interceptor.post_eval_hook(context)
+
+        # Progress file should not have been written (no new progress)
+        progress_file = tmp_path / "progress"
+        assert not progress_file.exists()
+
     def test_skips_cache_hits(self, tmp_path):
         """Test that cached responses are not counted as progress."""
         params = ProgressTrackingInterceptor.Params(

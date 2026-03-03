@@ -1543,7 +1543,7 @@ class TestSlurmExecutorGetStatus:
             mock_open.return_value = "/tmp/socket"
             mock_query_status.return_value = {"123456789": ("COMPLETED", "123456789")}
             mock_autoresume.return_value = {"123456789": ["123456789"]}
-            mock_progress.return_value = [0.8]
+            mock_progress.return_value = [800]
 
             statuses = SlurmExecutor._query_slurm_for_status_and_progress(
                 slurm_job_ids=slurm_job_ids,
@@ -1556,7 +1556,7 @@ class TestSlurmExecutorGetStatus:
             assert len(statuses) == 1
             assert statuses[0].id == "def67890.0"
             assert statuses[0].state == ExecutionState.SUCCESS
-            assert statuses[0].progress == 0.8
+            assert statuses[0].progress == 800
 
     def test_query_slurm_for_status_and_progress_autoresumed(self):
         """Test _query_slurm_for_status_and_progress with autoresumed jobs."""
@@ -1593,7 +1593,7 @@ class TestSlurmExecutorGetStatus:
             ]
             # Autoresume shows there's a newer job ID
             mock_autoresume.return_value = {"123456789": ["123456789", "123456790"]}
-            mock_progress.return_value = [0.4]
+            mock_progress.return_value = [400]
 
             statuses = SlurmExecutor._query_slurm_for_status_and_progress(
                 slurm_job_ids=slurm_job_ids,
@@ -1606,7 +1606,7 @@ class TestSlurmExecutorGetStatus:
             assert len(statuses) == 1
             assert statuses[0].id == "def67890.0"
             assert statuses[0].state == ExecutionState.RUNNING  # Uses latest job status
-            assert statuses[0].progress == 0.4
+            assert statuses[0].progress == 400
 
     def test_query_slurm_for_status_and_progress_unknown_progress(self):
         """Test _query_slurm_for_status_and_progress with unknown progress."""
@@ -2493,6 +2493,55 @@ class TestSlurmExecutorSystemCalls:
         )
 
         assert result == ["42"]
+
+    def test_read_files_from_remote_empty_file(self, monkeypatch):
+        """Test _read_files_from_remote with empty/missing file (cat produces no output)."""
+        from nemo_evaluator_launcher.executors.slurm.executor import (
+            _read_files_from_remote,
+        )
+
+        def mock_subprocess_run(*args, **kwargs):
+            # Empty file or missing file: cat produces nothing between markers
+            return Mock(
+                returncode=0,
+                stdout=b"_START_OF_FILE_\n_END_OF_FILE_\n",
+            )
+
+        monkeypatch.setattr("subprocess.run", mock_subprocess_run, raising=True)
+
+        result = _read_files_from_remote(
+            filepaths=[Path("/file1")],
+            username="user",
+            hostname="host",
+            socket="/tmp/sock",
+        )
+
+        assert result == [""]
+
+    def test_read_files_from_remote_mixed_newlines(self, monkeypatch):
+        """Test _read_files_from_remote with mixed files: one with trailing newline, one without."""
+        from nemo_evaluator_launcher.executors.slurm.executor import (
+            _read_files_from_remote,
+        )
+
+        def mock_subprocess_run(*args, **kwargs):
+            # First file: multi-line with trailing newline
+            # Second file: single value without trailing newline
+            return Mock(
+                returncode=0,
+                stdout=b"_START_OF_FILE_\nline1\nline2\n_END_OF_FILE_\n_START_OF_FILE_\n42_END_OF_FILE_\n",
+            )
+
+        monkeypatch.setattr("subprocess.run", mock_subprocess_run, raising=True)
+
+        result = _read_files_from_remote(
+            filepaths=[Path("/file1"), Path("/file2")],
+            username="user",
+            hostname="host",
+            socket="/tmp/sock",
+        )
+
+        assert result == ["line1\nline2", "42"]
 
     def test_read_files_from_remote_failure(self, monkeypatch):
         """Test _read_files_from_remote with failed cat."""
