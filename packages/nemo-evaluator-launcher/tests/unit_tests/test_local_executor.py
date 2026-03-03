@@ -22,7 +22,6 @@ import time
 from unittest.mock import patch
 
 import pytest
-import yaml
 from omegaconf import OmegaConf
 
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
