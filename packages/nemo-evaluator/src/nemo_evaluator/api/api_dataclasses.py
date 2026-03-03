@@ -207,7 +207,7 @@ class EvaluationConfig(BaseModel):
     )
     type: Optional[str] = Field(description="Type of the task", default=None)
 
-    @model_validator(mode="before")
+    @model_validator(mode="after")
     @classmethod
     def handle_benchmark_capabilities(cls, values):
         """Handle benchmark capabilities."""

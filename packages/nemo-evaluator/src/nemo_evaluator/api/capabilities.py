@@ -6,13 +6,11 @@ from pydantic import BaseModel, Field
 class Capability(BaseModel):
     name: str = Field(description="Name of the benchmark capability, e.g. 'logprobs'")
     description: str = Field(
-        description="Description of the benchmark capability, e.g. 'Uses log probabilities to compute the score'",
-        default=None,
+        description="Description of the benchmark capability, e.g. 'Uses log probabilities to compute the score'"
     )
     payload: Dict[str, Any] = Field(
         description="Example payload for the benchmark to test model compatibility, e.g. "
         "{'prompt': '3 + 3 = 6', 'max_tokens': 1, 'logprobs': 1, 'echo': True}",
-        default=None,
     )
 
 
