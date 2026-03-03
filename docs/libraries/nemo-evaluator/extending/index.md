@@ -4,7 +4,7 @@
 
 Extend NeMo Evaluator with custom benchmarks, evaluation frameworks, and integrations. Learn how to define new evaluation frameworks and integrate them into the NeMo Evaluator ecosystem using standardized configuration patterns.
 
-::::{grid} 1 1 1 1
+::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Framework Definition File
@@ -12,6 +12,13 @@ Extend NeMo Evaluator with custom benchmarks, evaluation frameworks, and integra
 :link-type: ref
 
 Learn how to create Framework Definition Files (FDF) to integrate custom evaluation frameworks and benchmarks into the NeMo Evaluator ecosystem.
+:::
+
+:::{grid-item-card} {octicon}`beaker;1.5em;sd-mr-1` Bring Your Own Benchmark (BYOB)
+:link: byob
+:link-type: ref
+
+Create custom evaluation benchmarks in ~12 lines of Python with decorators, built-in scorers, LLM-as-Judge, and one-command containerization.
 :::
 
 ::::
@@ -29,6 +36,15 @@ The primary extension mechanism uses YAML configuration files to define:
 - Evaluation types and task definitions
 - Container integration specifications
 
+### Bring Your Own Benchmark (BYOB)
+
+A decorator-based approach for creating custom benchmarks in Python:
+
+- Define benchmarks with `@benchmark` and `@scorer` decorators
+- Use built-in scorers or write custom scoring functions
+- Evaluate subjective qualities with LLM-as-Judge
+- Containerize and deploy with a single CLI command
+
 ### Integration Benefits
 
 - **Standardization**: Follow established patterns for configuration and execution
@@ -38,7 +54,7 @@ The primary extension mechanism uses YAML configuration files to define:
 
 ## Start with Extensions
 
-<!-- **New to FDFs?** Start with the {ref}`create-framework-definition-file` tutorial for a hands-on walkthrough. -->
+**Want a quick custom benchmark?** Start with {ref}`BYOB <byob>` to create a benchmark in ~12 lines of Python.
 
 **Building a production framework?** Follow these steps:
 
@@ -54,4 +70,5 @@ For detailed reference documentation, refer to {ref}`framework-definition-file`.
 :hidden:
 
 Framework Definition File <framework-definition-file/index>
+Bring Your Own Benchmark <byob/index>
 :::
