@@ -91,12 +91,32 @@ Each cache uses a SHA256 hash of the request data as the lookup key. When a cach
 
 Use `seed_cache_dir` to reuse cached responses from a previous run — e.g., when resuming after a timeout or migrating between clusters.
 
+Legacy (flat) configuration:
+
 ```yaml
 target:
   api_endpoint:
     adapter_config:
       use_caching: true
       seed_cache_dir: /path/to/previous/run/cache
+```
+
+Interceptor configuration:
+
+```yaml
+target:
+  api_endpoint:
+    adapter_config:
+      interceptors:
+        - name: "caching"
+          enabled: true
+          config:
+            cache_dir: "./evaluation_cache"
+            seed_cache_dir: /path/to/previous/run/cache
+            reuse_cached_responses: true
+        - name: "endpoint"
+          enabled: true
+          config: {}
 ```
 
 On a primary cache miss, the interceptor falls back to the seed cache. Seed hits are **automatically promoted** into the primary cache, so the output cache is self-contained. The seed cache is never modified.

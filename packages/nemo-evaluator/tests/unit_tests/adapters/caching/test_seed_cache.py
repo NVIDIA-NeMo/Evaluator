@@ -206,6 +206,25 @@ class TestSeedCacheFallback:
         assert interceptor.seed_responses_cache is None
         assert interceptor.seed_headers_cache is None
 
+    def test_seed_cache_partial_dir(self, tmp_path):
+        """seed_cache_dir exists with responses/ but no headers/ → seed disabled, no crash."""
+        primary_dir = str(tmp_path / "primary")
+        seed_dir = str(tmp_path / "seed")
+
+        # Create only responses subdir, not headers
+        (tmp_path / "seed" / "responses").mkdir(parents=True)
+
+        interceptor = CachingInterceptor(
+            CachingInterceptor.Params(
+                cache_dir=primary_dir,
+                seed_cache_dir=seed_dir,
+                reuse_cached_responses=True,
+            )
+        )
+
+        assert interceptor.seed_responses_cache is None
+        assert interceptor.seed_headers_cache is None
+
     def test_new_responses_saved_to_primary_only(self, tmp_path):
         """New cache entries go to primary cache, not seed."""
         primary_dir = str(tmp_path / "primary")

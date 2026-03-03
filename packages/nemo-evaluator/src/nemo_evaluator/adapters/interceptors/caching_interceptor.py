@@ -90,6 +90,9 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
             params: Configuration parameters
         """
 
+        # Get logger for this interceptor with interceptor context
+        self.logger = get_logger(self.__class__.__name__)
+
         # Initialize caches immediately
         self.responses_cache = Cache(directory=f"{params.cache_dir}/responses")
         self.requests_cache = Cache(directory=f"{params.cache_dir}/requests")
@@ -104,6 +107,11 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
                 self.seed_responses_cache = Cache(directory=seed_responses_dir)
                 self.seed_headers_cache = Cache(directory=seed_headers_dir)
             else:
+                self.logger.warning(
+                    "seed_cache_dir is configured but required subdirectories "
+                    "(responses/, headers/) were not found; seed cache disabled",
+                    seed_cache_dir=params.seed_cache_dir,
+                )
                 self.seed_responses_cache = None
                 self.seed_headers_cache = None
         else:
@@ -129,9 +137,6 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
 
         # Thread safety
         self._count_lock = threading.Lock()
-
-        # Get logger for this interceptor with interceptor context
-        self.logger = get_logger(self.__class__.__name__)
 
         self.logger.info(
             "Caching interceptor initialized",
@@ -254,8 +259,11 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
                 cached_content = self.seed_responses_cache[cache_key]
                 cached_headers = self.seed_headers_cache[cache_key]
                 self.logger.debug("Cache hit (seed)", cache_key=cache_key[:8] + "...")
-                # Promote seed entry into primary cache so the output cache is self-contained
-                self._save_to_cache(cache_key, cached_content, cached_headers)
+                # Promote seed entry into primary cache so the output cache is self-contained.
+                # Write directly instead of calling _save_to_cache to avoid
+                # incrementing _cached_responses_count for promoted entries.
+                self.responses_cache[cache_key] = cached_content
+                self.headers_cache[cache_key] = cached_headers
                 return cached_content, cached_headers
             except KeyError:
                 pass
