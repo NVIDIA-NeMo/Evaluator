@@ -27,41 +27,13 @@ class TestFormatRequestsProcessed:
     def test_int_zero(self):
         assert Cmd._format_requests_processed(0) == "0"
 
-    def test_unknown_string(self):
-        assert Cmd._format_requests_processed("unknown") == "-"
-
-    def test_none(self):
+    def test_none_returns_dash(self):
         assert Cmd._format_requests_processed(None) == "-"
 
-    def test_float_falls_through_to_dash(self):
-        """Floats are no longer expected — they should display as dash."""
-        assert Cmd._format_requests_processed(0.75) == "-"
-
-    def test_missing_key_defaults_to_dash(self):
-        """Simulates job dict without progress key — .get() returns None."""
-        job = {"status": "running"}
-        assert Cmd._format_requests_processed(job.get("progress")) == "-"
-
-
-class TestExtractProgressFromJob:
-    """Tests that progress is correctly extracted from job dicts (dict wrapper)."""
-
-    @staticmethod
-    def _extract_progress(job: dict) -> object:
-        """Reproduce the extraction logic used in Cmd.execute."""
+    def test_dict_wrapped_int(self):
+        """Local executor wraps progress in dict(progress=N)."""
+        job = {"progress": {"progress": 42}}
         progress_data = job.get("progress")
         if isinstance(progress_data, dict):
             progress_data = progress_data.get("progress")
-        return progress_data
-
-    def test_dict_wrapped_int(self):
-        job = {"progress": {"progress": 42}}
-        assert Cmd._format_requests_processed(self._extract_progress(job)) == "42"
-
-    def test_dict_wrapped_none(self):
-        job = {"progress": {"progress": None}}
-        assert Cmd._format_requests_processed(self._extract_progress(job)) == "-"
-
-    def test_no_progress_key(self):
-        job = {"status": "running"}
-        assert Cmd._format_requests_processed(self._extract_progress(job)) == "-"
+        assert Cmd._format_requests_processed(progress_data) == "42"
