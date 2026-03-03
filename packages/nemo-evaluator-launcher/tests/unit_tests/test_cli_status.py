@@ -18,29 +18,29 @@
 from nemo_evaluator_launcher.cli.status import Cmd
 
 
-class TestFormatProgress:
-    """Tests for Cmd._format_progress static method."""
+class TestFormatRequestsProcessed:
+    """Tests for Cmd._format_requests_processed static method."""
 
     def test_int_request_count(self):
-        assert Cmd._format_progress(1234) == "1234"
+        assert Cmd._format_requests_processed(1234) == "1234"
 
     def test_int_zero(self):
-        assert Cmd._format_progress(0) == "0"
+        assert Cmd._format_requests_processed(0) == "0"
 
     def test_unknown_string(self):
-        assert Cmd._format_progress("unknown") == "-"
+        assert Cmd._format_requests_processed("unknown") == "-"
 
     def test_none(self):
-        assert Cmd._format_progress(None) == "-"
+        assert Cmd._format_requests_processed(None) == "-"
 
     def test_float_falls_through_to_dash(self):
         """Floats are no longer expected — they should display as dash."""
-        assert Cmd._format_progress(0.75) == "-"
+        assert Cmd._format_requests_processed(0.75) == "-"
 
     def test_missing_key_defaults_to_dash(self):
         """Simulates job dict without progress key — .get() returns None."""
         job = {"status": "running"}
-        assert Cmd._format_progress(job.get("progress")) == "-"
+        assert Cmd._format_requests_processed(job.get("progress")) == "-"
 
 
 class TestExtractProgressFromJob:
@@ -56,12 +56,12 @@ class TestExtractProgressFromJob:
 
     def test_dict_wrapped_int(self):
         job = {"progress": {"progress": 42}}
-        assert Cmd._format_progress(self._extract_progress(job)) == "42"
+        assert Cmd._format_requests_processed(self._extract_progress(job)) == "42"
 
     def test_dict_wrapped_none(self):
         job = {"progress": {"progress": None}}
-        assert Cmd._format_progress(self._extract_progress(job)) == "-"
+        assert Cmd._format_requests_processed(self._extract_progress(job)) == "-"
 
     def test_no_progress_key(self):
         job = {"status": "running"}
-        assert Cmd._format_progress(self._extract_progress(job)) == "-"
+        assert Cmd._format_requests_processed(self._extract_progress(job)) == "-"

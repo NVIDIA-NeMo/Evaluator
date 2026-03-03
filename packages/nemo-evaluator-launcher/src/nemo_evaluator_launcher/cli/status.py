@@ -103,7 +103,7 @@ class Cmd:
             progress_data = job.get("progress")
             if isinstance(progress_data, dict):
                 progress_data = progress_data.get("progress")
-            formatted_progress = self._format_progress(progress_data)
+            formatted_progress = self._format_requests_processed(progress_data)
 
             rows.append(
                 [
@@ -157,7 +157,7 @@ class Cmd:
         return status_formats.get(status.lower(), pu.grey(status.upper()))
 
     @staticmethod
-    def _format_progress(progress: object) -> str:
+    def _format_requests_processed(progress: object) -> str:
         """Format progress value for table display.
 
         Args:
