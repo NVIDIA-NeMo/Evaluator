@@ -161,16 +161,14 @@ class Cmd:
         """Format progress value for table display.
 
         Args:
-            progress: Progress value — float (0.0–1.0 fraction), int (raw sample count),
+            progress: Progress value — int (completed request count),
                 "unknown", or None.
 
         Returns:
             Formatted string for the Progress column.
         """
-        if isinstance(progress, float):
-            return f"{progress * 100:.1f}%"
         if isinstance(progress, int):
-            return f"{progress} samples"
+            return f"{progress} requests"
         return "-"
 
     def _strip_ansi_codes(self, text: str) -> str:

@@ -2513,23 +2513,13 @@ class TestSlurmExecutorSystemCalls:
                 socket=None,
             )
 
-    def test_get_progress_with_dataset_size(self, monkeypatch):
-        """Test _get_progress with dataset size calculation."""
+    def test_get_progress_returns_raw_request_count(self, monkeypatch):
+        """Test _get_progress returns raw request count from progress file."""
         from nemo_evaluator_launcher.executors.slurm.executor import _get_progress
 
-        # Mock file reads
         monkeypatch.setattr(
             "nemo_evaluator_launcher.executors.slurm.executor._read_files_from_remote",
-            lambda paths, user, host, sock: ["100", "config: test"]
-            if "progress" in str(paths[0])
-            else ["framework_name: test\nconfig:\n  type: test"],
-            raising=True,
-        )
-
-        # Mock dataset size calculation
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_dataset_size_from_run_config",
-            lambda config: 200,
+            lambda paths, user, host, sock: ["100"],
             raising=True,
         )
 
@@ -2540,46 +2530,31 @@ class TestSlurmExecutorSystemCalls:
             socket=None,
         )
 
-        assert result == [0.5]  # 100/200
+        assert result == [100]
 
-    def test_get_progress_no_dataset_size(self, monkeypatch):
-        """Test _get_progress without dataset size (raw progress)."""
+    def test_get_progress_multiple_jobs(self, monkeypatch):
+        """Test _get_progress with multiple jobs."""
         from nemo_evaluator_launcher.executors.slurm.executor import _get_progress
-
-        # Mock file reads - return progress and valid config, but no dataset size
-        def mock_read_files(paths, user, host, sock):
-            if "progress" in str(paths[0]):
-                return ["150"]
-            else:  # run_config paths
-                return ["config:\n  type: test\nframework_name: unknown"]
 
         monkeypatch.setattr(
             "nemo_evaluator_launcher.executors.slurm.executor._read_files_from_remote",
-            mock_read_files,
-            raising=True,
-        )
-
-        # Mock dataset size to return None
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_dataset_size_from_run_config",
-            lambda config: None,
+            lambda paths, user, host, sock: ["1140", "20"],
             raising=True,
         )
 
         result = _get_progress(
-            remote_rundir_paths=[Path("/job1")],
+            remote_rundir_paths=[Path("/job1"), Path("/job2")],
             username="user",
             hostname="host",
             socket=None,
         )
 
-        assert result == [150]  # Raw progress when no dataset size
+        assert result == [1140, 20]
 
     def test_get_progress_missing_files(self, monkeypatch):
-        """Test _get_progress with missing progress/config files."""
+        """Test _get_progress with missing progress files."""
         from nemo_evaluator_launcher.executors.slurm.executor import _get_progress
 
-        # Mock file reads to return empty strings (files not found)
         monkeypatch.setattr(
             "nemo_evaluator_launcher.executors.slurm.executor._read_files_from_remote",
             lambda paths, user, host, sock: [""],
@@ -2593,7 +2568,26 @@ class TestSlurmExecutorSystemCalls:
             socket=None,
         )
 
-        assert result == [None]  # None when files missing
+        assert result == [None]
+
+    def test_get_progress_invalid_content(self, monkeypatch):
+        """Test _get_progress with non-integer progress file content."""
+        from nemo_evaluator_launcher.executors.slurm.executor import _get_progress
+
+        monkeypatch.setattr(
+            "nemo_evaluator_launcher.executors.slurm.executor._read_files_from_remote",
+            lambda paths, user, host, sock: ["not_a_number"],
+            raising=True,
+        )
+
+        result = _get_progress(
+            remote_rundir_paths=[Path("/job1")],
+            username="user",
+            hostname="host",
+            socket=None,
+        )
+
+        assert result == [None]
 
 
 class TestSlurmExecutorKillJob:
