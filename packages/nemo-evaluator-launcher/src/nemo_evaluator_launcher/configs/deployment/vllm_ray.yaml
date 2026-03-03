@@ -44,10 +44,6 @@ command: |
 
   export VLLM_USE_RAY_COMPILED_DAG_CHANNEL_TYPE=${deployment.ray_compiled_dag_channel_type}
 
-  # Map SLURM variables to scheduler-agnostic names
-  PROC_ID=$SLURM_PROCID
-  NUM_TASKS=$SLURM_NTASKS
-
   RAY_PORT=6379
   NODE_PORT=8266
   OBJ_PORT=8267

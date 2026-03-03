@@ -1758,11 +1758,15 @@ def _generate_deployment_srun_command(
         s += f"--container-env {','.join(sorted(deployment_env_var_names))} "
 
     # Build the command that runs inside the container:
-    # 1. Optionally write + source deployment_pre_cmd.sh
-    # 2. Write deployment_cmd.sh and execute it
+    # 1. Export scheduler-agnostic env vars (PROC_ID, NUM_TASKS)
+    # 2. Optionally write + source deployment_pre_cmd.sh
+    # 3. Write deployment_cmd.sh and execute it
     create_script_cmd = _str_to_echo_command(cfg.deployment.command, filename="deployment_cmd.sh")
     debug_comment += create_script_cmd.debug + "\n\n"
-    script = f"{create_script_cmd.cmd} && bash deployment_cmd.sh"
+
+    # Map SLURM task variables to scheduler-agnostic names inside the container
+    env_setup = "export PROC_ID=${SLURM_PROCID:-0} NUM_TASKS=${SLURM_NTASKS:-1}"
+    script = f"{env_setup} && {create_script_cmd.cmd} && bash deployment_cmd.sh"
 
     # Wrap deployment command to execute pre_cmd inside container if needed
     if pre_cmd:
@@ -1774,9 +1778,10 @@ def _generate_deployment_srun_command(
             pre_cmd, filename="deployment_pre_cmd.sh"
         )
         script = (
+            f"{env_setup} && "
             f"{create_pre_script_cmd.cmd} && "
             f"source deployment_pre_cmd.sh && "
-            f"{script}"
+            f"{create_script_cmd.cmd} && bash deployment_cmd.sh"
         )
     s += "bash -c '{}' &\n\n".format(script)  # run asynchronously
 

@@ -58,9 +58,9 @@
 # - deployment.pipeline_parallel_size: Model parallelism across nodes within an instance
 #
 # The vllm_ray deployment config contains a built-in Ray setup script.
-# The script uses scheduler-agnostic variables (PROC_ID, NUM_TASKS) with
-# fallbacks to SLURM equivalents, and computes per-instance variables
-# (INSTANCE_ID, INSTANCE_RANK, etc.) internally.
+# The script expects scheduler-agnostic variables (PROC_ID, NUM_TASKS,
+# MASTER_IP, ALL_NODE_IPS) exported by the executor, and computes
+# per-instance variables (INSTANCE_ID, INSTANCE_RANK, etc.) internally.
 # ==============================================================================
 
 defaults:
