@@ -470,7 +470,7 @@ class Cache:
 
         if not op.isdir(directory):
             try:
-                os.makedirs(directory, 0o755)
+                os.makedirs(directory, 0o775)
             except OSError as error:
                 if error.errno != errno.EEXIST:
                     raise EnvironmentError(
@@ -632,8 +632,9 @@ class Cache:
         con = getattr(self._local, "con", None)
 
         if con is None:
+            db_path = op.join(self._directory, DBNAME)
             con = self._local.con = sqlite3.connect(
-                op.join(self._directory, DBNAME),
+                db_path,
                 timeout=self._timeout,
                 isolation_level=None,
             )
@@ -652,6 +653,18 @@ class Cache:
                 for key, value in settings:
                     if key.startswith("sqlite_"):
                         self.reset(key, value, update=False)
+
+            # Make the database and any leftover WAL/SHM files group-writable.
+            # SQLite hard-codes 0644 via SQLITE_DEFAULT_FILE_PERMISSIONS.
+            # The -wal/-shm files are needed for crash recovery by other
+            # group members.
+            for suffix in ("", "-wal", "-shm"):
+                fpath = db_path + suffix
+                if op.exists(fpath):
+                    try:
+                        os.chmod(fpath, 0o664)
+                    except OSError:
+                        pass
 
         return con
 
