@@ -100,7 +100,10 @@ class Cmd:
             # Extract task name
 
             # Format progress for display
-            formatted_progress = self._format_progress(job.get("progress"))
+            progress_data = job.get("progress")
+            if isinstance(progress_data, dict):
+                progress_data = progress_data.get("progress")
+            formatted_progress = self._format_progress(progress_data)
 
             rows.append(
                 [
