@@ -50,6 +50,7 @@ from nemo_evaluator_launcher.common.helpers import (
     check_unlisted_tasks_safeguard,
     get_api_key_name,
     get_eval_factory_command,
+    get_eval_factory_dataset_size_from_run_config,
     get_timestamp_string,
 )
 from nemo_evaluator_launcher.common.logging_utils import logger

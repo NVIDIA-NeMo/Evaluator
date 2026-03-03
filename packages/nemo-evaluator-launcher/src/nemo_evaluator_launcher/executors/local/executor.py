@@ -28,7 +28,7 @@ import time
 from typing import Iterator, List, Optional, Tuple, Union
 
 import jinja2
-
+import yaml
 from omegaconf import DictConfig, OmegaConf
 
 from nemo_evaluator_launcher.common.env_vars import (
@@ -49,6 +49,7 @@ from nemo_evaluator_launcher.common.helpers import (
     get_api_key_name,
     get_endpoint_url,
     get_eval_factory_command,
+    get_eval_factory_dataset_size_from_run_config,
     get_health_url,
     get_timestamp_string,
 )
@@ -1044,3 +1045,19 @@ def _get_progress(artifacts_dir: pathlib.Path) -> Optional[int]:
         return int(progress_str)
     except ValueError:
         return None
+
+
+def _get_dataset_size(artifacts_dir: pathlib.Path) -> Optional[int]:
+    """Get the dataset size for a benchmark.
+
+    Args:
+        artifacts_dir: The directory containing the evaluation artifacts.
+
+    Returns:
+        The dataset size for the benchmark.
+    """
+    run_config = artifacts_dir / "run_config.yml"
+    if not run_config.exists():
+        return None
+    run_config = yaml.safe_load(run_config.read_text())
+    return get_eval_factory_dataset_size_from_run_config(run_config)
