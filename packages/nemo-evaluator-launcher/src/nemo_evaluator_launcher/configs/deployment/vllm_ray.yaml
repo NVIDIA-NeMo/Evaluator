@@ -23,9 +23,8 @@
 #   - Starts a Ray worker on every other rank (blocks forever so only the
 #     head runs the deployment command).
 #
-# Supports both single-instance (NUM_INSTANCES == 1, SLURM_PROCID for rank)
-# and multi-instance (NUM_INSTANCES > 1, instance-local ranks computed from
-# SLURM_PROCID).
+# Supports both single-instance (NUM_INSTANCES == 1) and multi-instance
+# (NUM_INSTANCES > 1, instance-local ranks computed automatically).
 #
 # OmegaConf escaping note:
 #   $VAR           → passed through as literal (safe for bash)
@@ -45,6 +44,10 @@ command: |
 
   export VLLM_USE_RAY_COMPILED_DAG_CHANNEL_TYPE=${deployment.ray_compiled_dag_channel_type}
 
+  # Map SLURM variables to scheduler-agnostic names
+  PROC_ID=$SLURM_PROCID
+  NUM_TASKS=$SLURM_NTASKS
+
   RAY_PORT=6379
   NODE_PORT=8266
   OBJ_PORT=8267
@@ -56,9 +59,9 @@ command: |
 
   # Determine mode: multi-instance (NUM_INSTANCES > 1) or single-instance
   if [ "$NUM_INSTANCES" -gt 1 ]; then
-      # Multi-instance mode: compute per-task instance vars from SLURM_PROCID
-      let "INSTANCE_ID = SLURM_PROCID / NODES_PER_INSTANCE" || true
-      let "INSTANCE_RANK = SLURM_PROCID % NODES_PER_INSTANCE" || true
+      # Multi-instance mode: compute per-instance rank from PROC_ID
+      let "INSTANCE_ID = PROC_ID / NODES_PER_INSTANCE" || true
+      let "INSTANCE_RANK = PROC_ID % NODES_PER_INSTANCE" || true
       export INSTANCE_ID INSTANCE_RANK
       let "HEAD_FIELD = INSTANCE_ID * NODES_PER_INSTANCE + 1"
       export INSTANCE_MASTER_IP=`echo "$ALL_NODE_IPS" | cut -d',' -f"$HEAD_FIELD"`
@@ -69,12 +72,12 @@ command: |
       echo "INSTANCE_ID=$INSTANCE_ID, INSTANCE_RANK=$INSTANCE_RANK, MASTER_IP=$MASTER_IP"
       echo "NODES_PER_INSTANCE=$NODES_PER_INSTANCE, NUM_INSTANCES=$NUM_INSTANCES"
   else
-      # Single-instance mode: use SLURM_PROCID
-      RANK="$SLURM_PROCID"
-      EXPECTED_NODES="$SLURM_NTASKS"
+      # Single-instance mode
+      RANK="$PROC_ID"
+      EXPECTED_NODES="$NUM_TASKS"
       echo "=== Single-Instance Ray Setup ==="
-      echo "SLURM_PROCID=$SLURM_PROCID, MASTER_IP=$MASTER_IP"
-      echo "SLURM_NTASKS=$SLURM_NTASKS"
+      echo "PROC_ID=$PROC_ID, MASTER_IP=$MASTER_IP"
+      echo "NUM_TASKS=$NUM_TASKS"
   fi
   echo "Hostname: `hostname`"
 

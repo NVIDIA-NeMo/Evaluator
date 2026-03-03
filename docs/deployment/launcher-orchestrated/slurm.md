@@ -143,8 +143,6 @@ deployment:
   pipeline_parallel_size: 2
 ```
 
-The `vllm_ray` config automatically handles head/worker node coordination — no `pre_cmd` is needed.
-
 ### Multi-Instance with HAProxy
 
 To run multiple independent deployment instances with HAProxy load-balancing:

@@ -58,7 +58,9 @@
 # - deployment.pipeline_parallel_size: Model parallelism across nodes within an instance
 #
 # The vllm_ray deployment config contains a built-in Ray setup script.
-# The script computes per-instance variables (INSTANCE_ID, INSTANCE_RANK, etc.) internally.
+# The script uses scheduler-agnostic variables (PROC_ID, NUM_TASKS) with
+# fallbacks to SLURM equivalents, and computes per-instance variables
+# (INSTANCE_ID, INSTANCE_RANK, etc.) internally.
 # ==============================================================================
 
 defaults:
@@ -92,7 +94,7 @@ deployment:
   data_parallel_size: 1
   gpu_memory_utilization: 0.90
   port: 8000
-  extra_args: "--disable-custom-all-reduce --enforce-eager"
+  extra_args: "--disable-custom-all-reduce"
 
 evaluation:
   nemo_evaluator_config:
