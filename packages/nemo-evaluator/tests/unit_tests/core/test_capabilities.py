@@ -10,7 +10,7 @@ from nemo_evaluator.core.utils import MisconfigurationError
 
 @pytest.mark.parametrize("capability", BENCHMARK_CAPABILITIES.keys())
 def test_capability_is_valid(capability):
-    "model_id" not in BENCHMARK_CAPABILITIES[capability].payload
+    assert "model" not in BENCHMARK_CAPABILITIES[capability].payload
 
 
 @pytest.mark.parametrize("capability", BENCHMARK_CAPABILITIES.keys())
@@ -20,7 +20,7 @@ def test_verify_capabilities(capability, monkeypatch):
 
     monkeypatch.setattr(
         "requests.post",
-        lambda url, json, headers: SimpleNamespace(
+        lambda *args, **kwargs: SimpleNamespace(
             status_code=200,
             text="Dummy response.",
         ),
@@ -39,13 +39,13 @@ def test_verify_capabilities(capability, monkeypatch):
 
 
 @pytest.mark.parametrize("capability", BENCHMARK_CAPABILITIES.keys())
-def test_verify_capabilities_nop_supported(capability, monkeypatch):
+def test_verify_capabilities_not_supported(capability, monkeypatch):
     url = "https://dummy-url.com"
     model_id = "dummy-model-id"
 
     monkeypatch.setattr(
         "requests.post",
-        lambda url, json, headers: SimpleNamespace(
+        lambda *args, **kwargs: SimpleNamespace(
             status_code=500,
             text="Internal server error.",
         ),
