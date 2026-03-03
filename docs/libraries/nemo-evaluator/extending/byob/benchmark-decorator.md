@@ -117,7 +117,7 @@ def check(sample: ScorerInput) -> dict:
 
 The dataset must include the field specified by `response_field`:
 
-```jsonl
+```json
 {"question": "Is the sky blue?", "answer": "yes", "model_output": "Yes, the sky is blue."}
 ```
 

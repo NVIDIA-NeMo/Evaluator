@@ -8,7 +8,7 @@ BYOB benchmarks load evaluation data from local JSONL files, CSV/TSV files, or H
 
 The default and recommended format is JSONL (JSON Lines). Each line is a self-contained JSON object representing one evaluation sample.
 
-```jsonl
+```json
 {"question": "Is the sky blue?", "answer": "yes"}
 {"question": "Is water dry?", "answer": "no"}
 ```
