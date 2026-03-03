@@ -1,0 +1,14 @@
+defaults:
+  - deployment: none
+
+target:
+  api_endpoint:
+    model_id: ??? # Model identifier (e.g., meta/llama-3.2-3b-instruct)
+    url: ??? # API endpoint URL (e.g., https://integrate.api.nvidia.com/v1/chat/completions)
+    api_key_name: ??? # Environment variable name containing API key (e.g., NGC_API_KEY)
+
+evaluation:
+  nemo_evaluator_config:
+    config:
+      params:
+        parallelism: 1 # External APIs are typically rate-limited

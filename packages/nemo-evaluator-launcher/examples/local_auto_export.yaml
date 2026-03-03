@@ -61,7 +61,7 @@ evaluation:
   tasks:
     - name: simple_evals.gpqa_diamond
       env_vars:
-        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
+        HF_TOKEN: host:HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
 
 # Exporter configurations (paired with auto-export only)
 export:
@@ -74,6 +74,7 @@ export:
     description: "nemo-evaluator-launcher Evaluation test run with auto-export"
     log_metrics: ["gpqa_diamond_score_micro"]  # subset of metrics to log (others will be skipped)
     log_logs: true
+    log_config_params: true  # log flattened config as MLflow params
     only_required: false
 
     # MLflow tags (key-value pairs)

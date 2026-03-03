@@ -1,0 +1,6 @@
+# Multilingual Benchmarks for base models (completions endpoint, log-probability based)
+evaluation:
+  tasks:
+    - name: lm-evaluation-harness.global_mmlu # Global-MMLU-Lite (10 languages subset) - log-prob based
+    - name: lm-evaluation-harness.arc_multilingual # Log-prob based
+    - name: lm-evaluation-harness.hellaswag_multilingual # Log-prob based

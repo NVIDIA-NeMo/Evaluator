@@ -30,7 +30,7 @@ target:
   api_endpoint:
     model_id: meta/llama-3.1-8b-instruct    # Model identifier (required)
     url: https://your-endpoint.com/v1/chat/completions  # Endpoint URL (required)
-    api_key_name: API_KEY                    # Environment variable name (recommended)
+    api_key_name: NGC_API_KEY                 # Environment variable name holding the API key
 ```
 
 ## Platform Examples
@@ -61,12 +61,12 @@ evaluation:
   tasks:
     - name: gpqa_diamond
       env_vars:
-        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND  # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
+        HF_TOKEN: $host:HF_TOKEN_FOR_GPQA_DIAMOND  # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
 ```
 
 **Key Points:**
 - Minimal configuration required
-- Set environment variables in your shell
+- Set environment variables in your shell (or use `--env-file`, see {ref}`env-vars-configuration`)
 - Limited by local machine resources
 :::
 
@@ -146,7 +146,7 @@ evaluation:
   tasks:
     - name: gpqa_diamond
       env_vars:
-        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
+        HF_TOKEN: $host:HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
 ```
 
 **Key Points:**

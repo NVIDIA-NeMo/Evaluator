@@ -1,0 +1,18 @@
+{
+  "name": "nemo-evaluator-skills",
+  "owner": {
+    "name": "NVIDIA"
+  },
+  "metadata": {
+    "description": "Agent Skills for NeMo Evaluator SDK",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "nel-assistant",
+      "source": "./packages/nemo-evaluator-launcher/.claude/skills/nel-assistant",
+      "skills": "./",
+      "description": "Interactive assistant for NeMo Evaluator Launcher. Guides you through configuring, running, and monitoring model evaluations with support for SLURM and Local executors, all deployment types (vLLM, SGLang, NIM, TRT-LLM), and auto-exporters (MLflow, W&B)."
+    }
+  ]
+}

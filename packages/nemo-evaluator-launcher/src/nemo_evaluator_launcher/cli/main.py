@@ -19,6 +19,7 @@ import os
 
 from simple_parsing import ArgumentParser
 
+import nemo_evaluator_launcher.cli.config as config
 import nemo_evaluator_launcher.cli.export as export
 import nemo_evaluator_launcher.cli.info as info
 import nemo_evaluator_launcher.cli.kill as kill
@@ -26,7 +27,9 @@ import nemo_evaluator_launcher.cli.logs as logs
 import nemo_evaluator_launcher.cli.ls_runs as ls_runs
 import nemo_evaluator_launcher.cli.ls_task as ls_task
 import nemo_evaluator_launcher.cli.ls_tasks as ls_tasks
+import nemo_evaluator_launcher.cli.resume as resume
 import nemo_evaluator_launcher.cli.run as run
+import nemo_evaluator_launcher.cli.skills as skills
 import nemo_evaluator_launcher.cli.status as status
 import nemo_evaluator_launcher.cli.version as version
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -52,6 +55,7 @@ def is_verbose_enabled(args) -> bool:
         "runs",
         "task",
         "export",
+        "resume",
     ]
     for subcmd in subcommands:
         if hasattr(args, subcmd) and hasattr(getattr(args, subcmd), "verbose"):
@@ -169,6 +173,57 @@ def create_parser() -> ArgumentParser:
     )
     ls_task_parser.add_arguments(ls_task.Cmd, dest="task")
 
+    # Skills subcommand (with nested subcommands)
+    skills_parser = subparsers.add_parser(
+        "skills",
+        help="Manage NEL agent skills",
+        description="Manage NEL agent skills for AI coding assistants",
+    )
+    skills_sub = skills_parser.add_subparsers(dest="skills_command", required=False)
+    skills_install_parser = skills_sub.add_parser(
+        "install",
+        help="Install NEL agent skills",
+        description="Install NEL agent skills for AI coding assistants",
+    )
+    skills_install_parser.add_arguments(skills.InstallCmd, dest="skills_install")
+    skills_build_config_parser = skills_sub.add_parser(
+        "build-config",
+        help="Build evaluation config from templates",
+        description="Build a complete NEL evaluation config by combining template excerpts",
+    )
+    skills_build_config_parser.add_arguments(
+        skills.BuildConfigCmd, dest="skills_build_config"
+    )
+    # Stash reference so we can print help when no subcommand is given
+    parser._skills_parser = skills_parser  # type: ignore[attr-defined]
+
+    # Config subcommand (with nested subcommands)
+    config_parser = subparsers.add_parser(
+        "config",
+        help="Manage persistent configuration",
+        description="Manage persistent configuration in ~/.config/nemo-evaluator/config.yaml",
+    )
+    config_sub = config_parser.add_subparsers(dest="config_command", required=False)
+
+    config_set_parser = config_sub.add_parser(
+        "set", help="Set a config value", description="Set a config value"
+    )
+    config_set_parser.add_arguments(config.SetCmd, dest="config_set")
+
+    config_get_parser = config_sub.add_parser(
+        "get",
+        help="Get the effective value of a config key",
+        description="Get the effective value of a config key",
+    )
+    config_get_parser.add_arguments(config.GetCmd, dest="config_get")
+
+    config_show_parser = config_sub.add_parser(
+        "show",
+        help="Show the full config file",
+        description="Show the full config file",
+    )
+    config_show_parser.add_arguments(config.ShowCmd, dest="config_show")
+
     # Export subcommand
     export_parser = subparsers.add_parser(
         "export",
@@ -182,6 +237,14 @@ def create_parser() -> ArgumentParser:
         help="Enable verbose logging (sets LOG_LEVEL=DEBUG)",
     )
     export_parser.add_arguments(export.ExportCmd, dest="export")
+
+    # Resume subcommand
+    resume_parser = subparsers.add_parser(
+        "resume",
+        help="Resume an evaluation.",
+        description="Resume an evaluation by re-executing existing scripts in output directories",
+    )
+    resume_parser.add_arguments(resume.Cmd, dest="resume")
 
     # Info subcommand
     info_parser = subparsers.add_parser(
@@ -243,8 +306,28 @@ def main() -> None:
             args.task.execute()
         elif args.ls_command == "runs":
             args.runs.execute()
+    elif args.command == "skills":
+        if args.skills_command == "install":
+            args.skills_install.execute()
+        elif args.skills_command == "build-config":
+            args.skills_build_config.execute()
+        else:
+            parser._skills_parser.print_help()  # type: ignore[attr-defined]
+    elif args.command == "config":
+        if args.config_command == "set":
+            args.config_set.execute()
+        elif args.config_command == "get":
+            args.config_get.execute()
+        elif args.config_command == "show":
+            args.config_show.execute()
+        else:
+            # No subcommand — print config help
+            parser = create_parser()
+            parser.parse_args(["config", "--help"])
     elif args.command == "export":
         args.export.execute()
+    elif args.command == "resume":
+        args.resume.execute()
     elif args.command == "info":
         args.info.execute()
 

@@ -21,7 +21,7 @@ To deploy your model using Ray, use the `deploy_ray_inframework.py` script from 
 ```shell
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
-  --nemo_checkpoint "meta-llama/Llama-3.1-8B" \
+  --megatron_checkpoint "/workspace/mbridge_llama3_8b/iter_0000000/" \ # Llama3 8B HF checkpoint converted to MBridge
   --model_id "megatron_model" \
   --port 8080 \                          # Ray server port
   --num_gpus 4 \                         # Total GPUs available
@@ -57,7 +57,7 @@ To evaluate log-probability benchmarks (e.g., `arc_challenge`), run the followin
 Make sure to open a new terminal within the same container to execute it.
 
 
-```{literalinclude} _snippets/arc_challenge.py
+```{literalinclude} _snippets/arc_challenge_mbridge.py
 :language: python
 :start-after: "## Run the evaluation"
 ```
@@ -66,7 +66,7 @@ Note that in the example above, you must provide a path to the tokenizer:
 
 ```python
         extra={
-            "tokenizer": "/workspace/llama3_8b_nemo2/context/nemo_tokenizer",
+            "tokenizer": "/workspace/mbridge_llama3_8b/iter_0000000/tokenizer",
             "tokenizer_backend": "huggingface",
         },
 ```

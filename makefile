@@ -5,7 +5,8 @@
         container-metadata-verify container-metadata-update \
         docs-html-internal docs-html-ga docs-html-ea docs-html-draft \
         docs-live-internal docs-live-ga docs-live-ea docs-live-draft \
-        docs-publish-internal docs-publish-ga docs-publish-ea docs-publish-draft
+        docs-publish-internal docs-publish-ga docs-publish-ea docs-publish-draft \
+        update-configs
 
 # Usage:
 #   make docs-html DOCS_ENV=internal   # Build docs for internal use
@@ -161,3 +162,23 @@ docs-help:
 	@echo "  make docs-live DOCS_ENV=draft    # Live server with draft tag"
 	@echo ""
 	@echo "Note: Uses 'uv run' with dependencies from docs/pyproject.toml"
+
+# ---------------------------------------------------------------------------
+# Config consistency checker (requires Claude Code CLI: `claude`)
+# ---------------------------------------------------------------------------
+
+NEL_PKG := $(REPO_ROOT)/packages/nemo-evaluator-launcher
+CONFIG_REF := $(NEL_PKG)/.claude/plans/config-templates-reference.md
+
+update-configs:
+	@cd "$(NEL_PKG)" && \
+	DIFF=$$(git diff main...HEAD -- .); \
+	if [ -z "$$DIFF" ]; then \
+		echo "CONFIGS_OK"; \
+	else \
+		{ cat "$(CONFIG_REF)"; \
+		  printf '\n---\n\nGit diff (main...HEAD):\n\n```diff\n'; \
+		  echo "$$DIFF"; \
+		  printf '\n```\n'; } \
+		| claude -p --model claude-opus-4-6-1m; \
+	fi

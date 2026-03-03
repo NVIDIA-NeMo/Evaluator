@@ -561,18 +561,9 @@ class LeptonExecutor(BaseExecutor):
 
                     job_mounts.append(mount_dict)
 
-                # Handle dataset directory mounting if NEMO_EVALUATOR_DATASET_DIR is required
-                if "NEMO_EVALUATOR_DATASET_DIR" in task_definition.get(
-                    "required_env_vars", []
-                ):
-                    # Get dataset directory from task config
-                    if "dataset_dir" in task:
-                        dataset_mount_host = task["dataset_dir"]
-                    else:
-                        raise ValueError(
-                            f"{task.name} task requires a dataset_dir to be specified. "
-                            f"Add 'dataset_dir: /path/to/your/dataset' under the task configuration."
-                        )
+                # Handle dataset directory mounting if dataset_dir is specified in the task config
+                if "dataset_dir" in task:
+                    dataset_mount_host = task["dataset_dir"]
                     # Get container mount path (default to /datasets if not specified)
                     dataset_mount_container = task.get(
                         "dataset_mount_path", "/datasets"
@@ -953,40 +944,6 @@ def _dry_run_lepton(
                     raise ValueError(
                         f"deployment.endpoints['{etype}'] must be a non-empty path starting with '/'"
                     )
-
-        # lepton env var presence (reference-level)
-        tasks_cfg = getattr(cfg.execution, "lepton_platform", {}).get("tasks", {}) or {}
-        lepton_env_vars = tasks_cfg.get("env_vars", {}) or {}
-        api_key_name = getattr(
-            getattr(cfg, "target", {}).get("api_endpoint", {}), "api_key_name", None
-        )
-        for task in cfg.evaluation.tasks:
-            td = get_task_definition_for_job(
-                task_query=task.name,
-                base_mapping=tasks_mapping,
-                container=task.get("container"),
-            )
-            required = td.get("required_env_vars", []) or []
-            for var in required:
-                # Skip NEMO_EVALUATOR_DATASET_DIR as it's handled by dataset mounting logic
-                if var == "NEMO_EVALUATOR_DATASET_DIR":
-                    if "dataset_dir" not in task:
-                        raise ValueError(
-                            f"Task '{task.name}' requires dataset_dir to be specified. "
-                            f"Add 'dataset_dir: /path/to/your/dataset' under the task configuration."
-                        )
-                    continue
-                if var == "API_KEY":
-                    if not (("API_KEY" in lepton_env_vars) or bool(api_key_name)):
-                        raise ValueError(
-                            f"Task '{task.name}' requires API_KEY: set execution.lepton_platform.tasks.env_vars.API_KEY "
-                            "or target.api_endpoint.api_key_name"
-                        )
-                else:
-                    if var not in lepton_env_vars:
-                        raise ValueError(
-                            f"Task '{task.name}' requires {var}: set it under execution.lepton_platform.tasks.env_vars"
-                        )
 
         # success (use realized output directory if invocation_id is available)
         preview_output_dir = (

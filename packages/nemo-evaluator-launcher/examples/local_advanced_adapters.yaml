@@ -57,7 +57,7 @@ evaluation:
         target:
           api_endpoint:
             adapter_config:
-              interceptors:
+              interceptors:  # order matters e.g. keep caching before endpoint and request_logging after system_message and payload_modifier modifications
                 - name: "payload_modifier"  # modifies API request payload with custom parameters
                   config:
                     # these parameters will disable reasoning
@@ -91,7 +91,7 @@ evaluation:
                     cache_dir: /results/cache
                     reuse_cached_responses: true
 
-                - name: endpoint  # handles actual API communication
+                - name: endpoint  # handles actual API communication (ALWAYS REQUIRED)
                   enabled: true
                 - name: response_stats  # collects statistics about API responses
                   enabled: true

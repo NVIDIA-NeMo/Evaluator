@@ -17,6 +17,13 @@ The Nemotron 3 Nano 30B A3B is a compact yet powerful reasoning model from NVIDI
 | **SciCode** | Scientific Coding | Scientific programming challenges |
 | **IFBench** | Instruction Following | Instruction following benchmark |
 | **HLE** | Humanity's Last Exam | Expert-level questions across domains |
+| **AIME 2025 (tools)** | Mathematics + Tools | AIME with Python code execution |
+| **GPQA (tools)** | Science + Tools | GPQA with Python code execution |
+| **Tau2 Bench Telecom** | Telecom / Tool Use | Tau2 benchmark (telecom domain) with judge; uses NGC API for model and judge |
+| **MMLU-Pro X** | Knowledge | MMLU-Pro extended multilingual variant |
+| **WMT24++** | Translation | WMT24 translation benchmark |
+| **RULER 128k (chat)** | Long-context | RULER long-context evaluation (128k), chat template |
+| **RULER 64k (chat)** | Long-context | RULER long-context evaluation (64k), chat template |
 
 The open source container on NeMo Skills packaged via NVIDIA's NeMo Evaluator SDK used for evaluations can be found [here](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo_skills?version=25.11).
 
@@ -124,6 +131,11 @@ nemo-evaluator-launcher run --config local_nvidia_nemotron_3_nano_30b_a3b.yaml -
 | `ns_scicode` | SciCode |
 | `ns_ifbench` | IFBench |
 | `ns_hle` | Humanity's Last Exam |
+| `ns_mmlu_prox` | MMLU-Pro X |
+| `ns_wmt24pp` | WMT24++ |
+| `tau2_bench_telecom` | Tau2 Bench Telecom |
+| `ruler-128k-chat` | RULER 128k (chat) |
+| `ruler-64k-chat` | RULER 64k (chat) |
 
 ---
 
@@ -179,6 +191,16 @@ Different benchmarks use tailored parameters:
 - GPT-4o judge via OpenAI API
 - Judge parallelism: 16
 - Requires `JUDGE_API_KEY` and configuring the judge URL
+
+#### Tau2 Bench Telecom
+- Temperature: 0.6, top_p: 0.95
+- 8 samples per item; optional caching and skip_failed_samples
+- Uses `JUDGE_API_KEY` and `USER_API_KEY` (mapped from `NGC_API_KEY` in the config)
+
+#### RULER (128k / 64k chat)
+- Long-context evaluation with chat template; thinking disabled
+- Default: 100 samples, parallelism 1, low temperature (0.00001)
+- Uses Nemotron tokenizer via HuggingFace
 
 ---
 
@@ -286,6 +308,58 @@ nemo-evaluator-launcher ls tasks
 After running the full evaluation suite, you should obtain results comparable to those reported in the NVIDIA Nemotron 3 Nano 30B A3B Model Card.
 
 > **Important:** Due to the stochastic nature of sampling (temperature > 0) and the use of `num_repeats` for consensus-based scoring, slight variations in results are expected between runs.
+
+---
+
+## Tool Usage Evaluation
+
+The Nemotron 3 Nano 30B A3B model supports tool usage, allowing it to call a Python interpreter to solve math and science problems step by step.
+
+### Tool Usage Config
+
+| Config File | Model |
+|-------------|-------|
+| `local_nvidia_nemotron_3_nano_30b_a3_tools.yaml` | nvidia/nemotron-3-nano-30b-a3b |
+
+### Tool Usage Benchmarks
+
+| Benchmark | Category | Description |
+|-----------|----------|-------------|
+| **AIME 2025** | Mathematics | American Invitational Mathematics Exam (with Python tool) |
+| **GPQA** | Science | Graduate-level science questions (with Python tool) |
+
+### Available Task Names (Tool Usage)
+
+| Task Name | Benchmark |
+|-----------|-----------|
+| `ns_aime2025` | AIME 2025 (with sandbox + Python tool) |
+| `ns_gpqa` | GPQA Diamond (with sandbox + Python tool) |
+
+### Running Tool Usage Evaluations
+
+```bash
+cd packages/nemo-evaluator-launcher/examples/nemotron
+
+nemo-evaluator-launcher run --config local_nvidia_nemotron_3_nano_30b_a3_tools.yaml
+
+# Run only AIME 2025 with tools
+nemo-evaluator-launcher run --config local_nvidia_nemotron_3_nano_30b_a3_tools.yaml -t ns_aime2025
+
+# Run only GPQA with tools
+nemo-evaluator-launcher run --config local_nvidia_nemotron_3_nano_30b_a3_tools.yaml -t ns_gpqa
+```
+
+### Tool Usage Configuration Details
+
+Tool usage is enabled per-task via these extra parameters:
+
+```yaml
+extra:
+  use_sandbox: true
+  args: "++inference.tokens_to_generate=null ++tool_modules=[nemo_skills.mcp.servers.python_tool::PythonTool]"
+```
+
+The model generates tool calls (Python code), which are executed in a sandboxed environment, and the results are fed back to the model for further reasoning.
 
 ---
 

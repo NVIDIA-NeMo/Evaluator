@@ -11,7 +11,7 @@ The NeMo Evaluator is integrated within NeMo Framework, offering streamlined dep
 - Docker installed
 - CUDA-compatible GPU
 - [NeMo Framework docker container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags)
-- Your model checkpoint (or use [Llama 3.2 1B Instruct](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/llama-3_2-1b-instruct) for testing)
+- Access to a Megatron Bridge checkpoint
 
 ## Quick Start
 
@@ -20,7 +20,7 @@ The NeMo Evaluator is integrated within NeMo Framework, offering streamlined dep
 # 1. Start NeMo Framework Container
 
 TAG=...
-CHECKPOINT_PATH=/path/to/checkpoint/lama-3_2-1b-instruct_v2.0/"  # use absolute path
+CHECKPOINT_PATH=/path/to/checkpoint/mbridge_llama3_8b/iter_0000000"  # use absolute path
 
 docker run --rm -it -w /workdir -v $(pwd):/workdir -v $CHECKPOINT_PATH:/checkpoint/ \
   --entrypoint bash \
@@ -34,7 +34,7 @@ docker run --rm -it -w /workdir -v $(pwd):/workdir -v $CHECKPOINT_PATH:/checkpoi
 # 2. Deploy a Model
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
-  --nemo_checkpoint /checkpoint \
+  --megatron_checkpoint /checkpoint \
   --model_id megatron_model \
   --port 8080 \
   --host 0.0.0.0
@@ -60,7 +60,7 @@ python \
 
 ### Evaluate LLMs Using Log-Probabilities
 
-```{literalinclude} ../../deployment/nemo-fw/_snippets/arc_challenge.py
+```{literalinclude} ../../deployment/nemo-fw/_snippets/arc_challenge_mbridge.py
 :language: python
 :start-after: "## Run the evaluation"
 ```
@@ -72,7 +72,7 @@ Deploy multiple instances of your model:
 ```shell
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
-  --nemo_checkpoint /checkpoint \
+  --megatron_checkpoint /checkpoint \
   --model_id "megatron_model" \
   --port 8080 \                          # Ray server port
   --num_gpus 4 \                         # Total GPUs available

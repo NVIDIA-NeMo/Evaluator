@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -24,11 +25,16 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationConfig,
     EvaluationTarget,
 )
+from nemo_evaluator.config import TelemetryLevel
 from nemo_evaluator.core.evaluate import evaluate
 
 
 def test_evaluate_result_config_matches_run_config(tmp_path: Path):
     with (
+        patch(
+            "nemo_evaluator.telemetry.get_telemetry_level",
+            return_value=TelemetryLevel.OFF,
+        ),
         patch(
             "nemo_evaluator.core.evaluate.validate_configuration",
             return_value=Evaluation(
@@ -71,3 +77,70 @@ def test_evaluate_result_config_matches_run_config(tmp_path: Path):
         "request_timeout": 360,
         "extra": {},
     }
+
+
+def test_evaluate_telemetry_uses_framework_name(tmp_path: Path):
+    """Test that telemetry completion event uses Evaluation.framework_name."""
+    captured_events = []
+
+    class CapturingHandler:
+        """Minimal TelemetryHandler substitute that captures enqueued events."""
+
+        def start(self):
+            pass
+
+        def stop(self):
+            pass
+
+        def enqueue(self, event):
+            captured_events.append(event)
+
+    with (
+        patch(
+            "nemo_evaluator.core.evaluate.validate_configuration",
+            return_value=Evaluation(
+                command="command",
+                framework_name="lm-eval",
+                pkg_name="pkg_name",
+                config=EvaluationConfig(
+                    output_dir=str(tmp_path),
+                    params=ConfigParams(),
+                ),
+                target=EvaluationTarget(),
+            ),
+        ),
+        patch(
+            "nemo_evaluator.core.evaluate.monitor_memory_usage",
+            return_value=(MagicMock(model_dump=lambda **k: {"test": "result"}), {}),
+        ),
+        patch(
+            "nemo_evaluator.telemetry.get_telemetry_level",
+            return_value=TelemetryLevel.DEFAULT,
+        ),
+        patch("nemo_evaluator.telemetry.show_telemetry_notification"),
+        patch(
+            "nemo_evaluator.telemetry.TelemetryHandler", return_value=CapturingHandler()
+        ),
+        patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_LEVEL": "2"}),
+    ):
+        evaluate(
+            eval_cfg=EvaluationConfig(
+                output_dir=str(tmp_path),
+                params=ConfigParams(),
+                type="test_task",
+            ),
+            target_cfg=EvaluationTarget(),
+        )
+
+    # Should have STARTED + SUCCESS events
+    assert len(captured_events) == 2
+    started_event = captured_events[0]
+    assert started_event.framework_name == "lm-eval"
+    assert started_event.task == "test_task"
+    assert started_event.model == "unknown"
+    assert started_event.status == "started"
+    completion_event = captured_events[1]
+    assert completion_event.framework_name == "lm-eval"
+    assert completion_event.task == "test_task"
+    assert completion_event.model == "unknown"
+    assert completion_event.status == "success"
