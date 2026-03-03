@@ -25,10 +25,10 @@ class ScorerInput:
 | `response` | The model output text for the current sample. |
 | `target` | The ground-truth value read from the field specified by `target_field` in `@benchmark`. |
 | `metadata` | The entire dataset row as a dictionary, useful for accessing additional fields beyond the target. |
-| `model_call_fn` | Optional callable for multi-turn evaluation where the scorer needs to invoke the model again. |
+| `model_call_fn` | Reserved for multi-turn evaluation (not yet implemented). |
 | `config` | Extra configuration passed through `extra=` in `@benchmark` (e.g. judge settings). |
-| `conversation` | Optional list of conversation messages for multi-turn benchmarks. |
-| `turn_index` | Optional index of the current turn in a multi-turn conversation. |
+| `conversation` | Reserved for multi-turn benchmarks (not yet implemented). |
+| `turn_index` | Reserved for multi-turn benchmarks (not yet implemented). |
 
 ## The @scorer Decorator
 
