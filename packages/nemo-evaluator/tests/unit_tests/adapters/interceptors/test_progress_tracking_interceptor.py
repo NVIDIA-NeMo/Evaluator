@@ -220,6 +220,53 @@ class TestProgressTrackingInterceptor:
         # Verify that the request was attempted
         mock_request.assert_called_once()
 
+    def test_resume_with_cache_hits_and_new_requests(self, tmp_path):
+        """Test resumed interceptor with pre-existing progress, cache replays, and new requests.
+
+        Simulates an auto-chained Slurm job where:
+        1. Previous chain processed 42 requests (progress file = 42)
+        2. New chain starts, replays 42 cached responses
+        3. Then processes 8 new (non-cached) requests
+        4. Final count should be 50 (42 + 8), not 92 (42 + 42 + 8)
+        """
+        # Pre-seed progress file from previous chain
+        progress_file = tmp_path / "progress"
+        progress_file.write_text("42")
+
+        params = ProgressTrackingInterceptor.Params(
+            progress_tracking_url="http://localhost:9999",
+            progress_tracking_interval=1,
+            output_dir=str(tmp_path),
+        )
+        interceptor = ProgressTrackingInterceptor(params)
+
+        # Verify resume read the existing progress
+        assert interceptor._samples_processed == 42
+
+        context = AdapterGlobalContext(output_dir=str(tmp_path), url="http://test")
+
+        # Phase 1: replay 42 cached responses — counter should NOT advance
+        for _ in range(42):
+            cached_rctx = AdapterRequestContext()
+            cached_rctx.cache_hit = True
+            cached_response = AdapterResponse(r=_make_ok_response(), rctx=cached_rctx)
+            interceptor.intercept_response(cached_response, context)
+
+        assert interceptor._samples_processed == 42  # unchanged
+
+        # Phase 2: process 8 new (non-cached) requests — counter should advance
+        for _ in range(8):
+            new_response = AdapterResponse(
+                r=_make_ok_response(), rctx=AdapterRequestContext()
+            )
+            interceptor.intercept_response(new_response, context)
+
+        assert interceptor._samples_processed == 50  # 42 + 8
+
+        # post_eval_hook should write the final count
+        interceptor.post_eval_hook(context)
+        assert progress_file.read_text() == "50"
+
     def test_post_eval_hook_zero_progress_all_cached(self, tmp_path):
         """Test post_eval_hook when all responses were cache hits (zero progress).
 
