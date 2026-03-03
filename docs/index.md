@@ -328,6 +328,8 @@ Home <self>
 Overview <about/index>
 Key Features <about/key-features>
 Concepts <about/concepts/index>
+Configuration <about/configuration>
+Telemetry <about/telemetry>
 Release Notes <about/release-notes/index>
 :::
 
@@ -350,16 +352,13 @@ Tutorials for NeMo Framework <tutorials/nemo-fw/index>
 Evaluate an Existing Endpoint <tutorials/local-evaluation-of-existing-endpoint>
 :::
 
-<!--
-TODO: Add below once ready
-Evaluation Configuration Parameters <evaluation/parameters>
--->
 :::{toctree}
 :caption: Evaluation
 :hidden:
 
 About Model Evaluation <evaluation/index>
 Benchmark Catalog <evaluation/benchmarks/index>
+Evaluation Configuration Parameters <evaluation/parameters>
 Tasks Not Explicitly Defined by FDF <evaluation/custom-task>
 Evaluation Techniques <evaluation/run-evals/index>
 Add Evaluation Packages to NeMo Framework <evaluation/nemo-fw-optional-package>

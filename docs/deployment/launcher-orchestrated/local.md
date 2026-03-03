@@ -95,7 +95,7 @@ evaluation:
         config.params.max_new_tokens: 8192
         config.params.parallelism: 4
       env_vars:
-        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND
+        HF_TOKEN: $host:HF_TOKEN_FOR_GPQA_DIAMOND
 ```
 
 ### With Adapter Configuration

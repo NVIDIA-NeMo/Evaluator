@@ -54,5 +54,5 @@ evaluation:
     - name: lm-evaluation-harness.ifeval
     - name: simple_evals.gpqa_diamond
       env_vars:
-        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
+        HF_TOKEN: host:HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
     - name: bigcode-evaluation-harness.mbpp-chat
