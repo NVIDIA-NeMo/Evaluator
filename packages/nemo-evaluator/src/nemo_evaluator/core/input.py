@@ -634,7 +634,7 @@ def verify_capabilities(evaluation: Evaluation) -> bool:
         if response.status_code != 200:
             should_raise = True
             _logger.error(
-                f"Endpoint {url} does not support capability {capability}",
+                f'Endpoint {url} responded with error status code when checking for capability "{capability}"',
                 response_status_code=response.status_code,
                 response_text=response.text,
             )
@@ -642,6 +642,6 @@ def verify_capabilities(evaluation: Evaluation) -> bool:
             _logger.debug(f"Capability {capability} verified successfully.")
     if should_raise:
         raise MisconfigurationError(
-            "Required capabilities are not supported by the endpoint. See logs for more details."
+            "Either the endpoint is not accessible or it does not support the required capabilities. See logs above for more details."
         )
     return True
