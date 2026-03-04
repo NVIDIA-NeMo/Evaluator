@@ -32,6 +32,7 @@ import nemo_evaluator_launcher.cli.run as run
 import nemo_evaluator_launcher.cli.skills as skills
 import nemo_evaluator_launcher.cli.status as status
 import nemo_evaluator_launcher.cli.version as version
+import nemo_evaluator_launcher.cli.watch as watch
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 VERSION_HELP = "Show version information"
@@ -56,6 +57,7 @@ def is_verbose_enabled(args) -> bool:
         "task",
         "export",
         "resume",
+        "watch",
     ]
     for subcmd in subcommands:
         if hasattr(args, subcmd) and hasattr(getattr(args, subcmd), "verbose"):
@@ -246,6 +248,20 @@ def create_parser() -> ArgumentParser:
     )
     resume_parser.add_arguments(resume.Cmd, dest="resume")
 
+    # Watch subcommand
+    watch_parser = subparsers.add_parser(
+        "watch",
+        help="Watch checkpoint directory and auto-evaluate",
+        description="Watch a checkpoint directory for new checkpoints and automatically trigger evaluation runs",
+    )
+    watch_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging (sets LOG_LEVEL=DEBUG)",
+    )
+    watch_parser.add_arguments(watch.Cmd, dest="watch")
+
     # Info subcommand
     info_parser = subparsers.add_parser(
         "info",
@@ -328,6 +344,8 @@ def main() -> None:
         args.export.execute()
     elif args.command == "resume":
         args.resume.execute()
+    elif args.command == "watch":
+        args.watch.execute()
     elif args.command == "info":
         args.info.execute()
 
