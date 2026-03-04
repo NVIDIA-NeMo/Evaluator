@@ -22,6 +22,20 @@ from unittest.mock import patch
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.exporters.local import LocalExporter
 
+_RUN_CONFIG = (
+    "framework_name: test-harness\nconfig:\n  type: test_task\n"
+    "target:\n  api_endpoint:\n    model_id: test-model\n"
+)
+_RESULTS = (
+    "results:\n  tasks:\n    test_task:\n      metrics:\n"
+    "        accuracy:\n          scores:\n            accuracy:\n              value: 0.9\nconfig: {}\n"
+)
+
+
+def _write_standard_artifacts(artifacts_dir: Path) -> None:
+    (artifacts_dir / "run_config.yml").write_text(_RUN_CONFIG)
+    (artifacts_dir / "results.yml").write_text(_RESULTS)
+
 
 def test_export_with_format_json(tmp_path: Path, mock_execdb, prepare_local_job):
     """Test export with JSON format."""
@@ -149,12 +163,7 @@ class TestLocalExporterManualScenarios:
             _, job_dir = prepare_local_job(jd, with_required=True, with_optional=True)
             artifacts_dir = job_dir / "artifacts"
             # Add required files
-            (artifacts_dir / "run_config.yml").write_text(
-                "framework_name: test-harness\nconfig:\n  type: test_task\ntarget:\n  api_endpoint:\n    model_id: test-model\n"
-            )
-            (artifacts_dir / "results.yml").write_text(
-                "results:\n  tasks:\n    test_task:\n      metrics:\n        accuracy:\n          scores:\n            accuracy:\n              value: 0.9\nconfig: {}\n"
-            )
+            _write_standard_artifacts(artifacts_dir)
             ExecutionDB().write_job(jd)
 
         output_dir = tmp_path / "test-export-local"
@@ -257,12 +266,7 @@ class TestLocalExporterManualScenarios:
         for jd in [j1, j2]:
             _, job_dir = prepare_local_job(jd, with_required=True, with_optional=True)
             artifacts_dir = job_dir / "artifacts"
-            (artifacts_dir / "run_config.yml").write_text(
-                "framework_name: test-harness\nconfig:\n  type: test_task\ntarget:\n  api_endpoint:\n    model_id: test-model\n"
-            )
-            (artifacts_dir / "results.yml").write_text(
-                "results:\n  tasks:\n    test_task:\n      metrics:\n        accuracy:\n          scores:\n            accuracy:\n              value: 0.9\nconfig: {}\n"
-            )
+            _write_standard_artifacts(artifacts_dir)
             ExecutionDB().write_job(jd)
 
         output_dir = tmp_path / "test-export-local"
@@ -340,12 +344,7 @@ class TestLocalExporterManualScenarios:
                 artifacts_dir = job_local_dir / "artifacts"
                 artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-                (artifacts_dir / "run_config.yml").write_text(
-                    "framework_name: test-harness\nconfig:\n  type: test_task\ntarget:\n  api_endpoint:\n    model_id: test-model\n"
-                )
-                (artifacts_dir / "results.yml").write_text(
-                    "results:\n  tasks:\n    test_task:\n      metrics:\n        accuracy:\n          scores:\n            accuracy:\n              value: 0.9\nconfig: {}\n"
-                )
+                _write_standard_artifacts(artifacts_dir)
                 (artifacts_dir / "eval_factory_metrics.json").write_text("{}")
 
                 # Update job data with output_dir

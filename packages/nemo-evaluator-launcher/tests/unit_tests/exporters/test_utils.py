@@ -462,7 +462,7 @@ class TestSSHHelpers:
         control_paths = {("u", "h"): str(tmp_path / "u_h.sock")}
         calls = []
 
-        def fake_run(cmd, capture_output=True, check=False):
+        def fake_run(cmd, *args, **kwargs):
             calls.append(cmd)
             return SimpleNamespace(returncode=0)
 
