@@ -17,7 +17,6 @@
 
 import base64
 import json
-import pathlib
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -206,12 +205,15 @@ class TestReadDockerCredentials:
             json.dumps({"auths": {"test-registry": {"auth": auth_string}}})
         )
 
-        with patch(
-            "nemo_evaluator_launcher.common.container_metadata.registries._get_docker_config_path",
-            return_value=podman_config,
-        ), patch(
-            "nemo_evaluator_launcher.common.container_metadata.registries.pathlib.Path.home",
-            return_value=fake_home,
+        with (
+            patch(
+                "nemo_evaluator_launcher.common.container_metadata.registries._get_docker_config_path",
+                return_value=podman_config,
+            ),
+            patch(
+                "nemo_evaluator_launcher.common.container_metadata.registries.pathlib.Path.home",
+                return_value=fake_home,
+            ),
         ):
             result = _read_docker_credentials("test-registry")
 
@@ -225,12 +227,15 @@ class TestReadDockerCredentials:
         podman_config.parent.mkdir()
         podman_config.write_text(json.dumps({"auths": {}}))
 
-        with patch(
-            "nemo_evaluator_launcher.common.container_metadata.registries._get_docker_config_path",
-            return_value=podman_config,
-        ), patch(
-            "nemo_evaluator_launcher.common.container_metadata.registries.pathlib.Path.home",
-            return_value=tmp_path,
+        with (
+            patch(
+                "nemo_evaluator_launcher.common.container_metadata.registries._get_docker_config_path",
+                return_value=podman_config,
+            ),
+            patch(
+                "nemo_evaluator_launcher.common.container_metadata.registries.pathlib.Path.home",
+                return_value=tmp_path,
+            ),
         ):
             result = _read_docker_credentials("test-registry")
 

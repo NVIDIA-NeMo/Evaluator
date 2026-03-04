@@ -397,9 +397,7 @@ def _read_credentials_from_config(
         Tuple of (username, password) if found, None otherwise
     """
     if not config_path.exists():
-        logger.debug(
-            "Container config file not found", config_path=str(config_path)
-        )
+        logger.debug("Container config file not found", config_path=str(config_path))
         return None
 
     try:
@@ -408,7 +406,9 @@ def _read_credentials_from_config(
 
         auths = config.get("auths", {})
         if not auths:
-            logger.debug("No auths section in config file", config_path=str(config_path))
+            logger.debug(
+                "No auths section in config file", config_path=str(config_path)
+            )
             return None
 
         registry_auth, matched_key = _find_auth_in_config(auths, registry_url)
