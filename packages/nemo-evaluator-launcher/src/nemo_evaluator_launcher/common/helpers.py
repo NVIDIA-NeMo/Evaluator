@@ -350,6 +350,33 @@ def get_endpoint_url(
         return endpoint_url
 
 
+def get_judge_endpoint_url(cfg: DictConfig) -> str | None:
+    """Get the judge deployment endpoint URL.
+
+    Returns None if judge_deployment.type is "none" or judge_deployment is not configured.
+    When a judge is deployed, returns the URL pointing to the judge server.
+    """
+    if not cfg.get("judge_deployment") or cfg.judge_deployment.type == "none":
+        return None
+
+    endpoint_uri = cfg.judge_deployment.endpoints.get("chat", "/v1/chat/completions")
+    port = cfg.judge_deployment.port
+    # Judge always runs on JUDGE_PRIMARY_NODE which is resolved at runtime
+    # in the sbatch script. At config generation time we use a placeholder.
+    endpoint_url = f"http://${{JUDGE_PRIMARY_NODE}}:{port}{endpoint_uri}"
+    return endpoint_url
+
+
+def get_judge_served_model_name(cfg: DictConfig) -> str | None:
+    """Get the judge deployment served model name.
+
+    Returns None if judge_deployment is not configured or type is "none".
+    """
+    if not cfg.get("judge_deployment") or cfg.judge_deployment.type == "none":
+        return None
+    return str(cfg.judge_deployment.served_model_name)
+
+
 def get_health_url(cfg: DictConfig, endpoint_url: str) -> str:
     if cfg.deployment.type == "none":
         logger.warning("Using endpoint URL as health URL", will_be_used=endpoint_url)
