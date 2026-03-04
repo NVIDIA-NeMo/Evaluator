@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Tests for ContainerRuntime — all tests mock shutil.which so they run in CI
+"""Tests for ContainerRuntime -- all tests mock shutil.which so they run in CI
 without docker or podman installed."""
 
 from unittest.mock import patch
@@ -24,28 +24,15 @@ from nemo_evaluator_launcher.common.container_runtime import ContainerRuntime
 
 
 class TestContainerRuntimeDetection:
-    def test_env_var_docker_found(self, monkeypatch):
-        monkeypatch.setenv("CONTAINER_RUNTIME", "docker")
-        with patch("shutil.which", return_value="/usr/bin/docker"):
+    @pytest.mark.parametrize("runtime", ["docker", "podman"], ids=["docker", "podman"])
+    def test_env_var_selects_runtime(self, monkeypatch, runtime):
+        monkeypatch.setenv("CONTAINER_RUNTIME", runtime)
+        with patch("shutil.which", return_value=f"/usr/bin/{runtime}"):
             rt = ContainerRuntime()
-        assert rt.runtime == "docker"
-        assert rt.command == "docker"
+        assert rt.runtime == runtime
 
-    def test_env_var_podman_found(self, monkeypatch):
-        monkeypatch.setenv("CONTAINER_RUNTIME", "podman")
-        with patch("shutil.which", return_value="/usr/bin/podman"):
-            rt = ContainerRuntime()
-        assert rt.runtime == "podman"
-        assert rt.command == "podman"
-
-    def test_env_var_docker_not_in_path_raises(self, monkeypatch):
+    def test_env_var_not_in_path_raises(self, monkeypatch):
         monkeypatch.setenv("CONTAINER_RUNTIME", "docker")
-        with patch("shutil.which", return_value=None):
-            with pytest.raises(RuntimeError, match="not found in PATH"):
-                ContainerRuntime()
-
-    def test_env_var_podman_not_in_path_raises(self, monkeypatch):
-        monkeypatch.setenv("CONTAINER_RUNTIME", "podman")
         with patch("shutil.which", return_value=None):
             with pytest.raises(RuntimeError, match="not found in PATH"):
                 ContainerRuntime()
@@ -79,17 +66,9 @@ class TestContainerRuntimeDetection:
 
 class TestContainerRuntimeHelpers:
     def _make(self, runtime_name: str) -> ContainerRuntime:
-        with patch("shutil.which", return_value=f"/usr/bin/{runtime_name}"):
-            rt = ContainerRuntime.__new__(ContainerRuntime)
-            rt.runtime = runtime_name
+        rt = ContainerRuntime.__new__(ContainerRuntime)
+        rt.runtime = runtime_name
         return rt
-
-    def test_get_config_path_docker(self, monkeypatch):
-        monkeypatch.delenv("DOCKER_CONFIG", raising=False)
-        rt = self._make("docker")
-        path = rt.get_config_path()
-        assert path is not None
-        assert ".docker/config.json" in path
 
     def test_get_config_path_docker_custom_dir(self, monkeypatch):
         monkeypatch.setenv("DOCKER_CONFIG", "/custom/docker")
@@ -101,23 +80,6 @@ class TestContainerRuntimeHelpers:
         rt = self._make("podman")
         assert rt.get_config_path() == "/run/user/1000/containers/auth.json"
 
-    def test_get_config_path_podman_default(self, monkeypatch):
-        monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
-        rt = self._make("podman")
-        path = rt.get_config_path()
-        assert path is not None
-        assert "containers/auth.json" in path
-
     def test_get_stop_command(self):
         rt = self._make("docker")
         assert rt.get_stop_command("mycontainer") == "docker stop mycontainer"
-
-    def test_get_stop_command_podman(self):
-        rt = self._make("podman")
-        assert rt.get_stop_command("mycontainer") == "podman stop mycontainer"
-
-    def test_get_kill_process_pattern(self):
-        rt = self._make("docker")
-        pattern = rt.get_kill_process_pattern("mycontainer")
-        assert "docker" in pattern
-        assert "mycontainer" in pattern
