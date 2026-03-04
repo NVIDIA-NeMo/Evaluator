@@ -19,12 +19,14 @@ This module provides the main functional entry points for running evaluations, q
 """
 
 import copy
+import os
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import yaml
 from omegaconf import DictConfig, OmegaConf
 
+from nemo_evaluator_launcher import __version__
 from nemo_evaluator_launcher.api.types import RunConfig
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.common.mapping import load_tasks_mapping
@@ -146,7 +148,141 @@ def run_eval(
         print(OmegaConf.to_yaml(cfg))
 
     _check_api_endpoint_when_deployment_is_configured(cfg)
-    return get_executor(cfg.execution.type).execute_eval(cfg, dry_run)
+
+    # Set up telemetry
+    from nemo_evaluator.config import TelemetryLevel
+    from nemo_evaluator.telemetry import (
+        TELEMETRY_LEVEL_ENV_VAR,
+        TELEMETRY_SESSION_ID_ENV_VAR,
+        StatusEnum,
+        TelemetryHandler,
+        get_session_id,
+        get_telemetry_level,
+    )
+
+    from nemo_evaluator_launcher.telemetry import LauncherJobEvent
+
+    session_id = get_session_id()
+    telemetry_handler = None
+    telemetry_level = get_telemetry_level()
+
+    # Extract telemetry metadata from config
+    task_names = []
+    if (
+        hasattr(cfg, "evaluation")
+        and hasattr(cfg.evaluation, "tasks")
+        and cfg.evaluation.tasks
+    ):
+        task_names = [t.name for t in cfg.evaluation.tasks if hasattr(t, "name")]
+
+    exporter_names = []
+    auto_export = (
+        cfg.execution.get("auto_export") if hasattr(cfg, "execution") else None
+    )
+    if auto_export:
+        exporter_names = list(auto_export.get("destinations", []) or [])
+
+    model_name = "unknown"
+    if hasattr(cfg, "target") and hasattr(cfg.target, "api_endpoint"):
+        if hasattr(cfg.target.api_endpoint, "model_id"):
+            model_name = cfg.target.api_endpoint.model_id or "unknown"
+    # Also check deployment for model name
+    if model_name == "unknown" and hasattr(cfg, "deployment"):
+        if hasattr(cfg.deployment, "served_model_name"):
+            model_name = cfg.deployment.served_model_name or "unknown"
+
+    model_name_for_telemetry = (
+        model_name if telemetry_level == TelemetryLevel.DEFAULT else "redacted"
+    )
+
+    executor_type = cfg.execution.type if hasattr(cfg.execution, "type") else "unknown"
+    deployment_type = cfg.deployment.type if hasattr(cfg.deployment, "type") else "none"
+
+    if not dry_run:
+        # Propagate session ID and telemetry level to containers/child processes
+        os.environ[TELEMETRY_SESSION_ID_ENV_VAR] = session_id
+        os.environ[TELEMETRY_LEVEL_ENV_VAR] = str(telemetry_level.value)
+
+        if telemetry_level != TelemetryLevel.OFF:
+            telemetry_handler = TelemetryHandler(
+                source_client_version=__version__,
+                session_id=session_id,
+                telemetry_level=telemetry_level,
+            )
+            telemetry_handler.start()
+            telemetry_handler.enqueue(
+                LauncherJobEvent(
+                    executor_type=executor_type,
+                    deployment_type=deployment_type,
+                    model=model_name_for_telemetry,
+                    tasks=task_names,
+                    exporters=exporter_names,
+                    status=StatusEnum.STARTED,
+                )
+            )
+
+    status = StatusEnum.FAILURE
+    try:
+        result = get_executor(cfg.execution.type).execute_eval(cfg, dry_run)
+        status = StatusEnum.SUCCESS
+        return result
+    finally:
+        if telemetry_handler:
+            telemetry_handler.enqueue(
+                LauncherJobEvent(
+                    executor_type=executor_type,
+                    deployment_type=deployment_type,
+                    model=model_name_for_telemetry,
+                    tasks=task_names,
+                    exporters=exporter_names,
+                    status=status,
+                )
+            )
+            telemetry_handler.stop()
+
+
+def resume_eval(invocation_id: str) -> str:
+    """Resume an evaluation by re-executing existing scripts.
+
+    Automates the manual process of navigating to the execution directory
+    and re-executing ``bash run.sh`` (local) or ``sbatch run.sub`` (SLURM).
+
+    Args:
+        invocation_id: The invocation ID to resume. Supports partial IDs.
+
+    Returns:
+        str: The resumed invocation ID.
+
+    Raises:
+        ValueError: If invocation not found.
+        FileNotFoundError: If run scripts no longer exist on disk.
+        RuntimeError: If script execution fails immediately.
+    """
+    from nemo_evaluator_launcher.common.logging_utils import logger
+
+    db = ExecutionDB()
+    jobs = db.get_jobs(invocation_id)
+
+    if not jobs:
+        raise ValueError(
+            f"Invocation '{invocation_id}' not found in execution database. "
+            f"Use 'nel ls runs' to see available invocations."
+        )
+
+    first_job = next(iter(jobs.values()))
+    executor_cls = get_executor(first_job.executor)
+    resolved_id = first_job.invocation_id
+
+    logger.info(
+        f"Resuming invocation {resolved_id}",
+        num_jobs=len(jobs),
+        executor=first_job.executor,
+    )
+
+    executor_cls.resume_invocation(resolved_id, jobs)
+
+    logger.info(f"Resumed invocation {resolved_id} successfully")
+    return resolved_id
 
 
 def get_status(ids_or_prefixes: list[str]) -> list[dict[str, Any]]:

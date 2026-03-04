@@ -79,7 +79,7 @@ evaluation:
     - name: gpqa_diamond
     - name: ifeval
       env_vars:
-        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND  # or use HF_HOME
+        HF_TOKEN: $host:HF_TOKEN_FOR_GPQA_DIAMOND  # or use HF_HOME
 ```
 
 ## Command Template

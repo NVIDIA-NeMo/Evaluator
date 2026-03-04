@@ -68,7 +68,7 @@ execution:
 
   num_nodes: 2 # Number of SLURM nodes for multi-node deployment
   deployment:
-    n_tasks: ${execution.num_nodes}  # For multi-node ray vLLM deployment, must match num_nodes
+    n_tasks: ${execution.num_nodes} # For multi-node ray vLLM deployment, must match num_nodes
 
   mounts:
     mount_home: false # Whether to mount home directory (default: true)
@@ -86,45 +86,45 @@ deployment:
   port: 8000
   extra_args: "--disable-custom-all-reduce --distributed-executor-backend ray --enforce-eager"
   env_vars:
-    VLLM_USE_RAY_COMPILED_DAG_CHANNEL_TYPE: 'shm'
+    VLLM_USE_RAY_COMPILED_DAG_CHANNEL_TYPE: lit:shm
   pre_cmd: |
-      RAY_PORT=6379
-      NODE_PORT=8266
-      OBJ_PORT=8267
-      RAY_FIXED_PORTS="--node-manager-port=$NODE_PORT --object-manager-port=$OBJ_PORT --metrics-export-port=8269 --dashboard-agent-grpc-port=8270 --dashboard-agent-listen-port=8271 --runtime-env-agent-port=8272"
+    RAY_PORT=6379
+    NODE_PORT=8266
+    OBJ_PORT=8267
+    RAY_FIXED_PORTS="--node-manager-port=$NODE_PORT --object-manager-port=$OBJ_PORT --metrics-export-port=8269 --dashboard-agent-grpc-port=8270 --dashboard-agent-listen-port=8271 --runtime-env-agent-port=8272"
 
-      export VLLM_HOST_IP=$MASTER_IP
+    export VLLM_HOST_IP=$MASTER_IP
 
-      if [ "$SLURM_PROCID" -eq 0 ]; then
-          echo "VLLM_HOST_IP set to: $VLLM_HOST_IP (HEAD node)"
-          echo "Starting Ray HEAD on $(hostname) with IP $VLLM_HOST_IP..."
-          ray start --head --port=$RAY_PORT $RAY_FIXED_PORTS
+    if [ "$SLURM_PROCID" -eq 0 ]; then
+        echo "VLLM_HOST_IP set to: $VLLM_HOST_IP (HEAD node)"
+        echo "Starting Ray HEAD on $(hostname) with IP $VLLM_HOST_IP..."
+        ray start --head --port=$RAY_PORT $RAY_FIXED_PORTS
 
-          export RAY_ADDRESS=$MASTER_IP:$RAY_PORT
-          echo "RAY_ADDRESS set to: $RAY_ADDRESS"
+        export RAY_ADDRESS=$MASTER_IP:$RAY_PORT
+        echo "RAY_ADDRESS set to: $RAY_ADDRESS"
 
-          echo "Waiting 90 seconds for worker nodes to join Ray cluster..."
-          sleep 90
+        echo "Waiting 90 seconds for worker nodes to join Ray cluster..."
+        sleep 90
 
-          echo "=== Ray cluster status ==="
-          ray status || true
+        echo "=== Ray cluster status ==="
+        ray status || true
 
-          echo "=== Starting vLLM Deployment ==="
-          vllm serve ${deployment.hf_model_handle} \
-              --tensor-parallel-size=${deployment.tensor_parallel_size} \
-              --pipeline-parallel-size=${deployment.pipeline_parallel_size} \
-              --port ${deployment.port} \
-              --served-model-name ${deployment.served_model_name} \
-              ${deployment.extra_args}
-      else
-          export VLLM_HOST_IP=$(python3 -c "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('8.8.8.8', 80)); print(s.getsockname()[0])")
-          echo "VLLM_HOST_IP set to: $VLLM_HOST_IP (WORKER node)"
-          echo "Worker node waiting 30 seconds for head node to start Ray..."
-          sleep 30
-          echo "Starting Ray WORKER on $(hostname) with IP $VLLM_HOST_IP..."
-          echo "Connecting to $MASTER_IP:$RAY_PORT..."
-          ray start --address=$MASTER_IP:$RAY_PORT $RAY_FIXED_PORTS --block
-      fi
+        echo "=== Starting vLLM Deployment ==="
+        vllm serve ${deployment.hf_model_handle} \
+            --tensor-parallel-size=${deployment.tensor_parallel_size} \
+            --pipeline-parallel-size=${deployment.pipeline_parallel_size} \
+            --port ${deployment.port} \
+            --served-model-name ${deployment.served_model_name} \
+            ${deployment.extra_args}
+    else
+        export VLLM_HOST_IP=$(python3 -c "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('8.8.8.8', 80)); print(s.getsockname()[0])")
+        echo "VLLM_HOST_IP set to: $VLLM_HOST_IP (WORKER node)"
+        echo "Worker node waiting 30 seconds for head node to start Ray..."
+        sleep 30
+        echo "Starting Ray WORKER on $(hostname) with IP $VLLM_HOST_IP..."
+        echo "Connecting to $MASTER_IP:$RAY_PORT..."
+        ray start --address=$MASTER_IP:$RAY_PORT $RAY_FIXED_PORTS --block
+    fi
 
 # Specify the benchmarks to evaluate
 evaluation:
