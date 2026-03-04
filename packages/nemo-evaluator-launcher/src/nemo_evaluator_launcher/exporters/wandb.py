@@ -383,8 +383,8 @@ class WandBExporter(BaseExporter):
                     {"benchmarks": benchmarks, "harnesses": harnesses},
                     allow_val_change=True,
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Error updating W&B run config: {e}")
             artifact_name = invocation_id
             artifact_metadata = {
                 "invocation_id": invocation_id,

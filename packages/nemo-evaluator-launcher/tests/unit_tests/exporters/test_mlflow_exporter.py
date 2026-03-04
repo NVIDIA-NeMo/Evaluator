@@ -23,15 +23,32 @@ from pydantic import ValidationError
 
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.exporters.mlflow import MLflowExporter
+from nemo_evaluator_launcher.exporters.utils import DataForExport
 
 
 class TestMLflowExporter:
-    def test_not_available(self):
+    def test_not_available(self, tmp_path):
         with patch("nemo_evaluator_launcher.exporters.mlflow.MLFLOW_AVAILABLE", False):
-            exporter = MLflowExporter({"tracking_uri": "http://mlflow"})
-            result = exporter.export(["test123.0"])
-            assert not result.successful_jobs
-            assert result.failed_jobs == ["test123.0"]
+            data = DataForExport(
+                artifacts_dir=tmp_path / "artifacts",
+                logs_dir=None,
+                config={},
+                model_id="test-model",
+                metrics={"acc": 0.9},
+                harness="lm-eval",
+                task="mmlu",
+                container="test:latest",
+                executor="local",
+                invocation_id="test123",
+                job_id="test123.0",
+                timestamp=1234567890.0,
+                job_data={},
+            )
+            successful, failed, skipped = MLflowExporter(
+                {"tracking_uri": "http://mlflow"}
+            ).export_jobs([data])
+            assert successful == []
+            assert failed == ["test123.0"]
 
     def test_export_job_ok(self, monkeypatch, mlflow_fake, tmp_path: Path, mock_execdb):
         _ML, _RunCtx = mlflow_fake

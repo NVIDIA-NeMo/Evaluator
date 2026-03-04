@@ -91,11 +91,6 @@ class BaseExporter(ABC):
                 f"Invalid config type: {type(config)}. Expected {self.config_class}"
             )
         self.config = config
-        self.job_dirs = self.config.job_dirs
-        self.copy_logs = self.config.copy_logs
-        self.copy_artifacts = self.config.copy_artifacts
-        self.only_required = self.config.only_required
-        self.log_metrics = self.config.log_metrics
         self.db = ExecutionDB()
 
     def export(self, invocation_or_job_ids: List[str]) -> ExportResult:
@@ -116,8 +111,8 @@ class BaseExporter(ABC):
                 export_dir=temp_dir,
                 copy_local=False,
                 copy_artifacts=True,
-                copy_logs=self.copy_logs,
-                only_required=self.only_required,
+                copy_logs=self.config.copy_logs,
+                only_required=self.config.only_required,
             )
             failed_jobs.extend(copy_failed_jobs)
             # prepare data for export
@@ -149,8 +144,6 @@ class BaseExporter(ABC):
     def _get_jobs_data(
         self, invocation_or_job_ids: List[str]
     ) -> Tuple[List[JobData], List[str]]:
-        # TODO(martas): add test verifying that all ids are in the result,
-        # including the ones not found in the db nor in job_dirs
         jobs_data = {}
         failed_jobs = []
         missing_ids = set()
@@ -175,7 +168,7 @@ class BaseExporter(ABC):
         job_data_from_dirs = {}
         for invocation_id in invocations_to_search:
             found_dirs = []
-            for job_dir in self.job_dirs:
+            for job_dir in self.config.job_dirs:
                 # we assume that the invocation ID is part of the job directory name
                 # currently we don't have job ID in the name, so we need to infer jobs' order from config
                 # we do it in _get_jobs_in_dir function
@@ -316,7 +309,7 @@ class BaseExporter(ABC):
             return None
 
         artifacts_dir = Path(job_data.data["output_dir"]) / "artifacts"
-        if self.copy_logs:
+        if self.config.copy_logs:
             logs_dir = Path(job_data.data["output_dir"]) / "logs"
         else:
             logs_dir = None

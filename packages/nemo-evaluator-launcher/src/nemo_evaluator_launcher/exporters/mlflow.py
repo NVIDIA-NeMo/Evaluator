@@ -127,14 +127,6 @@ class MLflowExporter(BaseExporter):
         failed_jobs = []
         skipped_jobs = []
 
-        if not self.config.tracking_uri:
-            logger.error(
-                "MLflow requires 'tracking_uri' to be configured. "
-                "Set export.mlflow.tracking_uri field in the config "
-                "or MLFLOW_TRACKING_URI environment variable."
-            )
-            return [], [data.job_id for data in data_for_export], []
-
         # Set up MLflow
         mlflow.set_tracking_uri(self.config.tracking_uri.rstrip("/"))
 

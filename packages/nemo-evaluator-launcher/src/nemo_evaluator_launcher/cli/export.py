@@ -21,7 +21,10 @@ from typing import List, Optional
 from omegaconf import OmegaConf
 from simple_parsing import field
 
-from nemo_evaluator_launcher.common.logging_utils import logger
+from nemo_evaluator_launcher.exporters.config import (
+    apply_export_overrides,
+    load_export_config_from_file,
+)
 
 
 @dataclass
@@ -125,7 +128,7 @@ class ExportCmd:
 
         # Load configuration from file if provided
         if self.config:
-            config = self._load_config_from_file(self.config)
+            config = load_export_config_from_file(self.config, self.dest)
         else:
             config = OmegaConf.create({})
 
@@ -156,7 +159,7 @@ class ExportCmd:
             config["job_dirs"] = self.job_dirs
 
         # Parse and validate overrides
-        self._apply_overrides(config)
+        apply_export_overrides(config, self.dest, self.override)
 
         if self.format and self.dest != "local":
             print(
@@ -176,91 +179,3 @@ class ExportCmd:
         if not result.get("success", False):
             print("Some jobs failed to export. See logs above for more details.")
             return
-
-    def _load_config_from_file(self, config_path: str) -> OmegaConf:
-        """Load export configuration from a file.
-
-        Args:
-            config_path: Path to the config file
-
-        Returns:
-            OmegaConf object containing the export configuration
-        """
-        import yaml
-
-        with open(config_path, "r") as f:
-            config_dict = yaml.safe_load(f)
-
-        if not isinstance(config_dict, dict):
-            raise ValueError(
-                f"Config file {config_path} must contain a dictionary at the root level"
-            )
-
-        # If config has an 'export.<dest>' structure, extract the relevant section
-        export_config = config_dict.get("export", {})
-        if export_config:
-            if self.dest in export_config:
-                # Use destination-specific config
-                return OmegaConf.create(export_config[self.dest])
-
-            else:
-                raise ValueError(
-                    f"Export destination {self.dest} not found in config file {config_path}"
-                )
-        else:
-            # Flat config structure
-            logger.warning(
-                f"Config file {config_path} does not have an 'export' section. Using top-level config."
-            )
-            return OmegaConf.create(config_dict)
-
-    def _apply_overrides(self, config: OmegaConf) -> None:
-        import re
-
-        # matches ~export.dest.key and +export.dest.key and ++export.dest.key
-        hydra_pattern = re.compile(rf"^(?:~|\+\+|\+)?export\.{self.dest}\.(.+)$")
-        if not self.override:
-            return
-
-        to_del = []
-        filetered_overrides = []
-        for override in self.override:
-            match = hydra_pattern.match(override)
-            if not match:
-                logger.debug("Ignoring non-applicable override", override=override)
-                continue
-            rest = match.group(1)
-            if override.startswith("~"):
-                to_del.append(rest)
-                logger.debug(
-                    "Adding to delete list", config_key=rest, override=override
-                )
-                continue
-            logger.debug("Adding to update list", config_key=rest, override=override)
-            filetered_overrides.append(rest)
-
-        config_updates = OmegaConf.from_dotlist(filetered_overrides)
-
-        if config_updates:
-            config.update(config_updates)
-
-        for key_to_remove in to_del:
-            *parent_path, leaf_key = key_to_remove.rsplit(".", 1)
-
-            if len(parent_path) == 0:
-                # top-level key
-                config.pop(leaf_key, None)
-            elif len(parent_path) == 1:
-                # key deeper in the config
-                parent = OmegaConf.select(config, parent_path[0])
-                if parent is not None:
-                    del parent[leaf_key]
-                else:
-                    logger.warning(
-                        f"Could not remove {key_to_remove} from the config (key not found)"
-                    )
-            else:
-                # impossible unless someone changes the line where we split the key
-                raise RuntimeError(f"Invalid key to remove: {key_to_remove}")
-
-        logger.debug("Final config after applying overrides", config=config)

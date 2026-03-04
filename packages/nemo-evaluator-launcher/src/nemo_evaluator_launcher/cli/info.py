@@ -153,7 +153,6 @@ class InfoCmd:
         if self.artifacts:
             self._show_artifacts_info(jobs)
 
-        # TODO(martas): why do we need to check this? we should just use args values
         if self.copy_logs:
             logger.info(
                 "Copying logs to local directory",

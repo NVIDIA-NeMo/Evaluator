@@ -415,7 +415,6 @@ class TestExportCmdOverrides:
 
         call_args = mock_export.call_args
         config = call_args[0][2]
-        print(config)
 
         # Verify list parsing works correctly
         assert len(config["tags"]) == 2

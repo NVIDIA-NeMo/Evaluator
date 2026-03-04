@@ -852,7 +852,6 @@ def _generate_auto_export_section(
     reexport_cmd = build_reexport_commands("export", secrets)
     s += f"    {reexport_cmd}\n"
 
-    # TODO(martas): what happens if there's no config?
     export_config = {"export": cfg.get("export", {})}
 
     # Final YAML (single conversion at the end)
@@ -864,7 +863,6 @@ def _generate_auto_export_section(
     s += yaml_str
     s += "EOF\n"
 
-    # TODO(martas): do we need this?
     # write launcher config as config.yml for exporters (no core command)
     submitted_yaml = yaml.safe_dump(
         OmegaConf.to_container(cfg, resolve=True), sort_keys=False

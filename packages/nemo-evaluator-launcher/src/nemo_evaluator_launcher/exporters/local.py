@@ -80,7 +80,6 @@ class LocalExporter(BaseExporter):
 
         if len(data_for_export) > 1:
             # for muliple jobs, write a file with all results
-            # TODO(martas): what should we do about skipped jobs when writing all results?
             _ = self._write_summary(data_for_export, output_dir)
 
         return success_jobs, failed_jobs, skipped_jobs

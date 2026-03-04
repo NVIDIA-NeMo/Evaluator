@@ -67,6 +67,8 @@ def test_export_with_format_json(tmp_path: Path, mock_execdb, prepare_local_job)
 
 def test_export_with_format_csv(tmp_path: Path, mock_execdb, prepare_local_job):
     """Test export with CSV format."""
+    import csv
+
     inv = "test0002"
     j1 = JobData(
         invocation_id=inv,
@@ -101,6 +103,15 @@ def test_export_with_format_csv(tmp_path: Path, mock_execdb, prepare_local_job):
 
     assert result.successful_jobs == [j1.job_id]
     assert result.failed_jobs == []
+
+    csv_path = output_dir / inv / j1.job_id / "processed_results.csv"
+    assert csv_path.exists()
+    rows = list(csv.DictReader(csv_path.read_text(encoding="utf-8").splitlines()))
+    assert len(rows) == 1
+    assert rows[0]["Job ID"] == j1.job_id
+    assert rows[0]["Model Name"] == "test-model"
+    assert rows[0]["Task Name"] == "simple_evals.mmlu"
+    assert rows[0]["accuracy"] == "0.9"
 
 
 class TestLocalExporterManualScenarios:

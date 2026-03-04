@@ -375,20 +375,17 @@ def copy_local_artifacts(
     only_required: bool = True,
     copy_artifacts: bool = True,
     copy_logs: bool = False,
-):
+) -> List[str]:
     """Copy artifacts between local directories."""
 
     if not copy_artifacts and not copy_logs:
         logger.warning("Both copy_artifacts and copy_logs are False, nothing to copy")
-        return
+        return []
+    import shutil
 
     export_dir.mkdir(parents=True, exist_ok=True)
 
     exported_files = []
-
-    def cp_file(original_path: Path | str, copy_path: Path | str) -> bool:
-        cmd = ["cp", str(original_path), str(copy_path)]
-        return subprocess.run(cmd, capture_output=True).returncode == 0
 
     if copy_artifacts:
         art_dir = export_dir / "artifacts"
@@ -398,16 +395,21 @@ def copy_local_artifacts(
                 original_file = job_dir / "artifacts" / artifact
                 copy_file = art_dir / artifact
                 copy_file.parent.mkdir(parents=True, exist_ok=True)
-                if cp_file(original_file, copy_file):
+                try:
+                    shutil.copy2(original_file, copy_file)
                     exported_files.append(str(copy_file))
-                elif artifact in REQUIRED_ARTIFACTS:
-                    logger.error(
-                        f"Failed to copy required artifact {artifact} from {original_file} to {copy_file}"
-                    )
+                except Exception as e:
+                    if artifact in REQUIRED_ARTIFACTS:
+                        logger.error(
+                            f"Failed to copy required artifact {artifact} from {original_file} to {copy_file}: {e}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Failed to copy optional artifact {artifact} from {original_file} to {copy_file}: {e}"
+                        )
 
         else:
             # Copy all artifacts recursively (except excluded patterns)
-            import shutil
 
             source_artifacts = job_dir / "artifacts"
             if source_artifacts.exists():
@@ -435,11 +437,12 @@ def copy_local_artifacts(
             for log_file in original_logs.glob("*"):
                 if log_file.is_file():
                     dest_file = logs_dir / log_file.name
-                    if cp_file(log_file, dest_file):
+                    try:
+                        shutil.copy2(log_file, dest_file)
                         exported_files.append(str(dest_file))
-                    else:
+                    except Exception as e:
                         logger.warning(
-                            f"Failed to copy log file {log_file} to {dest_file}"
+                            f"Failed to copy log file {log_file} to {dest_file}: {e}"
                         )
 
     return exported_files

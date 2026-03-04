@@ -49,9 +49,9 @@ class TestBaseExporter:
         }
         exporter = ConcreteExporter(config)
         assert exporter.db is not None
-        assert exporter.job_dirs == [job_dir]
-        assert exporter.copy_logs is True
-        assert exporter.only_required is False
+        assert exporter.config.job_dirs == [job_dir]
+        assert exporter.config.copy_logs is True
+        assert exporter.config.only_required is False
 
     def test_base_exporter_init_without_config(self):
         """Test BaseExporter initialization without config."""
@@ -60,9 +60,9 @@ class TestBaseExporter:
         exporter = ConcreteExporter()
         assert isinstance(exporter.config, ExportConfig)
         assert exporter.db is not None
-        assert exporter.job_dirs == []
-        assert exporter.copy_logs is False
-        assert exporter.only_required is True
+        assert exporter.config.job_dirs == []
+        assert exporter.config.copy_logs is False
+        assert exporter.config.only_required is True
 
     def test_base_exporter_init_with_none_config(self):
         """Test BaseExporter initialization with None config."""
