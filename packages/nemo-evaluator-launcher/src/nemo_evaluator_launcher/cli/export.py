@@ -223,7 +223,7 @@ class ExportCmd:
             return
 
         to_del = []
-        fileterd_overrides = []
+        filetered_overrides = []
         for override in self.override:
             match = hydra_pattern.match(override)
             if not match:
@@ -237,9 +237,9 @@ class ExportCmd:
                 )
                 continue
             logger.debug("Adding to update list", config_key=rest, override=override)
-            fileterd_overrides.append(rest)
+            filetered_overrides.append(rest)
 
-        config_updates = OmegaConf.from_dotlist(fileterd_overrides)
+        config_updates = OmegaConf.from_dotlist(filetered_overrides)
 
         if config_updates:
             config.update(config_updates)
