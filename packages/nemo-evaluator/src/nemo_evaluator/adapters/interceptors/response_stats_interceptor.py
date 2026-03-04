@@ -15,6 +15,7 @@
 
 """Response stats interceptor that collects aggregated statistics from API responses."""
 
+import copy
 import datetime
 import json
 import threading
@@ -66,7 +67,7 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
             default=True, description="Whether to collect tool call statistics"
         )
         stats_file_saving_interval: Optional[int] = Field(
-            default=None,
+            default=100,
             description="How often (every how many responses) to save stats to a file. If None, stats are only saved via post_eval_hook.",
         )
         save_individuals: bool = Field(
@@ -471,9 +472,8 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
         """Save current stats to the same file as post-eval hook."""
         # Get stats in a thread-safe manner
         with self._lock:
-            stats = self._stats.copy()
+            stats = copy.deepcopy(self._stats)
 
-        # Don't create file if no stats collected
         if stats["count"] == 0:
             self.logger.debug("No response statistics collected, skipping file write")
             return
