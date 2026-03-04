@@ -393,6 +393,9 @@ class TestLocalExecutorTelemetryPropagation:
         try:
             with (
                 patch(
+                    "nemo_evaluator_launcher.executors.local.executor.ContainerRuntime"
+                ) as mock_runtime_cls,
+                patch(
                     "nemo_evaluator_launcher.executors.local.executor.load_tasks_mapping"
                 ) as mock_load_mapping,
                 patch(
@@ -403,6 +406,7 @@ class TestLocalExecutorTelemetryPropagation:
                 ) as mock_get_command,
                 patch("builtins.print"),
             ):
+                mock_runtime_cls.return_value.command = "docker"
                 mock_load_mapping.return_value = mock_tasks_mapping
                 mock_get_task_def.return_value = mock_tasks_mapping[
                     ("lm-eval", "test_task")
@@ -474,6 +478,9 @@ class TestLocalExecutorTelemetryPropagation:
         try:
             with (
                 patch(
+                    "nemo_evaluator_launcher.executors.local.executor.ContainerRuntime"
+                ) as mock_runtime_cls,
+                patch(
                     "nemo_evaluator_launcher.executors.local.executor.load_tasks_mapping"
                 ) as mock_load_mapping,
                 patch(
@@ -484,6 +491,7 @@ class TestLocalExecutorTelemetryPropagation:
                 ) as mock_get_command,
                 patch("builtins.print"),
             ):
+                mock_runtime_cls.return_value.command = "docker"
                 mock_load_mapping.return_value = mock_tasks_mapping
                 mock_get_task_def.return_value = mock_tasks_mapping[
                     ("lm-eval", "test_task")

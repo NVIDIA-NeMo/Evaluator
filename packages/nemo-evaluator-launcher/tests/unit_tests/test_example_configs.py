@@ -29,6 +29,7 @@ EXAMPLES_DIR = (pathlib.Path(__file__).parent.parent.parent / "examples").absolu
 EXAMPLE_YAMLS = [f.stem for f in EXAMPLES_DIR.glob("*.yaml") if f.is_file()]
 
 
+@pytest.mark.usefixtures("mock_container_runtime")
 class TestExampleConfigs:
     """Test that all example configuration files can be initialized with dry_run."""
 
