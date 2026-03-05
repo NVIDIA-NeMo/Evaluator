@@ -320,16 +320,6 @@ def mock_job_data():
     )
 
 
-@pytest.fixture
-def mock_container_runtime():
-    """Mock ContainerRuntime to avoid requiring docker/podman in CI."""
-    with patch(
-        "nemo_evaluator_launcher.executors.local.executor.ContainerRuntime"
-    ) as mock_cls:
-        mock_cls.return_value.command = "docker"
-        yield mock_cls
-
-
 @pytest.fixture(autouse=True)
 def isolate_exporter_writes(tmp_path, monkeypatch, request):
     # isolate cwd for the consolidated exporters suite
@@ -557,3 +547,13 @@ def job_slurm():
     )
     ExecutionDB().write_job(jd)
     return jd
+
+
+@pytest.fixture
+def mock_container_runtime():
+    """Mock ContainerRuntime to avoid requiring docker/podman in CI."""
+    with patch(
+        "nemo_evaluator_launcher.executors.local.executor.ContainerRuntime"
+    ) as mock_cls:
+        mock_cls.return_value.command = "docker"
+        yield mock_cls
