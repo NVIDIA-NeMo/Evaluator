@@ -142,27 +142,26 @@ Show tasks in the current config. Loop until the user confirms the task list is 
   ```
   For the None (External) deployment the `api_key_name` should be already defined. The `DUMMY_API_KEY` export is handled in Step 8.
 
-**Step 6: Advanced - Multi-node (Data Parallel)**
+**Step 6: Advanced - Multi-node**
 
-Only if model >120B parameters, suggest multi-node. Explain: "This is DP multi-node - the weights are copied (not distributed) across nodes. One deployment instance per node will be run with HAProxy load-balancing requests."
+There are two multi-node patterns. Ask the user which applies:
 
-Ask if user wants multi-node. If yes, ask for node count and configure:
+**Pattern A: Multi-instance (independent instances with HAProxy)**
+
+Only if model >120B parameters or user wants more throughput. Explain: "Each node runs an independent deployment instance. HAProxy load-balances requests across all instances."
 
 ```yaml
 execution:
-    num_nodes: 4  # 4 nodes = 4 independent deployment instances = 4x throughput
-    deployment:
-        n_tasks: ${execution.num_nodes}  # Must match num_nodes for multi-instance deployment
-
-deployment:
-    multiple_instances: true
+    num_nodes: 4       # Total nodes
+    num_instances: 4   # 4 independent instances → HAProxy auto-enabled
 ```
 
 **Common Confusions**
 
-- **This is different from `data_parallel_size`**, which controls DP replicas *within* a single node/deployment instance.
-- Global data parallelism is `num_nodes x data_parallel_size` (e.g., 2 nodes x 4 DP each = 8 replicas for max throughput).
-- With multi-node, `parallelism` in task config is the total concurrent requests across all instances, not per-instance.
+- **`num_instances`** controls independent deployment instances with HAProxy. **`data_parallel_size`** controls DP replicas *within* a single instance.
+- Global data parallelism is `num_instances x data_parallel_size` (e.g., 2 instances x 8 DP each = 16 replicas).
+- With multi-instance, `parallelism` in task config is the total concurrent requests across all instances, not per-instance.
+- `num_nodes` must be divisible by `num_instances`.
 
 **Step 7: Advanced - Interceptors**
 

@@ -105,6 +105,7 @@ def test_get_endpoint_url_local_builds_localhost():
     cfg = _cfg(
         {
             "deployment": {"type": "vllm", "port": 8081, "endpoints": {"chat": "/v1"}},
+            "execution": {"num_instances": 1},
             "evaluation": {},
         }
     )

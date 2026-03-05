@@ -57,6 +57,7 @@ class TestSlurmExecutorFeatures:
                 "account": "test-account",
                 "partition": "test-partition",
                 "num_nodes": 1,
+                "num_instances": 1,
                 "ntasks_per_node": 1,
                 "subproject": "test-subproject",
             },
@@ -525,8 +526,10 @@ class TestSlurmExecutorFeatures:
         """Test deployment.n_tasks with various configurations and proxy setup."""
         base_config["execution"]["deployment"] = {"n_tasks": n_tasks}
         base_config["execution"]["num_nodes"] = num_nodes
-        # Set multiple_instances to trigger proxy setup when needed
-        base_config["deployment"]["multiple_instances"] = should_have_proxy
+        # Set num_instances > 1 to trigger proxy setup when needed
+        base_config["execution"]["num_instances"] = (
+            num_nodes if should_have_proxy else 1
+        )
 
         cfg = OmegaConf.create(base_config)
 
@@ -637,6 +640,7 @@ class TestMaxWalltimeFeature:
                 "account": "test-account",
                 "partition": "test-partition",
                 "num_nodes": 1,
+                "num_instances": 1,
                 "ntasks_per_node": 1,
                 "subproject": "test-subproject",
             },
@@ -879,6 +883,7 @@ class TestSlurmExecutorHelperFunctions:
             },
             "execution": {
                 "num_nodes": num_nodes,
+                "num_instances": 1,
                 "deployment": {"n_tasks": n_tasks},
                 "mounts": {"mount_home": mount_home},
             },
@@ -1012,6 +1017,7 @@ class TestSlurmExecutorDryRun:
                 "account": "test-account",
                 "partition": "gpu",
                 "num_nodes": 1,
+                "num_instances": 1,
                 "ntasks_per_node": 8,
                 "gpus_per_node": 8,
                 "subproject": "eval",
@@ -1674,6 +1680,7 @@ class TestSlurmExecutorSystemCalls:
                 "account": "test-account",
                 "partition": "gpu",
                 "num_nodes": 1,
+                "num_instances": 1,
                 "ntasks_per_node": 8,
                 "gpus_per_node": 8,
                 "subproject": "eval",
@@ -2622,3 +2629,708 @@ class TestSlurmExecutorKillJob:
 
         with pytest.raises(RuntimeError, match="Could not find or kill job"):
             SlurmExecutor.kill_job("fail123.0")
+
+
+class TestMultiNodeMultiInstance:
+    """Tests for multi-node / multi-instance refactoring.
+
+    Covers:
+    - Topology validation (num_nodes divisible by num_instances)
+    - Deprecated deployment.multiple_instances removal + warning
+    - ALL_NODE_IPS and HEAD_NODE_IPS generation in srun command
+    - Health check IP selection (HEAD_NODE_IPS vs localhost)
+    - HAProxy placeholder backend generation
+    - Deployment command always wrapped as base64 script file
+    - Pre-cmd + deployment command combined wrapping
+    - Proxy setup triggered by num_instances > 1
+    - get_endpoint_url uses HAProxy port when num_instances > 1
+    """
+
+    @pytest.fixture
+    def base_config(self):
+        """Base configuration for multi-node tests."""
+        return {
+            "deployment": {
+                "type": "vllm",
+                "image": "test-image:latest",
+                "command": "vllm serve /model --port 8000",
+                "served_model_name": "test-model",
+                "port": 8000,
+                "endpoints": {
+                    "health": "/health",
+                },
+            },
+            "execution": {
+                "type": "slurm",
+                "output_dir": "/test/output",
+                "walltime": "01:00:00",
+                "account": "test-account",
+                "partition": "test-partition",
+                "num_nodes": 1,
+                "num_instances": 1,
+                "ntasks_per_node": 1,
+                "subproject": "test-subproject",
+            },
+            "evaluation": {"env_vars": {}},
+            "target": {"api_endpoint": {"url": "http://localhost:8000/v1"}},
+        }
+
+    @pytest.fixture
+    def mock_task(self):
+        return OmegaConf.create({"name": "test_task"})
+
+    @pytest.fixture
+    def mock_dependencies(self):
+        """Mock external dependencies used by _create_slurm_sbatch_script."""
+        with (
+            patch(
+                "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
+            ) as mock_load_tasks,
+            patch(
+                "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_eval_factory_command"
+            ) as mock_get_eval_command,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_served_model_name"
+            ) as mock_get_model_name,
+        ):
+            mock_load_tasks.return_value = {}
+            mock_get_task_def.return_value = {
+                "container": "test-eval-container:latest",
+                "required_env_vars": [],
+                "endpoint_type": "openai",
+                "task": "test_task",
+            }
+            from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+            mock_get_eval_command.return_value = CmdAndReadableComment(
+                cmd="nemo-evaluator run_eval --test", debug="# Test command"
+            )
+            mock_get_model_name.return_value = "test-model"
+
+            yield {
+                "load_tasks_mapping": mock_load_tasks,
+                "get_task_definition_for_job": mock_get_task_def,
+                "get_eval_factory_command": mock_get_eval_command,
+                "get_served_model_name": mock_get_model_name,
+            }
+
+    # ── Topology validation ──────────────────────────────────────────────
+
+    def test_num_nodes_not_divisible_by_num_instances_raises(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """num_nodes must be evenly divisible by num_instances."""
+        base_config["execution"]["num_nodes"] = 5
+        base_config["execution"]["num_instances"] = 2
+        cfg = OmegaConf.create(base_config)
+
+        with pytest.raises(ValueError, match="must be divisible"):
+            _create_slurm_sbatch_script(
+                cfg=cfg,
+                task=mock_task,
+                eval_image="test-eval-container:latest",
+                remote_task_subdir=Path("/test/remote"),
+                invocation_id="test123",
+                job_id="test123.0",
+            )
+
+    @pytest.mark.parametrize(
+        "num_nodes,num_instances",
+        [(4, 2), (6, 3), (8, 1), (1, 1), (4, 4)],
+    )
+    def test_valid_topology_accepted(
+        self, base_config, mock_task, mock_dependencies, num_nodes, num_instances
+    ):
+        """Valid num_nodes / num_instances combos should not raise."""
+        base_config["execution"]["num_nodes"] = num_nodes
+        base_config["execution"]["num_instances"] = num_instances
+        cfg = OmegaConf.create(base_config)
+
+        # Should not raise
+        result = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        )
+        assert result.cmd  # non-empty script
+
+    # ── Deprecated multiple_instances handling ────────────────────────────
+
+    def test_deprecated_multiple_instances_removed_with_warning(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """deployment.multiple_instances should be deleted and a warning logged."""
+        base_config["deployment"]["multiple_instances"] = True
+        base_config["execution"]["num_instances"] = 2
+        base_config["execution"]["num_nodes"] = 2
+        cfg = OmegaConf.create(base_config)
+
+        with patch(
+            "nemo_evaluator_launcher.executors.slurm.executor.logger"
+        ) as mock_logger:
+            _create_slurm_sbatch_script(
+                cfg=cfg,
+                task=mock_task,
+                eval_image="test-eval-container:latest",
+                remote_task_subdir=Path("/test/remote"),
+                invocation_id="test123",
+                job_id="test123.0",
+            )
+
+        # Warning should have been logged
+        mock_logger.warning.assert_called_once()
+        assert "multiple_instances" in mock_logger.warning.call_args[0][0]
+
+        # Field should be removed from config
+        assert cfg.deployment.get("multiple_instances") is None
+
+    def test_multiple_instances_false_still_removed(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """Even multiple_instances=False should trigger deprecation removal."""
+        base_config["deployment"]["multiple_instances"] = False
+        cfg = OmegaConf.create(base_config)
+
+        with patch("nemo_evaluator_launcher.executors.slurm.executor.logger"):
+            _create_slurm_sbatch_script(
+                cfg=cfg,
+                task=mock_task,
+                eval_image="test-eval-container:latest",
+                remote_task_subdir=Path("/test/remote"),
+                invocation_id="test123",
+                job_id="test123.0",
+            )
+
+        assert cfg.deployment.get("multiple_instances") is None
+
+    # ── ALL_NODE_IPS and HEAD_NODE_IPS in srun command ───────────────────
+
+    def test_all_node_ips_exported(self, base_config, mock_task, mock_dependencies):
+        """ALL_NODE_IPS should always be exported and passed to the container."""
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert 'export ALL_NODE_IPS=$(IFS=,; echo "${NODES_IPS_ARRAY[*]}")' in script
+        assert "ALL_NODE_IPS" in script
+
+    def test_head_node_ips_single_instance(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """With 1 instance, HEAD_NODE_IPS loop iterates once (g=0)."""
+        base_config["execution"]["num_nodes"] = 2
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert "HEAD_NODE_IPS=()" in script
+        assert "for ((g=0; g<1; g++))" in script
+        # npi = 2 // 1 = 2, head at index g*2
+        assert "g * 2" in script
+
+    @pytest.mark.parametrize(
+        "num_nodes,num_instances,expected_loop_count,expected_stride",
+        [
+            (4, 2, 2, 2),  # 2 instances of 2 nodes each
+            (6, 3, 3, 2),  # 3 instances of 2 nodes each
+            (4, 4, 4, 1),  # 4 instances of 1 node each
+            (8, 2, 2, 4),  # 2 instances of 4 nodes each
+        ],
+    )
+    def test_head_node_ips_multi_instance(
+        self,
+        base_config,
+        mock_task,
+        mock_dependencies,
+        num_nodes,
+        num_instances,
+        expected_loop_count,
+        expected_stride,
+    ):
+        """HEAD_NODE_IPS loop should iterate num_instances times with correct stride."""
+        base_config["execution"]["num_nodes"] = num_nodes
+        base_config["execution"]["num_instances"] = num_instances
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert f"for ((g=0; g<{expected_loop_count}; g++))" in script
+        assert f"g * {expected_stride}" in script
+
+    def test_all_node_ips_in_container_env(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """ALL_NODE_IPS must appear in the --container-env list."""
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        # Find the --container-env line and check ALL_NODE_IPS is listed
+        match = re.search(r"--container-env\s+(\S+)", script)
+        assert match, "--container-env not found in script"
+        env_vars = match.group(1)
+        assert "ALL_NODE_IPS" in env_vars
+        assert "MASTER_IP" in env_vars
+
+    # ── Health check IP selection ────────────────────────────────────────
+
+    def test_health_check_uses_localhost_for_single_instance(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """Single instance should health-check on 127.0.0.1."""
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        # The wait-for-server handler should use 127.0.0.1
+        assert '"127.0.0.1"' in script
+
+    def test_health_check_uses_head_node_ips_for_multi_instance(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """Multi-instance should health-check on HEAD_NODE_IPS."""
+        base_config["execution"]["num_nodes"] = 4
+        base_config["execution"]["num_instances"] = 4
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert '"${HEAD_NODE_IPS[@]}"' in script
+
+    # ── HAProxy placeholder generation ───────────────────────────────────
+
+    @pytest.mark.parametrize(
+        "num_nodes,num_instances,expected_ips",
+        [
+            (4, 2, ["{IP_0}", "{IP_2}"]),  # heads at node 0 and 2
+            (6, 3, ["{IP_0}", "{IP_2}", "{IP_4}"]),  # heads at 0, 2, 4
+            (4, 4, ["{IP_0}", "{IP_1}", "{IP_2}", "{IP_3}"]),  # 1 node per instance
+            (8, 2, ["{IP_0}", "{IP_4}"]),  # heads at 0, 4
+        ],
+    )
+    def test_haproxy_placeholder_backends(self, num_nodes, num_instances, expected_ips):
+        """HAProxy config should have one backend per instance head node."""
+        from nemo_evaluator_launcher.executors.slurm.executor import (
+            _generate_haproxy_config_with_placeholders,
+        )
+
+        config = {
+            "deployment": {
+                "port": 8000,
+                "endpoints": {"health": "/health"},
+            },
+            "execution": {
+                "num_nodes": num_nodes,
+                "num_instances": num_instances,
+                "proxy": {
+                    "config": {
+                        "haproxy_port": 5009,
+                        "health_check_path": "/health",
+                        "health_check_status": 200,
+                    },
+                },
+            },
+        }
+        cfg = OmegaConf.create(config)
+        haproxy_config = _generate_haproxy_config_with_placeholders(cfg)
+
+        for ip_placeholder in expected_ips:
+            assert ip_placeholder in haproxy_config, (
+                f"{ip_placeholder} not found in HAProxy config"
+            )
+
+        # Verify no extra backends beyond expected
+        import re as _re
+
+        backend_ips = _re.findall(r"\{IP_\d+\}", haproxy_config)
+        assert len(backend_ips) == len(expected_ips)
+
+    # ── Proxy setup triggered by num_instances > 1 ───────────────────────
+
+    def test_proxy_setup_when_multi_instance(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """num_instances > 1 should trigger proxy srun in the sbatch script."""
+        base_config["execution"]["num_nodes"] = 2
+        base_config["execution"]["num_instances"] = 2
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert "proxy" in script.lower()
+        assert "PROXY_PID" in script
+
+    def test_no_proxy_when_single_instance(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """num_instances == 1 should NOT set up proxy."""
+        base_config["execution"]["num_nodes"] = 2
+        base_config["execution"]["num_instances"] = 1
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert "proxy" not in script.lower()
+        assert "PROXY_PID" not in script
+
+    def test_proxy_pid_killed_on_shutdown(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """Multi-instance script should kill both SERVER_PID and PROXY_PID."""
+        base_config["execution"]["num_nodes"] = 2
+        base_config["execution"]["num_instances"] = 2
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert "kill $SERVER_PID" in script
+        assert "kill $PROXY_PID" in script
+
+    # ── Deployment command wrapping (base64 script file) ─────────────────
+
+    def test_deployment_command_written_as_script_file(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """Deployment command should always be base64-encoded into deployment_cmd.sh."""
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert "base64 -d > deployment_cmd.sh" in script
+        assert "bash deployment_cmd.sh" in script
+
+    def test_deployment_command_base64_encodes_correctly(self):
+        """The base64 encoding should round-trip to the original command."""
+        import base64
+
+        cmd = "vllm serve /model --port 8000 --tp 8"
+        encoded = base64.b64encode(cmd.encode("utf-8")).decode("utf-8")
+        decoded = base64.b64decode(encoded).decode("utf-8")
+        assert decoded == cmd
+
+    def test_multiline_command_wrapped(self, base_config, mock_task, mock_dependencies):
+        """Multi-line deployment commands should be encoded into script file."""
+        base_config["deployment"]["command"] = (
+            "#!/bin/bash\nset -e\nray start --head\nvllm serve /model"
+        )
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert "base64 -d > deployment_cmd.sh" in script
+        assert "bash deployment_cmd.sh" in script
+        # Multi-line command should be written to deployment_cmd.sh
+        assert "deployment_cmd.sh" in script
+
+    def test_command_wrapped_in_bash_c(self, base_config, mock_task, mock_dependencies):
+        """Deployment srun should use bash -c wrapper running asynchronously."""
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        # Should have bash -c '...' &
+        assert re.search(r"bash -c '.*deployment_cmd\.sh.*' &", script)
+
+    # ── Pre-cmd + deployment command combined ────────────────────────────
+
+    def test_pre_cmd_and_deploy_cmd_both_as_scripts(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """When pre_cmd is set, both pre_cmd and command should be script files."""
+        base_config["deployment"]["pre_cmd"] = "export MY_VAR=1\necho setup done"
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert "base64 -d > deployment_pre_cmd.sh" in script
+        assert "source deployment_pre_cmd.sh" in script
+        assert "base64 -d > deployment_cmd.sh" in script
+        assert "bash deployment_cmd.sh" in script
+
+    def test_no_pre_cmd_skips_pre_script(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """Without pre_cmd, only deployment_cmd.sh should be generated."""
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert "deployment_pre_cmd.sh" not in script
+        assert "base64 -d > deployment_cmd.sh" in script
+
+    # ── Srun --nodes uses num_nodes ──────────────────────────────────────
+
+    @pytest.mark.parametrize("num_nodes", [1, 2, 4, 8])
+    def test_srun_nodes_equals_num_nodes(
+        self, base_config, mock_task, mock_dependencies, num_nodes
+    ):
+        """srun --nodes should always equal execution.num_nodes."""
+        base_config["execution"]["num_nodes"] = num_nodes
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert f"--nodes {num_nodes}" in script
+
+    # ── _generate_deployment_srun_command directly ───────────────────────
+
+    def test_srun_command_all_node_ips_and_head_node_ips(self):
+        """Directly test that _generate_deployment_srun_command emits IP arrays."""
+        from nemo_evaluator_launcher.executors.slurm.executor import (
+            _generate_deployment_srun_command,
+        )
+
+        config = {
+            "deployment": {
+                "type": "vllm",
+                "image": "test-image:latest",
+                "command": "vllm serve /model",
+            },
+            "execution": {
+                "num_nodes": 4,
+                "num_instances": 2,
+                "deployment": {"n_tasks": 4},
+                "mounts": {"mount_home": True},
+            },
+        }
+        cfg = OmegaConf.create(config)
+
+        command, _, _ = _generate_deployment_srun_command(
+            cfg=cfg,
+            deployment_mounts_list=[],
+            remote_task_subdir=Path("/test/remote"),
+        )
+
+        # ALL_NODE_IPS exported
+        assert "export ALL_NODE_IPS=" in command
+        # HEAD_NODE_IPS loop: 2 instances, stride=2
+        assert "for ((g=0; g<2; g++))" in command
+        assert "g * 2" in command
+        # Container env includes both
+        assert "ALL_NODE_IPS" in command
+        assert "MASTER_IP" in command
+
+    def test_srun_command_base64_script_wrapping(self):
+        """Directly test that deployment command is base64-encoded."""
+        from nemo_evaluator_launcher.executors.slurm.executor import (
+            _generate_deployment_srun_command,
+        )
+
+        config = {
+            "deployment": {
+                "type": "vllm",
+                "image": "test-image:latest",
+                "command": "#!/bin/bash\nset -e\nvllm serve /model",
+            },
+            "execution": {
+                "num_nodes": 1,
+                "num_instances": 1,
+                "deployment": {"n_tasks": 1},
+                "mounts": {"mount_home": True},
+            },
+        }
+        cfg = OmegaConf.create(config)
+
+        command, _, _ = _generate_deployment_srun_command(
+            cfg=cfg,
+            deployment_mounts_list=[],
+            remote_task_subdir=Path("/test/remote"),
+        )
+
+        assert "base64 -d > deployment_cmd.sh" in command
+        assert "bash deployment_cmd.sh" in command
+        assert "bash -c '" in command
+
+    def test_srun_command_with_pre_cmd(self):
+        """Test that pre_cmd generates deployment_pre_cmd.sh and is sourced."""
+        from nemo_evaluator_launcher.executors.slurm.executor import (
+            _generate_deployment_srun_command,
+        )
+
+        config = {
+            "deployment": {
+                "type": "vllm",
+                "image": "test-image:latest",
+                "command": "vllm serve /model",
+                "pre_cmd": "export MY_VAR=hello\necho pre-setup",
+            },
+            "execution": {
+                "num_nodes": 1,
+                "num_instances": 1,
+                "deployment": {"n_tasks": 1},
+                "mounts": {"mount_home": True},
+            },
+        }
+        cfg = OmegaConf.create(config)
+
+        command, _, _ = _generate_deployment_srun_command(
+            cfg=cfg,
+            deployment_mounts_list=[],
+            remote_task_subdir=Path("/test/remote"),
+        )
+
+        assert "base64 -d > deployment_pre_cmd.sh" in command
+        assert "source deployment_pre_cmd.sh" in command
+        assert "base64 -d > deployment_cmd.sh" in command
+        assert "bash deployment_cmd.sh" in command
+
+    # ── get_endpoint_url with num_instances ──────────────────────────────
+
+    def test_get_endpoint_url_single_instance_uses_deployment_port(self):
+        """Single instance should use deployment port for endpoint URL."""
+        from nemo_evaluator_launcher.common.helpers import get_endpoint_url
+
+        config = {
+            "deployment": {
+                "type": "vllm",
+                "port": 8000,
+                "endpoints": {"openai": "/v1/chat/completions"},
+            },
+            "execution": {
+                "type": "slurm",
+                "num_instances": 1,
+            },
+            "target": {"api_endpoint": {}},
+        }
+        cfg = OmegaConf.create(config)
+        url = get_endpoint_url(cfg, {}, "openai")
+        assert url == "http://127.0.0.1:8000/v1/chat/completions"
+
+    def test_get_endpoint_url_multi_instance_uses_haproxy_port(self):
+        """Multi-instance should use HAProxy port for endpoint URL."""
+        from nemo_evaluator_launcher.common.helpers import get_endpoint_url
+
+        config = {
+            "deployment": {
+                "type": "vllm",
+                "port": 8000,
+                "endpoints": {"openai": "/v1/chat/completions"},
+            },
+            "execution": {
+                "type": "slurm",
+                "num_instances": 2,
+                "proxy": {
+                    "config": {"haproxy_port": 5009},
+                },
+            },
+            "target": {"api_endpoint": {}},
+        }
+        cfg = OmegaConf.create(config)
+        url = get_endpoint_url(cfg, {}, "openai")
+        assert url == "http://127.0.0.1:5009/v1/chat/completions"
+
+    def test_get_endpoint_url_multi_instance_default_haproxy_port(self):
+        """Multi-instance without explicit proxy config should default to port 5009."""
+        from nemo_evaluator_launcher.common.helpers import get_endpoint_url
+
+        config = {
+            "deployment": {
+                "type": "vllm",
+                "port": 8000,
+                "endpoints": {"openai": "/v1/chat/completions"},
+            },
+            "execution": {
+                "type": "slurm",
+                "num_instances": 3,
+            },
+            "target": {"api_endpoint": {}},
+        }
+        cfg = OmegaConf.create(config)
+        url = get_endpoint_url(cfg, {}, "openai")
+        assert url == "http://127.0.0.1:5009/v1/chat/completions"

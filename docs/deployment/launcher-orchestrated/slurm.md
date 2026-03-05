@@ -77,7 +77,8 @@ execution:
   
   # Resource allocation
   partition: batch                      # Slurm partition/queue
-  num_nodes: 1                         # Number of nodes
+  num_nodes: 1                         # Total SLURM nodes
+  num_instances: 1                     # Independent deployment instances (HAProxy auto-enabled when > 1)
   ntasks_per_node: 1                   # Tasks per node
   gres: gpu:8                          # GPU resources
   walltime: "01:00:00"                 # Wall time limit (HH:MM:SS)
@@ -95,6 +96,18 @@ execution:
 :::{note}
 The `gpus_per_node` parameter can be used as an alternative to `gres` for specifying GPU resources. However, `gres` is the default in the base configuration.
 :::
+
+## Multi-Instance with HAProxy
+
+To run multiple independent deployment instances with HAProxy load-balancing:
+
+```yaml
+execution:
+  num_nodes: 4              # Total SLURM nodes
+  num_instances: 2           # 2 instances of 2 nodes each → HAProxy auto-enabled
+```
+
+When `num_instances > 1`, HAProxy is automatically configured to distribute requests across instance head nodes. See the `examples/` directory for complete configurations.
 
 ## Configuration Examples
 

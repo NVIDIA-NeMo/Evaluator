@@ -29,7 +29,7 @@ from typing import Dict, List, Optional
 
 import yaml
 from jinja2 import Environment, FileSystemLoader
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo_evaluator_launcher.common.env_vars import (
     SecretsEnvResult,
@@ -145,7 +145,7 @@ class SlurmExecutor(BaseExecutor):
                 )
 
                 # Create proxy config file with placeholder IPs for multi-instance deployments
-                if cfg.deployment.get("multiple_instances", False):
+                if cfg.execution.num_instances > 1:
                     proxy_type = cfg.execution.get("proxy", {}).get("type", "haproxy")
                     if proxy_type == "haproxy":
                         proxy_config = _generate_haproxy_config_with_placeholders(cfg)
@@ -642,6 +642,22 @@ def _create_slurm_sbatch_script(
     Returns:
         str: The contents of the sbatch script.
     """
+    # Remove deprecated deployment.multiple_instances if present
+    if cfg.deployment.get("multiple_instances") is not None:
+        logger.warning(
+            "deployment.multiple_instances is deprecated and will be "
+            "removed from config — use execution.num_instances instead."
+        )
+        with open_dict(cfg):
+            del cfg.deployment.multiple_instances
+
+    # Validate topology: num_nodes must be divisible by num_instances
+    if cfg.execution.num_nodes % cfg.execution.num_instances != 0:
+        raise ValueError(
+            f"execution.num_nodes ({cfg.execution.num_nodes}) must be divisible by "
+            f"execution.num_instances ({cfg.execution.num_instances})"
+        )
+
     # get task from mapping, overrides, urls
     tasks_mapping = load_tasks_mapping()
     task_definition = get_task_definition_for_job(
@@ -780,9 +796,9 @@ def _create_slurm_sbatch_script(
 
         # wait for the server to initialize
         health_path = cfg.deployment.endpoints.get("health", "/health")
-        # For multi-instance check all node IPs, for single instance check localhost
-        if cfg.deployment.get("multiple_instances", False):
-            ip_list = '"${NODES_IPS_ARRAY[@]}"'
+        # HEAD_NODE_IPS is always set: subset of heads when NPI > 1, all nodes otherwise
+        if cfg.execution.num_instances > 1:
+            ip_list = '"${HEAD_NODE_IPS[@]}"'
         else:
             ip_list = '"127.0.0.1"'
         s += _get_wait_for_server_handler(
@@ -795,7 +811,7 @@ def _create_slurm_sbatch_script(
         s += "\n\n"
 
         # add proxy load balancer for multi-instance deployments
-        if cfg.deployment.get("multiple_instances", False):
+        if cfg.execution.num_instances > 1:
             s += _get_proxy_server_srun_command(cfg, remote_task_subdir)
 
     # prepare evaluation mounts
@@ -858,7 +874,7 @@ def _create_slurm_sbatch_script(
     # terminate the server after all evaluation clients finish
     if cfg.deployment.type != "none":
         s += "kill $SERVER_PID  # terminate the server to finish gracefully\n"
-        if cfg.deployment.get("multiple_instances", False):
+        if cfg.execution.num_instances > 1:
             s += "kill $PROXY_PID  # terminate proxy to finish gracefully\n"
         s += "\n"
 
@@ -1579,11 +1595,11 @@ def _generate_haproxy_config_with_placeholders(cfg):
     env = Environment(loader=FileSystemLoader(template_dir))
     template = env.get_template("proxy.cfg.template")
 
-    # Prepare template data with placeholder IPs - use actual number of nodes
-    num_nodes = cfg.execution.num_nodes
+    # Prepare template data with placeholder IPs - one backend per instance head node
     nodes = []
-    for i in range(num_nodes):
-        nodes.append({"ip": f"{{IP_{i}}}", "port": cfg.deployment.port})
+    for i in range(cfg.execution.num_instances):
+        head_idx = i * cfg.execution.num_nodes // cfg.execution.num_instances
+        nodes.append({"ip": f"{{IP_{head_idx}}}", "port": cfg.deployment.port})
 
     # Get health check parameters - prefer proxy config, fallback to deployment.endpoints.health
     proxy_config = cfg.execution.get("proxy", {}).get("config", {})
@@ -1680,6 +1696,12 @@ def _generate_deployment_srun_command(
     s += "# Export MASTER_IP as the first node IP\n"
     s += "export MASTER_IP=${NODES_IPS_ARRAY[0]}\n"
     s += 'echo "MASTER_IP: $MASTER_IP"\n'
+    s += 'export ALL_NODE_IPS=$(IFS=,; echo "${NODES_IPS_ARRAY[*]}")\n'
+    s += "HEAD_NODE_IPS=()\n"
+    s += f"for ((g=0; g<{cfg.execution.num_instances}; g++)); do\n"
+    s += f'    HEAD_NODE_IPS+=("${{NODES_IPS_ARRAY[$((g * {cfg.execution.num_nodes // cfg.execution.num_instances}))]}}")\n'
+    s += "done\n"
+    s += 'echo "HEAD_NODE_IPS: ${HEAD_NODE_IPS[@]}"\n'
 
     # Add debug comment for deployment pre_cmd before srun command
     if debug_comment:
@@ -1703,8 +1725,25 @@ def _generate_deployment_srun_command(
     if "MASTER_IP" not in deployment_env_var_names:
         deployment_env_var_names.append("MASTER_IP")
 
+    # Always add ALL_NODE_IPS to the environment variables
+    if "ALL_NODE_IPS" not in deployment_env_var_names:
+        deployment_env_var_names.append("ALL_NODE_IPS")
+
     if deployment_env_var_names:
         s += f"--container-env {','.join(sorted(deployment_env_var_names))} "
+
+    # Build the command that runs inside the container:
+    # 1. Export scheduler-agnostic env vars (PROC_ID, NUM_TASKS)
+    # 2. Optionally write + source deployment_pre_cmd.sh
+    # 3. Write deployment_cmd.sh and execute it
+    create_script_cmd = _str_to_echo_command(
+        cfg.deployment.command, filename="deployment_cmd.sh"
+    )
+    debug_comment += create_script_cmd.debug + "\n\n"
+
+    # Map SLURM task variables to scheduler-agnostic names inside the container
+    env_setup = "export PROC_ID=${SLURM_PROCID:-0} NUM_TASKS=${SLURM_NTASKS:-1}"
+    script = f"{env_setup} && {create_script_cmd.cmd} && bash deployment_cmd.sh"
 
     # Wrap deployment command to execute pre_cmd inside container if needed
     if pre_cmd:
@@ -1715,16 +1754,13 @@ def _generate_deployment_srun_command(
         create_pre_script_cmd = _str_to_echo_command(
             pre_cmd, filename="deployment_pre_cmd.sh"
         )
-        # Escape single quotes in the deployment command for bash -c
-        escaped_deployment_cmd = cfg.deployment.command.replace("'", "'\"'\"'")
-        wrapped_command = (
-            f"bash -c '{create_pre_script_cmd.cmd} && "
+        script = (
+            f"{env_setup} && "
+            f"{create_pre_script_cmd.cmd} && "
             f"source deployment_pre_cmd.sh && "
-            f"{escaped_deployment_cmd}'"
+            f"{create_script_cmd.cmd} && bash deployment_cmd.sh"
         )
-        s += "{} &\n\n".format(wrapped_command)
-    else:
-        s += "{} &\n\n".format(cfg.deployment.command)  # run asynchronously
+    s += "bash -c '{}' &\n\n".format(script)  # run asynchronously
 
     s += "SERVER_PID=$!  # capture the PID of the server background srun process\n\n"
 

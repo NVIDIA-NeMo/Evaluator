@@ -42,9 +42,8 @@
 # - tensor_parallel_size: 8 (within node parallelism)
 # - pipeline_parallel_size: 2 (across node parallelism)
 #
-# Multi-Instance Configuration:
-# - execution.num_nodes: Number of SLURM nodes to allocate (2 in this example)
-# - execution.deployment.n_tasks: Must match num_nodes for multi-instance deployment
+# Multi-Node Configuration:
+# - execution.num_nodes: 2 (single instance spanning 2 nodes)
 # - deployment.tensor_parallel_size: GPU parallelism within a single node
 # - deployment.pipeline_parallel_size: Model parallelism across multiple nodes
 #
@@ -67,8 +66,6 @@ execution:
   walltime: 02:00:00
 
   num_nodes: 2 # Number of SLURM nodes for multi-node deployment
-  deployment:
-    n_tasks: ${execution.num_nodes} # For multi-node ray vLLM deployment, must match num_nodes
 
   mounts:
     mount_home: false # Whether to mount home directory (default: true)
@@ -135,7 +132,7 @@ evaluation:
         request_timeout: 3600 # Timeout for API requests in seconds
         temperature: 0.6 # Sampling temperature
         top_p: 0.95 # Nucleus sampling parameter
-        max_tokens: 32768 # Maximum number of tokens to generate (32k)
+        max_new_tokens: 32768 # Maximum number of tokens to generate (32k)
 
     target:
       api_endpoint:
