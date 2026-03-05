@@ -50,7 +50,6 @@ from nemo_evaluator_launcher.common.helpers import (
     check_unlisted_tasks_safeguard,
     get_api_key_name,
     get_eval_factory_command,
-    get_eval_factory_dataset_size_from_run_config,
     get_timestamp_string,
 )
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -1443,36 +1442,29 @@ def _get_progress(
     username: str,
     hostname: str,
     socket: str | None,
-) -> List[Optional[float]]:
+) -> List[Optional[int]]:
+    """Read progress (number of completed requests) from remote run directories.
+
+    Returns the raw request count from each task's artifacts/progress file.
+    The count reflects unique successful, non-cached API requests processed
+    by the evaluation framework.
+    """
     remote_progress_paths = [
         remote_rundir_path / "artifacts" / "progress"
-        for remote_rundir_path in remote_rundir_paths
-    ]
-    remote_run_config_paths = [
-        remote_rundir_path / "artifacts" / "run_config.yml"
         for remote_rundir_path in remote_rundir_paths
     ]
     progress_strs = _read_files_from_remote(
         remote_progress_paths, username, hostname, socket
     )
-    if any(map(bool, progress_strs)):
-        run_config_strs = _read_files_from_remote(
-            remote_run_config_paths, username, hostname, socket
-        )
-    else:
-        run_config_strs = [""] * len(progress_strs)
     progress_list = []
-    for progress_str, run_config_str in zip(progress_strs, run_config_strs):
-        if not progress_str or not run_config_str:
+    for progress_str in progress_strs:
+        if not progress_str:
             progress_list.append(None)
             continue
-        run_config = yaml.safe_load(run_config_str)
-        dataset_size = get_eval_factory_dataset_size_from_run_config(run_config)
-        if dataset_size is not None:
-            progress = int(progress_str) / dataset_size
-        else:
-            progress = int(progress_str)
-        progress_list.append(progress)
+        try:
+            progress_list.append(int(progress_str))
+        except ValueError:
+            progress_list.append(None)
     return progress_list
 
 
