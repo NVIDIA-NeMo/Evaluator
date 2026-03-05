@@ -1755,10 +1755,11 @@ wheels = [
 
 [[package]]
 name = "nemo-evaluator"
-version = "0.1.59"
+version = "0.1.92"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "flask" },
+    { name = "httpx" },
     { name = "jinja2" },
     { name = "psutil" },
     { name = "pydantic" },
@@ -1770,15 +1771,16 @@ dependencies = [
     { name = "werkzeug" },
     { name = "yq" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/68/fc/1d3777bea1d683f7956cc722bc9776b00f141960b91f4eeb6d6598e26c64/nemo_evaluator-0.1.59.tar.gz", hash = "sha256:3736986bc6f5efec090b0c7bb590fd7dbf75465f491fdd4bc4bdd92890164c70", size = 93631, upload-time = "2026-01-05T01:36:42.224Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d5/ba/f4c275c7a7ac14a413df588ed9dc6b986b7d4dad8df6872170b04ee319f7/nemo_evaluator-0.1.92.tar.gz", hash = "sha256:b274e0f28f37389647d70c890f12ec081ba449a5ec251cab39f320ca349dbc30", size = 150204, upload-time = "2026-03-02T11:54:31.486Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cb/02/890ef0ee98bd0e9a447500b955713877a078043b3ce67f4d336bc85c52a9/nemo_evaluator-0.1.59-py3-none-any.whl", hash = "sha256:97254d7ea3624d2bb8841823e344ac6696cd0fe790987e4217423e572274506b", size = 125725, upload-time = "2026-01-05T01:36:41.028Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/4f/a57f61da43fc12e5e934e4a1eb658c0411a609bea888beb6112b8f418fbf/nemo_evaluator-0.1.92-py3-none-any.whl", hash = "sha256:f075345f0c02aaa8f09edb4dcaaabff87283c78580b61f197a173f99bf98ea83", size = 197442, upload-time = "2026-03-02T11:54:30.436Z" },
 ]
 
 [[package]]
 name = "nemo-evaluator-launcher"
 source = { editable = "." }
 dependencies = [
+    { name = "httpx" },
     { name = "hydra-core" },
     { name = "jinja2" },
     { name = "leptonai" },
@@ -1830,13 +1832,14 @@ requires-dist = [
     { name = "gsheets", marker = "extra == 'all'" },
     { name = "gsheets", marker = "extra == 'exporters'" },
     { name = "gspread", marker = "extra == 'gsheets'", specifier = ">=5.0.0" },
+    { name = "httpx", specifier = ">=0.27.2,<1" },
     { name = "hydra-core", specifier = ">=1.3.2,<2.0.0" },
     { name = "jinja2", specifier = ">=3.1.6,<4.0.0" },
     { name = "leptonai", specifier = ">=0.25.0" },
     { name = "mlflow", marker = "extra == 'all'" },
     { name = "mlflow", marker = "extra == 'exporters'" },
     { name = "mlflow", marker = "extra == 'mlflow'", specifier = ">=2.8.0" },
-    { name = "nemo-evaluator" },
+    { name = "nemo-evaluator", specifier = ">=0.1.92" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "requests", specifier = ">=2.32.4" },

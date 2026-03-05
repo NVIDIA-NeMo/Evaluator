@@ -74,3 +74,19 @@ evaluation:
       env_vars:
         HF_TOKEN: host:HF_TOKEN_FOR_AEGIS_V2  # use token with access to https://huggingface.co/datasets/nvidia/Aegis-AI-Content-Safety-Dataset-2.0 and https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct
         JUDGE_API_KEY: host:JUDGE_API_KEY  # API Key with access to your judge endpoint, skip if not gated
+    - name: compliance
+      nemo_evaluator_config:
+        config:
+          params:
+            extra:
+              # please note that the dataset and the policy need to be provided as absolute paths
+              # those files are included under ./data/compliance/ in the repository, but you can move them elsewhere and update the paths accordingly
+              dataset: /data/compliance/Tolkien_Dataset.jsonl
+              policy: /data/compliance/Tolkien_Policy.yaml
+              # There is no official judge for the compliance task, but you can use any judge that fits your needs. If you don't have a judge ready, you can skip the evaluation of this task by commenting it out.
+              judge:
+                api_key: JUDGE_API_KEY
+                url: ???
+                model_id: ???
+        env_vars:
+          JUDGE_API_KEY: host:COMPLIANCE_JUDGE_SERVICE_API_KEY

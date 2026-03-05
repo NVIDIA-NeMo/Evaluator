@@ -74,8 +74,8 @@ container = "nvcr.io/nvidia/eval-factory/nemo-skills:26.01"
 # NeMo Skills container name has changed from nemo_skills to nemo-skills in 26.01
 
 [safety_eval]
-container = "nvcr.io/nvidia/eval-factory/safety-harness:25.11"
-# container-digest:sha256:08eeb3f5c3282522ca30da7d3ddc2cab1a48909be05ba561a0dae9a299c637f0
+container = "nvcr.io/nvidia/eval-factory/safety-harness:26.01"
+# container-digest:sha256:86df570bd581059d1a5133dcc055ea1adb3e2308ac36414e1377331f8eabba76
 
 [helm]
 container = "nvcr.io/nvidia/eval-factory/helm:26.01"

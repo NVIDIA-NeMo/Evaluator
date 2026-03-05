@@ -297,18 +297,19 @@ class LocalExecutor(BaseExecutor):
                     secrets_result.secrets_content
                 )
 
-        run_all_sequentially_sh_content = (
-            run_template.render(
-                evaluation_tasks=evaluation_tasks,
-                auto_export_destinations=auto_export_destinations,
-                auto_export_config_str=auto_export_config_str,
-                extra_docker_args=extra_docker_args,
-            ).rstrip("\n")
-            + "\n"
-        )
-        (output_dir / "run_all.sequential.sh").write_text(
-            run_all_sequentially_sh_content
-        )
+        if is_execution_mode_sequential:
+            run_all_sequentially_sh_content = (
+                run_template.render(
+                    evaluation_tasks=evaluation_tasks,
+                    auto_export_destinations=auto_export_destinations,
+                    auto_export_config_str=auto_export_config_str,
+                    extra_docker_args=extra_docker_args,
+                ).rstrip("\n")
+                + "\n"
+            )
+            (output_dir / "run_all.sequential.sh").write_text(
+                run_all_sequentially_sh_content
+            )
 
         if dry_run:
             print(bold("\n\n=============================================\n\n"))
@@ -583,6 +584,126 @@ class LocalExecutor(BaseExecutor):
                 id=id, state=ExecutionState.PENDING, progress=dict(progress=progress)
             )
         ]
+
+    @classmethod
+    def resume_invocation(cls, invocation_id: str, jobs: dict[str, JobData]) -> None:
+        """Resume a local invocation.
+
+        Cleans stage files for all jobs so the resumed run starts fresh.
+        If the invocation was originally sequential (``run_all.sequential.sh``
+        exists), re-executes that single script.  Otherwise falls back to
+        per-job ``resume_job`` (parallel mode).
+
+        Args:
+            invocation_id: The resolved invocation ID.
+            jobs: Mapping of job_id -> JobData for every job in the invocation.
+        """
+        db = ExecutionDB()
+
+        any_task_dir = pathlib.Path(next(iter(jobs.values())).data["output_dir"])
+        invocation_dir = any_task_dir.parent
+
+        # Sequential mode: single script drives all tasks
+        if (invocation_dir / "run_all.sequential.sh").exists():
+            logger.info("Detected sequential mode, executing run_all.sequential.sh")
+
+            for job in jobs.values():
+                task_output_dir = pathlib.Path(job.data["output_dir"])
+                logs_dir = task_output_dir / "logs"
+                for stage_file in ("stage.pre-start", "stage.running", "stage.exit"):
+                    (logs_dir / stage_file).unlink(missing_ok=True)
+
+            os_name = platform.system()
+            if os_name == "Windows":
+                proc = subprocess.Popen(
+                    shlex.split("bash run_all.sequential.sh"),
+                    cwd=invocation_dir,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                )
+            else:
+                proc = subprocess.Popen(
+                    shlex.split("bash run_all.sequential.sh"),
+                    cwd=invocation_dir,
+                    start_new_session=True,
+                )
+
+            for job in jobs.values():
+                job.data["resumed_at"] = time.time()
+                job.data.pop("killed", None)
+                db.write_job(job)
+
+            # Check for immediate startup failure
+            time.sleep(0.3)
+            exit_code = proc.poll()
+            if exit_code is not None and exit_code != 0:
+                raise RuntimeError(
+                    f"Script run_all.sequential.sh failed immediately with exit code {exit_code}. "
+                    f"Check logs in {invocation_dir}/logs/"
+                )
+            return
+
+        # Parallel mode: resume each job individually
+        for job_id in jobs:
+            cls.resume_job(job_id)
+
+    @staticmethod
+    def resume_job(job_id: str) -> None:
+        """Resume a local job by re-executing its run.sh script.
+
+        Args:
+            job_id: The job ID (e.g., abc123.0) to resume.
+
+        Raises:
+            ValueError: If job is not found or not a local job.
+            FileNotFoundError: If run.sh no longer exists on disk.
+            RuntimeError: If the script fails immediately after launch.
+        """
+        db = ExecutionDB()
+        job = db.get_job(job_id)
+
+        if job is None:
+            raise ValueError(f"Job {job_id} not found")
+        if job.executor != "local":
+            raise ValueError(
+                f"Job {job_id} is not a local job (executor: {job.executor})"
+            )
+
+        task_dir = pathlib.Path(job.data["output_dir"])
+        if not (task_dir / "run.sh").exists():
+            raise FileNotFoundError(f"run.sh not found in {task_dir}")
+
+        logs_dir = task_dir / "logs"
+        for stage_file in ("stage.pre-start", "stage.running", "stage.exit"):
+            (logs_dir / stage_file).unlink(missing_ok=True)
+
+        logger.info(f"Executing {task_dir.name}/run.sh")
+
+        os_name = platform.system()
+        if os_name == "Windows":
+            proc = subprocess.Popen(
+                shlex.split("bash run.sh"),
+                cwd=task_dir,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+            )
+        else:
+            proc = subprocess.Popen(
+                shlex.split("bash run.sh"),
+                cwd=task_dir,
+                start_new_session=True,
+            )
+
+        job.data["resumed_at"] = time.time()
+        job.data.pop("killed", None)
+        db.write_job(job)
+
+        # Check for immediate startup failure
+        time.sleep(0.3)
+        exit_code = proc.poll()
+        if exit_code is not None and exit_code != 0:
+            raise RuntimeError(
+                f"Script {task_dir.name}/run.sh failed immediately with exit code {exit_code}. "
+                f"Check logs in {task_dir}/logs/"
+            )
 
     @staticmethod
     def kill_job(job_id: str) -> None:
@@ -919,31 +1040,27 @@ class LocalExecutor(BaseExecutor):
             f.write(f"{job_id}\n")
 
 
-def _get_progress(artifacts_dir: pathlib.Path) -> Optional[float]:
+def _get_progress(artifacts_dir: pathlib.Path) -> Optional[int]:
     """Get the progress of a local job.
+
+    Returns the raw request count from the task's artifacts/progress file.
+    The count reflects unique successful, non-cached API requests processed
+    by the evaluation framework.
 
     Args:
         artifacts_dir: The directory containing the evaluation artifacts.
 
     Returns:
-        The progress of the job as a float between 0 and 1.
+        Number of completed requests, or None if progress file doesn't exist.
     """
     progress_filepath = artifacts_dir / "progress"
     if not progress_filepath.exists():
         return None
     progress_str = progress_filepath.read_text().strip()
     try:
-        processed_samples = int(progress_str)
+        return int(progress_str)
     except ValueError:
         return None
-
-    dataset_size = _get_dataset_size(artifacts_dir)
-    if dataset_size is not None:
-        progress = processed_samples / dataset_size
-    else:
-        # NOTE(dfridman): if we don't know the dataset size, report the number of processed samples
-        progress = processed_samples
-    return progress
 
 
 def _get_dataset_size(artifacts_dir: pathlib.Path) -> Optional[int]:

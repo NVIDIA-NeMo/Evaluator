@@ -346,8 +346,24 @@ def collect_eval_env_vars(
         dict mapping target_name → EnvVarValue.
     """
     # Collect raw env vars (target_name → raw_value_string)
+    raw_env_vars: dict[str, str] = {}
+    # 0. telemetry env vars
+    from nemo_evaluator.telemetry import (
+        TELEMETRY_ENDPOINT_ENV_VAR,
+        TELEMETRY_LEVEL_ENV_VAR,
+        TELEMETRY_SESSION_ID_ENV_VAR,
+    )
+
+    for tel_var in (
+        TELEMETRY_SESSION_ID_ENV_VAR,
+        TELEMETRY_LEVEL_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+    ):
+        if os.getenv(tel_var):
+            # load and use literal so it appears in the dry-run output
+            raw_env_vars[tel_var] = f"{EnvVarLiteral.PREFIX}{os.getenv(tel_var)}"
     # 1. Top-level env_vars (new unified config)
-    raw_env_vars: dict[str, str] = _collect_top_level_env_vars(cfg)
+    raw_env_vars.update(_collect_top_level_env_vars(cfg))
 
     # 2. evaluation.env_vars (global eval-level)
     raw_env_vars.update(copy.deepcopy(dict(cfg.evaluation.get("env_vars", {}))))

@@ -52,7 +52,6 @@ from nemo_evaluator_launcher.common.helpers import (
     check_unlisted_tasks_safeguard,
     get_api_key_name,
     get_eval_factory_command,
-    get_eval_factory_dataset_size_from_run_config,
     get_timestamp_string,
 )
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -512,6 +511,73 @@ class SlurmExecutor(BaseExecutor):
             return ExecutionState.FAILED
 
     @staticmethod
+    def resume_job(job_id: str) -> None:
+        """Resume a SLURM job by resubmitting its sbatch script via SSH.
+
+        Cleans up stale auto-resume state (.slurm_job_id.list and
+        .accumulated_walltime) before resubmitting so that ``nel status``
+        tracks the new job chain rather than the old one.
+
+        Args:
+            job_id: The job ID (e.g., abc123.0) to resume.
+
+        Raises:
+            ValueError: If job is not found or not a slurm job.
+            RuntimeError: If sbatch submission fails.
+        """
+        db = ExecutionDB()
+        job = db.get_job(job_id)
+
+        if job is None:
+            raise ValueError(f"Job {job_id} not found")
+        if job.executor != "slurm":
+            raise ValueError(
+                f"Job {job_id} is not a slurm job (executor: {job.executor})"
+            )
+
+        hostname = job.data["hostname"]
+        username = job.data["username"]
+        remote_dir = job.data["remote_rundir_path"]
+
+        # Clean up stale auto-resume state before resubmitting
+        sbatch_cmd = (
+            f"cd {remote_dir}"
+            f" && rm -f .slurm_job_id.list .accumulated_walltime"
+            f" && sbatch run.sub"
+        )
+        ssh_command = f"ssh {username}@{hostname} {shlex.quote(sbatch_cmd)}"
+
+        logger.info(f"Submitting sbatch for {remote_dir}", cmd=ssh_command)
+        completed = subprocess.run(
+            shlex.split(ssh_command),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        if completed.returncode != 0:
+            error_msg = (
+                completed.stderr.decode("utf-8")
+                if completed.stderr
+                else "Unknown error"
+            )
+            raise RuntimeError(f"sbatch failed for {remote_dir}: {error_msg}")
+
+        stdout = completed.stdout.decode("utf-8")
+        match = re.search(r"Submitted batch job (\d+)", stdout)
+        if not match:
+            raise RuntimeError(
+                f"Could not parse SLURM job ID from sbatch output: {stdout}"
+            )
+
+        new_slurm_job_id = match.group(1)
+        logger.info(f"Submitted {job.job_id} as SLURM job {new_slurm_job_id}")
+
+        # Update ExecDB so nel status/kill target the new SLURM job
+        job.data["slurm_job_id"] = new_slurm_job_id
+        job.data["resumed_at"] = time.time()
+        db.write_job(job)
+
+    @staticmethod
     def kill_job(job_id: str) -> None:
         """Kill a SLURM job.
 
@@ -596,7 +662,7 @@ def _create_slurm_sbatch_script(
     s += "#SBATCH --ntasks-per-node {}\n".format(cfg.execution.ntasks_per_node)
     if cfg.execution.get("gpus_per_node", None) is not None:
         s += "#SBATCH --gpus-per-node {}\n".format(cfg.execution.gpus_per_node)
-    if hasattr(cfg.execution, "gres"):
+    if hasattr(cfg.execution, "gres") and cfg.execution.gres:
         s += "#SBATCH --gres {}\n".format(cfg.execution.gres)
     if cfg.execution.get("sbatch_comment"):
         s += "#SBATCH --comment='{}'\n".format(cfg.execution.sbatch_comment)
@@ -1359,36 +1425,29 @@ def _get_progress(
     username: str,
     hostname: str,
     socket: str | None,
-) -> List[Optional[float]]:
+) -> List[Optional[int]]:
+    """Read progress (number of completed requests) from remote run directories.
+
+    Returns the raw request count from each task's artifacts/progress file.
+    The count reflects unique successful, non-cached API requests processed
+    by the evaluation framework.
+    """
     remote_progress_paths = [
         remote_rundir_path / "artifacts" / "progress"
-        for remote_rundir_path in remote_rundir_paths
-    ]
-    remote_run_config_paths = [
-        remote_rundir_path / "artifacts" / "run_config.yml"
         for remote_rundir_path in remote_rundir_paths
     ]
     progress_strs = _read_files_from_remote(
         remote_progress_paths, username, hostname, socket
     )
-    if any(map(bool, progress_strs)):
-        run_config_strs = _read_files_from_remote(
-            remote_run_config_paths, username, hostname, socket
-        )
-    else:
-        run_config_strs = [""] * len(progress_strs)
     progress_list = []
-    for progress_str, run_config_str in zip(progress_strs, run_config_strs):
-        if not progress_str or not run_config_str:
+    for progress_str in progress_strs:
+        if not progress_str:
             progress_list.append(None)
             continue
-        run_config = yaml.safe_load(run_config_str)
-        dataset_size = get_eval_factory_dataset_size_from_run_config(run_config)
-        if dataset_size is not None:
-            progress = int(progress_str) / dataset_size
-        else:
-            progress = int(progress_str)
-        progress_list.append(progress)
+        try:
+            progress_list.append(int(progress_str))
+        except ValueError:
+            progress_list.append(None)
     return progress_list
 
 

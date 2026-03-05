@@ -366,14 +366,10 @@ class TestSlurmExecutorFeatures:
 
         # Deployment vars (top-level + deployment.env_vars) passed to deployment container
         assert "--container-env" in script
-        # NEW_VAR and OLD_VAR are deployment vars; EVAL_VAR also flows to deployment
-        # (top-level flows everywhere)
-        for var in ["NEW_VAR", "OLD_VAR", "EVAL_VAR"]:
-            # Each should appear in the deployment --container-env
-            pass  # Covered by re-export assertions above
 
         # Check that evaluation vars are passed to evaluation container
-        assert "--container-env EVAL_VAR,NEW_VAR" in script
+        # NOTE(martas): we have also telemetry env vars in the script
+        assert re.search(r"--container-env EVAL_VAR,[A-Z_,]*NEW_VAR", script)
 
     def test_empty_configurations(self, base_config, mock_task, mock_dependencies):
         """Test behavior with empty new configurations."""
@@ -575,6 +571,46 @@ class TestSlurmExecutorFeatures:
 
         # Check that no proxy is set up (since n_tasks=1, even though num_nodes=2)
         assert "proxy" not in script.lower()
+
+    @pytest.mark.parametrize(
+        "gres_value, expect_gres_in_script",
+        [
+            ("gpu:8", True),
+            (None, False),
+            ("", False),
+            ("UNSET", False),
+        ],
+        ids=["gres_gpu8", "gres_none", "gres_empty", "gres_absent"],
+    )
+    def test_gres_sbatch_directive(
+        self,
+        base_config,
+        mock_task,
+        mock_dependencies,
+        gres_value,
+        expect_gres_in_script,
+    ):
+        """Test that #SBATCH --gres is only emitted when gres has a truthy value."""
+        if gres_value == "UNSET":
+            base_config["execution"].pop("gres", None)
+        else:
+            base_config["execution"]["gres"] = gres_value
+
+        cfg = OmegaConf.create(base_config)
+
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        if expect_gres_in_script:
+            assert f"#SBATCH --gres {gres_value}" in script
+        else:
+            assert "#SBATCH --gres" not in script
 
 
 class TestMaxWalltimeFeature:
@@ -1507,7 +1543,7 @@ class TestSlurmExecutorGetStatus:
             mock_open.return_value = "/tmp/socket"
             mock_query_status.return_value = {"123456789": ("COMPLETED", "123456789")}
             mock_autoresume.return_value = {"123456789": ["123456789"]}
-            mock_progress.return_value = [0.8]
+            mock_progress.return_value = [800]
 
             statuses = SlurmExecutor._query_slurm_for_status_and_progress(
                 slurm_job_ids=slurm_job_ids,
@@ -1520,7 +1556,7 @@ class TestSlurmExecutorGetStatus:
             assert len(statuses) == 1
             assert statuses[0].id == "def67890.0"
             assert statuses[0].state == ExecutionState.SUCCESS
-            assert statuses[0].progress == 0.8
+            assert statuses[0].progress == 800
 
     def test_query_slurm_for_status_and_progress_autoresumed(self):
         """Test _query_slurm_for_status_and_progress with autoresumed jobs."""
@@ -1557,7 +1593,7 @@ class TestSlurmExecutorGetStatus:
             ]
             # Autoresume shows there's a newer job ID
             mock_autoresume.return_value = {"123456789": ["123456789", "123456790"]}
-            mock_progress.return_value = [0.4]
+            mock_progress.return_value = [400]
 
             statuses = SlurmExecutor._query_slurm_for_status_and_progress(
                 slurm_job_ids=slurm_job_ids,
@@ -1570,7 +1606,7 @@ class TestSlurmExecutorGetStatus:
             assert len(statuses) == 1
             assert statuses[0].id == "def67890.0"
             assert statuses[0].state == ExecutionState.RUNNING  # Uses latest job status
-            assert statuses[0].progress == 0.4
+            assert statuses[0].progress == 400
 
     def test_query_slurm_for_status_and_progress_unknown_progress(self):
         """Test _query_slurm_for_status_and_progress with unknown progress."""
@@ -2429,23 +2465,13 @@ class TestSlurmExecutorSystemCalls:
                 socket=None,
             )
 
-    def test_get_progress_with_dataset_size(self, monkeypatch):
-        """Test _get_progress with dataset size calculation."""
+    def test_get_progress_returns_raw_request_count(self, monkeypatch):
+        """Test _get_progress returns raw request count from progress file."""
         from nemo_evaluator_launcher.executors.slurm.executor import _get_progress
 
-        # Mock file reads
         monkeypatch.setattr(
             "nemo_evaluator_launcher.executors.slurm.executor._read_files_from_remote",
-            lambda paths, user, host, sock: ["100", "config: test"]
-            if "progress" in str(paths[0])
-            else ["framework_name: test\nconfig:\n  type: test"],
-            raising=True,
-        )
-
-        # Mock dataset size calculation
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_dataset_size_from_run_config",
-            lambda config: 200,
+            lambda paths, user, host, sock: ["100"],
             raising=True,
         )
 
@@ -2456,46 +2482,31 @@ class TestSlurmExecutorSystemCalls:
             socket=None,
         )
 
-        assert result == [0.5]  # 100/200
+        assert result == [100]
 
-    def test_get_progress_no_dataset_size(self, monkeypatch):
-        """Test _get_progress without dataset size (raw progress)."""
+    def test_get_progress_multiple_jobs(self, monkeypatch):
+        """Test _get_progress with multiple jobs."""
         from nemo_evaluator_launcher.executors.slurm.executor import _get_progress
-
-        # Mock file reads - return progress and valid config, but no dataset size
-        def mock_read_files(paths, user, host, sock):
-            if "progress" in str(paths[0]):
-                return ["150"]
-            else:  # run_config paths
-                return ["config:\n  type: test\nframework_name: unknown"]
 
         monkeypatch.setattr(
             "nemo_evaluator_launcher.executors.slurm.executor._read_files_from_remote",
-            mock_read_files,
-            raising=True,
-        )
-
-        # Mock dataset size to return None
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_dataset_size_from_run_config",
-            lambda config: None,
+            lambda paths, user, host, sock: ["1140", "20"],
             raising=True,
         )
 
         result = _get_progress(
-            remote_rundir_paths=[Path("/job1")],
+            remote_rundir_paths=[Path("/job1"), Path("/job2")],
             username="user",
             hostname="host",
             socket=None,
         )
 
-        assert result == [150]  # Raw progress when no dataset size
+        assert result == [1140, 20]
 
     def test_get_progress_missing_files(self, monkeypatch):
-        """Test _get_progress with missing progress/config files."""
+        """Test _get_progress with missing progress files."""
         from nemo_evaluator_launcher.executors.slurm.executor import _get_progress
 
-        # Mock file reads to return empty strings (files not found)
         monkeypatch.setattr(
             "nemo_evaluator_launcher.executors.slurm.executor._read_files_from_remote",
             lambda paths, user, host, sock: [""],
@@ -2509,7 +2520,26 @@ class TestSlurmExecutorSystemCalls:
             socket=None,
         )
 
-        assert result == [None]  # None when files missing
+        assert result == [None]
+
+    def test_get_progress_invalid_content(self, monkeypatch):
+        """Test _get_progress with non-integer progress file content."""
+        from nemo_evaluator_launcher.executors.slurm.executor import _get_progress
+
+        monkeypatch.setattr(
+            "nemo_evaluator_launcher.executors.slurm.executor._read_files_from_remote",
+            lambda paths, user, host, sock: ["not_a_number"],
+            raising=True,
+        )
+
+        result = _get_progress(
+            remote_rundir_paths=[Path("/job1")],
+            username="user",
+            hostname="host",
+            socket=None,
+        )
+
+        assert result == [None]
 
 
 class TestSlurmExecutorKillJob:

@@ -399,12 +399,19 @@ def create_client_model_call_fn(
     from nemo_evaluator.api.api_dataclasses import EndpointModelConfig
     from nemo_evaluator.client import NeMoEvaluatorClient
 
+    # Detect whether the URL is a base URL (e.g. http://localhost:8000)
+    # or a full endpoint URL (e.g. https://api.nvidia.com/v1/chat/completions).
+    # The OpenAI SDK appends /chat/completions to base URLs automatically.
+    url_is_base = not args.model_url.rstrip("/").endswith(
+        ("/chat/completions", "/completions")
+    )
     endpoint_config = EndpointModelConfig(
         url=args.model_url,
         model_id=args.model_id,
         api_key_name=args.api_key_name,
         temperature=args.temperature,
         max_new_tokens=args.max_tokens,
+        is_base_url=url_is_base,
     )
     client = NeMoEvaluatorClient(endpoint_config, output_dir=args.output_dir)
 
