@@ -54,7 +54,7 @@ from urllib.parse import urlparse
 
 import structlog
 
-from nemo_evaluator.sandbox.base import ExecResult
+from nemo_evaluator.sandbox.base import ExecResult, OutsideEndpoint
 
 log = structlog.get_logger(__name__)
 T = TypeVar("T")
@@ -1398,6 +1398,8 @@ class EcsFargateSandbox:
         # For agent-server mode (two-way tunnel)
         self._ssh_tunnel_port: int | None = None
         self._agent_forward_port: int | None = None
+        # Explicitly declared outside endpoints (set by start())
+        self._outside_endpoints: list[OutsideEndpoint] = []
 
     # Public API -------------------------------------------------------
 
@@ -1437,6 +1439,24 @@ class EcsFargateSandbox:
     def is_running(self) -> bool:
         return self._started and not self._stopped
 
+    def resolve_outside_endpoint(self, url: str) -> str:
+        """Return the URL that processes inside this sandbox should use to reach
+        the outside service at *url* (orchestrator-side).
+
+        Remaps *url* to the reverse-tunnel address (127.0.0.1:<tunnel-port>).
+        Must be called after :meth:`start`.
+
+        Raises:
+            RuntimeError: if called before start() with an agent-server SSH sidecar.
+        """
+        if self._ssh_tunnel_port is None:
+            raise RuntimeError(
+                "resolve_outside_endpoint() requires start() to have been called "
+                "with an agent-server SSH sidecar configured."
+            )
+        parsed = urlparse(url)
+        return parsed._replace(netloc=f"127.0.0.1:{self._ssh_tunnel_port}").geturl()
+
     def reconnect_tunnel(self) -> None:
         """Re-open the SSH tunnel if it died (e.g. after a network blip)."""
         if self._stopped or not self._started:
@@ -1449,9 +1469,15 @@ class EcsFargateSandbox:
             self._ssh_tunnel = None
         self._open_tunnel(sidecar)
 
-    def start(self, *, force_build: bool = False) -> None:
+    def start(
+        self,
+        *,
+        force_build: bool = False,
+        outside_endpoints: list[OutsideEndpoint] | None = None,
+    ) -> None:
         if self._started:
             return
+        self._outside_endpoints = outside_endpoints or []
         try:
             self._do_start(force_build=force_build)
             self._started = True
@@ -1661,8 +1687,16 @@ class EcsFargateSandbox:
             f"env vars: {sidecar.target_url_env}"
         )
 
-    @staticmethod
-    def _resolve_tunnel_target(sidecar: SshSidecarConfig) -> tuple[str, int]:
+    def _resolve_tunnel_target(self, sidecar: SshSidecarConfig) -> tuple[str, int]:
+        # Prefer explicitly declared outside endpoints (new path)
+        if self._outside_endpoints:
+            ep = self._outside_endpoints[0]
+            parsed = urlparse(ep.url)
+            host = parsed.hostname
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            if host:
+                return host, port
+        # Backward-compatible fallback: env var scanning
         for env_name in sidecar.target_url_env.split(","):
             env_name = env_name.strip()
             if not env_name:
