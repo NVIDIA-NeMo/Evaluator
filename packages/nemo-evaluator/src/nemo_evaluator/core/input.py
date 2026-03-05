@@ -17,6 +17,7 @@ import copy
 import importlib.util
 import os
 import pkgutil
+import warnings
 from typing import Optional
 
 import yaml
@@ -522,6 +523,24 @@ def prepare_output_directory(evaluation: Evaluation):
         yaml.dump(evaluation.model_dump(), f)
 
 
+def _check_deprecated_params(run_config: dict) -> None:
+    """Emit deprecation warnings for renamed config parameters and migrate values in-place.
+
+    Currently handles:
+    - config.params.extra.n_samples → config.params.extra.num_repeats
+    """
+    extra = run_config.get("config", {}).get("params", {}).get("extra") or {}
+    if "n_samples" in extra:
+        warnings.warn(
+            "config.params.extra.n_samples is deprecated and will be removed in a future release. "
+            "Use config.params.extra.num_repeats instead.",
+            DeprecationWarning,
+            stacklevel=4,
+        )
+        if "num_repeats" not in extra:
+            extra["num_repeats"] = extra["n_samples"]
+
+
 def validate_configuration(run_config: dict) -> Evaluation:
     """Validates requested task through a dataclass. Additionally,
     handles creation of task folowing the logic:
@@ -539,6 +558,7 @@ def validate_configuration(run_config: dict) -> Evaluation:
     check_required_default_missing(run_config)
     check_task_invocation(run_config)
     check_adapter_config(run_config)
+    _check_deprecated_params(run_config)
 
     # Extract user's adapter_config (may contain legacy params) BEFORE Pydantic processes it
     user_adapter_config = (
