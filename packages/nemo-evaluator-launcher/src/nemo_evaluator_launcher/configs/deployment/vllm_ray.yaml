@@ -22,7 +22,7 @@
 #     launches vLLM with --distributed-executor-backend (default: ray).
 #   - Starts a Ray worker on every other PROC_ID (blocks until Ray head exits).
 #
-# Required environment variables (injected by the executor automatically):
+# Environment variables the executor must inject:
 #   PROC_ID     — rank of this process within the instance (0 = head node)
 #   MASTER_IP   — IP of the head node for this instance
 #
