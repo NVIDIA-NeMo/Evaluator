@@ -305,7 +305,7 @@ def get_eval_factory_command(
         "cmd=$(command -v nemo-evaluator >/dev/null 2>&1 && echo nemo-evaluator || echo eval-factory) "
         + "&& source pre_cmd.sh "
         + "&& ("
-        + "trap 'code=$?; source post_cmd.sh; exit $code' EXIT; "
+        + 'trap "code=\\$?; source post_cmd.sh; exit \\$code" EXIT; '
         + "$cmd run_eval --run_config config_ef.yaml"
         + ")"
     )
