@@ -16,7 +16,7 @@
 
 import warnings
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import jinja2
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -202,7 +202,7 @@ class EvaluationConfig(BaseModel):
     supported_endpoint_types: Optional[list[str]] = Field(
         description="Supported endpoint types like chat or completions", default=None
     )
-    required_capabilities: Optional[List[str]] = Field(
+    required_capabilities: Optional[list[str]] = Field(
         description="List of required endpoint capabilities.", default=None
     )
     type: Optional[str] = Field(description="Type of the task", default=None)
