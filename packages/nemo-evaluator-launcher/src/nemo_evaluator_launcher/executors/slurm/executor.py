@@ -1751,7 +1751,9 @@ def _generate_deployment_srun_command(
     )
     debug_comment += create_script_cmd.debug + "\n\n"
 
-    env_setup = "export PROC_ID=${SLURM_PROCID:-0} NUM_TASKS=${SLURM_NTASKS:-1}"
+    env_setup = (
+        f"export PROC_ID=${{SLURM_PROCID:-0}} NODES_PER_INSTANCE={nodes_per_instance}"
+    )
     script = f"{env_setup} && {create_script_cmd.cmd} && bash deployment_cmd.sh"
 
     if pre_cmd:

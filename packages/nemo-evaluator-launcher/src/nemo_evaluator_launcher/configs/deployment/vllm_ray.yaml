@@ -18,13 +18,14 @@
 # Use this config when num_nodes / num_instances > 1.  It inherits every field
 # from vllm.yaml and overrides `command` with a built-in Ray cluster setup
 # script that:
-#   - Starts a Ray head on PROC_ID 0, waits 90s for workers to join, then
-#     launches vLLM with --distributed-executor-backend (default: ray).
+#   - Starts a Ray head on PROC_ID 0, polls until all NODES_PER_INSTANCE workers
+#     have joined, then launches vLLM with --distributed-executor-backend (default: ray).
 #   - Starts a Ray worker on every other PROC_ID (blocks until Ray head exits).
 #
 # Environment variables the executor must inject:
-#   PROC_ID     — rank of this process within the instance (0 = head node)
-#   MASTER_IP   — IP of the head node for this instance
+#   PROC_ID              — rank of this process within the instance (0 = head node)
+#   MASTER_IP            — IP of the head node for this instance
+#   NODES_PER_INSTANCE   — number of nodes per instance (used to poll until all workers join)
 #
 # Optional env_vars set by this config (override in your yaml if needed):
 #   VLLM_ENGINE_READY_TIMEOUT_S          — startup timeout (default: 3600s)
@@ -63,8 +64,10 @@ command: |
       ray start --head --port=$RAY_PORT $RAY_FIXED_PORTS
 
       export RAY_ADDRESS=$MASTER_IP:$RAY_PORT
-      echo "Waiting 90 seconds for worker nodes to join Ray cluster..."
-      sleep 90
+      echo "Waiting for $NODES_PER_INSTANCE node(s) to join Ray cluster..."
+      until [ "`ray status 2>/dev/null | grep -c 'node_'`" -ge "$NODES_PER_INSTANCE" ]; do
+          sleep 10
+      done
 
       echo "=== Ray cluster ready ==="
       ray status
