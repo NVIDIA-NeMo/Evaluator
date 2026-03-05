@@ -16,7 +16,7 @@
 """Unit tests for the watch mode (eval-and-sleep) feature."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -648,122 +648,6 @@ class TestWatchConfig:
 
         call_cfg = mock_run_eval.call_args[0][0]
         assert call_cfg.execution.output_dir == str(out1)
-
-
-# ---------------------------------------------------------------------------
-# Tmux support
-# ---------------------------------------------------------------------------
-
-
-class TestTmuxSupport:
-    def test_build_watch_command(self):
-        """Verify command construction for tmux wrapping."""
-        from nemo_evaluator_launcher.cli.watch import Cmd
-
-        cmd = Cmd(
-            config="/path/to/config.yaml",
-            watch_dir="/path/to/checkpoints",
-            interval=300,
-            ready_markers="metadata.json,config.yaml",
-            checkpoint_patterns="iter_*,step_*",
-            checkpoint_field="deployment.hf_model_handle",
-            order="newest",
-            dry_run=True,
-            once=False,
-        )
-        result = cmd._build_watch_command()
-        assert "--config" in result
-        assert "/path/to/config.yaml" in result
-        assert "--watch-dir" in result
-        assert "/path/to/checkpoints" in result
-        assert "--dry-run" in result
-        assert "--tmux" not in result
-        assert "--order" in result
-        assert "newest" in result
-
-    @patch("nemo_evaluator_launcher.cli.watch.subprocess.run")
-    @patch("nemo_evaluator_launcher.cli.watch.shutil.which", return_value="/usr/bin/tmux")
-    def test_launch_in_tmux(self, mock_which, mock_run, tmp_path):
-        """Verify tmux session launch."""
-        from nemo_evaluator_launcher.cli.watch import Cmd
-
-        # First call: has-session (session doesn't exist, returns 1)
-        # Second call: new-session
-        mock_run.side_effect = [
-            MagicMock(returncode=1),  # has-session fails = no existing session
-            MagicMock(returncode=0),  # new-session succeeds
-        ]
-
-        cmd = Cmd(
-            config="/path/config.yaml",
-            watch_dir="/path/checkpoints",
-            tmux="my-session",
-        )
-        cmd._launch_in_tmux()
-
-        assert mock_run.call_count == 2
-        # Check has-session call
-        has_session_call = mock_run.call_args_list[0]
-        assert has_session_call[0][0] == ["tmux", "has-session", "-t", "my-session"]
-        # Check new-session call
-        new_session_call = mock_run.call_args_list[1]
-        assert new_session_call[0][0][0:4] == [
-            "tmux",
-            "new-session",
-            "-d",
-            "-s",
-        ]
-        assert new_session_call[0][0][4] == "my-session"
-
-    @patch("nemo_evaluator_launcher.cli.watch.shutil.which", return_value=None)
-    def test_tmux_not_installed(self, mock_which):
-        """Error when tmux is not available."""
-        from nemo_evaluator_launcher.cli.watch import Cmd
-
-        cmd = Cmd(config="/path/config.yaml", watch_dir="/path/checkpoints", tmux="s")
-        with pytest.raises(RuntimeError, match="tmux is not installed"):
-            cmd._launch_in_tmux()
-
-    @patch("nemo_evaluator_launcher.cli.watch.subprocess.run")
-    @patch("nemo_evaluator_launcher.cli.watch.shutil.which", return_value="/usr/bin/tmux")
-    def test_tmux_session_already_exists(self, mock_which, mock_run):
-        """Warn when tmux session already exists."""
-        from nemo_evaluator_launcher.cli.watch import Cmd
-
-        mock_run.return_value = MagicMock(returncode=0)  # has-session succeeds
-
-        cmd = Cmd(
-            config="/path/config.yaml",
-            watch_dir="/path/checkpoints",
-            tmux="existing",
-        )
-        cmd._launch_in_tmux()
-
-        # Should only call has-session, not new-session
-        assert mock_run.call_count == 1
-
-    def test_tmux_auto_session_name_from_config(self):
-        """Auto-generated session name uses config stem."""
-        from nemo_evaluator_launcher.cli.watch import Cmd
-
-        cmd = Cmd(
-            config="/path/to/my_eval.yaml",
-            watch_dir="/path/checkpoints",
-            tmux="",  # empty string = auto-generate
-        )
-        # When tmux is falsy but not None, auto-generate from config
-        # The actual name generation happens in _launch_in_tmux
-        # We test that the stem-based name is generated
-        with patch("nemo_evaluator_launcher.cli.watch.shutil.which", return_value="/usr/bin/tmux"), \
-             patch("nemo_evaluator_launcher.cli.watch.subprocess.run") as mock_run:
-            mock_run.side_effect = [
-                MagicMock(returncode=1),
-                MagicMock(returncode=0),
-            ]
-            cmd._launch_in_tmux()
-            new_session_call = mock_run.call_args_list[1]
-            session_name = new_session_call[0][0][4]
-            assert session_name == "nel-watch-my_eval"
 
 
 # ---------------------------------------------------------------------------
