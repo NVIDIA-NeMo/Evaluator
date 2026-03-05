@@ -33,6 +33,13 @@ from nemo_evaluator.adapters.types import (
 from tests.unit_tests.adapters.testing_utils import FakeProgressTrackingServer
 
 
+def _make_ok_response() -> requests.Response:
+    """Create a requests.Response with status_code=200 (matching a successful API call)."""
+    r = requests.Response()
+    r.status_code = 200
+    return r
+
+
 class TestProgressTrackingInterceptor:
     """Test the progress tracking interceptor."""
 
@@ -80,7 +87,7 @@ class TestProgressTrackingInterceptor:
 
             # Create mock response and context
             mock_response = AdapterResponse(
-                r=requests.Response(),
+                r=_make_ok_response(),
                 rctx=AdapterRequestContext(),
             )
             context = AdapterGlobalContext(output_dir="/tmp", url="http://test")
@@ -115,7 +122,7 @@ class TestProgressTrackingInterceptor:
 
             # Process some samples first
             mock_response = AdapterResponse(
-                r=requests.Response(),
+                r=_make_ok_response(),
                 rctx=AdapterRequestContext(),
             )
             context = AdapterGlobalContext(output_dir="/tmp", url="http://test")
@@ -154,7 +161,7 @@ class TestProgressTrackingInterceptor:
 
             # Create mock response and context
             mock_response = AdapterResponse(
-                r=requests.Response(),
+                r=_make_ok_response(),
                 rctx=AdapterRequestContext(),
             )
             context = AdapterGlobalContext(output_dir="/tmp", url="http://test")
@@ -201,7 +208,7 @@ class TestProgressTrackingInterceptor:
 
         # Create mock response and context
         mock_response = AdapterResponse(
-            r=requests.Response(),
+            r=_make_ok_response(),
             rctx=AdapterRequestContext(),
         )
         context = AdapterGlobalContext(output_dir="/tmp", url="http://test")
@@ -212,6 +219,137 @@ class TestProgressTrackingInterceptor:
 
         # Verify that the request was attempted
         mock_request.assert_called_once()
+
+    def test_resume_with_cache_hits_and_new_requests(self, tmp_path):
+        """Test resumed interceptor with pre-existing progress, cache replays, and new requests.
+
+        Simulates an auto-chained Slurm job where:
+        1. Previous chain processed 42 requests (progress file = 42)
+        2. New chain starts, replays 42 cached responses
+        3. Then processes 8 new (non-cached) requests
+        4. Final count should be 50 (42 + 8), not 92 (42 + 42 + 8)
+        """
+        # Pre-seed progress file from previous chain
+        progress_file = tmp_path / "progress"
+        progress_file.write_text("42")
+
+        params = ProgressTrackingInterceptor.Params(
+            progress_tracking_url="http://localhost:9999",
+            progress_tracking_interval=1,
+            output_dir=str(tmp_path),
+        )
+        interceptor = ProgressTrackingInterceptor(params)
+
+        # Verify resume read the existing progress
+        assert interceptor._samples_processed == 42
+
+        context = AdapterGlobalContext(output_dir=str(tmp_path), url="http://test")
+
+        # Phase 1: replay 42 cached responses — counter should NOT advance
+        for _ in range(42):
+            cached_rctx = AdapterRequestContext()
+            cached_rctx.cache_hit = True
+            cached_response = AdapterResponse(r=_make_ok_response(), rctx=cached_rctx)
+            interceptor.intercept_response(cached_response, context)
+
+        assert interceptor._samples_processed == 42  # unchanged
+
+        # Phase 2: process 8 new (non-cached) requests — counter should advance
+        for _ in range(8):
+            new_response = AdapterResponse(
+                r=_make_ok_response(), rctx=AdapterRequestContext()
+            )
+            interceptor.intercept_response(new_response, context)
+
+        assert interceptor._samples_processed == 50  # 42 + 8
+
+        # post_eval_hook should write the final count
+        interceptor.post_eval_hook(context)
+        assert progress_file.read_text() == "50"
+
+    def test_post_eval_hook_zero_progress_all_cached(self, tmp_path):
+        """Test post_eval_hook when all responses were cache hits (zero progress).
+
+        This scenario occurs in auto-chained Slurm jobs where the second chain
+        replays all requests from cache. The interceptor should not send any
+        progress update since nothing changed.
+        """
+        params = ProgressTrackingInterceptor.Params(
+            progress_tracking_url="http://localhost:9999",
+            progress_tracking_interval=1,
+            output_dir=str(tmp_path),
+        )
+        interceptor = ProgressTrackingInterceptor(params)
+
+        context = AdapterGlobalContext(output_dir=str(tmp_path), url="http://test")
+
+        # Simulate all cache hits — none should increment counter
+        for _ in range(10):
+            cached_rctx = AdapterRequestContext()
+            cached_rctx.cache_hit = True
+            cached_response = AdapterResponse(r=_make_ok_response(), rctx=cached_rctx)
+            interceptor.intercept_response(cached_response, context)
+
+        assert interceptor._samples_processed == 0
+
+        # post_eval_hook should hit early return (0 == 0, nothing to send)
+        interceptor.post_eval_hook(context)
+
+        # Progress file should not have been written (no new progress)
+        progress_file = tmp_path / "progress"
+        assert not progress_file.exists()
+
+    def test_skips_cache_hits(self, tmp_path):
+        """Test that cached responses are not counted as progress."""
+        params = ProgressTrackingInterceptor.Params(
+            progress_tracking_url="http://localhost:9999",
+            progress_tracking_interval=1,
+            output_dir=str(tmp_path),
+        )
+        interceptor = ProgressTrackingInterceptor(params)
+
+        context = AdapterGlobalContext(output_dir=str(tmp_path), url="http://test")
+
+        # Simulate a cache hit
+        cached_rctx = AdapterRequestContext()
+        cached_rctx.cache_hit = True
+        cached_response = AdapterResponse(r=_make_ok_response(), rctx=cached_rctx)
+        interceptor.intercept_response(cached_response, context)
+
+        assert interceptor._samples_processed == 0
+
+        # Non-cached response should count
+        normal_response = AdapterResponse(
+            r=_make_ok_response(), rctx=AdapterRequestContext()
+        )
+        interceptor.intercept_response(normal_response, context)
+        assert interceptor._samples_processed == 1
+
+    def test_skips_non_200_responses(self, tmp_path):
+        """Test that failed responses (non-200) are not counted as progress."""
+        params = ProgressTrackingInterceptor.Params(
+            progress_tracking_url="http://localhost:9999",
+            progress_tracking_interval=1,
+            output_dir=str(tmp_path),
+        )
+        interceptor = ProgressTrackingInterceptor(params)
+
+        context = AdapterGlobalContext(output_dir=str(tmp_path), url="http://test")
+
+        # Simulate a 500 error response
+        error_r = requests.Response()
+        error_r.status_code = 500
+        error_response = AdapterResponse(r=error_r, rctx=AdapterRequestContext())
+        interceptor.intercept_response(error_response, context)
+
+        assert interceptor._samples_processed == 0
+
+        # 200 response should count
+        ok_response = AdapterResponse(
+            r=_make_ok_response(), rctx=AdapterRequestContext()
+        )
+        interceptor.intercept_response(ok_response, context)
+        assert interceptor._samples_processed == 1
 
     def test_interval_configuration_validation(self):
         with pytest.raises(ValidationError):
@@ -241,7 +379,7 @@ class TestProgressTrackingInterceptor:
             interceptor = ProgressTrackingInterceptor(params)
 
             mock_response = AdapterResponse(
-                r=requests.Response(),
+                r=_make_ok_response(),
                 rctx=AdapterRequestContext(),
             )
             context = AdapterGlobalContext(output_dir="/tmp", url="http://test")
@@ -274,7 +412,7 @@ class TestProgressTrackingInterceptor:
             interceptor = ProgressTrackingInterceptor(params)
 
             mock_response = AdapterResponse(
-                r=requests.Response(),
+                r=_make_ok_response(),
                 rctx=AdapterRequestContext(),
             )
             context = AdapterGlobalContext(output_dir="/tmp", url="http://test")
@@ -308,7 +446,7 @@ class TestProgressTrackingInterceptor:
             interceptor = ProgressTrackingInterceptor(params)
 
             mock_response = AdapterResponse(
-                r=requests.Response(),
+                r=_make_ok_response(),
                 rctx=AdapterRequestContext(),
             )
             context = AdapterGlobalContext(output_dir="/tmp", url="http://test")
@@ -363,7 +501,7 @@ class TestProgressTrackingInterceptor:
 
             # Create mock response and context
             mock_response = AdapterResponse(
-                r=requests.Response(),
+                r=_make_ok_response(),
                 rctx=AdapterRequestContext(),
             )
             context = AdapterGlobalContext(output_dir="/tmp", url="http://test")

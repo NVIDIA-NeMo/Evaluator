@@ -22,7 +22,6 @@ import time
 from unittest.mock import patch
 
 import pytest
-import yaml
 from omegaconf import OmegaConf
 
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
@@ -291,7 +290,6 @@ class TestLocalExecutorGetStatus:
         def _setup(
             stage_files: dict = None,
             progress_value: int = None,
-            dataset_size: int = None,
             killed: bool = False,
         ):
             output_dir = pathlib.Path(sample_job_data.data["output_dir"])
@@ -312,12 +310,6 @@ class TestLocalExecutorGetStatus:
                 progress_file = artifacts_dir / "progress"
                 progress_file.write_text(str(progress_value))
 
-            # Create dataset size file if provided
-            if dataset_size is not None:
-                run_config_file = artifacts_dir / "run_config.yml"
-                config_data = {"config": {"params": {"limit_samples": dataset_size}}}
-                run_config_file.write_text(yaml.dump(config_data))
-
             # Mark as killed if requested
             if killed:
                 sample_job_data.data["killed"] = True
@@ -334,7 +326,6 @@ class TestLocalExecutorGetStatus:
         setup_job_filesystem(
             stage_files={"exit": "2025-01-01T12:00:00Z 0"},
             progress_value=50,
-            dataset_size=100,
         )
 
         # Create second job data
@@ -372,7 +363,7 @@ class TestLocalExecutorGetStatus:
         assert len(statuses) == 2
         assert statuses[0].id == "abc12345.0"
         assert statuses[0].state == ExecutionState.SUCCESS
-        assert statuses[0].progress["progress"] == 0.5
+        assert statuses[0].progress["progress"] == 50
 
         assert statuses[1].id == "abc12345.1"
         assert statuses[1].state == ExecutionState.RUNNING
@@ -451,7 +442,6 @@ class TestLocalExecutorGetStatus:
         setup_job_filesystem(
             stage_files={"exit": "2025-01-01T12:00:00Z 0"},
             progress_value=100,
-            dataset_size=100,
         )
 
         db = ExecutionDB()
@@ -460,7 +450,7 @@ class TestLocalExecutorGetStatus:
         statuses = LocalExecutor.get_status("abc12345.0")
         assert len(statuses) == 1
         assert statuses[0].state == ExecutionState.SUCCESS
-        assert statuses[0].progress["progress"] == 1.0
+        assert statuses[0].progress["progress"] == 100
 
     def test_get_status_failed_with_nonzero_exit_code(
         self, mock_execdb, sample_job_data, setup_job_filesystem
@@ -469,7 +459,6 @@ class TestLocalExecutorGetStatus:
         setup_job_filesystem(
             stage_files={"exit": "2025-01-01T12:00:00Z 1"},
             progress_value=75,
-            dataset_size=100,
         )
 
         db = ExecutionDB()
@@ -478,7 +467,7 @@ class TestLocalExecutorGetStatus:
         statuses = LocalExecutor.get_status("abc12345.0")
         assert len(statuses) == 1
         assert statuses[0].state == ExecutionState.FAILED
-        assert statuses[0].progress["progress"] == 0.75
+        assert statuses[0].progress["progress"] == 75
 
     def test_get_status_malformed_exit_file(
         self, mock_execdb, sample_job_data, setup_job_filesystem
@@ -515,7 +504,6 @@ class TestLocalExecutorGetStatus:
         setup_job_filesystem(
             stage_files={"running": "2025-01-01T12:00:00Z"},
             progress_value=35,
-            dataset_size=200,
         )
 
         db = ExecutionDB()
@@ -524,7 +512,7 @@ class TestLocalExecutorGetStatus:
         statuses = LocalExecutor.get_status("abc12345.0")
         assert len(statuses) == 1
         assert statuses[0].state == ExecutionState.RUNNING
-        assert statuses[0].progress["progress"] == 0.175  # 35/200
+        assert statuses[0].progress["progress"] == 35
 
     def test_get_status_after_pre_start(
         self, mock_execdb, sample_job_data, setup_job_filesystem
@@ -590,10 +578,10 @@ class TestLocalExecutorGetStatus:
         assert statuses[0].state == ExecutionState.RUNNING
         assert statuses[0].progress["progress"] is None
 
-    def test_get_status_progress_without_dataset_size(
+    def test_get_status_progress_returns_raw_request_count(
         self, mock_execdb, sample_job_data, setup_job_filesystem
     ):
-        """Test get_status with progress but no dataset size."""
+        """Test get_status returns raw request count from progress file."""
         setup_job_filesystem(
             stage_files={"running": "2025-01-01T12:00:00Z"}, progress_value=42
         )
@@ -601,16 +589,10 @@ class TestLocalExecutorGetStatus:
         db = ExecutionDB()
         db.write_job(sample_job_data)
 
-        with patch(
-            "nemo_evaluator_launcher.executors.local.executor.get_eval_factory_dataset_size_from_run_config"
-        ) as mock_get_size:
-            mock_get_size.return_value = None
-
-            statuses = LocalExecutor.get_status("abc12345.0")
-            assert len(statuses) == 1
-            assert statuses[0].state == ExecutionState.RUNNING
-            # When no dataset size, progress should be the raw number of processed samples
-            assert statuses[0].progress["progress"] == 42
+        statuses = LocalExecutor.get_status("abc12345.0")
+        assert len(statuses) == 1
+        assert statuses[0].state == ExecutionState.RUNNING
+        assert statuses[0].progress["progress"] == 42
 
 
 class TestLocalExecutorStreamLogs:

@@ -1024,31 +1024,27 @@ class LocalExecutor(BaseExecutor):
             f.write(f"{job_id}\n")
 
 
-def _get_progress(artifacts_dir: pathlib.Path) -> Optional[float]:
+def _get_progress(artifacts_dir: pathlib.Path) -> Optional[int]:
     """Get the progress of a local job.
+
+    Returns the raw request count from the task's artifacts/progress file.
+    The count reflects unique successful, non-cached API requests processed
+    by the evaluation framework.
 
     Args:
         artifacts_dir: The directory containing the evaluation artifacts.
 
     Returns:
-        The progress of the job as a float between 0 and 1.
+        Number of completed requests, or None if progress file doesn't exist.
     """
     progress_filepath = artifacts_dir / "progress"
     if not progress_filepath.exists():
         return None
     progress_str = progress_filepath.read_text().strip()
     try:
-        processed_samples = int(progress_str)
+        return int(progress_str)
     except ValueError:
         return None
-
-    dataset_size = _get_dataset_size(artifacts_dir)
-    if dataset_size is not None:
-        progress = processed_samples / dataset_size
-    else:
-        # NOTE(dfridman): if we don't know the dataset size, report the number of processed samples
-        progress = processed_samples
-    return progress
 
 
 def _get_dataset_size(artifacts_dir: pathlib.Path) -> Optional[int]:

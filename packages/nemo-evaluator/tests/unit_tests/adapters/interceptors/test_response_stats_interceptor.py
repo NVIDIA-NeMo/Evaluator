@@ -62,7 +62,7 @@ class TestResponseStatsInterceptor:
                     "collect_token_stats": True,
                     "collect_finish_reasons": True,
                     "collect_tool_calls": True,
-                    "stats_file_saving_interval": None,
+                    "stats_file_saving_interval": 100,
                     "save_individuals": True,
                     "has_cache": True,
                 },
@@ -919,3 +919,114 @@ class TestResponseStatsInterceptorCache:
             assert actual_run_ids == expected_run_ids, (
                 f"Expected run_ids {expected_run_ids}, got {actual_run_ids}"
             )
+
+
+class TestStatsFileSavingInterval:
+    """Test that stats_file_saving_interval does not corrupt live stats."""
+
+    @staticmethod
+    def _make_response(request_id="req_1", latency_ms=100.0):
+        mock_resp = Mock(spec=requests.Response)
+        mock_resp.status_code = 200
+        mock_resp.headers = {"date": "2026-03-04T00:00:00Z"}
+        mock_resp.json.return_value = {
+            "usage": {
+                "prompt_tokens": 25,
+                "total_tokens": 35,
+                "completion_tokens": 10,
+            },
+            "choices": [{"finish_reason": "stop", "message": {}}],
+        }
+        return AdapterResponse(
+            r=mock_resp,
+            rctx=AdapterRequestContext(request_id=request_id),
+            latency_ms=latency_ms,
+        )
+
+    def test_interval_save_does_not_mutate_live_stats(self, tmp_path):
+        """Verify _save_stats_to_file uses a deep copy so inference_run_times
+        timestamps remain floats in the live self._stats after an interval save."""
+        cache_dir = tmp_path / "cache"
+        interceptor = ResponseStatsInterceptor(
+            ResponseStatsInterceptor.Params(
+                cache_dir=str(cache_dir),
+                save_individuals=False,
+                stats_file_saving_interval=2,
+            )
+        )
+        context = AdapterGlobalContext(
+            output_dir=str(tmp_path),
+            url="http://test.api.com/v1/chat/completions",
+        )
+
+        interceptor.intercept_response(self._make_response("req_1"), context)
+        interceptor.intercept_response(self._make_response("req_2"), context)
+
+        run_id = interceptor._stats["run_id"]
+        run_data = interceptor._stats["inference_run_times"][run_id]
+        assert isinstance(run_data["first_request_time"], float)
+        assert isinstance(run_data["last_request_time"], float)
+        assert isinstance(run_data["run_start"], float)
+
+    def test_responses_after_interval_save_succeed(self, tmp_path):
+        """Verify that processing responses after an interval-triggered save
+        works without errors (no TypeError from string arithmetic)."""
+        cache_dir = tmp_path / "cache"
+        interceptor = ResponseStatsInterceptor(
+            ResponseStatsInterceptor.Params(
+                cache_dir=str(cache_dir),
+                save_individuals=False,
+                stats_file_saving_interval=2,
+            )
+        )
+        context = AdapterGlobalContext(
+            output_dir=str(tmp_path),
+            url="http://test.api.com/v1/chat/completions",
+        )
+
+        for i in range(5):
+            interceptor.intercept_response(self._make_response(f"req_{i}"), context)
+
+        assert interceptor._stats["count"] == 5
+        assert interceptor._stats["successful_count"] == 5
+
+        run_id = interceptor._stats["run_id"]
+        assert isinstance(
+            interceptor._stats["inference_run_times"][run_id]["first_request_time"],
+            float,
+        )
+
+    def test_multiple_interval_saves_produce_valid_files(self, tmp_path):
+        """Verify that each interval-triggered save writes valid JSON with
+        ISO-formatted timestamps while keeping live stats as floats."""
+        cache_dir = tmp_path / "cache"
+        interceptor = ResponseStatsInterceptor(
+            ResponseStatsInterceptor.Params(
+                cache_dir=str(cache_dir),
+                save_individuals=False,
+                stats_file_saving_interval=3,
+            )
+        )
+        context = AdapterGlobalContext(
+            output_dir=str(tmp_path),
+            url="http://test.api.com/v1/chat/completions",
+        )
+
+        for i in range(9):
+            interceptor.intercept_response(self._make_response(f"req_{i}"), context)
+
+        metrics_path = tmp_path / "eval_factory_metrics.json"
+        assert metrics_path.exists()
+
+        with open(metrics_path, "r") as f:
+            metrics = json.load(f)
+
+        saved_run_times = metrics["response_stats"]["inference_run_times"]
+        for _run_id, run_data in saved_run_times.items():
+            assert isinstance(run_data["first_request_time"], str)
+            assert isinstance(run_data["run_start"], str)
+
+        run_id = interceptor._stats["run_id"]
+        live_run_data = interceptor._stats["inference_run_times"][run_id]
+        assert isinstance(live_run_data["first_request_time"], float)
+        assert isinstance(live_run_data["run_start"], float)
