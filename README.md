@@ -1,93 +1,153 @@
-# NeMo-Evaluator-Next
+# NeMo Evaluator
 
+Benchmark environments, evaluation runner, and environment-compatible service for LLM evaluation.
 
+## Install
 
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nemo-evaluator-next.git
-git branch -M main
-git push -uf origin main
+```bash
+pip install -e .                # core
+pip install -e ".[scoring]"     # + sympy for math scoring
+pip install -e ".[all]"         # + ray, scipy, verifiers
 ```
 
-## Integrate with your tools
+## Quick Start
 
-- [ ] [Set up project integrations](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nemo-evaluator-next/-/settings/integrations)
+```bash
+# Configure your model endpoint
+export NEMO_MODEL_URL=https://api.example.com/v1
+export NEMO_MODEL_ID=my-model
 
-## Collaborate with your team
+# Run a benchmark
+nel run --benchmark gsm8k --repeats 2 --max-problems 50
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+# From a config file
+nel run examples/configs/single_benchmark.yaml
 
-## Test and Deploy
+# Validate a benchmark (quick sanity check, 5 samples)
+nel validate --benchmark gsm8k
 
-Use the built-in continuous integration in GitLab.
+# List available benchmarks
+nel list-environments
+```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+## CLI Reference
 
-***
+| Command | Purpose |
+|---------|---------|
+| `nel run` | Run evaluation (single benchmark, multi-task config, or remote adapter) |
+| `nel serve` | Serve a benchmark as HTTP environment |
+| `nel validate` | Quick sanity check on a benchmark |
+| `nel regression` | Compare two evaluation bundles, detect regressions |
+| `nel list-environments` | List registered benchmarks |
+| `nel slurm eval` | Generate/submit SLURM job arrays for distributed eval |
+| `nel slurm serve` | Generate/submit SLURM job for serving |
+| `nel slurm merge` | Merge sharded evaluation results |
 
-# Editing this README
+## Python API
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+```python
+import asyncio
+from nemo_evaluator import get_environment, run_evaluation, ModelClient
+from nemo_evaluator.runner.artifacts import write_all
 
-## Suggestions for a good README
+env = get_environment("gsm8k")
+client = ModelClient(base_url="https://api.example.com/v1", model="my-model")
+bundle = asyncio.run(run_evaluation(env, client, n_repeats=2, max_problems=10))
+write_all(bundle, "./eval_results")
+```
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## Writing a Benchmark (BYOB)
 
-## Name
-Choose a self-explaining name for your project.
+```python
+from nemo_evaluator.environments import EvalEnvironment, SeedResult, VerifyResult, register
+from nemo_evaluator.scoring import math_equal, extract_answer
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+@register("my_benchmark")
+class MyBenchmark(EvalEnvironment):
+    def __init__(self):
+        super().__init__()
+        self._data = [{"question": "2+2=?", "answer": "4"}]  # load your dataset
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+    def __len__(self):
+        return len(self._data)
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+    def seed(self, idx: int) -> SeedResult:
+        row = self._data[idx]
+        return SeedResult(prompt=row["question"], expected_answer=row["answer"])
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+    def verify(self, response: str, expected: str, **meta) -> VerifyResult:
+        extracted = extract_answer(response)
+        correct = math_equal(extracted, expected)
+        return VerifyResult(
+            reward=1.0 if correct else 0.0,
+            extracted_answer=extracted,
+            scoring_details={"method": "math_equal"},
+        )
+```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+Then: `nel validate -b my_benchmark --model-url $NEMO_MODEL_URL --model-id $NEMO_MODEL_ID`
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+## Serving for Gym
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+```bash
+# Serve with Gym-compatible protocol
+nel serve --benchmark gsm8k --gym-compat --port 9090
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+# Gym training points at: http://hostname:9090
+# Endpoints: /seed_session, /verify, /health, /dataset_size
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+## Distributed Evaluation
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+```bash
+# SLURM: 16 shards with auto-merge
+nel slurm eval gsm8k --shards 16 --repeats 8 --submit
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+# Kubernetes: indexed job (see deploy/k8s/)
+kubectl apply -f deploy/k8s/eval-indexed-job.yaml
+
+# Ray: distributed across workers
+python -m nemo_evaluator.runner.ray_launcher --benchmark gsm8k --shards 8
+
+# Docker Compose
+docker compose -f deploy/docker-compose.yaml up eval-local
+
+# Manual sharding (any orchestrator)
+NEL_SHARD_IDX=0 NEL_TOTAL_SHARDS=4 nel run --benchmark gsm8k
+```
+
+## Project Structure
+
+```
+src/nemo_evaluator/
+    benchmarks/        Built-in benchmarks (gsm8k, triviaqa)
+    environments/      EvalEnvironment base class, registry, HTTP server
+    adapters/          Consume external environments (HTTP, Prime Intellect, Gym harness)
+    runner/            Eval loop, model client, artifacts, sharding, regression, Ray launcher
+    observability/     StepRecord, RuntimeStats, FailureReport, progress tracking
+    scoring/           Scoring primitives (math_equal, exact_match, extraction)
+    metrics/           Statistical metrics (pass@k, bootstrap CI, aggregation)
+    cli/               CLI commands (run, serve, validate, regression, slurm)
+examples/
+    configs/           YAML evaluation configs
+    run_evaluation.py  Programmatic evaluation example
+    gym_integration.py Serve, consume, and export for Gym
+    pi_integration.py  Prime Intellect adapter example
+deploy/
+    Dockerfile, docker-compose, K8s manifests, SLURM scripts, GitLab CI
+```
+
+## Optional Dependencies
+
+| Extra | Packages | Purpose |
+|-------|----------|---------|
+| `scoring` | sympy | Symbolic math comparison |
+| `stats` | scipy | Normal confidence intervals |
+| `ray` | ray | Distributed eval via Ray |
+| `pi` | verifiers, openai | Prime Intellect environment adapter |
+| `skills` | nemo-skills | NeMo Skills benchmark integration |
+| `all` | all of the above | Everything |
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Apache-2.0. See [LICENSE](LICENSE).

@@ -1,0 +1,18 @@
+evaluation:
+  # Set these to your model endpoint, or use env vars NEMO_MODEL_URL / NEMO_MODEL_ID
+  model_url: ${NEMO_MODEL_URL}
+  model_id: ${NEMO_MODEL_ID}
+
+  tasks:
+    - benchmark: gsm8k
+      repeats: 5
+      system_prompt: "Solve step by step. Put your final answer in \\boxed{}."
+
+slurm:
+  partition: batch
+  shards: 8
+  cpus_per_task: 4
+  mem: 32G
+  time_limit: "02:00:00"
+  conda_env: gym
+  output_dir: ./eval_results/gsm8k_distributed

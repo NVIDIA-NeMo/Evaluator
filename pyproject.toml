@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nemo-evaluator"
+version = "0.1.0"
+description = "NeMo Evaluator – benchmark environments, evaluation runner, and environment-compatible service"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "pydantic>=2.0",
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.20",
+    "httpx>=0.24",
+    "pyyaml>=6.0",
+    "click>=8.0",
+    "numpy>=1.24",
+    "datasets>=2.14",
+]
+
+[project.optional-dependencies]
+scoring = ["sympy>=1.12"]
+stats = ["scipy>=1.10"]
+ray = ["ray[default]>=2.9"]
+pi = ["verifiers", "openai>=1.0"]
+skills = ["nemo-skills"]
+all = ["nemo-evaluator[scoring,stats,ray,pi,skills]"]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "ruff>=0.1",
+    "pre-commit>=3.0",
+    "nemo-evaluator[all]",
+]
+
+[project.scripts]
+nel = "nemo_evaluator.cli.main:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nemo_evaluator"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"

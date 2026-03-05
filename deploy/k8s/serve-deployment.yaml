@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nel-serve
+  labels:
+    app: nemo-evaluator
+    component: serve
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nemo-evaluator
+      component: serve
+  template:
+    metadata:
+      labels:
+        app: nemo-evaluator
+        component: serve
+    spec:
+      containers:
+        - name: serve
+          image: nemo-evaluator:latest
+          command: ["nel", "serve"]
+          args:
+            - "--benchmark"
+            - "gsm8k"
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "9090"
+            - "--gym-compat"
+          ports:
+            - containerPort: 9090
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: "2"
+              memory: "4Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nel-serve
+  labels:
+    app: nemo-evaluator
+    component: serve
+spec:
+  selector:
+    app: nemo-evaluator
+    component: serve
+  ports:
+    - port: 9090
+      targetPort: 9090
+      name: http
+  type: ClusterIP

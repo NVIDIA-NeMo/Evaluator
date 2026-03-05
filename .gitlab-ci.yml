@@ -1,0 +1,42 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip-cache"
+
+build-docs:
+  stage: build
+  image: python:3.11-slim
+  before_script:
+    - pip install --cache-dir $PIP_CACHE_DIR -r docs/requirements.txt
+    - pip install --cache-dir $PIP_CACHE_DIR -e ".[scoring]"
+  script:
+    - sphinx-build -b html docs docs/_build/html
+  artifacts:
+    paths:
+      - docs/_build/html
+    expire_in: 1 week
+  cache:
+    key: docs-pip
+    paths:
+      - .pip-cache/
+  rules:
+    - changes:
+        - docs/**/*
+        - src/**/*
+        - pyproject.toml
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+pages:
+  stage: deploy
+  dependencies:
+    - build-docs
+  script:
+    - mv docs/_build/html public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

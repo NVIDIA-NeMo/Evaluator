@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nel-eval
+  labels:
+    app: nemo-evaluator
+    component: eval
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: nemo-evaluator
+        component: eval
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: eval
+          image: nemo-evaluator:latest
+          command: ["nel", "run"]
+          args:
+            - "--benchmark"
+            - "gsm8k"
+            - "--model-url"
+            - "$(MODEL_URL)"
+            - "--model-id"
+            - "$(MODEL_ID)"
+            - "--repeats"
+            - "$(REPEATS)"
+            - "--output-dir"
+            - "/results"
+          env:
+            - name: MODEL_URL
+              value: "https://inference-api.nvidia.com/v1"
+            - name: MODEL_ID
+              value: "azure/openai/gpt-5.2"
+            - name: REPEATS
+              value: "1"
+            - name: NEMO_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: nemo-evaluator-secrets
+                  key: api-key
+          volumeMounts:
+            - name: results
+              mountPath: /results
+          resources:
+            requests:
+              cpu: "2"
+              memory: "8Gi"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
+      volumes:
+        - name: results
+          persistentVolumeClaim:
+            claimName: nel-results-pvc

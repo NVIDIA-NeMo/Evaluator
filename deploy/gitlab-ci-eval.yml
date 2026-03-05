@@ -1,0 +1,78 @@
+# Drop this into your repo's .gitlab-ci.yml or include it.
+# Runs evaluation as a CI gate: blocks merge if scores regress beyond threshold.
+
+stages:
+  - eval
+  - regression
+
+variables:
+  BENCHMARK: gsm8k
+  MODEL_URL: https://inference-api.nvidia.com/v1
+  MODEL_ID: azure/openai/gpt-5.2
+  REPEATS: "2"
+  MAX_PROBLEMS: "50"
+  NEL_IMAGE: nemo-evaluator:latest
+
+eval:candidate:
+  stage: eval
+  image: $NEL_IMAGE
+  script:
+    - nel run --benchmark $BENCHMARK
+        --model-url $MODEL_URL --model-id $MODEL_ID
+        --repeats $REPEATS --max-problems $MAX_PROBLEMS
+        --output-dir ./results/candidate --no-progress
+  artifacts:
+    paths:
+      - results/candidate/
+    expire_in: 30 days
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+
+eval:baseline:
+  stage: eval
+  image: $NEL_IMAGE
+  script:
+    - git checkout $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    - pip install -e ".[scoring]"
+    - nel run --benchmark $BENCHMARK
+        --model-url $MODEL_URL --model-id $MODEL_ID
+        --repeats $REPEATS --max-problems $MAX_PROBLEMS
+        --output-dir ./results/baseline --no-progress
+  artifacts:
+    paths:
+      - results/baseline/
+    expire_in: 30 days
+  rules:
+    - if: $CI_MERGE_REQUEST_IID
+
+regression:check:
+  stage: regression
+  image: $NEL_IMAGE
+  needs: ["eval:candidate", "eval:baseline"]
+  script:
+    - |
+      python -c "
+      from nemo_evaluator.runner.regression import compare_runs, write_regression
+      from pathlib import Path
+      import glob, sys, json
+
+      baseline = glob.glob('results/baseline/eval-*.json')[0]
+      candidate = glob.glob('results/candidate/eval-*.json')[0]
+      report = compare_runs(baseline, candidate)
+      write_regression(report, 'results/regression.json')
+
+      print(json.dumps(report, indent=2))
+
+      for metric, delta in report.get('score_deltas', {}).items():
+          if delta.get('delta', 0) < -0.05:
+              print(f'REGRESSION: {metric} dropped by {abs(delta[\"delta\"]):.4f}')
+              sys.exit(1)
+
+      print('No significant regressions detected.')
+      "
+  artifacts:
+    paths:
+      - results/regression.json
+    expire_in: 30 days
+  rules:
+    - if: $CI_MERGE_REQUEST_IID

@@ -1,0 +1,20 @@
+# Multi-benchmark evaluation: runs all tasks sequentially, separate output dirs.
+#
+# Usage:
+#   nel run examples/configs/multi_benchmark.yaml --api-key YOUR_KEY
+#   nel run examples/configs/multi_benchmark.yaml --repeats 4  # override for all tasks
+
+evaluation:
+  # Set these to your model endpoint, or use env vars NEMO_MODEL_URL / NEMO_MODEL_ID
+  model_url: ${NEMO_MODEL_URL}
+  model_id: ${NEMO_MODEL_ID}
+
+  tasks:
+    - benchmark: gsm8k
+      repeats: 2
+      max_problems: 50
+      system_prompt: "Solve step by step. Put your final answer in \\boxed{}."
+
+    - benchmark: triviaqa
+      repeats: 1
+      max_problems: 50

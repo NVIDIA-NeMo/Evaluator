@@ -1,0 +1,64 @@
+services:
+  # Serve a benchmark environment (e.g. for Gym training to connect to)
+  serve:
+    build: ..
+    command: ["serve", "--benchmark", "${BENCHMARK:-gsm8k}", "--host", "0.0.0.0", "--port", "9090", "--gym-compat"]
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:9090/health').raise_for_status()"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Run evaluation against a served environment
+  eval-remote:
+    build: ..
+    command: >
+      run --adapter gym://serve:9090
+          --model-url ${MODEL_URL:-https://inference-api.nvidia.com/v1}
+          --model-id ${MODEL_ID:-azure/openai/gpt-5.2}
+          --repeats ${REPEATS:-1}
+          --output-dir /results
+          --no-progress
+    environment:
+      NEMO_API_KEY: ${NEMO_API_KEY}
+    volumes:
+      - ./results:/results
+    depends_on:
+      serve:
+        condition: service_healthy
+
+  # Run evaluation locally (no serve dependency)
+  eval-local:
+    build: ..
+    command: >
+      run --benchmark ${BENCHMARK:-gsm8k}
+          --model-url ${MODEL_URL:-https://inference-api.nvidia.com/v1}
+          --model-id ${MODEL_ID:-azure/openai/gpt-5.2}
+          --repeats ${REPEATS:-1}
+          --max-problems ${MAX_PROBLEMS:-50}
+          --output-dir /results
+    environment:
+      NEMO_API_KEY: ${NEMO_API_KEY}
+    volumes:
+      - ./results:/results
+    profiles: ["local"]
+
+  # Sharded evaluation: run N containers in parallel
+  eval-shard:
+    build: ..
+    command: >
+      run --benchmark ${BENCHMARK:-gsm8k}
+          --model-url ${MODEL_URL:-https://inference-api.nvidia.com/v1}
+          --model-id ${MODEL_ID:-azure/openai/gpt-5.2}
+          --repeats ${REPEATS:-1}
+          --output-dir /results/shard_${NEL_SHARD_IDX:-0}
+          --no-progress
+    environment:
+      NEMO_API_KEY: ${NEMO_API_KEY}
+      NEL_SHARD_IDX: ${NEL_SHARD_IDX:-0}
+      NEL_TOTAL_SHARDS: ${NEL_TOTAL_SHARDS:-1}
+    volumes:
+      - ./results:/results
+    profiles: ["sharded"]

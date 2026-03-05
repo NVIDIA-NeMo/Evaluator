@@ -1,0 +1,103 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nel-eval-sharded
+  labels:
+    app: nemo-evaluator
+    component: eval-sharded
+spec:
+  completionMode: Indexed
+  completions: 8
+  parallelism: 8
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: nemo-evaluator
+        component: eval-sharded
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: eval
+          image: nemo-evaluator:latest
+          command: ["nel", "run"]
+          args:
+            - "--benchmark"
+            - "gsm8k"
+            - "--model-url"
+            - "$(MODEL_URL)"
+            - "--model-id"
+            - "$(MODEL_ID)"
+            - "--repeats"
+            - "$(REPEATS)"
+            - "--output-dir"
+            - "/results/shard_$(JOB_COMPLETION_INDEX)"
+            - "--no-progress"
+          env:
+            - name: MODEL_URL
+              value: "https://inference-api.nvidia.com/v1"
+            - name: MODEL_ID
+              value: "azure/openai/gpt-5.2"
+            - name: REPEATS
+              value: "5"
+            - name: NEL_SHARD_IDX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
+            - name: NEL_TOTAL_SHARDS
+              value: "8"
+            - name: NEMO_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: nemo-evaluator-secrets
+                  key: api-key
+          volumeMounts:
+            - name: results
+              mountPath: /results
+          resources:
+            requests:
+              cpu: "2"
+              memory: "8Gi"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
+      volumes:
+        - name: results
+          persistentVolumeClaim:
+            claimName: nel-results-pvc
+---
+# After all shards complete, run a merge job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nel-eval-merge
+  labels:
+    app: nemo-evaluator
+    component: eval-merge
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: merge
+          image: nemo-evaluator:latest
+          command: ["nel", "slurm", "merge"]
+          args:
+            - "--shard-dir"
+            - "/results"
+            - "--output-dir"
+            - "/results/merged"
+            - "--repeats"
+            - "5"
+          volumeMounts:
+            - name: results
+              mountPath: /results
+          resources:
+            requests:
+              cpu: "1"
+              memory: "4Gi"
+      volumes:
+        - name: results
+          persistentVolumeClaim:
+            claimName: nel-results-pvc
