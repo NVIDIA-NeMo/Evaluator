@@ -866,7 +866,7 @@ def _create_slurm_sbatch_script(
 
     # terminate the server after all evaluation clients finish
     if cfg.deployment.type != "none":
-        s += "kill $SERVER_PID  # terminate the server to finish gracefully\n"
+        s += 'for _pid in "${SERVER_PIDS[@]}"; do kill "$_pid" 2>/dev/null || true; done  # terminate servers\n'
         if cfg.execution.num_instances > 1:
             s += "kill $PROXY_PID  # terminate proxy to finish gracefully\n"
         s += "\n"
@@ -1677,9 +1677,13 @@ def _generate_deployment_srun_command(
     deployment_mounts_list,
     remote_task_subdir,
     deployment_env_var_names: list[str] | None = None,
-    instance_id: int = 0,
 ):
-    """Generate the deployment srun command with proper node/ntask configuration.
+    """Generate per-instance deployment srun commands.
+
+    Loops over num_instances and launches a dedicated srun for each instance on
+    its own node subset.  Multi-instance partitioning lives here; the deployment
+    command receives PROC_ID (rank within the instance) and MASTER_IP (head of
+    the instance) and only needs to handle single-instance setup.
 
     Returns:
         tuple: (script_string, is_potentially_unsafe, debug_comment)
@@ -1710,62 +1714,47 @@ def _generate_deployment_srun_command(
     s += 'if [[ ${#nodes_array[@]} -eq 0 ]]; then nodes_array=( "$(hostname)" ); fi\n'
     s += 'export NODES_IPS_ARRAY=($(for node in "${nodes_array[@]}"; do srun --nodelist="$node" --ntasks=1 --nodes=1 hostname --ip-address; done))\n'
     s += 'echo "Node IPs: ${NODES_IPS_ARRAY[@]}"\n'
-    s += "# Export MASTER_IP as the first node IP\n"
-    s += "export MASTER_IP=${NODES_IPS_ARRAY[0]}\n"
-    s += 'echo "MASTER_IP: $MASTER_IP"\n'
     s += 'export ALL_NODE_IPS=$(IFS=,; echo "${NODES_IPS_ARRAY[*]}")\n'
-    s += "HEAD_NODE_IPS=()\n"
-    s += f"for ((g=0; g<{cfg.execution.num_instances}; g++)); do\n"
-    s += f'    HEAD_NODE_IPS+=("${{NODES_IPS_ARRAY[$((g * {cfg.execution.num_nodes // cfg.execution.num_instances}))]}}")\n'
-    s += "done\n"
-    s += 'echo "HEAD_NODE_IPS: ${HEAD_NODE_IPS[@]}"\n'
 
-    # Add debug comment for deployment pre_cmd before srun command
+    num_instances = cfg.execution.num_instances
+    nodes_per_instance = cfg.execution.num_nodes // num_instances
+    # n_tasks is tasks per instance (= nodes_per_instance by default via slurm/default.yaml).
+    # Falls back to nodes_per_instance in case the YAML default isn't loaded (e.g. tests).
+    per_instance_ntasks = (
+        cfg.execution.get("deployment", {}).get("n_tasks") or nodes_per_instance
+    )
+
+    s += "HEAD_NODE_IPS=()\n"
+    s += "SERVER_PIDS=()\n"
+
+    # Add debug comment for deployment pre_cmd before the loop
     if debug_comment:
         s += "# Debug contents of deployment pre_cmd\n"
         s += debug_comment
         s += "\n"
 
-    s += "srun --mpi pmix --overlap "
-    s += f"--nodes {cfg.execution.num_nodes} --ntasks {cfg.execution.get('deployment', {}).get('n_tasks', 1)} "
-    s += "--container-image {} ".format(cfg.deployment.image)
-    if deployment_mounts_list:
-        s += "--container-mounts {} ".format(",".join(deployment_mounts_list))
-    if not cfg.execution.get("mounts", {}).get("mount_home", True):
-        s += "--no-container-mount-home "
-    s += "--output {} ".format(remote_task_subdir / "logs" / "server-%A-%t.log")
-
     if deployment_env_var_names is None:
         deployment_env_var_names = []
 
-    # Always add MASTER_IP to the environment variables
+    # Always pass MASTER_IP and ALL_NODE_IPS into each instance container
     if "MASTER_IP" not in deployment_env_var_names:
         deployment_env_var_names.append("MASTER_IP")
-
-    # Always add ALL_NODE_IPS to the environment variables
     if "ALL_NODE_IPS" not in deployment_env_var_names:
         deployment_env_var_names.append("ALL_NODE_IPS")
 
-    if deployment_env_var_names:
-        s += f"--container-env {','.join(sorted(deployment_env_var_names))} "
-
-    # Build the command that runs inside the container:
+    # Build the command that runs inside each instance container:
     # 1. Export scheduler-agnostic env vars (PROC_ID, NUM_TASKS)
     # 2. Optionally write + source deployment_pre_cmd.sh
     # 3. Write deployment_cmd.sh and execute it
-    create_script_cmd = _str_to_echo_command(cfg.deployment.command, filename="deployment_cmd.sh")
+    create_script_cmd = _str_to_echo_command(
+        cfg.deployment.command, filename="deployment_cmd.sh"
+    )
     debug_comment += create_script_cmd.debug + "\n\n"
 
-    # Map SLURM task variables to scheduler-agnostic names inside the container
     env_setup = "export PROC_ID=${SLURM_PROCID:-0} NUM_TASKS=${SLURM_NTASKS:-1}"
     script = f"{env_setup} && {create_script_cmd.cmd} && bash deployment_cmd.sh"
 
-    # Wrap deployment command to execute pre_cmd inside container if needed
     if pre_cmd:
-        # Create a wrapper command that runs inside the container:
-        # 1. Create deployment_pre_cmd.sh file
-        # 2. Source it
-        # 3. Execute the original deployment command
         create_pre_script_cmd = _str_to_echo_command(
             pre_cmd, filename="deployment_pre_cmd.sh"
         )
@@ -1775,9 +1764,34 @@ def _generate_deployment_srun_command(
             f"source deployment_pre_cmd.sh && "
             f"{create_script_cmd.cmd} && bash deployment_cmd.sh"
         )
-    s += "bash -c '{}' &\n\n".format(script)  # run asynchronously
 
-    s += "SERVER_PID=$!  # capture the PID of the server background srun process\n\n"
+    # Per-instance loop: launch one srun per instance on its dedicated nodes.
+    # MASTER_IP is exported before each srun so the container inherits the
+    # correct per-instance head IP via --container-env.
+    s += f"for ((g=0; g<{num_instances}; g++)); do\n"
+    s += f"    START_IDX=$((g * {nodes_per_instance}))\n"
+    s += f'    INSTANCE_NODES_ARR=("${{nodes_array[@]:$START_IDX:{nodes_per_instance}}}")\n'
+    s += '    INSTANCE_NODELIST=$(IFS=,; echo "${INSTANCE_NODES_ARR[*]}")\n'
+    s += '    MASTER_IP="${NODES_IPS_ARRAY[$START_IDX]}"\n'
+    s += '    HEAD_NODE_IPS+=("$MASTER_IP")\n'
+    s += "    export MASTER_IP\n"
+    s += '    echo "Instance $g: MASTER_IP=$MASTER_IP, nodes: ${INSTANCE_NODES_ARR[*]}"\n'
+    s += "    srun --mpi pmix --overlap "
+    s += f'--nodelist "$INSTANCE_NODELIST" --nodes {nodes_per_instance} --ntasks {per_instance_ntasks} '
+    s += "--container-image {} ".format(cfg.deployment.image)
+    if deployment_mounts_list:
+        s += "--container-mounts {} ".format(",".join(deployment_mounts_list))
+    if not cfg.execution.get("mounts", {}).get("mount_home", True):
+        s += "--no-container-mount-home "
+    s += "--output {} ".format(remote_task_subdir / "logs" / "server-${g}-%A-%t.log")
+    if deployment_env_var_names:
+        s += f"--container-env {','.join(sorted(deployment_env_var_names))} "
+    s += "bash -c '{}' &\n".format(script)
+    s += "    SERVER_PIDS+=($!)\n"
+    s += "done\n\n"
+
+    s += 'echo "HEAD_NODE_IPS: ${HEAD_NODE_IPS[@]}"\n'
+    s += "SERVER_PID=${SERVER_PIDS[0]}  # reference to first instance PID for health check\n\n"
 
     return s, is_potentially_unsafe, debug_comment
 
@@ -1792,7 +1806,7 @@ def _get_wait_for_server_handler(
     """Generate wait for server handler that takes a list of IPs."""
     pid_check = ""
     if check_pid:
-        pid_check = 'kill -0 "$SERVER_PID" 2>/dev/null || { echo "Server process $SERVER_PID died"; exit 1; }'
+        pid_check = 'for _check_pid in "${SERVER_PIDS[@]}"; do kill -0 "$_check_pid" 2>/dev/null || { echo "Server process $_check_pid died"; exit 1; }; done'
 
     handler = f"""date
 # wait for the {service_name} to initialize

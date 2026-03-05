@@ -505,12 +505,19 @@ class TestSlurmExecutorFeatures:
         assert "--no-container-mount-home" in script
 
     @pytest.mark.parametrize(
-        "num_nodes,n_tasks,expected_ntasks,should_have_proxy",
+        "num_nodes,n_tasks_per_instance,num_instances,expected_nodes_per_instance,expected_ntasks_per_instance,should_have_proxy",
         [
-            (1, 1, 1, False),  # Single instance, no proxy
-            (4, 4, 4, True),  # Multi-instance with matching n_tasks, needs proxy
-            (2, 1, 1, False),  # Multiple nodes but single task, no proxy
-            (3, 3, 3, True),  # Multi-instance with 3 nodes, needs proxy
+            (1, 1, 1, 1, 1, False),  # Single node, single instance
+            (
+                4,
+                1,
+                4,
+                1,
+                1,
+                True,
+            ),  # 4 instances of 1 node each, 1 task each, needs proxy
+            (2, 1, 1, 2, 1, False),  # 2 nodes, 1 task, single instance
+            (3, 1, 3, 1, 1, True),  # 3 instances of 1 node each, needs proxy
         ],
     )
     def test_deployment_n_tasks_and_proxy_setup(
@@ -519,15 +526,21 @@ class TestSlurmExecutorFeatures:
         mock_task,
         mock_dependencies,
         num_nodes,
-        n_tasks,
-        expected_ntasks,
+        n_tasks_per_instance,
+        num_instances,
+        expected_nodes_per_instance,
+        expected_ntasks_per_instance,
         should_have_proxy,
     ):
-        """Test deployment.n_tasks with various configurations and proxy setup."""
-        base_config["execution"]["deployment"] = {"n_tasks": n_tasks}
+        """Test deployment.n_tasks (per instance) with various configurations and proxy setup.
+
+        The executor launches one srun per instance on its dedicated node subset.
+        --nodes and --ntasks in each srun are per-instance values.
+        n_tasks is tasks per instance (default 1).
+        """
+        base_config["execution"]["deployment"] = {"n_tasks": n_tasks_per_instance}
         base_config["execution"]["num_nodes"] = num_nodes
-        # Set num_instances > 1 to trigger proxy setup when needed
-        base_config["execution"]["num_instances"] = num_nodes if should_have_proxy else 1
+        base_config["execution"]["num_instances"] = num_instances
 
         cfg = OmegaConf.create(base_config)
 
@@ -540,8 +553,11 @@ class TestSlurmExecutorFeatures:
             job_id="test123.0",
         ).cmd
 
-        # Check that deployment srun uses correct --ntasks value
-        assert f"--nodes {num_nodes} --ntasks {expected_ntasks}" in script
+        # Each per-instance srun uses per-instance --nodes/--ntasks
+        assert (
+            f"--nodes {expected_nodes_per_instance} --ntasks {expected_ntasks_per_instance}"
+            in script
+        )
 
         # Check proxy setup based on multi-instance or not
         if should_have_proxy:
@@ -552,8 +568,8 @@ class TestSlurmExecutorFeatures:
     def test_deployment_n_tasks_default_value(
         self, base_config, mock_task, mock_dependencies
     ):
-        """Test deployment.n_tasks defaults to 1 when not specified."""
-        # Don't set deployment.n_tasks - should default to 1
+        """Test deployment.n_tasks defaults to nodes_per_instance when not specified."""
+        # Don't set deployment.n_tasks — code falls back to nodes_per_instance
         base_config["execution"]["num_nodes"] = 2
 
         cfg = OmegaConf.create(base_config)
@@ -567,10 +583,10 @@ class TestSlurmExecutorFeatures:
             job_id="test123.0",
         ).cmd
 
-        # Check that deployment srun defaults to --ntasks 1
-        assert "--nodes 2 --ntasks 1" in script
+        # num_nodes=2, num_instances=1 → nodes_per_instance=2 → --nodes 2 --ntasks 2
+        assert "--nodes 2 --ntasks 2" in script
 
-        # Check that no proxy is set up (since n_tasks=1, even though num_nodes=2)
+        # Single instance means no proxy
         assert "proxy" not in script.lower()
 
     @pytest.mark.parametrize(
@@ -2769,8 +2785,6 @@ class TestMultiNodeMultiInstance:
         base_config["execution"]["num_nodes"] = 2
         cfg = OmegaConf.create(base_config)
 
-        import logging
-
         with patch(
             "nemo_evaluator_launcher.executors.slurm.executor.logger"
         ) as mock_logger:
@@ -2797,9 +2811,7 @@ class TestMultiNodeMultiInstance:
         base_config["deployment"]["multiple_instances"] = False
         cfg = OmegaConf.create(base_config)
 
-        with patch(
-            "nemo_evaluator_launcher.executors.slurm.executor.logger"
-        ):
+        with patch("nemo_evaluator_launcher.executors.slurm.executor.logger"):
             _create_slurm_sbatch_script(
                 cfg=cfg,
                 task=mock_task,
@@ -2851,10 +2863,10 @@ class TestMultiNodeMultiInstance:
     @pytest.mark.parametrize(
         "num_nodes,num_instances,expected_loop_count,expected_stride",
         [
-            (4, 2, 2, 2),   # 2 instances of 2 nodes each
-            (6, 3, 3, 2),   # 3 instances of 2 nodes each
-            (4, 4, 4, 1),   # 4 instances of 1 node each
-            (8, 2, 2, 4),   # 2 instances of 4 nodes each
+            (4, 2, 2, 2),  # 2 instances of 2 nodes each
+            (6, 3, 3, 2),  # 3 instances of 2 nodes each
+            (4, 4, 4, 1),  # 4 instances of 1 node each
+            (8, 2, 2, 4),  # 2 instances of 4 nodes each
         ],
     )
     def test_head_node_ips_multi_instance(
@@ -2946,15 +2958,13 @@ class TestMultiNodeMultiInstance:
     @pytest.mark.parametrize(
         "num_nodes,num_instances,expected_ips",
         [
-            (4, 2, ["{IP_0}", "{IP_2}"]),         # heads at node 0 and 2
+            (4, 2, ["{IP_0}", "{IP_2}"]),  # heads at node 0 and 2
             (6, 3, ["{IP_0}", "{IP_2}", "{IP_4}"]),  # heads at 0, 2, 4
             (4, 4, ["{IP_0}", "{IP_1}", "{IP_2}", "{IP_3}"]),  # 1 node per instance
-            (8, 2, ["{IP_0}", "{IP_4}"]),          # heads at 0, 4
+            (8, 2, ["{IP_0}", "{IP_4}"]),  # heads at 0, 4
         ],
     )
-    def test_haproxy_placeholder_backends(
-        self, num_nodes, num_instances, expected_ips
-    ):
+    def test_haproxy_placeholder_backends(self, num_nodes, num_instances, expected_ips):
         """HAProxy config should have one backend per instance head node."""
         from nemo_evaluator_launcher.executors.slurm.executor import (
             _generate_haproxy_config_with_placeholders,
@@ -3034,7 +3044,7 @@ class TestMultiNodeMultiInstance:
     def test_proxy_pid_killed_on_shutdown(
         self, base_config, mock_task, mock_dependencies
     ):
-        """Multi-instance script should kill both SERVER_PID and PROXY_PID."""
+        """Multi-instance script should kill all SERVER_PIDS and PROXY_PID."""
         base_config["execution"]["num_nodes"] = 2
         base_config["execution"]["num_instances"] = 2
         cfg = OmegaConf.create(base_config)
@@ -3047,7 +3057,7 @@ class TestMultiNodeMultiInstance:
             job_id="test123.0",
         ).cmd
 
-        assert "kill $SERVER_PID" in script
+        assert 'for _pid in "${SERVER_PIDS[@]}"' in script
         assert "kill $PROXY_PID" in script
 
     # ── Deployment command wrapping (base64 script file) ─────────────────

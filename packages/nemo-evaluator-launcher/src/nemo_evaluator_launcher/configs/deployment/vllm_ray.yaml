@@ -18,75 +18,50 @@
 # Use this config when num_nodes / num_instances > 1.  It inherits every field
 # from vllm.yaml and overrides `command` with a built-in Ray cluster setup
 # script that:
-#   - Starts a Ray head on rank 0, waits for all workers to join, then
+#   - Starts a Ray head on PROC_ID 0, waits for all workers to join, then
 #     launches vLLM with --distributed-executor-backend (default: ray).
-#   - Starts a Ray worker on every other rank (blocks forever so only the
-#     head runs the deployment command).
+#   - Starts a Ray worker on every other PROC_ID (blocks until Ray head exits).
 #
-# Supports both single-instance (NUM_INSTANCES == 1) and multi-instance
-# (NUM_INSTANCES > 1, instance-local ranks computed automatically).
+# Multi-instance partitioning is handled by the executor: one srun is launched
+# per instance on its dedicated node subset.  Each srun gets PROC_ID relative
+# to its own nodes (0 = head) and MASTER_IP set to its instance's head node.
 #
 # OmegaConf escaping note:
 #   $VAR           → passed through as literal (safe for bash)
 #   ${key}         → resolved as Hydra interpolation
 #   `cmd`          → use backticks for bash command substitution (OmegaConf rejects $())
-#   let "x = a/b"  → use let for arithmetic (OmegaConf rejects $(()))
 defaults:
   - vllm
   - _self_
 
 distributed_executor_backend: ray
-ray_compiled_dag_channel_type: shm  # "auto", "shm", or "nccl" (default in vLLM: auto)
+
+env_vars:
+  VLLM_ENGINE_READY_TIMEOUT_S: 'lit:3600'  # allow enough time for large models to load across nodes
+  VLLM_USE_RAY_COMPILED_DAG_CHANNEL_TYPE: 'lit:shm'  # "auto", "shm", or "nccl" (default in vLLM: auto)
 
 command: |
   #!/bin/bash
   set -euo pipefail
-
-  export VLLM_USE_RAY_COMPILED_DAG_CHANNEL_TYPE=${deployment.ray_compiled_dag_channel_type}
 
   RAY_PORT=6379
   NODE_PORT=8266
   OBJ_PORT=8267
   RAY_FIXED_PORTS="--node-manager-port=$NODE_PORT --object-manager-port=$OBJ_PORT --metrics-export-port=8269 --dashboard-agent-grpc-port=8270 --dashboard-agent-listen-port=8271 --runtime-env-agent-port=8272"
 
-  NUM_NODES=${execution.num_nodes}
-  NUM_INSTANCES=${execution.num_instances}
-  let "NODES_PER_INSTANCE = NUM_NODES / NUM_INSTANCES"
-
-  # Determine mode: multi-instance (NUM_INSTANCES > 1) or single-instance
-  if [ "$NUM_INSTANCES" -gt 1 ]; then
-      # Multi-instance mode: compute per-instance rank from PROC_ID
-      let "INSTANCE_ID = PROC_ID / NODES_PER_INSTANCE" || true
-      let "INSTANCE_RANK = PROC_ID % NODES_PER_INSTANCE" || true
-      export INSTANCE_ID INSTANCE_RANK
-      let "HEAD_FIELD = INSTANCE_ID * NODES_PER_INSTANCE + 1"
-      export INSTANCE_MASTER_IP=`echo "$ALL_NODE_IPS" | cut -d',' -f"$HEAD_FIELD"`
-      export MASTER_IP="$INSTANCE_MASTER_IP"
-      RANK="$INSTANCE_RANK"
-      EXPECTED_NODES="$NODES_PER_INSTANCE"
-      echo "=== Multi-Instance Ray Setup ==="
-      echo "INSTANCE_ID=$INSTANCE_ID, INSTANCE_RANK=$INSTANCE_RANK, MASTER_IP=$MASTER_IP"
-      echo "NODES_PER_INSTANCE=$NODES_PER_INSTANCE, NUM_INSTANCES=$NUM_INSTANCES"
-  else
-      # Single-instance mode
-      RANK="$PROC_ID"
-      EXPECTED_NODES="$NUM_TASKS"
-      echo "=== Single-Instance Ray Setup ==="
-      echo "PROC_ID=$PROC_ID, MASTER_IP=$MASTER_IP"
-      echo "NUM_TASKS=$NUM_TASKS"
-  fi
+  echo "=== Ray Setup: PROC_ID=$PROC_ID, MASTER_IP=$MASTER_IP, NUM_TASKS=$NUM_TASKS ==="
   echo "Hostname: `hostname`"
 
-  if [ "$RANK" -eq 0 ]; then
+  if [ "$PROC_ID" -eq 0 ]; then
       # HEAD node
       export VLLM_HOST_IP=$MASTER_IP
       echo "Starting Ray HEAD on `hostname` with VLLM_HOST_IP=$VLLM_HOST_IP"
       ray start --head --port=$RAY_PORT $RAY_FIXED_PORTS
 
       export RAY_ADDRESS=$MASTER_IP:$RAY_PORT
-      echo "RAY_ADDRESS=$RAY_ADDRESS — waiting for $EXPECTED_NODES node(s) to join..."
+      echo "RAY_ADDRESS=$RAY_ADDRESS — waiting for $NUM_TASKS node(s) to join..."
 
-      until [ "`ray status 2>/dev/null | grep -c 'node_'`" -ge "$EXPECTED_NODES" ]; do
+      until [ "`ray status 2>/dev/null | grep -c 'node_'`" -ge "$NUM_TASKS" ]; do
           sleep 10
       done
 

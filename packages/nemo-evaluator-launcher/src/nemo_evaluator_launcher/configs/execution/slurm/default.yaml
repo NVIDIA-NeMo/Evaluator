@@ -31,7 +31,7 @@ sbatch_comment: null # Optional comment for SLURM job (translates to #SBATCH --c
 
 # Deployment-specific SLURM configuration
 deployment:
-  n_tasks: ${execution.num_nodes}  # Number of tasks for deployment srun (default: num_nodes)
+  n_tasks: ${div:${execution.num_nodes},${execution.num_instances}}  # tasks per instance = nodes_per_instance, for some deployments it ma differ
 
 mounts:
   deployment: {}
