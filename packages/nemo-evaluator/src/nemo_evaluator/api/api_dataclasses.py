@@ -208,21 +208,17 @@ class EvaluationConfig(BaseModel):
     type: Optional[str] = Field(description="Type of the task", default=None)
 
     @model_validator(mode="after")
-    @classmethod
-    def handle_benchmark_capabilities(cls, values):
+    def handle_benchmark_capabilities(self):
         """Handle benchmark capabilities."""
-        if isinstance(values, dict):
-            benchmark_capabilities = values.get("required_capabilities")
-            if benchmark_capabilities:
-                invalid_capabilities = []
-                for capability in benchmark_capabilities:
-                    if capability not in BENCHMARK_CAPABILITIES:
-                        invalid_capabilities.append(capability)
-                if invalid_capabilities:
-                    raise ValueError(
-                        f"Invalid endpoint capabilities: {invalid_capabilities}. Available capabilities are: {list(BENCHMARK_CAPABILITIES.keys())}"
-                    )
-        return values
+        if self.required_capabilities:
+            invalid_capabilities = [
+                c for c in self.required_capabilities if c not in BENCHMARK_CAPABILITIES
+            ]
+            if invalid_capabilities:
+                raise ValueError(
+                    f"Invalid endpoint capabilities: {invalid_capabilities}. Available capabilities are: {list(BENCHMARK_CAPABILITIES.keys())}"
+                )
+        return self
 
 
 class EvaluationMetadata(dict):
