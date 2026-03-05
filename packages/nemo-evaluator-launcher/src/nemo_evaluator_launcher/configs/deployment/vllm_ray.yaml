@@ -29,8 +29,6 @@
 # Optional env_vars set by this config (override in your yaml if needed):
 #   VLLM_ENGINE_READY_TIMEOUT_S          — startup timeout (default: 3600s)
 #   VLLM_USE_RAY_COMPILED_DAG_CHANNEL_TYPE — channel type for Ray DAG (default: shm)
-#   VLLM_CACHE_ROOT                      — path for vLLM kernel cache; set to /tmp/vllm-cache
-#                                          if your shared filesystem has rename race conditions
 #
 # OmegaConf escaping note:
 #   $VAR           → passed through as literal (safe for bash)
