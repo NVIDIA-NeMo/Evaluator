@@ -18,13 +18,19 @@
 # Use this config when num_nodes / num_instances > 1.  It inherits every field
 # from vllm.yaml and overrides `command` with a built-in Ray cluster setup
 # script that:
-#   - Starts a Ray head on PROC_ID 0, waits for all workers to join, then
+#   - Starts a Ray head on PROC_ID 0, waits 90s for workers to join, then
 #     launches vLLM with --distributed-executor-backend (default: ray).
 #   - Starts a Ray worker on every other PROC_ID (blocks until Ray head exits).
 #
-# Multi-instance partitioning is handled by the executor: one srun is launched
-# per instance on its dedicated node subset.  Each srun gets PROC_ID relative
-# to its own nodes (0 = head) and MASTER_IP set to its instance's head node.
+# Required environment variables (injected by the executor automatically):
+#   PROC_ID     — rank of this process within the instance (0 = head node)
+#   MASTER_IP   — IP of the head node for this instance
+#
+# Optional env_vars set by this config (override in your yaml if needed):
+#   VLLM_ENGINE_READY_TIMEOUT_S          — startup timeout (default: 3600s)
+#   VLLM_USE_RAY_COMPILED_DAG_CHANNEL_TYPE — channel type for Ray DAG (default: shm)
+#   VLLM_CACHE_ROOT                      — path for vLLM kernel cache; set to /tmp/vllm-cache
+#                                          if your shared filesystem has rename race conditions
 #
 # OmegaConf escaping note:
 #   $VAR           → passed through as literal (safe for bash)
@@ -49,7 +55,7 @@ command: |
   OBJ_PORT=8267
   RAY_FIXED_PORTS="--node-manager-port=$NODE_PORT --object-manager-port=$OBJ_PORT --metrics-export-port=8269 --dashboard-agent-grpc-port=8270 --dashboard-agent-listen-port=8271 --runtime-env-agent-port=8272"
 
-  echo "=== Ray Setup: PROC_ID=$PROC_ID, MASTER_IP=$MASTER_IP, NUM_TASKS=$NUM_TASKS ==="
+  echo "=== Ray Setup: PROC_ID=$PROC_ID, MASTER_IP=$MASTER_IP ==="
   echo "Hostname: `hostname`"
 
   if [ "$PROC_ID" -eq 0 ]; then
@@ -59,11 +65,8 @@ command: |
       ray start --head --port=$RAY_PORT $RAY_FIXED_PORTS
 
       export RAY_ADDRESS=$MASTER_IP:$RAY_PORT
-      echo "RAY_ADDRESS=$RAY_ADDRESS — waiting for $NUM_TASKS node(s) to join..."
-
-      until [ "`ray status 2>/dev/null | grep -c 'node_'`" -ge "$NUM_TASKS" ]; do
-          sleep 10
-      done
+      echo "Waiting 90 seconds for worker nodes to join Ray cluster..."
+      sleep 90
 
       echo "=== Ray cluster ready ==="
       ray status
