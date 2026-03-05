@@ -99,6 +99,7 @@ source = [
 [tool.pytest.ini_options]
 markers = [
     "network: tests that require network access to staging endpoints",
+    "smoketest: live endpoint smoketests requiring NVIDIA_API_KEY and JUDGE_API_KEY",
 ]
 
 [tool.ruff.lint.isort]

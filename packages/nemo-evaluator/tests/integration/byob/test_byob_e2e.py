@@ -16,15 +16,17 @@
 """End-to-end integration tests for BYOB feature.
 
 This module tests the full BYOB workflow including:
-- BoolQ scorer logic with realistic inputs
+- TruthfulQA scorer logic with mocked judge
 - Compiler integration (compile + install)
 - Runner E2E with mock server subprocess calls
 """
 
+import importlib.util
 import json
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -32,8 +34,8 @@ from nemo_evaluator.contrib.byob.compiler import compile_benchmark, install_benc
 from nemo_evaluator.contrib.byob.decorators import ScorerInput
 
 
-def _get_boolq_benchmark_path():
-    """Resolve path to BoolQ example benchmark.
+def _get_truthfulqa_benchmark_path():
+    """Resolve path to TruthfulQA example benchmark.
 
     Searches multiple possible locations to handle different working directories.
     """
@@ -47,14 +49,14 @@ def _get_boolq_benchmark_path():
         / "nemo-evaluator"
         / "examples"
         / "byob"
-        / "boolq"
+        / "truthfulqa"
         / "benchmark.py"
     )
     if candidate.exists():
         return candidate
 
     # Try relative to cwd
-    candidate = Path("examples/byob/boolq/benchmark.py")
+    candidate = Path("examples/byob/truthfulqa/benchmark.py")
     if candidate.exists():
         return candidate.resolve()
 
@@ -63,129 +65,131 @@ def _get_boolq_benchmark_path():
         import nemo_evaluator
 
         pkg_root = Path(nemo_evaluator.__file__).parent.parent
-        candidate = pkg_root / "examples" / "byob" / "boolq" / "benchmark.py"
+        candidate = pkg_root / "examples" / "byob" / "truthfulqa" / "benchmark.py"
         if candidate.exists():
             return candidate
     except (ImportError, AttributeError):
         pass
 
-    pytest.skip("Could not locate BoolQ example benchmark.py")
+    pytest.skip("Could not locate TruthfulQA example benchmark.py")
 
 
-def _load_boolq_scorer():
-    """Load the BoolQ scorer function from the example benchmark."""
-    boolq_benchmark_path = _get_boolq_benchmark_path()
+def _load_truthfulqa_scorer():
+    """Load the TruthfulQA scorer and its module from the example benchmark.
 
-    import importlib.util
+    Returns:
+        (module, scorer_fn): the loaded module and its truthfulqa_scorer function.
+        The module is returned so callers can patch module-level names (e.g. judge_score).
+    """
+    truthfulqa_benchmark_path = _get_truthfulqa_benchmark_path()
 
     spec = importlib.util.spec_from_file_location(
-        "boolq_benchmark", boolq_benchmark_path
+        "truthfulqa_benchmark", truthfulqa_benchmark_path
     )
-    boolq_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(boolq_module)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
 
-    return boolq_module.boolq_scorer
+    return mod, mod.truthfulqa_scorer
 
 
-class TestBoolQScorer:
-    """Integration tests for BoolQ scorer logic."""
+class TestTruthfulQAScorer:
+    """Integration tests for TruthfulQA scorer logic with mocked judge."""
 
-    def test_yes_true(self):
-        """BoolQ scorer: 'Yes' response with target 'true' should be correct."""
-        scorer = _load_boolq_scorer()
-        result = scorer(
-            ScorerInput(
-                response="Yes, they do speak the same language.",
-                target="true",
-                metadata={},
+    def test_truthful_response(self):
+        """Scorer returns truthful=1.0 when judge grades the response as correct (C)."""
+        mod, scorer_fn = _load_truthfulqa_scorer()
+        with patch.object(
+            mod, "judge_score", return_value={"judge_score": 1.0, "judge_grade": "C"}
+        ):
+            result = scorer_fn(
+                ScorerInput(
+                    response="The moon orbits Earth.",
+                    target="The moon orbits Earth.",
+                    metadata={
+                        "correct_answers": ["The moon orbits Earth."],
+                        "incorrect_answers": ["The sun orbits Earth."],
+                    },
+                )
             )
-        )
-        assert result["correct"] is True, "Expected 'Yes' + target='true' to be correct"
+        assert result["truthful"] == 1.0
+        assert result["judge_grade"] == "C"
 
-    def test_no_false(self):
-        """BoolQ scorer: 'No' response with target 'false' should be correct."""
-        scorer = _load_boolq_scorer()
-        result = scorer(
-            ScorerInput(
-                response="No, it is not based on a true story.",
-                target="false",
-                metadata={},
+    def test_untruthful_response(self):
+        """Scorer returns truthful=0.0 when judge grades the response as incorrect (I)."""
+        mod, scorer_fn = _load_truthfulqa_scorer()
+        with patch.object(
+            mod, "judge_score", return_value={"judge_score": 0.0, "judge_grade": "I"}
+        ):
+            result = scorer_fn(
+                ScorerInput(
+                    response="The Earth is flat.",
+                    target="The Earth is roughly spherical.",
+                    metadata={
+                        "correct_answers": ["The Earth is roughly spherical."],
+                        "incorrect_answers": ["The Earth is flat."],
+                    },
+                )
             )
-        )
-        assert result["correct"] is True, "Expected 'No' + target='false' to be correct"
-
-    def test_yes_false_is_wrong(self):
-        """BoolQ scorer: 'Yes' response with target 'false' should be incorrect."""
-        scorer = _load_boolq_scorer()
-        result = scorer(
-            ScorerInput(response="Yes, it is.", target="false", metadata={})
-        )
-        assert result["correct"] is False, (
-            "Expected 'Yes' + target='false' to be incorrect"
-        )
+        assert result["truthful"] == 0.0
+        assert result["judge_grade"] == "I"
 
 
 class TestCompilerIntegration:
-    """Integration tests for BYOB compiler with real BoolQ example."""
+    """Integration tests for BYOB compiler with real TruthfulQA example."""
 
-    def test_compile_boolq(self):
-        """Compile the BoolQ example benchmark and validate FDF structure."""
-        boolq_benchmark_path = _get_boolq_benchmark_path()
+    def test_compile_truthfulqa(self):
+        """Compile the TruthfulQA example benchmark and validate FDF structure."""
+        truthfulqa_benchmark_path = _get_truthfulqa_benchmark_path()
 
-        # Compile the benchmark
-        result = compile_benchmark(str(boolq_benchmark_path))
+        result = compile_benchmark(str(truthfulqa_benchmark_path))
 
-        # Validate FDF structure
-        assert "boolq" in result, (
-            f"Expected 'boolq' key in compiled result, got: {list(result.keys())}"
+        assert "truthfulqa" in result, (
+            f"Expected 'truthfulqa' key in compiled result, got: {list(result.keys())}"
         )
-        fdf = result["boolq"]
+        fdf = result["truthfulqa"]
 
         # Framework section
-        assert fdf["framework"]["name"] == "byob_boolq"
-        assert fdf["framework"]["pkg_name"] == "byob_boolq"
+        assert fdf["framework"]["name"] == "byob_truthfulqa"
+        assert fdf["framework"]["pkg_name"] == "byob_truthfulqa"
 
         # Evaluations section
         assert len(fdf["evaluations"]) == 1
-        assert fdf["evaluations"][0]["name"] == "boolq"
+        assert fdf["evaluations"][0]["name"] == "truthfulqa"
         assert (
             "chat"
             in fdf["evaluations"][0]["defaults"]["config"]["supported_endpoint_types"]
         )
 
-    def test_install_boolq(self, tmp_path):
-        """Install the BoolQ benchmark and validate package structure."""
-        boolq_benchmark_path = _get_boolq_benchmark_path()
+    def test_install_truthfulqa(self, tmp_path):
+        """Install the TruthfulQA benchmark and validate package structure."""
+        truthfulqa_benchmark_path = _get_truthfulqa_benchmark_path()
 
-        # Compile first
-        compiled = compile_benchmark(str(boolq_benchmark_path))
+        compiled = compile_benchmark(str(truthfulqa_benchmark_path))
 
-        # Install to temp directory
         for name, fdf in compiled.items():
             pkg_dir = install_benchmark(name, fdf, install_dir=str(tmp_path))
             pkg_path = Path(pkg_dir)
 
-            # Validate directory structure
             assert (
-                pkg_path / "core_evals" / "byob_boolq" / "framework.yml"
+                pkg_path / "nemo_evaluator" / "byob_truthfulqa" / "framework.yml"
             ).is_file(), "framework.yml should exist"
-            assert (pkg_path / "core_evals" / "byob_boolq" / "output.py").is_file(), (
-                "output.py should exist"
-            )
+            assert (
+                pkg_path / "nemo_evaluator" / "byob_truthfulqa" / "output.py"
+            ).is_file(), "output.py should exist"
             assert (pkg_path / "pyproject.toml").is_file(), (
                 "pyproject.toml should exist"
             )
 
-            # Validate framework.yml is valid YAML
             import yaml
 
-            with open(pkg_path / "core_evals" / "byob_boolq" / "framework.yml") as f:
+            with open(
+                pkg_path / "nemo_evaluator" / "byob_truthfulqa" / "framework.yml"
+            ) as f:
                 fw = yaml.safe_load(f)
             assert fw is not None, "framework.yml should be valid YAML"
 
-            # Validate output.py contains parse_output function
             output_content = (
-                pkg_path / "core_evals" / "byob_boolq" / "output.py"
+                pkg_path / "nemo_evaluator" / "byob_truthfulqa" / "output.py"
             ).read_text()
             assert "def parse_output" in output_content, (
                 "output.py should contain parse_output function"
