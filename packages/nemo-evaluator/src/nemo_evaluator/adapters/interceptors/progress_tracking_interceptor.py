@@ -212,6 +212,11 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
         # NOTE: log field renamed from samples_processed → requests_processed
         # to reflect that the counter tracks API requests, not evaluation samples.
         if ar.rctx.cache_hit or ar.r.status_code != 200:
+            self.logger.debug(
+                "Skipping progress count",
+                cache_hit=ar.rctx.cache_hit,
+                status_code=ar.r.status_code,
+            )
             return ar
 
         curr_samples = 0
