@@ -20,12 +20,12 @@ import re
 from typing import List
 
 import yaml
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 
-def load_export_config_from_file(config_path: str, dest: str) -> OmegaConf:
+def load_export_config_from_file(config_path: str, dest: str) -> DictConfig:
     """Load export configuration from a YAML file.
 
     Args:
@@ -60,7 +60,7 @@ def load_export_config_from_file(config_path: str, dest: str) -> OmegaConf:
         return OmegaConf.create(config_dict)
 
 
-def apply_export_overrides(config: OmegaConf, dest: str, overrides: List[str]) -> None:
+def apply_export_overrides(config: DictConfig, dest: str, overrides: List[str]) -> None:
     """Apply Hydra-style overrides to an export config in-place.
 
     Only overrides matching ``export.<dest>.*`` are applied. The ``~`` prefix
