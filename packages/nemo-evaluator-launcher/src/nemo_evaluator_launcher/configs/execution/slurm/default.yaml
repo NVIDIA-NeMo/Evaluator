@@ -32,8 +32,13 @@ sbatch_comment: null # Optional comment for SLURM job (translates to #SBATCH --c
 deployment:
   n_tasks: 1 # Number of tasks for deployment srun (default: 1, for multi-instance set to num_nodes)
 
+# Judge deployment-specific SLURM configuration
+judge_deployment:
+  n_tasks: 1 # Number of tasks for judge deployment srun
+
 mounts:
   deployment: {}
+  judge_deployment: {}
   evaluation: {}
   mount_home: true
 
