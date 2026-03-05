@@ -372,10 +372,18 @@ class TestSSHHelpers:
 
         def fake_run(cmd, capture_output=True, stdin=None):
             if isinstance(cmd, list) and "tar" in cmd and "-xzf" in cmd:
-                # Simulate tar extraction by creating a log file
-                logs_dir = tmp_path / "logs"
-                logs_dir.mkdir(parents=True, exist_ok=True)
-                (logs_dir / "foo.log").write_text("x")
+                # Determine extract target from the -C argument
+                extract_dir = Path(cmd[cmd.index("-C") + 1])
+                if extract_dir == tmp_path:
+                    # Artifacts extraction: create required artifact files
+                    art_dir = extract_dir / "artifacts"
+                    art_dir.mkdir(parents=True, exist_ok=True)
+                    for name in U.get_relevant_artifacts():
+                        (art_dir / name).write_text("x")
+                else:
+                    # Logs extraction: create a log file
+                    extract_dir.mkdir(parents=True, exist_ok=True)
+                    (extract_dir / "foo.log").write_text("x")
             return SimpleNamespace(returncode=0)
 
         with patch("subprocess.Popen", FakePopen):
@@ -460,12 +468,27 @@ class TestSSHHelpers:
 
     def test_download_with_control_paths(self, tmp_path: Path, monkeypatch):
         control_paths = {("u", "h"): str(tmp_path / "u_h.sock")}
-        calls = []
+        popen_calls = []
+
+        class FakePopen:
+            def __init__(self, cmd, stdout=None, stderr=None):
+                popen_calls.append(cmd)
+                self.returncode = 0
+                self.stdout = None
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+            def wait(self):
+                pass
 
         def fake_run(cmd, *args, **kwargs):
-            calls.append(cmd)
             return SimpleNamespace(returncode=0)
 
+        monkeypatch.setattr("subprocess.Popen", FakePopen, raising=True)
         monkeypatch.setattr("subprocess.run", fake_run, raising=True)
 
         U.ssh_download_artifacts(
@@ -477,10 +500,10 @@ class TestSSHHelpers:
             control_paths=control_paths,
         )
 
-        # Assert ControlPath option was used in scp commands
+        # Assert ControlPath option was used in the SSH (Popen) command
         assert any(
             "-o" in c and any(str(control_paths[("u", "h")]) in part for part in c)
-            for c in calls
+            for c in popen_calls
         )
 
 

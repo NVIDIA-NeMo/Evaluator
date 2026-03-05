@@ -383,6 +383,85 @@ class TestBaseExporter:
             assert len(jobs_data) == 0
             assert "missing.0" in failed_jobs
 
+    def test_get_jobs_data_all_ids_accounted_for(self, tmp_path):
+        """Test that all input IDs appear in either jobs_data or failed_jobs,
+        including IDs not found in the DB nor in job_dirs, and including IDs
+        that are only found in job_dirs (both job ID and invocation ID forms)."""
+        # --- set up job_dirs with two invocations ---
+        job_dirs_root = tmp_path / "job_dirs"
+        job_dirs_root.mkdir()
+
+        dir_config = {
+            "evaluation": {"tasks": ["task1"]},
+            "execution": {"type": "local"},
+        }
+
+        # "abcdef01": provides job "abcdef01.0" (looked up as a job ID)
+        dir_inv_dir = job_dirs_root / "20251219_112732-abcdef01"
+        (dir_inv_dir / "task1" / "artifacts").mkdir(parents=True)
+        (dir_inv_dir / "task1" / "artifacts" / "metadata.yaml").write_text("")
+
+        # "12345678": provides all jobs for invocation "12345678" (looked up as invocation ID)
+        dir_inv2_dir = job_dirs_root / "20251219_112732-12345678"
+        (dir_inv2_dir / "task1" / "artifacts").mkdir(parents=True)
+        (dir_inv2_dir / "task1" / "artifacts" / "metadata.yaml").write_text("")
+
+        exporter = ConcreteExporter({"job_dirs": [str(job_dirs_root)]})
+
+        found_job_data = JobData(
+            invocation_id="found_inv",
+            job_id="found_inv.0",
+            timestamp=1.0,
+            executor="local",
+            data={"output_dir": str(tmp_path)},
+            config={},
+        )
+        found_invocation_jobs = {
+            "found_inv2.0": JobData(
+                invocation_id="found_inv2",
+                job_id="found_inv2.0",
+                timestamp=2.0,
+                executor="local",
+                data={"output_dir": str(tmp_path)},
+                config={},
+            )
+        }
+
+        input_ids = [
+            "found_inv.0",  # job ID found in DB
+            "found_inv2",  # invocation ID found in DB
+            "abcdef01.0",  # job ID not in DB, found in job_dirs
+            "12345678",  # invocation ID not in DB, found in job_dirs
+            "missing_job.0",  # job ID not in DB nor job_dirs
+            "missing_inv",  # invocation ID not in DB nor job_dirs
+        ]
+
+        def mock_get_job(job_id):
+            return found_job_data if job_id == "found_inv.0" else None
+
+        def mock_get_jobs(invocation_id):
+            return found_invocation_jobs if invocation_id == "found_inv2" else {}
+
+        with (
+            patch.object(exporter.db, "get_job", side_effect=mock_get_job),
+            patch.object(exporter.db, "get_jobs", side_effect=mock_get_jobs),
+            patch(
+                "nemo_evaluator_launcher.exporters.base.load_config_from_metadata",
+                return_value=dir_config,
+            ),
+        ):
+            jobs_data, failed_jobs = exporter._get_jobs_data(input_ids)
+
+        for job_or_inv_id in failed_jobs:
+            assert job_or_inv_id in input_ids
+        assert set(failed_jobs) == {"missing_job.0", "missing_inv"}
+
+        assert len(jobs_data) == 4
+        for job_data in jobs_data:
+            assert (job_data.invocation_id in input_ids) or (
+                job_data.job_id in input_ids
+            )
+
     def test_get_jobs_in_dir(self, tmp_path):
         """Test _get_jobs_in_dir extracts job data from directory."""
         # Create invocation directory structure
