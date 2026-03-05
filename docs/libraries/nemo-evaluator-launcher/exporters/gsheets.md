@@ -5,7 +5,12 @@
 Exports accuracy metrics to a Google Sheet. Dynamically creates/extends header columns based on observed metrics and appends one row per job.
 
 - **Purpose**: Centralized spreadsheet for tracking results across runs
-- **Requirements**: `gspread` installed and a Google service account with access
+- **Requirements**: `gspread` installed and a Google service or personal Google account with access
+
+:::{note}
+Exporter will try to authenticate to `gspread` using `gspread.service_account` and `gspread.oauth` methods.
+If your credential file is stored in a non-standard location, use `service_account_file` or `oauth_file` config fields to provide a path.
+:::
 
 ## Usage
 
@@ -72,7 +77,7 @@ export:
   gsheets:
     spreadsheet_name: "LLM Evaluation Results"
     spreadsheet_id: "1ABC...XYZ"  # optional: use existing sheet
-    service_account_file: "/path/to/service-account.json"
+    service_account_file: "/path/to/service-account.json"  # or use oauth_file
     log_metrics: ["accuracy", "pass@1"]
 ```
 
@@ -91,6 +96,10 @@ export:
 * - `service_account_file`
   - str, optional
   - Path to service account JSON
+  - Uses default credentials if omitted
+* - `oauth_file`
+  - str, optional
+  - Path to user credentials JSON
   - Uses default credentials if omitted
 * - `spreadsheet_name`
   - str, optional
