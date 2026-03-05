@@ -44,9 +44,7 @@ class LocalExporter(BaseExporter):
 
     Config keys:
       output_dir (str): Output directory for exported results (default: "./nemo-evaluator-launcher-results")
-      copy_logs (bool): Whether to copy logs with artifacts (default: False)
-      only_required (bool): Copy only required+optional artifacts (default: True)
-      format (str or None): Summary format, one of None, "json", or "csv" (default: None; no summary, only original artifacts)
+      format (str): Summary format, one of "json" or "csv" (default: "json")
       log_metrics (list[str]): Filters for metric names; includes full metric name or substring pattern
       output_filename (str): Overrides default processed_results.json/csv filename
     """

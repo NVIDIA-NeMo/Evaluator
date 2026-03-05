@@ -64,7 +64,7 @@ class WandBExporter(BaseExporter):
       entity (str): W&B entity/team name (required)
       project (str): W&B project name (required)
       log_mode (str): "per_task" (one run per task) or "multi_task" (one run per invocation) (default: "per_task")
-      log_artifacts (bool): Whether to log artifacts to W&B (default: True)
+      copy_artifacts (bool): Whether to log artifacts to W&B (default: True)
       copy_logs (bool): Whether to log log files (default: False)
       only_required (bool): Log only required+optional artifacts (default: True)
       name (str): Custom run name (optional)

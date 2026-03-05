@@ -107,7 +107,7 @@ export:
     extra_metadata:
       hardware: "A100"
       batch_size: 32
-    log_artifacts: true
+    copy_artifacts: true
 
 ```
 
@@ -165,7 +165,7 @@ export_results(
     config={
         "tracking_uri": "http://mlflow:5000",
         "experiment_name": "model-comparison",
-        "log_artifacts": False
+        "copy_artifacts": False
     }
 )
 
@@ -247,11 +247,11 @@ nemo-evaluator-launcher export 8abcd123 --dest mlflow --log-metrics accuracy pas
   - list[str]
   - Filter metrics by substring match
   - All metrics
-* - `log_artifacts`
+* - `copy_artifacts`
   - bool
   - Upload evaluation artifacts
   - `true`
-* - `log_logs`
+* - `copy_logs`
   - bool
   - Upload execution logs
   - `false`
@@ -259,4 +259,12 @@ nemo-evaluator-launcher export 8abcd123 --dest mlflow --log-metrics accuracy pas
   - bool
   - Copy only required artifacts
   - `true`
+* - `log_config_params`
+  - bool
+  - Include flattened configuration settings in run parameters
+  - `false`
+* - `log_config_params_max_depth`
+  - int
+  - Max depth for nested config params logging
+  - `10`
 ```
