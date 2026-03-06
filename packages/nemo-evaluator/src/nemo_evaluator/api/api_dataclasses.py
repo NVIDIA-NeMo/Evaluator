@@ -40,6 +40,18 @@ class EndpointType(str, Enum):
     EMBEDDING = "embedding"
 
 
+def _handle_vlm_type_deprecation(values):
+    """Handle deprecation of 'vlm' endpoint type in favor of 'chat'."""
+    if isinstance(values, dict) and values.get("type") == "vlm":
+        warnings.warn(
+            f"Endpoint type 'vlm' was removed in v0.2.0. Using '{EndpointType.CHAT.value}' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        values["type"] = EndpointType.CHAT
+    return values
+
+
 class ApiEndpoint(BaseModel):
     """API endpoint configuration containing information on endpoint placement, targeted model name and adapter used before prompting endpoint."""
 
@@ -96,6 +108,7 @@ class ApiEndpoint(BaseModel):
                 )
                 values["api_key_name"] = api_key
 
+        values = _handle_vlm_type_deprecation(values)
         return values
 
 
@@ -127,6 +140,11 @@ class EndpointModelConfig(BaseModel):
     )
     # NOTE: we don't use extra yet but it will allow customization when needed
     extra: Optional[Dict[str, Any]] = Field(description="Extra", default=None)
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_vlm_type_deprecation(cls, values):
+        return _handle_vlm_type_deprecation(values)
 
 
 class EvaluationTarget(BaseModel):
