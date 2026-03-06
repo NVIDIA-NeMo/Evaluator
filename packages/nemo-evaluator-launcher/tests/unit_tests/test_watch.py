@@ -18,7 +18,6 @@
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 import yaml
 from omegaconf import OmegaConf
 
@@ -34,15 +33,12 @@ from nemo_evaluator_launcher.api.watch import (
     watch_checkpoints,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def _make_checkpoint(
-    tmp_path: Path, name: str, marker: str = "metadata.json"
-) -> Path:
+def _make_checkpoint(tmp_path: Path, name: str, marker: str = "metadata.json") -> Path:
     """Create a checkpoint subdirectory with a ready marker file."""
     cp = tmp_path / name
     cp.mkdir(parents=True, exist_ok=True)
@@ -149,9 +145,7 @@ class TestDiscoverCheckpoints:
         cp3.mkdir()
         # No markers
 
-        result = discover_checkpoints(
-            tmp_path, ["metadata.json", "config.yaml"]
-        )
+        result = discover_checkpoints(tmp_path, ["metadata.json", "config.yaml"])
         assert len(result) == 2
         assert {p.name for p in result} == {"step_1", "step_2"}
 
@@ -184,7 +178,9 @@ class TestDiscoverCheckpoints:
         _make_checkpoint(tmp_path, "iter_100")
         _make_checkpoint(tmp_path, "any_name")
 
-        result = discover_checkpoints(tmp_path, DEFAULT_READY_MARKERS, checkpoint_patterns=None)
+        result = discover_checkpoints(
+            tmp_path, DEFAULT_READY_MARKERS, checkpoint_patterns=None
+        )
         assert len(result) == 2
 
 
@@ -234,12 +230,8 @@ class TestWatchState:
     def test_submitted_paths(self):
         state = WatchState(
             submitted=[
-                SubmittedCheckpoint(
-                    checkpoint="/a", invocation_id="x", timestamp=""
-                ),
-                SubmittedCheckpoint(
-                    checkpoint="/b", invocation_id="y", timestamp=""
-                ),
+                SubmittedCheckpoint(checkpoint="/a", invocation_id="x", timestamp=""),
+                SubmittedCheckpoint(checkpoint="/b", invocation_id="y", timestamp=""),
             ]
         )
         assert state.submitted_paths() == {"/a", "/b"}
@@ -255,9 +247,7 @@ class TestWatchState:
         state_file = tmp_path / "state.yaml"
         state = WatchState(
             submitted=[
-                SubmittedCheckpoint(
-                    checkpoint="/a", invocation_id="x", timestamp="t"
-                ),
+                SubmittedCheckpoint(checkpoint="/a", invocation_id="x", timestamp="t"),
             ]
         )
         state.save(state_file)
