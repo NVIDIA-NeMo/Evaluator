@@ -301,6 +301,7 @@ def get_eval_factory_command(
 
     # NOTE: we use `source` to allow tricks like exports etc (if needed) -- it runs in the same
     # shell as the command.
+    # We use an EXIT trap so post_cmd always runs, even if evaluation fails, and then re-exit with the original run_eval exit code.
     eval_command = (
         "cmd=$(command -v nemo-evaluator >/dev/null 2>&1 && echo nemo-evaluator || echo eval-factory) "
         + "&& source pre_cmd.sh "
