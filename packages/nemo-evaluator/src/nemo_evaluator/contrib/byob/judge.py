@@ -60,7 +60,6 @@ Multi-judge example::
 from __future__ import annotations
 
 import json
-import os
 import re
 import threading
 from dataclasses import dataclass
@@ -75,6 +74,7 @@ from nemo_evaluator.contrib.byob.judge_templates import (
     DEFAULT_SCORE_MAPPINGS,
     TEMPLATES,
 )
+from nemo_evaluator.core.utils import get_api_key_from_env
 from nemo_evaluator.logging import get_logger
 
 logger = get_logger(__name__)
@@ -116,9 +116,7 @@ class JudgeConfig:
 
     def resolve_api_key(self) -> Optional[str]:
         """Resolve the actual API key value from the environment variable."""
-        if self.api_key:
-            return os.environ.get(self.api_key)
-        return None
+        return get_api_key_from_env(self.api_key)
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "JudgeConfig":

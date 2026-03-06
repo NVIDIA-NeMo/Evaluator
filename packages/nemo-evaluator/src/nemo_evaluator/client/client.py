@@ -16,7 +16,6 @@
 """NeMo Evaluator client with integrated adapter support for client-mode evaluation."""
 
 import asyncio
-import os
 from typing import Any, List, Optional
 
 from openai import AsyncOpenAI
@@ -30,6 +29,7 @@ from tqdm.asyncio import tqdm_asyncio
 
 from nemo_evaluator.api.api_dataclasses import EndpointModelConfig
 from nemo_evaluator.client.adapter_transport import create_async_adapter_http_client
+from nemo_evaluator.core.utils import get_api_key_from_env
 from nemo_evaluator.logging import get_logger
 
 logger = get_logger(__name__)
@@ -75,15 +75,11 @@ class NeMoEvaluatorClient:
         )
 
         # Get API key from environment if specified
-        if self.api_key_name is not None:
-            api_key_value = os.getenv(self.api_key_name)
-            if api_key_value is None:
-                raise ValueError(
-                    f"API key environment variable '{self.api_key_name}' is not set. "
-                    f"Please set it or remove 'api_key_name' from the configuration."
-                )
-        else:
+        api_key_value = get_api_key_from_env(self.api_key_name)
+        if api_key_value is None:
             # No API key specified - use dummy for endpoints that don't require auth
+            # as AsyncOpenAI requires this parameter to be set
+            logger.debug("No API key specified, using dummy API key")
             api_key_value = "dummy_api_key"
 
         self.client = AsyncOpenAI(
