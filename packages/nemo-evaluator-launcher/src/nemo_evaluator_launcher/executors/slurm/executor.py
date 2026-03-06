@@ -1718,11 +1718,13 @@ def _generate_deployment_srun_command(
 
     num_instances = cfg.execution.num_instances
     nodes_per_instance = cfg.execution.num_nodes // num_instances
-    # n_tasks is tasks per instance (= nodes_per_instance by default via slurm/default.yaml).
-    # Falls back to nodes_per_instance in case the YAML default isn't loaded (e.g. tests).
-    per_instance_ntasks = (
-        cfg.execution.get("deployment", {}).get("n_tasks") or nodes_per_instance
+    # n_tasks is total tasks across all instances (= num_nodes by default via slurm/default.yaml).
+    # Executor divides by num_instances to get per-instance ntasks for each srun.
+    # Falls back to num_nodes in case the YAML default isn't loaded (e.g. tests).
+    total_ntasks = (
+        cfg.execution.get("deployment", {}).get("n_tasks") or cfg.execution.num_nodes
     )
+    per_instance_ntasks = total_ntasks // num_instances
 
     s += "HEAD_NODE_IPS=()\n"
     s += "SERVER_PIDS=()\n"
@@ -1743,7 +1745,7 @@ def _generate_deployment_srun_command(
         deployment_env_var_names.append("ALL_NODE_IPS")
 
     # Build the command that runs inside each instance container:
-    # 1. Export scheduler-agnostic env vars (PROC_ID, NUM_TASKS)
+    # 1. Export scheduler-agnostic env vars (PROC_ID, NODES_PER_INSTANCE)
     # 2. Optionally write + source deployment_pre_cmd.sh
     # 3. Write deployment_cmd.sh and execute it
     create_script_cmd = _str_to_echo_command(
