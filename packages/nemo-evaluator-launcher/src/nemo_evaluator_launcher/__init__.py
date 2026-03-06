@@ -22,14 +22,7 @@ It automatically initializes logging and conditionally loads internal components
 import importlib
 import warnings
 
-from omegaconf import OmegaConf
-
 from nemo_evaluator_launcher.common.logging_utils import logger
-
-# Register integer-division resolver so YAML configs can express derived values.
-# Example: n_tasks: ${div:${execution.num_nodes},${execution.num_instances}}
-if not OmegaConf.has_resolver("div"):
-    OmegaConf.register_new_resolver("div", lambda a, b: int(a) // int(b))
 from nemo_evaluator_launcher.package_info import (
     __contact_emails__,
     __contact_names__,
