@@ -915,8 +915,9 @@ def _generate_auto_export_section(
     s += "    echo 'Evaluation completed successfully. Starting auto-export...'\n"
     s += f'    cd "{remote_task_subdir}/artifacts"\n'
 
-    reexport_cmd = build_reexport_commands("export", secrets)
-    s += f"    {reexport_cmd}\n"
+    if secrets:
+        reexport_cmd = build_reexport_commands("export", secrets)
+        s += f"    {reexport_cmd}\n"
 
     export_config = {"export": cfg.get("export", {})}
 
