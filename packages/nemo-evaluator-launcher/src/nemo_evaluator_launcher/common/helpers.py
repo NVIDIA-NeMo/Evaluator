@@ -340,7 +340,7 @@ def get_endpoint_url(
         endpoint_uri = cfg.deployment.endpoints[endpoint_type]
 
         # Use HAProxy port if num_instances > 1
-        if cfg.execution.num_instances > 1:
+        if cfg.get("execution", {}).get("num_instances", 1) > 1:
             proxy_config = cfg.execution.get("proxy", {}).get("config", {})
             port = proxy_config.get("haproxy_port", 5009)
         else:
