@@ -3,3 +3,4 @@ defaults:
 
 execution:
   output_dir: nel-results
+  use_docker: true

@@ -23,6 +23,7 @@ import pathlib
 import platform
 import shlex
 import shutil
+import signal
 import subprocess
 import time
 from typing import Iterator, List, Optional, Tuple, Union
@@ -68,6 +69,61 @@ from nemo_evaluator_launcher.executors.base import (
 from nemo_evaluator_launcher.executors.registry import register_executor
 
 
+def _get_local_available_tasks() -> dict[str, set[str]]:
+    """Return locally installed NeMo Evaluator tasks grouped by harness."""
+    try:
+        from nemo_evaluator.api import get_available_evaluations
+    except ImportError as e:
+        raise RuntimeError(
+            "execution.use_docker=false requires `nemo-evaluator` to be installed locally. "
+            "Install nemo-evaluator (with the harness/task wheels you need), or enable Docker execution."
+        ) from e
+
+    framework_task_mapping, _, _ = get_available_evaluations()
+    return {
+        framework: set(tasks.keys())
+        for framework, tasks in framework_task_mapping.items()
+    }
+
+
+def _validate_task_available_locally(
+    *,
+    task_query: str,
+    task_definition: dict,
+    available_tasks_by_harness: dict[str, set[str]],
+) -> None:
+    """Validate that a task exists in locally installed NeMo Evaluator packages."""
+    harness_name = str(task_definition.get("harness") or "")
+    task_name = str(task_definition.get("task") or "")
+
+    if harness_name:
+        harness_tasks = available_tasks_by_harness.get(harness_name)
+        if harness_tasks is None:
+            available_harnesses = sorted(available_tasks_by_harness.keys())
+            raise ValueError(
+                f"Task '{task_query}' requires harness '{harness_name}', but this harness is not installed locally. "
+                f"Installed harnesses: {available_harnesses or ['<none>']}. "
+                "Install the corresponding NeMo Evaluator wheel, or run with Docker."
+            )
+        if task_name not in harness_tasks:
+            available_tasks = sorted(harness_tasks)
+            raise ValueError(
+                f"Task '{task_query}' is not available in installed harness '{harness_name}'. "
+                f"Available tasks in this harness: {available_tasks or ['<none>']}. "
+                "Install a wheel that contains this task, or run with Docker."
+            )
+        return
+
+    matching_harnesses = [
+        harness for harness, tasks in available_tasks_by_harness.items() if task_name in tasks
+    ]
+    if not matching_harnesses:
+        raise ValueError(
+            f"Task '{task_query}' is not available in locally installed NeMo Evaluator packages. "
+            "Install a wheel that contains this task, or run with Docker."
+        )
+
+
 @register_executor("local")
 class LocalExecutor(BaseExecutor):
     @classmethod
@@ -84,12 +140,21 @@ class LocalExecutor(BaseExecutor):
         Raises:
             RuntimeError: If the run script fails.
         """
+        use_docker = bool(cfg.execution.get("use_docker", True))
+
         # Check if docker is available (skip in dry_run mode)
-        if not dry_run and shutil.which("docker") is None:
+        if use_docker and not dry_run and shutil.which("docker") is None:
             raise RuntimeError(
                 "Docker is not installed or not in PATH. "
                 "Please install Docker to run local evaluations."
             )
+        if not use_docker and cfg.deployment.type != "none":
+            raise ValueError(
+                "execution.use_docker=false is only supported with deployment.type=none."
+            )
+        local_available_tasks: dict[str, set[str]] | None = None
+        if not use_docker:
+            local_available_tasks = _get_local_available_tasks()
 
         # Generate invocation ID for this evaluation run
         invocation_id = generate_invocation_id()
@@ -137,6 +202,12 @@ class LocalExecutor(BaseExecutor):
                 container=task.get("container"),
                 endpoint_type=task.get("endpoint_type"),
             )
+            if not use_docker:
+                _validate_task_available_locally(
+                    task_query=task.name,
+                    task_definition=task_definition,
+                    available_tasks_by_harness=local_available_tasks or {},
+                )
 
             # Track unlisted tasks for safeguard check
             if task_definition.get("is_unlisted", False):
@@ -195,11 +266,15 @@ class LocalExecutor(BaseExecutor):
             dataset_mount_container = None
             dataset_env_var_value = None
             if "dataset_dir" in task:
-                dataset_mount_host = task["dataset_dir"]
-                # Get container mount path (default to /datasets if not specified)
-                dataset_mount_container = task.get("dataset_mount_path", "/datasets")
-                # Set NEMO_EVALUATOR_DATASET_DIR to the container mount path
-                dataset_env_var_value = dataset_mount_container
+                if use_docker:
+                    dataset_mount_host = task["dataset_dir"]
+                    # Get container mount path (default to /datasets if not specified)
+                    dataset_mount_container = task.get("dataset_mount_path", "/datasets")
+                    # Set NEMO_EVALUATOR_DATASET_DIR to the container mount path
+                    dataset_env_var_value = dataset_mount_container
+                else:
+                    # In no-docker mode, pass dataset_dir directly to local process.
+                    dataset_env_var_value = task["dataset_dir"]
 
             exporters_env_parsed = collect_exporters_env_vars(cfg)
 
@@ -231,7 +306,12 @@ class LocalExecutor(BaseExecutor):
             task_output_dir = output_dir / task.name
             task_output_dir.mkdir(parents=True, exist_ok=True)
             eval_factory_command_struct = get_eval_factory_command(
-                cfg, task, task_definition
+                cfg,
+                task,
+                task_definition,
+                output_dir=(
+                    "/results" if use_docker else str(task_output_dir / "artifacts")
+                ),
             )
             eval_factory_command = eval_factory_command_struct.cmd
             # The debug comment for placing into the script and easy debug. Reason
@@ -264,6 +344,7 @@ class LocalExecutor(BaseExecutor):
                 "dataset_mount_host": dataset_mount_host,
                 "dataset_mount_container": dataset_mount_container,
                 "dataset_env_var_value": dataset_env_var_value,
+                "run_with_docker": use_docker,
             }
             evaluation_tasks.append(evaluation_task)
 
@@ -286,6 +367,7 @@ class LocalExecutor(BaseExecutor):
                     auto_export_destinations=auto_export_destinations,
                     auto_export_config_str=auto_export_config_str,
                     extra_docker_args=extra_docker_args,
+                    has_docker_tasks=use_docker,
                 ).rstrip("\n")
                 + "\n"
             )
@@ -304,6 +386,7 @@ class LocalExecutor(BaseExecutor):
                     auto_export_destinations=auto_export_destinations,
                     auto_export_config_str=auto_export_config_str,
                     extra_docker_args=extra_docker_args,
+                    has_docker_tasks=use_docker,
                 ).rstrip("\n")
                 + "\n"
             )
@@ -402,8 +485,13 @@ class LocalExecutor(BaseExecutor):
                     executor="local",
                     data={
                         "output_dir": str(evaluation_task["output_dir"]),
-                        "container": evaluation_task["client_container_name"],
+                        "container": (
+                            evaluation_task["client_container_name"]
+                            if use_docker
+                            else ""
+                        ),
                         "eval_image": evaluation_task["eval_image"],
+                        "use_docker": use_docker,
                     },
                     config=OmegaConf.to_object(cfg),
                 )
@@ -727,33 +815,46 @@ class LocalExecutor(BaseExecutor):
                 f"Job {job_id} is not a local job (executor: {job_data.executor})"
             )
 
-        # Get container name from database
-        container_name = job_data.data.get("container")
-        if not container_name:
-            raise ValueError(f"No container name found for job {job_id}")
+        use_docker = bool(job_data.data.get("use_docker", True))
+        output_dir = pathlib.Path(job_data.data.get("output_dir", ""))
+        container_name = job_data.data.get("container") or ""
 
         killed_something = False
 
-        # First, try to stop the Docker container if it's running
-        result = subprocess.run(
-            shlex.split(f"docker stop {container_name}"),
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode == 0:
-            killed_something = True
-        # Don't raise error if container doesn't exist (might be still pulling)
+        # Try to stop script process group if a pid file is present.
+        pid_file = output_dir / "logs" / "stage.pid"
+        if pid_file.exists():
+            try:
+                pid = int(pid_file.read_text().strip())
+                if hasattr(os, "killpg"):
+                    os.killpg(pid, signal.SIGTERM)
+                else:
+                    os.kill(pid, signal.SIGTERM)
+                killed_something = True
+            except (OSError, ValueError):
+                pass
 
-        # Find and kill Docker processes for this container
-        result = subprocess.run(
-            shlex.split(f"pkill -f 'docker run.*{container_name}'"),
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if result.returncode == 0:
-            killed_something = True
+        if use_docker and container_name:
+            # First, try to stop the Docker container if it's running
+            result = subprocess.run(
+                shlex.split(f"docker stop {container_name}"),
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode == 0:
+                killed_something = True
+            # Don't raise error if container doesn't exist (might be still pulling)
+
+            # Find and kill Docker processes for this container
+            result = subprocess.run(
+                shlex.split(f"pkill -f 'docker run.*{container_name}'"),
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                killed_something = True
 
         # If we successfully killed something, mark as killed
         if killed_something:
@@ -774,7 +875,13 @@ class LocalExecutor(BaseExecutor):
         # Use common helper to get informative error message based on job status
         current_status = status_list[0].state if status_list else None
         error_msg = LocalExecutor.get_kill_failure_message(
-            job_id, f"container: {container_name}", current_status
+            job_id,
+            (
+                f"container: {container_name}"
+                if container_name
+                else f"pid_file: {pid_file}"
+            ),
+            current_status,
         )
         raise RuntimeError(error_msg)
 
