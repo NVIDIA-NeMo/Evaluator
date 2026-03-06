@@ -356,7 +356,10 @@ def evaluate(
         "target": target_cfg.model_dump(),
     }
     evaluation = validate_configuration(run_config)
+    # NOTE(martas): verify_capabilities returns False if any of the checks failed
+    # but we don't use it in any way here
     verify_capabilities(evaluation)
+
     prepare_output_directory(evaluation)
 
     model_name = (

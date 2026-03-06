@@ -604,13 +604,17 @@ def verify_capabilities(evaluation: Evaluation) -> bool:
         return True
 
     if not evaluation.target.api_endpoint.url:
-        raise MisconfigurationError(
-            f"target.api_endpoint.url is not provided but the following capabilities are required: {', '.join(evaluation.config.required_capabilities)}"
+        _logger.warning(
+            "target.api_endpoint.url is not provided, can not verify required capabilities",
+            capabilities=evaluation.config.required_capabilities,
         )
+        return False
     if not evaluation.target.api_endpoint.model_id:
-        raise MisconfigurationError(
-            f"target.api_endpoint.model_id is not provided but the following capabilities are required: {', '.join(evaluation.config.required_capabilities)}"
+        _logger.warning(
+            "target.api_endpoint.model_id is not provided, can not verify required capabilities",
+            capabilities=evaluation.config.required_capabilities,
         )
+        return False
     url = evaluation.target.api_endpoint.url
     model_id = evaluation.target.api_endpoint.model_id
     headers = {
@@ -620,28 +624,28 @@ def verify_capabilities(evaluation: Evaluation) -> bool:
     api_key = get_api_key_from_env(evaluation.target.api_endpoint.api_key_name)
     if api_key is not None:
         headers["Authorization"] = f"Bearer {api_key}"
-    else:
-        _logger.warning(
-            f"Specified API key variable {evaluation.target.api_endpoint.api_key_name} is not set."
-        )
 
-    should_raise = False
-
+    all_successful = True
     for capability in evaluation.config.required_capabilities:
         payload = copy.deepcopy(BENCHMARK_CAPABILITIES[capability].payload)
         payload["model"] = model_id
         response = requests.post(url, json=payload, timeout=30, headers=headers)
         if response.status_code != 200:
-            should_raise = True
-            _logger.error(
-                f'Endpoint {url} responded with error status code when checking for capability "{capability}"',
+            all_successful = False
+            _logger.warning(
+                "Endpoint responded with error status code when checking for capability",
+                url=url,
+                model=model_id,
+                capability=capability,
                 response_status_code=response.status_code,
                 response_text=response.text,
             )
         else:
-            _logger.debug(f"Capability {capability} verified successfully.")
-    if should_raise:
-        raise MisconfigurationError(
-            "Either the endpoint is not accessible or it does not support the required capabilities. See logs above for more details."
-        )
-    return True
+            _logger.debug(
+                "Capability verified successfully.",
+                url=url,
+                model=model_id,
+                capability=capability,
+            )
+
+    return all_successful
