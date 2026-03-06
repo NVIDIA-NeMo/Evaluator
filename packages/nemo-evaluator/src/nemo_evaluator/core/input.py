@@ -32,6 +32,7 @@ from nemo_evaluator.core.utils import (
     MisconfigurationError,
     deep_update,
     dotlist_to_dict,
+    get_api_key_from_env,
     validate_params_in_command,
 )
 from nemo_evaluator.logging import get_logger
@@ -616,14 +617,13 @@ def verify_capabilities(evaluation: Evaluation) -> bool:
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
-    if evaluation.target.api_endpoint.api_key_name is not None:
-        api_key = os.getenv(evaluation.target.api_endpoint.api_key_name)
-        if api_key is not None:
-            headers["Authorization"] = f"Bearer {api_key}"
-        else:
-            _logger.warning(
-                f"Specified API key variable {evaluation.target.api_endpoint.api_key_name} is not set."
-            )
+    api_key = get_api_key_from_env(evaluation.target.api_endpoint.api_key_name)
+    if api_key is not None:
+        headers["Authorization"] = f"Bearer {api_key}"
+    else:
+        _logger.warning(
+            f"Specified API key variable {evaluation.target.api_endpoint.api_key_name} is not set."
+        )
 
     should_raise = False
 

@@ -13,8 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 from nemo_evaluator.core.input import parse_override_params
-from nemo_evaluator.core.utils import dotlist_to_dict
+from nemo_evaluator.core.utils import dotlist_to_dict, get_api_key_from_env
 
 
 def test_parse_override_params_basic():
@@ -96,3 +98,19 @@ def test_dotlist_to_dict_with_complex_values():
     input_list = ["param1=[1,2,3]", "param2={'key': 'value'}", "param3=null"]
     result = dotlist_to_dict(input_list)
     assert result == {"param1": [1, 2, 3], "param2": {"key": "value"}, "param3": None}
+
+
+def test_get_api_key_from_env(monkeypatch):
+    monkeypatch.setenv("TEST_API_KEY", "my-secret-key")
+    assert get_api_key_from_env("TEST_API_KEY") == "my-secret-key"
+
+
+def test_get_api_key_from_env_not_specified():
+    """Test get_api_key_from_env when the variable name is not specified"""
+    assert get_api_key_from_env(None) is None
+
+
+def test_get_api_key_from_env_not_set(monkeypatch):
+    monkeypatch.delenv("MISSING_API_KEY", raising=False)
+    with pytest.raises(ValueError, match="MISSING_API_KEY"):
+        get_api_key_from_env("MISSING_API_KEY")

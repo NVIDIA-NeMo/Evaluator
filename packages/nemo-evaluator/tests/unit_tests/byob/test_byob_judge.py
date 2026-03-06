@@ -87,6 +87,15 @@ class TestJudgeConfig:
             model_id="nemotron",
             api_key="NONEXISTENT_KEY_XYZ",
         )
+        with pytest.raises(ValueError, match="NONEXISTENT_KEY_XYZ"):
+            config.resolve_api_key()
+
+    def test_resolve_api_key_not_set(self):
+        config = JudgeConfig(
+            url="http://judge:8000/v1",
+            model_id="nemotron",
+            api_key=None,
+        )
         assert config.resolve_api_key() is None
 
     def test_resolve_api_key_no_name(self):

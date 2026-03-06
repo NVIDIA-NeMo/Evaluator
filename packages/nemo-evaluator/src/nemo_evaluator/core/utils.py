@@ -317,6 +317,22 @@ def check_health(
     return False
 
 
+def get_api_key_from_env(api_key_env_var_name: Optional[str]) -> Optional[str]:
+    """Get API key from environment variable.
+    Raises ValueError if the variable name was provided, but the variable was not found in the environment.
+    Returns None if the variable name was not provided.
+    """
+    if api_key_env_var_name is None:
+        return None
+    api_key = os.getenv(api_key_env_var_name)
+    if api_key is None:
+        raise ValueError(
+            f"API key variable name was provided, but the variable was not found in the environment: {api_key_env_var_name}. "
+            f"Set the variable or remove the API key from your config."
+        )
+    return api_key
+
+
 def check_endpoint(
     endpoint_url: str,
     endpoint_type: Literal["completions", "chat"],
@@ -344,10 +360,9 @@ def check_endpoint(
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
-    if api_key_name is not None:
-        api_key = os.getenv(api_key_name)
-        if api_key is not None:
-            headers["Authorization"] = f"Bearer {api_key}"
+    api_key = get_api_key_from_env(api_key_name)
+    if api_key is not None:
+        headers["Authorization"] = f"Bearer {api_key}"
     payload = {"model": model_name, "max_tokens": 1}
     if endpoint_type == "completions":
         payload["prompt"] = "hello, my name is"
