@@ -18,8 +18,6 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from nemo_evaluator_launcher.api.functional import export_results
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 
@@ -63,13 +61,13 @@ class TestExportResultsFunctional:
             inv, dest="local", config={"format": "json", "output_dir": str(export_root)}
         )
         assert rj["success"] is True
-        assert j1.job_id in rj["jobs"] and j2.job_id in rj["jobs"]
+        assert rj["metadata"]["successful_jobs"] == 2
 
         rc = export_results(
             inv, dest="local", config={"format": "csv", "output_dir": str(export_root)}
         )
         assert rc["success"] is True
-        csv_path = export_root / inv / "processed_results.csv"
+        csv_path = export_root / "processed_results.csv"
         assert csv_path.exists()
 
     def test_single_job_invocation_like_response(
@@ -89,8 +87,7 @@ class TestExportResultsFunctional:
             config={"format": "json", "output_dir": str(export_root)},
         )
         assert r["success"] is True
-        assert r["invocation_id"] == inv
-        assert list(r["jobs"].keys()) == [j.job_id]
+        assert r["metadata"]["successful_jobs"] == 1
 
     def test_multiple_invocations_consolidated_json_and_csv(
         self, tmp_path: Path, mock_execdb, prepare_local_job
@@ -112,8 +109,10 @@ class TestExportResultsFunctional:
             config={"format": "json", "output_dir": str(export_root)},
         )
         assert rj["success"] is True
-        summary_path = Path(rj["metadata"]["summary_path"])
-        data = json.loads(summary_path.read_text(encoding="utf-8"))
+
+        data = json.loads(
+            (export_root / "processed_results.json").read_text(encoding="utf-8")
+        )
         seen = set()
         for bench in (data.get("benchmarks") or {}).values():
             for model_entries in (bench.get("models") or {}).values():
@@ -129,7 +128,7 @@ class TestExportResultsFunctional:
             config={"format": "csv", "output_dir": str(export_root)},
         )
         assert rc["success"] is True
-        csv_path = Path(rc["metadata"]["summary_path"])
+        csv_path = export_root / "processed_results.csv"
         assert csv_path.exists()
 
     def test_multiple_jobs_non_consolidated_partial_invocations(
@@ -148,12 +147,10 @@ class TestExportResultsFunctional:
         r = export_results(
             [a0.job_id, b0.job_id],
             dest="local",
-            config={"output_dir": str(export_root)},
+            config={"output_dir": str(export_root), "format": "csv"},
         )
         assert r["success"] is True
-        assert invA in r["invocations"] and invB in r["invocations"]
-        assert r["invocations"][invA]["partial"] is True
-        assert r["invocations"][invB]["partial"] is True
+        assert r["metadata"]["successful_jobs"] == 2
 
     def test_mixed_invocation_plus_job_triggers_consolidated_json(
         self, tmp_path: Path, mock_execdb, prepare_local_job
@@ -175,7 +172,7 @@ class TestExportResultsFunctional:
             config={"format": "json", "output_dir": str(export_root)},
         )
         assert r["success"] is True
-        summary_path = Path(r["metadata"]["summary_path"])
+        summary_path = export_root / "processed_results.json"
         data = json.loads(summary_path.read_text(encoding="utf-8"))
         seen = set()
         for bench in (data.get("benchmarks") or {}).values():
@@ -185,32 +182,4 @@ class TestExportResultsFunctional:
                     if jid:
                         seen.add(jid)
         assert {j11.job_id, j12.job_id, j21.job_id}.issubset(seen)
-
-    @pytest.mark.skip(reason="gitlab_ci_local not supported")
-    def test_single_pipeline_id_gitlab_ci_local(
-        self, tmp_path: Path, mock_execdb, monkeypatch
-    ):
-        pipeline_id = 123456
-        inv = "qq77rr88"
-        j = _make_job(inv, 0, "simple_evals.mmlu", executor="gitlab")
-        j.data["pipeline_id"] = pipeline_id
-        _register_jobs(j)
-
-        # Isolate working dir for gitlab_ci_local path
-        monkeypatch.chdir(tmp_path)
-        (Path("artifacts") / str(pipeline_id)).mkdir(parents=True, exist_ok=True)
-        (Path("artifacts") / str(pipeline_id) / "results.yml").write_text(
-            "results: {tasks: {demo: {metrics: {accuracy: {value: 0.9}}}}}",
-            encoding="utf-8",
-        )
-        (Path("artifacts") / str(pipeline_id) / "eval_factory_metrics.json").write_text(
-            json.dumps({"total_time": 1.23}), encoding="utf-8"
-        )
-        monkeypatch.setenv("CI", "true")
-
-        r = export_results(
-            str(pipeline_id),
-            dest="local",
-            config={"output_dir": str(tmp_path), "format": "json"},
-        )
-        assert r["success"] is True
+        assert r["metadata"]["successful_jobs"] == 3

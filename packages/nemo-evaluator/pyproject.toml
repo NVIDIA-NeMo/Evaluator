@@ -21,7 +21,7 @@ name = "nemo-evaluator"
 dynamic = ["version"]
 dependencies = [
     "flask",
-    "httpx>=0.27.2,<1",
+    "httpx>=0.20.0,<1",
     "jinja2",
     "psutil",
     "pydantic",
@@ -99,6 +99,7 @@ source = [
 [tool.pytest.ini_options]
 markers = [
     "network: tests that require network access to staging endpoints",
+    "smoketest: live endpoint smoketests requiring NVIDIA_API_KEY and JUDGE_API_KEY",
 ]
 
 [tool.ruff.lint.isort]
