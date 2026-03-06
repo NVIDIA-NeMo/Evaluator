@@ -1,4 +1,11 @@
-"""Pydantic models for evaluation data flowing across module boundaries."""
+"""Pydantic models for config validation and serialized output.
+
+Runtime types (ModelResponse, StepRecord, RuntimeStats, FailureReport) live
+in observability.types as lightweight dataclasses. This module handles:
+- Input config validation (EvalConfig, RetryConfig, ShardConfig)
+- Serialized bundle schema (EvalBundle, BenchmarkResult)
+- Regression comparison (RegressionReport, RegressionDelta)
+"""
 
 from __future__ import annotations
 
@@ -21,40 +28,13 @@ class CategoryScore(BaseModel):
     mean_reward: float
 
 
-class RuntimeMetrics(BaseModel):
-    total_steps: int = 0
-    total_tokens: int = 0
-    total_prompt_tokens: int = 0
-    total_completion_tokens: int = 0
-    total_reasoning_tokens: int = 0
-    elapsed_seconds: float = 0.0
-    latency_percentiles_ms: dict[str, float] = Field(default_factory=dict)
-    tokens_per_second: float = 0.0
-    steps_per_second: float = 0.0
-    model_errors: int = 0
-    finish_reason_counts: dict[str, int] = Field(default_factory=dict)
-
-
-class FailureEntry(BaseModel):
-    count: int = 0
-    percentage: float = 0.0
-    exemplars: list[dict[str, Any]] = Field(default_factory=list)
-
-
-class FailureMetrics(BaseModel):
-    total_steps: int = 0
-    total_failures: int = 0
-    failure_rate: float = 0.0
-    categories: dict[str, FailureEntry] = Field(default_factory=dict)
-
-
 class BenchmarkResult(BaseModel):
     name: str
     samples: int
     repeats: int = 1
     scores: dict[str, ScoreEntry] = Field(default_factory=dict)
-    runtime: RuntimeMetrics = Field(default_factory=RuntimeMetrics)
-    failures: FailureMetrics = Field(default_factory=FailureMetrics)
+    runtime: dict[str, Any] = Field(default_factory=dict)
+    failures: dict[str, Any] = Field(default_factory=dict)
     summary: dict[str, Any] = Field(default_factory=dict)
     categories: dict[str, CategoryScore] | None = None
 
@@ -66,7 +46,12 @@ class EvalConfig(BaseModel):
     repeats: int = 1
     max_problems: int | None = None
     adapter: str | None = None
+    harness: str | None = None
     system_prompt: str | None = None
+    temperature: float = 0.0
+    max_tokens: int = 2048
+    top_p: float | None = None
+    seed: int | None = None
     shard: dict[str, Any] | None = None
     extra: dict[str, Any] = Field(default_factory=dict)
 

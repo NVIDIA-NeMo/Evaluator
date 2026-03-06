@@ -98,8 +98,12 @@ async def run_evaluation(
 
                 step_t0 = time.monotonic()
                 resp: ModelResponse | None = None
+                effective_system = system_prompt or seed_result.system
                 try:
-                    resp = await client.chat(seed_result.prompt, system=system_prompt)
+                    if seed_result.messages:
+                        resp = await client.chat(messages=seed_result.messages)
+                    else:
+                        resp = await client.chat(seed_result.prompt, system=effective_system)
                     step.model_response = resp
                     step.model_ms = resp.latency_ms
                 except Exception as e:

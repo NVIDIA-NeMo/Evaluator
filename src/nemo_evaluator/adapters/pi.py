@@ -77,7 +77,7 @@ class PIAdapter(EnvironmentAdapter):
 
     async def _score_via_rubric(self, response: str, expected: str,
                                 meta: dict[str, Any]) -> tuple[float, dict]:
-        vf = _require_verifiers()
+        _require_verifiers()
         # Build minimal State for rubric scoring
         state: dict[str, Any] = {
             "input": {

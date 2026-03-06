@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 
 
 def _normalize_number(s: str) -> str:

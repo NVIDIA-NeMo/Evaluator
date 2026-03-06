@@ -2,7 +2,9 @@
 
 import click
 
+from nemo_evaluator.cli.harness import harness_group
 from nemo_evaluator.cli.regression import regression_cmd
+from nemo_evaluator.cli.report import report_cmd
 from nemo_evaluator.cli.run import run_cmd
 from nemo_evaluator.cli.serve import serve_cmd
 from nemo_evaluator.cli.slurm import slurm_cmd
@@ -19,6 +21,8 @@ cli.add_command(run_cmd, "run")
 cli.add_command(serve_cmd, "serve")
 cli.add_command(validate_cmd, "validate")
 cli.add_command(regression_cmd, "regression")
+cli.add_command(report_cmd, "report")
+cli.add_command(harness_group, "harness")
 cli.add_command(slurm_cmd, "slurm")
 
 
@@ -100,7 +104,7 @@ def container_eval_cmd(task_type, model_url, model_id, harness, image,
     click.echo(f"Running container eval: {task_type}")
     bundle = run_container_eval(cfg, output_dir)
 
-    click.echo(f"\nScores:")
+    click.echo("\nScores:")
     for key, score in bundle.get("scores", {}).items():
         if isinstance(score, dict) and "value" in score:
             click.echo(f"  {key}: {score['value']}")

@@ -109,6 +109,24 @@ class StepRecord:
 
 
 @dataclass
+class CostEstimate:
+    prompt_cost: float = 0.0
+    completion_cost: float = 0.0
+    total_cost: float = 0.0
+    currency: str = "USD"
+    price_per_1k_prompt: float = 0.0
+    price_per_1k_completion: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "prompt_cost": round(self.prompt_cost, 6),
+            "completion_cost": round(self.completion_cost, 6),
+            "total_cost": round(self.total_cost, 6),
+            "currency": self.currency,
+        }
+
+
+@dataclass
 class RuntimeStats:
     total_steps: int = 0
     total_tokens: int = 0
@@ -124,9 +142,12 @@ class RuntimeStats:
     model_errors: int = 0
     total_retries: int = 0
     finish_reason_counts: dict[str, int] = field(default_factory=dict)
+    cost: CostEstimate = field(default_factory=CostEstimate)
+    cache_hits: int = 0
+    cache_misses: int = 0
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d = {
             "total_steps": self.total_steps,
             "total_tokens": self.total_tokens,
             "total_prompt_tokens": self.total_prompt_tokens,
@@ -144,6 +165,11 @@ class RuntimeStats:
             "total_retries": self.total_retries,
             "finish_reason_counts": self.finish_reason_counts,
         }
+        if self.cost.total_cost > 0:
+            d["cost"] = self.cost.to_dict()
+        if self.cache_hits > 0 or self.cache_misses > 0:
+            d["cache"] = {"hits": self.cache_hits, "misses": self.cache_misses}
+        return d
 
 
 @dataclass

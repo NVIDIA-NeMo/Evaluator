@@ -4,7 +4,7 @@ set -euo pipefail
 # Distributed evaluation on SLURM: shard gsm8k across 8 nodes, then merge.
 #
 # Usage:
-#   bash examples/slurm_distributed.sh
+#   bash deploy/slurm_distributed.sh
 #
 # What happens:
 #   1. nel slurm eval generates sbatch scripts + submits a job array (8 tasks)

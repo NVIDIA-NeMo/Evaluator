@@ -12,6 +12,14 @@ from nemo_evaluator.observability.collector import ArtifactCollector
 from nemo_evaluator.observability.types import RunArtifacts
 
 
+def _config_hash(config: dict[str, Any]) -> str:
+    """Deterministic config hash covering model, temperature, system prompt, and dataset."""
+    keys_to_hash = ["model", "model_url", "temperature", "max_tokens", "top_p",
+                    "seed", "system_prompt", "benchmark", "repeats", "max_problems"]
+    subset = {k: config.get(k) for k in keys_to_hash if config.get(k) is not None}
+    return hashlib.sha256(json.dumps(subset, sort_keys=True).encode()).hexdigest()
+
+
 def build_artifact_bundle(
     benchmark_name: str,
     results: list[dict[str, Any]],
@@ -19,11 +27,11 @@ def build_artifact_bundle(
     config: dict[str, Any],
     categories: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    config_hash = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
+    ch = _config_hash(config)
     safe_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", benchmark_name)
     bundle: dict[str, Any] = {
         "run_id": f"eval-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{safe_name}",
-        "config_hash": f"sha256:{config_hash}",
+        "config_hash": f"sha256:{ch}",
         "sdk_version": __version__,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "config": config,

@@ -42,7 +42,7 @@ def extract_answer(text: str) -> str:
     if answer_match:
         return answer_match.group(1).strip()
 
-    lines = [l.strip() for l in text.strip().splitlines() if l.strip()]
+    lines = [ln.strip() for ln in text.strip().splitlines() if ln.strip()]
     for line in reversed(lines):
         if _NUMERIC_RE.match(line):
             return line.replace(",", "").strip()

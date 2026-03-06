@@ -127,10 +127,17 @@ adapter = SkillsAdapter(
 
 Combine with sharding for large benchmarks:
 
+```yaml
+# config.yaml
+tasks:
+  - adapter: "skills://mmlu"
+    repeats: 4
+```
+
 ```bash
 # SLURM: 16-way sharded MMLU evaluation
-nel slurm eval --benchmark skills://mmlu \
-    --shards 16 --repeats 4 \
+nel slurm eval --config config.yaml \
+    --shards 16 \
     --partition batch --submit
 ```
 

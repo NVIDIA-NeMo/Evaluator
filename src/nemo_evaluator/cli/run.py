@@ -21,11 +21,18 @@ import yaml
 @click.option("--repeats", "-n", type=int, default=None)
 @click.option("--max-problems", type=int, default=None)
 @click.option("--system-prompt", type=str, default=None)
+@click.option("--temperature", type=float, default=None)
+@click.option("--max-tokens", type=int, default=None)
+@click.option("--top-p", type=float, default=None)
+@click.option("--seed", type=int, default=None)
+@click.option("--cache-dir", envvar="NEL_CACHE_DIR", default=None, help="Response cache directory")
 @click.option("--output-dir", "-o", default="./eval_results")
+@click.option("--resume", is_flag=True, help="Resume from checkpoint (skip already-completed benchmarks)")
 @click.option("--progress/--no-progress", default=True)
 @click.option("--verbose", "-v", is_flag=True)
 def run_cmd(config_file, benchmark, adapter, model_url, model_id, api_key,
-            repeats, max_problems, system_prompt, output_dir, progress, verbose):
+            repeats, max_problems, system_prompt, temperature, max_tokens,
+            top_p, seed, cache_dir, output_dir, resume, progress, verbose):
     """Run evaluation from config, benchmark name, or adapter URI."""
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
@@ -39,25 +46,37 @@ def run_cmd(config_file, benchmark, adapter, model_url, model_id, api_key,
         except Exception as e:
             raise click.ClickException(f"Failed to parse config file: {e}")
 
-    eval_cfg = config.get("evaluation", config)
-    tasks = eval_cfg.get("tasks", [])
-
     if benchmark or adapter:
         tasks = [{"benchmark": benchmark, "adapter": adapter}]
-    elif not tasks:
+        global_url = model_url
+        global_mid = model_id
+    elif config:
+        from nemo_evaluator.config_schema import parse_config
+        try:
+            eval_cfg = parse_config(config)
+        except Exception as e:
+            raise click.ClickException(f"Config validation error: {e}")
+        tasks = [t.model_dump(exclude_none=True) for t in eval_cfg.tasks]
+        global_url = model_url or eval_cfg.model_url
+        global_mid = model_id or eval_cfg.model_id
+        cache_dir = cache_dir or eval_cfg.cache_dir
+        output_dir = eval_cfg.output_dir if output_dir == "./eval_results" else output_dir
+    else:
         raise click.ClickException("Specify --benchmark, --adapter, or a config file with tasks.")
 
-    global_url = model_url or eval_cfg.get("model_url")
-    global_mid = model_id or eval_cfg.get("model_id")
+    global_url = global_url or model_url
+    global_mid = global_mid or model_id
     global_repeats = repeats
     global_max = max_problems
 
     from nemo_evaluator.observability.progress import ConsoleProgress, NoOpProgress
     from nemo_evaluator.runner.artifacts import write_all
+    from nemo_evaluator.runner.checkpoint import CheckpointManager
     from nemo_evaluator.runner.eval_loop import run_evaluation
     from nemo_evaluator.runner.model_client import ModelClient
     from nemo_evaluator.runner.sharding import get_shard_range, shard_from_env
 
+    ckpt = CheckpointManager(output_dir) if resume else None
     all_bundles: list[dict[str, Any]] = []
     partial_bundle: dict[str, Any] | None = None
 
@@ -74,10 +93,22 @@ def run_cmd(config_file, benchmark, adapter, model_url, model_id, api_key,
     signal.signal(signal.SIGINT, _handle_sigterm)
 
     for i, task in enumerate(tasks):
+        harness_type = task.get("harness")
+        if harness_type:
+            _dispatch_harness_task(task, harness_type, model_url or global_url,
+                                  model_id or global_mid, api_key, temperature,
+                                  max_tokens, top_p, seed, cache_dir, output_dir)
+            continue
+
         adapter_uri = task.get("adapter")
         bench = task.get("benchmark") or task.get("resource_server")
         if not bench and not adapter_uri:
             click.echo(f"Task {i}: no benchmark or adapter, skipping", err=True)
+            continue
+
+        task_key = bench or adapter_uri or f"task_{i}"
+        if ckpt and ckpt.is_completed(task_key):
+            click.echo(f"  [resume] Skipping already-completed: {task_key}")
             continue
 
         url = task.get("model_url") or global_url
@@ -96,7 +127,13 @@ def run_cmd(config_file, benchmark, adapter, model_url, model_id, api_key,
         except Exception as e:
             raise click.ClickException(f"Failed to resolve environment: {e}")
 
-        client = ModelClient(base_url=url, model=mid, api_key=api_key, temperature=0.0)
+        task_temp = temperature if temperature is not None else task.get("temperature", 0.0)
+        task_max_tok = max_tokens or task.get("max_tokens", 2048)
+        client = ModelClient(
+            base_url=url, model=mid, api_key=api_key,
+            temperature=task_temp, max_tokens=task_max_tok,
+            top_p=top_p, seed=seed, cache_dir=cache_dir,
+        )
 
         run_config = {"benchmark": bench or adapter_uri, "model": mid, "base_url": url,
                       "repeats": n, "max_problems": mp, "adapter": adapter_uri}
@@ -113,18 +150,28 @@ def run_cmd(config_file, benchmark, adapter, model_url, model_id, api_key,
         if len(tasks) > 1:
             click.echo(f"\n{'='*60}\n  Task {i+1}/{len(tasks)}: {bench or adapter_uri}\n{'='*60}")
 
-        bundle = asyncio.run(run_evaluation(
-            env, client, n_repeats=n, max_problems=mp,
-            system_prompt=sys_prompt, config=run_config,
-            progress=pg, problem_range=problem_range,
-        ))
-        partial_bundle = bundle
+        try:
+            bundle = asyncio.run(run_evaluation(
+                env, client, n_repeats=n, max_problems=mp,
+                system_prompt=sys_prompt, config=run_config,
+                progress=pg, problem_range=problem_range,
+            ))
+            partial_bundle = bundle
 
-        task_dir = output_dir if len(tasks) == 1 else f"{output_dir}/{_safe_name(bench or adapter_uri)}"
-        paths = write_all(bundle, task_dir)
+            task_dir = output_dir if len(tasks) == 1 else f"{output_dir}/{_safe_name(bench or adapter_uri)}"
+            paths = write_all(bundle, task_dir)
 
-        _print_summary(bundle, run_config, n, paths, task_dir)
-        all_bundles.append(bundle)
+            _print_summary(bundle, run_config, n, paths, task_dir)
+            all_bundles.append(bundle)
+
+            if ckpt:
+                ckpt.mark_completed(task_key, str(task_dir))
+        except Exception as e:
+            click.echo(f"  ERROR on {task_key}: {e}", err=True)
+            if ckpt:
+                ckpt.mark_failed(task_key, str(e))
+            if len(tasks) == 1:
+                raise
 
     if len(all_bundles) > 1:
         click.echo(f"\n{'='*60}\n  Summary: {len(all_bundles)} tasks\n{'='*60}")
@@ -224,3 +271,47 @@ def _resolve(bench: str | None, adapter_uri: str | None):
         return get_environment(bench)
     except KeyError:
         raise click.ClickException(f"Unknown benchmark: {bench!r}. Run 'nel list-environments'.")
+
+
+def _dispatch_harness_task(task, harness_type, model_url, model_id, api_key,
+                           temperature, max_tokens, top_p, seed, cache_dir, output_dir):
+    """Route a task with harness: field to the appropriate harness adapter."""
+    from nemo_evaluator.runner.model_client import ModelClient
+
+    client = ModelClient(
+        base_url=model_url, model=model_id, api_key=api_key,
+        temperature=temperature or 0.0,
+        max_tokens=max_tokens or 2048,
+        top_p=top_p, seed=seed,
+        cache_dir=cache_dir,
+    )
+
+    if harness_type == "simple-evals":
+        from nemo_evaluator.harnesses.simple_evals import run_simple_eval
+        eval_name = task.get("eval", "")
+        result = run_simple_eval(
+            eval_name=eval_name,
+            client=client,
+            num_examples=task.get("examples"),
+            repo_path=task.get("repo_path"),
+        )
+        click.echo(f"  simple-evals/{eval_name}: score={result.score:.4f}, "
+                    f"calls={len(result.step_records)}")
+
+    elif harness_type == "lm-eval":
+        from nemo_evaluator.harnesses.lm_eval import run_lm_eval
+        task_names = task.get("tasks", [])
+        if isinstance(task_names, str):
+            task_names = [t.strip() for t in task_names.split(",")]
+        result = run_lm_eval(
+            tasks=task_names,
+            client=client,
+            num_fewshot=task.get("fewshot"),
+            limit=task.get("limit"),
+        )
+        for tname, metrics in result.results.items():
+            acc = metrics.get("acc", metrics.get("exact_match", "?"))
+            click.echo(f"  lm-eval/{tname}: {acc}")
+
+    else:
+        raise click.ClickException(f"Unknown harness type: {harness_type!r}")

@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nemo-evaluator"
-version = "0.1.0"
-description = "NeMo Evaluator – benchmark environments, evaluation runner, and environment-compatible service"
+version = "0.3.0"
+description = "NeMo Evaluator – benchmark environments, evaluation runner, and decision-grade scoring"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
@@ -33,7 +33,9 @@ stats = ["scipy>=1.10"]
 ray = ["ray[default]>=2.9"]
 pi = ["verifiers", "openai>=1.0"]
 skills = ["nemo-skills"]
-all = ["nemo-evaluator[scoring,stats,ray,pi,skills]"]
+lm-eval = ["lm_eval>=0.4"]
+harnesses = ["nemo-evaluator[lm-eval]"]
+all = ["nemo-evaluator[scoring,stats,ray,pi,skills,lm-eval]"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",

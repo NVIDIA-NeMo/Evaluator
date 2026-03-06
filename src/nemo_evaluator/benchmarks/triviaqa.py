@@ -1,4 +1,9 @@
-"""TriviaQA benchmark – trivia questions with exact-match scoring."""
+"""TriviaQA benchmark – trivia questions with exact-match scoring.
+
+BYOB reference implementation. Demonstrates the EvalEnvironment pattern with
+exact_match scoring. Also usable via `nel serve --benchmark triviaqa` for Gym.
+For production evaluation, prefer: nel harness run --harness lm-eval --tasks triviaqa
+"""
 
 from __future__ import annotations
 

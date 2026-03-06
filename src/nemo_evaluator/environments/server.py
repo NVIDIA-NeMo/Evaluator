@@ -10,11 +10,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from nemo_evaluator.environments.base import EvalEnvironment
-from nemo_evaluator.environments.gym_protocol import (
-    GymVerifyRequest,
-    GymVerifyResponse,
-    extract_assistant_text,
-)
+from nemo_evaluator.environments.gym_protocol import extract_assistant_text
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +22,8 @@ class SeedSessionResponse(BaseModel):
     prompt: str = ""
     expected_answer: str = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
+    messages: list[dict[str, str]] | None = None
+    system: str | None = None
 
 class VerifyRequest(BaseModel):
     response: str
@@ -82,24 +80,43 @@ def generate_app(
     async def seed_session(body: SeedSessionRequest = SeedSessionRequest()):
         _validate_idx(body.idx)
         sr = await asyncio.to_thread(env.seed, body.idx)
-        return SeedSessionResponse(prompt=sr.prompt, expected_answer=sr.expected_answer, metadata=sr.metadata)
+        return SeedSessionResponse(
+            prompt=sr.prompt, expected_answer=sr.expected_answer,
+            metadata=sr.metadata, messages=sr.messages, system=sr.system,
+        )
 
-    if gym_compat:
-        @app.post("/verify")
-        async def verify_gym(body: GymVerifyRequest):
-            text = extract_assistant_text(body.response)
-            expected = body.expected_answer or body.expected
-            vr = await asyncio.to_thread(env.verify, text, expected, **body.metadata)
-            return GymVerifyResponse(
-                responses_create_params=body.responses_create_params,
-                response=body.response, reward=vr.reward,
-                expected_answer=expected, extracted_answer=vr.extracted_answer)
-    else:
-        @app.post("/verify", response_model=VerifyResponse)
-        async def verify_evaluator(body: VerifyRequest):
-            vr = await asyncio.to_thread(env.verify, body.response, body.expected, **body.metadata)
+    @app.post("/verify")
+    async def verify_unified(body: dict[str, Any] = {}):
+        """Accept both evaluator format and gym format on the same endpoint.
+
+        Evaluator format: {"response": str, "expected": str, "metadata": {}}
+        Gym format: {"response": any, "expected_answer": str, "metadata": {}, ...}
+        Detection: if "expected" key exists -> evaluator. Otherwise -> gym.
+        """
+        if "expected" in body:
+            response_text = body.get("response", "")
+            expected = body["expected"]
+            meta = body.get("metadata", {})
+            vr = await asyncio.to_thread(env.verify, response_text, expected, **meta)
             return VerifyResponse(reward=vr.reward, extracted_answer=vr.extracted_answer,
                                   scoring_details=vr.scoring_details, metadata=vr.metadata)
+        else:
+            raw_response = body.get("response", "")
+            text = extract_assistant_text(raw_response)
+            expected = body.get("expected_answer", "") or body.get("expected", "")
+            meta = body.get("metadata", {})
+            vr = await asyncio.to_thread(env.verify, text, expected, **meta)
+            resp = {
+                "reward": vr.reward,
+                "expected_answer": expected,
+                "extracted_answer": vr.extracted_answer,
+                "scoring_details": vr.scoring_details,
+            }
+            if "responses_create_params" in body:
+                resp["responses_create_params"] = body["responses_create_params"]
+            if "response" in body:
+                resp["response"] = body["response"]
+            return resp
 
     @app.get("/dataset_size")
     async def dataset_size():

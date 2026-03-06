@@ -21,8 +21,12 @@ pip install -e ".[scoring]"
 | `stats` | `pip install -e ".[stats]"` | scipy for normal confidence intervals |
 | `ray` | `pip install -e ".[ray]"` | Ray distributed evaluation |
 | `pi` | `pip install -e ".[pi]"` | Prime Intellect `verifiers` integration |
+| `skills` | `pip install -e ".[skills]"` | NeMo Skills benchmark integration |
+| `harnesses` | `pip install -e ".[harnesses]"` | lm-evaluation-harness adapter |
 | `all` | `pip install -e ".[all]"` | Everything above |
 | `dev` | `pip install -e ".[dev]"` | pytest, ruff, all extras |
+
+**Note:** `simple-evals` is installed separately: `pip install simple-evals` or `git clone https://github.com/openai/simple-evals.git` and pass `--repo-path` to `nel harness run`.
 
 ## Verify Installation
 

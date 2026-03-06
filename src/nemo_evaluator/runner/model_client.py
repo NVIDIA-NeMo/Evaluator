@@ -22,17 +22,24 @@ class ModelClient:
     api_key: str | None = None
     temperature: float = 0.0
     max_tokens: int = 2048
+    top_p: float | None = None
+    seed: int | None = None
     timeout: float = 120.0
     max_concurrent: int = 8
+    cache_dir: str | None = None
     retry: RetryConfig = field(default_factory=RetryConfig)
     _sem: asyncio.Semaphore = field(init=False, repr=False)
     _http: httpx.AsyncClient | None = field(init=False, repr=False, default=None)
+    _cache: Any = field(init=False, repr=False, default=None)
 
     def __post_init__(self) -> None:
         self._sem = asyncio.Semaphore(self.max_concurrent)
         self.base_url = self.base_url.rstrip("/")
         if self.base_url.endswith("/chat/completions"):
             self.base_url = self.base_url[: -len("/chat/completions")]
+        if self.cache_dir:
+            from nemo_evaluator.runner.cache import ResponseCache
+            self._cache = ResponseCache(self.cache_dir)
 
     def _headers(self) -> dict[str, str]:
         h = {"Content-Type": "application/json"}
@@ -57,18 +64,38 @@ class ModelClient:
             await self._http.aclose()
             self._http = None
 
-    async def chat(self, prompt: str, system: str | None = None) -> ModelResponse:
-        messages: list[dict[str, str]] = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
+    async def chat(self, prompt: str | None = None, system: str | None = None,
+                   messages: list[dict[str, str]] | None = None) -> ModelResponse:
+        if messages is not None:
+            msgs = list(messages)
+        else:
+            msgs = []
+            if system:
+                msgs.append({"role": "system", "content": system})
+            msgs.append({"role": "user", "content": prompt or ""})
+
+        cache_prompt = prompt or (msgs[-1]["content"] if msgs else "")
+        cache_msgs = messages if messages is not None else None
+
+        if self._cache:
+            cached = self._cache.get(
+                self.model, cache_prompt, system,
+                self.temperature, self.max_tokens,
+                top_p=self.top_p, seed=self.seed, messages=cache_msgs,
+            )
+            if cached:
+                return self._parse_response(cached, 0.0, cache_prompt, system)
 
         payload: dict[str, Any] = {
             "model": self.model,
-            "messages": messages,
+            "messages": msgs,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
         }
+        if self.top_p is not None:
+            payload["top_p"] = self.top_p
+        if self.seed is not None:
+            payload["seed"] = self.seed
 
         url = f"{self.base_url}/chat/completions"
         last_exc: Exception | None = None
@@ -115,7 +142,13 @@ class ModelClient:
                         continue
                     raise
 
-            return self._parse_response(data, latency, prompt, system)
+            if self._cache:
+                self._cache.put(
+                    self.model, cache_prompt, system,
+                    self.temperature, self.max_tokens, data,
+                    top_p=self.top_p, seed=self.seed, messages=cache_msgs,
+                )
+            return self._parse_response(data, latency, cache_prompt, system)
 
         raise last_exc or RuntimeError("All retries exhausted")
 

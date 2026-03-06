@@ -166,7 +166,6 @@ def run_container_eval(cfg: ContainerConfig, output_dir: str | None = None) -> d
     image = _resolve_image(cfg)
     run_config = _build_run_config(cfg)
 
-    use_temp = output_dir is None
     host_dir = Path(output_dir or tempfile.mkdtemp(prefix="nel_container_"))
     host_dir.mkdir(parents=True, exist_ok=True)
 

@@ -1,4 +1,9 @@
-"""GSM8K benchmark – grade-school math with numerical answer extraction."""
+"""GSM8K benchmark – grade-school math with numerical answer extraction.
+
+BYOB reference implementation. Demonstrates the EvalEnvironment pattern with
+math_equal scoring. Also usable via `nel serve --benchmark gsm8k` for Gym.
+For production evaluation, prefer: nel harness run --harness lm-eval --tasks gsm8k
+"""
 
 from __future__ import annotations
 
