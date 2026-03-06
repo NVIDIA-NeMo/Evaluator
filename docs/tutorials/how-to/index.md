@@ -32,6 +32,14 @@ Learn how to check compliance of llm against custom rules.
 
 :::
 
+:::{grid-item-card} {octicon}`iterations;1.5em;sd-mr-1` Continuous Checkpoint Evaluation
+:link: how-to-continuous-checkpoint-evaluation
+:link-type: ref
+
+Automatically evaluate training checkpoints as they appear using `nel-watch`.
+
+:::
+
 ::::
 
 :::{toctree}
@@ -41,4 +49,5 @@ Learn how to check compliance of llm against custom rules.
 reasoning
 local-to-slurm
 compliance-integrity
+continuous-checkpoint-evaluation
 :::
