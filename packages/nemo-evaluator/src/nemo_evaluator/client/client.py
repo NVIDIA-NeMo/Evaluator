@@ -79,6 +79,7 @@ class NeMoEvaluatorClient:
         if api_key_value is None:
             # No API key specified - use dummy for endpoints that don't require auth
             # as AsyncOpenAI requires this parameter to be set
+            logger.debug("No API key specified, using dummy API key")
             api_key_value = "dummy_api_key"
 
         self.client = AsyncOpenAI(
