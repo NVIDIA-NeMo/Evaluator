@@ -960,7 +960,8 @@ def _generate_auto_export_section(
     s += "    srun --mpi pmix --overlap "
     s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
     s += "--container-image {} ".format(export_image)
-    s += "--container-env {} ".format(",".join(env_var_names))
+    if env_var_names:
+        s += "--container-env {} ".format(",".join(env_var_names))
     # never mount home directory for export jobs - this is error prone
     # and there's no use-case for mounting it
     s += "--no-container-mount-home "
