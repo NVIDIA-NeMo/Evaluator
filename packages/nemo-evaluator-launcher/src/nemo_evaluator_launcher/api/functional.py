@@ -54,6 +54,111 @@ def get_tasks_list() -> list[list[Any]]:
     return data
 
 
+def _validate_config_sections(cfg: Any) -> None:
+    """Validate known config sections using Pydantic models (extra fields forbidden).
+
+    Raises:
+        ValueError: If an unknown or removed key is present in a validated section.
+    """
+    from pydantic import ValidationError
+
+    from nemo_evaluator_launcher.common.pydantic_models import (
+        EvaluationModel,
+        MountsModel,
+    )
+
+    # evaluation section
+    eval_cfg = cfg.get("evaluation") if OmegaConf.is_dict(cfg) else None
+    if eval_cfg is not None and OmegaConf.is_dict(eval_cfg):
+        eval_dict = OmegaConf.to_container(eval_cfg, resolve=False)
+        try:
+            EvaluationModel.model_validate(eval_dict)
+        except ValidationError as e:
+            raise ValueError(f"Invalid 'evaluation' config:\n{e}") from e
+
+    # execution.mounts section
+    exec_cfg = cfg.get("execution") if OmegaConf.is_dict(cfg) else None
+    if exec_cfg is not None and OmegaConf.is_dict(exec_cfg):
+        mounts_cfg = exec_cfg.get("mounts")
+        if mounts_cfg is not None and OmegaConf.is_dict(mounts_cfg):
+            mounts_dict = OmegaConf.to_container(mounts_cfg, resolve=False)
+            try:
+                MountsModel.model_validate(mounts_dict)
+            except ValidationError as e:
+                raise ValueError(f"Invalid 'execution.mounts' config:\n{e}") from e
+
+
+def _validate_nemo_evaluator_config_params(cfg: Any) -> None:
+    """Warn if nemo_evaluator_config params are not referenced in the task's command template.
+
+    Uses real packaged IRs — no network calls required.
+    """
+    from nemo_evaluator.core.utils import validate_params_in_command
+
+    from nemo_evaluator_launcher.common.helpers import get_eval_factory_config
+    from nemo_evaluator_launcher.common.logging_utils import logger
+    from nemo_evaluator_launcher.common.mapping import (
+        get_task_from_mapping,
+        load_tasks_mapping,
+    )
+
+    eval_cfg = cfg.get("evaluation") if OmegaConf.is_dict(cfg) else None
+    if not eval_cfg or not OmegaConf.is_dict(eval_cfg):
+        return
+
+    tasks = eval_cfg.get("tasks") or []
+    if not tasks:
+        return
+
+    try:
+        mapping = load_tasks_mapping()
+    except Exception as e:
+        logger.debug(
+            "Skipping nemo_evaluator_config param validation: mapping unavailable",
+            error=str(e),
+        )
+        return
+
+    for task_cfg in tasks:
+        task_name = task_cfg.get("name", "") if OmegaConf.is_dict(task_cfg) else ""
+        if not task_name:
+            continue
+
+        try:
+            task_def = get_task_from_mapping(task_name, mapping)
+        except (ValueError, KeyError):
+            logger.debug(
+                "Task not found in mapping, skipping param validation", task=task_name
+            )
+            continue
+
+        command = task_def.get("command", "")
+        if not command:
+            logger.debug(
+                "No command template in task definition, skipping param validation",
+                task=task_name,
+            )
+            continue
+
+        try:
+            merged_config = get_eval_factory_config(cfg, task_cfg)
+        except Exception as e:
+            logger.debug(
+                "Could not build merged nemo_evaluator_config for task",
+                task=task_name,
+                error=str(e),
+            )
+            continue
+
+        try:
+            validate_params_in_command(command, merged_config)
+        except Exception as e:
+            logger.warning(
+                f"nemo_evaluator_config param validation failed for task '{task_name}'",
+                error=str(e),
+            )
+
+
 def _validate_no_missing_values(cfg: Any, path: str = "") -> None:
     """Recursively validate that no MISSING values exist in the configuration.
 
@@ -141,6 +246,8 @@ def run_eval(
 
     # Validate that no MISSING values exist in the configuration
     _validate_no_missing_values(cfg)
+    _validate_config_sections(cfg)
+    _validate_nemo_evaluator_config_params(cfg)
 
     if dry_run:
         print(OmegaConf.to_yaml(cfg))
