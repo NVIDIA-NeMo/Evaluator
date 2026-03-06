@@ -549,6 +549,7 @@ class TestSlurmExecutorTelemetryPropagation:
                 "account": "test-account",
                 "partition": "test-partition",
                 "num_nodes": 1,
+                "num_instances": 1,
                 "ntasks_per_node": 1,
                 "subproject": "test-subproject",
                 "env_vars": {},
