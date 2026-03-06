@@ -29,30 +29,22 @@ class Cmd:
 
     config: str = field(
         alias=["--config"],
-        metadata={
-            "help": "Full path to eval config file (same as nel run)."
-        },
+        metadata={"help": "Full path to eval config file (same as nel run)."},
     )
     watch_dir: str | None = field(
         default=None,
         alias=["--watch-dir"],
-        metadata={
-            "help": "Directory to watch for new checkpoint subdirectories."
-        },
+        metadata={"help": "Directory to watch for new checkpoint subdirectories."},
     )
     watch_config: str | None = field(
         default=None,
         alias=["--watch-config"],
-        metadata={
-            "help": "Path to YAML file defining multiple watch directories."
-        },
+        metadata={"help": "Path to YAML file defining multiple watch directories."},
     )
     interval: int = field(
         default=300,
         alias=["--interval"],
-        metadata={
-            "help": "Polling interval in seconds (default: 300)."
-        },
+        metadata={"help": "Polling interval in seconds (default: 300)."},
     )
     ready_markers: str = field(
         default="metadata.json,config.yaml",
@@ -121,13 +113,9 @@ class Cmd:
 
         # Validate mutually exclusive args
         if not self.watch_dir and not self.watch_config:
-            raise ValueError(
-                "Either --watch-dir or --watch-config is required."
-            )
+            raise ValueError("Either --watch-dir or --watch-config is required.")
         if self.watch_dir and self.watch_config:
-            raise ValueError(
-                "--watch-dir and --watch-config are mutually exclusive."
-            )
+            raise ValueError("--watch-dir and --watch-config are mutually exclusive.")
         if self.order not in ("newest", "oldest"):
             raise ValueError(
                 f"--order must be 'newest' or 'oldest', got '{self.order}'."

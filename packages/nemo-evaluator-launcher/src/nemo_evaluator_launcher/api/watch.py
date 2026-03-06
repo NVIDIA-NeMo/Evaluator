@@ -173,7 +173,9 @@ def _load_watch_config(path: Path) -> tuple[list[WatchDirConfig], str]:
         watch_dirs.append(
             WatchDirConfig(
                 checkpoint_dir=Path(entry["checkpoint_dir"]),
-                output_dir=Path(entry["output_dir"]) if entry.get("output_dir") else None,
+                output_dir=Path(entry["output_dir"])
+                if entry.get("output_dir")
+                else None,
                 checkpoint_field=entry.get("checkpoint_field"),
             )
         )
@@ -261,7 +263,9 @@ def watch_checkpoints(
                 wd = dir_cfg.checkpoint_dir
                 field_override = dir_cfg.checkpoint_field or checkpoint_field
 
-                checkpoints = discover_checkpoints(wd, ready_markers, checkpoint_patterns)
+                checkpoints = discover_checkpoints(
+                    wd, ready_markers, checkpoint_patterns
+                )
 
                 # Apply ordering
                 if order == "newest":
@@ -294,7 +298,9 @@ def watch_checkpoints(
 
                     # Override output_dir if specified in watch dir config
                     if dir_cfg.output_dir is not None:
-                        _set_nested_value(cfg_copy, "execution.output_dir", str(dir_cfg.output_dir))
+                        _set_nested_value(
+                            cfg_copy, "execution.output_dir", str(dir_cfg.output_dir)
+                        )
 
                     invocation_id = None
                     if dry_run:
