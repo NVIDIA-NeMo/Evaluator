@@ -37,17 +37,19 @@ defaults:
 
 distributed_executor_backend: ray
 ray_compiled_dag_channel_type: shm  # "auto", "shm", or "nccl" (default in vLLM: auto)
+ray_startup_wait_time_s: 120  # seconds to wait for Ray workers to connect
 
 command: |
   #!/bin/bash
   set -euo pipefail
 
   export VLLM_USE_RAY_COMPILED_DAG_CHANNEL_TYPE=${deployment.ray_compiled_dag_channel_type}
+  export RAY_raylet_start_wait_time_s=${deployment.ray_startup_wait_time_s}
 
   RAY_PORT=6379
   NODE_PORT=8266
   OBJ_PORT=8267
-  RAY_FIXED_PORTS="--node-manager-port=$NODE_PORT --object-manager-port=$OBJ_PORT --metrics-export-port=8269 --dashboard-agent-grpc-port=8270 --dashboard-agent-listen-port=8271 --runtime-env-agent-port=8272"
+  RAY_FIXED_PORTS="--node-manager-port=$NODE_PORT --object-manager-port=$OBJ_PORT --metrics-export-port=8269 --dashboard-agent-grpc-port=8270 --dashboard-agent-listen-port=8271 --runtime-env-agent-port=8272 --min-worker-port=14349 --max-worker-port=18349"
 
   NUM_NODES=${execution.num_nodes}
   NUM_INSTANCES=${execution.num_instances}
