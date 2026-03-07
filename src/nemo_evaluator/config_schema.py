@@ -1,7 +1,4 @@
-"""YAML config schema with Pydantic validation.
-
-Validates evaluation config files and expands environment variables.
-"""
+"""YAML config schema with Pydantic validation."""
 from __future__ import annotations
 
 import os
@@ -28,11 +25,10 @@ def _expand_env(value: Any) -> Any:
 
 
 class TaskConfig(BaseModel):
-    """Single task within an evaluation run."""
 
     benchmark: str | None = None
     adapter: str | None = None
-    harness: Literal["simple-evals", "lm-eval"] | None = None
+    harness: Literal["lm-eval"] | None = None
 
     resource_server: str | None = None
     endpoint: str | None = None
@@ -66,7 +62,6 @@ class TaskConfig(BaseModel):
 
 
 class EvaluationConfig(BaseModel):
-    """Top-level evaluation configuration."""
 
     model_url: str | None = None
     model_id: str | None = None
@@ -88,7 +83,6 @@ class EvaluationConfig(BaseModel):
 
 
 class ConfigFile(BaseModel):
-    """Root config file schema. Accepts both flat and nested formats."""
     evaluation: EvaluationConfig | None = None
 
     tasks: list[TaskConfig] | None = None
@@ -107,11 +101,7 @@ class ConfigFile(BaseModel):
 
 
 def parse_config(raw: dict[str, Any]) -> EvaluationConfig:
-    """Parse and validate a raw YAML dict into a typed config.
-
-    Expands environment variables (${VAR}, ${VAR:-default}).
-    Accepts both flat and nested (evaluation:) formats.
-    """
+    """Parse and validate a raw YAML dict, expanding ${VAR} env vars."""
     expanded = _expand_env(raw)
     root = ConfigFile.model_validate(expanded)
     return root.resolve()

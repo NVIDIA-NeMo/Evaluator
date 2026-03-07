@@ -55,7 +55,7 @@ def list_harnesses():
 def list_skills(data_dir):
     """List available NeMo Skills benchmarks (requires nemo-skills)."""
     try:
-        from nemo_evaluator.adapters.skills import list_skills_benchmarks
+        from nemo_evaluator.environments.skills import list_skills_benchmarks
     except ImportError:
         click.echo("nemo-skills is not installed. Install: pip install nemo-skills", err=True)
         return

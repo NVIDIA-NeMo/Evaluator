@@ -16,11 +16,7 @@ class ProgressTracker(Protocol):
 
 
 class ConsoleProgress:
-    """Progress tracker that auto-detects TTY.
-
-    When attached to a terminal: live progress bar with carriage returns.
-    When not a TTY (SLURM logs, Docker, CI): periodic line-based logging.
-    """
+    """TTY-aware progress tracker: live bar on terminal, periodic logs otherwise."""
 
     def __init__(self, log_interval: float = 30.0) -> None:
         self._t0 = 0.0

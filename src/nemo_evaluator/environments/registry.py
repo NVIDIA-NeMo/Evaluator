@@ -1,12 +1,14 @@
-"""Discover and register EvalEnvironment subclasses by name."""
+"""Environment registry: discover and resolve by name or URI."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import logging
+from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     from nemo_evaluator.environments.base import EvalEnvironment
 
+logger = logging.getLogger(__name__)
 
 _REGISTRY: dict[str, type[EvalEnvironment]] = {}
 _builtins_loaded = False
@@ -20,27 +22,100 @@ def _ensure_builtins() -> None:
 
 
 def register(name: str):
-    """Class decorator that registers an EvalEnvironment subclass under *name*."""
-
-    def wrapper(cls: type[EvalEnvironment]):
+    def wrapper(cls: type["EvalEnvironment"]):
         _REGISTRY[name.lower()] = cls
         cls.name = name
         return cls
-
     return wrapper
 
 
-def get_environment(name: str) -> EvalEnvironment:
-    """Instantiate and return an EvalEnvironment by registered name."""
+# --- Namespace factories (prefix/task) ---
+
+def _make_lm_eval(task: str, **kwargs: Any) -> "EvalEnvironment":
+    from nemo_evaluator.environments.lm_eval import LMEvalEnvironment
+    return LMEvalEnvironment(task_name=task, num_fewshot=kwargs.get("num_fewshot"), limit=kwargs.get("limit"))
+
+
+_NAMESPACE_FACTORIES: dict[str, Callable[..., "EvalEnvironment"]] = {
+    "lm-eval": _make_lm_eval,
+}
+
+
+# --- URI scheme factories (scheme://rest) ---
+
+def _make_gym(rest: str, **kwargs: Any) -> "EvalEnvironment":
+    from nemo_evaluator.environments.gym import GymEnvironment
+    return GymEnvironment(f"http://{rest}")
+
+
+def _make_gym_managed(rest: str, **kwargs: Any) -> "EvalEnvironment":
+    from nemo_evaluator.environments.gym import ManagedGymEnvironment
+    if rest.startswith("cmd:"):
+        return ManagedGymEnvironment(server_cmd=rest[4:])
+    if rest.startswith("module:"):
+        return ManagedGymEnvironment(server_module=rest[7:])
+    return ManagedGymEnvironment(nel_benchmark=rest)
+
+
+def _make_skills(rest: str, **kwargs: Any) -> "EvalEnvironment":
+    from nemo_evaluator.environments.skills import SkillsEnvironment
+    return SkillsEnvironment(rest)
+
+
+def _make_pi(rest: str, **kwargs: Any) -> "EvalEnvironment":
+    from nemo_evaluator.environments.pi import PIEnvironment
+    return PIEnvironment(rest)
+
+
+_URI_FACTORIES: dict[str, Callable[..., "EvalEnvironment"]] = {
+    "gym": _make_gym,
+    "gym-managed": _make_gym_managed,
+    "skills": _make_skills,
+    "pi": _make_pi,
+}
+
+
+def _resolve_namespace(name: str, **kwargs: Any) -> "EvalEnvironment | None":
+    if "/" not in name:
+        return None
+    prefix, task = name.split("/", 1)
+    factory = _NAMESPACE_FACTORIES.get(prefix.lower())
+    return factory(task, **kwargs) if factory else None
+
+
+def _resolve_uri(uri: str, **kwargs: Any) -> "EvalEnvironment | None":
+    for scheme, factory in _URI_FACTORIES.items():
+        prefix = f"{scheme}://"
+        if uri.startswith(prefix):
+            return factory(uri[len(prefix):], **kwargs)
+    return None
+
+
+def get_environment(name: str, **kwargs: Any) -> "EvalEnvironment":
+    """Resolve an environment by name, namespace, or URI.
+
+    Resolution order:
+      1. URI scheme (gym://, skills://, pi://, gym-managed://)
+      2. Namespace prefix (lm-eval/task)
+      3. BYOB registry lookup
+    """
     _ensure_builtins()
+
+    uri_env = _resolve_uri(name, **kwargs)
+    if uri_env is not None:
+        return uri_env
+
+    ns_env = _resolve_namespace(name, **kwargs)
+    if ns_env is not None:
+        return ns_env
+
     key = name.lower()
     if key not in _REGISTRY:
         available = ", ".join(sorted(_REGISTRY)) or "(none)"
-        raise KeyError(f"Unknown benchmark {name!r}. Available: {available}")
+        raise KeyError(f"Unknown environment {name!r}. Available: {available}")
     return _REGISTRY[key]()
 
 
 def list_environments() -> list[str]:
-    """Return all registered benchmark names."""
     _ensure_builtins()
     return sorted(_REGISTRY)

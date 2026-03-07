@@ -1,8 +1,4 @@
-"""Filesystem response cache keyed by request hash.
-
-Avoids re-calling the model for identical prompts across runs.
-Enable via ModelClient(cache_dir="./cache") or NEL_CACHE_DIR env var.
-"""
+"""Filesystem response cache keyed by request hash."""
 from __future__ import annotations
 
 import hashlib

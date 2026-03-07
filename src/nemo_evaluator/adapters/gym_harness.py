@@ -1,8 +1,4 @@
-"""Wraps EvalEnvironment as a Gym resource server.
-
-Fills nemo-gym's resources_servers/nemo_evaluator/ slot, making
-any Evaluator benchmark available to ng_collect_rollouts.
-"""
+"""Wraps EvalEnvironment as a Gym resource server."""
 from __future__ import annotations
 
 import json
@@ -27,10 +23,10 @@ class GymHarness:
         self.env = env
         self.eval_type = eval_type or env.name
 
-    def get_dataset(self) -> list[dict[str, Any]]:
+    async def get_dataset(self) -> list[dict[str, Any]]:
         rows = []
         for idx in range(len(self.env)):
-            seed = self.env.seed(idx)
+            seed = await self.env.seed(idx)
             rows.append({
                 "responses_create_params": {
                     "input": [{"role": "user", "content": seed.prompt}],
@@ -42,8 +38,8 @@ class GymHarness:
             })
         return rows
 
-    def export_jsonl(self, output_dir: str | Path) -> Path:
-        rows = self.get_dataset()
+    async def export_jsonl(self, output_dir: str | Path) -> Path:
+        rows = await self.get_dataset()
         path = Path(output_dir) / f"{self.eval_type}.jsonl"
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w") as f:
@@ -52,7 +48,7 @@ class GymHarness:
         return path
 
     async def verify(self, text: str, expected: str, **meta: Any) -> tuple[float, str | None]:
-        result = self.env.verify(text, expected, **meta)
+        result = await self.env.verify(text, expected, **meta)
         return result.reward, result.extracted_answer
 
     def as_fastapi_app(self) -> FastAPI:

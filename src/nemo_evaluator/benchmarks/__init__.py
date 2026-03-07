@@ -1,13 +1,17 @@
-"""Built-in BYOB benchmark reference implementations.
+"""Built-in benchmarks -- all defined using the BYOB @benchmark + @scorer pattern.
 
-These exist as templates showing how to write an EvalEnvironment with seed/verify.
-For standard benchmarks (MMLU, MATH, HumanEval, IFEval, GPQA, DROP, ...),
-use the harness adapters instead:
-
-    nel harness run --harness simple-evals --eval mmlu
-    nel harness run --harness lm-eval --tasks arc_easy,hellaswag
+These are first-party benchmarks that ship with nemo-evaluator. External users
+use the exact same API to define their own benchmarks.
 """
-from nemo_evaluator.benchmarks.gsm8k import GSM8KEnvironment
-from nemo_evaluator.benchmarks.triviaqa import TriviaQAEnvironment
-
-__all__ = ["GSM8KEnvironment", "TriviaQAEnvironment"]
+# Import triggers @register() for each benchmark
+import nemo_evaluator.benchmarks.drop  # noqa: F401
+import nemo_evaluator.benchmarks.gpqa  # noqa: F401
+import nemo_evaluator.benchmarks.gsm8k  # noqa: F401
+import nemo_evaluator.benchmarks.healthbench  # noqa: F401
+import nemo_evaluator.benchmarks.humaneval  # noqa: F401
+import nemo_evaluator.benchmarks.math500  # noqa: F401
+import nemo_evaluator.benchmarks.mgsm  # noqa: F401
+import nemo_evaluator.benchmarks.mmlu  # noqa: F401
+import nemo_evaluator.benchmarks.mmlu_pro  # noqa: F401
+import nemo_evaluator.benchmarks.simpleqa  # noqa: F401
+import nemo_evaluator.benchmarks.triviaqa  # noqa: F401

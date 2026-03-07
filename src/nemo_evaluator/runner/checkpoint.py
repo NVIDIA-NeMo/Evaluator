@@ -1,8 +1,4 @@
-"""Checkpoint and resume for multi-benchmark evaluation runs.
-
-Persists per-benchmark completion state so partial runs can be resumed.
-File locking prevents corruption from concurrent writers.
-"""
+"""Checkpoint and resume for multi-benchmark evaluation runs."""
 from __future__ import annotations
 
 import fcntl
@@ -32,7 +28,7 @@ class CheckpointManager:
                         return json.load(f)
                     finally:
                         fcntl.flock(f, fcntl.LOCK_UN)
-            except Exception as e:
+            except (json.JSONDecodeError, OSError, ValueError) as e:
                 logger.warning("Corrupt checkpoint, starting fresh: %s", e)
         return {"completed_benchmarks": {}, "failed_benchmarks": {}}
 

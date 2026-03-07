@@ -1,11 +1,4 @@
-"""Adapter for legacy NeMo Evaluator containers.
-
-Runs an existing eval-factory container (simple-evals, lm-evaluation-harness,
-nemo-skills, mtbench, etc.) and parses its output into the NEL artifact format.
-
-This gives aggregate scores from any harness without per-harness integration,
-but does not provide per-request trajectories (the harness owns the model call).
-"""
+"""Adapter for legacy NeMo Evaluator containers."""
 
 from __future__ import annotations
 
@@ -122,7 +115,6 @@ def _parse_metrics_json(path: Path) -> dict[str, Any]:
 
 
 def _extract_scores(results_data: dict[str, Any]) -> dict[str, Any]:
-    """Extract scores from the nested tasks/groups structure in results.yml."""
     scores: dict[str, Any] = {}
     results = results_data.get("results", {})
 
@@ -154,15 +146,6 @@ def _extract_scores(results_data: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_container_eval(cfg: ContainerConfig, output_dir: str | None = None) -> dict[str, Any]:
-    """Run a legacy evaluator container and return parsed results as a bundle dict.
-
-    Args:
-        cfg: Container configuration (task, model, params).
-        output_dir: Where to store results. Uses a temp dir if not provided.
-
-    Returns:
-        Bundle dict compatible with write_all().
-    """
     image = _resolve_image(cfg)
     run_config = _build_run_config(cfg)
 
@@ -229,5 +212,4 @@ def run_container_eval(cfg: ContainerConfig, output_dir: str | None = None) -> d
 
 
 def list_harnesses() -> list[dict[str, str]]:
-    """Return the list of known legacy harnesses and their container images."""
     return [{"harness": h, "image": i} for h, i in sorted(HARNESS_IMAGES.items())]

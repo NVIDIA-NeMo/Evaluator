@@ -57,14 +57,14 @@ class TestParseConfig:
             "evaluation": {
                 "tasks": [
                     {"harness": "lm-eval", "tasks": ["gsm8k"]},
-                    {"harness": "simple-evals", "eval": "mmlu"},
+                    {"harness": "lm-eval", "tasks": ["aime25"]},
                 ]
             }
         }
         cfg = parse_config(raw)
         assert len(cfg.tasks) == 2
         assert cfg.tasks[0].harness == "lm-eval"
-        assert cfg.tasks[1].eval == "mmlu"
+        assert cfg.tasks[1].tasks == ["aime25"]
 
     def test_empty_tasks_raises(self):
         with pytest.raises(Exception, match="at least one task"):
@@ -80,7 +80,7 @@ class TestParseConfig:
                 "tasks": [
                     {"benchmark": "gsm8k", "repeats": 4},
                     {"adapter": "gym://localhost:9090"},
-                    {"harness": "simple-evals", "eval": "math", "examples": 500},
+                    {"harness": "lm-eval", "tasks": ["aime25"], "fewshot": 0},
                 ]
             }
         }
@@ -88,4 +88,4 @@ class TestParseConfig:
         assert len(cfg.tasks) == 3
         assert cfg.tasks[0].benchmark == "gsm8k"
         assert cfg.tasks[1].adapter == "gym://localhost:9090"
-        assert cfg.tasks[2].harness == "simple-evals"
+        assert cfg.tasks[2].harness == "lm-eval"

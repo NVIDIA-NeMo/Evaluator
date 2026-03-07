@@ -1,11 +1,4 @@
-"""Pydantic models for config validation and serialized output.
-
-Runtime types (ModelResponse, StepRecord, RuntimeStats, FailureReport) live
-in observability.types as lightweight dataclasses. This module handles:
-- Input config validation (EvalConfig, RetryConfig, ShardConfig)
-- Serialized bundle schema (EvalBundle, BenchmarkResult)
-- Regression comparison (RegressionReport, RegressionDelta)
-"""
+"""Pydantic models for config validation and serialized output."""
 
 from __future__ import annotations
 
@@ -57,7 +50,6 @@ class EvalConfig(BaseModel):
 
 
 class EvalBundle(BaseModel):
-    """Central data structure produced by every evaluation run."""
 
     run_id: str
     config_hash: str

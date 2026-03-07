@@ -75,7 +75,7 @@ def merge_results(shard_dirs: list[str | Path], output_dir: str | Path, n_repeat
 
     # Use ACTUAL per-problem repeat counts, not the global n_repeats arg.
     # This handles partial shards correctly.
-    problem_counts: dict[int, list[int, int]] = {}  # {idx: [correct, total]}
+    problem_counts: dict[int, list[int]] = {}  # {idx: [correct, total]}
     for r in all_results:
         idx = r["problem_idx"]
         if idx not in problem_counts:

@@ -1,20 +1,4 @@
-"""Adapter Server proxy: captures model call trajectories for external environments.
-
-When an external system (Gym, Harbor, PI agent) owns the model call, Evaluator
-has no direct visibility into request/response pairs. The proxy solves this by
-sitting between the agent and the model endpoint:
-
-    Agent -> Proxy (captures) -> Real Model Endpoint
-
-Usage:
-    proxy = AdapterProxy(target_url="https://api.nvidia.com/v1")
-    app = proxy.app  # FastAPI app, mount it or run standalone
-
-    # Set the agent's model URL to: http://proxy-host:port/problem/{task_id}/v1/
-    # The proxy forwards to the real endpoint and logs every call tagged with task_id.
-
-All captured trajectories are available via proxy.get_trajectories(task_id).
-"""
+"""Reverse proxy that captures model API call trajectories per task_id."""
 from __future__ import annotations
 
 import logging
@@ -42,14 +26,7 @@ class ProxyCallRecord:
 
 
 class AdapterProxy:
-    """Reverse proxy that captures model API calls per task_id.
-
-    Forwards all requests to target_url while recording full request/response
-    pairs tagged with the task_id from the URL path.
-
-    Path routing: /problem/{task_id}/v1/chat/completions
-                  -> {target_url}/v1/chat/completions
-    """
+    """Forwards to target_url, records request/response pairs per task_id."""
 
     def __init__(self, target_url: str, api_key: str | None = None,
                  timeout: float = 120.0) -> None:
@@ -68,7 +45,7 @@ class AdapterProxy:
             body_bytes = await request.body()
             try:
                 body = await request.json()
-            except Exception:
+            except (ValueError, UnicodeDecodeError):
                 body = {}
 
             forward_url = f"{self.target_url}/{path}"
@@ -89,7 +66,7 @@ class AdapterProxy:
 
             try:
                 resp_body = resp.json()
-            except Exception:
+            except (ValueError, UnicodeDecodeError):
                 resp_body = {"raw": resp.text[:1000]}
 
             content = ""

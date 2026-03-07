@@ -12,11 +12,11 @@ class DummyEnv(EvalEnvironment):
         super().__init__()
         self._dataset = [{"q": f"Question {i}", "a": str(i)} for i in range(5)]
 
-    def seed(self, idx: int) -> SeedResult:
+    async def seed(self, idx: int) -> SeedResult:
         row = self._dataset[idx]
         return SeedResult(prompt=row["q"], expected_answer=row["a"])
 
-    def verify(self, response: str, expected: str, **meta) -> VerifyResult:
+    async def verify(self, response: str, expected: str, **meta) -> VerifyResult:
         return VerifyResult(
             reward=1.0 if response.strip() == expected else 0.0,
             extracted_answer=response.strip(),

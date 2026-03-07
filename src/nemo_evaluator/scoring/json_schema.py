@@ -1,9 +1,4 @@
-"""JSON schema validation scoring for structured output evaluation.
-
-Validates model responses against expected JSON schemas. Useful for
-function-calling benchmarks (BFCL), structured output tasks, and
-API response validation.
-"""
+"""JSON schema validation scoring for structured output evaluation."""
 from __future__ import annotations
 
 import json
@@ -17,7 +12,6 @@ _JSON_BLOCK_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)```")
 
 
 def extract_json(text: str) -> Any | None:
-    """Extract JSON from model output, handling markdown code blocks."""
     block = _JSON_BLOCK_RE.search(text)
     if block:
         text = block.group(1).strip()
@@ -39,14 +33,6 @@ def extract_json(text: str) -> Any | None:
 
 
 def validate_json_schema(response: str, schema: dict[str, Any]) -> dict[str, Any]:
-    """Validate model response against a JSON schema.
-
-    Returns a dict with:
-    - valid: bool
-    - extracted: the parsed JSON (or None)
-    - errors: list of validation error messages
-    - score: 1.0 if valid, 0.0 otherwise
-    """
     extracted = extract_json(response)
     if extracted is None:
         return {
@@ -66,7 +52,6 @@ def validate_json_schema(response: str, schema: dict[str, Any]) -> dict[str, Any
 
 
 def _validate(data: Any, schema: dict[str, Any], path: str = "$") -> list[str]:
-    """Basic JSON schema validation (type, required, properties, items)."""
     errors: list[str] = []
     expected_type = schema.get("type")
 

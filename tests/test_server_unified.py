@@ -14,10 +14,10 @@ class _TestBench(EvalEnvironment):
         super().__init__()
         self._dataset = [{"q": "2+2", "a": "4"}]
 
-    def seed(self, idx):
+    async def seed(self, idx):
         return SeedResult(prompt="2+2", expected_answer="4")
 
-    def verify(self, response, expected, **meta):
+    async def verify(self, response, expected, **meta):
         return VerifyResult(
             reward=1.0 if response.strip() == expected.strip() else 0.0,
             extracted_answer=response.strip(),

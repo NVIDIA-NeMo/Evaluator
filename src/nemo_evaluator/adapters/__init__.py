@@ -1,15 +1,12 @@
-from nemo_evaluator.adapters.base import EnvironmentAdapter
-from nemo_evaluator.adapters.gym import GymAdapter
+"""Adapters: Gym harness server, proxy server, container runner.
+
+Environments (Gym, Skills, PI, lm-eval) now live in nemo_evaluator.environments.
+"""
 from nemo_evaluator.adapters.gym_harness import GymHarness
 
-__all__ = [
-    "EnvironmentAdapter", "GymAdapter", "GymHarness",
-    "PIAdapter", "SkillsAdapter", "ContainerConfig", "run_container_eval",
-]
+__all__ = ["GymHarness", "ContainerConfig", "run_container_eval"]
 
 _LAZY = {
-    "PIAdapter": ("nemo_evaluator.adapters.pi", "PIAdapter"),
-    "SkillsAdapter": ("nemo_evaluator.adapters.skills", "SkillsAdapter"),
     "ContainerConfig": ("nemo_evaluator.adapters.container", "ContainerConfig"),
     "run_container_eval": ("nemo_evaluator.adapters.container", "run_container_eval"),
 }

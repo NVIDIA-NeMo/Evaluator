@@ -37,11 +37,11 @@ class VerifyResponse(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-def _export_jsonl(env: EvalEnvironment, path: Path) -> None:
+async def _export_jsonl(env: EvalEnvironment, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
         for idx in range(len(env)):
-            seed = env.seed(idx)
+            seed = await env.seed(idx)
             f.write(json.dumps({
                 "responses_create_params": {
                     "input": [{"role": "user", "content": seed.prompt}],
@@ -62,7 +62,7 @@ def generate_app(
     ds_size = len(env)
 
     if data_export_dir:
-        _export_jsonl(env, Path(data_export_dir) / f"{env.name}.jsonl")
+        asyncio.run(_export_jsonl(env, Path(data_export_dir) / f"{env.name}.jsonl"))
 
     def _validate_idx(idx: int) -> None:
         if idx < 0 or idx >= ds_size:
@@ -79,7 +79,7 @@ def generate_app(
     @app.post("/seed_session", response_model=SeedSessionResponse)
     async def seed_session(body: SeedSessionRequest = SeedSessionRequest()):
         _validate_idx(body.idx)
-        sr = await asyncio.to_thread(env.seed, body.idx)
+        sr = await env.seed(body.idx)
         return SeedSessionResponse(
             prompt=sr.prompt, expected_answer=sr.expected_answer,
             metadata=sr.metadata, messages=sr.messages, system=sr.system,
@@ -97,7 +97,7 @@ def generate_app(
             response_text = body.get("response", "")
             expected = body["expected"]
             meta = body.get("metadata", {})
-            vr = await asyncio.to_thread(env.verify, response_text, expected, **meta)
+            vr = await env.verify(response_text, expected, **meta)
             return VerifyResponse(reward=vr.reward, extracted_answer=vr.extracted_answer,
                                   scoring_details=vr.scoring_details, metadata=vr.metadata)
         else:
@@ -105,7 +105,7 @@ def generate_app(
             text = extract_assistant_text(raw_response)
             expected = body.get("expected_answer", "") or body.get("expected", "")
             meta = body.get("metadata", {})
-            vr = await asyncio.to_thread(env.verify, text, expected, **meta)
+            vr = await env.verify(text, expected, **meta)
             resp = {
                 "reward": vr.reward,
                 "expected_answer": expected,

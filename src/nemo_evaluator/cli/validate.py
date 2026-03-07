@@ -24,6 +24,7 @@ def validate_cmd(benchmark, samples, model_url, model_id, api_key, verbose):
     from nemo_evaluator.observability.progress import ConsoleProgress
     from nemo_evaluator.runner.eval_loop import run_evaluation
     from nemo_evaluator.runner.model_client import ModelClient
+    from nemo_evaluator.runner.solver import ChatSolver
 
     try:
         env = get_environment(benchmark)
@@ -31,9 +32,10 @@ def validate_cmd(benchmark, samples, model_url, model_id, api_key, verbose):
         raise click.ClickException(f"Unknown benchmark: {benchmark!r}. Run 'nel list-environments'.")
 
     client = ModelClient(base_url=model_url, model=model_id, api_key=api_key)
+    solver = ChatSolver(client)
 
     bundle = asyncio.run(run_evaluation(
-        env, client, n_repeats=1, max_problems=samples, progress=ConsoleProgress()))
+        env, solver, n_repeats=1, max_problems=samples, progress=ConsoleProgress()))
     results = bundle.get("_results", [])
 
     correct = sum(1 for r in results if r["reward"] > 0)

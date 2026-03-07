@@ -1,7 +1,4 @@
-"""LLM-as-judge scoring for open-ended evaluation.
-
-Supports reference-based and reference-free judging with configurable rubrics.
-"""
+"""LLM-as-judge scoring for open-ended evaluation."""
 from __future__ import annotations
 
 import json
@@ -62,7 +59,6 @@ _BARE_SCORE_RE = re.compile(r'\b(\d+)\s*/\s*\d+\b')
 
 
 def parse_judge_response(text: str, max_score: int = 5) -> dict[str, Any]:
-    """Parse a judge model's response into a score and reasoning."""
     try:
         data = json.loads(text)
         if isinstance(data, dict) and "score" in data:
@@ -107,11 +103,7 @@ async def judge_score(
     client: Any = None,
     config: JudgeConfig | None = None,
 ) -> dict[str, Any]:
-    """End-to-end LLM-as-judge scoring: build prompt, call model, parse result.
-
-    Requires a ModelClient instance. Returns parsed score with full audit trail.
-    Optionally performs swap-check (position bias detection) when config.swap_check=True.
-    """
+    """End-to-end LLM-as-judge: build prompt, call model, parse result."""
     if client is None:
         raise ValueError("judge_score requires a ModelClient instance")
 
