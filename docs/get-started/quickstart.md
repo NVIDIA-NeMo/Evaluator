@@ -2,7 +2,7 @@
 
 Run a complete evaluation in under 5 minutes.
 
-## Step 1: Set your API key
+## Step 1: Set your model endpoint
 
 ```bash
 export NEMO_API_KEY="your-api-key-here"
@@ -11,10 +11,13 @@ export NEMO_API_KEY="your-api-key-here"
 ## Step 2: Run an evaluation
 
 ```bash
-nel run --benchmark gsm8k --repeats 2 --max-problems 20
+nel run --env gsm8k \
+  --model-url https://api.example.com/v1 \
+  --model-id my-model \
+  --repeats 2 --max-problems 20
 ```
 
-You'll see a live progress bar:
+Live progress output:
 
 ```
 gsm8k  [12/20]  60.0%  ████████████░░░░░░░░  acc=0.750  1.2k tok/s  ETA 0:32
@@ -39,7 +42,7 @@ gsm8k
     failure_analysis: failure_analysis.json
 ```
 
-### What each artifact contains
+### Artifact reference
 
 | File | Contents | Use case |
 |------|----------|----------|
@@ -52,10 +55,8 @@ gsm8k
 ## Step 4: Compare against a baseline
 
 ```bash
-# Run the candidate
-nel run --benchmark gsm8k --repeats 4 -o ./results/candidate
+nel run --env gsm8k --repeats 4 -o ./results/candidate
 
-# Compare
 nel regression ./results/baseline/eval-*.json ./results/candidate/eval-*.json --strict
 ```
 
@@ -82,11 +83,11 @@ evaluation:
   model_id: azure/openai/gpt-5.2
 
   tasks:
-    - benchmark: gsm8k
+    - env: gsm8k
       repeats: 4
       system_prompt: "Solve step by step. Put your final answer in \\boxed{}."
 
-    - benchmark: triviaqa
+    - env: triviaqa
       repeats: 1
       max_problems: 100
 ```
@@ -99,7 +100,7 @@ Each task gets its own output directory with the full artifact suite.
 
 ## Next Steps
 
-- {doc}`../tutorials/byob` -- Write your own benchmark
+- {doc}`../tutorials/byob` -- Write your own benchmark with `@benchmark` + `@scorer`
 - {doc}`../tutorials/gym-integration` -- Serve benchmarks for Gym training
 - {doc}`../tutorials/distributed-eval` -- Scale to thousands of problems
 - {doc}`../architecture/index` -- Understand how the system works

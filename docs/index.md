@@ -1,6 +1,6 @@
 # NeMo Evaluator
 
-Benchmark environments, evaluation runner, and environment-compatible service for decision-grade LLM evaluation.
+LLM evaluation framework: benchmark environments, pluggable solvers, multi-format reporting.
 
 ::::{grid} 2
 :gutter: 3
@@ -16,23 +16,31 @@ Install, configure, and run your first evaluation in 5 minutes.
 :link: tutorials/index
 :link-type: doc
 
-Step-by-step guides for common workflows.
+Build your own benchmark, integrate with Gym, and more.
 :::
 
 :::{grid-item-card} Architecture
 :link: architecture/index
 :link-type: doc
 
-How the system works: environments, adapters, runners, and observability.
+How the system works: environments, solvers, executors, and observability.
 :::
 
 :::{grid-item-card} Deployment
 :link: deployment/index
 :link-type: doc
 
-Deploy on SLURM, Kubernetes, Ray, Docker, and CI/CD.
+Deploy on SLURM, Docker, and CI/CD pipelines.
 :::
 ::::
+
+## Highlights
+
+- **Everything is an Environment.** Built-in benchmarks, NeMo Skills, Gym remotes, and lm-eval tasks all resolve through one registry.
+- **`@benchmark` + `@scorer`.** Define a complete benchmark in under 10 lines of Python.
+- **Pluggable solvers.** `ChatSolver`, `CompletionSolver`, `AgentSolver` -- swap inference strategy without touching benchmarks.
+- **Executors.** Run locally, in Docker, or on SLURM clusters with automatic model deployment.
+- **11 built-in benchmarks.** MMLU, MMLU-Pro, MATH-500, GPQA, GSM8K, DROP, MGSM, TriviaQA, HumanEval, SimpleQA, HealthBench.
 
 ```{toctree}
 :maxdepth: 2
@@ -46,6 +54,4 @@ evaluation/benchmarks
 evaluation/scoring
 deployment/index
 api/index
-deployment-patterns
-usability-report
 ```

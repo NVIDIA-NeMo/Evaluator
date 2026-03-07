@@ -3,7 +3,7 @@
 ## Requirements
 
 - Python 3.10+
-- An OpenAI-compatible model endpoint (NVIDIA API Catalog, vLLM, TGI, etc.)
+- An OpenAI-compatible model endpoint (NVIDIA API Catalog, vLLM, NIM, etc.)
 
 ## Install from Source
 
@@ -13,20 +13,17 @@ cd nemo-evaluator-next
 pip install -e ".[scoring]"
 ```
 
-## Optional Extras
+## Install Extras
 
 | Extra | Command | What it adds |
 |-------|---------|-------------|
 | `scoring` | `pip install -e ".[scoring]"` | sympy for symbolic math comparison |
 | `stats` | `pip install -e ".[stats]"` | scipy for normal confidence intervals |
-| `ray` | `pip install -e ".[ray]"` | Ray distributed evaluation |
 | `pi` | `pip install -e ".[pi]"` | Prime Intellect `verifiers` integration |
 | `skills` | `pip install -e ".[skills]"` | NeMo Skills benchmark integration |
-| `harnesses` | `pip install -e ".[harnesses]"` | lm-evaluation-harness adapter |
+| `harnesses` | `pip install -e ".[harnesses]"` | lm-evaluation-harness tasks |
 | `all` | `pip install -e ".[all]"` | Everything above |
 | `dev` | `pip install -e ".[dev]"` | pytest, ruff, all extras |
-
-**Note:** `simple-evals` is installed separately: `pip install simple-evals` or `git clone https://github.com/openai/simple-evals.git` and pass `--repo-path` to `nel harness run`.
 
 ## Verify Installation
 
@@ -38,16 +35,18 @@ nel list-environments
 Expected output:
 
 ```
+nemo-evaluator 0.4.0
+
 Available environments:
-  - gsm8k
-  - triviaqa
+  drop, gpqa, gsm8k, healthbench, humaneval, math500,
+  mgsm, mmlu, mmlu_pro, simpleqa, triviaqa
 ```
 
 ## Docker
 
 ```bash
 docker build -t nemo-evaluator .
-docker run nemo-evaluator list-environments
+docker run nemo-evaluator nel list-environments
 ```
 
 ## Next Steps

@@ -1,64 +1,144 @@
-# Scoring & Metrics
+# Scoring
+
+## Overview
+
+In 0.4.0, **environments own their scoring**. Each benchmark defines its own scorer via the `@scorer` decorator. The framework provides two shared scoring services for cases that require external infrastructure:
+
+| Module | Purpose |
+|--------|---------|
+| `scoring/judge.py` | LLM-as-judge pipeline for benchmarks that use `needs_judge()` |
+| `scoring/json_schema.py` | JSON schema validation for structured outputs |
+
+Everything else -- string matching, regex extraction, numeric comparison, code execution -- lives in `environments/definitions.py` as scoring primitives that scorers call directly.
 
 ## Scoring Primitives
 
-### `math_equal(response, expected)`
+These functions are the building blocks for `@scorer` functions. All are importable from the top-level package.
 
-Symbolic math comparison. Tries numeric comparison first, falls back to sympy.
+### `exact_match(sample)`
+
+Normalized string comparison: lowercase, strip whitespace and punctuation, collapse articles.
 
 ```python
-from nemo_evaluator.scoring import math_equal
+from nemo_evaluator import exact_match, ScorerInput
 
-math_equal("72", "72.0")           # True
-math_equal("\\frac{1}{2}", "0.5")  # True (sympy)
-math_equal("3*x + 1", "1 + 3x")   # True (sympy)
-math_equal("42", "43")             # False
+s = ScorerInput(response="  Paris.  ", target="paris")
+exact_match(s)  # {"correct": True}
 ```
 
-Requires `pip install -e ".[scoring]"` for sympy.
+### `multichoice_regex(sample)`
 
-### `exact_match(response, expected)`
-
-Normalized string comparison (lowercase, strip whitespace and punctuation).
+Extracts a letter (A-D by default) from "Answer: X" patterns.
 
 ```python
-from nemo_evaluator.scoring import exact_match
+from nemo_evaluator import multichoice_regex, ScorerInput
 
-exact_match("Paris", "paris")    # True
-exact_match(" Paris ", "Paris")  # True
-exact_match("Paris.", "Paris")   # True
-exact_match("London", "Paris")   # False
+s = ScorerInput(response="The answer is B because...\nAnswer: B", target="B")
+multichoice_regex(s)  # {"correct": True, "extracted": "B"}
+
+# Custom pattern for 10-choice (A-J):
+multichoice_regex(s, pattern=r"(?i)Answer\s*:\s*([A-J])")
 ```
 
-### `extract_answer(text)`
+### `answer_line(sample)`
 
-Extracts the final answer from model output. Tries in order:
-
-1. `\boxed{answer}` -- LaTeX boxed format
-2. `The answer is answer` -- natural language
-3. Last standalone number on the last line
+Extracts the text after "Answer:" and compares with math normalization.
 
 ```python
-from nemo_evaluator.scoring import extract_answer
+from nemo_evaluator import answer_line, ScorerInput
 
-extract_answer("The calculation gives \\boxed{42}.")  # "42"
-extract_answer("Therefore, the answer is 42.")        # "42"
-extract_answer("Step 1: 20+22=42\n42")                # "42"
+s = ScorerInput(response="Step 1: ...\nAnswer: 42", target="42")
+answer_line(s)  # {"correct": True, "extracted": "42"}
+```
+
+### `numeric_match(sample)`
+
+Extracts the last number in the response.
+
+```python
+from nemo_evaluator import numeric_match, ScorerInput
+
+s = ScorerInput(response="The total is 20 + 22 = 42", target="42")
+numeric_match(s)  # {"correct": True, "extracted": "42"}
+```
+
+### `fuzzy_match(sample)`
+
+Normalized substring containment. Supports multiple correct answers via `metadata["correct_answers"]`.
+
+```python
+from nemo_evaluator import fuzzy_match, ScorerInput
+
+s = ScorerInput(response="The capital is Canberra.", target="Canberra",
+                metadata={"correct_answers": ["Canberra", "canberra"]})
+fuzzy_match(s)  # {"correct": True, "extracted": "The capital is Canberra."}
+```
+
+### `code_sandbox(sample)`
+
+Runs code in a Docker container with network isolation, memory limits, and timeouts. Extracts code from markdown fences, concatenates with prompt code and test harness, and checks the exit code.
+
+```python
+from nemo_evaluator import code_sandbox, ScorerInput
+
+s = ScorerInput(
+    response="```python\ndef add(a, b):\n    return a + b\n```",
+    target="add",
+    metadata={"_prompt": "def add(a, b):\n", "_test": "assert add(1, 2) == 3",
+              "entry_point": "add"},
+)
+code_sandbox(s)  # {"correct": True, "extracted": "def add(a, b):\n    return a + b"}
+```
+
+Requires Docker daemon access.
+
+### `needs_judge(sample)`
+
+Signals that this sample requires LLM-as-judge scoring. Returns `{"correct": False, "needs_judge": True}` so the eval loop's judge post-processor handles it.
+
+Used by SimpleQA and HealthBench.
+
+## LLM-as-Judge Pipeline
+
+Benchmarks that use `needs_judge()` are scored in a post-processing step by `scoring/judge.py`. The judge pipeline:
+
+1. Collects all samples flagged with `needs_judge: True`
+2. Constructs judge prompts from the response and expected answer
+3. Calls the judge model (configured via `--judge-url` / `JudgeConfig`)
+4. Parses the judge verdict and updates rewards
+
+Configure the judge model:
+
+```bash
+nel run --env simpleqa \
+  --model-url https://api.example.com/v1 --model-id my-model \
+  --judge-url https://api.example.com/v1 --judge-id gpt-4o
+```
+
+## JSON Schema Scoring
+
+`scoring/json_schema.py` validates structured model outputs against a JSON schema:
+
+```python
+from nemo_evaluator.scoring.json_schema import validate_json_output
+
+result = validate_json_output(response_text, schema={"type": "object", "required": ["answer"]})
+# {"valid": True, "parsed": {"answer": "42"}}
 ```
 
 ## Metrics
 
 ### pass@k
 
-The standard Codex-style pass@k metric. Given `n` attempts per problem with `c` correct:
+Standard Codex-style pass@k. Given `n` attempts per problem with `c` correct:
 
 $$\text{pass@k} = 1 - \frac{\binom{n-c}{k}}{\binom{n}{k}}$$
 
 ```python
 from nemo_evaluator.metrics import pass_at_k
 
-pass_at_k(n=8, c=3, k=1)   # Probability at least 1 of 1 sample is correct
-pass_at_k(n=8, c=3, k=4)   # Probability at least 1 of 4 samples is correct
+pass_at_k(n=8, c=3, k=1)   # probability at least 1/1 is correct
+pass_at_k(n=8, c=3, k=4)   # probability at least 1/4 is correct
 ```
 
 ### Bootstrap Confidence Intervals
@@ -68,19 +148,17 @@ pass_at_k(n=8, c=3, k=4)   # Probability at least 1 of 4 samples is correct
 ```python
 from nemo_evaluator.metrics import bootstrap_ci
 
-scores = [pass_at_k(n, c, 1) for n, c in problem_results]
 ci = bootstrap_ci(scores)
 print(f"pass@1: {ci.value:.4f} [{ci.ci_lower:.4f}, {ci.ci_upper:.4f}]")
 ```
 
 ### Category Breakdown
 
-When problems have category metadata, per-category accuracy is computed automatically:
+When problems include category metadata, per-category accuracy is computed automatically:
 
 ```python
 from nemo_evaluator.metrics.aggregation import category_breakdown
 
-# results is a list of dicts with metadata.category
 cats = category_breakdown(results, "category")
 for c in cats:
     print(f"{c.category}: {c.mean_reward:.3f} ({c.n_samples} samples)")
@@ -88,7 +166,7 @@ for c in cats:
 
 ## Failure Analysis
 
-The `ArtifactCollector` automatically categorizes failures:
+The `ArtifactCollector` categorizes failures automatically:
 
 | Category | Detection |
 |----------|-----------|

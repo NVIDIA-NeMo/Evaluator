@@ -1,46 +1,53 @@
 # Changelog
 
-## 0.3.0 (2026-02-25)
+## 0.4.0 (2026-03-07)
 
 ### Architecture
 
-- **StepEnvironment**: New base class for multi-turn / interactive BYOB benchmarks (`reset(idx) -> Observation`, `step(action) -> Observation`). Single-turn `EvalEnvironment` unchanged.
-- **Adapter Server proxy**: Reverse proxy (`adapters/proxy.py`) captures per-task model call trajectories when external systems (Gym, Harbor, PI) own the model call. Path-prefix routing: `/problem/{task_id}/v1/...`.
-- **Config schema validation**: YAML configs are now validated with Pydantic (`config_schema.py`). Environment variables (`${VAR:-default}`) are expanded. Invalid configs produce clear error messages.
-- **Unified verify endpoint**: Server `/verify` auto-detects evaluator and Gym request formats regardless of `--gym-compat` flag. GymAdapter and Gym training can both talk to the same server.
-- **Type system consolidation**: Removed duplicate runtime types from `models.py`. `observability/types.py` is the single runtime type system; `models.py` handles config validation and serialized output only.
+- **Everything is an Environment**: Collapsed adapters, harnesses, and environments into one `EvalEnvironment` base class. Gym, Skills, PI, lm-eval -- all are environments.
+- **`@benchmark` + `@scorer` API**: Universal benchmark definition mechanism. All 11 built-in benchmarks use it. External BYOB uses the same API.
+- **Solver protocol**: `ChatSolver`, `CompletionSolver`, `AgentSolver`. Eval loop calls `solver.solve()` instead of hardcoded `client.chat()`. Unblocks agent benchmarks.
+- **Executor layer**: `LocalExecutor`, `DockerExecutor`, `SlurmExecutor` manage full lifecycle (deploy model, run eval, collect results, tear down).
+- **Model deployment**: `NIMDeployment`, `VLLMDeployment`, `ProcessModelDeployment`, `APIDeployment` with health polling and graceful shutdown.
+- **Judge post-processing**: Eval loop optionally runs LLM-as-judge scoring after `verify()`.
 
-### Harness adapters
+### Benchmarks (11 built-in)
 
-- **lm-eval loglikelihood**: Now raises `UnsupportedTaskTypeError` instead of silently returning garbage. Added `list_generate_tasks()` and `nel harness list --generate-only` to discover chat-API-compatible tasks.
-- **Async bridge**: Replaced per-call `asyncio.run()` / `ThreadPoolExecutor` pattern with a dedicated background event loop (`runner/async_bridge.py`). Safe in Jupyter, FastAPI, and nested async contexts.
+MMLU, MMLU-Pro, MATH-500, GPQA Diamond, GSM8K, DROP, MGSM, TriviaQA, HumanEval (Docker sandbox), SimpleQA (judge), HealthBench (judge).
+
+### Environments
+
+- `GymEnvironment` + `ManagedGymEnvironment` (server lifecycle)
+- `SkillsEnvironment` (auto-prepares datasets)
+- `LMEvalEnvironment` (generate_until tasks)
+- `PIEnvironment` (Prime Intellect verifiers)
 
 ### Scoring
 
-- **`judge_score()`**: End-to-end async LLM-as-judge scoring with model call, swap-check for position bias detection, and full audit trail.
-- **`json_schema.py`**: JSON extraction from model output + schema validation (type, required, properties, items, enum). For function-calling and structured output benchmarks.
+- Deleted duplicate scoring modules (math_equal, extraction, mcq, exact_match)
+- Environments own their scoring via `@scorer` functions
+- Kept judge.py and json_schema.py as NEL-native capabilities
+- Scoring primitives: `multichoice_regex`, `answer_line`, `numeric_match`, `fuzzy_match`, `exact_match`, `code_sandbox`, `needs_judge`
 
-### Infrastructure
+### Eval Loop
 
-- **Cache eviction**: LRU eviction with configurable `max_entries` (50K) and `max_size_mb` (2GB). Touch-on-read for LRU ordering.
-- **Checkpoint locking**: `fcntl.flock` file locking prevents corruption from concurrent writers. Atomic write via temp file + rename.
-- **K8s manifests**: Fixed env var substitution (ConfigMap refs), added init container for merge job dependency, added ConfigMap resource.
-- **Docker Compose**: Fixed sharding with explicit per-shard services (each with its own `NEL_SHARD_IDX`).
-- **GymAdapter**: Shared `httpx.AsyncClient` with connection pooling (was creating one per request).
+- Async parallel with semaphore-bounded concurrency (default 32)
+- Back-pressure pipeline: seeds 2x buffer, never loads full dataset into task queue
+- Proper resource cleanup: `env.close()` and `solver.close()` in finally blocks
+
+### Security
+
+- Docker sandbox: code piped via stdin (not `-c`), `--pids-limit`, `--read-only`, `--security-opt no-new-privileges`
+- API keys passed via env vars (not CLI args) in AgentSolver
+- Prompt template KeyError warnings (not silent swallows)
 
 ### Tests
 
-- 150 tests (up from 112): config schema (8), unified verify (6), StepEnvironment (5), async bridge (3), JSON schema scoring (8), plus existing suite.
+- Integration tests for `run_evaluation()` end-to-end
+- Golden tests for all scoring primitives
+- Scorer import tests for each built-in benchmark
+- 144 total tests
 
-## 0.2.0
+## 0.3.0 (2026-02-25)
 
-### Features
-
-- External harness integration: `NelSampler` (simple-evals) and `NelLM` (lm-eval) route model calls through `ModelClient` for observability.
-- CLI: `nel harness run`, `nel harness list`, `nel report`, `nel slurm`.
-- BYOB benchmarks: gsm8k, triviaqa as reference templates.
-- Scoring: `math_equal`, `exact_match`, `extract_answer`, `mcq_score`, `build_judge_prompt`.
-- Observability: `StepRecord`, `RuntimeStats`, `FailureReport`, `ArtifactCollector`.
-- Response caching, checkpointing, sharding with merge.
-- Adapters: Gym, Prime Intellect, NeMo Skills, legacy containers.
-- Deployment: Dockerfile, docker-compose, K8s manifests, SLURM scripts, GitLab CI.
+Initial architecture with unified eval loop, harness adapters, and observability.

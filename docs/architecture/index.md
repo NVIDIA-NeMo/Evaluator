@@ -8,23 +8,30 @@ flowchart TB
         RUN["nel run"]
         SERVE["nel serve"]
         VALIDATE["nel validate"]
+        REPORT["nel report"]
         REGRESSION["nel regression"]
-        SLURM["nel slurm"]
     end
 
-    subgraph CORE["Core"]
-        ENV["environments/"]
-        SCORE["scoring/"]
-        METRICS["metrics/"]
+    subgraph ENVS["Environments"]
+        REG["Registry"]
+        BYOB["@benchmark + @scorer"]
+        GYM["GymEnvironment"]
+        SKILLS["SkillsEnvironment"]
+        LMEVAL["LMEvalEnvironment"]
+        PI["PIEnvironment"]
     end
 
     subgraph RUNNER["Runner"]
         LOOP["eval_loop"]
+        SOLVER["Solver"]
         MC["ModelClient"]
-        ART["artifacts"]
-        SHARD["sharding"]
-        REG["regression"]
-        RAYL["ray_launcher"]
+        DEPLOY["Deployment"]
+    end
+
+    subgraph EXEC["Executors"]
+        LOCAL["LocalExecutor"]
+        DOCKER["DockerExecutor"]
+        SLURM["SlurmExecutor"]
     end
 
     subgraph OBS["Observability"]
@@ -33,80 +40,200 @@ flowchart TB
         PROG["ConsoleProgress"]
     end
 
-    subgraph ADAPT["Adapters"]
-        GYM["GymAdapter"]
-        PI["PIAdapter"]
-        SKILLS["SkillsAdapter"]
-        CONTAINER["ContainerAdapter"]
-        HARNESS["GymHarness"]
+    subgraph SCORE["Scoring"]
+        JUDGE["judge.py"]
+        JSCHEMA["json_schema.py"]
     end
 
-    RUN --> LOOP
-    SERVE --> ENV
+    RUN --> EXEC
+    EXEC --> DEPLOY
+    EXEC --> LOOP
+    SERVE --> REG
     VALIDATE --> LOOP
 
-    LOOP --> ENV
-    LOOP --> ADAPT
-    LOOP --> MC
+    LOOP --> REG
+    LOOP --> SOLVER
+    SOLVER --> MC
     LOOP --> COLLECT
     LOOP --> PROG
-    LOOP --> METRICS
 
-    ENV --> SCORE
-    COLLECT --> ART
-    SLURM --> SHARD
+    REG --> BYOB
+    REG --> GYM
+    REG --> SKILLS
+    REG --> LMEVAL
+    REG --> PI
+
+    LOOP --> JUDGE
 
     style CLI fill:#e8eaf6
-    style CORE fill:#e8f5e9
+    style ENVS fill:#e8f5e9
     style RUNNER fill:#fff3e0
+    style EXEC fill:#f3e5f5
     style OBS fill:#fce4ec
-    style ADAPT fill:#e0f7fa
+    style SCORE fill:#fff9c4
 ```
 
 ## Package Map
 
 | Package | Responsibility | Key types |
 |---------|---------------|-----------|
-| `environments` | Base class, registry, HTTP server, Gym protocol | `EvalEnvironment`, `SeedResult`, `VerifyResult` |
-| `benchmarks` | Built-in benchmarks (BYOB examples) | `GSM8KEnvironment`, `TriviaQAEnvironment` |
-| `adapters` | Consume external environments | `EnvironmentAdapter`, `GymAdapter`, `PIAdapter`, `SkillsAdapter`, `ContainerAdapter`, `GymHarness` |
-| `runner` | Evaluation orchestration | `run_evaluation()`, `ModelClient`, `write_all()` |
-| `observability` | Rich telemetry capture | `StepRecord`, `ModelResponse`, `RuntimeStats`, `ArtifactCollector` |
-| `scoring` | Scoring primitives | `math_equal()`, `exact_match()`, `extract_answer()` |
-| `metrics` | Statistical aggregation | `pass_at_k()`, `bootstrap_ci()`, `category_breakdown()` |
-| `cli` | CLI commands | `nel run`, `nel serve`, `nel validate`, `nel regression`, `nel slurm` |
+| `environments/` | Base class, registry, `@benchmark` API, environment types | `EvalEnvironment`, `SeedResult`, `VerifyResult`, `BenchmarkDefinition` |
+| `benchmarks/` | 11 built-in benchmarks (all `@benchmark` + `@scorer`) | Scorer functions |
+| `runner/` | Eval loop, solvers, model client, deployment | `run_evaluation()`, `ChatSolver`, `CompletionSolver`, `AgentSolver`, `ModelClient` |
+| `executors/` | Orchestration: model deploy + eval + teardown | `LocalExecutor`, `DockerExecutor`, `SlurmExecutor` |
+| `scoring/` | Judge pipeline and JSON schema validation | `judge.py`, `json_schema.py` |
+| `observability/` | Rich telemetry capture | `StepRecord`, `ModelResponse`, `RuntimeStats`, `ArtifactCollector` |
+| `metrics/` | Statistical aggregation | `pass_at_k()`, `bootstrap_ci()`, `category_breakdown()` |
+| `cli/` | CLI commands | `nel run`, `nel serve`, `nel validate`, `nel report`, `nel regression` |
+
+## Environment Abstraction
+
+Everything is an `EvalEnvironment`. Built-in benchmarks, remote Gym servers, NeMo Skills tasks, lm-eval harness tasks, and Prime Intellect environments all implement the same contract:
+
+```{mermaid}
+classDiagram
+    class EvalEnvironment {
+        <<abstract>>
+        +str name
+        +seed(idx) SeedResult
+        +verify(response, expected) VerifyResult
+        +dataset_size() int
+        +close()
+    }
+
+    class ByobEnvironment {
+        +BenchmarkDefinition definition
+    }
+
+    class GymEnvironment {
+        +str endpoint
+    }
+
+    class ManagedGymEnvironment {
+        +start()
+        +stop()
+    }
+
+    class SkillsEnvironment {
+        +str benchmark
+        +str eval_type
+    }
+
+    class LMEvalEnvironment {
+        +str task_name
+    }
+
+    class PIEnvironment {
+        +str env_name
+    }
+
+    EvalEnvironment <|-- ByobEnvironment
+    EvalEnvironment <|-- GymEnvironment
+    EvalEnvironment <|-- ManagedGymEnvironment
+    EvalEnvironment <|-- SkillsEnvironment
+    EvalEnvironment <|-- LMEvalEnvironment
+    EvalEnvironment <|-- PIEnvironment
+```
+
+### Resolution
+
+The registry resolves environment names in order:
+
+1. **URI scheme** -- `gym://host:port`, `skills://name`, `pi://name`, `gym-managed://...`
+2. **Namespace prefix** -- `lm-eval/task_name`
+3. **Built-in registry** -- names registered via `@benchmark` or `@register`
+
+```python
+from nemo_evaluator import get_environment
+
+env = get_environment("mmlu")                        # built-in
+env = get_environment("lm-eval/aime25")              # lm-eval task
+env = get_environment("skills://gpqa")               # NeMo Skills
+env = get_environment("gym://localhost:9090")         # remote Gym
+env = get_environment("pi://simpleqa")               # Prime Intellect
+```
 
 ## Evaluation Flow
 
 ```{mermaid}
 sequenceDiagram
     participant CLI as nel run
+    participant Exec as Executor
+    participant Deploy as Deployment
     participant Loop as eval_loop
+    participant Solver as Solver
     participant Env as Environment
-    participant Model as ModelClient
     participant Obs as ArtifactCollector
-    participant Art as Artifacts
 
-    CLI->>Loop: run_evaluation(env, client, n_repeats)
+    CLI->>Exec: execute(RunConfig)
+    Exec->>Deploy: start()
+    Deploy-->>Exec: model_url
 
-    loop For each problem (possibly sharded)
-        loop For each repeat
-            Loop->>Env: seed(idx)
-            Env-->>Loop: SeedResult(prompt, expected)
-            Loop->>Model: chat(prompt)
-            Model-->>Loop: ModelResponse(content, tokens, latency)
-            Loop->>Env: verify(response, expected)
-            Env-->>Loop: VerifyResult(reward, extracted, scoring_details)
-            Loop->>Obs: record(StepRecord)
-        end
+    Exec->>Loop: run_evaluation(env, solver, config)
+
+    loop For each problem x repeat
+        Loop->>Env: seed(idx)
+        Env-->>Loop: SeedResult(prompt, expected)
+        Loop->>Solver: solve(task)
+        Solver-->>Loop: SolveResult(response)
+        Loop->>Env: verify(response, expected)
+        Env-->>Loop: VerifyResult(reward, details)
+        Loop->>Obs: record(StepRecord)
     end
 
-    Loop->>Obs: build(elapsed)
-    Obs-->>Loop: RunArtifacts(runtime, failures)
-    Loop->>Art: build_artifact_bundle(results, metrics)
-    Art-->>CLI: bundle dict
-    CLI->>Art: write_all(bundle, output_dir)
+    Loop-->>Exec: RunArtifacts
+    Exec->>Deploy: stop()
 ```
+
+## Solver Protocol
+
+Solvers decouple inference strategy from benchmark logic. The eval loop calls `solver.solve(task)` and receives a response.
+
+| Solver | Protocol | Use case |
+|--------|----------|----------|
+| `ChatSolver` | Single `/chat/completions` call | Standard benchmarks (default) |
+| `CompletionSolver` | `/completions` endpoint | Legacy models, prompt-based eval |
+| `AgentSolver` | External agent subprocess | Multi-turn agents (OpenHands, SWE-agent) |
+
+```python
+class Solver(Protocol):
+    async def solve(self, task: SeedResult) -> SolveResult: ...
+```
+
+## Executor Model
+
+Executors manage the full lifecycle: deploy model, run evaluation, collect results, tear down.
+
+| Executor | What it does |
+|----------|-------------|
+| `LocalExecutor` | In-process eval with optional Docker/vLLM model deployment |
+| `DockerExecutor` | Model server + eval in Docker containers |
+| `SlurmExecutor` | SLURM sbatch with model server + eval jobs |
+
+```bash
+# Local with external API
+nel run --env mmlu --model-url https://api.example.com/v1
+
+# Local with NIM deployment
+nel run --env mmlu --executor local --deploy nim --deploy-image nvcr.io/nim/llama3-8b
+
+# SLURM cluster
+nel run --env mmlu --executor slurm --deploy nim --deploy-image nvcr.io/nim/llama3-8b
+```
+
+## Model Deployment
+
+The `runner/deployment.py` module manages model server lifecycle:
+
+| Type | Class | Description |
+|------|-------|-------------|
+| `api` | `APIDeployment` | External API, no server management |
+| `nim` | `NIMDeployment` | NIM container with standard NIM env vars |
+| `docker` | `DockerModelDeployment` | Generic Docker container |
+| `vllm` | `ProcessModelDeployment` | Local vLLM process |
+| `sglang` | `ProcessModelDeployment` | Local SGLang process |
+
+All deployments implement `start() -> url`, `health_wait()`, and `stop()`.
 
 ## Observability Data Model
 
@@ -138,7 +265,6 @@ classDiagram
         +int reasoning_tokens
         +float latency_ms
         +dict raw_response
-        +request_hash()
     }
 
     class RuntimeStats {
@@ -158,74 +284,10 @@ classDiagram
         +list exemplars
     }
 
-    class RunArtifacts {
-        +list~StepRecord~ steps
-        +RuntimeStats runtime
-        +FailureReport failures
-    }
-
     StepRecord --> ModelResponse
-    RunArtifacts --> StepRecord
-    RunArtifacts --> RuntimeStats
-    RunArtifacts --> FailureReport
 ```
 
-## Environment Abstraction
-
-Both local benchmarks and remote adapters implement the same contract:
-
-```{mermaid}
-classDiagram
-    class EvalSource {
-        <<union>>
-        EvalEnvironment | EnvironmentAdapter
-    }
-
-    class EvalEnvironment {
-        +str name
-        +seed(idx) SeedResult
-        +verify(response, expected) VerifyResult
-        +__len__() int
-    }
-
-    class EnvironmentAdapter {
-        +str name
-        +seed(idx) SeedResult
-        +verify(response, expected) VerifyResult
-        +dataset_size() int
-    }
-
-    class GymAdapter {
-        +str endpoint
-    }
-
-    class PIAdapter {
-        +str env_name
-        +str system_prompt
-    }
-
-    class SkillsAdapter {
-        +str benchmark
-        +str eval_type
-    }
-
-    EvalSource <|-- EvalEnvironment
-    EvalSource <|-- EnvironmentAdapter
-    EnvironmentAdapter <|-- GymAdapter
-    EnvironmentAdapter <|-- PIAdapter
-    EnvironmentAdapter <|-- SkillsAdapter
-```
-
-The eval loop uses `EvalSource = Union[EvalEnvironment, EnvironmentAdapter]` and dispatches to sync or async methods via helpers:
-
-```python
-async def _seed(src: EvalSource, idx: int):
-    if isinstance(src, EnvironmentAdapter):
-        return await src.seed(idx)
-    return src.seed(idx)
-```
-
-## Sharding Model
+## Sharding
 
 ```{mermaid}
 flowchart LR
@@ -242,4 +304,4 @@ flowchart LR
     MERGE --> FINAL["merged/eval-*.json<br/>Recomputed pass@k, CI"]
 ```
 
-Key design: the sharding is transparent to the eval loop. `problem_range` simply changes the iteration bounds `for idx in range(start, end)`. The merge step recomputes global metrics from the concatenated per-shard results.
+Sharding is transparent to the eval loop. `problem_range` changes the iteration bounds. The merge step recomputes global metrics from concatenated per-shard results.
