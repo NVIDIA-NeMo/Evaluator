@@ -62,7 +62,7 @@ DON'T ALLOW FOR ANY OTHER OPTIONS, only the ones listed above under each categor
 When you have all the answers, run the script to build the base config:
 
 ```bash
-nel skills build-config --execution <local|slurm> --deployment <none|vllm|sglang|nim|trtllm> --model-type <base|chat|reasoning> --benchmarks <standard|code|math_reasoning|safety|multilingual> [--export <none|mlflow|wandb>] [--output <OUTPUT>]
+nel skills build-config --execution <local|slurm> --deployment <none|vllm|sglang|nim|trtllm> --model_type <base|chat|reasoning> --benchmarks <standard|code|math_reasoning|safety|multilingual> [--export <none|mlflow|wandb>] [--output <OUTPUT>]
 ```
 
 Where `--output` depends on what the user provides:
