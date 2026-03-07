@@ -6,17 +6,17 @@ All 11 built-in benchmarks are defined with `@benchmark` + `@scorer` in `src/nem
 
 | Benchmark | Command | Scoring | Type |
 |-----------|---------|---------|------|
-| MMLU | `nel run --env mmlu` | `multichoice_regex` | Multichoice (4-way) |
-| MMLU-Pro | `nel run --env mmlu_pro` | `multichoice_regex` | Multichoice (10-way) |
-| MATH-500 | `nel run --env math500` | `answer_line` | Math |
-| GPQA Diamond | `nel run --env gpqa` | `multichoice_regex` | Multichoice (shuffled) |
-| GSM8K | `nel run --env gsm8k` | `numeric_match` | Math reasoning |
-| DROP | `nel run --env drop` | `fuzzy_match` | Reading comprehension |
-| MGSM | `nel run --env mgsm` | `numeric_match` | Multilingual math |
-| TriviaQA | `nel run --env triviaqa` | `fuzzy_match` | Factual QA |
-| HumanEval | `nel run --env humaneval` | `code_sandbox` | Code generation (Docker) |
-| SimpleQA | `nel run --env simpleqa` | `needs_judge` | Factuality (LLM judge) |
-| HealthBench | `nel run --env healthbench` | `needs_judge` | Health (LLM judge) |
+| MMLU | `nel eval run --bench mmlu` | `multichoice_regex` | Multichoice (4-way) |
+| MMLU-Pro | `nel eval run --bench mmlu_pro` | `multichoice_regex` | Multichoice (10-way) |
+| MATH-500 | `nel eval run --bench math500` | `answer_line` | Math |
+| GPQA Diamond | `nel eval run --bench gpqa` | `multichoice_regex` | Multichoice (shuffled) |
+| GSM8K | `nel eval run --bench gsm8k` | `numeric_match` | Math reasoning |
+| DROP | `nel eval run --bench drop` | `fuzzy_match` | Reading comprehension |
+| MGSM | `nel eval run --bench mgsm` | `numeric_match` | Multilingual math |
+| TriviaQA | `nel eval run --bench triviaqa` | `fuzzy_match` | Factual QA |
+| HumanEval | `nel eval run --bench humaneval` | `code_sandbox` | Code generation (Docker) |
+| SimpleQA | `nel eval run --bench simpleqa` | `needs_judge` | Factuality (LLM judge) |
+| HealthBench | `nel eval run --bench healthbench` | `needs_judge` | Health (LLM judge) |
 
 ## Extended Environments
 
@@ -24,11 +24,11 @@ Beyond the 11 built-in benchmarks, NEL resolves additional environment types via
 
 | Syntax | Source | Example |
 |--------|--------|---------|
-| `nel run --env <name>` | Built-in registry | `nel run --env mmlu` |
-| `nel run --env lm-eval/<task>` | lm-evaluation-harness | `nel run --env lm-eval/aime25` |
-| `nel run --env skills://<name>` | NeMo Skills | `nel run --env skills://mmlu-pro` |
-| `nel run --env gym://<host:port>` | Remote Gym server | `nel run --env gym://localhost:9090` |
-| `nel run --env pi://<name>` | Prime Intellect verifiers | `nel run --env pi://simpleqa` |
+| `nel eval run --bench <name>` | Built-in registry | `nel eval run --bench mmlu` |
+| `nel eval run --bench lm-eval/<task>` | lm-evaluation-harness | `nel eval run --bench lm-eval/aime25` |
+| `nel eval run --bench skills://<name>` | NeMo Skills | `nel eval run --bench skills://mmlu-pro` |
+| `nel eval run --bench gym://<host:port>` | Remote Gym server | `nel eval run --bench gym://localhost:9090` |
+| `nel eval run --bench pi://<name>` | Prime Intellect verifiers | `nel eval run --bench pi://simpleqa` |
 
 ## Benchmark Details
 

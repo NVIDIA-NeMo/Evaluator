@@ -29,7 +29,7 @@ def validate_cmd(benchmark, samples, model_url, model_id, api_key, verbose):
     try:
         env = get_environment(benchmark)
     except KeyError:
-        raise click.ClickException(f"Unknown benchmark: {benchmark!r}. Run 'nel list-environments'.")
+        raise click.ClickException(f"Unknown benchmark: {benchmark!r}. Run 'nel list'.")
 
     client = ModelClient(base_url=model_url, model=model_id, api_key=api_key)
     solver = ChatSolver(client)

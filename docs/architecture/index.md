@@ -5,10 +5,10 @@
 ```{mermaid}
 flowchart TB
     subgraph CLI["CLI (nel)"]
-        RUN["nel run"]
+        RUN["nel eval run"]
         SERVE["nel serve"]
         VALIDATE["nel validate"]
-        REPORT["nel report"]
+        REPORT["nel eval report"]
         REGRESSION["nel regression"]
     end
 
@@ -84,7 +84,7 @@ flowchart TB
 | `scoring/` | Judge pipeline and JSON schema validation | `judge.py`, `json_schema.py` |
 | `observability/` | Rich telemetry capture | `StepRecord`, `ModelResponse`, `RuntimeStats`, `ArtifactCollector` |
 | `metrics/` | Statistical aggregation | `pass_at_k()`, `bootstrap_ci()`, `category_breakdown()` |
-| `cli/` | CLI commands | `nel run`, `nel serve`, `nel validate`, `nel report`, `nel regression` |
+| `cli/` | CLI commands | `nel eval run`, `nel serve`, `nel validate`, `nel eval report`, `nel regression` |
 
 ## Environment Abstraction
 
@@ -157,7 +157,7 @@ env = get_environment("pi://simpleqa")               # Prime Intellect
 
 ```{mermaid}
 sequenceDiagram
-    participant CLI as nel run
+    participant CLI as nel eval run
     participant Exec as Executor
     participant Deploy as Deployment
     participant Loop as eval_loop
@@ -212,13 +212,13 @@ Executors manage the full lifecycle: deploy model, run evaluation, collect resul
 
 ```bash
 # Local with external API
-nel run --env mmlu --model-url https://api.example.com/v1
+nel eval run --bench mmlu --model-url https://api.example.com/v1
 
 # Local with NIM deployment
-nel run --env mmlu --executor local --deploy nim --deploy-image nvcr.io/nim/llama3-8b
+nel eval run --bench mmlu --executor local --deploy nim --deploy-image nvcr.io/nim/llama3-8b
 
 # SLURM cluster
-nel run --env mmlu --executor slurm --deploy nim --deploy-image nvcr.io/nim/llama3-8b
+nel eval run --bench mmlu --executor slurm --deploy nim --deploy-image nvcr.io/nim/llama3-8b
 ```
 
 ## Model Deployment

@@ -34,20 +34,22 @@ def serve(args):
 
 
 def consume(args):
-    from nemo_evaluator.adapters.gym import GymAdapter
+    from nemo_evaluator.environments.gym import GymEnvironment
     from nemo_evaluator.observability.progress import ConsoleProgress
     from nemo_evaluator.runner.artifacts import write_all
     from nemo_evaluator.runner.eval_loop import run_evaluation
     from nemo_evaluator.runner.model_client import ModelClient
+    from nemo_evaluator.runner.solver import ChatSolver
 
-    adapter = GymAdapter(args.endpoint)
+    env = GymEnvironment(args.endpoint)
     client = ModelClient(
         base_url=os.environ["NEMO_MODEL_URL"],
         model=os.environ["NEMO_MODEL_ID"],
         api_key=os.getenv("NEMO_API_KEY"),
     )
+    solver = ChatSolver(client)
     bundle = asyncio.run(run_evaluation(
-        adapter, client, n_repeats=args.repeats, max_problems=args.max_problems,
+        env, solver, n_repeats=args.repeats, max_problems=args.max_problems,
         progress=ConsoleProgress()))
     paths = write_all(bundle, args.output_dir)
     for k, p in paths.items():
@@ -60,8 +62,8 @@ def export(args):
 
     env = get_environment(args.benchmark)
     harness = GymHarness(env)
-    path = harness.export_jsonl(args.output_dir)
-    print(f"Exported {len(harness.get_dataset())} rows -> {path}")
+    path = asyncio.run(harness.export_jsonl(args.output_dir))
+    print(f"Exported -> {path}")
 
 
 if __name__ == "__main__":

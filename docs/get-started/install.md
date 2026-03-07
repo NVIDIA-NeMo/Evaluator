@@ -29,13 +29,13 @@ pip install -e ".[scoring]"
 
 ```bash
 nel --version
-nel list-environments
+nel list
 ```
 
 Expected output:
 
 ```
-nemo-evaluator 0.4.0
+nemo-evaluator 0.5.0
 
 Available environments:
   drop, gpqa, gsm8k, healthbench, humaneval, math500,
@@ -46,7 +46,7 @@ Available environments:
 
 ```bash
 docker build -t nemo-evaluator .
-docker run nemo-evaluator nel list-environments
+docker run nemo-evaluator nel list
 ```
 
 ## Next Steps

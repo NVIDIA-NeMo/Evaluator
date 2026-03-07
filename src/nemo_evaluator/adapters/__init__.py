@@ -1,7 +1,4 @@
-"""Adapters: Gym harness server, proxy server, container runner.
-
-Environments (Gym, Skills, PI, lm-eval) now live in nemo_evaluator.environments.
-"""
+"""Adapters: Gym harness server, proxy server, container runner."""
 from nemo_evaluator.adapters.gym_harness import GymHarness
 
 __all__ = ["GymHarness", "ContainerConfig", "run_container_eval"]

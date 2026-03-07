@@ -19,7 +19,7 @@ spec:
       containers:
         - name: eval
           image: nemo-evaluator:latest
-          args: ["run", "--benchmark", "gsm8k", "--repeats", "4",
+          args: ["eval", "run", "--bench", "gsm8k", "--repeats", "4",
                  "--output-dir", "/data/results", "--no-progress"]
           env:
             - name: NEMO_API_KEY
@@ -67,7 +67,7 @@ spec:
       containers:
         - name: eval
           image: nemo-evaluator:latest
-          args: ["run", "--benchmark", "gsm8k", "--repeats", "8",
+          args: ["eval", "run", "--bench", "gsm8k", "--repeats", "8",
                  "--output-dir", "/data/shard_$(NEL_SHARD_IDX)", "--no-progress"]
           env:
             - name: NEL_SHARD_IDX

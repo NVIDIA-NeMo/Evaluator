@@ -1,6 +1,7 @@
 """HealthBench -- health-related QA (requires LLM-as-judge)."""
 from nemo_evaluator.environments.base import SeedResult
-from nemo_evaluator.environments.definitions import ScorerInput, benchmark, needs_judge, scorer
+from nemo_evaluator.environments.define import benchmark, scorer
+from nemo_evaluator.scoring import ScorerInput, needs_judge
 
 
 def _load_healthbench():

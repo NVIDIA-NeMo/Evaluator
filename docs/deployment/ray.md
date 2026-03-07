@@ -12,7 +12,7 @@ pip install -e ".[ray]"
 
 ```bash
 ray job submit --working-dir . -- python -m nemo_evaluator.runner.ray_launcher \
-    --benchmark gsm8k --shards 8 --repeats 5 \
+    --bench gsm8k --shards 8 --repeats 5 \
     --model-url https://inference-api.nvidia.com/v1 \
     --model-id azure/openai/gpt-5.2 \
     --output-dir ./eval_results/ray

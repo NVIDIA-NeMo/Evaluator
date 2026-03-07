@@ -1,0 +1,28 @@
+# Quick local evaluation against a pre-deployed model
+#
+# Usage:
+#   # Set your model endpoint
+#   export NEMO_MODEL_URL=http://localhost:8000/v1
+#   export NEMO_MODEL_ID=Qwen/Qwen3.5-9B
+#
+#   nel eval run examples/configs/quick_eval.yaml
+
+model:
+  url: ${NEMO_MODEL_URL}
+  id: ${NEMO_MODEL_ID}
+
+benchmarks:
+  - name: gsm8k
+    repeats: 2
+    max_problems: 50
+    system_prompt: "Solve step by step. Put your final answer in \\boxed{}."
+
+  - name: triviaqa
+    repeats: 1
+    max_problems: 50
+
+output:
+  dir: ./eval_results
+  report:
+    - markdown
+    - html

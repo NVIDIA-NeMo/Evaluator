@@ -1,5 +1,6 @@
 """TriviaQA -- trivia questions with multi-alias exact match."""
-from nemo_evaluator.environments.definitions import ScorerInput, benchmark, scorer
+from nemo_evaluator.environments.define import benchmark, scorer
+from nemo_evaluator.scoring import ScorerInput
 
 
 def _prepare(row, idx, rng):
@@ -24,7 +25,7 @@ def _load_triviaqa():
 def triviaqa_scorer(sample: ScorerInput) -> dict:
     first_line = sample.response.strip().split("\n")[0].strip()
     aliases = sample.metadata.get("_aliases", [str(sample.target)])
-    from nemo_evaluator.environments.definitions import _normalize_text
-    pred = _normalize_text(first_line)
-    correct = any(_normalize_text(a) == pred for a in aliases)
+    from nemo_evaluator.scoring.text import _normalize
+    pred = _normalize(first_line)
+    correct = any(_normalize(a) == pred for a in aliases)
     return {"correct": correct, "extracted": first_line}

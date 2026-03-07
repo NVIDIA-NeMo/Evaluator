@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.5.0 (2026-03-07)
+
+### CLI Redesign
+
+- **`nel eval` command group**: `run`, `status`, `stop`, `report` subcommands replace `nel run`, `nel slurm eval`, `nel harness run`, and `nel container-eval`.
+- **`nel list`**: Unified benchmark discovery across built-in, NeMo Skills, and lm-eval sources. Replaces `nel list-environments`, `nel list-harnesses`, `nel list-skills`.
+- **`nel serve`**: Flat command for serving benchmarks as HTTP endpoints.
+- Removed all legacy commands: `nel run`, `nel slurm`, `nel harness`, `nel container-eval`, `nel list-environments`, `nel list-harnesses`, `nel list-skills`.
+
+### Unified Config Schema
+
+- **Two-tier `EvalConfig`**: Simple mode (`model:` + `benchmarks:`) for quick evaluations, advanced mode (`services:` + `benchmarks:`) for multi-model setups with managed infrastructure.
+- **`ClusterConfig`**: SLURM, Docker, and local execution from a single config file.
+- **`OutputConfig`**: Multi-format report generation (HTML, Markdown, CSV, JSON, LaTeX).
+- Removed old `evaluation: { tasks: [] }` config format and `config_schema.py`.
+
+### Evaluation Orchestration
+
+- **`eval/local_runner.py`**: Service lifecycle management (vLLM, SGLang, Gym servers) with health polling.
+- **`eval/slurm_gen.py`**: Self-contained sbatch script generation from `EvalConfig`.
+- **`eval/ssh.py`**: Remote SLURM submission via SSH.
+- **`eval/lifecycle.py`**: Executor-aware process management (`status`/`stop`) for local, SLURM, and Docker.
+
+### Bug Fixes
+
+- Fixed `str.format()` crash in sbatch template generation.
+- Fixed PID file written before output directory exists.
+- Fixed Gym service template generating nonexistent CLI subcommand.
+- Fixed shell injection via unescaped quotes in system prompts.
+- Fixed `num_examples` silently dropped for all environment types.
+- Renamed `models.EvalConfig` → `RunSnapshot` to avoid collision with `eval.config.EvalConfig`.
+
+### Cleanup
+
+- Deleted dead modules: `cli/run.py`, `cli/slurm.py`, `cli/harness.py`, `config_schema.py`, `environments/definitions.py`.
+- Removed all backward-compatibility aliases and deprecation stubs.
+- Updated all documentation and examples to use new CLI and config format.
+
 ## 0.4.0 (2026-03-07)
 
 ### Architecture
@@ -24,10 +62,11 @@ MMLU, MMLU-Pro, MATH-500, GPQA Diamond, GSM8K, DROP, MGSM, TriviaQA, HumanEval (
 
 ### Scoring
 
-- Deleted duplicate scoring modules (math_equal, extraction, mcq, exact_match)
-- Environments own their scoring via `@scorer` functions
-- Kept judge.py and json_schema.py as NEL-native capabilities
-- Scoring primitives: `multichoice_regex`, `answer_line`, `numeric_match`, `fuzzy_match`, `exact_match`, `code_sandbox`, `needs_judge`
+- Scoring package with dedicated modules: `text.py`, `pattern.py`, `sandbox.py`, `judge.py`, `json_schema.py`
+- Benchmarks own their scoring via `@scorer` functions calling reusable primitives
+- Primitives: `exact_match`, `fuzzy_match`, `multichoice_regex`, `answer_line`, `numeric_match`, `code_sandbox`, `needs_judge`
+- LLM-as-judge: `JudgeScoringConfig`, `judge_score`, `needs_judge` signal
+- JSON schema validation: `extract_json`, `validate_json_schema`
 
 ### Eval Loop
 

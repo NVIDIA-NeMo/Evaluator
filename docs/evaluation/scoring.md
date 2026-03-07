@@ -2,14 +2,16 @@
 
 ## Overview
 
-In 0.4.0, **environments own their scoring**. Each benchmark defines its own scorer via the `@scorer` decorator. The framework provides two shared scoring services for cases that require external infrastructure:
+Each benchmark defines its own scorer via the `@scorer` decorator. The `scoring/` package provides reusable scorer implementations:
 
 | Module | Purpose |
 |--------|---------|
-| `scoring/judge.py` | LLM-as-judge pipeline for benchmarks that use `needs_judge()` |
-| `scoring/json_schema.py` | JSON schema validation for structured outputs |
-
-Everything else -- string matching, regex extraction, numeric comparison, code execution -- lives in `environments/definitions.py` as scoring primitives that scorers call directly.
+| `scoring/text.py` | `exact_match`, `fuzzy_match` -- text comparison |
+| `scoring/pattern.py` | `multichoice_regex`, `answer_line`, `numeric_match` -- pattern extraction |
+| `scoring/sandbox.py` | `code_sandbox` -- Docker-sandboxed code execution |
+| `scoring/judge.py` | `needs_judge`, `judge_score` -- LLM-as-judge pipeline |
+| `scoring/json_schema.py` | `extract_json`, `validate_json_schema` -- structured output validation |
+| `scoring/types.py` | `ScorerInput` -- input dataclass for all scorers |
 
 ## Scoring Primitives
 
@@ -104,13 +106,13 @@ Benchmarks that use `needs_judge()` are scored in a post-processing step by `sco
 
 1. Collects all samples flagged with `needs_judge: True`
 2. Constructs judge prompts from the response and expected answer
-3. Calls the judge model (configured via `--judge-url` / `JudgeConfig`)
+3. Calls the judge model (configured via `--judge-url` / `JudgeScoringConfig`)
 4. Parses the judge verdict and updates rewards
 
 Configure the judge model:
 
 ```bash
-nel run --env simpleqa \
+nel eval run --bench simpleqa \
   --model-url https://api.example.com/v1 --model-id my-model \
   --judge-url https://api.example.com/v1 --judge-id gpt-4o
 ```
@@ -120,10 +122,10 @@ nel run --env simpleqa \
 `scoring/json_schema.py` validates structured model outputs against a JSON schema:
 
 ```python
-from nemo_evaluator.scoring.json_schema import validate_json_output
+from nemo_evaluator.scoring import validate_json_schema
 
-result = validate_json_output(response_text, schema={"type": "object", "required": ["answer"]})
-# {"valid": True, "parsed": {"answer": "42"}}
+result = validate_json_schema(response_text, schema={"type": "object", "required": ["answer"]})
+# {"valid": True, "extracted": {"answer": "42"}, "score": 1.0}
 ```
 
 ## Metrics

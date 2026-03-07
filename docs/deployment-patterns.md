@@ -5,7 +5,7 @@
 ```{mermaid}
 flowchart TB
     subgraph CLI ["nel CLI"]
-        run["nel run"]
+        run["nel eval run"]
         serve["nel serve"]
         validate["nel validate"]
     end
@@ -18,9 +18,9 @@ flowchart TB
 
     subgraph Envs ["Environment Sources"]
         local["EvalEnvironment<br/>(GSM8K, TriviaQA, BYOB)"]
-        gym_a["GymAdapter<br/>remote seed/verify"]
-        pi_a["PIAdapter<br/>verifiers SingleTurnEnv"]
-        pi_n["PINativeRunner<br/>verifiers MultiTurnEnv"]
+        gym_a["GymEnvironment<br/>remote seed/verify"]
+        pi_a["PIEnvironment<br/>verifiers SingleTurnEnv"]
+        pi_n["AgentSolver<br/>verifiers MultiTurnEnv"]
     end
 
     subgraph Out ["Outputs"]
@@ -58,29 +58,30 @@ flowchart TB
 
 ```bash
 # Quick validation
-nel validate --benchmark gsm8k --samples 10
+nel validate -b gsm8k --samples 10
 
 # Full run with n-repeats
-nel run --benchmark gsm8k --repeats 4 --max-problems 100 -o ./results
+nel eval run --bench gsm8k --repeats 4 --max-problems 100 -o ./results
 
 # From YAML config
-nel run eval_config.yaml
+nel eval run eval_config.yaml
 ```
 
 ```yaml
 # eval_config.yaml
-evaluation:
-  model_url: https://inference-api.nvidia.com/v1
-  model_id: azure/openai/gpt-5.2
-  tasks:
-    - benchmark: gsm8k
-      repeats: 4
-      max_problems: 100
+model:
+  url: https://inference-api.nvidia.com/v1
+  id: azure/openai/gpt-5.2
+
+benchmarks:
+  - name: gsm8k
+    repeats: 4
+    max_problems: 100
 ```
 
 ```{mermaid}
 sequenceDiagram
-    participant CLI as nel run
+    participant CLI as nel eval run
     participant Env as EvalEnvironment
     participant Model as Model API
     participant Disk as Artifacts
@@ -110,21 +111,21 @@ sequenceDiagram
 **What:** An `EvalEnvironment` is exposed as an HTTP service speaking Gym's `/seed_session` + `/verify` protocol. Gym agents consume it during training. Evaluator independently evaluates the same benchmark with full observability.
 
 ```bash
-# Serve with evaluator protocol (for nel run --adapter)
-nel serve --benchmark gsm8k --port 9090
+# Serve with evaluator protocol (for nel eval run --adapter)
+nel serve -b gsm8k --port 9090
 
 # Serve with gym-compatible protocol (accepts NeMoGymResponse in /verify)
-nel serve --benchmark gsm8k --port 9090 --gym-compat
+nel serve -b gsm8k --port 9090 --gym-compat
 
 # Also export JSONL for ng_collect_rollouts
-nel serve --benchmark gsm8k --port 9090 --gym-compat --export-data /data
+nel serve -b gsm8k --port 9090 --gym-compat --export-data /data
 ```
 
 ```{mermaid}
 sequenceDiagram
     participant Gym as Gym Agent
     participant Svc as nel serve (EvalEnvironment)
-    participant Eval as nel run (independent)
+    participant Eval as nel eval run (independent)
 
     Note over Gym,Svc: Training loop
     Gym->>Svc: POST /seed_session
@@ -151,36 +152,36 @@ sequenceDiagram
 
 **Who:** Evaluation owner who wants Evaluator's statistical rigor on an environment running elsewhere.
 
-**What:** `GymAdapter` connects to any server speaking `seed_session/verify`. Evaluator owns the model call in between, giving full trajectory capture even though the environment is remote.
+**What:** `GymEnvironment` connects to any server speaking `seed_session/verify`. Evaluator owns the model call in between, giving full trajectory capture even though the environment is remote.
 
 ```bash
 # Consume a remote environment
-nel run --adapter gym://staging-server:8080 --repeats 4 --max-problems 50
+nel eval run --bench gym://staging-server:8080 --repeats 4 --max-problems 50
 
 # Consume another nel serve instance
-nel run --adapter gym://127.0.0.1:9090 --repeats 2
+nel eval run --bench gym://127.0.0.1:9090 --repeats 2
 ```
 
 ```{mermaid}
 sequenceDiagram
-    participant Eval as nel run
-    participant Adapter as GymAdapter
+    participant Eval as nel eval run
+    participant Env as GymEnvironment
     participant Remote as Remote Environment
     participant Model as Model API
 
     loop each problem × n_repeats
-        Eval->>Adapter: seed(idx)
-        Adapter->>Remote: POST /seed_session {idx}
-        Remote-->>Adapter: {prompt, expected_answer}
-        Adapter-->>Eval: SeedResult
+        Eval->>Env: seed(idx)
+        Env->>Remote: POST /seed_session {idx}
+        Remote-->>Env: {prompt, expected_answer}
+        Env-->>Eval: SeedResult
 
         Eval->>Model: chat(prompt)
         Note over Eval: trajectory captured
 
-        Eval->>Adapter: verify(response, expected)
-        Adapter->>Remote: POST /verify
-        Remote-->>Adapter: {reward, scoring_details}
-        Adapter-->>Eval: VerifyResult
+        Eval->>Env: verify(response, expected)
+        Env->>Remote: POST /verify
+        Remote-->>Env: {reward, scoring_details}
+        Env-->>Eval: VerifyResult
     end
 ```
 
@@ -192,30 +193,32 @@ sequenceDiagram
 
 **Who:** Research team reusing PI's 500+ environments with Evaluator's decision-grade reporting.
 
-**What:** `PIAdapter` loads a `verifiers.SingleTurnEnv`, extracts the dataset and rubric. Evaluator owns the model call. PI's rubric handles scoring. Full trajectory capture.
+**What:** `PIEnvironment` loads a `verifiers.SingleTurnEnv`, extracts the dataset and rubric. Evaluator owns the model call. PI's rubric handles scoring. Full trajectory capture.
 
 ```bash
 # Evaluate using PI's simpleqa environment
-nel run --adapter pi://simpleqa --repeats 3 --max-problems 50
+nel eval run --bench pi://simpleqa --repeats 3 --max-problems 50
 
 # PI's math500
-nel run --adapter pi://math500 --repeats 4
+nel eval run --bench pi://math500 --repeats 4
 ```
 
 ```python
 # Or programmatically
-from nemo_evaluator.adapters.pi import PIAdapter
+from nemo_evaluator.environments.pi import PIEnvironment
 from nemo_evaluator.runner import run_evaluation, ModelClient
+from nemo_evaluator.runner.solver import ChatSolver
 
-adapter = PIAdapter("simpleqa")  # loads via vf.load_environment()
+env = PIEnvironment("simpleqa")  # loads via vf.load_environment()
 client = ModelClient(base_url="...", model="...", api_key="...")
-bundle = await run_evaluation(adapter, client, n_repeats=3)
+solver = ChatSolver(client)
+bundle = await run_evaluation(env, solver, n_repeats=3)
 ```
 
 ```{mermaid}
 sequenceDiagram
-    participant Eval as nel run
-    participant PI as PIAdapter
+    participant Eval as nel eval run
+    participant PI as PIEnvironment
     participant VF as verifiers.SingleTurnEnv
     participant Model as Model API
 
@@ -236,17 +239,20 @@ sequenceDiagram
     end
 ```
 
-**For MultiTurnEnv/SandboxEnv** (agent environments where decomposition isn't possible):
+**For MultiTurnEnv/SandboxEnv** (agent environments where decomposition isn't possible), use `AgentSolver`:
 
 ```python
-from nemo_evaluator.adapters.pi import PINativeRunner
+from nemo_evaluator.runner.solver import AgentSolver
 
-runner = PINativeRunner("mini_swe_agent_plus")
-results = await runner.run(model="...", base_url="...", api_key="...",
-                           rollouts_per_example=4)
+solver = AgentSolver(
+    agent_cmd="python -m my_agent",
+    model_url="https://api.example.com/v1",
+    model_id="my-model",
+)
+bundle = await run_evaluation(env, solver, n_repeats=4)
 ```
 
-PI's `evaluate()` runs with our client endpoint. We capture PI's native `State` data (trajectory, timing, usage, metrics).
+The agent receives the task prompt and produces a solution through multi-turn interaction. NEL captures the trajectory from the agent's output.
 
 ---
 
@@ -260,10 +266,10 @@ PI's `evaluate()` runs with our client endpoint. We capture PI's native `State` 
 # Export JSONL for batch rollout collection
 python -c "
 from nemo_evaluator.adapters.gym_harness import GymHarness
-from nemo_evaluator.benchmarks.gsm8k import GSM8KEnvironment
+from nemo_evaluator.environments.registry import get_environment
 
-harness = GymHarness(GSM8KEnvironment())
-harness.export_jsonl('/data/rollouts')
+harness = GymHarness(get_environment('gsm8k'))
+import asyncio; asyncio.run(harness.export_jsonl('/data/rollouts'))
 "
 # -> /data/rollouts/gsm8k.jsonl (1319 rows, ng_collect_rollouts-ready)
 ```
@@ -273,9 +279,9 @@ harness.export_jsonl('/data/rollouts')
 python -c "
 import uvicorn
 from nemo_evaluator.adapters.gym_harness import GymHarness
-from nemo_evaluator.benchmarks.gsm8k import GSM8KEnvironment
+from nemo_evaluator.environments.registry import get_environment
 
-app = GymHarness(GSM8KEnvironment()).as_fastapi_app()
+app = GymHarness(get_environment('gsm8k')).as_fastapi_app()
 uvicorn.run(app, port=9090)
 "
 ```
@@ -346,9 +352,9 @@ Every evaluation run (all patterns) produces:
 | Source | Evaluator Owns Model Call | Full Trajectory | n_repeats | pass@k + CIs | Progress Bar | Failure Analysis |
 |--------|--------------------------|-----------------|-----------|---------------|--------------|------------------|
 | Local EvalEnvironment | Yes | Yes | Yes | Yes | Yes | Yes |
-| Remote via GymAdapter | Yes | Yes | Yes | Yes | Yes | Yes |
+| Remote via GymEnvironment | Yes | Yes | Yes | Yes | Yes | Yes |
 | PI SingleTurnEnv | Yes | Yes | Yes | Yes | Yes | Yes |
-| PI MultiTurnEnv (native) | No (PI does) | From PI State | Via rollouts_per_example | From reward vectors | PI's callbacks | From PI errors |
+| PI MultiTurnEnv (AgentSolver) | Partially (agent owns inner loop) | From agent output | Yes | Yes | Yes | Yes |
 | Gym ng_collect_rollouts | No (Gym does) | From output JSONL | Via num_repeats | From reward vectors | Gym's tqdm | Post-hoc |
 | Legacy harnesses | No (subprocess) | From output files | Via config | From parsed scores | Process output | Post-hoc |
 
@@ -357,34 +363,24 @@ Every evaluation run (all patterns) produces:
 ## BYOB: Writing a New Benchmark
 
 ```python
-from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
-from nemo_evaluator.environments.registry import register
-from nemo_evaluator.scoring import math_equal, extract_answer
+from nemo_evaluator import benchmark, scorer, ScorerInput, answer_line
 
-@register("my_benchmark")
-class MyBenchmark(EvalEnvironment):
-    def __init__(self):
-        super().__init__()
-        self._dataset = [...]  # load your data
-
-    def seed(self, idx: int) -> SeedResult:
-        row = self._dataset[idx]
-        return SeedResult(prompt=row["q"], expected_answer=row["a"],
-                          metadata={"category": row["cat"]})
-
-    def verify(self, response: str, expected: str, **meta) -> VerifyResult:
-        extracted = extract_answer(response)
-        correct = math_equal(extracted, expected)
-        return VerifyResult(reward=1.0 if correct else 0.0,
-                            extracted_answer=extracted,
-                            scoring_details={"method": "math_equal"})
+@benchmark(
+    name="my_benchmark",
+    dataset="hf://my-org/my-data?split=test",
+    prompt="Question: {question}\nAnswer:",
+    target_field="answer",
+)
+@scorer
+def my_scorer(sample: ScorerInput) -> dict:
+    return answer_line(sample)
 ```
 
 Then:
 ```bash
-nel validate --benchmark my_benchmark --samples 10   # sanity check
-nel run --benchmark my_benchmark --repeats 4          # full evaluation
-nel serve --benchmark my_benchmark --gym-compat       # serve for Gym
+nel validate -b my_benchmark --samples 10             # sanity check
+nel eval run --bench my_benchmark --repeats 4          # full evaluation
+nel serve -b my_benchmark --gym-compat                 # serve for Gym
 ```
 
 ---
@@ -403,7 +399,7 @@ nel serve --benchmark my_benchmark --gym-compat       # serve for Gym
                     ▼            ▼             ▼
                Shard 0      Shard 1  ...  Shard 15
               [p0-p874]    [p875-p1749]  [p13125-p13999]
-               nel run       nel run       nel run
+            nel eval run   nel eval run   nel eval run
                     │            │             │
                     └────────────┼────────────┘
                                  ▼
@@ -416,33 +412,42 @@ nel serve --benchmark my_benchmark --gym-compat       # serve for Gym
                      merged/trajectories.jsonl
 ```
 
-### CLI Usage
+### Config-Driven SLURM
+
+SLURM evaluations are driven by a YAML config with an `executor: slurm` block:
+
+```yaml
+# slurm_eval.yaml
+model:
+  url: https://inference-api.nvidia.com/v1
+  id: azure/openai/gpt-5.2
+
+benchmarks:
+  - name: gsm8k
+    repeats: 8
+
+executor:
+  type: slurm
+  shards: 16
+  partition: batch
+  conda_env: gym
+  output_dir: ./eval_results/gsm8k_distributed
+  submit: true
+```
 
 ```bash
-# Generate + submit: 16 shards, 8 repeats, auto-merge after completion
-nel slurm eval gsm8k \
-    --shards 16 \
-    --repeats 8 \
-    --partition batch \
-    --conda-env gym \
-    --model-url https://inference-api.nvidia.com/v1 \
-    --model-id azure/openai/gpt-5.2 \
-    --output-dir ./eval_results/gsm8k_distributed \
-    --submit
+# Submit via config (16 shards, auto-merge after completion)
+nel eval run slurm_eval.yaml
 
-# Or just generate scripts to inspect first (no --submit)
-nel slurm eval gsm8k --shards 16 --output-dir ./eval_results/gsm8k_distributed
-
-# Manual merge (if not using auto-merge)
-nel slurm merge \
-    --shard-dir ./eval_results/gsm8k_distributed \
-    --output-dir ./eval_results/gsm8k_distributed/merged \
-    --repeats 8
+# Generate scripts to inspect first (set submit: false in config)
+nel eval run slurm_eval.yaml
 ```
+
+Shard merging is handled automatically when all array tasks complete.
 
 ### How Sharding Works
 
-Each SLURM array task gets `SLURM_ARRAY_TASK_ID` and `SLURM_ARRAY_TASK_COUNT` set automatically. `nel run` detects these (or `NEL_SHARD_IDX`/`NEL_TOTAL_SHARDS`) and computes its problem range:
+Each SLURM array task gets `SLURM_ARRAY_TASK_ID` and `SLURM_ARRAY_TASK_COUNT` set automatically. `nel eval run` detects these (or `NEL_SHARD_IDX`/`NEL_TOTAL_SHARDS`) and computes its problem range:
 
 | 14000 problems, 16 shards | Shard 0 | Shard 1 | ... | Shard 15 |
 |---|---|---|---|---|
@@ -455,14 +460,9 @@ Each shard writes its own artifacts to `shard_N/`. The merge job combines all re
 For long-running Gym training, serve an environment as a SLURM service:
 
 ```bash
-nel slurm serve \
-    --benchmark gsm8k \
-    --gym-compat \
-    --partition batch \
-    --time-limit 24:00:00 \
-    --output-dir ./eval_results \
-    --submit
+nel serve -b gsm8k --gym-compat --port 9090
 
+# Wrap in an sbatch script for SLURM submission
 # Allocated endpoint is written to eval_results/endpoint.txt
 # Gym training nodes connect via: gym://$(cat eval_results/endpoint.txt)
 ```
@@ -488,8 +488,8 @@ nel slurm serve \
 docker build -t nemo-evaluator .
 
 # Single eval
-docker run -e NEMO_API_KEY=$KEY nemo-evaluator run \
-    --benchmark gsm8k --repeats 2 --output-dir /results
+docker run -e NEMO_API_KEY=$KEY nemo-evaluator eval run \
+    --bench gsm8k --repeats 2 --output-dir /results
 
 # Serve + eval (docker compose)
 cd deploy
@@ -546,7 +546,7 @@ Files: `deploy/k8s/eval-job.yaml`, `deploy/k8s/eval-indexed-job.yaml`, `deploy/k
 ```bash
 # Submit as a Ray job
 ray job submit --working-dir . -- python -m nemo_evaluator.runner.ray_launcher \
-    --benchmark gsm8k --shards 8 --repeats 5 \
+    --bench gsm8k --shards 8 --repeats 5 \
     --model-url https://inference-api.nvidia.com/v1 \
     --model-id azure/openai/gpt-5.2 \
     --output-dir ./eval_results/ray
@@ -589,11 +589,11 @@ File: `deploy/gitlab-ci-eval.yml`
 
 | Target | Eval | Serve | Sharded | Merge | Config |
 |---|---|---|---|---|---|
-| **Local** | `nel run` | `nel serve` | `NEL_SHARD_IDX` env | `nel slurm merge` | CLI flags |
-| **SLURM** | `nel slurm eval` | `nel slurm serve` | `--array` | auto dependency | `.sbatch` |
-| **Docker** | `docker run` | `compose up serve` | `compose --profile sharded` | manual | `docker-compose.yaml` |
+| **Local** | `nel eval run` | `nel serve` | `NEL_SHARD_IDX` env | automatic | CLI flags |
+| **SLURM** | `nel eval run config.yaml` | `nel serve` | `--array` | automatic | YAML config |
+| **Docker** | `docker run` | `compose up serve` | `compose --profile sharded` | automatic | `docker-compose.yaml` |
 | **Kubernetes** | `Job` | `Deployment+Service` | `Indexed Job` | follow-up `Job` | K8s manifests |
 | **Ray** | `ray job submit` | N/A (use K8s) | `ray.remote` tasks | in-process | Python |
 | **GitLab CI** | pipeline job | N/A | N/A | regression stage | `.gitlab-ci.yml` |
 
-All targets use the same `nel run` / `nel serve` commands, same sharding env vars (`NEL_SHARD_IDX`, `NEL_TOTAL_SHARDS`), and same artifact format. The only difference is the orchestration layer.
+All targets use the same `nel eval run` / `nel serve` commands, same sharding env vars (`NEL_SHARD_IDX`, `NEL_TOTAL_SHARDS`), and same artifact format. The only difference is the orchestration layer.

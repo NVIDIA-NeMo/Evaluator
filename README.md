@@ -14,35 +14,35 @@ pip install -e ".[all]"         # everything
 
 ```bash
 # Evaluate a model on MMLU
-nel run --env mmlu \
+nel eval run --bench mmlu \
   --model-url https://api.example.com/v1 \
   --model-id my-model \
   --repeats 3 --max-problems 100
 
 # Multiple benchmarks from YAML config
-nel run config.yaml
+nel eval run config.yaml
 
 # Generate report
-nel report ./eval_results/ -f markdown -o report.md
+nel eval report ./eval_results/ -f markdown -o report.md
 ```
 
 ## Available Benchmarks
 
 | Benchmark | Command | Type |
 |-----------|---------|------|
-| MMLU | `nel run --env mmlu` | Multichoice |
-| MMLU-Pro | `nel run --env mmlu_pro` | Multichoice (10 choices) |
-| MATH-500 | `nel run --env math500` | Math |
-| GPQA Diamond | `nel run --env gpqa` | Multichoice (shuffled) |
-| GSM8K | `nel run --env gsm8k` | Math |
-| DROP | `nel run --env drop` | Reading comprehension |
-| MGSM | `nel run --env mgsm` | Multilingual math |
-| TriviaQA | `nel run --env triviaqa` | Factual QA |
-| HumanEval | `nel run --env humaneval` | Code (Docker sandbox) |
-| SimpleQA | `nel run --env simpleqa` | Factuality (judge) |
-| HealthBench | `nel run --env healthbench` | Health (judge) |
+| MMLU | `nel eval run --bench mmlu` | Multichoice |
+| MMLU-Pro | `nel eval run --bench mmlu_pro` | Multichoice (10 choices) |
+| MATH-500 | `nel eval run --bench math500` | Math |
+| GPQA Diamond | `nel eval run --bench gpqa` | Multichoice (shuffled) |
+| GSM8K | `nel eval run --bench gsm8k` | Math |
+| DROP | `nel eval run --bench drop` | Reading comprehension |
+| MGSM | `nel eval run --bench mgsm` | Multilingual math |
+| TriviaQA | `nel eval run --bench triviaqa` | Factual QA |
+| HumanEval | `nel eval run --bench humaneval` | Code (Docker sandbox) |
+| SimpleQA | `nel eval run --bench simpleqa` | Factuality (judge) |
+| HealthBench | `nel eval run --bench healthbench` | Health (judge) |
 
-Plus: any lm-eval task (`nel run --env lm-eval/aime25`), NeMo Skills benchmark (`nel run --env skills://mmlu-pro`), or remote Gym environment (`nel run --env gym://host:port`).
+Plus: any lm-eval task (`nel eval run --bench lm-eval/aime25`), NeMo Skills benchmark (`nel eval run --bench skills://mmlu-pro`), or remote Gym environment (`nel eval run --bench gym://host:port`).
 
 ## Write a Benchmark in 5 Minutes
 
@@ -60,7 +60,7 @@ def my_scorer(sample: ScorerInput) -> dict:
     return exact_match(sample)
 ```
 
-That's it. Run with `nel run --env my-bench`.
+That's it. Run with `nel eval run --bench my-bench`.
 
 ### Scoring Primitives
 
@@ -108,20 +108,22 @@ The eval loop is decoupled from inference. Plug in any solver:
 | `slurm` | SLURM sbatch with model server + eval jobs |
 
 ```bash
-nel run --env mmlu --executor slurm --deploy nim --deploy-image nvcr.io/nim/llama3-8b
+nel eval run --bench mmlu --executor slurm --deploy nim --deploy-image nvcr.io/nim/llama3-8b
 ```
 
 ## CLI Reference
 
 | Command | Purpose |
 |---------|---------|
-| `nel run --env <name>` | Run evaluation |
-| `nel run config.yaml` | Run from YAML config |
-| `nel serve --benchmark <name>` | Serve as HTTP environment (Gym-compatible) |
-| `nel validate -b <name>` | Quick sanity check (5 samples) |
-| `nel report <dirs> -f markdown` | Generate comparison report |
-| `nel regression baseline.json candidate.json` | Detect regressions |
-| `nel harness list` | List lm-eval tasks |
+| `nel eval run --bench <name>` | Run evaluation |
+| `nel eval run config.yaml` | Run from YAML config |
+| `nel eval status -o <dir>` | Check running evaluation |
+| `nel eval stop -o <dir>` | Stop evaluation |
+| `nel eval report <dir>` | Generate reports |
+| `nel list` | List available benchmarks |
+| `nel serve -b <name>` | Serve benchmark as HTTP endpoint |
+| `nel validate -b <name>` | Quick sanity check |
+| `nel regression` | Compare two runs |
 
 ## Project Structure
 
@@ -129,7 +131,7 @@ nel run --env mmlu --executor slurm --deploy nim --deploy-image nvcr.io/nim/llam
 src/nemo_evaluator/
     environments/
         base.py           EvalEnvironment base class
-        definitions.py    @benchmark + @scorer API
+        define.py         @benchmark + @scorer decorator API
         registry.py       Resolution: names, URIs, namespaces
         gym.py            Gym + ManagedGym environments
         skills.py         NeMo Skills environments
@@ -137,16 +139,22 @@ src/nemo_evaluator/
         pi.py             Prime Intellect environments
         server.py         HTTP server (Gym protocol)
     benchmarks/           11 built-in benchmarks (all @benchmark + @scorer)
+    scoring/
+        types.py          ScorerInput dataclass
+        text.py           exact_match, fuzzy_match
+        pattern.py        multichoice_regex, answer_line, numeric_match
+        sandbox.py        code_sandbox (Docker execution)
+        judge.py          LLM-as-judge (needs_judge, judge_score)
+        json_schema.py    JSON schema validation
     runner/
         solver.py         Solver protocol (Chat, Completion, Agent)
         eval_loop.py      Async parallel eval with back-pressure
         model_client.py   HTTP client with retry, cache, connection pool
         deployment.py     Model server lifecycle (NIM, vLLM, Docker)
     executors/            Local, Docker, SLURM orchestration
-    scoring/              Judge + JSON schema scoring
     observability/        StepRecord, RuntimeStats, FailureReport
     metrics/              pass@k, bootstrap CI, aggregation
-    cli/                  nel run, serve, validate, report, regression
+    cli/                  nel eval, serve, validate, list, regression
 ```
 
 ## License

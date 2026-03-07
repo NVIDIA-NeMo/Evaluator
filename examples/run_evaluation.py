@@ -2,11 +2,10 @@
 """Programmatic evaluation with the Python API (no CLI).
 
 Shows how to use nemo_evaluator as a library: load a benchmark,
-create a model client, run evaluation, and write artifacts.
+create a solver, run evaluation, and write artifacts.
 
 Usage:
     pip install -e ".[scoring]"
-    python examples/run_evaluation.py
     NEMO_MODEL_URL=https://api.example.com/v1 NEMO_MODEL_ID=my-model python examples/run_evaluation.py
 """
 
@@ -20,6 +19,7 @@ from nemo_evaluator.observability.progress import ConsoleProgress
 from nemo_evaluator.runner.artifacts import write_all
 from nemo_evaluator.runner.eval_loop import run_evaluation
 from nemo_evaluator.runner.model_client import ModelClient
+from nemo_evaluator.runner.solver import ChatSolver
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -33,9 +33,10 @@ async def main(benchmark: str, repeats: int, max_problems: int, output_dir: str)
         temperature=0.0,
         max_concurrent=4,
     )
+    solver = ChatSolver(client)
 
     bundle = await run_evaluation(
-        env, client,
+        env, solver,
         n_repeats=repeats,
         max_problems=max_problems,
         progress=ConsoleProgress(),

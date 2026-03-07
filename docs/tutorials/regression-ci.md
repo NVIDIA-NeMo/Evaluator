@@ -42,7 +42,7 @@ eval:candidate:
   stage: eval
   image: $NEL_IMAGE
   script:
-    - nel run --benchmark $BENCHMARK
+    - nel eval run --bench $BENCHMARK
         --model-url $MODEL_URL --model-id $MODEL_ID
         --repeats $REPEATS --max-problems $MAX_PROBLEMS
         --output-dir ./results/candidate --no-progress
@@ -58,7 +58,7 @@ eval:baseline:
   script:
     - git checkout $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
     - pip install -e ".[scoring]"
-    - nel run --benchmark $BENCHMARK
+    - nel eval run --bench $BENCHMARK
         --model-url $MODEL_URL --model-id $MODEL_ID
         --repeats $REPEATS --max-problems $MAX_PROBLEMS
         --output-dir ./results/baseline --no-progress

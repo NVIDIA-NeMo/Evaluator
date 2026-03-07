@@ -41,7 +41,7 @@ class DockerExecutor:
             # Step 2: Run eval in a container sharing the server's network
             eval_image = os.environ.get("NEL_EVAL_IMAGE", "nemo-evaluator:latest")
             nel_cmd = (
-                f"nel run --env {config.env} "
+                f"nel eval run --bench {config.env} "
                 f"--model-url {model_url} --model-id {model_id} "
                 f"--repeats {config.repeats} "
                 f"-o /results"

@@ -13,9 +13,9 @@ ns prepare_data aime24
 ## CLI
 
 ```bash
-nel run --env skills://gpqa --repeats 4 --max-problems 100
-nel run --env skills://aime24 --repeats 8
-nel run --env skills://mmlu --repeats 1
+nel eval run --bench skills://gpqa --repeats 4 --max-problems 100
+nel eval run --bench skills://aime24 --repeats 8
+nel eval run --bench skills://mmlu --repeats 1
 ```
 
 The `skills://` URI scheme resolves to a `SkillsEnvironment`, which:
@@ -28,7 +28,7 @@ The `skills://` URI scheme resolves to a `SkillsEnvironment`, which:
 
 ```{mermaid}
 flowchart LR
-    NEL["nel run --env skills://gpqa"] --> REG["Registry"]
+    NEL["nel eval run --bench skills://gpqa"] --> REG["Registry"]
     REG --> SE["SkillsEnvironment"]
     SE --> DS["nemo_skills dataset"]
     SE --> EVAL["nemo_skills evaluator"]
@@ -75,7 +75,7 @@ The environment automatically selects the correct scoring method based on `METRI
 Override the default prompt for any Skills benchmark:
 
 ```bash
-nel run --env skills://gpqa --system-prompt "Think step by step."
+nel eval run --bench skills://gpqa --system-prompt "Think step by step."
 ```
 
 Or via Python:
@@ -92,7 +92,7 @@ env = SkillsEnvironment(
 ## Available Benchmarks
 
 ```bash
-nel list-environments  # shows built-in + skills if installed
+nel list  # shows built-in + skills if installed
 ```
 
 ### Math Reasoning
@@ -149,14 +149,14 @@ nel list-environments  # shows built-in + skills if installed
 Combine with sharding for large benchmarks:
 
 ```bash
-nel run --env skills://mmlu --executor slurm \
+nel eval run --bench skills://mmlu --executor slurm \
     --slurm-partition batch --repeats 4
 ```
 
 Or via environment variables:
 
 ```bash
-NEL_SHARD_IDX=0 NEL_TOTAL_SHARDS=8 nel run --env skills://mmlu --repeats 4
+NEL_SHARD_IDX=0 NEL_TOTAL_SHARDS=8 nel eval run --bench skills://mmlu --repeats 4
 ```
 
 ## Python API

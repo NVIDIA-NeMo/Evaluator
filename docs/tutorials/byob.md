@@ -21,7 +21,7 @@ def my_scorer(sample: ScorerInput) -> dict:
 Run it:
 
 ```bash
-nel run --env my-bench
+nel eval run --bench my-bench
 ```
 
 That is the entire workflow. The `@benchmark` decorator registers an environment, loads
@@ -95,13 +95,13 @@ my_reasoning: 10 samples
 ### Step 4: Run full evaluation
 
 ```bash
-nel run --env my_reasoning --repeats 4 --output-dir ./results/my_reasoning
+nel eval run --bench my_reasoning --repeats 4 --output-dir ./results/my_reasoning
 ```
 
 ### Step 5: Serve for Gym training
 
 ```bash
-nel serve --benchmark my_reasoning --port 9090
+nel serve -b my_reasoning -p 9090
 ```
 
 Gym training connects at `http://hostname:9090`.
@@ -112,7 +112,7 @@ Gym training connects at `http://hostname:9090`.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `name` | `str` | Yes | Environment name used in `nel run --env <name>` |
+| `name` | `str` | Yes | Environment name used in `nel eval run --bench <name>` |
 | `dataset` | `str \| Callable` | Yes | HuggingFace URI (`hf://...`), local JSONL path, or callable returning `list[dict]` |
 | `prompt` | `str` | Yes | Python format string using dataset field names |
 | `target_field` | `str` | No | Dataset field containing the expected answer (default: `"target"`) |

@@ -17,22 +17,24 @@ def main():
     p.add_argument("--output-dir", "-o", default="./eval_results/pi")
     args = p.parse_args()
 
-    from nemo_evaluator.adapters.pi import PIAdapter
+    from nemo_evaluator.environments.pi import PIEnvironment
     from nemo_evaluator.observability.progress import ConsoleProgress
     from nemo_evaluator.runner.artifacts import write_all
     from nemo_evaluator.runner.eval_loop import run_evaluation
     from nemo_evaluator.runner.model_client import ModelClient
+    from nemo_evaluator.runner.solver import ChatSolver
 
-    adapter = PIAdapter(args.env)
+    env = PIEnvironment(args.env)
     client = ModelClient(
         base_url=os.getenv("MODEL_URL", "https://inference-api.nvidia.com/v1"),
         model=os.getenv("MODEL_ID", "azure/openai/gpt-5.2"),
         api_key=os.getenv("NEMO_API_KEY", ""),
     )
+    solver = ChatSolver(client)
 
     bundle = asyncio.run(run_evaluation(
-        adapter, client, n_repeats=args.repeats, max_problems=args.max_problems,
-        system_prompt=adapter.system_prompt, progress=ConsoleProgress()))
+        env, solver, n_repeats=args.repeats, max_problems=args.max_problems,
+        progress=ConsoleProgress()))
 
     paths = write_all(bundle, args.output_dir)
     for k, p in paths.items():

@@ -1,5 +1,6 @@
 """MMLU-Pro -- 10-choice version from TIGER-Lab."""
-from nemo_evaluator.environments.definitions import ScorerInput, benchmark, multichoice_regex, scorer
+from nemo_evaluator.environments.define import benchmark, scorer
+from nemo_evaluator.scoring import ScorerInput, multichoice_regex
 
 _LETTERS = "ABCDEFGHIJ"
 _PROMPT = (

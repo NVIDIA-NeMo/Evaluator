@@ -11,7 +11,7 @@ export NEMO_API_KEY="your-api-key-here"
 ## Step 2: Run an evaluation
 
 ```bash
-nel run --env gsm8k \
+nel eval run --bench gsm8k \
   --model-url https://api.example.com/v1 \
   --model-id my-model \
   --repeats 2 --max-problems 20
@@ -55,7 +55,7 @@ gsm8k
 ## Step 4: Compare against a baseline
 
 ```bash
-nel run --env gsm8k --repeats 4 -o ./results/candidate
+nel eval run --bench gsm8k --repeats 4 -o ./results/candidate
 
 nel regression ./results/baseline/eval-*.json ./results/candidate/eval-*.json --strict
 ```
@@ -78,22 +78,22 @@ For reproducible multi-benchmark evaluations:
 
 ```yaml
 # eval_config.yaml
-evaluation:
-  model_url: https://inference-api.nvidia.com/v1
-  model_id: azure/openai/gpt-5.2
+model:
+  url: https://inference-api.nvidia.com/v1
+  id: azure/openai/gpt-5.2
 
-  tasks:
-    - env: gsm8k
-      repeats: 4
-      system_prompt: "Solve step by step. Put your final answer in \\boxed{}."
+benchmarks:
+  - name: gsm8k
+    repeats: 4
+    system_prompt: "Solve step by step. Put your final answer in \\boxed{}."
 
-    - env: triviaqa
-      repeats: 1
-      max_problems: 100
+  - name: triviaqa
+    repeats: 1
+    max_problems: 100
 ```
 
 ```bash
-nel run eval_config.yaml
+nel eval run eval_config.yaml
 ```
 
 Each task gets its own output directory with the full artifact suite.

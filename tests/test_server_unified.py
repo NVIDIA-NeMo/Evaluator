@@ -45,7 +45,7 @@ class TestUnifiedVerify:
         assert r.json()["scoring_details"]["method"] == "exact"
 
     def test_evaluator_format_in_gym_mode(self, client_gym_mode):
-        """GymAdapter sends evaluator format -- should work in gym mode too."""
+        """GymEnvironment sends evaluator format -- should work in gym mode too."""
         r = client_gym_mode.post("/verify", json={
             "response": "4", "expected": "4", "metadata": {}
         })

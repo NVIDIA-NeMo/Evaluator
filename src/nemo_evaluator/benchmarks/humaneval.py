@@ -1,5 +1,6 @@
 """HumanEval -- code generation with Docker-sandboxed test execution."""
-from nemo_evaluator.environments.definitions import ScorerInput, benchmark, code_sandbox, scorer
+from nemo_evaluator.environments.define import benchmark, scorer
+from nemo_evaluator.scoring import ScorerInput, code_sandbox
 
 _PROMPT = (
     "Read the following function signature and docstring, and fully implement "

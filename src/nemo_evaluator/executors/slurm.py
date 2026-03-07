@@ -115,7 +115,7 @@ class SlurmExecutor:
             health_path = "/v1/health/ready"
 
         nel_cmd = (
-            f"nel run --env {config.env} "
+            f"nel eval run --bench {config.env} "
             f'--model-url "$MODEL_URL" --model-id "$MODEL_ID" '
             f"--repeats {config.repeats} "
             f"-o {config.output_dir}"

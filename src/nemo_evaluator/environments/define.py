@@ -1,14 +1,15 @@
 """Benchmark definition API: @benchmark + @scorer.
 
-All benchmarks -- built-in and user-provided (BYOB) -- use this API.
+All benchmarks -- built-in and user-provided -- use this API.
 
-    from nemo_evaluator import benchmark, scorer, ScorerInput
+    from nemo_evaluator.environments.define import benchmark, scorer
+    from nemo_evaluator.scoring import ScorerInput, exact_match
 
     @benchmark(name="my-bench", dataset="hf://my/data?split=test",
                prompt="Question: {q}\\nAnswer:", target_field="answer")
     @scorer
     def score(sample: ScorerInput) -> dict:
-        return {"correct": sample.response.strip() == str(sample.target)}
+        return exact_match(sample)
 
 Extension hooks:
   - prepare_row(row, idx, rng) -> row:  transform each dataset row after loading
@@ -24,29 +25,18 @@ from __future__ import annotations
 import json
 import logging
 import random
-import re
-import string
-import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.environments.registry import register
+from nemo_evaluator.scoring.types import ScorerInput
 
 logger = logging.getLogger(__name__)
 
 
 # ── Data types ────────────────────────────────────────────────────────────
-
-@dataclass
-class ScorerInput:
-    """Passed to scorer functions."""
-    response: str
-    target: Any
-    metadata: dict[str, Any] = field(default_factory=dict)
-    config: dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class BenchmarkDefinition:
@@ -85,7 +75,6 @@ def _load_dataset_from_spec(spec: str | Callable) -> list[dict[str, Any]]:
                     rows.append(json.loads(line))
         return rows
 
-    # Try as HF dataset name directly
     return _load_hf(spec)
 
 
@@ -230,91 +219,5 @@ def benchmark(
 
 def scorer(fn: Callable[[ScorerInput], dict]) -> Callable[[ScorerInput], dict]:
     """Marks a function as a scorer."""
-    fn._is_scorer = True
+    fn._is_scorer = True  # type: ignore[attr-defined]
     return fn
-
-
-# ── Built-in scoring primitives ──────────────────────────────────────────
-
-def multichoice_regex(sample: ScorerInput, pattern: str = r"(?i)Answer\s*:\s*([A-D])") -> dict:
-    m = re.search(pattern, sample.response)
-    extracted = m.group(1).upper() if m else None
-    return {"correct": extracted == str(sample.target).upper(), "extracted": extracted}
-
-
-def answer_line(sample: ScorerInput, pattern: str = r"(?i)Answer\s*:\s*([^\n]+)") -> dict:
-    m = re.search(pattern, sample.response)
-    extracted = m.group(1).strip() if m else sample.response.strip().split("\n")[-1]
-    return {"correct": _normalize_math(extracted) == _normalize_math(str(sample.target)),
-            "extracted": extracted}
-
-
-def fuzzy_match(sample: ScorerInput) -> dict:
-    pred = _normalize_text(sample.response)
-    targets = sample.metadata.get("correct_answers", [str(sample.target)])
-    correct = any(_normalize_text(t) in pred or pred in _normalize_text(t) for t in targets)
-    return {"correct": correct, "extracted": sample.response.strip()[:200]}
-
-
-def exact_match(sample: ScorerInput) -> dict:
-    return {"correct": _normalize_text(sample.response) == _normalize_text(str(sample.target))}
-
-
-def numeric_match(sample: ScorerInput) -> dict:
-    nums = re.findall(r"-?\d+\.?\d*", sample.response.replace(",", ""))
-    extracted = nums[-1].rstrip("0").rstrip(".") if nums else ""
-    target = str(sample.target).strip().rstrip("0").rstrip(".")
-    return {"correct": extracted == target, "extracted": extracted}
-
-
-def code_sandbox(sample: ScorerInput) -> dict:
-    """Run code in Docker sandbox. Pipes code via stdin to avoid shell injection."""
-    import subprocess
-
-    prompt_code = sample.metadata.get("_prompt", "")
-    test_code = sample.metadata.get("_test", "")
-    entry_point = sample.metadata.get("entry_point", "solution")
-
-    m = re.search(r"```(?:python)?\s*\n((?:\n|.)+?)```", sample.response, re.DOTALL)
-    completion = m.group(1) if m else sample.response
-
-    code = f"{prompt_code}{completion}\n{test_code}\ncheck({entry_point})"
-    try:
-        result = subprocess.run(
-            ["docker", "run", "--rm", "-i",
-             "--network", "none",
-             "--memory", "256m",
-             "--cpus", "1",
-             "--pids-limit", "64",
-             "--read-only",
-             "--tmpfs", "/tmp:size=64m",
-             "--security-opt", "no-new-privileges",
-             "python:3.12-slim", "python", "-"],
-            input=code, capture_output=True, text=True, timeout=30,
-        )
-        passed = result.returncode == 0
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        passed = False
-
-    return {"correct": passed, "extracted": completion[:500]}
-
-
-def needs_judge(sample: ScorerInput) -> dict:
-    """Signals that this sample needs LLM-as-judge scoring (eval loop post-processor)."""
-    return {"correct": False, "needs_judge": True, "extracted": sample.response[:500]}
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────
-
-def _normalize_math(s: str) -> str:
-    s = s.strip().lower()
-    for ch in (",", "$", "%", " "):
-        s = s.replace(ch, "")
-    return s.rstrip(".")
-
-
-def _normalize_text(s: str) -> str:
-    s = unicodedata.normalize("NFKD", s)
-    s = re.sub(r"\b(a|an|the)\b", " ", s.lower())
-    s = "".join(ch for ch in s if ch not in string.punctuation)
-    return " ".join(s.split())

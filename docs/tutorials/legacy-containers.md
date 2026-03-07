@@ -6,7 +6,7 @@ Run any existing NeMo Evaluator harness container (simple-evals, lm-evaluation-h
 
 ```{mermaid}
 flowchart TB
-    NEL["nel container-eval<br/>or run_container_eval()"] --> CONFIG["Build config_ef.yaml"]
+    NEL["run_container_eval()"] --> CONFIG["Build config_ef.yaml"]
     CONFIG --> DOCKER["docker run<br/>eval-factory container"]
     DOCKER --> HARNESS["Harness runs<br/>(simple-evals, lm-eval, etc.)"]
     HARNESS --> OUTPUT["results.yml<br/>eval_factory_metrics.json"]
@@ -28,7 +28,7 @@ The container adapter does **not** decompose the harness. The harness owns the m
 ## Available Harnesses
 
 ```bash
-nel list-harnesses
+nel list --source lm-eval
 ```
 
 | Harness | Container | Example tasks |
@@ -45,28 +45,7 @@ nel list-harnesses
 | `safety_eval` | `nvcr.io/.../safety-harness:26.01` | Safety evals |
 | `helm` | `nvcr.io/.../helm:26.01` | HELM benchmarks |
 
-Plus 10+ more (see `nel list-harnesses`).
-
-## CLI Usage
-
-### Run a legacy container eval
-
-```bash
-nel container-eval simple_evals.AIME_2025 \
-    --model-url https://inference-api.nvidia.com/v1 \
-    --model-id azure/openai/gpt-5.2 \
-    --limit-samples 20 \
-    --output-dir ./results/aime
-```
-
-### Specify a custom image
-
-```bash
-nel container-eval my_custom_task \
-    --image my-registry.com/custom-harness:latest \
-    --model-url https://my-model-api.com/v1 \
-    --model-id my-model
-```
+Plus 10+ more (see `nel list --source lm-eval`).
 
 ## Python API
 

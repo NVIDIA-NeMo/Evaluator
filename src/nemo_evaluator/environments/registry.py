@@ -33,7 +33,8 @@ def register(name: str):
 
 def _make_lm_eval(task: str, **kwargs: Any) -> "EvalEnvironment":
     from nemo_evaluator.environments.lm_eval import LMEvalEnvironment
-    return LMEvalEnvironment(task_name=task, num_fewshot=kwargs.get("num_fewshot"), limit=kwargs.get("limit"))
+    limit = kwargs.get("limit") or kwargs.get("num_examples")
+    return LMEvalEnvironment(task_name=task, num_fewshot=kwargs.get("num_fewshot"), limit=limit)
 
 
 _NAMESPACE_FACTORIES: dict[str, Callable[..., "EvalEnvironment"]] = {
@@ -59,7 +60,13 @@ def _make_gym_managed(rest: str, **kwargs: Any) -> "EvalEnvironment":
 
 def _make_skills(rest: str, **kwargs: Any) -> "EvalEnvironment":
     from nemo_evaluator.environments.skills import SkillsEnvironment
-    return SkillsEnvironment(rest)
+    return SkillsEnvironment(
+        rest,
+        split=kwargs.get("split"),
+        data_dir=kwargs.get("data_dir"),
+        prompt_template=kwargs.get("prompt_template"),
+        eval_type=kwargs.get("eval_type"),
+    )
 
 
 def _make_pi(rest: str, **kwargs: Any) -> "EvalEnvironment":
@@ -113,7 +120,11 @@ def get_environment(name: str, **kwargs: Any) -> "EvalEnvironment":
     if key not in _REGISTRY:
         available = ", ".join(sorted(_REGISTRY)) or "(none)"
         raise KeyError(f"Unknown environment {name!r}. Available: {available}")
-    return _REGISTRY[key]()
+    cls = _REGISTRY[key]
+    init_kwargs = {}
+    if "num_examples" in kwargs and kwargs["num_examples"] is not None:
+        init_kwargs["num_examples"] = kwargs["num_examples"]
+    return cls(**init_kwargs)
 
 
 def list_environments() -> list[str]:

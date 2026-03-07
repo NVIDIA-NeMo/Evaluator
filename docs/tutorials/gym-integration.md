@@ -40,7 +40,7 @@ There are three integration modes:
 ### Start the environment server
 
 ```bash
-nel serve --benchmark gsm8k --port 9090
+nel serve -b gsm8k -p 9090
 ```
 
 The server speaks Gym's native protocol:
@@ -66,7 +66,7 @@ resource_servers:
 The same server also speaks NEL's enriched protocol:
 
 ```bash
-nel run --env gym://evaluator-host:9090 --repeats 4
+nel eval run --bench gym://evaluator-host:9090 --repeats 4
 ```
 
 This produces the full artifact suite (trajectories, CI, failure analysis) from the same environment.
@@ -76,7 +76,7 @@ This produces the full artifact suite (trajectories, CI, failure analysis) from 
 For batch rollout collection without a live server:
 
 ```bash
-nel serve --benchmark gsm8k --export-data /tmp/evaluator_data
+nel serve -b gsm8k --export-data /tmp/evaluator_data
 ```
 
 Or via Python:
@@ -105,13 +105,13 @@ with open("/tmp/rollout_data.jsonl", "w") as f:
 Evaluate a model against any running `nel serve` endpoint using `GymEnvironment`:
 
 ```bash
-nel run --env gym://localhost:9090 --repeats 2
-nel run --env gym://gym-cluster:8080 --repeats 4 --output-dir ./results/remote
+nel eval run --bench gym://localhost:9090 --repeats 2
+nel eval run --bench gym://gym-cluster:8080 --repeats 4 --output-dir ./results/remote
 ```
 
 ```{mermaid}
 sequenceDiagram
-    participant E as nel run
+    participant E as nel eval run
     participant G as GymEnvironment
     participant S as Environment Server
     participant M as Model API
@@ -139,13 +139,13 @@ Because NEL makes the model call (not the environment server), you get full obse
 For environments that need a server started and stopped automatically:
 
 ```bash
-nel run --env gym-managed://gsm8k --repeats 4
+nel eval run --bench gym-managed://gsm8k --repeats 4
 ```
 
 Or with a custom server command:
 
 ```bash
-nel run --env "gym-managed://cmd:python my_server.py" --repeats 4
+nel eval run --bench "gym-managed://cmd:python my_server.py" --repeats 4
 ```
 
 `ManagedGymEnvironment` starts the server process, waits for `/health` to return 200, delegates to `GymEnvironment` for requests, and tears down the server on completion.
@@ -153,7 +153,7 @@ nel run --env "gym-managed://cmd:python my_server.py" --repeats 4
 ## Serve on SLURM
 
 ```bash
-nel run --env gsm8k --executor slurm \
+nel eval run --bench gsm8k --executor slurm \
     --slurm-partition batch --slurm-time 24:00:00
 ```
 

@@ -1,25 +1,8 @@
 # External Environments
 
-```{deprecated} 0.4.0
-The adapter layer (`EnvironmentAdapter`, `GymAdapter`, `PIAdapter`, `SkillsAdapter`) has been removed. All external integrations are now `EvalEnvironment` subclasses resolved through the unified registry.
-```
-
-## Migration Guide
-
-| Old (0.3.x) | New (0.4.0) |
-|-------------|-------------|
-| `nel run --adapter gym://host:port` | `nel run --env gym://host:port` |
-| `nel run --adapter skills://gpqa` | `nel run --env skills://gpqa` |
-| `nel run --adapter pi://simpleqa` | `nel run --env pi://simpleqa` |
-| `GymAdapter("http://...")` | `GymEnvironment("http://...")` |
-| `SkillsAdapter("gpqa")` | `SkillsEnvironment("gpqa")` |
-| `PIAdapter("simpleqa")` | `PIEnvironment("simpleqa")` |
-
-The `--adapter` CLI flag is no longer recognized. Use `--env` with the same URI.
+All external integrations are `EvalEnvironment` subclasses resolved through the unified registry.
 
 ## Environment Types
-
-All external integrations are standard `EvalEnvironment` subclasses:
 
 | Environment | URI | Source |
 |-------------|-----|--------|
@@ -28,6 +11,13 @@ All external integrations are standard `EvalEnvironment` subclasses:
 | `SkillsEnvironment` | `skills://name` | NeMo Skills benchmarks |
 | `LMEvalEnvironment` | `lm-eval/task` | lm-evaluation-harness tasks |
 | `PIEnvironment` | `pi://name` | Prime Intellect verifiers |
+
+```bash
+nel eval run --bench gym://host:port
+nel eval run --bench skills://gpqa
+nel eval run --bench pi://simpleqa
+nel eval run --bench lm-eval/aime2025
+```
 
 See the dedicated tutorials for each:
 

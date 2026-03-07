@@ -1,6 +1,6 @@
 """Tests for LLM-as-judge scoring primitives."""
 import pytest
-from nemo_evaluator.scoring.judge import build_judge_prompt, parse_judge_response, JudgeConfig
+from nemo_evaluator.scoring.judge import build_judge_prompt, parse_judge_response, JudgeScoringConfig
 
 
 class TestParseJudgeResponse:

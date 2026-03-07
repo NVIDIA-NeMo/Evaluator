@@ -1,15 +1,38 @@
-"""Scoring utilities: judge + JSON schema validation.
+"""Scoring: all scorer implementations and utilities.
 
-Environment-specific scoring (math, MCQ, exact match) lives in each
-environment's verify() method -- not here. These are NEL-native capabilities
-that add value beyond what external harnesses provide.
+Scorers are functions ``(ScorerInput) -> dict`` used by benchmarks.
 """
 from nemo_evaluator.scoring.judge import (
-    JudgeConfig, build_judge_prompt, judge_score, parse_judge_response,
+    JudgeScoringConfig,
+    build_judge_prompt,
+    judge_score,
+    needs_judge,
+    parse_judge_response,
 )
 from nemo_evaluator.scoring.json_schema import extract_json, validate_json_schema
+from nemo_evaluator.scoring.pattern import answer_line, multichoice_regex, numeric_match
+from nemo_evaluator.scoring.sandbox import code_sandbox
+from nemo_evaluator.scoring.text import exact_match, fuzzy_match
+from nemo_evaluator.scoring.types import ScorerInput
 
 __all__ = [
-    "JudgeConfig", "build_judge_prompt", "judge_score", "parse_judge_response",
-    "extract_json", "validate_json_schema",
+    "ScorerInput",
+    # Text
+    "exact_match",
+    "fuzzy_match",
+    # Pattern
+    "multichoice_regex",
+    "answer_line",
+    "numeric_match",
+    # Sandbox
+    "code_sandbox",
+    # Judge
+    "needs_judge",
+    "JudgeScoringConfig",
+    "build_judge_prompt",
+    "parse_judge_response",
+    "judge_score",
+    # JSON
+    "extract_json",
+    "validate_json_schema",
 ]

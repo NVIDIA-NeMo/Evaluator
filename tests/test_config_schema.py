@@ -1,7 +1,16 @@
-"""Tests for config YAML schema validation and env var expansion."""
-import os
+"""Tests for eval config schema validation and env var expansion."""
 import pytest
-from nemo_evaluator.config_schema import parse_config, _expand_env
+
+from nemo_evaluator.eval.config import (
+    EvalConfig,
+    ModelConfig,
+    BenchmarkConfig,
+    ServiceConfig,
+    ClusterConfig,
+    OutputConfig,
+    parse_eval_config,
+    _expand_env,
+)
 
 
 class TestEnvExpansion:
@@ -29,63 +38,127 @@ class TestEnvExpansion:
         assert _expand_env(None) is None
 
 
-class TestParseConfig:
-    def test_nested_format(self):
+class TestParseEvalConfig:
+    def test_simple_mode(self):
         raw = {
-            "evaluation": {
-                "model_url": "http://example.com",
-                "model_id": "gpt-4",
-                "tasks": [{"benchmark": "gsm8k"}],
-            }
+            "model": {"url": "http://localhost:8000/v1", "id": "gpt-4"},
+            "benchmarks": [{"name": "gsm8k"}],
         }
-        cfg = parse_config(raw)
-        assert cfg.model_url == "http://example.com"
-        assert len(cfg.tasks) == 1
-        assert cfg.tasks[0].benchmark == "gsm8k"
+        cfg = parse_eval_config(raw)
+        assert cfg.is_simple
+        assert cfg.model.url == "http://localhost:8000/v1"
+        assert len(cfg.benchmarks) == 1
+        assert cfg.benchmarks[0].name == "gsm8k"
 
-    def test_flat_format(self):
+    def test_simple_mode_with_options(self):
         raw = {
-            "model_url": "http://example.com",
-            "tasks": [{"benchmark": "gsm8k", "repeats": 4}],
+            "model": {"url": "http://localhost:8000/v1", "id": "gpt-4"},
+            "benchmarks": [
+                {"name": "gsm8k", "repeats": 5, "max_problems": 100},
+                {"name": "lm-eval/aime2025", "repeats": 20},
+            ],
         }
-        cfg = parse_config(raw)
-        assert cfg.model_url == "http://example.com"
-        assert cfg.tasks[0].repeats == 4
+        cfg = parse_eval_config(raw)
+        assert len(cfg.benchmarks) == 2
+        assert cfg.benchmarks[0].repeats == 5
+        assert cfg.benchmarks[0].max_problems == 100
+        assert cfg.benchmarks[1].name == "lm-eval/aime2025"
 
-    def test_harness_task(self):
+    def test_advanced_mode(self):
         raw = {
-            "evaluation": {
-                "tasks": [
-                    {"harness": "lm-eval", "tasks": ["gsm8k"]},
-                    {"harness": "lm-eval", "tasks": ["aime25"]},
-                ]
-            }
+            "services": {
+                "evaluated": {"type": "vllm", "model": "Qwen/Qwen3.5-9B", "port": 8000},
+            },
+            "benchmarks": [{"name": "gsm8k", "model": "evaluated"}],
         }
-        cfg = parse_config(raw)
-        assert len(cfg.tasks) == 2
-        assert cfg.tasks[0].harness == "lm-eval"
-        assert cfg.tasks[1].tasks == ["aime25"]
+        cfg = parse_eval_config(raw)
+        assert not cfg.is_simple
+        assert "evaluated" in cfg.services
+        assert cfg.services["evaluated"].type == "vllm"
 
-    def test_empty_tasks_raises(self):
-        with pytest.raises(Exception, match="at least one task"):
-            parse_config({"evaluation": {"tasks": []}})
-
-    def test_task_without_target_raises(self):
-        with pytest.raises(Exception, match="at least one of"):
-            parse_config({"evaluation": {"tasks": [{"repeats": 4}]}})
-
-    def test_mixed_tasks(self):
+    def test_both_model_and_services_raises(self):
         raw = {
-            "evaluation": {
-                "tasks": [
-                    {"benchmark": "gsm8k", "repeats": 4},
-                    {"adapter": "gym://localhost:9090"},
-                    {"harness": "lm-eval", "tasks": ["aime25"], "fewshot": 0},
-                ]
-            }
+            "model": {"url": "http://localhost:8000/v1", "id": "gpt-4"},
+            "services": {"s1": {"type": "api", "url": "http://x"}},
+            "benchmarks": [{"name": "gsm8k"}],
         }
-        cfg = parse_config(raw)
-        assert len(cfg.tasks) == 3
-        assert cfg.tasks[0].benchmark == "gsm8k"
-        assert cfg.tasks[1].adapter == "gym://localhost:9090"
-        assert cfg.tasks[2].harness == "lm-eval"
+        with pytest.raises(Exception, match="not both"):
+            parse_eval_config(raw)
+
+    def test_no_model_or_services_raises(self):
+        raw = {"benchmarks": [{"name": "gsm8k"}]}
+        with pytest.raises(Exception):
+            parse_eval_config(raw)
+
+    def test_empty_benchmarks_raises(self):
+        raw = {
+            "model": {"url": "http://localhost:8000/v1", "id": "gpt-4"},
+            "benchmarks": [],
+        }
+        with pytest.raises(Exception):
+            parse_eval_config(raw)
+
+    def test_cluster_defaults(self):
+        raw = {
+            "model": {"url": "http://localhost:8000/v1", "id": "gpt-4"},
+            "benchmarks": [{"name": "gsm8k"}],
+        }
+        cfg = parse_eval_config(raw)
+        assert cfg.cluster.type == "local"
+        assert cfg.cluster.partition == "batch"
+
+    def test_slurm_cluster(self):
+        raw = {
+            "model": {"url": "http://localhost:8000/v1", "id": "gpt-4"},
+            "benchmarks": [{"name": "gsm8k"}],
+            "cluster": {
+                "type": "slurm",
+                "hostname": "login-01",
+                "partition": "gpu",
+                "gres": "gpu:8",
+                "walltime": "02:00:00",
+            },
+        }
+        cfg = parse_eval_config(raw)
+        assert cfg.cluster.type == "slurm"
+        assert cfg.cluster.hostname == "login-01"
+        assert cfg.cluster.gres == "gpu:8"
+
+    def test_env_var_expansion(self, monkeypatch):
+        monkeypatch.setenv("MODEL_URL", "http://my-server:8000/v1")
+        monkeypatch.setenv("MODEL_ID", "llama-3")
+        raw = {
+            "model": {"url": "${MODEL_URL}", "id": "${MODEL_ID}"},
+            "benchmarks": [{"name": "gsm8k"}],
+        }
+        cfg = parse_eval_config(raw)
+        assert cfg.model.url == "http://my-server:8000/v1"
+        assert cfg.model.id == "llama-3"
+
+    def test_resolve_model_url_simple(self):
+        cfg = EvalConfig(
+            model=ModelConfig(url="http://localhost:8000/v1", id="gpt-4"),
+            benchmarks=[BenchmarkConfig(name="gsm8k")],
+        )
+        assert cfg.resolve_model_url() == "http://localhost:8000/v1"
+
+    def test_resolve_model_url_advanced(self):
+        cfg = EvalConfig(
+            services={
+                "evaluated": ServiceConfig(type="api", url="http://remote:8000/v1"),
+            },
+            benchmarks=[BenchmarkConfig(name="gsm8k", model="evaluated")],
+        )
+        assert cfg.resolve_model_url("evaluated") == "http://remote:8000/v1"
+
+    def test_managed_services(self):
+        cfg = EvalConfig(
+            services={
+                "vllm_model": ServiceConfig(type="vllm", model="Qwen/Qwen3.5-9B"),
+                "external": ServiceConfig(type="api", url="http://x"),
+            },
+            benchmarks=[BenchmarkConfig(name="gsm8k")],
+        )
+        managed = cfg.managed_services()
+        assert "vllm_model" in managed
+        assert "external" not in managed

@@ -22,7 +22,7 @@ eval:candidate:
   stage: eval
   image: nemo-evaluator:latest
   script:
-    - nel run -b gsm8k --repeats 2 --max-problems 50 -o results/candidate --no-progress
+    - nel eval run --bench gsm8k --repeats 2 --max-problems 50 -o results/candidate --no-progress
   artifacts:
     paths: [results/candidate/]
   rules:
@@ -34,7 +34,7 @@ eval:baseline:
   script:
     - git checkout $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
     - pip install -e ".[scoring]"
-    - nel run -b gsm8k --repeats 2 --max-problems 50 -o results/baseline --no-progress
+    - nel eval run --bench gsm8k --repeats 2 --max-problems 50 -o results/baseline --no-progress
   artifacts:
     paths: [results/baseline/]
   rules:
@@ -93,7 +93,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { ref: main }
       - run: pip install -e ".[scoring]"
-      - run: nel run -b gsm8k --repeats 2 --max-problems 50 -o results/baseline --no-progress
+      - run: nel eval run --bench gsm8k --repeats 2 --max-problems 50 -o results/baseline --no-progress
       - uses: actions/upload-artifact@v4
         with: { name: baseline, path: results/baseline/ }
 
@@ -102,7 +102,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: pip install -e ".[scoring]"
-      - run: nel run -b gsm8k --repeats 2 --max-problems 50 -o results/candidate --no-progress
+      - run: nel eval run --bench gsm8k --repeats 2 --max-problems 50 -o results/candidate --no-progress
       - uses: actions/upload-artifact@v4
         with: { name: candidate, path: results/candidate/ }
 

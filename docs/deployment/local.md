@@ -5,7 +5,7 @@ Run evaluations directly on your workstation.
 ## Single benchmark
 
 ```bash
-nel run --benchmark gsm8k --repeats 4 \
+nel eval run --bench gsm8k --repeats 4 \
     --model-url https://inference-api.nvidia.com/v1 \
     --model-id azure/openai/gpt-5.2 \
     --output-dir ./results
@@ -15,27 +15,27 @@ nel run --benchmark gsm8k --repeats 4 \
 
 ```yaml
 # eval.yaml
-evaluation:
-  model_url: https://inference-api.nvidia.com/v1
-  model_id: azure/openai/gpt-5.2
+model:
+  url: https://inference-api.nvidia.com/v1
+  id: azure/openai/gpt-5.2
 
-  tasks:
-    - benchmark: gsm8k
-      repeats: 4
-      system_prompt: "Solve step by step. Put your final answer in \\boxed{}."
-    - benchmark: triviaqa
-      repeats: 1
-      max_problems: 200
+benchmarks:
+  - name: gsm8k
+    repeats: 4
+    system_prompt: "Solve step by step. Put your final answer in \\boxed{}."
+  - name: triviaqa
+    repeats: 1
+    max_problems: 200
 ```
 
 ```bash
-nel run eval.yaml
+nel eval run eval.yaml
 ```
 
 ## Serve for Gym
 
 ```bash
-nel serve --benchmark gsm8k --gym-compat --port 9090
+nel serve -b gsm8k --gym-compat --port 9090
 ```
 
 ## Validate a benchmark
@@ -43,7 +43,7 @@ nel serve --benchmark gsm8k --gym-compat --port 9090
 Quick sanity check (10 samples, prints pass/fail per sample):
 
 ```bash
-nel validate --benchmark gsm8k --samples 10
+nel validate -b gsm8k --samples 10
 ```
 
 ## Environment variables

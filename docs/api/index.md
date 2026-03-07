@@ -80,27 +80,29 @@ Core evaluation loop.
 
 ```python
 async def run_evaluation(
-    env: EvalSource,
-    client: ModelClient,
+    env: EvalEnvironment,
+    solver: Solver,
     n_repeats: int = 1,
     max_problems: int | None = None,
-    system_prompt: str | None = None,
     config: dict[str, Any] | None = None,
     progress: ProgressTracker | None = None,
     problem_range: tuple[int, int] | None = None,
+    max_concurrent: int = 32,
+    judge_client: Any = None,
 ) -> dict[str, Any]:
 ```
 
 | Parameter | Description |
 |-----------|-------------|
-| `env` | `EvalEnvironment` or `EnvironmentAdapter` |
-| `client` | Model client for chat completions |
+| `env` | `EvalEnvironment` instance |
+| `solver` | `Solver` instance (e.g. `ChatSolver`, `CompletionSolver`, `AgentSolver`) |
 | `n_repeats` | Number of times to evaluate each problem |
 | `max_problems` | Limit to first N problems |
-| `system_prompt` | System message prepended to each request |
 | `config` | Metadata included in the output bundle |
 | `progress` | Progress tracker (default: no-op) |
 | `problem_range` | `(start, end)` for sharded execution |
+| `max_concurrent` | Max parallel solve tasks (default: 32) |
+| `judge_client` | Optional `ModelClient` for LLM-as-judge post-processing |
 
 Returns a bundle dict containing metrics, results, config, and artifacts.
 
@@ -126,53 +128,43 @@ from nemo_evaluator.runner import compare_runs
 report = compare_runs("baseline/eval-*.json", "candidate/eval-*.json")
 ```
 
-## Adapters
+## Environment Integrations
 
-### `EnvironmentAdapter`
+### `GymEnvironment`
 
-Abstract base for external environment adapters.
-
-```python
-class EnvironmentAdapter(ABC):
-    name: str
-
-    async def seed(self, idx: int) -> SeedResult: ...
-    async def verify(self, response: str, expected: str, **meta) -> VerifyResult: ...
-    async def dataset_size(self) -> int: ...
-```
-
-### `GymAdapter`
-
-HTTP adapter for consuming `nel serve` endpoints or Gym resource servers.
+HTTP client for consuming `nel serve` endpoints or Gym resource servers.
 
 ```python
-from nemo_evaluator.adapters import GymAdapter
+from nemo_evaluator.environments.gym import GymEnvironment
+from nemo_evaluator.runner.solver import ChatSolver
 
-adapter = GymAdapter("http://localhost:9090")
-bundle = await run_evaluation(adapter, client, n_repeats=4)
+env = GymEnvironment("http://localhost:9090")
+solver = ChatSolver(client)
+bundle = await run_evaluation(env, solver, n_repeats=4)
 ```
 
-### `PIAdapter`
+### `PIEnvironment`
 
 Decomposes `verifiers.SingleTurnEnv` into seed/verify.
 
 ```python
-from nemo_evaluator.adapters import PIAdapter
+from nemo_evaluator.environments.pi import PIEnvironment
 
-adapter = PIAdapter("simpleqa")
-bundle = await run_evaluation(adapter, client, n_repeats=2,
-                               system_prompt=adapter.system_prompt)
+env = PIEnvironment("simpleqa")
+solver = ChatSolver(client)
+bundle = await run_evaluation(env, solver, n_repeats=2)
 ```
 
-### `SkillsAdapter`
+### `SkillsEnvironment`
 
-Wraps any NeMo Skills benchmark as an EvalSource with full observability.
+Wraps any NeMo Skills benchmark as an `EvalEnvironment`.
 
 ```python
-from nemo_evaluator.adapters import SkillsAdapter
+from nemo_evaluator.environments.skills import SkillsEnvironment
 
-adapter = SkillsAdapter("gpqa")
-bundle = await run_evaluation(adapter, client, n_repeats=4)
+env = SkillsEnvironment("gpqa")
+solver = ChatSolver(client)
+bundle = await run_evaluation(env, solver, n_repeats=4)
 ```
 
 | Parameter | Type | Default | Description |
@@ -182,22 +174,6 @@ bundle = await run_evaluation(adapter, client, n_repeats=4)
 | `data_dir` | `str \| None` | `None` | Override data directory |
 | `prompt_template` | `str \| None` | `None` | Custom prompt template with `{problem}` placeholder |
 | `eval_type` | `str \| None` | `None` | Override scoring type (default from benchmark config) |
-
-### `run_container_eval()`
-
-Run a legacy evaluator container and parse results.
-
-```python
-from nemo_evaluator.adapters.container import ContainerConfig, run_container_eval
-
-cfg = ContainerConfig(
-    task_type="simple_evals.GPQA_diamond",
-    model_url="https://inference-api.nvidia.com/v1",
-    model_id="azure/openai/gpt-5.2",
-    limit_samples=50,
-)
-bundle = run_container_eval(cfg, output_dir="./results")
-```
 
 ### `GymHarness`
 
@@ -251,23 +227,18 @@ Complete record for one seed → model → verify cycle.
 
 | Command | Description |
 |---------|-------------|
-| `nel run` | Run evaluation (benchmark name, YAML config, or adapter URI) |
+| `nel eval run` | Run evaluation (benchmark name or YAML config) |
+| `nel eval report` | Generate evaluation report |
 | `nel serve` | Start HTTP server for an environment |
 | `nel validate` | Quick validation of a benchmark |
-| `nel list-environments` | Show registered built-in benchmarks |
-| `nel list-harnesses` | Show known legacy evaluator container harnesses |
-| `nel list-skills` | Show available NeMo Skills benchmarks |
-| `nel container-eval` | Run evaluation via legacy evaluator container |
+| `nel list` | Show available benchmarks and environments |
 | `nel regression` | Compare two evaluation bundles |
-| `nel slurm eval` | Generate SLURM sbatch for distributed eval |
-| `nel slurm serve` | Generate SLURM sbatch for environment server |
-| `nel slurm merge` | Merge sharded evaluation results |
 
-### `nel run`
+### `nel eval run`
 
 ```
-nel run [BENCHMARK_OR_CONFIG]
-    --benchmark, -b TEXT     Benchmark name
+nel eval run [CONFIG_FILE]
+    --bench, -b TEXT         Benchmark name
     --repeats, -n INT        Repeats per problem [1]
     --max-problems, -m INT   Limit problem count
     --model-url TEXT         Model API base URL
@@ -282,11 +253,34 @@ nel run [BENCHMARK_OR_CONFIG]
 
 ```
 nel serve
-    --benchmark, -b TEXT     Benchmark to serve
+    --bench, -b TEXT         Benchmark to serve
     --port INT               Port [9090]
     --host TEXT              Host [0.0.0.0]
     --gym-compat             Enable Gym-compatible endpoints
     --export-data TEXT       Export JSONL to path and exit
+```
+
+### `nel validate`
+
+```
+nel validate
+    --bench, -b TEXT         Benchmark to validate
+    --samples INT            Number of samples [10]
+```
+
+### `nel list`
+
+```
+nel list
+    --source TEXT            Filter by source (e.g., lm-eval)
+```
+
+### `nel eval report`
+
+```
+nel eval report
+    --input-dir TEXT         Directory with evaluation results
+    --output TEXT            Output report path
 ```
 
 ### `nel regression`

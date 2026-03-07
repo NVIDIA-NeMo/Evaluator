@@ -12,12 +12,12 @@ flowchart TB
     SPLIT --> S2["..."]
     SPLIT --> S7["Shard 7<br/>[12250, 14000)"]
 
-    S0 --> W0["Worker 0<br/>nel run"]
-    S1 --> W1["Worker 1<br/>nel run"]
+    S0 --> W0["Worker 0<br/>nel eval run"]
+    S1 --> W1["Worker 1<br/>nel eval run"]
     S2 --> W2["..."]
-    S7 --> W7["Worker 7<br/>nel run"]
+    S7 --> W7["Worker 7<br/>nel eval run"]
 
-    W0 --> M["Merge"]
+    W0 --> M["Auto-Merge"]
     W1 --> M
     W2 --> M
     W7 --> M
@@ -25,55 +25,43 @@ flowchart TB
     M --> R["Merged Results<br/>pass@k, CI, trajectories"]
 ```
 
-Each worker runs the same `nel run` command. Two environment variables control the split:
+Each worker runs the same `nel eval run` command. Two environment variables control the split:
 
 | Variable | Set by | Purpose |
 |----------|--------|---------|
 | `NEL_SHARD_IDX` | Orchestrator or `SLURM_ARRAY_TASK_ID` | This worker's shard (0-based) |
 | `NEL_TOTAL_SHARDS` | Orchestrator or `SLURM_ARRAY_TASK_COUNT` | Total number of shards |
 
-`nel run` auto-detects these and evaluates only its assigned problem range.
+`nel eval run` auto-detects these and evaluates only its assigned problem range.
 
 ## SLURM
 
-### One command
+### SLURM config file
+
+Create a YAML config with `cluster.type: slurm`:
+
+```yaml
+# slurm_gsm8k.yaml
+benchmark: gsm8k
+repeats: 8
+output_dir: ./eval_results/gsm8k_distributed
+cluster:
+  type: slurm
+  shards: 16
+  partition: batch
+  conda_env: gym
+```
+
+### Run
 
 ```bash
-nel slurm eval gsm8k \
-    --shards 16 --repeats 8 \
-    --partition batch --conda-env gym \
-    --output-dir ./eval_results/gsm8k_distributed \
-    --submit
+nel eval run slurm_gsm8k.yaml
 ```
 
 This:
 1. Generates `eval.sbatch` with `--array=0-15`
-2. Generates `merge.sbatch` with `--dependency=afterok`
-3. Submits both (merge runs after all shards complete)
-
-### Inspect before submitting
-
-```bash
-# Generate scripts only
-nel slurm eval gsm8k --shards 16 --output-dir ./eval_results
-
-# Review
-cat ./eval_results/eval.sbatch
-
-# Submit manually
-EVAL_JOB=$(sbatch ./eval_results/eval.sbatch | awk '{print $NF}')
-sed -i "s/\${EVAL_JOB_ID}/$EVAL_JOB/" ./eval_results/merge.sbatch
-sbatch ./eval_results/merge.sbatch
-```
-
-### Manual merge
-
-```bash
-nel slurm merge \
-    --shard-dir ./eval_results/gsm8k_distributed \
-    --output-dir ./eval_results/gsm8k_distributed/merged \
-    --repeats 8
-```
+2. Submits the job array
+3. Automatically merges results after all shards complete
 
 ## Kubernetes
 
@@ -95,11 +83,7 @@ env:
     value: "8"
 ```
 
-After all pods complete, run the merge job:
-
-```bash
-kubectl apply -f deploy/k8s/eval-merge.yaml
-```
+Results are automatically merged after all pods complete.
 
 ## Ray
 
@@ -142,13 +126,10 @@ Works anywhere you can set environment variables:
 
 ```bash
 # Terminal 1
-NEL_SHARD_IDX=0 NEL_TOTAL_SHARDS=4 nel run -b gsm8k -o ./results/shard_0 --no-progress
+NEL_SHARD_IDX=0 NEL_TOTAL_SHARDS=4 nel eval run --bench gsm8k -o ./results/shard_0 --no-progress
 
 # Terminal 2
-NEL_SHARD_IDX=1 NEL_TOTAL_SHARDS=4 nel run -b gsm8k -o ./results/shard_1 --no-progress
-
-# ... then merge
-nel slurm merge -d ./results -o ./results/merged --repeats 1
+NEL_SHARD_IDX=1 NEL_TOTAL_SHARDS=4 nel eval run --bench gsm8k -o ./results/shard_1 --no-progress
 ```
 
 ## Shard Size Distribution

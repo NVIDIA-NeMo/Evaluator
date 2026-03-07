@@ -4,18 +4,34 @@ Distribute evaluations across an HPC cluster using SLURM job arrays.
 
 ## Quick start
 
-```bash
-nel slurm eval gsm8k \
-    --shards 16 --repeats 8 \
-    --partition batch --time-limit 2:00:00 \
-    --conda-env gym --submit
+```yaml
+# slurm_eval.yaml
+model:
+  url: https://inference-api.nvidia.com/v1
+  id: azure/openai/gpt-5.2
+
+benchmarks:
+  - name: gsm8k
+    repeats: 8
+
+executor:
+  type: slurm
+  shards: 16
+  partition: batch
+  time_limit: "2:00:00"
+  conda_env: gym
+  submit: true
 ```
 
-This submits a 16-task job array plus a dependent merge job.
+```bash
+nel eval run slurm_eval.yaml
+```
+
+This submits a 16-task job array. Shard results are merged automatically when all tasks complete.
 
 ## Generated scripts
 
-`nel slurm eval` generates two sbatch scripts in `--output-dir`:
+`nel eval run` with a SLURM executor config generates an sbatch script in `--output-dir`:
 
 ### `eval.sbatch`
 
@@ -32,26 +48,16 @@ source activate gym
 export NEL_SHARD_IDX=$SLURM_ARRAY_TASK_ID
 export NEL_TOTAL_SHARDS=$SLURM_ARRAY_TASK_COUNT
 
-nel run --benchmark gsm8k --repeats 8 \
+nel eval run --bench gsm8k --repeats 8 \
     --output-dir $OUTPUT_DIR/shard_${SLURM_ARRAY_TASK_ID} \
     --no-progress
-```
-
-### `merge.sbatch`
-
-```bash
-#!/bin/bash
-#SBATCH --job-name=nel-merge-gsm8k
-#SBATCH --dependency=afterok:${EVAL_JOB_ID}
-
-nel slurm merge -d $OUTPUT_DIR -o $OUTPUT_DIR/merged --repeats 8
 ```
 
 ## Manual workflow
 
 ```bash
-# 1. Generate scripts
-nel slurm eval gsm8k --shards 16 -o ./eval_results
+# 1. Generate scripts (set submit: false in config)
+nel eval run slurm_eval.yaml
 
 # 2. Review
 cat ./eval_results/eval.sbatch
@@ -59,8 +65,7 @@ cat ./eval_results/eval.sbatch
 # 3. Submit eval
 EVAL_JOB=$(sbatch ./eval_results/eval.sbatch | awk '{print $NF}')
 
-# 4. Submit merge with dependency
-sbatch --dependency=afterok:$EVAL_JOB ./eval_results/merge.sbatch
+# 4. Results are merged automatically after all shards complete
 ```
 
 ## Serve on SLURM
@@ -68,21 +73,20 @@ sbatch --dependency=afterok:$EVAL_JOB ./eval_results/merge.sbatch
 Long-running environment server for Gym training:
 
 ```bash
-nel slurm serve --benchmark gsm8k --gym-compat \
-    --partition interactive --time-limit 24:00:00 --submit
+nel serve -b gsm8k --gym-compat --port 9090
 ```
 
-The hostname:port is written to `eval_results/endpoint.txt` once the job starts.
+Wrap in an sbatch script for SLURM submission. The hostname:port is written to `eval_results/endpoint.txt` once the job starts.
 
-## CLI options
+## Executor config options
 
 | Option | Default | Purpose |
 |--------|---------|---------|
-| `--shards` | 8 | Number of SLURM array tasks |
-| `--partition` | `batch` | SLURM partition |
-| `--cpus` | 4 | CPUs per task |
-| `--mem` | `16G` | Memory per task |
-| `--time-limit` | `2:00:00` | Wall time |
-| `--gpus` | 0 | GPUs per task |
-| `--conda-env` | `base` | Conda environment to activate |
-| `--submit` | off | Auto-submit via `sbatch` |
+| `shards` | 8 | Number of SLURM array tasks |
+| `partition` | `batch` | SLURM partition |
+| `cpus` | 4 | CPUs per task |
+| `mem` | `16G` | Memory per task |
+| `time_limit` | `2:00:00` | Wall time |
+| `gpus` | 0 | GPUs per task |
+| `conda_env` | `base` | Conda environment to activate |
+| `submit` | false | Auto-submit via `sbatch` |

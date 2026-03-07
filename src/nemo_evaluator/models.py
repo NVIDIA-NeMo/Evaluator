@@ -32,7 +32,8 @@ class BenchmarkResult(BaseModel):
     categories: dict[str, CategoryScore] | None = None
 
 
-class EvalConfig(BaseModel):
+class RunSnapshot(BaseModel):
+    """Snapshot of the config used for a single evaluation run (serialized in bundles)."""
     benchmark: str = ""
     model: str = ""
     base_url: str = ""
@@ -55,7 +56,7 @@ class EvalBundle(BaseModel):
     config_hash: str
     sdk_version: str
     timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    config: EvalConfig
+    config: RunSnapshot
     benchmark: BenchmarkResult
     n_results: int = 0
 

@@ -3,7 +3,7 @@ from pydantic import ValidationError
 
 from nemo_evaluator.models import (
     EvalBundle,
-    EvalConfig,
+    RunSnapshot,
     BenchmarkResult,
     ShardConfig,
     RetryConfig,
@@ -17,7 +17,7 @@ class TestEvalBundle:
                 run_id="",
                 config_hash="sha256:abc123",
                 sdk_version="0.1.0",
-                config=EvalConfig(),
+                config=RunSnapshot(),
                 benchmark=BenchmarkResult(name="test", samples=0),
             )
 
@@ -26,7 +26,7 @@ class TestEvalBundle:
             run_id="test",
             config_hash="sha256:abc",
             sdk_version="0.1.0",
-            config=EvalConfig(),
+            config=RunSnapshot(),
             benchmark=BenchmarkResult(name="test", samples=0),
         )
         assert "T" in b.timestamp

@@ -1,7 +1,7 @@
 project = "NeMo Evaluator"
 copyright = "2026, NVIDIA"
 author = "NVIDIA"
-release = "0.1.0"
+release = "0.5.0"
 
 extensions = [
     "myst_parser",

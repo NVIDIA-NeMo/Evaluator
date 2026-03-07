@@ -7,6 +7,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from nemo_evaluator.scoring.types import ScorerInput
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_RUBRIC = """You are an expert evaluator. Score the following response on a scale of 1-5.
@@ -27,7 +29,7 @@ Compare the response against the reference answer."""
 
 
 @dataclass
-class JudgeConfig:
+class JudgeScoringConfig:
     rubric_template: str = DEFAULT_RUBRIC
     max_score: int = 5
     threshold: float = 0.6
@@ -39,9 +41,9 @@ def build_judge_prompt(
     instruction: str,
     response: str,
     expected: str | None = None,
-    config: JudgeConfig | None = None,
+    config: JudgeScoringConfig | None = None,
 ) -> str:
-    cfg = config or JudgeConfig()
+    cfg = config or JudgeScoringConfig()
     ref_section = ""
     if expected:
         ref_section = REFERENCE_SECTION.format(expected=expected)
@@ -96,18 +98,23 @@ def parse_judge_response(text: str, max_score: int = 5) -> dict[str, Any]:
     return {"score": 0, "normalized": 0.0, "reasoning": text, "raw": text, "parse_error": True}
 
 
+def needs_judge(sample: ScorerInput) -> dict:
+    """Signals that this sample needs LLM-as-judge post-processing in the eval loop."""
+    return {"correct": False, "needs_judge": True, "extracted": sample.response[:500]}
+
+
 async def judge_score(
     instruction: str,
     response: str,
     expected: str | None = None,
     client: Any = None,
-    config: JudgeConfig | None = None,
+    config: JudgeScoringConfig | None = None,
 ) -> dict[str, Any]:
     """End-to-end LLM-as-judge: build prompt, call model, parse result."""
     if client is None:
         raise ValueError("judge_score requires a ModelClient instance")
 
-    cfg = config or JudgeConfig()
+    cfg = config or JudgeScoringConfig()
     prompt = build_judge_prompt(instruction, response, expected, cfg)
     model_resp = await client.chat(
         prompt=prompt,

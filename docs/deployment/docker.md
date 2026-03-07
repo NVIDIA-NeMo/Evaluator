@@ -14,7 +14,7 @@ The Dockerfile installs the package with `[scoring]` extras and sets `ENTRYPOINT
 docker run --rm \
     -e NEMO_API_KEY=$NEMO_API_KEY \
     -v $(pwd)/results:/app/eval_results \
-    nemo-evaluator run --benchmark gsm8k --repeats 2
+    nemo-evaluator eval run --bench gsm8k --repeats 2
 ```
 
 ## Docker Compose
@@ -48,7 +48,7 @@ for i in 0 1 2 3; do
 done
 
 # Merge after all complete
-docker compose run eval-local nel slurm merge -d /app/eval_results -o /app/eval_results/merged
+docker compose run eval-local nel eval report --input-dir /app/eval_results
 ```
 
 ## Health checks

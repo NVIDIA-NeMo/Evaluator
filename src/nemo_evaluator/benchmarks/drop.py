@@ -2,7 +2,8 @@
 import random
 
 from nemo_evaluator.environments.base import SeedResult
-from nemo_evaluator.environments.definitions import ScorerInput, benchmark, fuzzy_match, scorer
+from nemo_evaluator.environments.define import benchmark, scorer
+from nemo_evaluator.scoring import ScorerInput, fuzzy_match
 
 _HEADER = (
     "You will be asked to read a passage and answer a question. "
