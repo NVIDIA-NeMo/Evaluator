@@ -1,5 +1,7 @@
 default:
   image: python:3.11-slim
+  tags:
+    - nv-core-evals-x86
 
 stages:
   - build
