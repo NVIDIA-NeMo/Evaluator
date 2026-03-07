@@ -94,6 +94,9 @@ Use WebSearch to find model card (HuggingFace, build.nvidia.com). Read it carefu
   - etc.
 - Deployment-specific `extra_args` for vLLM/SGLang (look for the vLLM/SGLang deployment command)
 - Deployment-specific vLLM/SGLang versions (by default we use latest docker images, but you can control it with `deployment.image` e.g. vLLM above `vllm/vllm-openai:v0.11.0` stopped supporting `rope-scaling` arg used by Qwen models)
+- ARM64 / non-standard GPU compatibility: The default `vllm/vllm-openai` image only supports common GPU architectures. For ARM64 platforms or GPUs with non-standard compute capabilities (e.g., NVIDIA GB10 with sm_121), use NGC vLLM images instead:
+  - Example: `deployment.image: nvcr.io/nvidia/vllm:26.01-py3`
+  - AskUserQuestion about their GPU architecture if the model card doesn't specify deployment constraints
 - Any preparation requirements (e.g., downloading reasoning parsers, custom plugins):
   - If the model card mentions downloading files (like reasoning parsers, custom plugins) before deployment, add `deployment.pre_cmd` with the download command
   - Use `curl` instead of `wget` as it's more widely available in Docker containers
