@@ -317,3 +317,53 @@ class TestNemoEvaluatorParamValidation:
         _validate_nemo_evaluator_config_params(cfg)
         # Then a warning is emitted naming the unknown param (run is not blocked)
         assert expected_in_warning in caplog.text
+
+    def test_global_valid_task_invalid_emits_warning(self, caplog):
+        # Given global nemo_evaluator_config has valid params
+        # but task-level adds an invalid param on top
+        cfg = OmegaConf.create(
+            {
+                "evaluation": {
+                    "tasks": [
+                        {
+                            "name": "lm-evaluation-harness.ifeval",
+                            "container": _IFEVAL_CONTAINER,
+                            "nemo_evaluator_config": {
+                                "config": {"params": {"bad_task_param": 1}}
+                            },
+                        }
+                    ],
+                    "nemo_evaluator_config": {"config": {"params": {"parallelism": 4}}},
+                }
+            }
+        )
+        # When validated
+        _validate_nemo_evaluator_config_params(cfg)
+        # Then warning fired for the task-level bad param
+        assert "bad_task_param" in caplog.text
+
+    def test_global_invalid_task_valid_emits_warning(self, caplog):
+        # Given global nemo_evaluator_config has an invalid param
+        # but task-level only sets valid params
+        cfg = OmegaConf.create(
+            {
+                "evaluation": {
+                    "tasks": [
+                        {
+                            "name": "lm-evaluation-harness.ifeval",
+                            "container": _IFEVAL_CONTAINER,
+                            "nemo_evaluator_config": {
+                                "config": {"params": {"parallelism": 4}}
+                            },
+                        }
+                    ],
+                    "nemo_evaluator_config": {
+                        "config": {"params": {"bad_global_param": 99}}
+                    },
+                }
+            }
+        )
+        # When validated
+        _validate_nemo_evaluator_config_params(cfg)
+        # Then warning fired for the global bad param (survives merge)
+        assert "bad_global_param" in caplog.text
