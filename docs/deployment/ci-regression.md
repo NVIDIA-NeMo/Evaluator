@@ -73,6 +73,10 @@ sequenceDiagram
     end
 ```
 
+## Statistical significance
+
+With `scipy` installed (`pip install nemo-evaluator[stats]`), regression reports include Mann-Whitney U p-values for each score delta. This distinguishes meaningful regressions from noise.
+
 ## Threshold tuning
 
 | Scenario | Threshold | Repeats | Max problems |
@@ -81,7 +85,7 @@ sequenceDiagram
 | Standard gate | 0.05 | 2 | 100 |
 | High-confidence | 0.03 | 4 | full dataset |
 
-Higher repeats reduce noise in pass@k estimation. More problems reduce sampling variance.
+Higher repeats reduce noise in pass@k estimation. More problems reduce sampling variance. P-values require at least 2 samples per run.
 
 ## GitHub Actions
 

@@ -66,11 +66,13 @@ Output:
 Baseline:  eval-20260224T100000Z-gsm8k
 Candidate: eval-20260225T143012Z-gsm8k
 
-  pass@1: 0.7200 -> 0.7500  (delta=+0.0300, +4.2%, CI overlap)
-  pass@4: 0.8800 -> 0.9100  (delta=+0.0300, +3.4%, CI overlap)
+  pass@1: 0.7200 -> 0.7500  (delta=+0.0300, +4.2%, CI overlap, p=0.0312 *)
+  pass@4: 0.8800 -> 0.9100  (delta=+0.0300, +3.4%, CI overlap, p=0.1240)
 
 No regressions beyond 5% threshold.
 ```
+
+When `scipy` is installed (`pip install nemo-evaluator[stats]`), each score delta includes a Mann-Whitney U p-value. Deltas marked with `*` are statistically significant (p < 0.05).
 
 ## Step 5: Use a config file
 
@@ -97,6 +99,16 @@ nel eval run eval_config.yaml
 ```
 
 Each task gets its own output directory with the full artifact suite.
+
+## Step 6: Resume a failed suite
+
+If a benchmark fails mid-suite (e.g., a network error on benchmark 3/5), the remaining benchmarks still execute. Re-run with `--resume` to retry only the failed ones:
+
+```bash
+nel eval run eval_config.yaml --resume
+```
+
+Completed benchmarks are skipped. Failed benchmarks are retried.
 
 ## Next Steps
 

@@ -46,29 +46,26 @@ class CompletionSolver:
 
     def __init__(self, base_url: str, model: str, api_key: str | None = None,
                  temperature: float = 0.0, max_tokens: int = 2048) -> None:
-        import httpx
+        from nemo_evaluator.runner.model_client import ModelClient
+        self._model_client = ModelClient(
+            base_url=base_url.rstrip("/"), model=model, api_key=api_key,
+            temperature=temperature, max_tokens=max_tokens,
+        )
         self._url = f"{base_url.rstrip('/')}/completions"
         self._model = model
-        self._api_key = api_key
         self._temperature = temperature
         self._max_tokens = max_tokens
-        self._client = httpx.AsyncClient(timeout=120.0)
 
     async def solve(self, task: SeedResult) -> SolveResult:
         import time
-        headers = {"Content-Type": "application/json"}
-        if self._api_key:
-            headers["Authorization"] = f"Bearer {self._api_key}"
-
-        t0 = time.monotonic()
-        resp = await self._client.post(self._url, json={
+        payload = {
             "model": self._model,
             "prompt": task.prompt,
             "temperature": self._temperature,
             "max_tokens": self._max_tokens,
-        }, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
+        }
+        t0 = time.monotonic()
+        data = await self._model_client._post_with_retry(self._url, payload)
         latency = (time.monotonic() - t0) * 1000
 
         text = data["choices"][0].get("text", "")
@@ -85,7 +82,74 @@ class CompletionSolver:
         return SolveResult(response=text, model_response=model_resp)
 
     async def close(self) -> None:
-        await self._client.aclose()
+        await self._model_client.close()
+
+
+class VLMSolver:
+    """Vision-language model solver. Uses vlm_chat() when images are present,
+    falls back to regular chat() for text-only tasks."""
+
+    def __init__(self, client: Any, system_prompt: str | None = None,
+                 image_detail: str = "auto") -> None:
+        self._client = client
+        self._system = system_prompt
+        self._detail = image_detail
+
+    async def solve(self, task: SeedResult) -> SolveResult:
+        effective_system = self._system or task.system
+        if task.images:
+            resp = await self._client.vlm_chat(
+                prompt=task.prompt, images=task.images,
+                system=effective_system, detail=self._detail,
+            )
+        elif task.messages:
+            resp = await self._client.chat(messages=task.messages)
+        else:
+            resp = await self._client.chat(task.prompt, system=effective_system)
+        return SolveResult(response=resp.content, model_response=resp)
+
+    async def close(self) -> None:
+        await self._client.close()
+
+
+class EmbeddingSolver:
+    """Solver for embedding tasks. Returns embeddings as JSON-encoded response."""
+
+    def __init__(self, client: Any) -> None:
+        self._client = client
+
+    async def solve(self, task: SeedResult) -> SolveResult:
+        import json
+        embedding = await self._client.embed(task.prompt)
+        return SolveResult(response=json.dumps(embedding))
+
+    async def close(self) -> None:
+        await self._client.close()
+
+
+class CrossEncoderSolver:
+    """Solver for cross-encoder/reranking tasks. Sends query-document pairs
+    to a /v1/rerank endpoint and returns the score."""
+
+    def __init__(self, base_url: str, model: str, api_key: str | None = None) -> None:
+        from nemo_evaluator.runner.model_client import ModelClient
+        self._model_client = ModelClient(
+            base_url=base_url.rstrip("/"), model=model, api_key=api_key,
+        )
+        self._url = f"{base_url.rstrip('/')}/rerank"
+        self._model = model
+
+    async def solve(self, task: SeedResult) -> SolveResult:
+        import json
+        query = task.metadata.get("query", task.prompt)
+        documents = task.metadata.get("documents", [task.prompt])
+
+        payload = {"model": self._model, "query": query, "documents": documents}
+        data = await self._model_client._post_with_retry(self._url, payload)
+        return SolveResult(response=json.dumps(data.get("results", [])))
+
+    async def close(self) -> None:
+        await self._model_client.close()
 
 
 class AgentSolver:

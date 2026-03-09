@@ -53,6 +53,14 @@ nel eval run --bench gsm8k --repeats 8 \
     --no-progress
 ```
 
+## Resume after failure
+
+If a benchmark fails within a multi-benchmark SLURM suite, re-submit with `--resume` to skip already-completed benchmarks:
+
+```bash
+nel eval run slurm_eval.yaml --resume
+```
+
 ## Manual workflow
 
 ```bash

@@ -41,16 +41,22 @@ class BenchmarkConfig(BaseModel):
       - ``lm-eval/aime2025``      lm-eval-harness task
       - ``gym://host:port``       remote Gym environment
       - ``gym-managed://swebench`` managed Gym server
+      - ``mteb://mteb-task``      MTEB embedding benchmark
+      - ``container://image#task`` legacy container harness
     """
     name: str
     model: str = "default"
     judge: str | None = None
     repeats: int = 1
     max_problems: int | None = None
+    max_concurrent: int = 32
     system_prompt: str | None = None
     temperature: float | None = None
     max_tokens: int | None = None
     fewshot: int | None = None
+    endpoint_type: Literal["chat", "completions", "vlm", "embedding"] = "chat"
+    image_detail: str = "auto"
+    reranker: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -66,9 +72,12 @@ class ModelConfig(BaseModel):
     deploy: Literal["vllm", "sglang", "nim", "docker"] | None = None
     name: str | None = None
     tensor_parallel_size: int | None = None
+    pipeline_parallel_size: int | None = None
+    num_nodes: int = 1
     port: int = 8000
     extra_env: dict[str, str] = Field(default_factory=dict)
     extra_args: list[str] = Field(default_factory=list)
+    reasoning_pattern: str | None = None
 
     @model_validator(mode="after")
     def _check_endpoint_or_deploy(self) -> "ModelConfig":
@@ -91,11 +100,14 @@ class ServiceConfig(BaseModel):
     api_key: str | None = None
     port: int = 8000
     tensor_parallel_size: int | None = None
+    pipeline_parallel_size: int | None = None
+    num_nodes: int = 1
     gpus: list[int] | int | None = None
     health_path: str = "/v1/health/ready"
     startup_timeout: float = 600.0
     extra_env: dict[str, str] = Field(default_factory=dict)
     extra_args: list[str] = Field(default_factory=list)
+    reasoning_pattern: str | None = None
 
     # Gym server fields
     benchmark: str | None = None
@@ -135,6 +147,13 @@ class ClusterConfig(BaseModel):
     subproject: str | None = None
     conda_env: str | None = None
     mounts: dict[str, Any] = Field(default_factory=dict)
+    container_image: str | None = None
+    container_mounts: list[str] = Field(default_factory=list)
+    container_env: dict[str, str] = Field(default_factory=dict)
+    mount_home: bool = True
+    max_walltime: str | None = None
+    auto_resume: bool = False
+    max_resume_attempts: int = 3
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +163,8 @@ class ClusterConfig(BaseModel):
 class OutputConfig(BaseModel):
     dir: str = "./eval_results"
     report: list[str] = Field(default_factory=lambda: ["markdown"])
+    export: list[str] = Field(default_factory=list)
+    export_config: dict[str, Any] = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------

@@ -74,11 +74,27 @@ def _make_pi(rest: str, **kwargs: Any) -> "EvalEnvironment":
     return PIEnvironment(rest)
 
 
+def _make_mteb(rest: str, **kwargs: Any) -> "EvalEnvironment":
+    from nemo_evaluator.environments.mteb import MTEBEnvironment
+    return MTEBEnvironment(task_name=rest)
+
+
+def _make_container(rest: str, **kwargs: Any) -> "EvalEnvironment":
+    from nemo_evaluator.environments.container import ContainerEnvironment
+    if "#" in rest:
+        image, task = rest.rsplit("#", 1)
+    else:
+        image, task = rest, ""
+    return ContainerEnvironment(image=image, task=task)
+
+
 _URI_FACTORIES: dict[str, Callable[..., "EvalEnvironment"]] = {
     "gym": _make_gym,
     "gym-managed": _make_gym_managed,
     "skills": _make_skills,
     "pi": _make_pi,
+    "mteb": _make_mteb,
+    "container": _make_container,
 }
 
 

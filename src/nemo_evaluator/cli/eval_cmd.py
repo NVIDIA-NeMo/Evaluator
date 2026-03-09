@@ -38,11 +38,13 @@ def eval_cmd():
 @click.option("--dry-run", is_flag=True, help="Generate SLURM/Docker scripts without running")
 @click.option("--submit", is_flag=True, help="Submit to cluster via SSH")
 @click.option("--background", is_flag=True, help="Run locally in background, write PID file")
+@click.option("--resume", is_flag=True, help="Resume a partially completed evaluation")
 @click.option("--no-progress", is_flag=True, hidden=True)
+@click.option("--override", "-O", multiple=True, help="Override config value: key=value (dot notation)")
 @click.option("--verbose", "-v", is_flag=True)
 def eval_run(config_file, bench, model_url, model_id, api_key,
              repeats, max_problems, system_prompt, temperature, max_tokens,
-             output_dir, dry_run, submit, background, no_progress, verbose):
+             output_dir, dry_run, submit, background, resume, no_progress, override, verbose):
     """Start evaluation. Accepts a config YAML or --bench for quick mode."""
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
@@ -50,7 +52,7 @@ def eval_run(config_file, bench, model_url, model_id, api_key,
     )
 
     if config_file:
-        config = _load_config(config_file)
+        config = _load_config(config_file, overrides=override)
     elif bench:
         config = _build_quick_config(
             bench, model_url, model_id, api_key, repeats,
@@ -65,20 +67,48 @@ def eval_run(config_file, bench, model_url, model_id, api_key,
         _handle_slurm(config, dry_run, submit)
     elif cluster_type == "local":
         if background:
-            _run_background(config)
+            _run_background(config, resume=resume)
         else:
-            _run_foreground(config)
+            _run_foreground(config, resume=resume)
     else:
         raise click.ClickException(f"Unsupported cluster type: {cluster_type}")
 
 
-def _load_config(config_file: str):
+def _load_config(config_file: str, overrides: tuple[str, ...] = ()):
     import yaml
 
     from nemo_evaluator.eval.config import parse_eval_config
 
     raw = yaml.safe_load(Path(config_file).read_text()) or {}
+    for ov in overrides:
+        _apply_override(raw, ov)
     return parse_eval_config(raw)
+
+
+def _apply_override(data: dict, override: str) -> None:
+    """Apply a dot-style override like 'model.temperature=0.5' to a raw dict."""
+    if "=" not in override:
+        raise click.ClickException(f"Invalid override format: {override!r}. Expected key=value")
+    key, value = override.split("=", 1)
+    parts = key.strip().split(".")
+
+    # Auto-cast value
+    parsed_value: object = value
+    if value.lower() in ("true", "false"):
+        parsed_value = value.lower() == "true"
+    else:
+        try:
+            parsed_value = int(value)
+        except ValueError:
+            try:
+                parsed_value = float(value)
+            except ValueError:
+                pass
+
+    d = data
+    for p in parts[:-1]:
+        d = d.setdefault(p, {})
+    d[parts[-1]] = parsed_value
 
 
 def _build_quick_config(bench, model_url, model_id, api_key, repeats,
@@ -137,21 +167,27 @@ def _handle_slurm(config, dry_run: bool, submit: bool):
     click.echo(result.stdout.strip())
 
 
-def _run_foreground(config):
+def _run_foreground(config, *, resume: bool = False):
     from nemo_evaluator.eval.lifecycle import write_local_pid
     from nemo_evaluator.eval.local_runner import run_local
 
     write_local_pid(config.output.dir)
     try:
-        bundles = run_local(config)
-        click.echo(f"\nCompleted {len(bundles)} benchmark(s). Results: {config.output.dir}")
+        bundles = run_local(config, resume=resume)
+        completed = sum(1 for b in bundles if not b.get("_failed"))
+        failed = sum(1 for b in bundles if b.get("_failed"))
+        msg = f"\nCompleted {completed} benchmark(s)."
+        if failed:
+            msg += f" {failed} failed."
+        msg += f" Results: {config.output.dir}"
+        click.echo(msg)
     finally:
         pid_file = Path(config.output.dir) / "nel.pid"
         if pid_file.exists():
             pid_file.unlink()
 
 
-def _run_background(config):
+def _run_background(config, *, resume: bool = False):
     import os
     import sys
 
@@ -176,7 +212,7 @@ def _run_background(config):
 
     try:
         from nemo_evaluator.eval.local_runner import run_local
-        run_local(config)
+        run_local(config, resume=resume)
     finally:
         pid_file = Path(config.output.dir) / "nel.pid"
         if pid_file.exists():

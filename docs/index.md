@@ -40,6 +40,8 @@ Deploy on SLURM, Docker, and CI/CD pipelines.
 - **`@benchmark` + `@scorer`.** Define a complete benchmark in under 10 lines of Python.
 - **Pluggable solvers.** `ChatSolver`, `CompletionSolver`, `AgentSolver` -- swap inference strategy without touching benchmarks.
 - **Executors.** Run locally, in Docker, or on SLURM clusters with automatic model deployment.
+- **Resilient suites.** Per-benchmark checkpointing with failure isolation. Resume partially completed suites with `--resume`.
+- **Statistical regression.** Compare runs with confidence intervals and Mann-Whitney U p-values.
 - **11 built-in benchmarks.** MMLU, MMLU-Pro, MATH-500, GPQA, GSM8K, DROP, MGSM, TriviaQA, HumanEval, SimpleQA, HealthBench.
 
 ```{toctree}

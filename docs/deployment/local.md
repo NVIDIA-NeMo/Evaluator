@@ -32,6 +32,16 @@ benchmarks:
 nel eval run eval.yaml
 ```
 
+## Resume a partially completed suite
+
+If a benchmark fails mid-suite, the remaining benchmarks still execute. Re-run with `--resume` to retry only the failed ones:
+
+```bash
+nel eval run eval.yaml --resume
+```
+
+Completed benchmarks are skipped automatically. Without `--resume`, all benchmarks are re-run from scratch.
+
 ## Serve for Gym
 
 ```bash

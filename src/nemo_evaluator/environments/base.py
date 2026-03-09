@@ -14,6 +14,7 @@ class SeedResult:
     metadata: dict[str, Any] = field(default_factory=dict)
     messages: list[dict[str, str]] | None = None
     system: str | None = None
+    images: list[str] | None = None
 
 
 @dataclass
@@ -51,6 +52,12 @@ class EvalEnvironment(ABC):
 
     @abstractmethod
     async def verify(self, response: str, expected: str, **metadata: Any) -> VerifyResult: ...
+
+    async def run_batch(self, solver: Any = None, config: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        """Optional batch execution. Override for environments that own the full loop
+        (e.g. ContainerEnvironment, MTEBEnvironment). Return an artifact bundle dict,
+        or None to fall through to the standard seed/solve/verify loop."""
+        return None
 
     async def close(self) -> None:
         """Clean up resources. Override for environments that hold connections."""

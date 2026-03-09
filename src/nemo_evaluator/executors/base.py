@@ -16,6 +16,8 @@ class DeployConfig:
     startup_timeout: float = 600.0
     extra_env: dict[str, str] = field(default_factory=dict)
     extra_args: list[str] = field(default_factory=list)
+    nodes: int = 1
+    pipeline_parallel_size: int | None = None
 
 
 @dataclass

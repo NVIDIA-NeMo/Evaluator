@@ -6,7 +6,7 @@ import logging
 import time
 from typing import Any
 
-from nemo_evaluator.environments.base import EvalEnvironment
+from nemo_evaluator.environments.base import EvalEnvironment, VerifyResult
 from nemo_evaluator.metrics.aggregation import category_breakdown, summary_stats
 from nemo_evaluator.metrics.confidence import bootstrap_ci
 from nemo_evaluator.metrics.pass_at_k import aggregate_pass_at_k, pass_at_k
@@ -36,6 +36,9 @@ async def run_evaluation(
 
     name = env.name
     ds_size = await env.dataset_size()
+    if ds_size < 0:
+        raise ValueError(f"Environment {name!r} returned invalid dataset_size={ds_size}. "
+                         "Ensure the environment is reachable and has a valid dataset.")
     if max_problems is not None:
         ds_size = min(ds_size, max_problems)
 
@@ -88,7 +91,11 @@ async def run_evaluation(
             response_text = solve_result.response if solve_result else ""
 
             tv = time.monotonic()
-            vr = await env.verify(response_text, seed_result.expected_answer, **seed_result.metadata)
+            try:
+                vr = await env.verify(response_text, seed_result.expected_answer, **seed_result.metadata)
+            except Exception as e:
+                logger.warning("verify error p%d r%d: %s", idx, rep, e)
+                vr = VerifyResult(reward=0.0, scoring_details={"error": str(e), "method": "verify_failed"})
             step.verify_ms = (time.monotonic() - tv) * 1000
             step.total_ms = (time.monotonic() - step_t0) * 1000
 

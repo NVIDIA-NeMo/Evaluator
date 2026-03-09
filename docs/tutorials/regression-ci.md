@@ -96,8 +96,8 @@ nel regression ./baseline/eval-*.json ./candidate/eval-*.json
 Baseline:  eval-20260224T100000Z-gsm8k
 Candidate: eval-20260225T143012Z-gsm8k
 
-  pass@1: 0.7200 -> 0.7500  (delta=+0.0300, +4.2%, CI overlap)
-  pass@4: 0.8800 -> 0.9100  (delta=+0.0300, +3.4%, CI overlap)
+  pass@1: 0.7200 -> 0.7500  (delta=+0.0300, +4.2%, CI overlap, p=0.0312 *)
+  pass@4: 0.8800 -> 0.9100  (delta=+0.0300, +3.4%, CI overlap, p=0.1240)
 
   tokens_per_second: 450 -> 520  (delta=+70.00)
 
@@ -107,6 +107,8 @@ Per-category deltas:
 
 No regressions beyond 5% threshold.
 ```
+
+Deltas marked with `*` are statistically significant (Mann-Whitney U, p < 0.05). P-values require `scipy` (`pip install nemo-evaluator[stats]`); without it, p-values are omitted.
 
 ### Flags
 
@@ -124,7 +126,20 @@ from nemo_evaluator.runner.regression import compare_runs, write_regression
 report = compare_runs("baseline/eval-*.json", "candidate/eval-*.json")
 
 for metric, delta in report["score_deltas"].items():
-    print(f"{metric}: {delta['delta']:+.4f}")
+    p = delta.get("p_value")
+    sig = " *" if delta.get("significant") else ""
+    print(f"{metric}: {delta['delta']:+.4f}  p={p}{sig}")
 
 write_regression(report, "regression.json")
 ```
+
+Each entry in `score_deltas` includes:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `baseline` | float | Baseline score |
+| `candidate` | float | Candidate score |
+| `delta` | float | Score difference |
+| `ci_overlap` | bool | Whether confidence intervals overlap |
+| `p_value` | float or null | Mann-Whitney U two-sided p-value (null if scipy unavailable or insufficient data) |
+| `significant` | bool | Whether p < 0.05 |

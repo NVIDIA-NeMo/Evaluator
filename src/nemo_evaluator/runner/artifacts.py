@@ -56,6 +56,14 @@ def write_all(bundle: dict[str, Any], output_dir: str | Path) -> dict[str, Path]
     out.mkdir(parents=True, exist_ok=True)
     paths: dict[str, Path] = {}
 
+    if "run_id" not in bundle:
+        safe_name = re.sub(r"[^a-zA-Z0-9_.-]", "_",
+                           bundle.get("benchmark", {}).get("name", "unknown"))
+        bundle["run_id"] = f"eval-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{safe_name}"
+        bundle.setdefault("sdk_version", __version__)
+        bundle.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
+        bundle.setdefault("config_hash", "")
+
     # Bundle JSON (public keys only)
     public = {k: v for k, v in bundle.items() if not k.startswith("_")}
     bp = out / f"{bundle['run_id']}.json"

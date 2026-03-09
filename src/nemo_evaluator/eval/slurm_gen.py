@@ -19,9 +19,10 @@ _HEADER = """\
 {partition_line}
 {account_line}
 
-set -euo pipefail
+set -uo pipefail
 
 OUTPUT_DIR="{output_dir}"
+NEL_EXIT_CODE=0
 mkdir -p "$OUTPUT_DIR"
 
 echo "=== NeMo Evaluator ==="
@@ -32,6 +33,13 @@ echo "Start: $(date -Iseconds)"
 
 _CONDA_ACTIVATE = """\
 source /opt/anaconda3/bin/activate {conda_env}
+"""
+
+_CONTAINER_SETUP = """\
+# Container mode: {image}
+CONTAINER_IMAGE="{image}"
+CONTAINER_MOUNTS="{mounts}"
+SRUN_PREFIX="srun --container-image=$CONTAINER_IMAGE {mount_flags} {env_flags}"
 """
 
 _VLLM_SERVICE = """\
@@ -70,9 +78,11 @@ nel serve -b {benchmark} --host 0.0.0.0 -p {port} &
 _HEALTH_WAIT = """\
 # Wait for {name}
 echo "Waiting for {name} at {url}..."
+{name_upper}_READY=0
 for _i in $(seq 1 {max_attempts}); do
     if curl -sf "{url}{health_path}" > /dev/null 2>&1; then
         echo "  {name} ready."
+        {name_upper}_READY=1
         break
     fi
     if [ -n "${{{name_upper}_PID:-}}" ] && ! kill -0 ${name_upper}_PID 2>/dev/null; then
@@ -81,6 +91,10 @@ for _i in $(seq 1 {max_attempts}); do
     fi
     sleep 5
 done
+if [ ${name_upper}_READY -eq 0 ]; then
+    echo "ERROR: {name} did not become healthy after {max_attempts} attempts."
+    exit 1
+fi
 """
 
 _TASK = """\
@@ -89,14 +103,14 @@ echo ""
 echo "============================================================"
 echo "  Benchmark {idx}/{total}: {bench_name} (repeats={repeats})"
 echo "============================================================"
-nel eval run \\
+{run_prefix}nel eval run \\
     --bench "{bench_name}" \\
     --model-url "${model_url_var}" \\
     --model-id "${model_id_var}" \\
     --repeats {repeats} \\
     {extra_flags}\\
     -o "$OUTPUT_DIR/{safe_name}" \\
-    --no-progress
+    --no-progress || {{ echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; }}
 """
 
 _REPORT = """\
@@ -114,6 +128,41 @@ echo "Shutting down services..."
 echo "=== Evaluation complete ==="
 echo "End: $(date -Iseconds)"
 echo "Results: $OUTPUT_DIR"
+exit $NEL_EXIT_CODE
+"""
+
+_AUTO_RESUME = """\
+# Auto-resume on walltime expiry
+ATTEMPT_FILE="$OUTPUT_DIR/.nel_attempt"
+if [ -f "$ATTEMPT_FILE" ]; then
+    ATTEMPT=$(cat "$ATTEMPT_FILE")
+else
+    ATTEMPT=0
+fi
+ATTEMPT=$((ATTEMPT + 1))
+echo $ATTEMPT > "$ATTEMPT_FILE"
+
+if [ $ATTEMPT -ge {max_attempts} ]; then
+    echo "Max resume attempts ({max_attempts}) reached."
+else
+    # Check if all benchmarks completed successfully via checkpoint
+    if python3 -c "
+import json, sys, os
+cp_path = '$OUTPUT_DIR/checkpoint.json'
+if not os.path.exists(cp_path):
+    sys.exit(0)  # no checkpoint = nothing completed, resubmit
+cp = json.load(open(cp_path))
+failed = len(cp.get('failed_benchmarks', {{}}))
+completed = len(cp.get('completed_benchmarks', {{}}))
+sys.exit(0 if failed > 0 or completed == 0 else 1)
+" 2>/dev/null; then
+        echo "Evaluation incomplete, resubmitting (attempt $ATTEMPT/{max_attempts})..."
+        NEXT_JOB=$(sbatch --dependency=afternotok:$SLURM_JOB_ID "{script_path}")
+        echo "Resubmitted: $NEXT_JOB"
+    else
+        echo "All benchmarks completed, no resubmit needed."
+    fi
+fi
 """
 
 
@@ -207,8 +256,23 @@ def generate_sbatch(config: EvalConfig) -> str:
         account_line=account_line,
     ))
 
-    # Conda
-    if cluster.conda_env:
+    # Environment setup: container or conda
+    if cluster.container_image:
+        mount_flags = " ".join(
+            f"--container-mounts={m}" for m in cluster.container_mounts
+        )
+        if cluster.mount_home:
+            mount_flags += " --container-mounts=$HOME:$HOME"
+        env_flags = " ".join(
+            f"--export={k}={v}" for k, v in cluster.container_env.items()
+        )
+        parts.append(_CONTAINER_SETUP.format(
+            image=cluster.container_image,
+            mounts=",".join(cluster.container_mounts),
+            mount_flags=mount_flags,
+            env_flags=env_flags,
+        ))
+    elif cluster.conda_env:
         parts.append(_CONDA_ACTIVATE.format(conda_env=cluster.conda_env))
 
     # Services
@@ -241,13 +305,16 @@ def generate_sbatch(config: EvalConfig) -> str:
             extra_flags += f"--max-tokens {bench.max_tokens} "
         if bench.max_problems is not None:
             extra_flags += f"--max-problems {bench.max_problems} "
+        if cluster.auto_resume:
+            extra_flags += "--resume "
 
         safe_name = _safe(bench.name)
+        run_prefix = "$SRUN_PREFIX " if cluster.container_image else ""
         parts.append(_TASK.format(
             idx=i, total=total, bench_name=bench.name,
             model_url_var=model_url_var, model_id_var=model_id_var,
             repeats=bench.repeats, extra_flags=extra_flags,
-            safe_name=safe_name,
+            safe_name=safe_name, run_prefix=run_prefix,
         ))
 
     # Reports
@@ -258,6 +325,13 @@ def generate_sbatch(config: EvalConfig) -> str:
         report_cmds.append(f'nel eval report "$OUTPUT_DIR" -f {fmt} -o "$OUTPUT_DIR/report.{ext}"')
     if report_cmds:
         parts.append(_REPORT.format(report_commands="\n".join(report_cmds)))
+
+    # Auto-resume
+    if cluster.auto_resume:
+        parts.append(_AUTO_RESUME.format(
+            max_attempts=cluster.max_resume_attempts,
+            script_path=f"$OUTPUT_DIR/nel_eval.sbatch",
+        ))
 
     # Cleanup
     kill_cmds = []
@@ -288,6 +362,8 @@ def _resolve_services(config: EvalConfig) -> dict[str, ServiceConfig]:
                 model=m.name or m.id,
                 port=m.port,
                 tensor_parallel_size=m.tensor_parallel_size,
+                pipeline_parallel_size=m.pipeline_parallel_size,
+                num_nodes=m.num_nodes,
                 extra_env=m.extra_env,
                 extra_args=list(m.extra_args),
             )

@@ -16,6 +16,31 @@ def _safe_name(s: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_.-]", "_", s)
 
 
+def _make_solver(bench: BenchmarkConfig, client: Any, model_url: str,
+                 model_id: str, api_key: str | None) -> Any:
+    """Select the correct solver based on benchmark endpoint_type."""
+    from nemo_evaluator.runner.solver import (
+        ChatSolver,
+        CompletionSolver,
+        EmbeddingSolver,
+        VLMSolver,
+    )
+
+    ep = bench.endpoint_type
+    if ep == "vlm":
+        return VLMSolver(client, system_prompt=bench.system_prompt,
+                         image_detail=bench.image_detail)
+    if ep == "completions":
+        return CompletionSolver(
+            base_url=model_url, model=model_id, api_key=api_key,
+            temperature=bench.temperature or 0.0,
+            max_tokens=bench.max_tokens or 2048,
+        )
+    if ep == "embedding":
+        return EmbeddingSolver(client)
+    return ChatSolver(client, system_prompt=bench.system_prompt)
+
+
 def _start_model_service(svc: ServiceConfig):
     """Start a model server process and return the deployment handle."""
     from nemo_evaluator.executors.base import DeployConfig
@@ -30,6 +55,8 @@ def _start_model_service(svc: ServiceConfig):
         startup_timeout=svc.startup_timeout,
         extra_env=svc.extra_env,
         extra_args=list(svc.extra_args),
+        nodes=svc.num_nodes,
+        pipeline_parallel_size=svc.pipeline_parallel_size,
     )
 
     if svc.tensor_parallel_size:
@@ -101,26 +128,45 @@ async def _run_single_benchmark(
     from nemo_evaluator.runner.artifacts import write_all
     from nemo_evaluator.runner.eval_loop import run_evaluation
     from nemo_evaluator.runner.model_client import ModelClient
-    from nemo_evaluator.runner.solver import ChatSolver
 
-    model_url = config.resolve_model_url(bench.model)
+    handle = handles.get(bench.model)
+    if handle and handle.url:
+        model_url = handle.url
+    else:
+        model_url = config.resolve_model_url(bench.model)
     model_id = config.resolve_model_id(bench.model)
     api_key = config.resolve_api_key(bench.model)
 
-    env = get_environment(bench.name, num_examples=bench.max_problems)
+    env = get_environment(bench.name, num_examples=bench.max_problems,
+                          num_fewshot=bench.fewshot)
 
+    reasoning_pat = _resolve_reasoning_pattern(config, bench.model)
+
+    concurrency = bench.max_concurrent
     client = ModelClient(
         base_url=model_url,
         model=model_id,
         api_key=api_key,
         temperature=bench.temperature or 0.0,
         max_tokens=bench.max_tokens or 2048,
+        max_concurrent=concurrency,
+        reasoning_pattern=reasoning_pat,
     )
-    solver = ChatSolver(client, system_prompt=bench.system_prompt)
+    solver = _make_solver(bench, client, model_url, model_id, api_key)
 
-    judge_client = None
-    if bench.judge and bench.judge in judge_clients:
-        judge_client = judge_clients[bench.judge]
+    batch_config = {"base_url": model_url, "model": model_id, "api_key": api_key}
+    batch_result = await env.run_batch(solver=solver, config=batch_config)
+    if batch_result is not None:
+        for _key in ("api_key", "api-key"):
+            batch_result.get("config", {}).pop(_key, None)
+        bench_name = getattr(env, "name", bench.name)
+        safe = _safe_name(bench_name)
+        task_dir = output_dir / safe
+        task_dir.mkdir(parents=True, exist_ok=True)
+        write_all(batch_result, task_dir)
+        return batch_result
+
+    judge_client = _make_judge_client(config, bench.judge) if bench.judge else None
 
     bench_name = getattr(env, "name", bench.name)
     run_config = {
@@ -135,6 +181,7 @@ async def _run_single_benchmark(
         env, solver,
         n_repeats=bench.repeats,
         max_problems=bench.max_problems,
+        max_concurrent=concurrency,
         config=run_config,
         progress=ConsoleProgress(),
         judge_client=judge_client,
@@ -146,59 +193,75 @@ async def _run_single_benchmark(
     return bundle
 
 
-def _build_judge_clients(
-    config: EvalConfig,
-    benchmarks: list[BenchmarkConfig],
-) -> dict[str, Any]:
-    """Pre-create ModelClient instances for any judge services referenced by benchmarks."""
+def _make_judge_client(config: EvalConfig, judge_name: str) -> Any:
+    """Create a fresh ModelClient for a judge service (safe for per-benchmark event loops)."""
     from nemo_evaluator.runner.model_client import ModelClient
 
-    judge_names = {b.judge for b in benchmarks if b.judge}
-    clients: dict[str, Any] = {}
-
-    for name in judge_names:
-        url = config.resolve_model_url(name)
-        mid = config.resolve_model_id(name)
-        api_key = config.resolve_api_key(name)
-        clients[name] = ModelClient(
-            base_url=url, model=mid, api_key=api_key,
-            temperature=0.0, max_tokens=2048,
-        )
-
-    return clients
+    url = config.resolve_model_url(judge_name)
+    mid = config.resolve_model_id(judge_name)
+    api_key = config.resolve_api_key(judge_name)
+    return ModelClient(base_url=url, model=mid, api_key=api_key,
+                       temperature=0.0, max_tokens=2048)
 
 
-def run_local(config: EvalConfig) -> list[dict[str, Any]]:
+def _resolve_reasoning_pattern(config: EvalConfig, service_name: str) -> str | None:
+    """Extract reasoning_pattern from config, handling both simple and advanced modes."""
+    if config.is_simple and config.model:
+        return config.model.reasoning_pattern
+    if config.services:
+        svc = config.services.get(service_name)
+        if svc:
+            return svc.reasoning_pattern
+    return None
+
+
+def _load_prior_bundle(task_dir: str) -> dict[str, Any]:
+    """Load an eval bundle JSON from a prior completed benchmark run."""
+    import json
+
+    d = Path(task_dir)
+    bundle_files = sorted(d.glob("eval-*.json"))
+    if not bundle_files:
+        return {"benchmark": {"name": d.name}, "_resumed": True}
+    return json.loads(bundle_files[0].read_text(encoding="utf-8"))
+
+
+def run_local(config: EvalConfig, *, resume: bool = False) -> list[dict[str, Any]]:
     """Execute the full evaluation suite locally.
 
     1. Start all managed services
-    2. Run each benchmark sequentially
-    3. Generate reports
+    2. Run each benchmark (with checkpoint/resume and failure isolation)
+    3. Generate reports from completed benchmarks
     4. Stop all services
     """
     import click
 
+    from nemo_evaluator.runner.checkpoint import CheckpointManager
+
     output_dir = Path(config.output.dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    ckpt = CheckpointManager(output_dir)
+    if not resume:
+        ckpt.clear()
 
     handles: dict[str, _ServiceHandle] = {}
     bundles: list[dict[str, Any]] = []
 
-    # Simple mode: auto-deploy if model.deploy is set
     if config.is_simple and config.model.deploy:
         from nemo_evaluator.eval.config import ServiceConfig
         auto_svc = ServiceConfig(
             type=config.model.deploy,
             model=config.model.name or config.model.id,
             port=config.model.port,
+            tensor_parallel_size=config.model.tensor_parallel_size,
+            pipeline_parallel_size=config.model.pipeline_parallel_size,
+            num_nodes=config.model.num_nodes,
             extra_env=config.model.extra_env,
             extra_args=list(config.model.extra_args),
         )
-        if config.model.tensor_parallel_size:
-            auto_svc.tensor_parallel_size = config.model.tensor_parallel_size
         handles["default"] = _ServiceHandle("default", auto_svc)
 
-    # Advanced mode: start all managed services
     if config.services:
         for name, svc in config.services.items():
             if svc.is_managed:
@@ -210,23 +273,48 @@ def run_local(config: EvalConfig) -> list[dict[str, Any]]:
             url = handle.start()
             click.echo(f"  {name} ready at {url}")
 
-        judge_clients = _build_judge_clients(config, config.benchmarks)
-
         for i, bench in enumerate(config.benchmarks):
             n = len(config.benchmarks)
             click.echo(f"\n{'='*60}\n  Benchmark {i+1}/{n}: {bench.name}\n{'='*60}")
 
-            bundle = asyncio.run(_run_single_benchmark(
-                bench, config, handles, output_dir, judge_clients,
-            ))
-            bundles.append(bundle)
+            if ckpt.is_completed(bench.name):
+                prior = ckpt.get_completed_result(bench.name)
+                click.echo(f"  Skipping (already completed)")
+                bundles.append(_load_prior_bundle(prior["bundle_path"]))
+                continue
 
-            bm = bundle.get("benchmark", {})
-            click.echo(f"\n  {bm.get('name', '?')}: ", nl=False)
-            for k, v in bm.get("scores", {}).items():
-                if isinstance(v, dict) and "value" in v:
-                    click.echo(f"{k}={v['value']:.4f} ", nl=False)
-            click.echo()
+            try:
+                bundle = asyncio.run(_run_single_benchmark(
+                    bench, config, handles, output_dir, {},
+                ))
+
+                bench_name = bundle.get("benchmark", {}).get("name", bench.name)
+                task_dir = output_dir / _safe_name(bench_name)
+                ckpt.mark_completed(bench.name, str(task_dir))
+                bundles.append(bundle)
+
+                bm = bundle.get("benchmark", {})
+                click.echo(f"\n  {bm.get('name', '?')}: ", nl=False)
+                for k, v in bm.get("scores", {}).items():
+                    if isinstance(v, dict) and "value" in v:
+                        click.echo(f"{k}={v['value']:.4f} ", nl=False)
+                click.echo()
+
+            except Exception as exc:
+                logger.error("Benchmark %s failed: %s", bench.name, exc, exc_info=True)
+                ckpt.mark_failed(bench.name, str(exc))
+                click.echo(f"  FAILED: {exc}", err=True)
+                bundles.append({
+                    "benchmark": {"name": bench.name, "samples": 0},
+                    "_failed": True,
+                    "_error": str(exc),
+                })
+
+        summary = ckpt.summary
+        completed, failed = summary["completed"], summary["failed"]
+        if failed > 0:
+            click.echo(f"\n{completed} completed, {failed} failed", err=True)
+            click.echo("Re-run with --resume to retry failed benchmarks.", err=True)
 
         _generate_reports(config, output_dir)
 
@@ -239,7 +327,7 @@ def run_local(config: EvalConfig) -> list[dict[str, Any]]:
 
 
 def _generate_reports(config: EvalConfig, output_dir: Path) -> None:
-    """Generate all requested report formats."""
+    """Generate all requested report formats and run export plugins."""
     import click
 
     from nemo_evaluator.cli.report import RENDERERS, _build_table, _load_bundles
@@ -269,3 +357,14 @@ def _generate_reports(config: EvalConfig, output_dir: Path) -> None:
         path = output_dir / f"report.{ext}"
         path.write_text(renderer(table), encoding="utf-8")
         click.echo(f"Report: {path}")
+
+    for exporter_name in config.output.export:
+        try:
+            from nemo_evaluator.runner.exporters import get_exporter
+            exporter_kwargs = config.output.export_config.get(exporter_name, {})
+            exporter = get_exporter(exporter_name, **exporter_kwargs)
+            exporter.export(bundles, config={"output_dir": str(output_dir)})
+            click.echo(f"Exported to: {exporter_name}")
+        except Exception as exc:
+            logger.error("Export to %s failed: %s", exporter_name, exc)
+            click.echo(f"Export to {exporter_name} failed: {exc}", err=True)

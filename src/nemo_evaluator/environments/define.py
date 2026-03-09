@@ -68,6 +68,11 @@ def _load_dataset_from_spec(spec: str | Callable) -> list[dict[str, Any]]:
 
     path = Path(spec)
     if path.exists():
+        suffix = path.suffix.lower()
+        if suffix == ".csv":
+            return _load_csv(path, delimiter=",")
+        if suffix in (".tsv", ".tab"):
+            return _load_csv(path, delimiter="\t")
         rows = []
         with open(path) as f:
             for line in f:
@@ -76,6 +81,13 @@ def _load_dataset_from_spec(spec: str | Callable) -> list[dict[str, Any]]:
         return rows
 
     return _load_hf(spec)
+
+
+def _load_csv(path: Path, delimiter: str = ",") -> list[dict[str, Any]]:
+    import csv
+    with open(path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=delimiter)
+        return [dict(row) for row in reader]
 
 
 def _load_hf(spec: str) -> list[dict[str, Any]]:

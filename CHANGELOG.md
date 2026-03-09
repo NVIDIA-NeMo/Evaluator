@@ -1,5 +1,64 @@
 # Changelog
 
+## 0.6.0 (2026-03-09)
+
+### Feature Parity
+
+- **VLM support**: `VLMSolver` with `ModelClient.vlm_chat()` for vision-language benchmarks. `SeedResult.images` field, `endpoint_type: vlm` in config. Local file paths auto-converted to base64 data URIs.
+- **Embedding support**: `EmbeddingSolver` with `ModelClient.embed()`/`embed_batch()`. `CrossEncoderSolver` for reranking via `/v1/rerank`.
+- **MTEB integration**: `MTEBEnvironment` wraps the MTEB library for embedding evaluation. Usage: `mteb://STSBenchmark`. Runs in a background thread to avoid blocking the event loop.
+- **ContainerEnvironment**: Run legacy eval-factory containers as opaque environments. Usage: `container://nvcr.io/eval-factory/mmlu:latest#mmlu_pro`. Async subprocess execution with timeout.
+- **Multi-node vLLM**: `RayMultiNodeDeployment` for tensor + pipeline parallelism across nodes. Config fields: `pipeline_parallel_size`, `num_nodes`.
+- **WandB/MLflow export**: Plugin-based export system. `WandBExporter` and `MLflowExporter` push scores and artifact bundles to experiment trackers. Config: `output.export: [wandb, mlflow]`.
+- **SLURM container mode**: `ClusterConfig.container_image` generates `srun --container-image` commands in sbatch scripts. Container mounts, env vars, and home mount configurable.
+- **BYOB containerization**: `nel package -m my_bench/ -t my-bench:latest` generates a Dockerfile and builds a container image for BYOB benchmark modules.
+- **Persistent config**: `nel config set/get/show/unset` manages `~/.config/nemo-evaluator/config.yaml`.
+- **CLI overrides**: `nel eval run config.yaml -O model.temperature=0.5` applies dot-style overrides before Pydantic validation.
+- **Reasoning trace handling**: `ModelConfig.reasoning_pattern` strips `<think>...</think>` tokens before scoring.
+- **SLURM auto-resume**: `ClusterConfig.auto_resume` resubmits failed jobs via `afternotok` dependency chain, up to `max_resume_attempts`.
+- **Telemetry**: Opt-in usage analytics with `TelemetryHandler`. Levels: off/minimal/default. Controlled via env var or persistent config.
+- **CSV/TSV datasets**: `@benchmark` dataset specs now accept `.csv` and `.tsv` files via `csv.DictReader`.
+
+### Bug Fixes (27 total across 3 audit rounds)
+
+**Critical (13):**
+- Fixed `_NELEncoder.encode()` calling `asyncio.run()` inside a running event loop (MTEB crash).
+- Fixed `set -euo pipefail` making SLURM auto-resume dead code; changed to `set -uo pipefail` with explicit `NEL_EXIT_CODE` tracking.
+- Fixed `embed_batch()` having zero retry logic; extracted shared `_post_with_retry()` used by all HTTP methods.
+- Fixed `ContainerEnvironment.run_batch()` using synchronous `subprocess.run()` inside async; replaced with `asyncio.create_subprocess_exec()`.
+- Fixed SLURM `$SRUN_PREFIX` defined but never used in task commands.
+- Fixed `-o` CLI flag collision between `--output-dir` and `--override`; override now uses `-O`.
+- Fixed SLURM auto-resume grep for `"_failed": false` which never exists in bundles; now checks `checkpoint.json`.
+- Fixed auto-resume treating missing `checkpoint.json` as "all completed"; now correctly triggers resubmit.
+- Fixed local runner auto-service dropping `pipeline_parallel_size`/`num_nodes`.
+- Fixed `_parse_response` crash on `None` content from model refusals.
+- Fixed SLURM health wait silently continuing with dead services; now exits on timeout.
+- Fixed API key leaking to disk via batch config dict.
+- Fixed `write_all()` crashing with `KeyError: 'run_id'` on Container/MTEB bundles.
+
+**Architectural (4):**
+- Fixed service handles' runtime URLs ignored in favor of static config resolution; now prefers actual URL from running service.
+- Fixed judge clients crossing `asyncio.run()` boundaries; now created fresh per-benchmark inside the async function.
+- Fixed `env.verify()` exceptions silently dropping results; now catches and records zero-reward with error details.
+- Wired dead `BenchmarkConfig.fewshot` field through to environment factories.
+
+**Design (10):**
+- Refactored `chat()` to use shared `_post_with_retry()`, eliminating duplicated 50-line retry loop.
+- Fixed inconsistent latency measurement between `chat()` and `vlm_chat()`.
+- Wrapped `mteb.MTEB.run()` in `loop.run_in_executor()` to avoid blocking the event loop.
+- Fixed telemetry `emit()` mutating caller's event object; now uses `dataclasses.replace()`.
+- Added retry + semaphore to `CompletionSolver` and `CrossEncoderSolver` via `ModelClient._post_with_retry()`.
+- Fixed `package_cmd.py` single-file module creating wrong directory structure for Python imports.
+- Fixed WandB table column mismatch across benchmarks with different metrics; now uses union of all keys.
+- Fixed container `pre_cmd` pattern where `exec "$@"` had no arguments.
+- Fixed `GymEnvironment.dataset_size()` returning -1 causing silent empty evaluation; now raises `ValueError`.
+- Fixed `_resolve_services()` silently dropping `pipeline_parallel_size`/`num_nodes`, `RayMultiNodeDeployment._fallback` not initialized, and fragile `_parse_results()` fallback logic.
+
+### Concurrency and Configuration
+
+- **Unified concurrency control**: `BenchmarkConfig.max_concurrent` (default 32) is now the single knob for parallelism. It is passed to both `ModelClient` (HTTP semaphore) and `run_evaluation` (task semaphore) with the same value, eliminating the prior mismatch where 32 tasks competed for 8 HTTP slots. Configurable per-benchmark in YAML or via `-O benchmarks.0.max_concurrent=64`.
+- **`reasoning_pattern` in advanced mode**: `ServiceConfig` now supports `reasoning_pattern` for stripping reasoning tokens (e.g. `<think>...</think>`) in multi-service configurations, not just simple mode.
+
 ## 0.5.0 (2026-03-07)
 
 ### CLI Redesign
@@ -22,6 +81,17 @@
 - **`eval/slurm_gen.py`**: Self-contained sbatch script generation from `EvalConfig`.
 - **`eval/ssh.py`**: Remote SLURM submission via SSH.
 - **`eval/lifecycle.py`**: Executor-aware process management (`status`/`stop`) for local, SLURM, and Docker.
+
+### Resilience and Resume
+
+- **Checkpoint-based resume**: `run_local()` uses `CheckpointManager` to track per-benchmark completion. Completed benchmarks are skipped on re-run; failed benchmarks are logged and isolated.
+- **`--resume` flag**: `nel eval run config.yaml --resume` picks up from where a prior run left off. Without `--resume`, checkpoints are cleared for a fresh start.
+- **Failure isolation**: A single benchmark failure no longer kills the entire suite. Failed benchmarks are recorded and the run continues to the next benchmark.
+
+### Regression Analysis
+
+- **Mann-Whitney U p-values**: `compare_runs()` now loads per-sample rewards from `results.jsonl` and computes a two-sided Mann-Whitney U test via scipy. Each score delta entry includes `p_value` and `significant` fields.
+- scipy is an optional dependency under `[stats]` — p-values are `null` if scipy is not installed.
 
 ### Bug Fixes
 

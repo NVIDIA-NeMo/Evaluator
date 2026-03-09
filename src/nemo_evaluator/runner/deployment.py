@@ -188,11 +188,106 @@ class NIMDeployment(DockerModelDeployment):
         return super()._build_docker_cmd()
 
 
+class RayMultiNodeDeployment:
+    """Multi-node vLLM deployment via Ray for tensor + pipeline parallelism."""
+
+    def __init__(self, config: DeployConfig) -> None:
+        self._config = config
+        self._port = config.port or _find_free_port()
+        self._head_process: subprocess.Popen | None = None
+        self._vllm_process: subprocess.Popen | None = None
+        self._fallback: ProcessModelDeployment | None = None
+
+    def start(self) -> str:
+        c = self._config
+        nodes = c.nodes
+        pp = c.pipeline_parallel_size or 1
+
+        if nodes <= 1 and pp <= 1:
+            logger.info("Single-node deployment, delegating to ProcessModelDeployment")
+            self._fallback = ProcessModelDeployment(c)
+            return self._fallback.start()
+
+        logger.info("Starting Ray head node for %d-node deployment", nodes)
+        self._head_process = subprocess.Popen(
+            ["ray", "start", "--head", "--port=6379", "--dashboard-port=8265"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        )
+        time.sleep(5)
+
+        cmd = [
+            "python", "-m", "vllm.entrypoints.openai.api_server",
+            "--model", c.model or "",
+            "--port", str(self._port),
+        ]
+
+        # vLLM uses Ray automatically for multi-GPU/multi-node when these are set
+        tp = next((a for i, a in enumerate(c.extra_args)
+                    if a == "--tensor-parallel-size" and i + 1 < len(c.extra_args)), None)
+        if tp is None and hasattr(c, "gpus") and c.gpus > 1:
+            cmd.extend(["--tensor-parallel-size", str(c.gpus)])
+
+        if pp > 1:
+            cmd.extend(["--pipeline-parallel-size", str(pp)])
+
+        cmd.extend(c.extra_args)
+
+        env = {**os.environ, **c.extra_env}
+        logger.info("Starting vLLM with Ray: %s", " ".join(cmd))
+        self._vllm_process = subprocess.Popen(cmd, env=env,
+                                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        self.health_wait(c.startup_timeout)
+        return f"http://localhost:{self._port}/v1"
+
+    def health_wait(self, timeout: float = 600.0) -> None:
+        url = f"http://localhost:{self._port}{self._config.health_path}"
+        deadline = time.monotonic() + timeout
+
+        while time.monotonic() < deadline:
+            if self._vllm_process and self._vllm_process.poll() is not None:
+                raise RuntimeError(f"vLLM process exited with code {self._vllm_process.returncode}")
+            try:
+                r = httpx.get(url, timeout=5.0)
+                if r.status_code == 200:
+                    logger.info("Multi-node vLLM healthy at %s", url)
+                    return
+            except (httpx.ConnectError, httpx.TimeoutException):
+                pass
+            time.sleep(5.0)
+
+        self.stop()
+        raise TimeoutError(f"Multi-node vLLM not healthy within {timeout}s")
+
+    def stop(self) -> None:
+        if self._fallback is not None:
+            self._fallback.stop()
+            return
+
+        for proc, name in [(self._vllm_process, "vLLM"), (self._head_process, "Ray head")]:
+            if proc is None:
+                continue
+            logger.info("Stopping %s (pid=%d)", name, proc.pid)
+            try:
+                proc.send_signal(signal.SIGTERM)
+                proc.wait(timeout=15)
+            except (subprocess.TimeoutExpired, OSError):
+                proc.kill()
+                proc.wait(timeout=5)
+
+        self._vllm_process = None
+        self._head_process = None
+
+        try:
+            subprocess.run(["ray", "stop"], capture_output=True, timeout=10)
+        except Exception:
+            pass
+
+
 _DEPLOYMENT_MAP = {
     "api": lambda c: APIDeployment(c.extra_env.get("base_url", "")),
     "nim": NIMDeployment,
     "docker": DockerModelDeployment,
-    "vllm": ProcessModelDeployment,
+    "vllm": lambda c: RayMultiNodeDeployment(c) if (c.nodes > 1 or (c.pipeline_parallel_size or 0) > 1) else ProcessModelDeployment(c),
     "sglang": ProcessModelDeployment,
 }
 

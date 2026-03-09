@@ -7,11 +7,16 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_SIGNIFICANCE_THRESHOLD = 0.05
+
 
 def compare_runs(baseline_path: str | Path, candidate_path: str | Path) -> dict[str, Any]:
     """Compare two eval run bundles. Returns regression report with deltas and significance."""
     base = _load_bundle(baseline_path)
     cand = _load_bundle(candidate_path)
+
+    base_rewards = _load_rewards(Path(baseline_path).parent)
+    cand_rewards = _load_rewards(Path(candidate_path).parent)
 
     report: dict[str, Any] = {
         "baseline": {"run_id": base.get("run_id", "unknown"), "config": base.get("config", {})},
@@ -39,13 +44,22 @@ def compare_runs(baseline_path: str | Path, candidate_path: str | Path) -> dict[
             continue
 
         delta = c_val - b_val
-        report["score_deltas"][metric] = {
+        entry: dict[str, Any] = {
             "baseline": b_val,
             "candidate": c_val,
             "delta": round(delta, 4),
             "relative_pct": round(100 * delta / b_val, 2) if b_val != 0 else 0,
             "ci_overlap": _ci_overlap(bv, cv),
+            "p_value": None,
+            "significant": None,
         }
+
+        p = _mann_whitney_p(base_rewards, cand_rewards)
+        if p is not None:
+            entry["p_value"] = round(p, 6)
+            entry["significant"] = p < _SIGNIFICANCE_THRESHOLD
+
+        report["score_deltas"][metric] = entry
 
     b_rt = b_scores.get("runtime", {})
     c_rt = c_scores.get("runtime", {})
@@ -96,6 +110,42 @@ def _ci_overlap(a: dict, b: dict) -> bool:
     if any(v is None for v in (a_lo, a_hi, b_lo, b_hi)):
         return True  # Cannot determine, assume overlap
     return a_lo <= b_hi and b_lo <= a_hi
+
+
+def _load_rewards(task_dir: Path) -> list[float]:
+    """Load per-sample reward values from results.jsonl in the given directory."""
+    results_path = task_dir / "results.jsonl"
+    if not results_path.exists():
+        return []
+    rewards = []
+    for line in results_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+            r = record.get("reward")
+            if r is not None:
+                rewards.append(float(r))
+        except (json.JSONDecodeError, TypeError, ValueError):
+            continue
+    return rewards
+
+
+def _mann_whitney_p(base_rewards: list[float], cand_rewards: list[float]) -> float | None:
+    """Compute Mann-Whitney U two-sided p-value. Returns None if scipy is unavailable or data insufficient."""
+    if len(base_rewards) < 2 or len(cand_rewards) < 2:
+        return None
+    try:
+        from scipy.stats import mannwhitneyu
+    except ImportError:
+        logger.debug("scipy not installed; skipping p-value computation (pip install nemo-evaluator[stats])")
+        return None
+    try:
+        _, p = mannwhitneyu(base_rewards, cand_rewards, alternative="two-sided")
+        return float(p)
+    except ValueError:
+        return None
 
 
 def write_regression(report: dict[str, Any], output_path: str | Path) -> Path:

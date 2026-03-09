@@ -79,6 +79,12 @@ benchmarks:
     max_problems: 100
 ```
 
+Multi-benchmark configs support `--resume` for checkpoint-based recovery:
+
+```bash
+nel eval run eval_config.yaml --resume
+```
+
 ```{mermaid}
 sequenceDiagram
     participant CLI as nel eval run
@@ -305,7 +311,7 @@ JSONL row format (matches `ng_collect_rollouts` input spec):
 
 **Who:** CI pipeline or evaluation owner comparing model versions.
 
-**What:** Two run bundles → score deltas with CI overlap check, per-category deltas, runtime deltas.
+**What:** Two run bundles → score deltas with CI overlap check, Mann-Whitney U p-values, per-category deltas, runtime deltas.
 
 ```python
 from nemo_evaluator.runner.regression import compare_runs, write_regression
@@ -318,7 +324,7 @@ Output:
 ```json
 {
   "score_deltas": {
-    "pass@1": {"baseline": 0.85, "candidate": 0.88, "delta": 0.03, "ci_overlap": true}
+    "pass@1": {"baseline": 0.85, "candidate": 0.88, "delta": 0.03, "ci_overlap": true, "p_value": 0.031, "significant": true}
   },
   "category_deltas": {
     "algebra": {"baseline": 0.92, "candidate": 0.95, "delta": 0.03},

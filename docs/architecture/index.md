@@ -79,12 +79,13 @@ flowchart TB
 |---------|---------------|-----------|
 | `environments/` | Base class, registry, `@benchmark` API, environment types | `EvalEnvironment`, `SeedResult`, `VerifyResult`, `BenchmarkDefinition` |
 | `benchmarks/` | 11 built-in benchmarks (all `@benchmark` + `@scorer`) | Scorer functions |
-| `runner/` | Eval loop, solvers, model client, deployment | `run_evaluation()`, `ChatSolver`, `CompletionSolver`, `AgentSolver`, `ModelClient` |
+| `runner/` | Eval loop, solvers, model client, deployment, checkpoint, regression | `run_evaluation()`, `ChatSolver`, `CompletionSolver`, `AgentSolver`, `ModelClient`, `CheckpointManager` |
 | `executors/` | Orchestration: model deploy + eval + teardown | `LocalExecutor`, `DockerExecutor`, `SlurmExecutor` |
 | `scoring/` | Judge pipeline and JSON schema validation | `judge.py`, `json_schema.py` |
 | `observability/` | Rich telemetry capture | `StepRecord`, `ModelResponse`, `RuntimeStats`, `ArtifactCollector` |
 | `metrics/` | Statistical aggregation | `pass_at_k()`, `bootstrap_ci()`, `category_breakdown()` |
-| `cli/` | CLI commands | `nel eval run`, `nel serve`, `nel validate`, `nel eval report`, `nel regression` |
+| `eval/` | Suite runner with checkpointing and failure isolation | `run_local()`, `EvalConfig`, `CheckpointManager` |
+| `cli/` | CLI commands | `nel eval run`, `nel eval run --resume`, `nel serve`, `nel validate`, `nel eval report`, `nel regression` |
 
 ## Environment Abstraction
 
@@ -286,6 +287,27 @@ classDiagram
 
     StepRecord --> ModelResponse
 ```
+
+## Resilience and Resume
+
+Multi-benchmark suites use `CheckpointManager` to track per-benchmark completion:
+
+```{mermaid}
+flowchart LR
+    START["nel eval run suite.yaml"] --> B1["Benchmark 1"]
+    B1 -->|"completed"| CKPT1["checkpoint: done"]
+    CKPT1 --> B2["Benchmark 2"]
+    B2 -->|"FAILED"| CKPT2["checkpoint: failed"]
+    CKPT2 --> B3["Benchmark 3"]
+    B3 -->|"completed"| CKPT3["checkpoint: done"]
+    CKPT3 --> SUMMARY["Summary: 2 done, 1 failed"]
+    SUMMARY --> RESUME["nel eval run suite.yaml --resume"]
+    RESUME --> B2R["Retry Benchmark 2"]
+```
+
+- **Failure isolation**: A failing benchmark is caught, logged, and skipped. The suite continues to the next benchmark.
+- **Checkpoint tracking**: Each benchmark's status (completed/failed) is persisted to disk under the output directory.
+- **Resume**: `--resume` skips completed benchmarks and retries failed ones. Without `--resume`, checkpoints are cleared for a fresh run.
 
 ## Sharding
 

@@ -18,7 +18,7 @@ pip install -e ".[scoring]"
 | Extra | Command | What it adds |
 |-------|---------|-------------|
 | `scoring` | `pip install -e ".[scoring]"` | sympy for symbolic math comparison |
-| `stats` | `pip install -e ".[stats]"` | scipy for normal confidence intervals |
+| `stats` | `pip install -e ".[stats]"` | scipy for confidence intervals and Mann-Whitney U p-values in regression |
 | `pi` | `pip install -e ".[pi]"` | Prime Intellect `verifiers` integration |
 | `skills` | `pip install -e ".[skills]"` | NeMo Skills benchmark integration |
 | `harnesses` | `pip install -e ".[harnesses]"` | lm-evaluation-harness tasks |
