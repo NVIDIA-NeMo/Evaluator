@@ -119,57 +119,34 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
             max_saved_responses=self.max_saved_responses,
         )
 
+    _MEDIA_DATA_RE = re.compile(r"data:(image|audio|video)/([^;]+);base64,(.+)")
+
+    @staticmethod
+    def _sanitize_media_url(url: str) -> str:
+        """Replace a base64 data URL with a brief human-readable description."""
+        match = CachingInterceptor._MEDIA_DATA_RE.fullmatch(url)
+        if match:
+            media_type, fmt, b64 = match.group(1), match.group(2), match.group(3)
+            size_bytes = len(b64) * 3 // 4  # Approximate decoded size
+            return f"<{media_type}: format={fmt}, size≈{size_bytes} bytes>"
+        return url
+
     @staticmethod
     def sanitize_request_data_for_logging(data: Any) -> Any:
         """
-        Sanitize request data for logging by replacing image content with brief descriptions.
+        Sanitize request data for logging by replacing media content with brief descriptions.
 
         Args:
             data: Request data to sanitize (can be dict, list, or any other type)
 
         Returns:
-            Sanitized version of the data with images replaced by brief descriptions
+            Sanitized version of the data with media replaced by brief descriptions
         """
         if isinstance(data, dict):
             sanitized = {}
             for key, value in data.items():
-                # Check if this is an image_url field
-                if key == "image_url" and isinstance(value, dict):
-                    url = value.get("url", "")
-                    if isinstance(url, str) and url.startswith("data:image/"):
-                        # Extract image format and calculate approximate size
-                        match = re.match(r"data:image/([^;]+);base64,(.+)", url)
-                        if match:
-                            image_format = match.group(1)
-                            base64_data = match.group(2)
-                            size_bytes = (
-                                len(base64_data) * 3 // 4
-                            )  # Approximate decoded size
-                            sanitized[key] = {
-                                "url": f"<image: format={image_format}, size≈{size_bytes} bytes>"
-                            }
-                        else:
-                            sanitized[key] = {"url": "<image data>"}
-                    else:
-                        sanitized[key] = (
-                            CachingInterceptor.sanitize_request_data_for_logging(value)
-                        )
-                # Check if this is a url field with base64 image data
-                elif (
-                    key == "url"
-                    and isinstance(value, str)
-                    and value.startswith("data:image/")
-                ):
-                    match = re.match(r"data:image/([^;]+);base64,(.+)", value)
-                    if match:
-                        image_format = match.group(1)
-                        base64_data = match.group(2)
-                        size_bytes = len(base64_data) * 3 // 4
-                        sanitized[key] = (
-                            f"<image: format={image_format}, size≈{size_bytes} bytes>"
-                        )
-                    else:
-                        sanitized[key] = "<image data>"
+                if key == "url" and isinstance(value, str):
+                    sanitized[key] = CachingInterceptor._sanitize_media_url(value)
                 else:
                     sanitized[key] = (
                         CachingInterceptor.sanitize_request_data_for_logging(value)
