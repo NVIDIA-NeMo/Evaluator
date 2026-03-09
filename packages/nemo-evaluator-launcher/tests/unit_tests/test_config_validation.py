@@ -16,8 +16,7 @@
 """Config validation tests — parametrized valid/invalid configs.
 
 Structural validation (_validate_config_sections) and nemo_evaluator_config
-param validation (_validate_nemo_evaluator_config_params) are both tested.
-Uses real packaged IRs — no mocking.
+param validation (_validate_nemo_evaluator_config_params).
 """
 
 import textwrap
@@ -58,12 +57,15 @@ VALID_STRUCTURAL_CONFIGS = [
     pytest.param(
         """\
         evaluation:
-          tasks: []
-          env_vars: {}
-          pre_cmd: ""
-          nemo_evaluator_config: {}
+          env_vars:
+            HF_TOKEN: host:HF_TOKEN
+            SOME_SECRET: lit:my-secret-value
+          tasks:
+            - name: lm-evaluation-harness.ifeval
+              env_vars:
+                TASK_TOKEN: host:TASK_TOKEN
         """,
-        id="evaluation_empty_tasks_all_known_fields",
+        id="evaluation_env_vars_at_both_levels",
     ),
     pytest.param(
         """\
@@ -111,11 +113,24 @@ INVALID_STRUCTURAL_CONFIGS = [
         evaluation:
           tasks:
             - name: lm-evaluation-harness.ifeval
-              overrides:
-                config.params.parallelism: 1
+              non_existing_field: true
         """,
         "Invalid 'evaluation' config",
-        id="evaluation_task_removed_overrides_field",
+        id="evaluation_task_non_existing_field",
+    ),
+    pytest.param(
+        """\
+        evaluation:
+          env_vars:
+            HF_TOKEN: host:HF_TOKEN
+          tasks:
+            - name: lm-evaluation-harness.ifeval
+              env_vars:
+                nested_mistake:
+                  key: value
+        """,
+        "Invalid 'evaluation' config",
+        id="evaluation_task_env_vars_value_not_a_string",
     ),
     pytest.param(
         """\
@@ -152,22 +167,21 @@ INVALID_STRUCTURAL_CONFIGS = [
         """\
         execution:
           mounts:
-            deploymnet:
-              /host: /container
+            deployment:
+              /host: {}
         """,
         "Invalid 'execution.mounts' config",
-        id="mounts_typo_deployment_key",
+        id="mounts_invalid_value",
     ),
     pytest.param(
         """\
         execution:
           mounts:
-            mount_home: false
-            extra_mounts:
-              /host: /container
+            evaluation:
+              /host: {}
         """,
         "Invalid 'execution.mounts' config",
-        id="mounts_unknown_extra_mounts_key",
+        id="mounts_evaluation_invalid_value",
     ),
 ]
 
@@ -194,10 +208,12 @@ class TestStructuralValidation:
 # ---------------------------------------------------------------------------
 # nemo_evaluator_config param validation — real packaged IRs, no mocking.
 #
-# lm-evaluation-harness.ifeval uses: parallelism, request_timeout, limit_samples,
-#   max_retries + extras: num_fewshot, tokenizer, tokenizer_backend, ...
-# simple_evals.gpqa_diamond uses: temperature, top_p, max_new_tokens,
-#   parallelism, request_timeout, max_retries + extras: n_samples, ...
+# lm-evaluation-harness.ifeval  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.01
+#   params: parallelism, request_timeout, limit_samples, max_retries
+#   extras: num_fewshot, tokenizer, tokenizer_backend, ...
+# simple_evals.gpqa_diamond     container: nvcr.io/nvidia/eval-factory/simple-evals:26.01
+#   params: temperature, top_p, max_new_tokens, parallelism, request_timeout, max_retries
+#   extras: n_samples, ...
 # ---------------------------------------------------------------------------
 
 VALID_PARAM_CONFIGS = [
@@ -217,14 +233,18 @@ VALID_PARAM_CONFIGS = [
         id="ifeval_known_extra_param",
     ),
     pytest.param(
-        "simple_evals.gpqa_diamond",
-        {"temperature": 1.0, "top_p": 1.0, "max_new_tokens": 2048},
-        id="gpqa_diamond_known_standard_params",
+        "lm-evaluation-harness.ifeval",
+        {"temperature": 0.7, "top_p": 0.9, "max_new_tokens": 1024},
+        id="ifeval_known_generation_params",
     ),
     pytest.param(
-        "simple_evals.gpqa_diamond",
-        {"parallelism": 8, "request_timeout": 60, "extra": {"n_samples": 1}},
-        id="gpqa_diamond_known_extra_param",
+        "lm-evaluation-harness.ifeval",
+        {
+            "parallelism": 8,
+            "request_timeout": 60,
+            "extra": {"tokenizer_backend": "huggingface"},
+        },
+        id="ifeval_known_extra_tokenizer_param",
     ),
 ]
 
@@ -242,18 +262,21 @@ INVALID_PARAM_CONFIGS = [
         id="ifeval_unsupported_fake_param",
     ),
     pytest.param(
-        "simple_evals.gpqa_diamond",
-        {"non_existing_param": 99},
-        "non_existing_param",
-        id="gpqa_diamond_completely_unknown_param",
+        "lm-evaluation-harness.ifeval",
+        {"extra": {"totally_made_up_extra_xyz": 1}},
+        "totally_made_up_extra_xyz",
+        id="ifeval_unsupported_fake_extra_param",
     ),
     pytest.param(
-        "simple_evals.gpqa_diamond",
-        {"temperature": 0.6, "bad_param_a": 1, "bad_param_b": 2},
+        "lm-evaluation-harness.ifeval",
+        {"parallelism": 1, "bad_param_a": 1, "bad_param_b": 2},
         "bad_param",
-        id="gpqa_diamond_multiple_unknown_params",
+        id="ifeval_multiple_unknown_params",
     ),
 ]
+
+
+_IFEVAL_CONTAINER = "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.01"
 
 
 class TestNemoEvaluatorParamValidation:
@@ -264,6 +287,7 @@ class TestNemoEvaluatorParamValidation:
                     "tasks": [
                         {
                             "name": task_name,
+                            "container": _IFEVAL_CONTAINER,
                             "nemo_evaluator_config": {"config": {"params": params}},
                         }
                     ],

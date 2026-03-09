@@ -65,7 +65,11 @@ def _validate_config_sections(cfg: Any) -> None:
     from nemo_evaluator_launcher.common.pydantic_models import (
         EvaluationModel,
         MountsModel,
+        TaskModel,
     )
+
+    def _allowed(model_cls) -> str:
+        return ", ".join(sorted(model_cls.model_fields))
 
     # evaluation section
     eval_cfg = cfg.get("evaluation") if OmegaConf.is_dict(cfg) else None
@@ -74,7 +78,11 @@ def _validate_config_sections(cfg: Any) -> None:
         try:
             EvaluationModel.model_validate(eval_dict)
         except ValidationError as e:
-            raise ValueError(f"Invalid 'evaluation' config:\n{e}") from e
+            raise ValueError(
+                f"Invalid 'evaluation' config:\n{e}\n"
+                f"Allowed top-level evaluation keys: {_allowed(EvaluationModel)}\n"
+                f"Allowed task keys: {_allowed(TaskModel)}"
+            ) from e
 
     # execution.mounts section
     exec_cfg = cfg.get("execution") if OmegaConf.is_dict(cfg) else None
@@ -85,7 +93,10 @@ def _validate_config_sections(cfg: Any) -> None:
             try:
                 MountsModel.model_validate(mounts_dict)
             except ValidationError as e:
-                raise ValueError(f"Invalid 'execution.mounts' config:\n{e}") from e
+                raise ValueError(
+                    f"Invalid 'execution.mounts' config:\n{e}\n"
+                    f"Allowed mounts keys: {_allowed(MountsModel)}"
+                ) from e
 
 
 def _validate_nemo_evaluator_config_params(cfg: Any) -> None:
