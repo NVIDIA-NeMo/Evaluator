@@ -893,7 +893,10 @@ def _create_slurm_sbatch_script(
         if cache_path := aux.cfg.get("cache_path"):
             aux_mounts_list.append(f"{cache_path}:/cache")
         for source_mnt, target_mnt in (
-            cfg.execution.get("mounts", {}).get(f"{aux.name}_deployment", {}).items()
+            cfg.execution.get("mounts", {})
+            .get("auxiliary", {})
+            .get(aux.name, {})
+            .items()
         ):
             aux_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
@@ -988,20 +991,25 @@ def _create_slurm_sbatch_script(
     aux_extra_env_names = []
     for aux in aux_deployments:
         chat_endpoint = aux.cfg.endpoints.get("chat", "/v1/chat/completions")
+        base_path = chat_endpoint.rsplit("/chat/completions", 1)[0] or "/v1"
         endpoint_url_var = f"{aux.env_prefix}_ENDPOINT_URL"
+        base_url_var = f"{aux.env_prefix}_BASE_URL"
         model_id_var = f"{aux.env_prefix}_MODEL_ID"
         s += f"# {aux.name} endpoint for evaluation tasks\n"
         if aux.num_instances > 1:
             # Multi-instance: route through proxy
             s += f'export {endpoint_url_var}="http://${{PRIMARY_NODE}}:{aux.proxy_port}{chat_endpoint}"\n'
+            s += f'export {base_url_var}="http://${{PRIMARY_NODE}}:{aux.proxy_port}{base_path}"\n'
         else:
             # Single instance: direct to primary node
             s += f'export {endpoint_url_var}="http://${{{aux.primary_node_var}}}:{aux.cfg.port}{chat_endpoint}"\n'
+            s += f'export {base_url_var}="http://${{{aux.primary_node_var}}}:{aux.cfg.port}{base_path}"\n'
         s += f'export {model_id_var}="{aux.cfg.served_model_name}"\n'
         s += f'echo "{endpoint_url_var}: ${{{endpoint_url_var}}}"\n'
+        s += f'echo "{base_url_var}: ${{{base_url_var}}}"\n'
         s += f'echo "{model_id_var}: ${{{model_id_var}}}"\n'
         s += "\n"
-        aux_extra_env_names.extend([endpoint_url_var, model_id_var])
+        aux_extra_env_names.extend([endpoint_url_var, base_url_var, model_id_var])
 
     s += "# evaluation client\n"
     s += "srun --mpi pmix --overlap "
@@ -2320,7 +2328,10 @@ def _collect_mount_paths(cfg: DictConfig) -> List[str]:
             if cache_path := aux_cfg.get("cache_path"):
                 mount_paths.append(cache_path)
             for source_mnt in (
-                cfg.execution.get("mounts", {}).get(f"{aux_name}_deployment", {}).keys()
+                cfg.execution.get("mounts", {})
+                .get("auxiliary", {})
+                .get(aux_name, {})
+                .keys()
             ):
                 mount_paths.append(source_mnt)
 
