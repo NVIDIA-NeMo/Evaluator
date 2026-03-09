@@ -31,14 +31,19 @@ import yaml
 from jinja2 import Environment, FileSystemLoader
 from omegaconf import DictConfig, OmegaConf
 
+from nemo_evaluator_launcher.common.auxiliary_deployments import (
+    AuxDeploymentState,
+    build_aux_deployment_states,
+    normalize_auxiliary_deployments,
+    resolve_deployment_command,
+    validate_auxiliary_deployments,
+)
 from nemo_evaluator_launcher.common.env_vars import (
     SecretsEnvResult,
     build_reexport_commands,
     collect_deployment_env_vars,
     collect_eval_env_vars,
     collect_exporters_env_vars,
-    collect_judge_deployment_env_vars,
-    collect_user_deployment_env_vars,
     generate_secrets_env,
     redact_secrets_env_content,
 )
@@ -670,26 +675,14 @@ def _create_slurm_sbatch_script(
         endpoint_type=task.get("endpoint_type"),
     )
 
-    # TODO(public release): convert to template
-    # Determine if judge deployment is active
-    has_judge_deployment = (
-        cfg.get("judge_deployment") is not None
-        and cfg.judge_deployment.get("type", "none") != "none"
-    )
-    judge_num_nodes = (
-        cfg.judge_deployment.get("num_nodes", 1) if has_judge_deployment else 0
-    )
+    # Normalize legacy judge_deployment/user_deployment into auxiliary_deployments
+    normalize_auxiliary_deployments(cfg)
+    aux_deployments = build_aux_deployment_states(cfg)
+    validate_auxiliary_deployments(aux_deployments, cfg.deployment.get("port", 8000))
 
-    # Determine if user deployment is active
-    has_user_deployment = (
-        cfg.get("user_deployment") is not None
-        and cfg.user_deployment.get("type", "none") != "none"
-    )
-    user_num_nodes = (
-        cfg.user_deployment.get("num_nodes", 1) if has_user_deployment else 0
-    )
-
-    total_num_nodes = cfg.execution.num_nodes + judge_num_nodes + user_num_nodes
+    has_aux_deployments = len(aux_deployments) > 0
+    total_aux_nodes = sum(a.num_nodes for a in aux_deployments)
+    total_num_nodes = cfg.execution.num_nodes + total_aux_nodes
 
     s = "#!/bin/bash\n"
 
@@ -723,28 +716,22 @@ def _create_slurm_sbatch_script(
     eval_env_vars = collect_eval_env_vars(cfg, task, api_key_name)
     deployment_env_vars = collect_deployment_env_vars(cfg)
     export_env_vars = collect_exporters_env_vars(cfg)
-    judge_deployment_env_vars = collect_judge_deployment_env_vars(cfg) if has_judge_deployment else {}
-    user_deployment_env_vars = (
-        collect_user_deployment_env_vars(cfg) if has_user_deployment else {}
-    )
 
     # Merge all into groups for secrets file generation
     env_groups = {}
-    # Evaluation vars for this task (merged: top-level → eval → task → exec eval → api_key)
+    # Evaluation vars for this task (merged: top-level -> eval -> task -> exec eval -> api_key)
     if eval_env_vars:
         env_groups[task.name] = eval_env_vars
-    # Deployment vars (merged: top-level → exec deployment → deployment.env_vars)
+    # Deployment vars (merged: top-level -> exec deployment -> deployment.env_vars)
     if deployment_env_vars:
         env_groups["deployment"] = deployment_env_vars
-    # Export vars (merged: top-level → export.env_vars)
+    # Auxiliary deployment vars (each aux collects its own env vars)
+    for aux in aux_deployments:
+        if aux.env_vars:
+            env_groups[aux.name] = aux.env_vars
+    # Export vars (merged: top-level -> export.env_vars)
     if export_env_vars:
         env_groups["export"] = export_env_vars
-    # Judge deployment vars (merged: top-level → judge_deployment.env_vars)
-    if judge_deployment_env_vars:
-        env_groups["judge_deployment"] = judge_deployment_env_vars
-    # User deployment vars (merged: top-level → user_deployment.env_vars)
-    if user_deployment_env_vars:
-        env_groups["user_deployment"] = user_deployment_env_vars
 
     secrets_result = None
     eval_reexport_cmd = ""
@@ -762,16 +749,12 @@ def _create_slurm_sbatch_script(
 
         eval_reexport_cmd = build_reexport_commands(task.name, secrets_result)
         deploy_reexport_cmd = build_reexport_commands("deployment", secrets_result)
-        judge_deploy_reexport_cmd = (
-            build_reexport_commands("judge_deployment", secrets_result)
-            if has_judge_deployment
-            else ""
-        )
-        user_deploy_reexport_cmd = (
-            build_reexport_commands("user_deployment", secrets_result)
-            if has_user_deployment
-            else ""
-        )
+        for aux in aux_deployments:
+            aux.reexport_cmd = (
+                build_reexport_commands(aux.name, secrets_result)
+                if secrets_result
+                else ""
+            )
 
     # auto resume after timeout (with optional max_walltime enforcement)
     max_walltime = cfg.execution.get("max_walltime", "120:00:00")
@@ -790,8 +773,8 @@ def _create_slurm_sbatch_script(
     s += "set -x  # print commands and their arguments as they are executed\n"
     s += "\n"
 
-    if has_judge_deployment or has_user_deployment:
-        # Resolve all allocated nodes and split between model, judge, and user deployments
+    if has_aux_deployments:
+        # Resolve all allocated nodes and split between model and auxiliary deployments
         s += "# Resolve all allocated nodes\n"
         s += 'NODELIST="${SLURM_JOB_NODELIST:-${SLURM_NODELIST:-}}"\n'
         s += 'if command -v scontrol >/dev/null 2>&1 && [[ -n "${NODELIST}" ]]; then\n'
@@ -804,32 +787,28 @@ def _create_slurm_sbatch_script(
         s += "fi\n"
         s += 'echo "ALL_NODES (${#ALL_NODES[@]}): ${ALL_NODES[*]}"\n'
         s += "\n"
-        # Split nodes: model first, then judge, then user
-        s += "# Split nodes between model deployment, judge deployment, and user deployment\n"
+        # Split nodes: model first, then each auxiliary deployment
+        s += "# Split nodes between model deployment and auxiliary deployments\n"
         s += f"MODEL_NUM_NODES={cfg.execution.num_nodes}\n"
-        s += f"JUDGE_NUM_NODES={judge_num_nodes}\n"
-        s += f"USER_NUM_NODES={user_num_nodes}\n"
+        for aux in aux_deployments:
+            s += f"{aux.env_prefix}_NUM_NODES={aux.num_nodes}\n"
         s += 'MODEL_NODES=("${ALL_NODES[@]:0:$MODEL_NUM_NODES}")\n'
-        s += 'JUDGE_NODES=("${ALL_NODES[@]:$MODEL_NUM_NODES:$JUDGE_NUM_NODES}")\n'
-        s += 'USER_NODES=("${ALL_NODES[@]:$((MODEL_NUM_NODES+JUDGE_NUM_NODES)):$USER_NUM_NODES}")\n'
+        offset_expr = "MODEL_NUM_NODES"
+        for aux in aux_deployments:
+            s += f'{aux.nodes_var}=("${{ALL_NODES[@]:${offset_expr}:${aux.env_prefix}_NUM_NODES}}")\n'
+            offset_expr = f"{offset_expr}+{aux.env_prefix}_NUM_NODES"
         s += 'MODEL_NODELIST=$(IFS=,; echo "${MODEL_NODES[*]}")\n'
-        s += 'JUDGE_NODELIST=$(IFS=,; echo "${JUDGE_NODES[*]}")\n'
-        s += 'USER_NODELIST=$(IFS=,; echo "${USER_NODES[*]}")\n'
+        for aux in aux_deployments:
+            s += f'{aux.nodelist_var}=$(IFS=,; echo "${{{aux.nodes_var}[*]}}")\n'
         s += 'export PRIMARY_NODE="${MODEL_NODES[0]}"\n'
-        if has_judge_deployment:
-            s += 'export JUDGE_PRIMARY_NODE="${JUDGE_NODES[0]}"\n'
-        if has_user_deployment:
-            s += 'export USER_PRIMARY_NODE="${USER_NODES[0]}"\n'
+        for aux in aux_deployments:
+            s += f'export {aux.primary_node_var}="${{{aux.nodes_var}[0]}}"\n'
         s += 'echo "MODEL_NODES ($MODEL_NUM_NODES): ${MODEL_NODES[*]}"\n'
-        if has_judge_deployment:
-            s += 'echo "JUDGE_NODES ($JUDGE_NUM_NODES): ${JUDGE_NODES[*]}"\n'
-        if has_user_deployment:
-            s += 'echo "USER_NODES ($USER_NUM_NODES): ${USER_NODES[*]}"\n'
+        for aux in aux_deployments:
+            s += f'echo "{aux.nodes_var} (${aux.env_prefix}_NUM_NODES): ${{{aux.nodes_var}[*]}}"\n'
         s += 'echo "PRIMARY_NODE: ${PRIMARY_NODE}"\n'
-        if has_judge_deployment:
-            s += 'echo "JUDGE_PRIMARY_NODE: ${JUDGE_PRIMARY_NODE}"\n'
-        if has_user_deployment:
-            s += 'echo "USER_PRIMARY_NODE: ${USER_PRIMARY_NODE}"\n'
+        for aux in aux_deployments:
+            s += f'echo "{aux.primary_node_var}: ${{{aux.primary_node_var}}}"\n'
     else:
         # Resolve a primary node for single-node sruns (client/proxy/export).
         # This must be safe under `set -u` and work for deployment.type == "none".
@@ -874,9 +853,7 @@ def _create_slurm_sbatch_script(
                 deployment_mounts_list,
                 remote_task_subdir,
                 deployment_env_var_names=list(deployment_env_vars.keys()),
-                nodelist_var="MODEL_NODES"
-                if (has_judge_deployment or has_user_deployment)
-                else None,
+                nodelist_var="MODEL_NODES" if has_aux_deployments else None,
             )
         )
 
@@ -907,87 +884,63 @@ def _create_slurm_sbatch_script(
         if cfg.execution.get("num_instances", 1) > 1:
             s += _get_proxy_server_srun_command(cfg, remote_task_subdir)
 
-    # --- Judge deployment (if configured) ---
-    judge_deployment_is_unsafe = False
-    user_deployment_is_unsafe = False
-    if has_judge_deployment:
-        judge_deployment_mounts_list = []
-        if judge_checkpoint_path := cfg.judge_deployment.get("checkpoint_path"):
-            judge_deployment_mounts_list.append(
-                f"{judge_checkpoint_path}:/checkpoint:ro"
-            )
-        if judge_cache_path := cfg.judge_deployment.get("cache_path"):
-            judge_deployment_mounts_list.append(f"{judge_cache_path}:/cache")
+    # --- Auxiliary deployments (judge, user, or any custom) ---
+    aux_is_unsafe = {}
+    for aux in aux_deployments:
+        aux_mounts_list = []
+        if checkpoint_path := aux.cfg.get("checkpoint_path"):
+            aux_mounts_list.append(f"{checkpoint_path}:/checkpoint:ro")
+        if cache_path := aux.cfg.get("cache_path"):
+            aux_mounts_list.append(f"{cache_path}:/cache")
         for source_mnt, target_mnt in (
-            cfg.execution.get("mounts", {}).get("judge_deployment", {}).items()
+            cfg.execution.get("mounts", {}).get(f"{aux.name}_deployment", {}).items()
         ):
-            judge_deployment_mounts_list.append(f"{source_mnt}:{target_mnt}")
+            aux_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
-        # Re-export judge deployment vars right before judge deployment srun
-        if judge_deploy_reexport_cmd:
-            s += f"{judge_deploy_reexport_cmd}\n"
+        # Re-export aux deployment vars right before aux deployment srun
+        if aux.reexport_cmd:
+            s += f"{aux.reexport_cmd}\n"
 
-        # Add judge deployment srun command
-        judge_srun_cmd, judge_deployment_is_unsafe, judge_debug = (
-            _generate_judge_deployment_srun_command(
-                cfg,
-                judge_deployment_mounts_list,
+        # Add auxiliary deployment srun command
+        aux_srun_cmd, aux_unsafe, aux_debug = (
+            _generate_auxiliary_deployment_srun_command(
+                aux,
+                aux_mounts_list,
                 remote_task_subdir,
-                judge_deployment_env_var_names=list(judge_deployment_env_vars.keys()),
+                cfg,
             )
         )
-        s += judge_srun_cmd
+        s += aux_srun_cmd
+        aux_is_unsafe[aux.name] = aux_unsafe
 
-        # Wait for judge server to initialize
-        judge_health_path = cfg.judge_deployment.endpoints.get("health", "/health")
-        s += _get_wait_for_server_handler(
-            '"${JUDGE_PRIMARY_NODE}"',
-            cfg.judge_deployment.port,
-            judge_health_path,
-            "judge server",
-            check_pid=True,
-            pid_var="JUDGE_SERVER_PID",
-        )
+        # Wait for auxiliary server to initialize
+        aux_health_path = aux.cfg.endpoints.get("health", "/health")
+        if aux.num_instances > 1:
+            ip_list = f'"${{{aux.env_prefix}_HEAD_NODE_IPS[@]}}"'
+            pid_var = aux.pids_var
+            s += _get_wait_for_server_handler(
+                ip_list,
+                aux.cfg.port,
+                aux_health_path,
+                f"{aux.name} server",
+                check_pid=True,
+                pid_var=pid_var,
+            )
+        else:
+            s += _get_wait_for_server_handler(
+                f'"${{{aux.primary_node_var}}}"',
+                aux.cfg.port,
+                aux_health_path,
+                f"{aux.name} server",
+                check_pid=True,
+                pid_var=aux.pid_var,
+            )
         s += "\n\n"
 
-    # --- User deployment (if configured) ---
-    if has_user_deployment:
-        user_deployment_mounts_list = []
-        if user_checkpoint_path := cfg.user_deployment.get("checkpoint_path"):
-            user_deployment_mounts_list.append(f"{user_checkpoint_path}:/checkpoint:ro")
-        if user_cache_path := cfg.user_deployment.get("cache_path"):
-            user_deployment_mounts_list.append(f"{user_cache_path}:/cache")
-        for source_mnt, target_mnt in (
-            cfg.execution.get("mounts", {}).get("user_deployment", {}).items()
-        ):
-            user_deployment_mounts_list.append(f"{source_mnt}:{target_mnt}")
-
-        # Re-export user deployment vars right before user deployment srun
-        if user_deploy_reexport_cmd:
-            s += f"{user_deploy_reexport_cmd}\n"
-
-        # Add user deployment srun command
-        user_srun_cmd, user_deployment_is_unsafe, user_debug = (
-            _generate_user_deployment_srun_command(
-                cfg,
-                user_deployment_mounts_list,
-                remote_task_subdir,
-                user_deployment_env_var_names=list(user_deployment_env_vars.keys()),
-            )
-        )
-        s += user_srun_cmd
-
-        # Wait for user server to initialize
-        user_health_path = cfg.user_deployment.endpoints.get("health", "/health")
-        s += _get_wait_for_server_handler(
-            '"${USER_PRIMARY_NODE}"',
-            cfg.user_deployment.port,
-            user_health_path,
-            "user server",
-            check_pid=True,
-            pid_var="USER_SERVER_PID",
-        )
-        s += "\n\n"
+        # Add proxy load balancer for multi-instance auxiliary deployments
+        if aux.num_instances > 1:
+            s += _generate_aux_haproxy_srun_command(aux, remote_task_subdir, cfg)
+            s += "\n"
 
     # prepare evaluation mounts
     evaluation_mounts_list = [
@@ -1031,41 +984,31 @@ def _create_slurm_sbatch_script(
     if eval_reexport_cmd:
         s += f"{eval_reexport_cmd}\n"
 
-    # Export judge and user endpoint information for evaluation containers
-    judge_extra_env_names = []
-    if has_judge_deployment:
-        judge_chat_endpoint = cfg.judge_deployment.endpoints.get(
-            "chat", "/v1/chat/completions"
-        )
-        s += "# Judge endpoint for evaluation tasks\n"
-        s += f'export JUDGE_ENDPOINT_URL="http://${{JUDGE_PRIMARY_NODE}}:{cfg.judge_deployment.port}{judge_chat_endpoint}"\n'
-        s += f'export JUDGE_MODEL_ID="{cfg.judge_deployment.served_model_name}"\n'
-        s += 'echo "JUDGE_ENDPOINT_URL: ${JUDGE_ENDPOINT_URL}"\n'
-        s += 'echo "JUDGE_MODEL_ID: ${JUDGE_MODEL_ID}"\n'
+    # Export auxiliary endpoint information for evaluation containers
+    aux_extra_env_names = []
+    for aux in aux_deployments:
+        chat_endpoint = aux.cfg.endpoints.get("chat", "/v1/chat/completions")
+        endpoint_url_var = f"{aux.env_prefix}_ENDPOINT_URL"
+        model_id_var = f"{aux.env_prefix}_MODEL_ID"
+        s += f"# {aux.name} endpoint for evaluation tasks\n"
+        if aux.num_instances > 1:
+            # Multi-instance: route through proxy
+            s += f'export {endpoint_url_var}="http://${{PRIMARY_NODE}}:{aux.proxy_port}{chat_endpoint}"\n'
+        else:
+            # Single instance: direct to primary node
+            s += f'export {endpoint_url_var}="http://${{{aux.primary_node_var}}}:{aux.cfg.port}{chat_endpoint}"\n'
+        s += f'export {model_id_var}="{aux.cfg.served_model_name}"\n'
+        s += f'echo "{endpoint_url_var}: ${{{endpoint_url_var}}}"\n'
+        s += f'echo "{model_id_var}: ${{{model_id_var}}}"\n'
         s += "\n"
-        judge_extra_env_names = ["JUDGE_ENDPOINT_URL", "JUDGE_MODEL_ID"]
-
-    user_extra_env_names = []
-    if has_user_deployment:
-        user_chat_endpoint = cfg.user_deployment.endpoints.get(
-            "chat", "/v1/chat/completions"
-        )
-        s += "# User endpoint for evaluation tasks\n"
-        s += f'export USER_ENDPOINT_URL="http://${{USER_PRIMARY_NODE}}:{cfg.user_deployment.port}{user_chat_endpoint}"\n'
-        s += f'export USER_MODEL_ID="{cfg.user_deployment.served_model_name}"\n'
-        s += 'echo "USER_ENDPOINT_URL: ${USER_ENDPOINT_URL}"\n'
-        s += 'echo "USER_MODEL_ID: ${USER_MODEL_ID}"\n'
-        s += "\n"
-        user_extra_env_names = ["USER_ENDPOINT_URL", "USER_MODEL_ID"]
+        aux_extra_env_names.extend([endpoint_url_var, model_id_var])
 
     s += "# evaluation client\n"
     s += "srun --mpi pmix --overlap "
     s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
     s += "--container-image {} ".format(eval_image)
-    # Combine eval env vars with judge and user endpoint env vars
-    all_eval_env_names = sorted(
-        set(list(eval_env_vars.keys()) + judge_extra_env_names + user_extra_env_names)
-    )
+    # Combine eval env vars with auxiliary endpoint env vars
+    all_eval_env_names = sorted(set(list(eval_env_vars.keys()) + aux_extra_env_names))
     if all_eval_env_names:
         s += "--container-env {} ".format(",".join(all_eval_env_names))
     if not cfg.execution.get("mounts", {}).get("mount_home", True):
@@ -1084,14 +1027,13 @@ def _create_slurm_sbatch_script(
             s += "kill $PROXY_PID  # terminate proxy to finish gracefully\n"
         s += "\n"
 
-    # terminate the judge server if deployed
-    if has_judge_deployment:
-        s += "kill $JUDGE_SERVER_PID  # terminate the judge server to finish gracefully\n"
-        s += "\n"
-
-    # terminate the user server if deployed
-    if has_user_deployment:
-        s += "kill $USER_SERVER_PID  # terminate the user server to finish gracefully\n"
+    # terminate auxiliary servers if deployed
+    for aux in aux_deployments:
+        if aux.num_instances > 1:
+            s += f'for _pid in "${{{aux.pids_var}[@]}}"; do kill "$_pid" 2>/dev/null || true; done  # terminate {aux.name} servers\n'
+            s += f"kill ${aux.proxy_pid_var} 2>/dev/null || true  # terminate {aux.name} proxy\n"
+        else:
+            s += f"kill ${aux.pid_var}  # terminate the {aux.name} server to finish gracefully\n"
         s += "\n"
 
     # auto-export
@@ -1114,12 +1056,11 @@ def _create_slurm_sbatch_script(
 
     debug_str = "\n".join(["# " + line for line in s.splitlines()])
 
-    # Combine unsafe flags from deployment, judge deployment, user deployment, and evaluation
+    # Combine unsafe flags from deployment, auxiliary deployments, and evaluation
     is_potentially_unsafe = (
         eval_factory_command_struct.is_potentially_unsafe
         or deployment_is_unsafe
-        or judge_deployment_is_unsafe
-        or user_deployment_is_unsafe
+        or any(aux_is_unsafe.values())
     )
 
     return CmdAndReadableComment(
@@ -2022,16 +1963,22 @@ def _generate_deployment_srun_command(
     return s, is_potentially_unsafe, debug_comment
 
 
-def _generate_judge_deployment_srun_command(
-    cfg,
-    judge_deployment_mounts_list,
-    remote_task_subdir,
-    judge_deployment_env_var_names: list[str] | None = None,
+def _generate_auxiliary_deployment_srun_command(
+    aux: AuxDeploymentState,
+    aux_mounts_list: list[str],
+    remote_task_subdir: Path,
+    cfg: DictConfig,
 ):
-    """Generate the judge deployment srun command.
+    """Generate the srun command for an auxiliary deployment.
 
-    The judge runs on dedicated nodes (JUDGE_NODES / JUDGE_NODELIST) which are
-    separate from the model deployment nodes in the same SLURM allocation.
+    Supports both single-instance (one srun, single PID) and multi-instance
+    (loop of sruns, PID array, haproxy) modes.
+
+    Args:
+        aux: The auxiliary deployment state.
+        aux_mounts_list: List of mount strings for the deployment container.
+        remote_task_subdir: Remote directory for this task.
+        cfg: The full configuration object (for execution-level settings).
 
     Returns:
         tuple: (script_string, is_potentially_unsafe, debug_comment)
@@ -2040,156 +1987,206 @@ def _generate_judge_deployment_srun_command(
     debug_comment = ""
     is_potentially_unsafe = False
 
-    judge_num_nodes = cfg.judge_deployment.get("num_nodes", 1)
+    prefix = aux.env_prefix
+    name = aux.name
 
-    s += "# judge deployment server\n"
+    s += f"# {name} deployment server\n"
 
     # Extract pre_cmd for later use inside container
-    pre_cmd: str = cfg.judge_deployment.get("pre_cmd") or ""
+    pre_cmd: str = aux.cfg.get("pre_cmd") or ""
     if pre_cmd:
         is_potentially_unsafe = True
         create_pre_script_cmd = _str_to_echo_command(
-            pre_cmd, filename="judge_deployment_pre_cmd.sh"
+            pre_cmd, filename=f"{name}_deployment_pre_cmd.sh"
         )
         debug_comment += create_pre_script_cmd.debug + "\n\n"
 
-    # Resolve judge node IPs
-    s += "# Get judge deployment node IPs\n"
-    s += 'export JUDGE_NODES_IPS_ARRAY=($(for node in "${JUDGE_NODES[@]}"; do srun --nodelist="$node" --ntasks=1 --nodes=1 hostname --ip-address; done))\n'
-    s += 'echo "Judge Node IPs: ${JUDGE_NODES_IPS_ARRAY[@]}"\n'
-    s += "export JUDGE_MASTER_IP=${JUDGE_NODES_IPS_ARRAY[0]}\n"
-    s += 'echo "JUDGE_MASTER_IP: $JUDGE_MASTER_IP"\n'
+    # Resolve deployment command
+    deploy_command = resolve_deployment_command(aux.cfg)
 
-    # Add debug comment for judge deployment pre_cmd before srun command
+    # Resolve node IPs
+    s += f"# Get {name} deployment node IPs\n"
+    s += f'export {prefix}_NODES_IPS_ARRAY=($(for node in "${{{aux.nodes_var}[@]}}"; do srun --nodelist="$node" --ntasks=1 --nodes=1 hostname --ip-address; done))\n'
+    s += f'echo "{name} Node IPs: ${{{prefix}_NODES_IPS_ARRAY[@]}}"\n'
+    s += f"export {prefix}_MASTER_IP=${{{prefix}_NODES_IPS_ARRAY[0]}}\n"
+    s += f'echo "{prefix}_MASTER_IP: ${prefix}_MASTER_IP"\n'
+
+    # Add debug comment for pre_cmd before srun command
     if debug_comment:
-        s += "# Debug contents of judge deployment pre_cmd\n"
+        s += f"# Debug contents of {name} deployment pre_cmd\n"
         s += debug_comment
         s += "\n"
 
-    n_tasks = cfg.execution.get("judge_deployment", {}).get("n_tasks", 1)
-    s += "srun --mpi pmix --overlap "
-    s += '--nodelist "${JUDGE_NODELIST}" '
-    s += f"--nodes {judge_num_nodes} --ntasks {n_tasks} "
-    s += "--container-image {} ".format(cfg.judge_deployment.image)
-    if judge_deployment_mounts_list:
-        s += "--container-mounts {} ".format(",".join(judge_deployment_mounts_list))
-    if not cfg.execution.get("mounts", {}).get("mount_home", True):
-        s += "--no-container-mount-home "
-    s += "--output {} ".format(remote_task_subdir / "logs" / "judge-server-%A-%t.log")
+    env_var_names = list(aux.env_vars.keys()) if aux.env_vars else []
+    # Always add MASTER_IP to the environment variables
+    master_ip_var = f"{prefix}_MASTER_IP"
+    if master_ip_var not in env_var_names:
+        env_var_names.append(master_ip_var)
 
-    if judge_deployment_env_var_names is None:
-        judge_deployment_env_var_names = []
+    if aux.num_instances > 1:
+        # Multi-instance mode: loop over instances, collect PIDs
+        nodes_per_instance = aux.num_nodes // aux.num_instances
+        n_tasks = aux.cfg.get("n_tasks", nodes_per_instance)
+        per_instance_ntasks = n_tasks // aux.num_instances
 
-    # Always add JUDGE_MASTER_IP to the environment variables
-    if "JUDGE_MASTER_IP" not in judge_deployment_env_var_names:
-        judge_deployment_env_var_names.append("JUDGE_MASTER_IP")
+        s += f"{prefix}_HEAD_NODE_IPS=()\n"
+        s += f"{aux.pids_var}=()\n"
 
-    if judge_deployment_env_var_names:
-        s += f"--container-env {','.join(sorted(judge_deployment_env_var_names))} "
-
-    # Wrap judge deployment command to execute pre_cmd inside container if needed
-    if pre_cmd:
-        create_pre_script_cmd = _str_to_echo_command(
-            pre_cmd, filename="judge_deployment_pre_cmd.sh"
+        # Build the command that runs inside each instance container
+        create_script_cmd = _str_to_echo_command(
+            deploy_command, filename=f"{name}_deployment_cmd.sh"
         )
-        escaped_cmd = cfg.judge_deployment.command.replace("'", "'\"'\"'")
-        wrapped_command = (
-            f"bash -c '{create_pre_script_cmd.cmd} && "
-            f"source judge_deployment_pre_cmd.sh && "
-            f"{escaped_cmd}'"
+        debug_comment += create_script_cmd.debug + "\n\n"
+
+        all_node_ips_var = f"{prefix}_ALL_NODE_IPS"
+        s += f'export {all_node_ips_var}=$(IFS=,; echo "${{{prefix}_NODES_IPS_ARRAY[*]}}")\n'
+        if all_node_ips_var not in env_var_names:
+            env_var_names.append(all_node_ips_var)
+
+        env_setup = f"export PROC_ID=${{SLURM_PROCID:-0}} NODES_PER_INSTANCE={nodes_per_instance}"
+        script = (
+            f"{env_setup} && {create_script_cmd.cmd} && bash {name}_deployment_cmd.sh"
         )
-        s += "{} &\n\n".format(wrapped_command)
+
+        if pre_cmd:
+            create_pre_script_cmd = _str_to_echo_command(
+                pre_cmd, filename=f"{name}_deployment_pre_cmd.sh"
+            )
+            script = (
+                f"{env_setup} && "
+                f"{create_pre_script_cmd.cmd} && "
+                f"source {name}_deployment_pre_cmd.sh && "
+                f"{create_script_cmd.cmd} && bash {name}_deployment_cmd.sh"
+            )
+
+        s += f"for ((g=0; g<{aux.num_instances}; g++)); do\n"
+        s += f"    START_IDX=$((g * {nodes_per_instance}))\n"
+        s += f'    INSTANCE_NODES_ARR=("${{{aux.nodes_var}[@]:$START_IDX:{nodes_per_instance}}}")\n'
+        s += '    INSTANCE_NODELIST=$(IFS=,; echo "${INSTANCE_NODES_ARR[*]}")\n'
+        s += f'    {prefix}_MASTER_IP="${{{prefix}_NODES_IPS_ARRAY[$START_IDX]}}"\n'
+        s += f'    {prefix}_HEAD_NODE_IPS+=("${prefix}_MASTER_IP")\n'
+        s += f"    export {prefix}_MASTER_IP\n"
+        s += f'    echo "{name} Instance $g: {prefix}_MASTER_IP=${prefix}_MASTER_IP, nodes: ${{INSTANCE_NODES_ARR[*]}}"\n'
+        s += "    srun --mpi pmix --overlap "
+        s += f'--nodelist "$INSTANCE_NODELIST" --nodes {nodes_per_instance} --ntasks {per_instance_ntasks} '
+        s += f"--container-image {aux.cfg.image} "
+        if aux_mounts_list:
+            s += "--container-mounts {} ".format(",".join(aux_mounts_list))
+        if not cfg.execution.get("mounts", {}).get("mount_home", True):
+            s += "--no-container-mount-home "
+        s += "--output {} ".format(
+            remote_task_subdir / "logs" / f"{name}-server-${{g}}-%A-%t.log"
+        )
+        if env_var_names:
+            s += f"--container-env {','.join(sorted(env_var_names))} "
+        s += "bash -c '{}' &\n".format(script)
+        s += f"    {aux.pids_var}+=($!)\n"
+        s += "done\n\n"
+
+        s += f'echo "{prefix}_HEAD_NODE_IPS: ${{{prefix}_HEAD_NODE_IPS[@]}}"\n'
+        s += f"{aux.pid_var}=${{{aux.pids_var}[0]}}  # reference to first instance PID for health check\n\n"
+
     else:
-        s += "{} &\n\n".format(cfg.judge_deployment.command)
+        # Single instance mode: one srun, single PID
+        n_tasks = aux.cfg.get("n_tasks", 1)
 
-    s += "JUDGE_SERVER_PID=$!  # capture the PID of the judge server background srun process\n\n"
+        s += "srun --mpi pmix --overlap "
+        s += f'--nodelist "${{{aux.nodelist_var}}}" '
+        s += f"--nodes {aux.num_nodes} --ntasks {n_tasks} "
+        s += f"--container-image {aux.cfg.image} "
+        if aux_mounts_list:
+            s += "--container-mounts {} ".format(",".join(aux_mounts_list))
+        if not cfg.execution.get("mounts", {}).get("mount_home", True):
+            s += "--no-container-mount-home "
+        s += "--output {} ".format(
+            remote_task_subdir / "logs" / f"{name}-server-%A-%t.log"
+        )
+
+        if env_var_names:
+            s += f"--container-env {','.join(sorted(env_var_names))} "
+
+        # Wrap deployment command to execute pre_cmd inside container if needed
+        if pre_cmd:
+            create_pre_script_cmd = _str_to_echo_command(
+                pre_cmd, filename=f"{name}_deployment_pre_cmd.sh"
+            )
+            escaped_cmd = deploy_command.replace("'", "'\"'\"'")
+            wrapped_command = (
+                f"bash -c '{create_pre_script_cmd.cmd} && "
+                f"source {name}_deployment_pre_cmd.sh && "
+                f"{escaped_cmd}'"
+            )
+            s += "{} &\n\n".format(wrapped_command)
+        else:
+            s += "{} &\n\n".format(deploy_command)
+
+        s += f"{aux.pid_var}=$!  # capture the PID of the {name} server background srun process\n\n"
 
     return s, is_potentially_unsafe, debug_comment
 
 
-def _generate_user_deployment_srun_command(
-    cfg,
-    user_deployment_mounts_list,
-    remote_task_subdir,
-    user_deployment_env_var_names: list[str] | None = None,
-):
-    """Generate the user deployment srun command.
+def _generate_aux_haproxy_srun_command(
+    aux: AuxDeploymentState,
+    remote_task_subdir: Path,
+    cfg: DictConfig,
+) -> str:
+    """Generate HAProxy srun command for a multi-instance auxiliary deployment."""
+    prefix = aux.env_prefix
+    name = aux.name
 
-    The user simulator runs on dedicated nodes (USER_NODES / USER_NODELIST) which are
-    separate from the model and judge deployment nodes in the same SLURM allocation.
-
-    Returns:
-        tuple: (script_string, is_potentially_unsafe, debug_comment)
-    """
     s = ""
-    debug_comment = ""
-    is_potentially_unsafe = False
+    s += f"# {name} proxy load balancer\n"
 
-    user_num_nodes = cfg.user_deployment.get("num_nodes", 1)
+    # Generate haproxy config with placeholders for this auxiliary
+    template_dir = Path(__file__).parent
+    env = Environment(loader=FileSystemLoader(template_dir))
+    template = env.get_template("proxy.cfg.template")
 
-    s += "# user deployment server\n"
+    nodes_per_instance = aux.num_nodes // aux.num_instances
+    nodes = []
+    for i in range(aux.num_instances):
+        head_idx = i * nodes_per_instance
+        nodes.append({"ip": f"{{{prefix}_IP_{head_idx}}}", "port": int(aux.cfg.port)})
 
-    # Extract pre_cmd for later use inside container
-    pre_cmd: str = cfg.user_deployment.get("pre_cmd") or ""
-    if pre_cmd:
-        is_potentially_unsafe = True
-        create_pre_script_cmd = _str_to_echo_command(
-            pre_cmd, filename="user_deployment_pre_cmd.sh"
-        )
-        debug_comment += create_pre_script_cmd.debug + "\n\n"
+    health_check_path = aux.cfg.endpoints.get("health", "/health")
+    proxy_config = template.render(
+        haproxy_port=aux.proxy_port,
+        health_check_path=health_check_path,
+        health_check_status=200,
+        nodes=nodes,
+    )
 
-    # Resolve user node IPs
-    s += "# Get user deployment node IPs\n"
-    s += 'export USER_NODES_IPS_ARRAY=($(for node in "${USER_NODES[@]}"; do srun --nodelist="$node" --ntasks=1 --nodes=1 hostname --ip-address; done))\n'
-    s += 'echo "User Node IPs: ${USER_NODES_IPS_ARRAY[@]}"\n'
-    s += "export USER_MASTER_IP=${USER_NODES_IPS_ARRAY[0]}\n"
-    s += 'echo "USER_MASTER_IP: $USER_MASTER_IP"\n'
+    # Write template inline via heredoc
+    proxy_cfg_path = f"{remote_task_subdir}/{name}_proxy.cfg"
+    s += f"cat > {proxy_cfg_path} << 'PROXY_EOF'\n"
+    s += proxy_config
+    s += "\nPROXY_EOF\n"
 
-    # Add debug comment for user deployment pre_cmd before srun command
-    if debug_comment:
-        s += "# Debug contents of user deployment pre_cmd\n"
-        s += debug_comment
-        s += "\n"
+    # Replace placeholder IPs with actual node IPs
+    s += f"proxy_config_file={proxy_cfg_path}\n"
+    s += f'for i in "${{!{prefix}_NODES_IPS_ARRAY[@]}}"; do\n'
+    s += f'    ip="${{{prefix}_NODES_IPS_ARRAY[$i]}}"\n'
+    s += f'    sed -i "s/{{{prefix}_IP_$i}}/$ip/g" "$proxy_config_file"\n'
+    s += "done\n"
+    s += "\n"
 
-    n_tasks = cfg.execution.get("user_deployment", {}).get("n_tasks", 1)
+    proxy_image = cfg.execution.get("proxy", {}).get("image", "haproxy:latest")
     s += "srun --mpi pmix --overlap "
-    s += '--nodelist "${USER_NODELIST}" '
-    s += f"--nodes {user_num_nodes} --ntasks {n_tasks} "
-    s += "--container-image {} ".format(cfg.user_deployment.image)
-    if user_deployment_mounts_list:
-        s += "--container-mounts {} ".format(",".join(user_deployment_mounts_list))
-    if not cfg.execution.get("mounts", {}).get("mount_home", True):
-        s += "--no-container-mount-home "
-    s += "--output {} ".format(remote_task_subdir / "logs" / "user-server-%A-%t.log")
+    s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
+    s += f"--container-image {proxy_image} "
+    s += f"--container-mounts {proxy_cfg_path}:/usr/local/etc/haproxy/haproxy.cfg:ro "
+    s += f"--output {remote_task_subdir}/logs/{name}-proxy-%A.log "
+    s += "haproxy -f /usr/local/etc/haproxy/haproxy.cfg &\n"
+    s += f"{aux.proxy_pid_var}=$!  # capture the PID of the {name} proxy background srun process\n"
+    s += f'echo "{name} proxy started with PID: ${aux.proxy_pid_var}"\n\n'
 
-    if user_deployment_env_var_names is None:
-        user_deployment_env_var_names = []
+    # Wait for proxy to be ready
+    s += _get_wait_for_server_handler(
+        "127.0.0.1", aux.proxy_port, health_check_path, f"{name} Proxy", check_pid=False
+    )
+    s += "\n"
 
-    # Always add USER_MASTER_IP to the environment variables
-    if "USER_MASTER_IP" not in user_deployment_env_var_names:
-        user_deployment_env_var_names.append("USER_MASTER_IP")
-
-    if user_deployment_env_var_names:
-        s += f"--container-env {','.join(sorted(user_deployment_env_var_names))} "
-
-    # Wrap user deployment command to execute pre_cmd inside container if needed
-    if pre_cmd:
-        create_pre_script_cmd = _str_to_echo_command(
-            pre_cmd, filename="user_deployment_pre_cmd.sh"
-        )
-        escaped_cmd = cfg.user_deployment.command.replace("'", "'\"'\"'")
-        wrapped_command = (
-            f"bash -c '{create_pre_script_cmd.cmd} && "
-            f"source user_deployment_pre_cmd.sh && "
-            f"{escaped_cmd}'"
-        )
-        s += "{} &\n\n".format(wrapped_command)
-    else:
-        s += "{} &\n\n".format(cfg.user_deployment.command)
-
-    s += "USER_SERVER_PID=$!  # capture the PID of the user server background srun process\n\n"
-
-    return s, is_potentially_unsafe, debug_comment
+    return s
 
 
 def _get_wait_for_server_handler(
@@ -2204,15 +2201,21 @@ def _get_wait_for_server_handler(
     """Generate wait for server handler that takes a list of IPs."""
     pid_check = ""
     if check_pid:
-        pid_check = (
-            'kill -0 "$'
-            + pid_var
-            + '" 2>/dev/null || { echo "'
-            + service_name
-            + " process $"
-            + pid_var
-            + ' died"; exit 1; }'
-        )
+        if pid_var.endswith("_PIDS") or pid_var == "SERVER_PID":
+            # For array-style PID vars (SERVER_PIDS, *_SERVER_PIDS), check all PIDs
+            pids_array_var = pid_var if pid_var.endswith("_PIDS") else "SERVER_PIDS"
+            pid_check = f'for _check_pid in "${{{pids_array_var}[@]}}"; do kill -0 "$_check_pid" 2>/dev/null || {{ echo "{service_name} process $_check_pid died"; exit 1; }}; done'
+        else:
+            # For single PID variables, check the single PID
+            pid_check = (
+                'kill -0 "$'
+                + pid_var
+                + '" 2>/dev/null || { echo "'
+                + service_name
+                + " process $"
+                + pid_var
+                + ' died"; exit 1; }'
+            )
 
     handler = f"""date
 # wait for the {service_name} to initialize
@@ -2306,19 +2309,33 @@ def _collect_mount_paths(cfg: DictConfig) -> List[str]:
         for source_mnt in cfg.execution.get("mounts", {}).get("deployment", {}).keys():
             mount_paths.append(source_mnt)
 
-    # Judge deployment mounts
-    if (
-        cfg.get("judge_deployment")
-        and cfg.judge_deployment.get("type", "none") != "none"
-    ):
-        if checkpoint_path := cfg.judge_deployment.get("checkpoint_path"):
-            mount_paths.append(checkpoint_path)
-        if cache_path := cfg.judge_deployment.get("cache_path"):
-            mount_paths.append(cache_path)
-        for source_mnt in (
-            cfg.execution.get("mounts", {}).get("judge_deployment", {}).keys()
-        ):
-            mount_paths.append(source_mnt)
+    # Auxiliary deployment mounts
+    aux_deployments_cfg = cfg.get("auxiliary_deployments", {})
+    if aux_deployments_cfg:
+        for aux_name, aux_cfg in aux_deployments_cfg.items():
+            if aux_cfg.get("type", "none") == "none":
+                continue
+            if checkpoint_path := aux_cfg.get("checkpoint_path"):
+                mount_paths.append(checkpoint_path)
+            if cache_path := aux_cfg.get("cache_path"):
+                mount_paths.append(cache_path)
+            for source_mnt in (
+                cfg.execution.get("mounts", {}).get(f"{aux_name}_deployment", {}).keys()
+            ):
+                mount_paths.append(source_mnt)
+
+    # Legacy judge/user deployment mounts (before normalization runs)
+    for legacy_key in ("judge_deployment", "user_deployment"):
+        legacy_cfg = cfg.get(legacy_key)
+        if legacy_cfg and legacy_cfg.get("type", "none") != "none":
+            if checkpoint_path := legacy_cfg.get("checkpoint_path"):
+                mount_paths.append(checkpoint_path)
+            if cache_path := legacy_cfg.get("cache_path"):
+                mount_paths.append(cache_path)
+            for source_mnt in (
+                cfg.execution.get("mounts", {}).get(legacy_key, {}).keys()
+            ):
+                mount_paths.append(source_mnt)
 
     # Evaluation mounts
     for source_mnt in cfg.execution.get("mounts", {}).get("evaluation", {}).keys():
