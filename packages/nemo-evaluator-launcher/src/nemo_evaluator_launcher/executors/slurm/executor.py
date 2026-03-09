@@ -1996,7 +1996,7 @@ def _generate_deployment_srun_command(
     # correct per-instance head IP via --container-env.
     s += f"for ((g=0; g<{num_instances}; g++)); do\n"
     s += f"    START_IDX=$((g * {nodes_per_instance}))\n"
-    s += f'    INSTANCE_NODES_ARR=("${{nodes_array[@]:$START_IDX:{nodes_per_instance}}}")\n'
+    s += f'    INSTANCE_NODES_ARR=("${{DEPLOY_NODES_ARRAY[@]:$START_IDX:{nodes_per_instance}}}")\n'
     s += '    INSTANCE_NODELIST=$(IFS=,; echo "${INSTANCE_NODES_ARR[*]}")\n'
     s += '    MASTER_IP="${NODES_IPS_ARRAY[$START_IDX]}"\n'
     s += '    HEAD_NODE_IPS+=("$MASTER_IP")\n'
