@@ -56,7 +56,7 @@ def get_parser():
         "--model_type",
         type=str,
         help="Run config.: endpoint type",
-        choices=["chat", "completions", "vlm", "embedding"],
+        choices=["chat", "completions", "embedding"],
     )
     parser_run.add_argument("--model_url", type=str, help="Run config.: model URI")
     parser_run.add_argument(
