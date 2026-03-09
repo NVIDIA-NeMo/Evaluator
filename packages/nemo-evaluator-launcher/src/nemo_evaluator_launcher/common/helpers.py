@@ -237,10 +237,13 @@ def get_eval_factory_command(
         get_versions(),
     )
 
-    # Now get the pre_cmd either from `evaluation.pre_cmd` or task-level pre_cmd. Note the
+    # Now get the pre_cmd/post_cmd either from `evaluation.*` or task-level. Note the
     # order -- task level wins.
     pre_cmd: str = (
         user_task_config.get("pre_cmd") or cfg.evaluation.get("pre_cmd") or ""
+    )
+    post_cmd: str = (
+        user_task_config.get("post_cmd") or cfg.evaluation.get("post_cmd") or ""
     )
 
     is_potentially_unsafe = False
@@ -256,6 +259,18 @@ def get_eval_factory_command(
             ["metadata", "pre_cmd"],
             pre_cmd,
         )
+    if post_cmd:
+        logger.warning(
+            "Found non-empty post_cmd that might be a security risk if executed. "
+            "Setting `is_potentially_unsafe` to `True`",
+            post_cmd=post_cmd,
+        )
+        is_potentially_unsafe = True
+        _set_nested_optionally_overriding(
+            merged_nemo_evaluator_config,
+            ["metadata", "post_cmd"],
+            post_cmd,
+        )
 
     commands = []
     debug = []
@@ -263,6 +278,10 @@ def get_eval_factory_command(
     create_pre_script_cmd = _str_to_echo_command(pre_cmd, filename="pre_cmd.sh")
     commands.append(create_pre_script_cmd.cmd)
     debug.append(create_pre_script_cmd.debug)
+
+    create_post_script_cmd = _str_to_echo_command(post_cmd, filename="post_cmd.sh")
+    commands.append(create_post_script_cmd.cmd)
+    debug.append(create_post_script_cmd.debug)
 
     create_yaml_cmd = _str_to_echo_command(
         yaml.safe_dump(merged_nemo_evaluator_config), "config_ef.yaml"
@@ -282,10 +301,14 @@ def get_eval_factory_command(
 
     # NOTE: we use `source` to allow tricks like exports etc (if needed) -- it runs in the same
     # shell as the command.
+    # We use an EXIT trap so post_cmd always runs, even if evaluation fails, and then re-exit with the original run_eval exit code.
     eval_command = (
         "cmd=$(command -v nemo-evaluator >/dev/null 2>&1 && echo nemo-evaluator || echo eval-factory) "
         + "&& source pre_cmd.sh "
-        + "&& $cmd run_eval --run_config config_ef.yaml"
+        + "&& ("
+        + 'trap "code=\\$?; source post_cmd.sh; exit \\$code" EXIT; '
+        + "$cmd run_eval --run_config config_ef.yaml"
+        + ")"
     )
 
     commands.append(eval_command)
@@ -339,8 +362,8 @@ def get_endpoint_url(
         # Local executor - use localhost
         endpoint_uri = cfg.deployment.endpoints[endpoint_type]
 
-        # Use HAProxy port if multiple_instances is enabled
-        if cfg.deployment.get("multiple_instances", False):
+        # Use HAProxy port if num_instances > 1
+        if cfg.get("execution", {}).get("num_instances", 1) > 1:
             proxy_config = cfg.execution.get("proxy", {}).get("config", {})
             port = proxy_config.get("haproxy_port", 5009)
         else:

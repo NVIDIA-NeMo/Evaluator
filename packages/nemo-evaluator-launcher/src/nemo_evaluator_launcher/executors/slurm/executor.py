@@ -29,12 +29,14 @@ from typing import Dict, List, Optional
 
 import yaml
 from jinja2 import Environment, FileSystemLoader
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo_evaluator_launcher.common.env_vars import (
+    SecretsEnvResult,
     build_reexport_commands,
     collect_deployment_env_vars,
     collect_eval_env_vars,
+    collect_exporters_env_vars,
     collect_judge_deployment_env_vars,
     collect_user_deployment_env_vars,
     generate_secrets_env,
@@ -52,7 +54,6 @@ from nemo_evaluator_launcher.common.helpers import (
     check_unlisted_tasks_safeguard,
     get_api_key_name,
     get_eval_factory_command,
-    get_eval_factory_dataset_size_from_run_config,
     get_timestamp_string,
 )
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -146,7 +147,7 @@ class SlurmExecutor(BaseExecutor):
                 )
 
                 # Create proxy config file with placeholder IPs for multi-instance deployments
-                if cfg.deployment.get("multiple_instances", False):
+                if cfg.execution.num_instances > 1:
                     proxy_type = cfg.execution.get("proxy", {}).get("type", "haproxy")
                     if proxy_type == "haproxy":
                         proxy_config = _generate_haproxy_config_with_placeholders(cfg)
@@ -643,6 +644,22 @@ def _create_slurm_sbatch_script(
     Returns:
         str: The contents of the sbatch script.
     """
+    # Remove deprecated deployment.multiple_instances if present
+    if cfg.deployment.get("multiple_instances") is not None:
+        logger.warning(
+            "deployment.multiple_instances is deprecated and will be "
+            "removed from config — use execution.num_instances instead."
+        )
+        with open_dict(cfg):
+            del cfg.deployment.multiple_instances
+
+    # Validate topology: num_nodes must be divisible by num_instances
+    if cfg.execution.num_nodes % cfg.execution.num_instances != 0:
+        raise ValueError(
+            f"execution.num_nodes ({cfg.execution.num_nodes}) must be divisible by "
+            f"execution.num_instances ({cfg.execution.num_instances})"
+        )
+
     # get task from mapping, overrides, urls
     tasks_mapping = load_tasks_mapping()
     task_definition = get_task_definition_for_job(
@@ -710,6 +727,7 @@ def _create_slurm_sbatch_script(
     user_deployment_env_vars = (
         collect_user_deployment_env_vars(cfg) if has_user_deployment else {}
     )
+    export_env_vars = collect_exporters_env_vars(cfg)
 
     # Merge all into groups for secrets file generation
     env_groups = {}
@@ -725,10 +743,14 @@ def _create_slurm_sbatch_script(
     # User deployment vars (merged: top-level → user_deployment.env_vars)
     if user_deployment_env_vars:
         env_groups["user_deployment"] = user_deployment_env_vars
+    # Export vars (merged: top-level → export.env_vars)
+    if export_env_vars:
+        env_groups["export"] = export_env_vars
 
     secrets_result = None
     eval_reexport_cmd = ""
     deploy_reexport_cmd = ""
+
     if env_groups:
         secrets_result = generate_secrets_env(env_groups)
 
@@ -862,9 +884,9 @@ def _create_slurm_sbatch_script(
 
         # wait for the server to initialize
         health_path = cfg.deployment.endpoints.get("health", "/health")
-        # For multi-instance check all node IPs, for single instance check localhost
-        if cfg.deployment.get("multiple_instances", False):
-            ip_list = '"${NODES_IPS_ARRAY[@]}"'
+        # HEAD_NODE_IPS is always set: subset of heads when NPI > 1, all nodes otherwise
+        if cfg.execution.num_instances > 1:
+            ip_list = '"${HEAD_NODE_IPS[@]}"'
         else:
             ip_list = '"127.0.0.1"'
         s += _get_wait_for_server_handler(
@@ -877,7 +899,7 @@ def _create_slurm_sbatch_script(
         s += "\n\n"
 
         # add proxy load balancer for multi-instance deployments
-        if cfg.deployment.get("multiple_instances", False):
+        if cfg.execution.num_instances > 1:
             s += _get_proxy_server_srun_command(cfg, remote_task_subdir)
 
     # --- Judge deployment (if configured) ---
@@ -1052,8 +1074,8 @@ def _create_slurm_sbatch_script(
 
     # terminate the server after all evaluation clients finish
     if cfg.deployment.type != "none":
-        s += "kill $SERVER_PID  # terminate the server to finish gracefully\n"
-        if cfg.deployment.get("multiple_instances", False):
+        s += 'for _pid in "${SERVER_PIDS[@]}"; do kill "$_pid" 2>/dev/null || true; done  # terminate servers\n'
+        if cfg.execution.num_instances > 1:
             s += "kill $PROXY_PID  # terminate proxy to finish gracefully\n"
         s += "\n"
 
@@ -1076,9 +1098,13 @@ def _create_slurm_sbatch_script(
         destinations = list(ae_cfg.get("destinations", []) or [])
 
     if destinations:
-        export_env = dict(cfg.execution.get("env_vars", {}).get("export", {}) or {})
         s += _generate_auto_export_section(
-            cfg, job_id, destinations, export_env, remote_task_subdir
+            cfg=cfg,
+            job_id=job_id,
+            destinations=destinations,
+            env_var_names=list(export_env_vars),
+            secrets=secrets_result,
+            remote_task_subdir=remote_task_subdir,
         )
 
     debug_str = "\n".join(["# " + line for line in s.splitlines()])
@@ -1100,10 +1126,12 @@ def _create_slurm_sbatch_script(
 
 
 def _generate_auto_export_section(
+    *,
     cfg: DictConfig,
     job_id: str,
     destinations: list,
-    export_env: dict,
+    env_var_names: list,
+    secrets: SecretsEnvResult,
     remote_task_subdir: Path,
     export_image: str = "python:3.12.7-slim",
 ) -> str:
@@ -1117,39 +1145,16 @@ def _generate_auto_export_section(
     s += "    echo 'Evaluation completed successfully. Starting auto-export...'\n"
     s += f'    cd "{remote_task_subdir}/artifacts"\n'
 
-    # Work with DictConfig; convert only for YAML at the end
-    exec_type = (
-        cfg.execution.type
-        if hasattr(cfg.execution, "type")
-        else cfg.execution.get("type", "slurm")
-    )
-    eval_tasks = (
-        list(cfg.evaluation.tasks)
-        if hasattr(cfg, "evaluation") and hasattr(cfg.evaluation, "tasks")
-        else list((cfg.get("evaluation", {}) or {}).get("tasks", []) or [])
-    )
-    export_block = cfg.get("export", {}) or {}
+    if secrets:
+        reexport_cmd = build_reexport_commands("export", secrets)
+        s += f"    {reexport_cmd}\n"
 
-    payload = {
-        "execution": {
-            "auto_export": {
-                "destinations": list(destinations),
-                **({"env_vars": dict(export_env)} if export_env else {}),
-            },
-            "type": exec_type,
-        },
-        "evaluation": {"tasks": eval_tasks},
-    }
-    if export_block:
-        # Convert just this block to plain for YAML
-        payload["export"] = (
-            OmegaConf.to_object(export_block)
-            if OmegaConf.is_config(export_block)
-            else dict(export_block)
-        )
+    export_config = {"export": cfg.get("export", {})}
 
     # Final YAML (single conversion at the end)
-    payload_clean = OmegaConf.to_container(OmegaConf.create(payload), resolve=True)
+    payload_clean = OmegaConf.to_container(
+        OmegaConf.create(export_config), resolve=True
+    )
     yaml_str = yaml.safe_dump(payload_clean, sort_keys=False)
     s += "    cat > export_config.yml << 'EOF'\n"
     s += yaml_str
@@ -1164,12 +1169,6 @@ def _generate_auto_export_section(
     s += "EOF\n"
 
     # Export host only env before running auto export
-    for k, v in (export_env or {}).items():
-        if isinstance(v, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", v):
-            s += f'    export {k}="${{{v}}}"\n'
-        else:
-            esc = str(v).replace('"', '\\"')
-            s += f'    export {k}="{esc}"\n'
 
     # Get launcher install command - allows full customization of how to install the launcher.
     # Supports multi-line YAML strings. Example config:
@@ -1192,10 +1191,11 @@ def _generate_auto_export_section(
     s += "    srun --mpi pmix --overlap "
     s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
     s += "--container-image {} ".format(export_image)
-    if export_env:
-        s += "--container-env {} ".format(",".join(export_env))
-    if not cfg.execution.get("mounts", {}).get("mount_home", True):
-        s += "--no-container-mount-home "
+    if env_var_names:
+        s += "--container-env {} ".format(",".join(env_var_names))
+    # never mount home directory for export jobs - this is error prone
+    # and there's no use-case for mounting it
+    s += "--no-container-mount-home "
 
     s += f"--container-mounts {remote_task_subdir}/artifacts:{remote_task_subdir}/artifacts,{remote_task_subdir}/logs:{remote_task_subdir}/logs "
     s += "--output {} ".format(remote_task_subdir / "logs" / "export-%A.log")
@@ -1204,7 +1204,7 @@ def _generate_auto_export_section(
     s += f"        cd {remote_task_subdir}/artifacts\n"
     for dest in destinations:
         s += f'        echo "Exporting to {dest}..."\n'
-        s += f'        nemo-evaluator-launcher export {job_id} --dest {dest} || echo "Export to {dest} failed"\n'
+        s += f'        nemo-evaluator-launcher export {job_id} --dest {dest} --config export_config.yml --job-dirs {cfg.execution.output_dir} || echo "Export to {dest} failed"\n'
     s += "'\n"
     s += "    echo 'Auto-export completed.'\n"
     s += "else\n"
@@ -1657,36 +1657,29 @@ def _get_progress(
     username: str,
     hostname: str,
     socket: str | None,
-) -> List[Optional[float]]:
+) -> List[Optional[int]]:
+    """Read progress (number of completed requests) from remote run directories.
+
+    Returns the raw request count from each task's artifacts/progress file.
+    The count reflects unique successful, non-cached API requests processed
+    by the evaluation framework.
+    """
     remote_progress_paths = [
         remote_rundir_path / "artifacts" / "progress"
-        for remote_rundir_path in remote_rundir_paths
-    ]
-    remote_run_config_paths = [
-        remote_rundir_path / "artifacts" / "run_config.yml"
         for remote_rundir_path in remote_rundir_paths
     ]
     progress_strs = _read_files_from_remote(
         remote_progress_paths, username, hostname, socket
     )
-    if any(map(bool, progress_strs)):
-        run_config_strs = _read_files_from_remote(
-            remote_run_config_paths, username, hostname, socket
-        )
-    else:
-        run_config_strs = [""] * len(progress_strs)
     progress_list = []
-    for progress_str, run_config_str in zip(progress_strs, run_config_strs):
-        if not progress_str or not run_config_str:
+    for progress_str in progress_strs:
+        if not progress_str:
             progress_list.append(None)
             continue
-        run_config = yaml.safe_load(run_config_str)
-        dataset_size = get_eval_factory_dataset_size_from_run_config(run_config)
-        if dataset_size is not None:
-            progress = int(progress_str) / dataset_size
-        else:
-            progress = int(progress_str)
-        progress_list.append(progress)
+        try:
+            progress_list.append(int(progress_str))
+        except ValueError:
+            progress_list.append(None)
     return progress_list
 
 
@@ -1818,11 +1811,11 @@ def _generate_haproxy_config_with_placeholders(cfg):
     env = Environment(loader=FileSystemLoader(template_dir))
     template = env.get_template("proxy.cfg.template")
 
-    # Prepare template data with placeholder IPs - use actual number of nodes
-    num_nodes = cfg.execution.num_nodes
+    # Prepare template data with placeholder IPs - one backend per instance head node
     nodes = []
-    for i in range(num_nodes):
-        nodes.append({"ip": f"{{IP_{i}}}", "port": cfg.deployment.port})
+    for i in range(cfg.execution.num_instances):
+        head_idx = i * cfg.execution.num_nodes // cfg.execution.num_instances
+        nodes.append({"ip": f"{{IP_{head_idx}}}", "port": cfg.deployment.port})
 
     # Get health check parameters - prefer proxy config, fallback to deployment.endpoints.health
     proxy_config = cfg.execution.get("proxy", {}).get("config", {})
@@ -1886,7 +1879,12 @@ def _generate_deployment_srun_command(
     instance_id: int = 0,
     nodelist_var: str | None = None,
 ):
-    """Generate the deployment srun command with proper node/ntask configuration.
+    """Generate per-instance deployment srun commands.
+
+    Loops over num_instances and launches a dedicated srun for each instance on
+    its own node subset.  Multi-instance partitioning lives here; the deployment
+    command receives PROC_ID (rank within the instance) and MASTER_IP (head of
+    the instance) and only needs to handle single-instance setup.
 
     Args:
         cfg: The configuration object.
@@ -1935,58 +1933,88 @@ def _generate_deployment_srun_command(
 
     s += 'export NODES_IPS_ARRAY=($(for node in "${DEPLOY_NODES_ARRAY[@]}"; do srun --nodelist="$node" --ntasks=1 --nodes=1 hostname --ip-address; done))\n'
     s += 'echo "Node IPs: ${NODES_IPS_ARRAY[@]}"\n'
-    s += "# Export MASTER_IP as the first node IP\n"
-    s += "export MASTER_IP=${NODES_IPS_ARRAY[0]}\n"
-    s += 'echo "MASTER_IP: $MASTER_IP"\n'
+    s += 'export ALL_NODE_IPS=$(IFS=,; echo "${NODES_IPS_ARRAY[*]}")\n'
 
-    # Add debug comment for deployment pre_cmd before srun command
+    num_instances = cfg.execution.num_instances
+    nodes_per_instance = cfg.execution.num_nodes // num_instances
+    # n_tasks is total tasks across all instances (= num_nodes by default via slurm/default.yaml).
+    # Executor divides by num_instances to get per-instance ntasks for each srun.
+    # Falls back to num_nodes in case the YAML default isn't loaded (e.g. tests).
+    total_ntasks = (
+        cfg.execution.get("deployment", {}).get("n_tasks") or cfg.execution.num_nodes
+    )
+    per_instance_ntasks = total_ntasks // num_instances
+
+    s += "HEAD_NODE_IPS=()\n"
+    s += "SERVER_PIDS=()\n"
+
+    # Add debug comment for deployment pre_cmd before the loop
     if debug_comment:
         s += "# Debug contents of deployment pre_cmd\n"
         s += debug_comment
         s += "\n"
 
-    s += "srun --mpi pmix --overlap "
-    if nodelist_var:
-        s += '--nodelist "${MODEL_NODELIST}" '
-    s += f"--nodes {cfg.execution.num_nodes} --ntasks {cfg.execution.get('deployment', {}).get('n_tasks', 1)} "
+    if deployment_env_var_names is None:
+        deployment_env_var_names = []
+
+    # Always pass MASTER_IP and ALL_NODE_IPS into each instance container
+    if "MASTER_IP" not in deployment_env_var_names:
+        deployment_env_var_names.append("MASTER_IP")
+    if "ALL_NODE_IPS" not in deployment_env_var_names:
+        deployment_env_var_names.append("ALL_NODE_IPS")
+
+    # Build the command that runs inside each instance container:
+    # 1. Export scheduler-agnostic env vars (PROC_ID, NODES_PER_INSTANCE)
+    # 2. Optionally write + source deployment_pre_cmd.sh
+    # 3. Write deployment_cmd.sh and execute it
+    create_script_cmd = _str_to_echo_command(
+        cfg.deployment.command, filename="deployment_cmd.sh"
+    )
+    debug_comment += create_script_cmd.debug + "\n\n"
+
+    env_setup = (
+        f"export PROC_ID=${{SLURM_PROCID:-0}} NODES_PER_INSTANCE={nodes_per_instance}"
+    )
+    script = f"{env_setup} && {create_script_cmd.cmd} && bash deployment_cmd.sh"
+
+    if pre_cmd:
+        create_pre_script_cmd = _str_to_echo_command(
+            pre_cmd, filename="deployment_pre_cmd.sh"
+        )
+        script = (
+            f"{env_setup} && "
+            f"{create_pre_script_cmd.cmd} && "
+            f"source deployment_pre_cmd.sh && "
+            f"{create_script_cmd.cmd} && bash deployment_cmd.sh"
+        )
+
+    # Per-instance loop: launch one srun per instance on its dedicated nodes.
+    # MASTER_IP is exported before each srun so the container inherits the
+    # correct per-instance head IP via --container-env.
+    s += f"for ((g=0; g<{num_instances}; g++)); do\n"
+    s += f"    START_IDX=$((g * {nodes_per_instance}))\n"
+    s += f'    INSTANCE_NODES_ARR=("${{nodes_array[@]:$START_IDX:{nodes_per_instance}}}")\n'
+    s += '    INSTANCE_NODELIST=$(IFS=,; echo "${INSTANCE_NODES_ARR[*]}")\n'
+    s += '    MASTER_IP="${NODES_IPS_ARRAY[$START_IDX]}"\n'
+    s += '    HEAD_NODE_IPS+=("$MASTER_IP")\n'
+    s += "    export MASTER_IP\n"
+    s += '    echo "Instance $g: MASTER_IP=$MASTER_IP, nodes: ${INSTANCE_NODES_ARR[*]}"\n'
+    s += "    srun --mpi pmix --overlap "
+    s += f'--nodelist "$INSTANCE_NODELIST" --nodes {nodes_per_instance} --ntasks {per_instance_ntasks} '
     s += "--container-image {} ".format(cfg.deployment.image)
     if deployment_mounts_list:
         s += "--container-mounts {} ".format(",".join(deployment_mounts_list))
     if not cfg.execution.get("mounts", {}).get("mount_home", True):
         s += "--no-container-mount-home "
-    s += "--output {} ".format(remote_task_subdir / "logs" / "server-%A-%t.log")
-
-    if deployment_env_var_names is None:
-        deployment_env_var_names = []
-
-    # Always add MASTER_IP to the environment variables
-    if "MASTER_IP" not in deployment_env_var_names:
-        deployment_env_var_names.append("MASTER_IP")
-
+    s += "--output {} ".format(remote_task_subdir / "logs" / "server-${g}-%A-%t.log")
     if deployment_env_var_names:
         s += f"--container-env {','.join(sorted(deployment_env_var_names))} "
+    s += "bash -c '{}' &\n".format(script)
+    s += "    SERVER_PIDS+=($!)\n"
+    s += "done\n\n"
 
-    # Wrap deployment command to execute pre_cmd inside container if needed
-    if pre_cmd:
-        # Create a wrapper command that runs inside the container:
-        # 1. Create deployment_pre_cmd.sh file
-        # 2. Source it
-        # 3. Execute the original deployment command
-        create_pre_script_cmd = _str_to_echo_command(
-            pre_cmd, filename="deployment_pre_cmd.sh"
-        )
-        # Escape single quotes in the deployment command for bash -c
-        escaped_deployment_cmd = cfg.deployment.command.replace("'", "'\"'\"'")
-        wrapped_command = (
-            f"bash -c '{create_pre_script_cmd.cmd} && "
-            f"source deployment_pre_cmd.sh && "
-            f"{escaped_deployment_cmd}'"
-        )
-        s += "{} &\n\n".format(wrapped_command)
-    else:
-        s += "{} &\n\n".format(cfg.deployment.command)  # run asynchronously
-
-    s += "SERVER_PID=$!  # capture the PID of the server background srun process\n\n"
+    s += 'echo "HEAD_NODE_IPS: ${HEAD_NODE_IPS[@]}"\n'
+    s += "SERVER_PID=${SERVER_PIDS[0]}  # reference to first instance PID for health check\n\n"
 
     return s, is_potentially_unsafe, debug_comment
 
@@ -2172,15 +2200,20 @@ def _get_wait_for_server_handler(
     """Generate wait for server handler that takes a list of IPs."""
     pid_check = ""
     if check_pid:
-        pid_check = (
-            'kill -0 "$'
-            + pid_var
-            + '" 2>/dev/null || { echo "'
-            + service_name
-            + " process $"
-            + pid_var
-            + ' died"; exit 1; }'
-        )
+        if pid_var == "SERVER_PID":
+            # For the main deployment, check all instance PIDs in the SERVER_PIDS array
+            pid_check = f'for _check_pid in "${{SERVER_PIDS[@]}}"; do kill -0 "$_check_pid" 2>/dev/null || {{ echo "{service_name} process $_check_pid died"; exit 1; }}; done'
+        else:
+            # For judge/user deployments, check the single PID variable
+            pid_check = (
+                'kill -0 "$'
+                + pid_var
+                + '" 2>/dev/null || { echo "'
+                + service_name
+                + " process $"
+                + pid_var
+                + ' died"; exit 1; }'
+            )
 
     handler = f"""date
 # wait for the {service_name} to initialize

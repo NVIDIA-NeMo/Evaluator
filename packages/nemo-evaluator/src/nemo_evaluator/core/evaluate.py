@@ -33,7 +33,11 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationResult,
     EvaluationTarget,
 )
-from nemo_evaluator.core.input import prepare_output_directory, validate_configuration
+from nemo_evaluator.core.input import (
+    prepare_output_directory,
+    validate_configuration,
+    verify_capabilities,
+)
 from nemo_evaluator.core.resources import (
     aggregate_runtime_metrics,
     monitor_memory_usage,
@@ -352,6 +356,10 @@ def evaluate(
         "target": target_cfg.model_dump(),
     }
     evaluation = validate_configuration(run_config)
+    # NOTE(martas): verify_capabilities returns False if any of the checks failed
+    # but we don't use it in any way here
+    verify_capabilities(evaluation)
+
     prepare_output_directory(evaluation)
 
     model_name = (

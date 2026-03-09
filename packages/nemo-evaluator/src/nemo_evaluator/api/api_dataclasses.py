@@ -22,6 +22,7 @@ import jinja2
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
+from nemo_evaluator.api.capabilities import BENCHMARK_CAPABILITIES
 from nemo_evaluator.core.utils import get_jinja2_environment
 
 # NOTE: For ApiEndpoint, EvaluationTarget, ConfigParams, and EvaluationConfig all fields
@@ -36,8 +37,19 @@ class EndpointType(str, Enum):
     UNDEFINED = "undefined"
     CHAT = "chat"
     COMPLETIONS = "completions"
-    VLM = "vlm"
     EMBEDDING = "embedding"
+
+
+def _handle_vlm_type_deprecation(values):
+    """Handle deprecation of 'vlm' endpoint type in favor of 'chat'."""
+    if isinstance(values, dict) and values.get("type") == "vlm":
+        warnings.warn(
+            f"Endpoint type 'vlm' was removed in v0.2.0. Using '{EndpointType.CHAT.value}' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        values["type"] = EndpointType.CHAT
+    return values
 
 
 class ApiEndpoint(BaseModel):
@@ -96,6 +108,7 @@ class ApiEndpoint(BaseModel):
                 )
                 values["api_key_name"] = api_key
 
+        values = _handle_vlm_type_deprecation(values)
         return values
 
 
@@ -127,6 +140,11 @@ class EndpointModelConfig(BaseModel):
     )
     # NOTE: we don't use extra yet but it will allow customization when needed
     extra: Optional[Dict[str, Any]] = Field(description="Extra", default=None)
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_vlm_type_deprecation(cls, values):
+        return _handle_vlm_type_deprecation(values)
 
 
 class EvaluationTarget(BaseModel):
@@ -202,7 +220,23 @@ class EvaluationConfig(BaseModel):
     supported_endpoint_types: Optional[list[str]] = Field(
         description="Supported endpoint types like chat or completions", default=None
     )
+    required_capabilities: Optional[list[str]] = Field(
+        description="List of required endpoint capabilities.", default=None
+    )
     type: Optional[str] = Field(description="Type of the task", default=None)
+
+    @model_validator(mode="after")
+    def handle_benchmark_capabilities(self):
+        """Handle benchmark capabilities."""
+        if self.required_capabilities:
+            invalid_capabilities = [
+                c for c in self.required_capabilities if c not in BENCHMARK_CAPABILITIES
+            ]
+            if invalid_capabilities:
+                raise ValueError(
+                    f"Invalid endpoint capabilities: {invalid_capabilities}. Available capabilities are: {list(BENCHMARK_CAPABILITIES.keys())}"
+                )
+        return self
 
 
 class EvaluationMetadata(dict):

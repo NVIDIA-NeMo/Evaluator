@@ -16,7 +16,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from nemo_evaluator.logging import get_logger
 
@@ -49,6 +49,8 @@ class InterceptorConfig(BaseModel):
 class PostEvalHookConfig(BaseModel):
     """Configuration for a single post-evaluation hook"""
 
+    model_config = ConfigDict(use_enum_values=True)
+
     name: str = Field(description="Name of the post-evaluation hook to use")
     enabled: bool = Field(
         description="Whether this post-evaluation hook is enabled", default=True
@@ -56,9 +58,6 @@ class PostEvalHookConfig(BaseModel):
     config: dict[str, Any] = Field(
         description="Configuration for the post-evaluation hook", default_factory=dict
     )
-
-    class Config:
-        use_enum_values = True
 
 
 class LegacyAdapterConfig(BaseModel):
@@ -68,8 +67,7 @@ class LegacyAdapterConfig(BaseModel):
     and invalid parameters early, before conversion to the new interceptor format.
     """
 
-    class Config:
-        extra = "forbid"  # Reject any extra fields not defined here
+    model_config = ConfigDict(extra="forbid")
 
     # Boolean flags for optional features
     use_caching: bool = Field(default=True, description="Enable caching interceptor")

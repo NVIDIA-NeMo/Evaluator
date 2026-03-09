@@ -92,4 +92,4 @@ def test_get_eval_factory_command_basic(monkeypatch):
     assert resolved["evaluation"]["nemo_evaluator_config"]["config"] == {"foo": "bar\n"}
 
     # The command to run eval is present
-    assert "&& $cmd run_eval --run_config config_ef.yaml" in result.cmd
+    assert "$cmd run_eval --run_config config_ef.yaml" in result.cmd

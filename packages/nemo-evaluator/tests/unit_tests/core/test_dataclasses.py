@@ -53,6 +53,30 @@ def test_api_key_deprecation(api_key, api_key_name):
         assert (endpoint.api_key == api_key) or (endpoint.api_key is None)
 
 
+@pytest.mark.parametrize(
+    "endpoint_type,expected_type,expect_warning",
+    [
+        ("vlm", "chat", True),
+        ("chat", "chat", False),
+        ("completions", "completions", False),
+        (None, None, False),
+    ],
+)
+def test_endpoint_vlm_type_deprecation(endpoint_type, expected_type, expect_warning):
+    """Test that 'vlm' endpoint type is deprecated and converted to 'chat'."""
+    kwargs = {"model_id": "my-model", "url": "http://localhost:8000"}
+    if endpoint_type is not None:
+        kwargs["type"] = endpoint_type
+
+    if expect_warning:
+        with pytest.warns(DeprecationWarning, match="Endpoint type 'vlm' was removed"):
+            config = ApiEndpoint(**kwargs)
+    else:
+        config = ApiEndpoint(**kwargs)
+
+    assert config.type == expected_type
+
+
 def test_api_key_deprecation_removal_reminder():
     """Test that fails after 3 months to remind us to remove the deprecated api_key parameter.
 
@@ -78,4 +102,32 @@ def test_api_key_deprecation_removal_reminder():
         f"3. The 'warnings' import if no longer needed\n"
         f"4. This test function (test_api_key_deprecation_removal_reminder)\n"
         f"5. Update any documentation that mentions 'api_key'\n"
+    )
+
+
+def test_vlm_endpoint_type_deprecation_removal_reminder():
+    """Test that fails after 3 months to remind us to remove the deprecated 'vlm' endpoint type.
+
+    This test will start failing on June 6, 2026 (3 months after March 6, 2026).
+    When this test fails, it's time to:
+    1. Remove the 'handle_vlm_type_deprecation' validator from EndpointModelConfig
+    2. Remove the call to _handle_vlm_type_deprecation from ApiEndpoint.handle_api_key_deprecation
+    3. Remove the _handle_vlm_type_deprecation helper function
+    4. Remove this test
+    """
+    # Deprecation date: March 6, 2026
+    deprecation_date = datetime(2026, 3, 6)
+    removal_date = datetime(2026, 6, 6)  # 3 months later
+    current_date = datetime.now()
+
+    assert current_date < removal_date, (
+        f"Time to remove the deprecated 'vlm' endpoint type! "
+        f"The 3-month deprecation period has ended (started {deprecation_date.strftime('%Y-%m-%d')}, "
+        f"removal due {removal_date.strftime('%Y-%m-%d')}). "
+        f"Please remove:\n"
+        f"1. The 'vlm' handling from _handle_vlm_type_deprecation in api_dataclasses.py\n"
+        f"2. The 'handle_vlm_type_deprecation' validator from EndpointModelConfig\n"
+        f"3. The call to _handle_vlm_type_deprecation from ApiEndpoint.handle_api_key_deprecation\n"
+        f"4. The _handle_vlm_type_deprecation helper function\n"
+        f"5. This test function (test_vlm_endpoint_type_deprecation_removal_reminder)\n"
     )

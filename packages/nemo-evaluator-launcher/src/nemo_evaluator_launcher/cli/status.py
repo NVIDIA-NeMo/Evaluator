@@ -43,13 +43,7 @@ class Cmd:
 
         res = get_status(self.job_ids)
         if self.json:
-            # Remove progress field from JSON output as it's a WIP feature
-            filtered_res = []
-            for job in res:
-                job_copy = job.copy()
-                job_copy.pop("progress", None)
-                filtered_res.append(job_copy)
-            print(json.dumps(filtered_res, indent=2))
+            print(json.dumps(res, indent=2))
         else:
             self._print_table(res)
 
@@ -71,7 +65,7 @@ class Cmd:
         first_data = jobs[0].get("data", {}) if jobs else {}
         executor_key = next((k for k in executor_headers if k in first_data), None)
         info_header = executor_headers.get(executor_key, "Executor Info")
-        headers = ["Job ID", "Status", info_header, "Location"]
+        headers = ["Job ID", "Status", "Requests Processed", info_header, "Location"]
 
         # Build rows
         rows = []
@@ -105,11 +99,17 @@ class Cmd:
 
             # Extract task name
 
+            # Format progress for display
+            progress_data = job.get("progress")
+            if isinstance(progress_data, dict):
+                progress_data = progress_data.get("progress")
+            formatted_progress = self._format_requests_processed(progress_data)
+
             rows.append(
                 [
                     job.get("job_id", ""),
                     formatted_status,
-                    # job.get("progress", ""), temporarily disabled as this is a WIP feature
+                    formatted_progress,
                     executor_info,
                     location,
                 ]
@@ -155,6 +155,21 @@ class Cmd:
         }
 
         return status_formats.get(status.lower(), pu.grey(status.upper()))
+
+    @staticmethod
+    def _format_requests_processed(progress: object) -> str:
+        """Format progress value for table display.
+
+        Args:
+            progress: Progress value — int (completed request count),
+                "unknown", or None.
+
+        Returns:
+            Formatted string for the Requests Processed column.
+        """
+        if isinstance(progress, int):
+            return str(progress)
+        return "-"
 
     def _strip_ansi_codes(self, text: str) -> str:
         """Remove ANSI color codes from text for length calculation."""

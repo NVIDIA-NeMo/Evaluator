@@ -575,6 +575,7 @@ def test_evaluate_function_url_replacement():
         mock_evaluation = mock_validate.return_value
         mock_evaluation.command = "helm-generate-dynamic-model-configs --base-url {{ target.api_endpoint.url }} --model-name test-model"
         mock_evaluation.config.output_dir = "/tmp/test"
+        mock_evaluation.config.required_capabilities = None
         mock_evaluation.pkg_name = "test_package"
         mock_evaluation.framework_name = "test_framework"
 
