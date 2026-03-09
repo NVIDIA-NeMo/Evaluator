@@ -22,12 +22,18 @@ import copy
 import os
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
+from nemo_evaluator.core.utils import validate_params_in_command
 from omegaconf import DictConfig, OmegaConf
 
 from nemo_evaluator_launcher import __version__
 from nemo_evaluator_launcher.api.types import RunConfig
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
-from nemo_evaluator_launcher.common.mapping import load_tasks_mapping
+from nemo_evaluator_launcher.common.helpers import get_eval_factory_config
+from nemo_evaluator_launcher.common.logging_utils import logger
+from nemo_evaluator_launcher.common.mapping import (
+    get_task_from_mapping,
+    load_tasks_mapping,
+)
 from nemo_evaluator_launcher.executors.registry import get_executor
 from nemo_evaluator_launcher.exporters import create_exporter
 
@@ -104,12 +110,9 @@ def _validate_nemo_evaluator_config_params(cfg: Any) -> None:
 
     Uses real packaged IRs — no network calls required.
     """
-    from nemo_evaluator.core.utils import validate_params_in_command
 
-    from nemo_evaluator_launcher.common.helpers import get_eval_factory_config
     from nemo_evaluator_launcher.common.logging_utils import logger
     from nemo_evaluator_launcher.common.mapping import (
-        get_task_from_mapping,
         load_tasks_mapping,
     )
 
@@ -374,7 +377,6 @@ def resume_eval(invocation_id: str) -> str:
         FileNotFoundError: If run scripts no longer exist on disk.
         RuntimeError: If script execution fails immediately.
     """
-    from nemo_evaluator_launcher.common.logging_utils import logger
 
     db = ExecutionDB()
     jobs = db.get_jobs(invocation_id)
