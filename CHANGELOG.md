@@ -1,6 +1,51 @@
 # Changelog
 
-## 0.6.0 (2026-03-09)
+## 0.7.0 (2026-03-09)
+
+### Sandbox Orchestration
+
+Per-problem isolated execution for agent evaluations and code execution. This is the major feature of 0.7.0, adding the missing "problem-level" isolation layer.
+
+- **`sandbox/` package**: New async `Sandbox` protocol with `exec()`, `upload()`, `download()`, `start()`, `stop()`. Infrastructure-only — the sandbox knows nothing about agents or evaluation logic.
+- **Three backends**:
+  - `DockerSandbox` — bridge network by default, per-task images, `host.docker.internal` rewriting for model server access
+  - `SlurmSandbox` — Pyxis/Enroot with multiplexed container slots per node
+  - `LocalSandbox` — async subprocess in temp dir, no isolation, for development
+- **Per-task images**: `SandboxSpec` in `SeedResult` allows environments to specify different container images per problem (critical for SWE-bench where every problem has its own image). Fallback chain: `sandbox_spec` → `image_template` → `default_image`.
+- **`SandboxManager`**: Concurrency semaphore, bulk pre-pull via `env.sandbox_specs()`, emergency cleanup (`atexit` + `SIGTERM`/`SIGINT` handlers), SLURM round-robin node multiplexing.
+- **Eval loop integration**: `run_evaluation()` accepts optional `sandbox_manager` and `model_url`. Sandbox acquired per-problem, passed through `solve(sandbox=)` and `verify(sandbox=)`, released in `finally`.
+- **`SandboxedAgentSolver`**: New solver that runs agents inside per-problem sandboxes. Supports exec-server mode (no entrypoint → `sandbox.exec()`) and agent-server mode (entrypoint starts HTTP agent → solver connects via `container_ip`).
+- **`code_sandbox_async()`**: Async scorer that executes code inside an existing sandbox via the `Sandbox` protocol. Legacy synchronous `code_sandbox()` retained for backward compatibility.
+- **`SandboxConfig`**: New config section under `BenchmarkConfig.sandbox` — `backend`, `image`, `image_template`, `memory`, `cpus`, `timeout`, `concurrency`, `network`, `sandbox_nodes`, `slots_per_node`.
+- **SLURM sandbox nodes**: sbatch generator allocates extra nodes for sandboxes, generates pre-pull step, passes node list via `$NEL_SANDBOX_NODES`.
+
+### Breaking Changes
+
+- **`verify()` signature**: All `EvalEnvironment.verify()` implementations now accept an optional `sandbox: Sandbox | None` parameter before `**metadata`. Existing environments that don't use sandboxes are unaffected (the parameter defaults to `None`), but subclasses must update their signature.
+- **`SeedResult` extended**: New optional `sandbox_spec: SandboxSpec | None` field. Backward compatible (defaults to `None`).
+- **`EvalEnvironment` extended**: New optional `sandbox_specs()` method returns `list[SandboxSpec] | None` for bulk pre-pull. Default returns `None`.
+- **`SeedSessionResponse` extended**: Gym protocol gains optional `sandbox_spec` dict field for remote sandbox requirements.
+
+### Config
+
+```yaml
+benchmarks:
+  - name: gym://swebench-server
+    sandbox:
+      backend: docker
+      image_template: "swebench/sweb.eval.x86_64.{instance_id}:latest"
+      concurrency: 8
+      memory: 4g
+      network: bridge
+```
+
+### Documentation
+
+- New [sandbox architecture](docs/architecture/sandbox.md) doc with design principles, backend comparison, configuration examples, SWE-bench integration example, and instructions for adding new backends.
+- Updated architecture index with sandbox subgraph in system diagram, package map entry, and eval flow sequence diagram showing sandbox acquire/release.
+- Updated README with sandbox section and `SandboxedAgentSolver` in solver table.
+
+## 0.6.0 (2026-03-07)
 
 ### Feature Parity
 
@@ -59,6 +104,33 @@
 - **Unified concurrency control**: `BenchmarkConfig.max_concurrent` (default 32) is now the single knob for parallelism. It is passed to both `ModelClient` (HTTP semaphore) and `run_evaluation` (task semaphore) with the same value, eliminating the prior mismatch where 32 tasks competed for 8 HTTP slots. Configurable per-benchmark in YAML or via `-O benchmarks.0.max_concurrent=64`.
 - **`reasoning_pattern` in advanced mode**: `ServiceConfig` now supports `reasoning_pattern` for stripping reasoning tokens (e.g. `<think>...</think>`) in multi-service configurations, not just simple mode.
 
+### SLURM Container Architecture
+
+- **Per-benchmark container resolution**: The SLURM sbatch generator now automatically selects the correct container image per benchmark based on its URI scheme. `lm-eval://` tasks run in the `-lm-eval` image, `skills://` in `-skills`, etc. No more single `SRUN_PREFIX` for all tasks.
+- **Container image mapping**: `resources/containers.toml` defines scheme-to-image mappings. Users can override via `cluster.container_image` (single image for all) or via the mapping.
+- **Deployment containers**: Model servers (vLLM, SGLang) now run inside their own deployment containers when in SLURM mode.
+- **Pre-built images via CI**: GitLab CI builds 5 container variants (base, lm-eval, skills, mteb, full) using Kaniko, pushed to the project registry.
+
+### Executor Abstraction
+
+- **`executors/` package**: Proper `Executor` protocol with `run()`, `status()`, `stop()`, `detect()`. One class per backend: `LocalExecutor`, `DockerExecutor`, `SlurmExecutor`. Registry via `get_executor(name)` and `detect_executor(output_dir)`.
+- **CLI dispatch via executors**: `nel eval run/status/stop` now dispatches through the executor registry instead of if/elif trees. Adding a new backend (e.g. Kubernetes) requires only a new executor class and a registry entry.
+- **Deleted `eval/lifecycle.py`**: All lifecycle management (PID files, docker inspect, squeue) absorbed into the executor classes.
+
+### Architecture Simplification
+
+- **Breaking**: Removed `adapters/` module (`ContainerConfig`, `GymHarness`, `ProxyServer`). Replaced by `environments/container.py` and `environments/server.py`.
+- **Breaking**: Removed `gym-managed://` URI scheme. Use `gym://name` instead -- auto-detects `host:port` (remote) vs bare name (managed). `ManagedGymEnvironment` still exists internally.
+- Moved `DeployConfig` from `executors/base.py` to `runner/deployment.py`.
+- Extracted `EvalConfig.resolved_services()` from duplicated logic in `local_runner.py` and `slurm_gen.py`.
+- Collapsed `_TASK`/`_TASK_NO_CONTAINER` and `_VLLM_SERVICE`/`_SGLANG_SERVICE` into shared templates in `slurm_gen.py`.
+- **Dual container mode**: `ClusterConfig.env_mode` supports `"colocated"` (default, orchestrator + env in same container) and `"separated"` (env as Gym server, orchestrator in base image).
+- Removed empty `contrib/` and `harnesses/` directories.
+
+### URI Scheme Consistency
+
+- **Breaking**: `lm-eval/task` renamed to `lm-eval://task`. All environment types now use the consistent `scheme://task` URI syntax. No more `/` vs `://` inconsistency.
+
 ## 0.5.0 (2026-03-07)
 
 ### CLI Redesign
@@ -115,7 +187,7 @@
 - **Everything is an Environment**: Collapsed adapters, harnesses, and environments into one `EvalEnvironment` base class. Gym, Skills, PI, lm-eval -- all are environments.
 - **`@benchmark` + `@scorer` API**: Universal benchmark definition mechanism. All 11 built-in benchmarks use it. External BYOB uses the same API.
 - **Solver protocol**: `ChatSolver`, `CompletionSolver`, `AgentSolver`. Eval loop calls `solver.solve()` instead of hardcoded `client.chat()`. Unblocks agent benchmarks.
-- **Executor layer**: `LocalExecutor`, `DockerExecutor`, `SlurmExecutor` manage full lifecycle (deploy model, run eval, collect results, tear down).
+- **Execution modes**: Local, Docker, and SLURM execution via `cluster.type` config. Lifecycle management (status/stop) for all modes.
 - **Model deployment**: `NIMDeployment`, `VLLMDeployment`, `ProcessModelDeployment`, `APIDeployment` with health polling and graceful shutdown.
 - **Judge post-processing**: Eval loop optionally runs LLM-as-judge scoring after `verify()`.
 

@@ -24,6 +24,7 @@ class SeedSessionResponse(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     messages: list[dict[str, str]] | None = None
     system: str | None = None
+    sandbox_spec: dict | None = None
 
 class VerifyRequest(BaseModel):
     response: str
@@ -80,9 +81,14 @@ def generate_app(
     async def seed_session(body: SeedSessionRequest = SeedSessionRequest()):
         _validate_idx(body.idx)
         sr = await env.seed(body.idx)
+        spec_dict = None
+        if sr.sandbox_spec is not None:
+            from dataclasses import asdict
+            spec_dict = asdict(sr.sandbox_spec)
         return SeedSessionResponse(
             prompt=sr.prompt, expected_answer=sr.expected_answer,
             metadata=sr.metadata, messages=sr.messages, system=sr.system,
+            sandbox_spec=spec_dict,
         )
 
     @app.post("/verify")

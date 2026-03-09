@@ -1,8 +1,4 @@
-"""Shared Gym protocol types and response parsing.
-
-Used by both environments.server (serving via nel serve --gym-compat)
-and adapters.gym_harness (wrapping EvalEnvironment for ng_collect_rollouts).
-"""
+"""Shared Gym protocol types and response parsing."""
 from __future__ import annotations
 
 from typing import Any

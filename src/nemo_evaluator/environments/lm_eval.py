@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
+
+if TYPE_CHECKING:
+    from nemo_evaluator.sandbox.base import Sandbox
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +64,7 @@ class LMEvalEnvironment(EvalEnvironment):
         from lm_eval.tasks import TaskManager, get_task_dict
 
         self.task_name = task_name
-        self.name = f"lm-eval/{task_name}"
+        self.name = f"lm-eval://{task_name}"
 
         tm = TaskManager()
         task_dict = get_task_dict([task_name], tm)
@@ -85,7 +88,7 @@ class LMEvalEnvironment(EvalEnvironment):
         self._expected: list[str] = []
         self._build_items(limit)
         self._dataset = self._docs
-        logger.info("Loaded lm-eval/%s: %d items", task_name, len(self._docs))
+        logger.info("Loaded lm-eval://%s: %d items", task_name, len(self._docs))
 
     def _build_items(self, limit: int | None) -> None:
         fewshot = 0
@@ -128,7 +131,8 @@ class LMEvalEnvironment(EvalEnvironment):
             metadata={"_idx": idx, "_task": self.task_name, "_gen_kwargs": self._gen_kwargs[idx]},
         )
 
-    async def verify(self, response: str, expected: str, **meta: Any) -> VerifyResult:
+    async def verify(self, response: str, expected: str,
+                     sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
         idx = meta.get("_idx", 0)
         doc = self._docs[idx] if idx < len(self._docs) else {}
         gen_kwargs = meta.get("_gen_kwargs", {})
@@ -153,5 +157,5 @@ class LMEvalEnvironment(EvalEnvironment):
 
         return VerifyResult(
             reward=reward, extracted_answer=text[:500],
-            scoring_details={"method": f"lm-eval/{self.task_name}", "metrics": metrics},
+            scoring_details={"method": f"lm-eval://{self.task_name}", "metrics": metrics},
         )

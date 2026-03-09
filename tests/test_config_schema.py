@@ -55,14 +55,14 @@ class TestParseEvalConfig:
             "model": {"url": "http://localhost:8000/v1", "id": "gpt-4"},
             "benchmarks": [
                 {"name": "gsm8k", "repeats": 5, "max_problems": 100},
-                {"name": "lm-eval/aime2025", "repeats": 20},
+                {"name": "lm-eval://aime2025", "repeats": 20},
             ],
         }
         cfg = parse_eval_config(raw)
         assert len(cfg.benchmarks) == 2
         assert cfg.benchmarks[0].repeats == 5
         assert cfg.benchmarks[0].max_problems == 100
-        assert cfg.benchmarks[1].name == "lm-eval/aime2025"
+        assert cfg.benchmarks[1].name == "lm-eval://aime2025"
 
     def test_advanced_mode(self):
         raw = {

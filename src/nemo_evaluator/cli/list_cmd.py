@@ -79,12 +79,12 @@ def _list_lm_eval() -> list[str]:
                 continue
             output_type = getattr(task_obj, "OUTPUT_TYPE", None)
             if output_type == "generate_until":
-                generate_tasks.append(f"lm-eval/{name}")
+                generate_tasks.append(f"lm-eval://{name}")
         except Exception:
             continue
 
     if not generate_tasks:
-        return [f"lm-eval/<task>   ({len(all_tasks)} tasks available, use: nel eval run --bench lm-eval/<task>)"]
+        return [f"lm-eval://<task>   ({len(all_tasks)} tasks available, use: nel eval run --bench lm-eval://<task>)"]
 
     if len(generate_tasks) > 50:
         shown = generate_tasks[:50]

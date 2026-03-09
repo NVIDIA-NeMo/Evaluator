@@ -29,7 +29,7 @@ benchmarks:
       Please show your choice in the `answer` field with only the choice letter,
       e.g., "answer": "C".
 
-  - name: lm-eval/aime2025
+  - name: lm-eval://aime2025
     model: evaluated
     repeats: 20
     system_prompt: >-

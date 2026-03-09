@@ -1,82 +1,133 @@
-"""LocalExecutor: runs eval in-process, optionally deploys model via Docker."""
+"""Local executor: in-process or background fork."""
 from __future__ import annotations
 
 import logging
-from typing import Any
+import os
+import signal
+from pathlib import Path
 
-from nemo_evaluator.executors.base import RunConfig
+from nemo_evaluator.executors import ProcessState
 
 logger = logging.getLogger(__name__)
 
 
-class LocalExecutor:
-    async def execute(self, config: RunConfig) -> dict[str, Any]:
-        from nemo_evaluator.environments.registry import get_environment
-        from nemo_evaluator.observability.progress import ConsoleProgress
-        from nemo_evaluator.runner.artifacts import write_all
-        from nemo_evaluator.runner.deployment import get_deployment
-        from nemo_evaluator.runner.eval_loop import run_evaluation
-        from nemo_evaluator.runner.model_client import ModelClient
-        from nemo_evaluator.runner.solver import ChatSolver
+def _write_pid(output_dir: str | Path, pid: int | None = None) -> Path:
+    p = Path(output_dir) / "nel.pid"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(str(pid or os.getpid()))
+    return p
 
-        deployment = None
-        judge_deployment = None
-        model_url = config.model_url
-        model_id = config.model_id
-        judge_client = None
+
+def _read_pid(output_dir: str | Path) -> int | None:
+    p = Path(output_dir) / "nel.pid"
+    if not p.exists():
+        return None
+    try:
+        return int(p.read_text().strip())
+    except ValueError:
+        return None
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+class LocalExecutor:
+    name = "local"
+
+    def run(self, config, *, dry_run=False, resume=False,
+            background=False, submit=False) -> None:
+        if background:
+            self._run_background(config, resume=resume)
+        else:
+            self._run_foreground(config, resume=resume)
+
+    def _run_foreground(self, config, *, resume: bool = False) -> None:
+        import click
+
+        from nemo_evaluator.eval.local_runner import run_local
+
+        _write_pid(config.output.dir)
+        try:
+            bundles = run_local(config, resume=resume)
+            completed = sum(1 for b in bundles if not b.get("_failed"))
+            failed = sum(1 for b in bundles if b.get("_failed"))
+            msg = f"\nCompleted {completed} benchmark(s)."
+            if failed:
+                msg += f" {failed} failed."
+            msg += f" Results: {config.output.dir}"
+            click.echo(msg)
+        finally:
+            pid_file = Path(config.output.dir) / "nel.pid"
+            if pid_file.exists():
+                pid_file.unlink()
+
+    def _run_background(self, config, *, resume: bool = False) -> None:
+        import sys
+
+        import click
+
+        pid = os.fork()
+        if pid > 0:
+            _write_pid(config.output.dir, pid)
+            click.echo(f"Background evaluation started (PID {pid})")
+            click.echo(f"Check status: nel eval status -o {config.output.dir}")
+            click.echo(f"Stop:         nel eval stop -o {config.output.dir}")
+            return
+
+        os.setsid()
+        sys.stdin.close()
+
+        log_path = Path(config.output.dir) / "nel_eval.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_fd = open(log_path, "w")
+        os.dup2(log_fd.fileno(), 1)
+        os.dup2(log_fd.fileno(), 2)
 
         try:
-            if config.deploy and config.deploy.type != "api":
-                deployment = get_deployment(config.deploy)
-                model_url = deployment.start()
-                model_id = config.deploy.model or config.model_id
-                logger.info("Model deployed at %s", model_url)
-            elif not model_url:
-                raise ValueError("Either --model-url or --deploy is required")
-
-            if config.judge:
-                if config.judge.deploy and config.judge.deploy.type != "api":
-                    judge_deployment = get_deployment(config.judge.deploy)
-                    judge_url = judge_deployment.start()
-                    judge_id = config.judge.deploy.model or config.judge.model_id
-                else:
-                    judge_url = config.judge.model_url
-                    judge_id = config.judge.model_id
-
-                if judge_url and judge_id:
-                    judge_client = ModelClient(
-                        base_url=judge_url, model=judge_id,
-                        api_key=config.judge.api_key or config.api_key,
-                        temperature=0.0, max_tokens=config.max_tokens,
-                    )
-
-            env = get_environment(config.env, num_examples=config.max_problems)
-
-            client = ModelClient(
-                base_url=model_url, model=model_id, api_key=config.api_key,
-                temperature=config.temperature, max_tokens=config.max_tokens,
-                top_p=config.top_p, seed=config.seed, cache_dir=config.cache_dir,
-            )
-            solver = ChatSolver(client, system_prompt=config.system_prompt)
-
-            run_config = {
-                "benchmark": getattr(env, "name", config.env),
-                "model": model_id, "base_url": model_url,
-                "repeats": config.repeats, "max_problems": config.max_problems,
-            }
-
-            bundle = await run_evaluation(
-                env, solver, n_repeats=config.repeats,
-                max_problems=config.max_problems,
-                config=run_config, progress=ConsoleProgress(),
-                judge_client=judge_client,
-            )
-
-            write_all(bundle, config.output_dir)
-            return bundle
-
+            from nemo_evaluator.eval.local_runner import run_local
+            run_local(config, resume=resume)
         finally:
-            if deployment:
-                deployment.stop()
-            if judge_deployment:
-                judge_deployment.stop()
+            pid_file = Path(config.output.dir) / "nel.pid"
+            if pid_file.exists():
+                pid_file.unlink()
+            log_fd.close()
+            os._exit(0)
+
+    def status(self, output_dir: str | Path) -> ProcessState:
+        pid = _read_pid(output_dir)
+        if pid is None:
+            return ProcessState("local", False, {"error": "No PID file found"})
+        return ProcessState("local", _pid_alive(pid), {"pid": pid})
+
+    def stop(self, output_dir: str | Path) -> bool:
+        pid = _read_pid(output_dir)
+        if pid is None:
+            logger.warning("No PID file found in %s", output_dir)
+            return False
+        if not _pid_alive(pid):
+            logger.info("Process %d already stopped", pid)
+            _cleanup_pid(output_dir)
+            return True
+        try:
+            os.kill(pid, signal.SIGTERM)
+            logger.info("Sent SIGTERM to %d", pid)
+            _cleanup_pid(output_dir)
+            return True
+        except OSError as e:
+            logger.error("Failed to stop process %d: %s", pid, e)
+            return False
+
+    @staticmethod
+    def detect(output_dir: str | Path) -> bool:
+        return (Path(output_dir) / "nel.pid").exists()
+
+
+def _cleanup_pid(output_dir: str | Path) -> None:
+    p = Path(output_dir) / "nel.pid"
+    if p.exists():
+        p.unlink()

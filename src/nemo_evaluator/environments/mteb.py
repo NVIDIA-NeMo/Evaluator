@@ -13,6 +13,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from nemo_evaluator.sandbox.base import Sandbox
 from typing import Any
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
@@ -39,7 +43,8 @@ class MTEBEnvironment(EvalEnvironment):
     async def seed(self, idx: int) -> SeedResult:
         raise NotImplementedError("MTEBEnvironment uses run_batch()")
 
-    async def verify(self, response: str, expected: str, **metadata: Any) -> VerifyResult:
+    async def verify(self, response: str, expected: str,
+                     sandbox: Sandbox | None = None, **metadata: Any) -> VerifyResult:
         raise NotImplementedError("MTEBEnvironment uses run_batch()")
 
     async def run_batch(self, solver: Any = None, config: dict[str, Any] | None = None) -> dict[str, Any]:

@@ -8,11 +8,14 @@ import socket
 import subprocess
 import sys
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
+
+if TYPE_CHECKING:
+    from nemo_evaluator.sandbox.base import Sandbox
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +46,19 @@ class GymEnvironment(EvalEnvironment):
         r = await c.post(f"{self.endpoint}/seed_session", json={"idx": idx})
         r.raise_for_status()
         d = r.json()
+        sandbox_spec = None
+        if d.get("sandbox_spec"):
+            from nemo_evaluator.sandbox.base import SandboxSpec
+            sandbox_spec = SandboxSpec(**d["sandbox_spec"])
         return SeedResult(
             prompt=d.get("prompt", ""), expected_answer=d.get("expected_answer", ""),
             metadata=d.get("metadata", {}),
             messages=d.get("messages"), system=d.get("system"),
+            sandbox_spec=sandbox_spec,
         )
 
-    async def verify(self, response: str, expected: str, **meta: Any) -> VerifyResult:
+    async def verify(self, response: str, expected: str,
+                     sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
         c = await self._get_client()
         r = await c.post(
             f"{self.endpoint}/verify",
@@ -164,8 +173,9 @@ class ManagedGymEnvironment(EvalEnvironment):
             self.start()
         return await self._inner.seed(idx)
 
-    async def verify(self, response: str, expected: str, **meta: Any) -> VerifyResult:
-        return await self._inner.verify(response, expected, **meta)
+    async def verify(self, response: str, expected: str,
+                     sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
+        return await self._inner.verify(response, expected, sandbox=sandbox, **meta)
 
     async def dataset_size(self) -> int:
         if self._inner is None:

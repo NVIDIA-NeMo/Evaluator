@@ -57,13 +57,30 @@ def consume(args):
 
 
 def export(args):
-    from nemo_evaluator.adapters.gym_harness import GymHarness
+    """Export a benchmark as JSONL by querying a served environment."""
+    import json
+
     from nemo_evaluator.environments.registry import get_environment
 
     env = get_environment(args.benchmark)
-    harness = GymHarness(env)
-    path = asyncio.run(harness.export_jsonl(args.output_dir))
-    print(f"Exported -> {path}")
+    size = asyncio.run(env.dataset_size()) if hasattr(env, "dataset_size") else len(env)
+    output_path = f"{args.output_dir}/{args.benchmark}.jsonl"
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    async def _export():
+        with open(output_path, "w") as f:
+            for i in range(size):
+                seed = await env.seed(i)
+                row = {
+                    "responses_create_params": {"input": [{"role": "user", "content": seed.prompt}]},
+                    "expected_answer": seed.expected_answer,
+                    "uuid": f"{args.benchmark}-{i}",
+                    "metadata": seed.metadata,
+                }
+                f.write(json.dumps(row) + "\n")
+
+    asyncio.run(_export())
+    print(f"Exported {size} rows -> {output_path}")
 
 
 if __name__ == "__main__":

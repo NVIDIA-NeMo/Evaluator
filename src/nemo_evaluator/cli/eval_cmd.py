@@ -61,17 +61,14 @@ def eval_run(config_file, bench, model_url, model_id, api_key,
     else:
         raise click.ClickException("Specify a config file or --bench <name>.")
 
-    cluster_type = config.cluster.type
+    from nemo_evaluator.executors import get_executor
 
-    if cluster_type == "slurm":
-        _handle_slurm(config, dry_run, submit)
-    elif cluster_type == "local":
-        if background:
-            _run_background(config, resume=resume)
-        else:
-            _run_foreground(config, resume=resume)
-    else:
-        raise click.ClickException(f"Unsupported cluster type: {cluster_type}")
+    try:
+        executor = get_executor(config.cluster.type)
+    except KeyError as e:
+        raise click.ClickException(str(e))
+    executor.run(config, dry_run=dry_run, resume=resume,
+                 background=background, submit=submit)
 
 
 def _load_config(config_file: str, overrides: tuple[str, ...] = ()):
@@ -136,91 +133,6 @@ def _build_quick_config(bench, model_url, model_id, api_key, repeats,
     )
 
 
-def _handle_slurm(config, dry_run: bool, submit: bool):
-    from nemo_evaluator.eval.slurm_gen import write_sbatch
-
-    script_path = write_sbatch(config)
-    click.echo(f"Generated: {script_path}")
-
-    if dry_run:
-        click.echo(f"\nTo submit locally:  sbatch {script_path}")
-        if config.cluster.hostname:
-            click.echo(f"To submit via SSH:  nel eval run {script_path} --submit")
-        return
-
-    if submit and config.cluster.hostname:
-        from nemo_evaluator.eval.ssh import submit_eval
-        meta = submit_eval(
-            script_path=script_path,
-            hostname=config.cluster.hostname,
-            remote_dir=config.output.dir,
-            username=config.cluster.username,
-        )
-        click.echo(f"SLURM job submitted: {meta['job_id']}")
-        click.echo(f"Check status: nel eval status -o {config.output.dir}")
-        return
-
-    import subprocess
-    result = subprocess.run(["sbatch", str(script_path)], capture_output=True, text=True)
-    if result.returncode != 0:
-        raise click.ClickException(f"sbatch failed: {result.stderr}")
-    click.echo(result.stdout.strip())
-
-
-def _run_foreground(config, *, resume: bool = False):
-    from nemo_evaluator.eval.lifecycle import write_local_pid
-    from nemo_evaluator.eval.local_runner import run_local
-
-    write_local_pid(config.output.dir)
-    try:
-        bundles = run_local(config, resume=resume)
-        completed = sum(1 for b in bundles if not b.get("_failed"))
-        failed = sum(1 for b in bundles if b.get("_failed"))
-        msg = f"\nCompleted {completed} benchmark(s)."
-        if failed:
-            msg += f" {failed} failed."
-        msg += f" Results: {config.output.dir}"
-        click.echo(msg)
-    finally:
-        pid_file = Path(config.output.dir) / "nel.pid"
-        if pid_file.exists():
-            pid_file.unlink()
-
-
-def _run_background(config, *, resume: bool = False):
-    import os
-    import sys
-
-    from nemo_evaluator.eval.lifecycle import write_local_pid
-
-    pid = os.fork()
-    if pid > 0:
-        write_local_pid(config.output.dir, pid)
-        click.echo(f"Background evaluation started (PID {pid})")
-        click.echo(f"Check status: nel eval status -o {config.output.dir}")
-        click.echo(f"Stop:         nel eval stop -o {config.output.dir}")
-        return
-
-    os.setsid()
-    sys.stdin.close()
-
-    log_path = Path(config.output.dir) / "nel_eval.log"
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    log_fd = open(log_path, "w")
-    os.dup2(log_fd.fileno(), 1)
-    os.dup2(log_fd.fileno(), 2)
-
-    try:
-        from nemo_evaluator.eval.local_runner import run_local
-        run_local(config, resume=resume)
-    finally:
-        pid_file = Path(config.output.dir) / "nel.pid"
-        if pid_file.exists():
-            pid_file.unlink()
-        log_fd.close()
-        os._exit(0)
-
-
 # ---------------------------------------------------------------------------
 # nel eval status
 # ---------------------------------------------------------------------------
@@ -239,8 +151,11 @@ def eval_status(output_dir, job_id, host, user):
             click.echo(f"  {k}: {v}")
         return
 
-    from nemo_evaluator.eval.lifecycle import status
-    state = status(output_dir)
+    from nemo_evaluator.executors import detect_executor
+    ex = detect_executor(output_dir)
+    if ex is None:
+        raise click.ClickException(f"No evaluation metadata found in {output_dir}")
+    state = ex.status(output_dir)
     click.echo(f"Executor: {state.executor}")
     click.echo(f"Running:  {state.running}")
     for k, v in state.details.items():
@@ -264,8 +179,11 @@ def eval_stop(output_dir, job_id, host, user):
         click.echo(f"Cancelled SLURM job {job_id}")
         return
 
-    from nemo_evaluator.eval.lifecycle import stop
-    if stop(output_dir):
+    from nemo_evaluator.executors import detect_executor
+    ex = detect_executor(output_dir)
+    if ex is None:
+        raise click.ClickException(f"No evaluation metadata found in {output_dir}")
+    if ex.stop(output_dir):
         click.echo("Evaluation stopped.")
     else:
         click.echo("Could not stop evaluation (may already be finished).", err=True)

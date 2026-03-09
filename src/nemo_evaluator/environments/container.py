@@ -14,7 +14,10 @@ import json
 import logging
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from nemo_evaluator.sandbox.base import Sandbox
 
 import yaml
 
@@ -64,7 +67,8 @@ class ContainerEnvironment(EvalEnvironment):
     async def seed(self, idx: int) -> SeedResult:
         raise NotImplementedError("ContainerEnvironment uses run_batch()")
 
-    async def verify(self, response: str, expected: str, **metadata: Any) -> VerifyResult:
+    async def verify(self, response: str, expected: str,
+                     sandbox: Sandbox | None = None, **metadata: Any) -> VerifyResult:
         raise NotImplementedError("ContainerEnvironment uses run_batch()")
 
     async def run_batch(self, solver: Any = None, config: dict[str, Any] | None = None) -> dict[str, Any]:

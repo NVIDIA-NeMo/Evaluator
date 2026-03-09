@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
+
+if TYPE_CHECKING:
+    from nemo_evaluator.sandbox.base import Sandbox
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +53,8 @@ class PIEnvironment(EvalEnvironment):
                 meta[k] = row[k]
         return SeedResult(prompt=prompt, expected_answer=answer, metadata=meta)
 
-    async def verify(self, response: str, expected: str, **meta: Any) -> VerifyResult:
+    async def verify(self, response: str, expected: str,
+                     sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
         if self._rubric is not None:
             reward, details = await self._score_via_rubric(response, expected, meta)
         else:

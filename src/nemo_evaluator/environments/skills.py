@@ -6,9 +6,12 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
+
+if TYPE_CHECKING:
+    from nemo_evaluator.sandbox.base import Sandbox
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +149,8 @@ class SkillsEnvironment(EvalEnvironment):
             meta["choices"] = sample["choices"]
         return SeedResult(prompt=prompt, expected_answer=expected, metadata=meta)
 
-    async def verify(self, response: str, expected: str, **meta: Any) -> VerifyResult:
+    async def verify(self, response: str, expected: str,
+                     sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
         reward, details = self._score(response, expected, meta)
         return VerifyResult(
             reward=reward,

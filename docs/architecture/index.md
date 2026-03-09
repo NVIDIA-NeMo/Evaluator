@@ -34,6 +34,14 @@ flowchart TB
         SLURM["SlurmExecutor"]
     end
 
+    subgraph SAND["Sandbox"]
+        SBASE["Sandbox Protocol"]
+        SDOCK["DockerSandbox"]
+        SSLURM["SlurmSandbox"]
+        SLOCAL["LocalSandbox"]
+        SMGR["SandboxManager"]
+    end
+
     subgraph OBS["Observability"]
         TYPES["StepRecord<br/>ModelResponse"]
         COLLECT["ArtifactCollector"]
@@ -48,6 +56,7 @@ flowchart TB
     RUN --> EXEC
     EXEC --> DEPLOY
     EXEC --> LOOP
+    LOOP --> SMGR
     SERVE --> REG
     VALIDATE --> LOOP
 
@@ -70,6 +79,7 @@ flowchart TB
     style RUNNER fill:#fff3e0
     style EXEC fill:#f3e5f5
     style OBS fill:#fce4ec
+    style SAND fill:#e0f7fa
     style SCORE fill:#fff9c4
 ```
 
@@ -79,12 +89,13 @@ flowchart TB
 |---------|---------------|-----------|
 | `environments/` | Base class, registry, `@benchmark` API, environment types | `EvalEnvironment`, `SeedResult`, `VerifyResult`, `BenchmarkDefinition` |
 | `benchmarks/` | 11 built-in benchmarks (all `@benchmark` + `@scorer`) | Scorer functions |
-| `runner/` | Eval loop, solvers, model client, deployment, checkpoint, regression | `run_evaluation()`, `ChatSolver`, `CompletionSolver`, `AgentSolver`, `ModelClient`, `CheckpointManager` |
-| `executors/` | Orchestration: model deploy + eval + teardown | `LocalExecutor`, `DockerExecutor`, `SlurmExecutor` |
+| `runner/` | Eval loop, solvers, model client, deployment, checkpoint, regression | `run_evaluation()`, `ChatSolver`, `CompletionSolver`, `VLMSolver`, `EmbeddingSolver`, `AgentSolver`, `SandboxedAgentSolver`, `ModelClient`, `CheckpointManager` |
+| `executors/` | Executor protocol and backends (local, Docker, SLURM) | `Executor`, `get_executor()`, `detect_executor()`, `ProcessState` |
+| `sandbox/` | Per-problem isolated execution (Docker, SLURM, local) | `Sandbox`, `SandboxSpec`, `SandboxManager`, `DockerSandbox`, `SlurmSandbox` |
+| `eval/` | Suite orchestration: `local_runner`, `slurm_gen`, config, containers | `run_local()`, `generate_sbatch()`, `EvalConfig` |
 | `scoring/` | Judge pipeline and JSON schema validation | `judge.py`, `json_schema.py` |
 | `observability/` | Rich telemetry capture | `StepRecord`, `ModelResponse`, `RuntimeStats`, `ArtifactCollector` |
 | `metrics/` | Statistical aggregation | `pass_at_k()`, `bootstrap_ci()`, `category_breakdown()` |
-| `eval/` | Suite runner with checkpointing and failure isolation | `run_local()`, `EvalConfig`, `CheckpointManager` |
 | `cli/` | CLI commands | `nel eval run`, `nel eval run --resume`, `nel serve`, `nel validate`, `nel eval report`, `nel regression` |
 
 ## Environment Abstraction
@@ -97,7 +108,8 @@ classDiagram
         <<abstract>>
         +str name
         +seed(idx) SeedResult
-        +verify(response, expected) VerifyResult
+        +verify(response, expected, sandbox?) VerifyResult
+        +sandbox_specs() list~SandboxSpec~ | None
         +dataset_size() int
         +close()
     }
@@ -108,11 +120,6 @@ classDiagram
 
     class GymEnvironment {
         +str endpoint
-    }
-
-    class ManagedGymEnvironment {
-        +start()
-        +stop()
     }
 
     class SkillsEnvironment {
@@ -128,27 +135,36 @@ classDiagram
         +str env_name
     }
 
+    class ContainerEnvironment {
+        +str image_uri
+        +str task_name
+    }
+
+    class MTEBEnvironment {
+        +str task_name
+    }
+
     EvalEnvironment <|-- ByobEnvironment
     EvalEnvironment <|-- GymEnvironment
-    EvalEnvironment <|-- ManagedGymEnvironment
     EvalEnvironment <|-- SkillsEnvironment
     EvalEnvironment <|-- LMEvalEnvironment
     EvalEnvironment <|-- PIEnvironment
+    EvalEnvironment <|-- ContainerEnvironment
+    EvalEnvironment <|-- MTEBEnvironment
 ```
 
 ### Resolution
 
 The registry resolves environment names in order:
 
-1. **URI scheme** -- `gym://host:port`, `skills://name`, `pi://name`, `gym-managed://...`
-2. **Namespace prefix** -- `lm-eval/task_name`
-3. **Built-in registry** -- names registered via `@benchmark` or `@register`
+1. **URI scheme** -- `lm-eval://task`, `skills://name`, `gym://host:port`, `gym://name`, `pi://name`, `mteb://task`, `container://image#task`
+2. **Built-in registry** -- names registered via `@benchmark` or `@register`
 
 ```python
 from nemo_evaluator import get_environment
 
 env = get_environment("mmlu")                        # built-in
-env = get_environment("lm-eval/aime25")              # lm-eval task
+env = get_environment("lm-eval://aime25")            # lm-eval task
 env = get_environment("skills://gpqa")               # NeMo Skills
 env = get_environment("gym://localhost:9090")         # remote Gym
 env = get_environment("pi://simpleqa")               # Prime Intellect
@@ -160,30 +176,38 @@ env = get_environment("pi://simpleqa")               # Prime Intellect
 sequenceDiagram
     participant CLI as nel eval run
     participant Exec as Executor
+    participant Runner as local_runner
     participant Deploy as Deployment
     participant Loop as eval_loop
     participant Solver as Solver
     participant Env as Environment
     participant Obs as ArtifactCollector
 
-    CLI->>Exec: execute(RunConfig)
-    Exec->>Deploy: start()
-    Deploy-->>Exec: model_url
+    CLI->>Exec: executor.run(config)
+    Exec->>Runner: run_local(config)
+    Runner->>Deploy: start()
+    Deploy-->>Runner: model_url
 
-    Exec->>Loop: run_evaluation(env, solver, config)
+    Runner->>Loop: run_evaluation(env, solver, config, sandbox_manager)
 
     loop For each problem x repeat
         Loop->>Env: seed(idx)
-        Env-->>Loop: SeedResult(prompt, expected)
-        Loop->>Solver: solve(task)
+        Env-->>Loop: SeedResult(prompt, expected, sandbox_spec?)
+        opt sandbox configured
+            Loop->>Loop: manager.acquire(spec)
+        end
+        Loop->>Solver: solve(task, sandbox?)
         Solver-->>Loop: SolveResult(response)
-        Loop->>Env: verify(response, expected)
+        Loop->>Env: verify(response, expected, sandbox?)
         Env-->>Loop: VerifyResult(reward, details)
+        opt sandbox acquired
+            Loop->>Loop: manager.release(sandbox)
+        end
         Loop->>Obs: record(StepRecord)
     end
 
-    Loop-->>Exec: RunArtifacts
-    Exec->>Deploy: stop()
+    Loop-->>Runner: bundle
+    Runner->>Deploy: stop()
 ```
 
 ## Solver Protocol
@@ -194,32 +218,55 @@ Solvers decouple inference strategy from benchmark logic. The eval loop calls `s
 |--------|----------|----------|
 | `ChatSolver` | Single `/chat/completions` call | Standard benchmarks (default) |
 | `CompletionSolver` | `/completions` endpoint | Legacy models, prompt-based eval |
+| `VLMSolver` | `/chat/completions` with images | Vision-language benchmarks |
+| `EmbeddingSolver` | `/v1/embeddings` | Embedding benchmarks (MTEB) |
+| `CrossEncoderSolver` | `/v1/rerank` | Reranking benchmarks |
 | `AgentSolver` | External agent subprocess | Multi-turn agents (OpenHands, SWE-agent) |
+| `SandboxedAgentSolver` | Agent in per-problem sandbox | SWE-bench, terminal-bench (exec or HTTP) |
 
 ```python
 class Solver(Protocol):
     async def solve(self, task: SeedResult) -> SolveResult: ...
 ```
 
-## Executor Model
+## Executor Protocol
 
-Executors manage the full lifecycle: deploy model, run evaluation, collect results, tear down.
+All execution backends implement the `Executor` protocol (`executors/__init__.py`):
 
-| Executor | What it does |
-|----------|-------------|
-| `LocalExecutor` | In-process eval with optional Docker/vLLM model deployment |
-| `DockerExecutor` | Model server + eval in Docker containers |
-| `SlurmExecutor` | SLURM sbatch with model server + eval jobs |
+```python
+class Executor(Protocol):
+    name: str
+    def run(self, config, *, dry_run=False, resume=False,
+            background=False, submit=False) -> None: ...
+    def status(self, output_dir) -> ProcessState: ...
+    def stop(self, output_dir) -> bool: ...
+    @staticmethod
+    def detect(output_dir) -> bool: ...
+```
+
+The CLI dispatches via `get_executor(config.cluster.type)` and `detect_executor(output_dir)` -- no if/elif trees.
+
+| Executor | Config | Metadata file | What it does |
+|----------|--------|---------------|-------------|
+| `LocalExecutor` | `cluster.type: local` | `nel.pid` | In-process eval with optional model deployment, checkpointing, and failure isolation |
+| `DockerExecutor` | `cluster.type: docker` | `docker.json` | Runs eval inside a Docker container with the correct per-harness image |
+| `SlurmExecutor` | `cluster.type: slurm` | `slurm_job.json` | Generates self-contained sbatch scripts with per-benchmark containers |
+
+SLURM supports two container modes via `cluster.env_mode`:
+- **Colocated** (default): orchestrator + environment in the same per-harness container
+- **Separated**: each environment runs as a `nel serve` Gym server in its own container; a thin orchestrator in the base image talks to everything via HTTP
+
+Adding a new executor (e.g. Kubernetes) requires only a new class, a metadata file convention, and a registry entry.
 
 ```bash
 # Local with external API
 nel eval run --bench mmlu --model-url https://api.example.com/v1
 
-# Local with NIM deployment
-nel eval run --bench mmlu --executor local --deploy nim --deploy-image nvcr.io/nim/llama3-8b
+# Docker
+nel eval run config.yaml    # with cluster.type: docker
 
-# SLURM cluster
-nel eval run --bench mmlu --executor slurm --deploy nim --deploy-image nvcr.io/nim/llama3-8b
+# SLURM (generates + submits sbatch)
+nel eval run config.yaml    # with cluster.type: slurm
 ```
 
 ## Model Deployment

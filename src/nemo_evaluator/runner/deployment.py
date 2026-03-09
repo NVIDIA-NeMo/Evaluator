@@ -7,13 +7,27 @@ import signal
 import socket
 import subprocess
 import time
+from dataclasses import dataclass, field
 from typing import Protocol
 
 import httpx
 
-from nemo_evaluator.executors.base import DeployConfig
-
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class DeployConfig:
+    type: str = "api"
+    image: str | None = None
+    model: str | None = None
+    gpus: int = 1
+    port: int = 8000
+    health_path: str = "/v1/health/ready"
+    startup_timeout: float = 600.0
+    extra_env: dict[str, str] = field(default_factory=dict)
+    extra_args: list[str] = field(default_factory=list)
+    nodes: int = 1
+    pipeline_parallel_size: int | None = None
 
 
 def _find_free_port() -> int:

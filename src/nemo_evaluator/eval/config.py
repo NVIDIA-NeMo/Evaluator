@@ -10,7 +10,7 @@ import os
 import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 _ENV_RE = re.compile(r"\$\{(\w+)(?::-(.*?))?\}")
 
@@ -29,6 +29,36 @@ def _expand_env(value: Any) -> Any:
 
 
 # ---------------------------------------------------------------------------
+# Sandbox config
+# ---------------------------------------------------------------------------
+
+class SandboxConfig(BaseModel):
+    """Per-problem sandbox configuration for agent/code evaluations."""
+
+    backend: Literal["docker", "slurm", "local", "none"] = "none"
+    image: str | None = None
+    image_template: str | None = None
+    memory: str = "4g"
+    cpus: float = 2.0
+    timeout: float = 1800.0
+    concurrency: int = 4
+    network: str = "bridge"
+    pre_pull: bool = True
+    sandbox_nodes: int = 0
+    slots_per_node: int = 4
+    partition: str | None = None
+    gres: str | None = None
+
+    @field_validator("image_template")
+    @classmethod
+    def _validate_template(cls, v: str | None) -> str | None:
+        if v and ("{" in v or "}" in v):
+            if re.search(r"\{[^}]*[!\[.]", v):
+                raise ValueError("image_template supports only simple {key} placeholders")
+        return v
+
+
+# ---------------------------------------------------------------------------
 # Benchmark config
 # ---------------------------------------------------------------------------
 
@@ -38,9 +68,9 @@ class BenchmarkConfig(BaseModel):
     The `name` field uses the unified naming convention:
       - ``gsm8k``                 built-in BYOB benchmark
       - ``skills://mmlu-pro``     NeMo Skills benchmark
-      - ``lm-eval/aime2025``      lm-eval-harness task
+      - ``lm-eval://aime2025``    lm-eval-harness task
       - ``gym://host:port``       remote Gym environment
-      - ``gym-managed://swebench`` managed Gym server
+      - ``gym://swebench``        managed Gym benchmark (auto-detected)
       - ``mteb://mteb-task``      MTEB embedding benchmark
       - ``container://image#task`` legacy container harness
     """
@@ -57,6 +87,7 @@ class BenchmarkConfig(BaseModel):
     endpoint_type: Literal["chat", "completions", "vlm", "embedding"] = "chat"
     image_detail: str = "auto"
     reranker: str | None = None
+    sandbox: SandboxConfig | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +185,7 @@ class ClusterConfig(BaseModel):
     max_walltime: str | None = None
     auto_resume: bool = False
     max_resume_attempts: int = 3
+    env_mode: Literal["colocated", "separated"] = "colocated"
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +264,35 @@ class EvalConfig(BaseModel):
         if not self.services:
             return {}
         return {k: v for k, v in self.services.items() if v.is_managed}
+
+    def resolved_services(self) -> dict[str, ServiceConfig]:
+        """Build the full services dict, auto-creating one in simple mode."""
+        if self.services:
+            return dict(self.services)
+
+        if self.is_simple and self.model:
+            m = self.model
+            if m.deploy:
+                svc = ServiceConfig(
+                    type=m.deploy,
+                    model=m.name or m.id,
+                    port=m.port,
+                    tensor_parallel_size=m.tensor_parallel_size,
+                    pipeline_parallel_size=m.pipeline_parallel_size,
+                    num_nodes=m.num_nodes,
+                    extra_env=m.extra_env,
+                    extra_args=list(m.extra_args),
+                )
+                return {"default": svc}
+            svc = ServiceConfig(
+                type="api",
+                url=m.url,
+                model=m.id,
+                api_key=m.api_key,
+            )
+            return {"default": svc}
+
+        return {}
 
 
 def parse_eval_config(raw: dict[str, Any]) -> EvalConfig:

@@ -1,6 +1,6 @@
-"""NeMo Evaluator -- environments, solvers, executors."""
+"""NeMo Evaluator -- environments, solvers, evaluation orchestration."""
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.environments.define import benchmark, scorer
@@ -13,6 +13,7 @@ from nemo_evaluator.runner.solver import (
     CompletionSolver,
     CrossEncoderSolver,
     EmbeddingSolver,
+    SandboxedAgentSolver,
     Solver,
     SolveResult,
     VLMSolver,
@@ -21,6 +22,7 @@ from nemo_evaluator.scoring import (
     ScorerInput,
     answer_line,
     code_sandbox,
+    code_sandbox_async,
     exact_match,
     fuzzy_match,
     multichoice_regex,
@@ -35,10 +37,12 @@ __all__ = [
     "run_evaluation", "ModelClient",
     # Solver
     "Solver", "ChatSolver", "CompletionSolver", "AgentSolver",
+    "SandboxedAgentSolver",
     "VLMSolver", "EmbeddingSolver", "CrossEncoderSolver", "SolveResult",
     # Benchmark definition API
     "benchmark", "scorer", "ScorerInput",
     # Scoring primitives
     "exact_match", "multichoice_regex", "answer_line",
-    "fuzzy_match", "numeric_match", "code_sandbox", "needs_judge",
+    "fuzzy_match", "numeric_match", "code_sandbox", "code_sandbox_async",
+    "needs_judge",
 ]

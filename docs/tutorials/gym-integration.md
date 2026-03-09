@@ -10,7 +10,6 @@ flowchart TB
         ENV["EvalEnvironment<br/>(any registered benchmark)"]
         SERVE["nel serve"]
         GYMENV["GymEnvironment"]
-        MANAGED["ManagedGymEnvironment"]
     end
 
     subgraph "NeMo Gym"
@@ -134,28 +133,21 @@ sequenceDiagram
 
 Because NEL makes the model call (not the environment server), you get full observability: per-request latency, token counts, reasoning tokens, failure categorization.
 
-## ManagedGymEnvironment
+## Managed Gym Environments
 
-For environments that need a server started and stopped automatically:
+For environments that need a server started and stopped automatically, use `gym://` with a benchmark name (not `host:port`). The registry auto-detects that it's a name and starts a managed server:
 
 ```bash
-nel eval run --bench gym-managed://gsm8k --repeats 4
+nel eval run --bench gym://gsm8k --repeats 4
 ```
 
 Or with a custom server command:
 
 ```bash
-nel eval run --bench "gym-managed://cmd:python my_server.py" --repeats 4
+nel eval run --bench "gym://cmd:python my_server.py" --repeats 4
 ```
 
-`ManagedGymEnvironment` starts the server process, waits for `/health` to return 200, delegates to `GymEnvironment` for requests, and tears down the server on completion.
-
-## Serve on SLURM
-
-```bash
-nel eval run --bench gsm8k --executor slurm \
-    --slurm-partition batch --slurm-time 24:00:00
-```
+The server is started automatically, health-checked, used for evaluation, and torn down on completion.
 
 ## Python API
 

@@ -7,16 +7,16 @@ All external integrations are `EvalEnvironment` subclasses resolved through the 
 | Environment | URI | Source |
 |-------------|-----|--------|
 | `GymEnvironment` | `gym://host:port` | Remote HTTP server (Gym protocol) |
-| `ManagedGymEnvironment` | `gym-managed://...` | Auto-started Gym server |
+| `ManagedGymEnvironment` | `gym://name` | Auto-started Gym server (name auto-detected) |
 | `SkillsEnvironment` | `skills://name` | NeMo Skills benchmarks |
-| `LMEvalEnvironment` | `lm-eval/task` | lm-evaluation-harness tasks |
+| `LMEvalEnvironment` | `lm-eval://task` | lm-evaluation-harness tasks |
 | `PIEnvironment` | `pi://name` | Prime Intellect verifiers |
 
 ```bash
 nel eval run --bench gym://host:port
 nel eval run --bench skills://gpqa
 nel eval run --bench pi://simpleqa
-nel eval run --bench lm-eval/aime2025
+nel eval run --bench lm-eval://aime2025
 ```
 
 See the dedicated tutorials for each:

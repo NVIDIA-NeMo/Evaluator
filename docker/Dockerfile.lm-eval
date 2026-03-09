@@ -1,0 +1,16 @@
+# nemo-evaluator + lm-evaluation-harness
+# For: lm-eval:// benchmarks (aime2025, ifeval, etc.)
+FROM python:3.11-slim AS base
+
+WORKDIR /app
+RUN pip install --no-cache-dir --upgrade pip
+
+COPY pyproject.toml README.md ./
+COPY src/ src/
+COPY benchmarks/ benchmarks/
+
+RUN pip install --no-cache-dir ".[scoring,stats,lm-eval]"
+
+ENV PYTHONUNBUFFERED=1
+ENTRYPOINT ["nel"]
+CMD ["--help"]

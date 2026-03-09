@@ -5,7 +5,8 @@ import re
 import shlex
 from pathlib import Path
 
-from nemo_evaluator.eval.config import EvalConfig, ServiceConfig
+from nemo_evaluator.eval.config import ClusterConfig, EvalConfig, ServiceConfig
+from nemo_evaluator.eval.containers import resolve_deployment_image, resolve_eval_image
 
 _HEADER = """\
 #!/bin/bash
@@ -35,31 +36,17 @@ _CONDA_ACTIVATE = """\
 source /opt/anaconda3/bin/activate {conda_env}
 """
 
-_CONTAINER_SETUP = """\
-# Container mode: {image}
-CONTAINER_IMAGE="{image}"
-CONTAINER_MOUNTS="{mounts}"
-SRUN_PREFIX="srun --container-image=$CONTAINER_IMAGE {mount_flags} {env_flags}"
+_CONTAINER_COMMON = """\
+# Container mode (Pyxis/Enroot)
+CONTAINER_MOUNTS="{mount_flags}"
+CONTAINER_ENV="{env_flags}"
 """
 
-_VLLM_SERVICE = """\
-# Service: {name} (vllm)
-echo "Starting vLLM server: {name}..."
-{cuda_prefix}python -m vllm.entrypoints.openai.api_server \\
-    --model {model} \\
-    --port {port} \\
-    {tp_flag}\\
-    {extra_args}&
-{name_upper}_PID=$!
-{name_upper}_URL="http://localhost:{port}/v1"
-{name_upper}_MODEL="{model}"
-"""
-
-_SGLANG_SERVICE = """\
-# Service: {name} (sglang)
-echo "Starting SGLang server: {name}..."
-{cuda_prefix}python -m sglang.launch_server \\
-    --model-path {model} \\
+_MODEL_SERVICE = """\
+# Service: {name} ({svc_type})
+echo "Starting {svc_type} server: {name}..."
+{srun_prefix}{cuda_prefix}{cmd} \\
+    {model_flag} {model} \\
     --port {port} \\
     {tp_flag}\\
     {extra_args}&
@@ -113,6 +100,19 @@ echo "============================================================"
     --no-progress || {{ echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; }}
 """
 
+_TASK_SEPARATED = """\
+# Benchmark {idx}/{total}: {bench_name} (separated mode)
+echo ""
+echo "============================================================"
+echo "  Benchmark {idx}/{total}: {bench_name} (repeats={repeats})"
+echo "  Env container: {env_image} -> port {env_port}"
+echo "============================================================"
+srun --overlap --nodes 1 --ntasks 1 \\
+    --container-image {env_image} $CONTAINER_MOUNTS $CONTAINER_ENV \\
+    nel serve -b "{bench_name}" --host 0.0.0.0 -p {env_port} &
+BENCH_{safe_name}_PID=$!
+"""
+
 _REPORT = """\
 # Generate reports
 echo ""
@@ -129,6 +129,25 @@ echo "=== Evaluation complete ==="
 echo "End: $(date -Iseconds)"
 echo "Results: $OUTPUT_DIR"
 exit $NEL_EXIT_CODE
+"""
+
+_SANDBOX_NODES = """\
+# Sandbox node allocation
+SANDBOX_NODES=$(scontrol show hostname $SLURM_JOB_NODELIST | tail -n +{sandbox_start_node} | head -n {sandbox_node_count})
+export NEL_SANDBOX_NODES=$(echo $SANDBOX_NODES | tr ' ' ',')
+echo "Sandbox nodes (${{NEL_SANDBOX_NODES}}): {sandbox_node_count} nodes x {slots_per_node} slots = {total_slots} max concurrent"
+"""
+
+_SANDBOX_PRE_PULL = """\
+# Pre-pull sandbox images on sandbox nodes
+echo "Pre-pulling sandbox images..."
+for node in $SANDBOX_NODES; do
+    for img in {images}; do
+        srun --overlap --nodelist=$node --ntasks=1 enroot import "docker://$img" &
+    done
+done
+wait
+echo "Pre-pull complete."
 """
 
 _AUTO_RESUME = """\
@@ -170,31 +189,34 @@ def _safe(s: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_]", "_", s)
 
 
-def _service_block(name: str, svc: ServiceConfig) -> str:
+_MODEL_CMD = {
+    "vllm": ("python -m vllm.entrypoints.openai.api_server", "--model", "--tensor-parallel-size"),
+    "sglang": ("python -m sglang.launch_server", "--model-path", "--tp-size"),
+}
+
+
+def _service_block(name: str, svc: ServiceConfig, use_containers: bool = False) -> str:
     upper = _safe(name).upper()
 
-    if svc.type == "vllm":
-        tp_flag = f"--tensor-parallel-size {svc.tensor_parallel_size} " if svc.tensor_parallel_size else ""
+    if svc.type in _MODEL_CMD:
+        cmd, model_flag, tp_flag_name = _MODEL_CMD[svc.type]
+        deploy_image = resolve_deployment_image(svc.type)
+        srun_prefix = ""
+        if use_containers and deploy_image:
+            srun_prefix = (
+                f"srun --overlap --nodes {svc.num_nodes} --ntasks 1 "
+                f"--container-image {deploy_image} $CONTAINER_MOUNTS $CONTAINER_ENV "
+            )
+        tp_flag = f"{tp_flag_name} {svc.tensor_parallel_size} " if svc.tensor_parallel_size else ""
         extra = " ".join(svc.extra_args)
         cuda = ""
         if svc.gpus and isinstance(svc.gpus, list):
             cuda = f'CUDA_VISIBLE_DEVICES={",".join(str(g) for g in svc.gpus)} '
-        return _VLLM_SERVICE.format(
-            name=name, name_upper=upper, model=svc.model or "",
+        return _MODEL_SERVICE.format(
+            name=name, name_upper=upper, svc_type=svc.type,
+            cmd=cmd, model_flag=model_flag, model=svc.model or "",
             port=svc.port, tp_flag=tp_flag, extra_args=extra,
-            cuda_prefix=cuda,
-        )
-
-    if svc.type == "sglang":
-        tp_flag = f"--tp-size {svc.tensor_parallel_size} " if svc.tensor_parallel_size else ""
-        extra = " ".join(svc.extra_args)
-        cuda = ""
-        if svc.gpus and isinstance(svc.gpus, list):
-            cuda = f'CUDA_VISIBLE_DEVICES={",".join(str(g) for g in svc.gpus)} '
-        return _SGLANG_SERVICE.format(
-            name=name, name_upper=upper, model=svc.model or "",
-            port=svc.port, tp_flag=tp_flag, extra_args=extra,
-            cuda_prefix=cuda,
+            cuda_prefix=cuda, srun_prefix=srun_prefix,
         )
 
     if svc.type == "gym":
@@ -204,7 +226,6 @@ def _service_block(name: str, svc: ServiceConfig) -> str:
         )
 
     if svc.type == "api":
-        upper = _safe(name).upper()
         return (
             f'# Service: {name} (external API)\n'
             f'{upper}_URL="{svc.url or ""}"\n'
@@ -212,9 +233,8 @@ def _service_block(name: str, svc: ServiceConfig) -> str:
             f'{upper}_PID=""\n'
         )
 
-    # Docker / NIM
     return (
-        f'# Service: {name} ({svc.type}) — TODO: add container support\n'
+        f'# Service: {name} ({svc.type})\n'
         f'{upper}_URL="http://localhost:{svc.port}/v1"\n'
         f'{upper}_MODEL="{svc.model or ""}"\n'
         f'{upper}_PID=""\n'
@@ -234,10 +254,40 @@ def _health_block(name: str, svc: ServiceConfig) -> str:
     )
 
 
+def _resolve_eval_image_for_bench(
+    bench_name: str,
+    cluster: ClusterConfig,
+    container_overrides: dict | None,
+    tag_override: str | None,
+    use_containers: bool,
+) -> str:
+    """Return the eval container image for a benchmark, or empty string if not containerized."""
+    if not use_containers:
+        return ""
+    if cluster.container_image:
+        return cluster.container_image
+    img = resolve_eval_image(bench_name, overrides=container_overrides, tag=tag_override)
+    if not img:
+        img = resolve_eval_image("__base__", tag=tag_override) or "nemo-evaluator:latest"
+    return img
+
+
+def _sandbox_node_count(config: EvalConfig) -> int:
+    """Total extra nodes needed for sandbox across all benchmarks."""
+    return max(
+        (b.sandbox.sandbox_nodes for b in config.benchmarks
+         if b.sandbox and b.sandbox.backend == "slurm" and b.sandbox.sandbox_nodes > 0),
+        default=0,
+    )
+
+
 def generate_sbatch(config: EvalConfig) -> str:
     """Generate a complete sbatch script from an EvalConfig."""
     cluster = config.cluster
     output_dir = config.output.dir
+
+    extra_sandbox_nodes = _sandbox_node_count(config)
+    total_nodes = cluster.nodes + extra_sandbox_nodes
 
     job_name = _safe(config.benchmarks[0].name) if len(config.benchmarks) == 1 else "multi"
 
@@ -250,35 +300,41 @@ def generate_sbatch(config: EvalConfig) -> str:
     # Header
     parts.append(_HEADER.format(
         job_name=job_name, output_dir=output_dir,
-        walltime=cluster.walltime, nodes=cluster.nodes,
+        walltime=cluster.walltime, nodes=total_nodes,
         ntasks_per_node=cluster.ntasks_per_node,
         gres_line=gres_line, partition_line=partition_line,
         account_line=account_line,
     ))
 
-    # Environment setup: container or conda
-    if cluster.container_image:
-        mount_flags = " ".join(
-            f"--container-mounts={m}" for m in cluster.container_mounts
-        )
+    use_containers = cluster.container_image is not None or cluster.type == "slurm"
+    if use_containers:
+        mount_parts = []
+        for m in cluster.container_mounts:
+            mount_parts.append(f"--container-mounts={m}")
         if cluster.mount_home:
-            mount_flags += " --container-mounts=$HOME:$HOME"
+            mount_parts.append("--container-mounts=$HOME:$HOME")
+        else:
+            mount_parts.append("--no-container-mount-home")
+        mount_flags = " ".join(mount_parts)
         env_flags = " ".join(
-            f"--export={k}={v}" for k, v in cluster.container_env.items()
+            f"--container-env={k}" for k in cluster.container_env
         )
-        parts.append(_CONTAINER_SETUP.format(
-            image=cluster.container_image,
-            mounts=",".join(cluster.container_mounts),
+        parts.append(_CONTAINER_COMMON.format(
             mount_flags=mount_flags,
             env_flags=env_flags,
         ))
-    elif cluster.conda_env:
+        for k, v in cluster.container_env.items():
+            parts.append(f'export {k}="{v}"')
+        if cluster.container_env:
+            parts.append("")
+
+    if cluster.conda_env:
         parts.append(_CONDA_ACTIVATE.format(conda_env=cluster.conda_env))
 
     # Services
-    services = _resolve_services(config)
+    services = config.resolved_services()
     for name, svc in services.items():
-        parts.append(_service_block(name, svc))
+        parts.append(_service_block(name, svc, use_containers=use_containers))
 
     parts.append("")
 
@@ -288,8 +344,40 @@ def generate_sbatch(config: EvalConfig) -> str:
         if block:
             parts.append(block)
 
+    # Sandbox node allocation and pre-pull
+    if extra_sandbox_nodes > 0:
+        sandbox_start_node = cluster.nodes + 1
+        sandbox_bench = next(
+            (b for b in config.benchmarks
+             if b.sandbox and b.sandbox.backend == "slurm" and b.sandbox.sandbox_nodes > 0),
+            None,
+        )
+        slots = sandbox_bench.sandbox.slots_per_node if sandbox_bench and sandbox_bench.sandbox else 4
+        total_slots = extra_sandbox_nodes * slots
+        parts.append(_SANDBOX_NODES.format(
+            sandbox_start_node=sandbox_start_node,
+            sandbox_node_count=extra_sandbox_nodes,
+            slots_per_node=slots,
+            total_slots=total_slots,
+        ))
+
+        if sandbox_bench and sandbox_bench.sandbox and sandbox_bench.sandbox.image:
+            parts.append(_SANDBOX_PRE_PULL.format(
+                images=shlex.quote(sandbox_bench.sandbox.image),
+            ))
+
     # Tasks
+    container_overrides = getattr(cluster, "container_overrides", None)
+    tag_override = None
+    if cluster.container_image:
+        tag_override = cluster.container_image.rsplit(":", 1)[-1] if ":" in cluster.container_image else None
+
+    separated = cluster.env_mode == "separated" and use_containers
+    base_env_port = 9100
+
     total = len(config.benchmarks)
+    env_kill_cmds: list[str] = []
+
     for i, bench in enumerate(config.benchmarks, 1):
         svc_name = bench.model
         upper = _safe(svc_name).upper()
@@ -307,15 +395,56 @@ def generate_sbatch(config: EvalConfig) -> str:
             extra_flags += f"--max-problems {bench.max_problems} "
         if cluster.auto_resume:
             extra_flags += "--resume "
+        if bench.sandbox and bench.sandbox.backend == "slurm" and extra_sandbox_nodes > 0:
+            extra_flags += '--sandbox-nodes "$NEL_SANDBOX_NODES" '
+            extra_flags += f"--sandbox-slots-per-node {bench.sandbox.slots_per_node} "
 
         safe_name = _safe(bench.name)
-        run_prefix = "$SRUN_PREFIX " if cluster.container_image else ""
-        parts.append(_TASK.format(
-            idx=i, total=total, bench_name=bench.name,
-            model_url_var=model_url_var, model_id_var=model_id_var,
-            repeats=bench.repeats, extra_flags=extra_flags,
-            safe_name=safe_name, run_prefix=run_prefix,
-        ))
+
+        eval_image = _resolve_eval_image_for_bench(
+            bench.name, cluster, container_overrides, tag_override, use_containers,
+        )
+
+        if separated:
+            env_port = base_env_port + i - 1
+
+            parts.append(_TASK_SEPARATED.format(
+                idx=i, total=total, bench_name=bench.name,
+                repeats=bench.repeats, env_image=eval_image,
+                env_port=env_port, safe_name=safe_name,
+            ))
+
+            parts.append(_HEALTH_WAIT.format(
+                name=f"env-{safe_name}", name_upper=f"BENCH_{safe_name}",
+                url=f"http://localhost:{env_port}",
+                health_path="/health", max_attempts=60,
+            ))
+
+            base_image = resolve_eval_image("__base__", tag=tag_override) or "nemo-evaluator:latest"
+            orch_prefix = (
+                f"srun --overlap --nodes 1 --ntasks 1 "
+                f"--container-image {base_image} $CONTAINER_MOUNTS $CONTAINER_ENV \\\n    "
+            )
+            parts.append(_TASK.format(
+                idx=i, total=total, bench_name=f"gym://localhost:{env_port}",
+                model_url_var=model_url_var, model_id_var=model_id_var,
+                repeats=bench.repeats, extra_flags=extra_flags,
+                safe_name=safe_name, run_prefix=orch_prefix,
+            ))
+            env_kill_cmds.append(f'kill $BENCH_{safe_name}_PID 2>/dev/null || true')
+        else:
+            run_prefix = ""
+            if use_containers and eval_image:
+                run_prefix = (
+                    f"srun --overlap --nodes 1 --ntasks 1 "
+                    f"--container-image {eval_image} $CONTAINER_MOUNTS $CONTAINER_ENV \\\n    "
+                )
+            parts.append(_TASK.format(
+                idx=i, total=total, bench_name=bench.name,
+                model_url_var=model_url_var, model_id_var=model_id_var,
+                repeats=bench.repeats, extra_flags=extra_flags,
+                safe_name=safe_name, run_prefix=run_prefix,
+            ))
 
     # Reports
     report_cmds = []
@@ -334,7 +463,7 @@ def generate_sbatch(config: EvalConfig) -> str:
         ))
 
     # Cleanup
-    kill_cmds = []
+    kill_cmds = list(env_kill_cmds)
     for name, svc in services.items():
         if svc.type != "api":
             upper = _safe(name).upper()
@@ -347,37 +476,6 @@ def generate_sbatch(config: EvalConfig) -> str:
     parts.append(_CLEANUP.format(kill_commands="\n".join(kill_cmds) if kill_cmds else "echo 'No managed services.'"))
 
     return "\n".join(parts)
-
-
-def _resolve_services(config: EvalConfig) -> dict[str, ServiceConfig]:
-    """Build the services dict, handling simple mode auto-service."""
-    if config.services:
-        return dict(config.services)
-
-    if config.is_simple and config.model:
-        m = config.model
-        if m.deploy:
-            svc = ServiceConfig(
-                type=m.deploy,
-                model=m.name or m.id,
-                port=m.port,
-                tensor_parallel_size=m.tensor_parallel_size,
-                pipeline_parallel_size=m.pipeline_parallel_size,
-                num_nodes=m.num_nodes,
-                extra_env=m.extra_env,
-                extra_args=list(m.extra_args),
-            )
-            return {"default": svc}
-        else:
-            svc = ServiceConfig(
-                type="api",
-                url=m.url,
-                model=m.id,
-                api_key=m.api_key,
-            )
-            return {"default": svc}
-
-    return {}
 
 
 def write_sbatch(config: EvalConfig, output_dir: str | Path | None = None) -> Path:

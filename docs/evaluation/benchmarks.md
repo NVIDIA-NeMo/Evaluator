@@ -25,7 +25,7 @@ Beyond the 11 built-in benchmarks, NEL resolves additional environment types via
 | Syntax | Source | Example |
 |--------|--------|---------|
 | `nel eval run --bench <name>` | Built-in registry | `nel eval run --bench mmlu` |
-| `nel eval run --bench lm-eval/<task>` | lm-evaluation-harness | `nel eval run --bench lm-eval/aime25` |
+| `nel eval run --bench lm-eval://<task>` | lm-evaluation-harness | `nel eval run --bench lm-eval://aime25` |
 | `nel eval run --bench skills://<name>` | NeMo Skills | `nel eval run --bench skills://mmlu-pro` |
 | `nel eval run --bench gym://<host:port>` | Remote Gym server | `nel eval run --bench gym://localhost:9090` |
 | `nel eval run --bench pi://<name>` | Prime Intellect verifiers | `nel eval run --bench pi://simpleqa` |

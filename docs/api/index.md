@@ -175,15 +175,15 @@ bundle = await run_evaluation(env, solver, n_repeats=4)
 | `prompt_template` | `str \| None` | `None` | Custom prompt template with `{problem}` placeholder |
 | `eval_type` | `str \| None` | `None` | Override scoring type (default from benchmark config) |
 
-### `GymHarness`
+### `generate_app()`
 
-Wraps an `EvalEnvironment` for Gym consumption.
+Serve an `EvalEnvironment` as a Gym-compatible HTTP endpoint.
 
 ```python
-from nemo_evaluator.adapters.gym_harness import GymHarness
+from nemo_evaluator.environments.server import generate_app
 
-harness = GymHarness(env)
-path = harness.export_jsonl("/tmp/data")
+app = generate_app(env, gym_compat=True)
+# Use with uvicorn: uvicorn.run(app, port=9090)
 ```
 
 ## Observability

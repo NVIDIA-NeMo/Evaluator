@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from nemo_evaluator.sandbox.base import Sandbox, SandboxSpec
 
 
 @dataclass
@@ -15,6 +18,7 @@ class SeedResult:
     messages: list[dict[str, str]] | None = None
     system: str | None = None
     images: list[str] | None = None
+    sandbox_spec: SandboxSpec | None = None
 
 
 @dataclass
@@ -51,7 +55,19 @@ class EvalEnvironment(ABC):
     async def seed(self, idx: int) -> SeedResult: ...
 
     @abstractmethod
-    async def verify(self, response: str, expected: str, **metadata: Any) -> VerifyResult: ...
+    async def verify(
+        self, response: str, expected: str,
+        sandbox: Sandbox | None = None, **metadata: Any,
+    ) -> VerifyResult: ...
+
+    async def sandbox_specs(self) -> list[SandboxSpec] | None:
+        """Return sandbox specs for all problems (for pre-pull).
+
+        Override to enable pre-pull. Iterates the dataset and computes
+        image names without full prompt construction or API calls.
+        Returns None (lazy pull) by default.
+        """
+        return None
 
     async def run_batch(self, solver: Any = None, config: dict[str, Any] | None = None) -> dict[str, Any] | None:
         """Optional batch execution. Override for environments that own the full loop

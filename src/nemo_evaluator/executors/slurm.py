@@ -1,138 +1,99 @@
-"""SlurmExecutor: generates and submits SLURM jobs for model + eval."""
+"""SLURM executor: generate sbatch scripts, submit, and manage jobs."""
 from __future__ import annotations
 
+import json
 import logging
-import os
-import subprocess
-from typing import Any
+from pathlib import Path
 
-from nemo_evaluator.executors.base import RunConfig
+from nemo_evaluator.executors import ProcessState
 
 logger = logging.getLogger(__name__)
 
-_SBATCH_TEMPLATE = """\
-#!/bin/bash
-#SBATCH --job-name=nel-{job_name}
-#SBATCH --output={output_dir}/slurm-%j.out
-#SBATCH --error={output_dir}/slurm-%j.err
-#SBATCH --time={time}
-#SBATCH --nodes={nodes}
-{gpu_line}
-{partition_line}
+_META_FILE = "slurm_job.json"
 
-set -euo pipefail
-
-{deploy_section}
-
-# Wait for model server
-echo "Waiting for model server at $MODEL_URL..."
-for i in $(seq 1 120); do
-    if curl -sf "$MODEL_URL{health_path}" > /dev/null 2>&1; then
-        echo "Model server ready."
-        break
-    fi
-    if ! kill -0 $SERVER_PID 2>/dev/null; then
-        echo "Server died during startup."
-        exit 1
-    fi
-    sleep 5
-done
-
-# Run evaluation
-{nel_command}
-
-# Cleanup
-if [ -n "${{SERVER_PID:-}}" ]; then
-    kill $SERVER_PID 2>/dev/null || true
-fi
-"""
-
-_DEPLOY_DOCKER = """\
-# Start model server via Docker
-docker run --rm --gpus {gpus} -d \\
-    --name nel-server-$SLURM_JOB_ID \\
-    -p {port}:{port} \\
-    {extra_env} \\
-    {image} {extra_args} &
-SERVER_PID=$!
-MODEL_URL="http://localhost:{port}/v1"
-MODEL_ID="{model_id}"
-"""
 
 class SlurmExecutor:
-    """Generates SLURM sbatch script, submits it, returns job ID."""
+    name = "slurm"
 
-    async def execute(self, config: RunConfig) -> dict[str, Any]:
-        os.makedirs(config.output_dir, exist_ok=True)
-        script = self._build_script(config)
+    def run(self, config, *, dry_run=False, resume=False,
+            background=False, submit=False) -> None:
+        import click
 
-        script_path = os.path.join(config.output_dir, "nel_eval.sbatch")
-        with open(script_path, "w") as f:
-            f.write(script)
+        from nemo_evaluator.eval.slurm_gen import write_sbatch
 
-        logger.info("Generated SLURM script: %s", script_path)
+        script_path = write_sbatch(config)
+        click.echo(f"Generated: {script_path}")
 
+        if dry_run:
+            click.echo(f"\nTo submit locally:  sbatch {script_path}")
+            if config.cluster.hostname:
+                click.echo(f"To submit via SSH:  nel eval run {script_path} --submit")
+            return
+
+        if submit and config.cluster.hostname:
+            from nemo_evaluator.eval.ssh import submit_eval
+            meta = submit_eval(
+                script_path=script_path,
+                hostname=config.cluster.hostname,
+                remote_dir=config.output.dir,
+                username=config.cluster.username,
+            )
+            click.echo(f"SLURM job submitted: {meta['job_id']}")
+            click.echo(f"Check status: nel eval status -o {config.output.dir}")
+            return
+
+        import subprocess
         result = subprocess.run(
-            ["sbatch", script_path],
-            capture_output=True, text=True,
+            ["sbatch", str(script_path)], capture_output=True, text=True,
         )
         if result.returncode != 0:
-            raise RuntimeError(f"sbatch failed: {result.stderr}")
+            raise click.ClickException(f"sbatch failed: {result.stderr}")
+        click.echo(result.stdout.strip())
 
-        job_id = result.stdout.strip().split()[-1]
-        logger.info("Submitted SLURM job: %s", job_id)
+    def status(self, output_dir: str | Path) -> ProcessState:
+        meta = _read_meta(output_dir)
+        if meta is None:
+            return ProcessState("slurm", False, {"error": f"No {_META_FILE} found"})
 
-        return {
-            "status": "submitted",
-            "slurm_job_id": job_id,
-            "script_path": script_path,
-            "output_dir": config.output_dir,
-        }
-
-    def _build_script(self, config: RunConfig) -> str:
-        deploy = config.deploy
-        gpus = config.slurm_gpus or (deploy.gpus if deploy else 1)
-
-        gpu_line = f"#SBATCH --gres=gpu:{gpus}" if gpus else ""
-        partition_line = f"#SBATCH --partition={config.slurm_partition}" if config.slurm_partition else ""
-
-        if deploy and deploy.type != "api":
-            deploy_section = _DEPLOY_DOCKER.format(
-                gpus=f'"device={",".join(str(i) for i in range(gpus))}"',
-                port=deploy.port,
-                image=deploy.image or "",
-                model_id=deploy.model or config.model_id or "",
-                extra_env=" ".join(f"-e {k}={v}" for k, v in deploy.extra_env.items()),
-                extra_args=" ".join(deploy.extra_args),
-            )
-            health_path = deploy.health_path
-        else:
-            deploy_section = (
-                f'MODEL_URL="{config.model_url}"\n'
-                f'MODEL_ID="{config.model_id}"\n'
-                'SERVER_PID=""'
-            )
-            health_path = "/v1/health/ready"
-
-        nel_cmd = (
-            f"nel eval run --bench {config.env} "
-            f'--model-url "$MODEL_URL" --model-id "$MODEL_ID" '
-            f"--repeats {config.repeats} "
-            f"-o {config.output_dir}"
+        from nemo_evaluator.eval.ssh import check_job_status
+        info = check_job_status(
+            hostname=meta["hostname"],
+            job_id=meta["job_id"],
+            username=meta.get("username") or None,
         )
-        if config.api_key:
-            nel_cmd += f" --api-key {config.api_key}"
-        if config.max_problems:
-            nel_cmd += f" --max-problems {config.max_problems}"
-
-        return _SBATCH_TEMPLATE.format(
-            job_name=config.env.replace("://", "_").replace("/", "_"),
-            output_dir=config.output_dir,
-            time=config.slurm_time,
-            nodes=config.slurm_nodes,
-            gpu_line=gpu_line,
-            partition_line=partition_line,
-            deploy_section=deploy_section,
-            health_path=health_path,
-            nel_command=nel_cmd,
+        running = info.get("state", "") in (
+            "PENDING", "RUNNING", "CONFIGURING", "COMPLETING",
         )
+        return ProcessState("slurm", running, info)
+
+    def stop(self, output_dir: str | Path) -> bool:
+        meta = _read_meta(output_dir)
+        if meta is None:
+            logger.warning("No %s found in %s", _META_FILE, output_dir)
+            return False
+
+        from nemo_evaluator.eval.ssh import cancel_job
+        try:
+            cancel_job(
+                hostname=meta["hostname"],
+                job_id=meta["job_id"],
+                username=meta.get("username") or None,
+            )
+            return True
+        except Exception as e:
+            logger.error("Failed to cancel SLURM job %s: %s", meta["job_id"], e)
+            return False
+
+    @staticmethod
+    def detect(output_dir: str | Path) -> bool:
+        return (Path(output_dir) / _META_FILE).exists()
+
+
+def _read_meta(output_dir: str | Path) -> dict | None:
+    p = Path(output_dir) / _META_FILE
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None

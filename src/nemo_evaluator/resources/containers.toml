@@ -1,0 +1,34 @@
+# Container image mapping for SLURM execution with Pyxis/Enroot.
+#
+# Each URI scheme maps to a pre-built container that includes nemo-evaluator
+# plus the required harness dependencies. The SLURM sbatch generator uses this
+# to select the correct --container-image per benchmark.
+#
+# Users can override any image via cluster.container_overrides in their config.
+
+[defaults]
+registry = "nvcr.io/nvidia/nemo-evaluator"
+tag = "0.7.0"
+
+# Deployment containers (model servers)
+[deployment]
+vllm = "vllm/vllm-openai:latest"
+sglang = "lmsysorg/sglang:latest"
+nim = "nvcr.io/nim/meta/llama-3.2-1b-instruct:latest"
+
+# Evaluation containers (NEL + harness)
+[eval]
+base = "{registry}:{tag}"
+lm-eval = "{registry}:{tag}-lm-eval"
+skills = "{registry}:{tag}-skills"
+mteb = "{registry}:{tag}-mteb"
+full = "{registry}:{tag}-full"
+
+# URI scheme -> eval container variant
+[schemes]
+"lm-eval://" = "lm-eval"
+"skills://" = "skills"
+"mteb://" = "mteb"
+"gym://" = "base"
+"pi://" = "base"
+"container://" = ""

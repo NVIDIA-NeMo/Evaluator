@@ -50,22 +50,22 @@ Plus 10+ more (see `nel list --source lm-eval`).
 ## Python API
 
 ```python
-from nemo_evaluator.adapters.container import ContainerConfig, run_container_eval
+from nemo_evaluator.environments.container import ContainerEnvironment
+from nemo_evaluator.runner.eval_loop import run_evaluation
+from nemo_evaluator.runner.solver import ChatSolver
+from nemo_evaluator.runner.model_client import ModelClient
 
-cfg = ContainerConfig(
-    task_type="simple_evals.GPQA_diamond",
-    model_url="https://inference-api.nvidia.com/v1",
-    model_id="azure/openai/gpt-5.2",
-    limit_samples=50,
-    temperature=0.0,
+env = ContainerEnvironment(
+    image="nvcr.io/.../simple-evals:26.01",
+    task="GPQA_diamond",
 )
 
-bundle = run_container_eval(cfg, output_dir="./results/gpqa")
-
-for key, score in bundle["scores"].items():
-    print(f"{key}: {score['value']}")
-
-print(f"Avg latency: {bundle['response_stats']['avg_latency_ms']:.0f}ms")
+client = ModelClient(
+    base_url="https://inference-api.nvidia.com/v1",
+    model="azure/openai/gpt-5.2",
+)
+solver = ChatSolver(client)
+bundle = await run_evaluation(env, solver)
 ```
 
 ## Output Format

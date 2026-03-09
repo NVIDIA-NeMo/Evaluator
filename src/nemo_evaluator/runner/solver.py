@@ -3,10 +3,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.observability.types import ModelResponse
+
+if TYPE_CHECKING:
+    from nemo_evaluator.sandbox.base import Sandbox
 
 logger = logging.getLogger(__name__)
 
@@ -233,6 +236,103 @@ class AgentSolver:
             return SolveResult(
                 response=stdout.decode()[:5000] if stdout else "",
                 trajectory=[{"stderr": stderr.decode()[:2000] if stderr else ""}],
+            )
+
+    async def close(self) -> None:
+        pass
+
+
+class SandboxedAgentSolver:
+    """Runs an agent inside a per-problem sandbox.
+
+    The solver owns all agent-specific logic. The sandbox is infrastructure.
+
+    Two modes, inferred from the sandbox spec:
+
+    - **exec-server** (no entrypoint / ``sleep infinity``): solver execs the
+      agent command inside the sandbox, reads output from a file.
+    - **agent-server** (entrypoint starts an HTTP agent): solver connects to
+      the agent API via the container IP and POSTs the task.
+    """
+
+    def __init__(
+        self,
+        agent_cmd: str,
+        model_url: str,
+        model_id: str,
+        agent_port: int = 3000,
+        timeout: float = 1800.0,
+    ) -> None:
+        self._agent_cmd = agent_cmd
+        self._model_url = model_url
+        self._model_id = model_id
+        self._agent_port = agent_port
+        self._timeout = timeout
+
+    async def solve(
+        self, task: SeedResult, sandbox: Sandbox | None = None,
+    ) -> SolveResult:
+        if sandbox is None:
+            raise RuntimeError("SandboxedAgentSolver requires a sandbox")
+
+        import json
+        import tempfile
+        from pathlib import Path
+
+        task_data = json.dumps({
+            "prompt": task.prompt,
+            "expected_answer": task.expected_answer,
+            "metadata": task.metadata,
+        }).encode()
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            f.write(task_data)
+            f.flush()
+            await sandbox.upload(Path(f.name), "/workspace/task.json")
+
+        # exec-server: no entrypoint → agent launched via sandbox.exec()
+        if not sandbox.spec.entrypoint:
+            result = await sandbox.exec(
+                f"{self._agent_cmd} "
+                f"--task-file /workspace/task.json "
+                f"--output-file /workspace/output.json "
+                f"--model-url $MODEL_BASE_URL "
+                f"--model-id {self._model_id}",
+                timeout_sec=self._timeout,
+            )
+            with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+                out_path = Path(f.name)
+            await sandbox.download("/workspace/output.json", out_path)
+            try:
+                output = json.loads(out_path.read_text())
+            except (json.JSONDecodeError, FileNotFoundError):
+                return SolveResult(
+                    response=result.stdout[:5000],
+                    trajectory=[{"stderr": result.stderr[:2000]}],
+                )
+            return SolveResult(
+                response=output.get("response", ""),
+                trajectory=output.get("trajectory", []),
+            )
+
+        # agent-server: entrypoint started the agent, talk HTTP
+        agent_ip = sandbox.container_ip
+        if not agent_ip:
+            raise RuntimeError("Cannot reach agent: no container IP")
+        agent_url = f"http://{agent_ip}:{self._agent_port}"
+
+        import httpx
+
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            resp = await client.post(f"{agent_url}/solve", json={
+                "prompt": task.prompt,
+                "model_url": sandbox.resolve_outside_endpoint(self._model_url),
+                "model_id": self._model_id,
+            })
+            data = resp.json()
+            return SolveResult(
+                response=data.get("response", ""),
+                trajectory=data.get("trajectory", []),
             )
 
     async def close(self) -> None:

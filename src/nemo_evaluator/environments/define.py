@@ -27,7 +27,10 @@ import logging
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
+
+if TYPE_CHECKING:
+    from nemo_evaluator.sandbox.base import Sandbox
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.environments.registry import register
@@ -169,7 +172,8 @@ class ByobEnvironment(EvalEnvironment):
         return SeedResult(prompt=prompt, expected_answer=target, messages=messages,
                           system=self._defn.system_prompt, metadata=meta)
 
-    async def verify(self, response: str, expected: str, **meta: Any) -> VerifyResult:
+    async def verify(self, response: str, expected: str,
+                     sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
         if self._defn.scorer_fn is None:
             correct = response.strip().lower() == expected.strip().lower()
             return VerifyResult(reward=1.0 if correct else 0.0,

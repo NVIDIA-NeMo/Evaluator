@@ -33,7 +33,7 @@ flowchart TB
     end
 
     subgraph External ["Gym Pipeline"]
-        harness["GymHarness<br/>wraps EvalEnvironment"]
+        gymserve["nel serve<br/>(Gym protocol)"]
         ng["ng_collect_rollouts"]
         jsonl["dataset.jsonl"]
     end
@@ -45,7 +45,7 @@ flowchart TB
     loop --- local & gym_a & pi_a
 
     serve --> local
-    local --> harness --> jsonl --> ng
+    local --> gymserve --> jsonl --> ng
 ```
 
 ---
@@ -262,34 +262,27 @@ The agent receives the task prompt and produces a solution through multi-turn in
 
 ---
 
-## Pattern 5: Export GymHarness for ng_collect_rollouts
+## Pattern 5: Serve for ng_collect_rollouts
 
 **Who:** Training team that needs batch rollout collection using Gym's infrastructure.
 
-**What:** `GymHarness` wraps any `EvalEnvironment`, exports JSONL that `ng_collect_rollouts` consumes. Fills the empty `resources_servers/nemo_evaluator/` slot in nemo-gym.
+**What:** `nel serve` exposes any `EvalEnvironment` as a Gym-compatible HTTP server. Gym agents and `ng_collect_rollouts` consume it via standard `/seed_session` + `/verify` endpoints.
 
 ```bash
-# Export JSONL for batch rollout collection
-python -c "
-from nemo_evaluator.adapters.gym_harness import GymHarness
-from nemo_evaluator.environments.registry import get_environment
-
-harness = GymHarness(get_environment('gsm8k'))
-import asyncio; asyncio.run(harness.export_jsonl('/data/rollouts'))
-"
-# -> /data/rollouts/gsm8k.jsonl (1319 rows, ng_collect_rollouts-ready)
+# Serve gsm8k as a Gym-compatible resource server
+nel serve -b gsm8k --gym-compat --port 9090
+# Gym training nodes connect via: gym://localhost:9090
 ```
 
-```bash
-# Or run as a standalone Gym resource server
-python -c "
+```python
+# Or programmatically
 import uvicorn
-from nemo_evaluator.adapters.gym_harness import GymHarness
 from nemo_evaluator.environments.registry import get_environment
+from nemo_evaluator.environments.server import generate_app
 
-app = GymHarness(get_environment('gsm8k')).as_fastapi_app()
-uvicorn.run(app, port=9090)
-"
+env = get_environment("gsm8k")
+app = generate_app(env, gym_compat=True)
+uvicorn.run(app, host="0.0.0.0", port=9090)
 ```
 
 JSONL row format (matches `ng_collect_rollouts` input spec):
@@ -420,7 +413,7 @@ nel serve -b my_benchmark --gym-compat                 # serve for Gym
 
 ### Config-Driven SLURM
 
-SLURM evaluations are driven by a YAML config with an `executor: slurm` block:
+SLURM evaluations are driven by a YAML config with a `cluster: { type: slurm }` block:
 
 ```yaml
 # slurm_eval.yaml
@@ -432,13 +425,13 @@ benchmarks:
   - name: gsm8k
     repeats: 8
 
-executor:
+cluster:
   type: slurm
-  shards: 16
   partition: batch
   conda_env: gym
-  output_dir: ./eval_results/gsm8k_distributed
-  submit: true
+
+output:
+  dir: ./eval_results/gsm8k_distributed
 ```
 
 ```bash

@@ -44,7 +44,7 @@ nel eval report ./eval_results/ -f markdown -o report.md
 | SimpleQA | `nel eval run --bench simpleqa` | Factuality (judge) |
 | HealthBench | `nel eval run --bench healthbench` | Health (judge) |
 
-Plus: any lm-eval task (`lm-eval/aime25`), NeMo Skills benchmark (`skills://mmlu-pro`), MTEB embedding benchmark (`mteb://STSBenchmark`), legacy eval-factory container (`container://nvcr.io/image#task`), or remote Gym environment (`gym://host:port`).
+Plus: any lm-eval task (`lm-eval://aime25`), NeMo Skills benchmark (`skills://mmlu-pro`), MTEB embedding benchmark (`mteb://STSBenchmark`), legacy eval-factory container (`container://nvcr.io/image#task`), or remote Gym environment (`gym://host:port`). All external environments use the consistent `scheme://task` URI syntax.
 
 ## Write a Benchmark in 5 Minutes
 
@@ -73,7 +73,8 @@ That's it. Run with `nel eval run --bench my-bench`.
 | `answer_line(sample)` | Extract answer after "Answer:" line |
 | `numeric_match(sample)` | Last number in response |
 | `fuzzy_match(sample)` | Substring containment |
-| `code_sandbox(sample)` | Docker-sandboxed code execution |
+| `code_sandbox(sample)` | Docker-sandboxed code execution (sync) |
+| `code_sandbox_async(sample, sandbox)` | Sandbox-protocol code execution (async) |
 | `needs_judge(sample)` | Flag for LLM-as-judge post-processing |
 
 ### Extension Hooks
@@ -103,6 +104,7 @@ The eval loop is decoupled from inference. Plug in any solver:
 | `EmbeddingSolver` | Embedding models via `/v1/embeddings` |
 | `CrossEncoderSolver` | Reranking via `/v1/rerank` |
 | `AgentSolver` | External agent (OpenHands, SWE-agent, etc.) |
+| `SandboxedAgentSolver` | Agent in per-problem sandbox (SWE-bench) |
 
 Set `endpoint_type` in your benchmark config to select the solver automatically:
 
@@ -125,16 +127,45 @@ nel eval run suite.yaml
 nel eval run suite.yaml --resume
 ```
 
-## Executors
+## Per-Problem Sandboxes
 
-| Executor | What it does |
-|----------|-------------|
-| `local` | In-process eval, optional Docker model deployment (default) |
-| `docker` | Model server + eval in Docker containers |
-| `slurm` | SLURM sbatch with model server + eval jobs |
+For agent evaluations (SWE-bench, terminal-bench) and code execution (HumanEval), NEL provides per-problem isolated sandboxes:
 
-```bash
-nel eval run --bench mmlu --executor slurm --deploy nim --deploy-image nvcr.io/nim/llama3-8b
+```yaml
+benchmarks:
+  - name: gym://swebench-server
+    sandbox:
+      backend: docker                # docker | slurm | local
+      image_template: "swebench/sweb.eval.x86_64.{instance_id}:latest"
+      concurrency: 8
+      memory: 4g
+      network: bridge
+```
+
+Each problem gets its own container with per-task images. The sandbox stays alive through `seed → solve → verify` so agents can modify files and verification can run tests in the same environment. See [sandbox architecture](docs/architecture/sandbox.md) for details.
+
+## SLURM / Containers
+
+SLURM execution uses Pyxis/Enroot to run each benchmark in a pre-built container. Each URI scheme maps to a container variant:
+
+| Image | Contains |
+|-------|----------|
+| `nemo-evaluator:0.7.0` | Base: built-in benchmarks, gym, pi |
+| `nemo-evaluator:0.7.0-lm-eval` | + lm-evaluation-harness |
+| `nemo-evaluator:0.7.0-skills` | + NeMo Skills |
+| `nemo-evaluator:0.7.0-mteb` | + MTEB |
+| `nemo-evaluator:0.7.0-full` | All harnesses |
+
+The sbatch generator automatically selects the right container per benchmark. Two container modes are supported:
+
+- **Colocated** (default): orchestrator + environment in the same container
+- **Separated**: each environment runs as a `nel serve` Gym server; orchestrator in base image
+
+```yaml
+cluster:
+  type: slurm
+  env_mode: colocated              # or "separated" for full isolation
+  container_image: nvcr.io/nvidia/nemo-evaluator:0.7.0-full  # optional override
 ```
 
 ## Experiment Tracking
@@ -191,18 +222,33 @@ src/nemo_evaluator/
         types.py          ScorerInput dataclass
         text.py           exact_match, fuzzy_match
         pattern.py        multichoice_regex, answer_line, numeric_match
-        sandbox.py        code_sandbox (Docker execution)
+        sandbox.py        code_sandbox (sync) + code_sandbox_async (Sandbox protocol)
         judge.py          LLM-as-judge (needs_judge, judge_score)
         json_schema.py    JSON schema validation
     runner/
-        solver.py         Solver protocol (Chat, Completion, VLM, Embedding, Agent)
-        eval_loop.py      Async parallel eval with back-pressure
+        solver.py         Solver protocol (Chat, Completion, VLM, Embedding, Agent, SandboxedAgent)
+        eval_loop.py      Async parallel eval with back-pressure and sandbox lifecycle
         model_client.py   HTTP client with retry, cache, VLM, embeddings
-        deployment.py     Model server lifecycle (NIM, vLLM, Ray multi-node)
+        deployment.py     Model server lifecycle + DeployConfig
         checkpoint.py     Per-benchmark checkpoint tracking and resume
         regression.py     Run comparison with Mann-Whitney U p-values
         exporters/        WandB, MLflow export plugins
-    executors/            Local, Docker, SLURM orchestration
+    sandbox/
+        base.py           Sandbox protocol, SandboxSpec, ExecResult, OutsideEndpoint
+        docker.py         DockerSandbox (async, bridge network, per-task images)
+        slurm.py          SlurmSandbox (Pyxis/Enroot, multiplexed slots)
+        local.py          LocalSandbox (temp dir, no isolation)
+        manager.py        SandboxManager (concurrency, pre-pull, emergency cleanup)
+    executors/
+        __init__.py       Executor protocol, ProcessState, registry
+        local.py          LocalExecutor (in-process or background fork)
+        docker.py         DockerExecutor (container run/status/stop)
+        slurm.py          SlurmExecutor (sbatch generation + SSH submit)
+    eval/
+        config.py         EvalConfig Pydantic schema
+        local_runner.py   Local execution with service orchestration
+        slurm_gen.py      SLURM sbatch generation (colocated + separated)
+        containers.py     Container image resolution from containers.toml
     observability/        StepRecord, RuntimeStats, FailureReport
     metrics/              pass@k, bootstrap CI, aggregation
     cli/                  nel eval, serve, validate, list, config, package

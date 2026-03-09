@@ -43,8 +43,7 @@ def _make_solver(bench: BenchmarkConfig, client: Any, model_url: str,
 
 def _start_model_service(svc: ServiceConfig):
     """Start a model server process and return the deployment handle."""
-    from nemo_evaluator.executors.base import DeployConfig
-    from nemo_evaluator.runner.deployment import get_deployment
+    from nemo_evaluator.runner.deployment import DeployConfig, get_deployment
 
     deploy_cfg = DeployConfig(
         type=svc.type,
@@ -168,6 +167,33 @@ async def _run_single_benchmark(
 
     judge_client = _make_judge_client(config, bench.judge) if bench.judge else None
 
+    sandbox_mgr = None
+    if bench.sandbox and bench.sandbox.backend != "none":
+        from nemo_evaluator.sandbox.manager import SandboxManager
+
+        sb = bench.sandbox
+        backend_kwargs: dict[str, Any] = {}
+        if sb.backend == "docker":
+            backend_kwargs = {"network": sb.network, "memory": sb.memory, "cpus": sb.cpus}
+        elif sb.backend == "slurm":
+            backend_kwargs = {"shared_fs_root": None}
+
+        slurm_nodes: list[str] | None = None
+        if sb.backend == "slurm" and sb.sandbox_nodes > 0:
+            import os
+            raw = os.environ.get("NEL_SANDBOX_NODES", "")
+            slurm_nodes = raw.split(",") if raw else None
+
+        sandbox_mgr = SandboxManager(
+            backend=sb.backend,
+            concurrency=sb.concurrency,
+            default_image=sb.image,
+            image_template=sb.image_template,
+            slurm_nodes=slurm_nodes,
+            slots_per_node=sb.slots_per_node,
+            **backend_kwargs,
+        )
+
     bench_name = getattr(env, "name", bench.name)
     run_config = {
         "benchmark": bench_name,
@@ -185,6 +211,8 @@ async def _run_single_benchmark(
         config=run_config,
         progress=ConsoleProgress(),
         judge_client=judge_client,
+        sandbox_manager=sandbox_mgr,
+        model_url=model_url,
     )
 
     safe = _safe_name(bench_name)
@@ -248,24 +276,9 @@ def run_local(config: EvalConfig, *, resume: bool = False) -> list[dict[str, Any
     handles: dict[str, _ServiceHandle] = {}
     bundles: list[dict[str, Any]] = []
 
-    if config.is_simple and config.model.deploy:
-        from nemo_evaluator.eval.config import ServiceConfig
-        auto_svc = ServiceConfig(
-            type=config.model.deploy,
-            model=config.model.name or config.model.id,
-            port=config.model.port,
-            tensor_parallel_size=config.model.tensor_parallel_size,
-            pipeline_parallel_size=config.model.pipeline_parallel_size,
-            num_nodes=config.model.num_nodes,
-            extra_env=config.model.extra_env,
-            extra_args=list(config.model.extra_args),
-        )
-        handles["default"] = _ServiceHandle("default", auto_svc)
-
-    if config.services:
-        for name, svc in config.services.items():
-            if svc.is_managed:
-                handles[name] = _ServiceHandle(name, svc)
+    for name, svc in config.resolved_services().items():
+        if svc.is_managed:
+            handles[name] = _ServiceHandle(name, svc)
 
     try:
         for name, handle in handles.items():

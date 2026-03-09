@@ -23,7 +23,7 @@ Build your own benchmark, integrate with Gym, and more.
 :link: architecture/index
 :link-type: doc
 
-How the system works: environments, solvers, executors, and observability.
+How the system works: environments, solvers, execution modes, and observability.
 :::
 
 :::{grid-item-card} Deployment

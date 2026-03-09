@@ -1,81 +1,135 @@
-"""DockerExecutor: runs model server + eval container in Docker."""
+"""Docker executor: run evaluation inside a container."""
 from __future__ import annotations
 
 import json
 import logging
 import os
+import shlex
 import subprocess
-from typing import Any
+from pathlib import Path
 
-
-from nemo_evaluator.executors.base import RunConfig
+from nemo_evaluator.executors import ProcessState
 
 logger = logging.getLogger(__name__)
 
-_HEALTH_POLL_INTERVAL = 5.0
+_META_FILE = "docker.json"
 
 
 class DockerExecutor:
-    """Orchestrates Docker containers: model server + eval runner."""
+    name = "docker"
 
-    async def execute(self, config: RunConfig) -> dict[str, Any]:
-        from nemo_evaluator.runner.deployment import get_deployment
+    def run(self, config, *, dry_run=False, resume=False,
+            background=False, submit=False) -> None:
+        import click
 
-        deployment = None
-        server_container = None
+        from nemo_evaluator.eval.containers import resolve_eval_image
 
+        image = config.cluster.container_image
+        if not image:
+            if config.benchmarks:
+                image = resolve_eval_image(config.benchmarks[0].name)
+            if not image:
+                image = resolve_eval_image("__base__") or "nemo-evaluator:latest"
+
+        output_dir = str(Path(config.output.dir).resolve())
+
+        mount_args = ["-v", f"{output_dir}:{output_dir}"]
+        for m in config.cluster.container_mounts:
+            mount_args.extend(["-v", m])
+        if config.cluster.mount_home:
+            home = os.environ.get("HOME", "")
+            if home:
+                mount_args.extend(["-v", f"{home}:{home}"])
+
+        env_args: list[str] = []
+        for k, v in config.cluster.container_env.items():
+            env_args.extend(["-e", f"{k}={v}"])
+        for key in ("NEMO_API_KEY", "NEMO_MODEL_URL", "NEMO_MODEL_ID"):
+            val = os.environ.get(key)
+            if val:
+                env_args.extend(["-e", f"{key}={val}"])
+
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        cfg_path = Path(output_dir) / "_docker_config.json"
+        cfg_path.write_text(
+            json.dumps(config.model_dump(), default=str), encoding="utf-8",
+        )
+
+        cmd = [
+            "docker", "run", "-d",
+            "--name", f"nel-eval-{os.getpid()}",
+            *mount_args,
+            *env_args,
+            image,
+            "nel", "eval", "run", str(cfg_path),
+        ]
+
+        if dry_run:
+            click.echo(f"Docker command:\n  {shlex.join(cmd)}")
+            return
+
+        click.echo(f"Running in Docker: {image}")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise click.ClickException(f"docker run failed: {result.stderr.strip()}")
+
+        container_id = result.stdout.strip()
+        meta_path = Path(output_dir) / _META_FILE
+        meta_path.write_text(
+            json.dumps({"container_id": container_id, "image": image}),
+            encoding="utf-8",
+        )
+        click.echo(f"Container started: {container_id[:12]}")
+        click.echo(f"Check status: nel eval status -o {output_dir}")
+        click.echo(f"Stop:         nel eval stop -o {output_dir}")
+        click.echo(f"Logs:         docker logs -f {container_id[:12]}")
+
+    def status(self, output_dir: str | Path) -> ProcessState:
+        meta = _read_meta(output_dir)
+        if meta is None:
+            return ProcessState("docker", False, {"error": f"No {_META_FILE} found"})
+
+        container_id = meta.get("container_id", "")
         try:
-            # Step 1: Deploy model server
-            if config.deploy and config.deploy.type != "api":
-                deployment = get_deployment(config.deploy)
-                model_url = deployment.start()
-                model_id = config.deploy.model or config.model_id
-                server_container = getattr(deployment, "_container_name", None)
-            else:
-                model_url = config.model_url
-                model_id = config.model_id
-
-            if not model_url or not model_id:
-                raise ValueError("DockerExecutor requires model deployment or --model-url")
-
-            # Step 2: Run eval in a container sharing the server's network
-            eval_image = os.environ.get("NEL_EVAL_IMAGE", "nemo-evaluator:latest")
-            nel_cmd = (
-                f"nel eval run --bench {config.env} "
-                f"--model-url {model_url} --model-id {model_id} "
-                f"--repeats {config.repeats} "
-                f"-o /results"
+            result = subprocess.run(
+                ["docker", "inspect", "-f", "{{.State.Status}}", container_id],
+                capture_output=True, text=True, timeout=10,
             )
-            if config.api_key:
-                nel_cmd += f" --api-key {config.api_key}"
-            if config.max_problems:
-                nel_cmd += f" --max-problems {config.max_problems}"
+            st = result.stdout.strip()
+            return ProcessState("docker", st == "running",
+                                {"container_id": container_id, "status": st})
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            return ProcessState("docker", False,
+                                {"container_id": container_id, "error": str(e)})
 
-            docker_args = ["docker", "run", "--rm", "-v", f"{os.path.abspath(config.output_dir)}:/results"]
-            if server_container:
-                docker_args += ["--network", f"container:{server_container}"]
-            docker_args += [eval_image, "bash", "-c", nel_cmd]
+    def stop(self, output_dir: str | Path) -> bool:
+        meta = _read_meta(output_dir)
+        if meta is None:
+            logger.warning("No %s found in %s", _META_FILE, output_dir)
+            return False
 
-            logger.info("Running eval container: %s", " ".join(docker_args))
-            result = subprocess.run(docker_args, capture_output=True, text=True, timeout=7200)
-
-            if result.returncode != 0:
-                logger.error("Eval container failed: %s", result.stderr[-2000:])
-                raise RuntimeError(f"Eval container exited {result.returncode}")
-
-            # Step 3: Load results
-            bundle_files = list(
-                p for p in (
-                    os.path.join(config.output_dir, f)
-                    for f in os.listdir(config.output_dir)
-                )
-                if p.endswith(".json") and "eval-" in os.path.basename(p)
+        container_id = meta.get("container_id", "")
+        try:
+            subprocess.run(
+                ["docker", "stop", container_id],
+                capture_output=True, timeout=30,
             )
-            if bundle_files:
-                with open(bundle_files[0]) as f:
-                    return json.load(f)
-            return {"status": "completed", "output_dir": config.output_dir}
+            logger.info("Stopped Docker container %s", container_id)
+            return True
+        except Exception as e:
+            logger.error("Failed to stop container %s: %s", container_id, e)
+            return False
 
-        finally:
-            if deployment:
-                deployment.stop()
+    @staticmethod
+    def detect(output_dir: str | Path) -> bool:
+        return (Path(output_dir) / _META_FILE).exists()
+
+
+def _read_meta(output_dir: str | Path) -> dict | None:
+    p = Path(output_dir) / _META_FILE
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
