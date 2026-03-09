@@ -36,6 +36,7 @@ from nemo_evaluator_launcher.common.env_vars import (
     collect_deployment_env_vars,
     collect_eval_env_vars,
     collect_judge_deployment_env_vars,
+    collect_user_deployment_env_vars,
     generate_secrets_env,
     redact_secrets_env_content,
 )
@@ -657,8 +658,20 @@ def _create_slurm_sbatch_script(
         cfg.get("judge_deployment") is not None
         and cfg.judge_deployment.get("type", "none") != "none"
     )
-    judge_num_nodes = cfg.judge_deployment.get("num_nodes", 1) if has_judge_deployment else 0
-    total_num_nodes = cfg.execution.num_nodes + judge_num_nodes
+    judge_num_nodes = (
+        cfg.judge_deployment.get("num_nodes", 1) if has_judge_deployment else 0
+    )
+
+    # Determine if user deployment is active
+    has_user_deployment = (
+        cfg.get("user_deployment") is not None
+        and cfg.user_deployment.get("type", "none") != "none"
+    )
+    user_num_nodes = (
+        cfg.user_deployment.get("num_nodes", 1) if has_user_deployment else 0
+    )
+
+    total_num_nodes = cfg.execution.num_nodes + judge_num_nodes + user_num_nodes
 
     s = "#!/bin/bash\n"
 
@@ -691,7 +704,12 @@ def _create_slurm_sbatch_script(
     api_key_name = get_api_key_name(cfg)
     eval_env_vars = collect_eval_env_vars(cfg, task, api_key_name)
     deployment_env_vars = collect_deployment_env_vars(cfg)
-    judge_deployment_env_vars = collect_judge_deployment_env_vars(cfg) if has_judge_deployment else {}
+    judge_deployment_env_vars = (
+        collect_judge_deployment_env_vars(cfg) if has_judge_deployment else {}
+    )
+    user_deployment_env_vars = (
+        collect_user_deployment_env_vars(cfg) if has_user_deployment else {}
+    )
 
     # Merge all into groups for secrets file generation
     env_groups = {}
@@ -704,6 +722,9 @@ def _create_slurm_sbatch_script(
     # Judge deployment vars (merged: top-level → judge_deployment.env_vars)
     if judge_deployment_env_vars:
         env_groups["judge_deployment"] = judge_deployment_env_vars
+    # User deployment vars (merged: top-level → user_deployment.env_vars)
+    if user_deployment_env_vars:
+        env_groups["user_deployment"] = user_deployment_env_vars
 
     secrets_result = None
     eval_reexport_cmd = ""
@@ -720,7 +741,16 @@ def _create_slurm_sbatch_script(
 
         eval_reexport_cmd = build_reexport_commands(task.name, secrets_result)
         deploy_reexport_cmd = build_reexport_commands("deployment", secrets_result)
-        judge_deploy_reexport_cmd = build_reexport_commands("judge_deployment", secrets_result) if has_judge_deployment else ""
+        judge_deploy_reexport_cmd = (
+            build_reexport_commands("judge_deployment", secrets_result)
+            if has_judge_deployment
+            else ""
+        )
+        user_deploy_reexport_cmd = (
+            build_reexport_commands("user_deployment", secrets_result)
+            if has_user_deployment
+            else ""
+        )
 
     # auto resume after timeout (with optional max_walltime enforcement)
     max_walltime = cfg.execution.get("max_walltime", "120:00:00")
@@ -739,8 +769,8 @@ def _create_slurm_sbatch_script(
     s += "set -x  # print commands and their arguments as they are executed\n"
     s += "\n"
 
-    if has_judge_deployment:
-        # Resolve all allocated nodes and split between model and judge deployments
+    if has_judge_deployment or has_user_deployment:
+        # Resolve all allocated nodes and split between model, judge, and user deployments
         s += "# Resolve all allocated nodes\n"
         s += 'NODELIST="${SLURM_JOB_NODELIST:-${SLURM_NODELIST:-}}"\n'
         s += 'if command -v scontrol >/dev/null 2>&1 && [[ -n "${NODELIST}" ]]; then\n'
@@ -748,25 +778,37 @@ def _create_slurm_sbatch_script(
         s += "else\n"
         s += '  ALL_NODES=( "$(hostname)" )\n'
         s += "fi\n"
-        s += 'if [[ ${#ALL_NODES[@]} -eq 0 ]]; then\n'
+        s += "if [[ ${#ALL_NODES[@]} -eq 0 ]]; then\n"
         s += '  ALL_NODES=( "$(hostname)" )\n'
         s += "fi\n"
         s += 'echo "ALL_NODES (${#ALL_NODES[@]}): ${ALL_NODES[*]}"\n'
         s += "\n"
-        # Split nodes: first num_nodes for model deployment, remaining for judge
-        s += "# Split nodes between model deployment and judge deployment\n"
+        # Split nodes: model first, then judge, then user
+        s += "# Split nodes between model deployment, judge deployment, and user deployment\n"
         s += f"MODEL_NUM_NODES={cfg.execution.num_nodes}\n"
         s += f"JUDGE_NUM_NODES={judge_num_nodes}\n"
+        s += f"USER_NUM_NODES={user_num_nodes}\n"
         s += 'MODEL_NODES=("${ALL_NODES[@]:0:$MODEL_NUM_NODES}")\n'
         s += 'JUDGE_NODES=("${ALL_NODES[@]:$MODEL_NUM_NODES:$JUDGE_NUM_NODES}")\n'
+        s += 'USER_NODES=("${ALL_NODES[@]:$((MODEL_NUM_NODES+JUDGE_NUM_NODES)):$USER_NUM_NODES}")\n'
         s += 'MODEL_NODELIST=$(IFS=,; echo "${MODEL_NODES[*]}")\n'
         s += 'JUDGE_NODELIST=$(IFS=,; echo "${JUDGE_NODES[*]}")\n'
+        s += 'USER_NODELIST=$(IFS=,; echo "${USER_NODES[*]}")\n'
         s += 'export PRIMARY_NODE="${MODEL_NODES[0]}"\n'
-        s += 'export JUDGE_PRIMARY_NODE="${JUDGE_NODES[0]}"\n'
+        if has_judge_deployment:
+            s += 'export JUDGE_PRIMARY_NODE="${JUDGE_NODES[0]}"\n'
+        if has_user_deployment:
+            s += 'export USER_PRIMARY_NODE="${USER_NODES[0]}"\n'
         s += 'echo "MODEL_NODES ($MODEL_NUM_NODES): ${MODEL_NODES[*]}"\n'
-        s += 'echo "JUDGE_NODES ($JUDGE_NUM_NODES): ${JUDGE_NODES[*]}"\n'
+        if has_judge_deployment:
+            s += 'echo "JUDGE_NODES ($JUDGE_NUM_NODES): ${JUDGE_NODES[*]}"\n'
+        if has_user_deployment:
+            s += 'echo "USER_NODES ($USER_NUM_NODES): ${USER_NODES[*]}"\n'
         s += 'echo "PRIMARY_NODE: ${PRIMARY_NODE}"\n'
-        s += 'echo "JUDGE_PRIMARY_NODE: ${JUDGE_PRIMARY_NODE}"\n'
+        if has_judge_deployment:
+            s += 'echo "JUDGE_PRIMARY_NODE: ${JUDGE_PRIMARY_NODE}"\n'
+        if has_user_deployment:
+            s += 'echo "USER_PRIMARY_NODE: ${USER_PRIMARY_NODE}"\n'
     else:
         # Resolve a primary node for single-node sruns (client/proxy/export).
         # This must be safe under `set -u` and work for deployment.type == "none".
@@ -811,7 +853,9 @@ def _create_slurm_sbatch_script(
                 deployment_mounts_list,
                 remote_task_subdir,
                 deployment_env_var_names=list(deployment_env_vars.keys()),
-                nodelist_var="MODEL_NODES" if has_judge_deployment else None,
+                nodelist_var="MODEL_NODES"
+                if (has_judge_deployment or has_user_deployment)
+                else None,
             )
         )
         s += deployment_srun_cmd
@@ -838,10 +882,13 @@ def _create_slurm_sbatch_script(
 
     # --- Judge deployment (if configured) ---
     judge_deployment_is_unsafe = False
+    user_deployment_is_unsafe = False
     if has_judge_deployment:
         judge_deployment_mounts_list = []
         if judge_checkpoint_path := cfg.judge_deployment.get("checkpoint_path"):
-            judge_deployment_mounts_list.append(f"{judge_checkpoint_path}:/checkpoint:ro")
+            judge_deployment_mounts_list.append(
+                f"{judge_checkpoint_path}:/checkpoint:ro"
+            )
         if judge_cache_path := cfg.judge_deployment.get("cache_path"):
             judge_deployment_mounts_list.append(f"{judge_cache_path}:/cache")
         for source_mnt, target_mnt in (
@@ -873,6 +920,45 @@ def _create_slurm_sbatch_script(
             "judge server",
             check_pid=True,
             pid_var="JUDGE_SERVER_PID",
+        )
+        s += "\n\n"
+
+    # --- User deployment (if configured) ---
+    if has_user_deployment:
+        user_deployment_mounts_list = []
+        if user_checkpoint_path := cfg.user_deployment.get("checkpoint_path"):
+            user_deployment_mounts_list.append(f"{user_checkpoint_path}:/checkpoint:ro")
+        if user_cache_path := cfg.user_deployment.get("cache_path"):
+            user_deployment_mounts_list.append(f"{user_cache_path}:/cache")
+        for source_mnt, target_mnt in (
+            cfg.execution.get("mounts", {}).get("user_deployment", {}).items()
+        ):
+            user_deployment_mounts_list.append(f"{source_mnt}:{target_mnt}")
+
+        # Re-export user deployment vars right before user deployment srun
+        if user_deploy_reexport_cmd:
+            s += f"{user_deploy_reexport_cmd}\n"
+
+        # Add user deployment srun command
+        user_srun_cmd, user_deployment_is_unsafe, user_debug = (
+            _generate_user_deployment_srun_command(
+                cfg,
+                user_deployment_mounts_list,
+                remote_task_subdir,
+                user_deployment_env_var_names=list(user_deployment_env_vars.keys()),
+            )
+        )
+        s += user_srun_cmd
+
+        # Wait for user server to initialize
+        user_health_path = cfg.user_deployment.endpoints.get("health", "/health")
+        s += _get_wait_for_server_handler(
+            '"${USER_PRIMARY_NODE}"',
+            cfg.user_deployment.port,
+            user_health_path,
+            "user server",
+            check_pid=True,
+            pid_var="USER_SERVER_PID",
         )
         s += "\n\n"
 
@@ -918,10 +1004,12 @@ def _create_slurm_sbatch_script(
     if eval_reexport_cmd:
         s += f"{eval_reexport_cmd}\n"
 
-    # Export judge endpoint information for evaluation containers
+    # Export judge and user endpoint information for evaluation containers
     judge_extra_env_names = []
     if has_judge_deployment:
-        judge_chat_endpoint = cfg.judge_deployment.endpoints.get("chat", "/v1/chat/completions")
+        judge_chat_endpoint = cfg.judge_deployment.endpoints.get(
+            "chat", "/v1/chat/completions"
+        )
         s += "# Judge endpoint for evaluation tasks\n"
         s += f'export JUDGE_ENDPOINT_URL="http://${{JUDGE_PRIMARY_NODE}}:{cfg.judge_deployment.port}{judge_chat_endpoint}"\n'
         s += f'export JUDGE_MODEL_ID="{cfg.judge_deployment.served_model_name}"\n'
@@ -930,12 +1018,27 @@ def _create_slurm_sbatch_script(
         s += "\n"
         judge_extra_env_names = ["JUDGE_ENDPOINT_URL", "JUDGE_MODEL_ID"]
 
+    user_extra_env_names = []
+    if has_user_deployment:
+        user_chat_endpoint = cfg.user_deployment.endpoints.get(
+            "chat", "/v1/chat/completions"
+        )
+        s += "# User endpoint for evaluation tasks\n"
+        s += f'export USER_ENDPOINT_URL="http://${{USER_PRIMARY_NODE}}:{cfg.user_deployment.port}{user_chat_endpoint}"\n'
+        s += f'export USER_MODEL_ID="{cfg.user_deployment.served_model_name}"\n'
+        s += 'echo "USER_ENDPOINT_URL: ${USER_ENDPOINT_URL}"\n'
+        s += 'echo "USER_MODEL_ID: ${USER_MODEL_ID}"\n'
+        s += "\n"
+        user_extra_env_names = ["USER_ENDPOINT_URL", "USER_MODEL_ID"]
+
     s += "# evaluation client\n"
     s += "srun --mpi pmix --overlap "
     s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
     s += "--container-image {} ".format(eval_image)
-    # Combine eval env vars with judge endpoint env vars
-    all_eval_env_names = sorted(set(list(eval_env_vars.keys()) + judge_extra_env_names))
+    # Combine eval env vars with judge and user endpoint env vars
+    all_eval_env_names = sorted(
+        set(list(eval_env_vars.keys()) + judge_extra_env_names + user_extra_env_names)
+    )
     if all_eval_env_names:
         s += "--container-env {} ".format(",".join(all_eval_env_names))
     if not cfg.execution.get("mounts", {}).get("mount_home", True):
@@ -959,6 +1062,11 @@ def _create_slurm_sbatch_script(
         s += "kill $JUDGE_SERVER_PID  # terminate the judge server to finish gracefully\n"
         s += "\n"
 
+    # terminate the user server if deployed
+    if has_user_deployment:
+        s += "kill $USER_SERVER_PID  # terminate the user server to finish gracefully\n"
+        s += "\n"
+
     # auto-export
     ae_cfg = cfg.execution.get("auto_export")
     destinations: list = []
@@ -975,11 +1083,12 @@ def _create_slurm_sbatch_script(
 
     debug_str = "\n".join(["# " + line for line in s.splitlines()])
 
-    # Combine unsafe flags from deployment, judge deployment, and evaluation
+    # Combine unsafe flags from deployment, judge deployment, user deployment, and evaluation
     is_potentially_unsafe = (
         eval_factory_command_struct.is_potentially_unsafe
         or deployment_is_unsafe
         or judge_deployment_is_unsafe
+        or user_deployment_is_unsafe
     )
 
     return CmdAndReadableComment(
@@ -1838,7 +1947,7 @@ def _generate_deployment_srun_command(
 
     s += "srun --mpi pmix --overlap "
     if nodelist_var:
-        s += f'--nodelist "${{MODEL_NODELIST}}" '
+        s += '--nodelist "${MODEL_NODELIST}" '
     s += f"--nodes {cfg.execution.num_nodes} --ntasks {cfg.execution.get('deployment', {}).get('n_tasks', 1)} "
     s += "--container-image {} ".format(cfg.deployment.image)
     if deployment_mounts_list:
@@ -1928,7 +2037,7 @@ def _generate_judge_deployment_srun_command(
 
     n_tasks = cfg.execution.get("judge_deployment", {}).get("n_tasks", 1)
     s += "srun --mpi pmix --overlap "
-    s += f'--nodelist "${{JUDGE_NODELIST}}" '
+    s += '--nodelist "${JUDGE_NODELIST}" '
     s += f"--nodes {judge_num_nodes} --ntasks {n_tasks} "
     s += "--container-image {} ".format(cfg.judge_deployment.image)
     if judge_deployment_mounts_list:
@@ -1967,6 +2076,91 @@ def _generate_judge_deployment_srun_command(
     return s, is_potentially_unsafe, debug_comment
 
 
+def _generate_user_deployment_srun_command(
+    cfg,
+    user_deployment_mounts_list,
+    remote_task_subdir,
+    user_deployment_env_var_names: list[str] | None = None,
+):
+    """Generate the user deployment srun command.
+
+    The user simulator runs on dedicated nodes (USER_NODES / USER_NODELIST) which are
+    separate from the model and judge deployment nodes in the same SLURM allocation.
+
+    Returns:
+        tuple: (script_string, is_potentially_unsafe, debug_comment)
+    """
+    s = ""
+    debug_comment = ""
+    is_potentially_unsafe = False
+
+    user_num_nodes = cfg.user_deployment.get("num_nodes", 1)
+
+    s += "# user deployment server\n"
+
+    # Extract pre_cmd for later use inside container
+    pre_cmd: str = cfg.user_deployment.get("pre_cmd") or ""
+    if pre_cmd:
+        is_potentially_unsafe = True
+        create_pre_script_cmd = _str_to_echo_command(
+            pre_cmd, filename="user_deployment_pre_cmd.sh"
+        )
+        debug_comment += create_pre_script_cmd.debug + "\n\n"
+
+    # Resolve user node IPs
+    s += "# Get user deployment node IPs\n"
+    s += 'export USER_NODES_IPS_ARRAY=($(for node in "${USER_NODES[@]}"; do srun --nodelist="$node" --ntasks=1 --nodes=1 hostname --ip-address; done))\n'
+    s += 'echo "User Node IPs: ${USER_NODES_IPS_ARRAY[@]}"\n'
+    s += "export USER_MASTER_IP=${USER_NODES_IPS_ARRAY[0]}\n"
+    s += 'echo "USER_MASTER_IP: $USER_MASTER_IP"\n'
+
+    # Add debug comment for user deployment pre_cmd before srun command
+    if debug_comment:
+        s += "# Debug contents of user deployment pre_cmd\n"
+        s += debug_comment
+        s += "\n"
+
+    n_tasks = cfg.execution.get("user_deployment", {}).get("n_tasks", 1)
+    s += "srun --mpi pmix --overlap "
+    s += '--nodelist "${USER_NODELIST}" '
+    s += f"--nodes {user_num_nodes} --ntasks {n_tasks} "
+    s += "--container-image {} ".format(cfg.user_deployment.image)
+    if user_deployment_mounts_list:
+        s += "--container-mounts {} ".format(",".join(user_deployment_mounts_list))
+    if not cfg.execution.get("mounts", {}).get("mount_home", True):
+        s += "--no-container-mount-home "
+    s += "--output {} ".format(remote_task_subdir / "logs" / "user-server-%A-%t.log")
+
+    if user_deployment_env_var_names is None:
+        user_deployment_env_var_names = []
+
+    # Always add USER_MASTER_IP to the environment variables
+    if "USER_MASTER_IP" not in user_deployment_env_var_names:
+        user_deployment_env_var_names.append("USER_MASTER_IP")
+
+    if user_deployment_env_var_names:
+        s += f"--container-env {','.join(sorted(user_deployment_env_var_names))} "
+
+    # Wrap user deployment command to execute pre_cmd inside container if needed
+    if pre_cmd:
+        create_pre_script_cmd = _str_to_echo_command(
+            pre_cmd, filename="user_deployment_pre_cmd.sh"
+        )
+        escaped_cmd = cfg.user_deployment.command.replace("'", "'\"'\"'")
+        wrapped_command = (
+            f"bash -c '{create_pre_script_cmd.cmd} && "
+            f"source user_deployment_pre_cmd.sh && "
+            f"{escaped_cmd}'"
+        )
+        s += "{} &\n\n".format(wrapped_command)
+    else:
+        s += "{} &\n\n".format(cfg.user_deployment.command)
+
+    s += "USER_SERVER_PID=$!  # capture the PID of the user server background srun process\n\n"
+
+    return s, is_potentially_unsafe, debug_comment
+
+
 def _get_wait_for_server_handler(
     ip_list: str,
     port: int,
@@ -1978,7 +2172,15 @@ def _get_wait_for_server_handler(
     """Generate wait for server handler that takes a list of IPs."""
     pid_check = ""
     if check_pid:
-        pid_check = 'kill -0 "$' + pid_var + '" 2>/dev/null || { echo "' + service_name + ' process $' + pid_var + ' died"; exit 1; }'
+        pid_check = (
+            'kill -0 "$'
+            + pid_var
+            + '" 2>/dev/null || { echo "'
+            + service_name
+            + " process $"
+            + pid_var
+            + ' died"; exit 1; }'
+        )
 
     handler = f"""date
 # wait for the {service_name} to initialize
@@ -2063,12 +2265,17 @@ def _collect_mount_paths(cfg: DictConfig) -> List[str]:
             mount_paths.append(source_mnt)
 
     # Judge deployment mounts
-    if cfg.get("judge_deployment") and cfg.judge_deployment.get("type", "none") != "none":
+    if (
+        cfg.get("judge_deployment")
+        and cfg.judge_deployment.get("type", "none") != "none"
+    ):
         if checkpoint_path := cfg.judge_deployment.get("checkpoint_path"):
             mount_paths.append(checkpoint_path)
         if cache_path := cfg.judge_deployment.get("cache_path"):
             mount_paths.append(cache_path)
-        for source_mnt in cfg.execution.get("mounts", {}).get("judge_deployment", {}).keys():
+        for source_mnt in (
+            cfg.execution.get("mounts", {}).get("judge_deployment", {}).keys()
+        ):
             mount_paths.append(source_mnt)
 
     # Evaluation mounts
