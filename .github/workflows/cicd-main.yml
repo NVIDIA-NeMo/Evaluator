@@ -345,3 +345,37 @@ jobs:
           path: |
             .coverage
           include-hidden-files: true
+
+  Sonar:
+    runs-on: ubuntu-latest
+    needs: [Nemo_CICD_Test, pre-flight]
+    if: |
+      (
+        (needs.pre-flight.outputs.is_ci_workload == 'true' && !failure())
+        || success()
+      )
+      && !cancelled()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Generate coverage XML for SonarQube
+        run: |
+          pip install coverage
+          coverage combine --rcfile .github/config/.coveragerc || true
+          coverage xml --rcfile .github/config/.coveragerc -o coverage.xml || true
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
