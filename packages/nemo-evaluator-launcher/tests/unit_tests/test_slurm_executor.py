@@ -2685,8 +2685,12 @@ class TestJudgeDeploymentFeature:
                 "account": "test-account",
                 "partition": "batch",
                 "num_nodes": 2,
+                "num_instances": 1,
                 "ntasks_per_node": 1,
                 "subproject": "test-subproject",
+                "deployment": {
+                    "n_tasks": 1,
+                },
                 "judge_deployment": {
                     "n_tasks": 1,
                 },
@@ -2728,8 +2732,12 @@ class TestJudgeDeploymentFeature:
                 "account": "test-account",
                 "partition": "batch",
                 "num_nodes": 1,
+                "num_instances": 1,
                 "ntasks_per_node": 1,
                 "subproject": "test-subproject",
+                "deployment": {
+                    "n_tasks": 1,
+                },
             },
             "evaluation": {"env_vars": {}},
             "target": {"api_endpoint": {"url": "http://localhost:8000/v1"}},
@@ -2933,8 +2941,8 @@ class TestJudgeDeploymentFeature:
             job_id="test123.0",
         ).cmd
 
-        # Model deployment should use MODEL_NODELIST
-        assert '--nodelist "${MODEL_NODELIST}"' in script
+        # Model deployment should restrict to MODEL_NODES when judge is present
+        assert 'DEPLOY_NODES_ARRAY=("${MODEL_NODES[@]}")' in script
 
     def test_no_judge_deployment_type_none(
         self, base_config_no_judge, mock_task, mock_dependencies
@@ -2976,8 +2984,12 @@ class TestJudgeDeploymentFeature:
                 "account": "test-account",
                 "partition": "batch",
                 "num_nodes": 1,
+                "num_instances": 1,
                 "ntasks_per_node": 1,
                 "subproject": "test-subproject",
+                "deployment": {
+                    "n_tasks": 1,
+                },
             },
             "evaluation": {"env_vars": {}},
             "target": {"api_endpoint": {"url": "http://localhost:8000/v1"}},
