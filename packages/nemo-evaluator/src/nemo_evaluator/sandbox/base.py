@@ -39,16 +39,13 @@ class ExecResult:
 
 @dataclass
 class OutsideEndpoint:
-    """An external service endpoint that sandbox processes need to reach.
-
-    Attributes:
-        url:     Orchestrator-side URL of the service (e.g. "http://localhost:3825").
-        env_var: Name of the environment variable to inject into sandbox processes
-                 carrying the resolved (possibly remapped) URL.
-    """
+    """An external service endpoint that sandbox processes need to reach."""
 
     url: str
+    """Orchestrator-side URL of the service (e.g. ``"http://localhost:3825"``)."""
+
     env_var: str
+    """Environment variable to inject into sandbox processes with the resolved URL."""
 
 
 class Sandbox(Protocol):
