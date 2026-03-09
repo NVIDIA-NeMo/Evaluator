@@ -111,11 +111,6 @@ def _validate_nemo_evaluator_config_params(cfg: Any) -> None:
     Uses real packaged IRs — no network calls required.
     """
 
-    from nemo_evaluator_launcher.common.logging_utils import logger
-    from nemo_evaluator_launcher.common.mapping import (
-        load_tasks_mapping,
-    )
-
     eval_cfg = cfg.get("evaluation") if OmegaConf.is_dict(cfg) else None
     if not eval_cfg or not OmegaConf.is_dict(eval_cfg):
         return
