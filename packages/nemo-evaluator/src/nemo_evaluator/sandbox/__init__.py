@@ -13,11 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_evaluator.sandbox.base import ExecResult, Sandbox
+from nemo_evaluator.sandbox.base import ExecResult, OutsideEndpoint, Sandbox
 from nemo_evaluator.sandbox.ecs_fargate import (
     EcsFargateConfig,
     EcsFargateSandbox,
-    EnvVarSpec,
     ExecClient,
     ImageBuilder,
     SshSidecarConfig,
@@ -26,10 +25,10 @@ from nemo_evaluator.sandbox.ecs_fargate import (
 
 __all__ = [
     "ExecResult",
+    "OutsideEndpoint",
     "Sandbox",
     "EcsFargateConfig",
     "EcsFargateSandbox",
-    "EnvVarSpec",
     "ExecClient",
     "ImageBuilder",
     "SshSidecarConfig",

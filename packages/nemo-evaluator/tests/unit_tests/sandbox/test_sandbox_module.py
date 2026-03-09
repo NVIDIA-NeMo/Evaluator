@@ -112,3 +112,49 @@ def test_retryable_message_matching_is_case_insensitive():
     assert _is_retryable_error(FakeError("CAPACITY IS UNAVAILABLE RIGHT NOW"))
     assert _is_retryable_error(FakeError("rate exceeded"))
     assert not _is_retryable_error(FakeError("completely unrelated error"))
+
+
+def test_resolve_outside_endpoint_remaps_to_tunnel_port():
+    """resolve_outside_endpoint() replaces host:port with 127.0.0.1:<tunnel-port>."""
+    from nemo_evaluator.sandbox.ecs_fargate import EcsFargateSandbox
+
+    sandbox = EcsFargateSandbox.__new__(EcsFargateSandbox)
+    sandbox._ssh_tunnel_port = 54321
+    assert (
+        sandbox.resolve_outside_endpoint("http://localhost:3825")
+        == "http://127.0.0.1:54321"
+    )
+
+
+def test_resolve_outside_endpoint_raises_before_start():
+    """resolve_outside_endpoint() raises RuntimeError when tunnel port is not set."""
+    from nemo_evaluator.sandbox.ecs_fargate import EcsFargateSandbox
+
+    sandbox = EcsFargateSandbox.__new__(EcsFargateSandbox)
+    sandbox._ssh_tunnel_port = None
+    with pytest.raises(RuntimeError, match="resolve_outside_endpoint"):
+        sandbox.resolve_outside_endpoint("http://localhost:3825")
+
+
+def test_resolve_tunnel_target_uses_outside_endpoints():
+    """_resolve_tunnel_target() extracts host and port from OutsideEndpoint."""
+    from nemo_evaluator.sandbox.base import OutsideEndpoint
+    from nemo_evaluator.sandbox.ecs_fargate import EcsFargateSandbox
+
+    sandbox = EcsFargateSandbox.__new__(EcsFargateSandbox)
+    sandbox._outside_endpoints = [
+        OutsideEndpoint(url="http://myhost.internal:8080", env_var="MODEL_BASE_URL")
+    ]
+    host, port = sandbox._resolve_tunnel_target()
+    assert host == "myhost.internal"
+    assert port == 8080
+
+
+def test_resolve_tunnel_target_raises_without_endpoints():
+    """_resolve_tunnel_target() raises ValueError when no endpoints configured."""
+    from nemo_evaluator.sandbox.ecs_fargate import EcsFargateSandbox
+
+    sandbox = EcsFargateSandbox.__new__(EcsFargateSandbox)
+    sandbox._outside_endpoints = []
+    with pytest.raises(ValueError, match="OutsideEndpoint"):
+        sandbox._resolve_tunnel_target()

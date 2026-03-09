@@ -50,11 +50,11 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping, TypeVar
-from urllib.parse import urlparse
+from urllib.parse import ParseResult, urlparse
 
 import structlog
 
-from nemo_evaluator.sandbox.base import ExecResult
+from nemo_evaluator.sandbox.base import ExecResult, OutsideEndpoint
 
 log = structlog.get_logger(__name__)
 T = TypeVar("T")
@@ -119,10 +119,11 @@ class SshSidecarConfig:
       to it.  ``exec()``, ``upload()``, ``download()`` all work.
 
     * **Agent-server mode** (``exec_server_port`` is ``None``):
-      Two-way SSH tunnel.  A reverse tunnel (``-R``) makes the model
-      endpoint reachable inside the task; a forward tunnel (``-L``)
-      gives the orchestrator access to the agent server.  The consumer
-      is responsible for command execution via its own agent API.
+      Two-way SSH tunnel.  A reverse tunnel (``-R``) makes the
+      :class:`OutsideEndpoint` reachable inside the task; a forward
+      tunnel (``-L``) gives the orchestrator access to the agent server.
+      The consumer is responsible for command execution via its own
+      agent API.
     """
 
     sshd_port: int = 2222
@@ -130,11 +131,6 @@ class SshSidecarConfig:
     public_key_secret_arn: str = ""  # required — pre-provisioned only
     private_key_secret_arn: str = ""  # required — pre-provisioned only
     image: str | None = None  # sidecar image (None → alpine:latest)
-
-    # Two-way tunnel config (agent-server mode)
-    target_url_env: str = "MODEL_URL,MODEL_BASE_URL"
-    local_port: int = 0  # port inside task for model; 0 = infer from target URL
-    model_env_var: str = "MODEL_BASE_URL"
 
     # Exec server config (exec-server mode; None → agent-server mode)
     exec_server_port: int | None = None
@@ -147,31 +143,12 @@ class SshSidecarConfig:
             public_key_secret_arn=str(raw.get("public_key_secret_arn", "")),
             private_key_secret_arn=str(raw.get("private_key_secret_arn", "")),
             image=raw.get("image"),
-            target_url_env=str(raw.get("target_url_env", "MODEL_URL,MODEL_BASE_URL")),
-            local_port=int(raw.get("local_port", 0)),
-            model_env_var=str(raw.get("model_env_var", "MODEL_BASE_URL")),
             exec_server_port=(
                 int(raw["exec_server_port"])
                 if raw.get("exec_server_port") is not None
                 else None
             ),
         )
-
-
-@dataclass(frozen=True)
-class EnvVarSpec:
-    """Name–value pair for explicit environment variable injection."""
-
-    name: str
-    value: str
-
-    @classmethod
-    def from_dict(cls, raw: Mapping[str, Any]) -> EnvVarSpec:
-        name = str(raw.get("name") or "")
-        value = str(raw.get("value") or "")
-        if not name:
-            raise ValueError("EnvVarSpec requires 'name'")
-        return cls(name=name, value=value)
 
 
 @dataclass(frozen=True)
@@ -212,9 +189,6 @@ class EcsFargateConfig:
     # SSH sidecar
     ssh_sidecar: SshSidecarConfig | None = None
 
-    # Model endpoint injection (agent-server mode)
-    model_endpoint_env: EnvVarSpec | None = None
-
     # S3 file staging
     s3_bucket: str | None = None
     s3_prefix: str | None = None
@@ -234,7 +208,13 @@ class EcsFargateConfig:
         subnets = _coerce_list(raw.get("subnets"))
         sgs = _coerce_list(raw.get("security_groups"))
         has_sidecar = isinstance(raw.get("ssh_sidecar"), Mapping)
-        assign_public_ip = bool(raw.get("assign_public_ip", False)) or has_sidecar
+        explicit_ip = bool(raw.get("assign_public_ip", False))
+        assign_public_ip = explicit_ip or has_sidecar
+        if has_sidecar and not explicit_ip:
+            log.info(
+                "assign_public_ip forced True because ssh_sidecar is configured "
+                "(SSH requires a reachable IP)"
+            )
 
         return cls(
             region=raw.get("region"),
@@ -277,11 +257,6 @@ class EcsFargateConfig:
             ssh_sidecar=(
                 SshSidecarConfig.from_dict(raw["ssh_sidecar"]) if has_sidecar else None
             ),
-            model_endpoint_env=(
-                EnvVarSpec.from_dict(raw["model_endpoint_env"])
-                if isinstance(raw.get("model_endpoint_env"), Mapping)
-                else None
-            ),
             s3_bucket=raw.get("s3_bucket"),
             s3_prefix=raw.get("s3_prefix"),
             ecr_repository=raw.get("ecr_repository"),
@@ -293,7 +268,7 @@ class EcsFargateConfig:
             ),
             codebuild_build_timeout=int(raw.get("codebuild_build_timeout", 30)),
             dockerhub_secret_arn=raw.get("dockerhub_secret_arn"),
-            build_parallelism=int(raw.get("build_parallelism", 50)),
+            build_parallelism=max(1, int(raw.get("build_parallelism", 50))),
         )
 
 
@@ -641,7 +616,7 @@ class SshTunnel:
                     s.settimeout(1.0)
                     s.connect(("127.0.0.1", port))
                     return
-            except Exception:
+            except OSError:
                 time.sleep(0.3)
         raise TimeoutError(f"Local port 127.0.0.1:{port} not open after {timeout:.0f}s")
 
@@ -699,7 +674,7 @@ def build_ssh_sidecar_container(
         "PasswordAuthentication no\\n"
         "AllowTcpForwarding yes\\n"
         "PermitListen any\\n"
-        "GatewayPorts yes\\n"
+        "GatewayPorts clientspecified\\n"
         "X11Forwarding no\\n"
         "PrintMotd no\\n"
         "LogLevel ERROR\\n"
@@ -946,17 +921,15 @@ class ExecClient:
 
     def health(self) -> bool:
         try:
-            return (
-                self._request(
-                    label="health",
-                    url=f"{self._base}/health",
-                    method="GET",
-                    timeout=5,
-                    max_retries=1,
-                )
-                is not None
+            self._request(
+                label="health",
+                url=f"{self._base}/health",
+                method="GET",
+                timeout=5,
+                max_retries=1,
             )
-        except Exception:
+            return True
+        except (ConnectionError, OSError, TimeoutError, RuntimeError):
             return False
 
     def _post(
@@ -1086,8 +1059,11 @@ class ImageBuilder:
         try:
             ecr.describe_images(repositoryName=repo_name, imageIds=[{"imageTag": tag}])
             return True
-        except ClientError:
-            return False
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "")
+            if code in ("ImageNotFoundException", "RepositoryNotFoundException"):
+                return False
+            raise
 
     @classmethod
     def ensure_image_built(
@@ -1349,7 +1325,7 @@ class ImageBuilder:
 # =====================================================================
 
 _active_sandboxes: dict[int, Any] = {}
-_cleanup_lock = threading.Lock()
+_cleanup_lock = threading.RLock()
 _atexit_registered = False
 _PROCESS_NONCE = f"{int(time.time())}-{uuid.uuid4().hex[:8]}"
 _exec_server_url_cache: dict[str, str] = {}
@@ -1398,6 +1374,7 @@ class EcsFargateSandbox:
         # For agent-server mode (two-way tunnel)
         self._ssh_tunnel_port: int | None = None
         self._agent_forward_port: int | None = None
+        self._outside_endpoints: list[OutsideEndpoint] = []
 
     # Public API -------------------------------------------------------
 
@@ -1437,6 +1414,21 @@ class EcsFargateSandbox:
     def is_running(self) -> bool:
         return self._started and not self._stopped
 
+    def resolve_outside_endpoint(self, url: str) -> str:
+        """Return the URL that processes inside this sandbox should use to reach
+        the outside service at *url* (orchestrator-side).
+
+        Remaps *url* to the reverse-tunnel address (``127.0.0.1:<tunnel-port>``).
+        Must be called after :meth:`start`.
+        """
+        if self._ssh_tunnel_port is None:
+            raise RuntimeError(
+                "resolve_outside_endpoint() requires start() to have been called "
+                "with an agent-server SSH sidecar configured."
+            )
+        parsed = urlparse(url)
+        return parsed._replace(netloc=f"127.0.0.1:{self._ssh_tunnel_port}").geturl()
+
     def reconnect_tunnel(self) -> None:
         """Re-open the SSH tunnel if it died (e.g. after a network blip)."""
         if self._stopped or not self._started:
@@ -1449,9 +1441,20 @@ class EcsFargateSandbox:
             self._ssh_tunnel = None
         self._open_tunnel(sidecar)
 
-    def start(self, *, force_build: bool = False) -> None:
+    def start(
+        self,
+        *,
+        force_build: bool = False,
+        outside_endpoints: list[OutsideEndpoint] | None = None,
+    ) -> None:
         if self._started:
             return
+        self._outside_endpoints = outside_endpoints or []
+        if len(self._outside_endpoints) > 1:
+            raise ValueError(
+                f"Only one OutsideEndpoint is supported (got {len(self._outside_endpoints)}). "
+                f"The SSH reverse tunnel can only target a single host:port."
+            )
         try:
             self._do_start(force_build=force_build)
             self._started = True
@@ -1562,7 +1565,7 @@ class EcsFargateSandbox:
         # 4. Resolve tunnel port for agent-server mode
         has_exec_server = sidecar.exec_server_port is not None
         if not has_exec_server:
-            self._ssh_tunnel_port = self._resolve_ssh_tunnel_port(sidecar)
+            self._ssh_tunnel_port = self._resolve_ssh_tunnel_port()
 
         # 5. Upload exec server to S3 (exec-server mode only)
         exec_server_url: str | None = None
@@ -1573,7 +1576,7 @@ class EcsFargateSandbox:
         command = self._build_container_command(exec_server_url, sidecar)
 
         # 7. Build environment variables
-        env = self._build_env_vars(sidecar)
+        env = self._build_env_vars()
 
         # 8. Build sidecar container
         log_region = cfg.region or os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
@@ -1640,42 +1643,37 @@ class EcsFargateSandbox:
             return cfg.image_template.format(
                 task_id=self._task_id, task_id_sanitized=sanitized
             )
+        if not cfg.task_definition:
+            raise ValueError(
+                "No image available: set image_template, ecr_repository + "
+                "environment_dir, or task_definition"
+            )
         return ""
 
-    @staticmethod
-    def _resolve_ssh_tunnel_port(sidecar: SshSidecarConfig) -> int:
-        if sidecar.local_port > 0:
-            return sidecar.local_port
-        for env_name in sidecar.target_url_env.split(","):
-            env_name = env_name.strip()
-            if not env_name:
-                continue
-            env_value = os.getenv(env_name)
-            if not env_value:
-                continue
-            parsed = urlparse(env_value)
-            if parsed.port:
-                return int(parsed.port)
-        raise ValueError(
-            f"ssh_sidecar.local_port is 0 and no port could be inferred from "
-            f"env vars: {sidecar.target_url_env}"
-        )
+    def _parse_outside_url(self) -> ParseResult:
+        if not self._outside_endpoints:
+            raise ValueError(
+                "Agent-server mode requires at least one OutsideEndpoint "
+                "passed to start(outside_endpoints=...)"
+            )
+        return urlparse(self._outside_endpoints[0].url)
 
     @staticmethod
-    def _resolve_tunnel_target(sidecar: SshSidecarConfig) -> tuple[str, int]:
-        for env_name in sidecar.target_url_env.split(","):
-            env_name = env_name.strip()
-            if not env_name:
-                continue
-            env_value = os.getenv(env_name)
-            if not env_value:
-                continue
-            parsed = urlparse(env_value)
-            host = parsed.hostname
-            port = parsed.port or (443 if parsed.scheme == "https" else 80)
-            if host:
-                return host, port
-        raise ValueError(f"Cannot resolve tunnel target from: {sidecar.target_url_env}")
+    def _port_from_parsed(parsed: ParseResult) -> int:
+        return parsed.port or (443 if parsed.scheme == "https" else 80)
+
+    def _resolve_ssh_tunnel_port(self) -> int:
+        return self._port_from_parsed(self._parse_outside_url())
+
+    def _resolve_tunnel_target(self) -> tuple[str, int]:
+        parsed = self._parse_outside_url()
+        host = parsed.hostname
+        if not host:
+            raise ValueError(
+                f"Cannot resolve hostname from OutsideEndpoint URL: "
+                f"{self._outside_endpoints[0].url}"
+            )
+        return host, self._port_from_parsed(parsed)
 
     def _upload_exec_server(self) -> str:
         cfg = self._cfg
@@ -1728,18 +1726,16 @@ class EcsFargateSandbox:
         )
         return ["sh", "-lc", setup]
 
-    def _build_env_vars(self, sidecar: SshSidecarConfig) -> dict[str, str]:
+    def _build_env_vars(self) -> dict[str, str]:
         env: dict[str, str] = {}
         cfg = self._cfg
         if cfg.extra_env:
             for k, v in cfg.extra_env.items():
                 env[k] = self._render_env_value(v)
-        if cfg.model_endpoint_env:
-            env[cfg.model_endpoint_env.name] = self._render_env_value(
-                cfg.model_endpoint_env.value
-            )
-        if self._ssh_tunnel_port and sidecar.model_env_var:
-            env[sidecar.model_env_var] = f"http://127.0.0.1:{self._ssh_tunnel_port}"
+        if self._ssh_tunnel_port and self._outside_endpoints:
+            ep = self._outside_endpoints[0]
+            scheme = urlparse(ep.url).scheme or "http"
+            env[ep.env_var] = f"{scheme}://127.0.0.1:{self._ssh_tunnel_port}"
         return env
 
     def _render_env_value(self, value: str) -> str:
@@ -1774,6 +1770,7 @@ class EcsFargateSandbox:
             }
 
         # Try cloning from base task definition
+        _, _, ClientError = _require_aws_sdks()
         base: dict[str, Any] | None = None
         if cfg.task_definition:
             try:
@@ -1781,8 +1778,16 @@ class EcsFargateSandbox:
                     taskDefinition=cfg.task_definition
                 )
                 base = resp["taskDefinition"]
-            except Exception:
-                base = None
+            except ClientError as exc:
+                code = exc.response.get("Error", {}).get("Code", "")
+                if code in ("ClientException",):
+                    log.warning(
+                        "Base task definition %s not found, will register from scratch",
+                        cfg.task_definition,
+                    )
+                    base = None
+                else:
+                    raise
 
         if base is not None:
             return self._register_from_base(
@@ -1829,6 +1834,7 @@ class EcsFargateSandbox:
             target["image"] = image
         if command is not None:
             target["command"] = command
+            target.pop("entryPoint", None)
         if env:
             existing = {e["name"]: e["value"] for e in target.get("environment", [])}
             existing.update(env)
@@ -1915,33 +1921,18 @@ class EcsFargateSandbox:
             payload["taskRoleArn"] = cfg.task_role_arn
         if cfg.ephemeral_storage_gib:
             payload["ephemeralStorage"] = {"sizeInGiB": cfg.ephemeral_storage_gib}
-        if cfg.platform_version:
-            payload["platformVersion"] = cfg.platform_version
 
         return self._do_register(payload)
 
     def _do_register(self, payload: dict[str, Any]) -> str:
-        max_retries = 25
-        for attempt in range(1, max_retries + 1):
-            try:
-                resp = self._ecs.register_task_definition(**payload)
-                arn = resp["taskDefinition"]["taskDefinitionArn"]
-                log.info("Registered task def: %s", arn)
-                return arn
-            except Exception as exc:
-                if not _is_retryable_error(exc) or attempt >= max_retries:
-                    raise RuntimeError(
-                        f"register_task_definition failed: {exc}"
-                    ) from exc
-                delay = min(60.0, 2.0 ** min(6, attempt - 1)) + random.random() * 2
-                log.warning(
-                    "register_task_definition throttled (%d/%d), retry in %.1fs",
-                    attempt,
-                    max_retries,
-                    delay,
-                )
-                time.sleep(delay)
-        raise RuntimeError("register_task_definition failed after max retries")
+        resp = _retry_with_backoff(
+            lambda: self._ecs.register_task_definition(**payload),
+            operation_name="register_task_definition",
+            max_retries=25,
+        )
+        arn = resp["taskDefinition"]["taskDefinitionArn"]
+        log.info("Registered task def: %s", arn)
+        return arn
 
     def _make_family_name(self) -> str:
         raw = f"{self._cfg.task_definition_family_prefix}-{_sanitize_id(self._task_id)}-{int(time.time())}"
@@ -1973,6 +1964,7 @@ class EcsFargateSandbox:
                 resp = _retry_with_backoff(
                     lambda: self._ecs.run_task(**run_kwargs),
                     operation_name="run_task",
+                    max_retries=3,
                 )
             except Exception as exc:
                 if not _is_retryable_error(exc) or attempt >= cfg.run_task_max_retries:
@@ -2020,12 +2012,12 @@ class EcsFargateSandbox:
 
     def _wait_for_running(self) -> None:
         cfg = self._cfg
-        start = time.time()
+        start = time.monotonic()
         poll = 5.0
         last_status = ""
 
         while True:
-            elapsed = time.time() - start
+            elapsed = time.monotonic() - start
             if elapsed > cfg.startup_timeout_sec:
                 raise TimeoutError(
                     f"ECS task not RUNNING after {elapsed:.0f}s (last: {last_status})"
@@ -2117,9 +2109,9 @@ class EcsFargateSandbox:
 
     @staticmethod
     def _wait_for_ssh_ready(host: str, port: int, timeout: float) -> None:
-        deadline = time.time() + timeout
+        deadline = time.monotonic() + timeout
         log.info("Waiting for SSH at %s:%d", host, port)
-        while time.time() < deadline:
+        while time.monotonic() < deadline:
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(5.0)
@@ -2129,7 +2121,7 @@ class EcsFargateSandbox:
                     if data and b"SSH" in data:
                         log.info("SSH ready at %s:%d", host, port)
                         return
-            except Exception:
+            except OSError:
                 pass
             time.sleep(2.0)
         raise TimeoutError(f"SSH not ready at {host}:{port} after {timeout:.0f}s")
@@ -2150,7 +2142,7 @@ class EcsFargateSandbox:
             )
             self._ssh_tunnel.open()
         else:
-            remote_host, remote_port = self._resolve_tunnel_target(sidecar)
+            remote_host, remote_port = self._resolve_tunnel_target()
             local_port = self._ssh_tunnel_port
             assert local_port is not None
 

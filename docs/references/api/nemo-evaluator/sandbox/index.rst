@@ -51,19 +51,22 @@ Usage (ECS Fargate — agent-server mode)
 ---------------------------------------
 
 For harnesses that host an agent inside the container (e.g. openhands),
-omit ``exec_server_port`` and configure reverse/forward tunnels::
+omit ``exec_server_port`` and pass ``OutsideEndpoint`` to ``start()``::
+
+    from nemo_evaluator.sandbox import OutsideEndpoint
 
     cfg = EcsFargateConfig(
         ...
         ssh_sidecar=SshSidecarConfig(
             public_key_secret_arn="arn:aws:secretsmanager:...:my-pubkey",
             private_key_secret_arn="arn:aws:secretsmanager:...:my-privkey",
-            target_url_env="MODEL_URL",
         ),
     )
 
+    model_ep = OutsideEndpoint(url="http://localhost:8080", env_var="MODEL_BASE_URL")
+
     with EcsFargateSandbox(cfg, task_id="task-001", run_id="run-001") as sandbox:
-        sandbox.start()
+        sandbox.start(outside_endpoints=[model_ep])
         # The agent inside the container can now reach the model via the reverse tunnel.
         # The orchestrator can reach the agent's API via sandbox.local_port.
 

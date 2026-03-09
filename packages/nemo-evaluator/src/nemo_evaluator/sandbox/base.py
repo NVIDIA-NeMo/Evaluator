@@ -37,10 +37,40 @@ class ExecResult:
     return_code: int
 
 
+@dataclass
+class OutsideEndpoint:
+    """An external service endpoint that sandbox processes need to reach.
+
+    Attributes:
+        url:     Orchestrator-side URL of the service (e.g. "http://localhost:3825").
+        env_var: Name of the environment variable to inject into sandbox processes
+                 carrying the resolved (possibly remapped) URL.
+    """
+
+    url: str
+    env_var: str
+
+
 class Sandbox(Protocol):
     """Minimal contract every sandbox backend must satisfy."""
 
-    def start(self, *, force_build: bool = False) -> None: ...
+    def start(
+        self,
+        *,
+        force_build: bool = False,
+        outside_endpoints: list[OutsideEndpoint] | None = None,
+    ) -> None: ...
+
+    def resolve_outside_endpoint(self, url: str) -> str:
+        """Return the URL that processes inside this sandbox should use to reach
+        the outside service at *url* (orchestrator-side).
+
+        Network-isolated backends (ECS Fargate) remap *url* to the tunnelled address.
+        Shared-network backends (Apptainer) return *url* unchanged.
+
+        Must be called after :meth:`start`.
+        """
+        ...
 
     def stop(self) -> None: ...
 
