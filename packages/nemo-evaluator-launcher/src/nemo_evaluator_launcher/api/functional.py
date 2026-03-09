@@ -68,7 +68,7 @@ def _validate_config_sections(cfg: Any) -> None:
     """
     from pydantic import ValidationError
 
-    from nemo_evaluator_launcher.common.pydantic_models import (
+    from nemo_evaluator_launcher.common.config_models import (
         EvaluationModel,
         MountsModel,
         TaskModel,

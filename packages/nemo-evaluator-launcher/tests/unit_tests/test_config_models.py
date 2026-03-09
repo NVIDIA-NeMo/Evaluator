@@ -20,7 +20,7 @@ from omegaconf import OmegaConf
 from pydantic import ValidationError
 
 from nemo_evaluator_launcher.api.functional import _validate_config_sections
-from nemo_evaluator_launcher.common.pydantic_models import (
+from nemo_evaluator_launcher.common.config_models import (
     EvaluationModel,
     MountsModel,
     TaskModel,
