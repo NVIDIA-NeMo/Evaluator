@@ -20,6 +20,10 @@ from nemo_evaluator_launcher.exporters.gsheets import (
     GSheetsExporter,
     GSheetsExporterConfig,
 )
+from nemo_evaluator_launcher.exporters.huggingface import (
+    HuggingFaceExporter,
+    HuggingFaceExporterConfig,
+)
 from nemo_evaluator_launcher.exporters.local import LocalExporter, LocalExporterConfig
 from nemo_evaluator_launcher.exporters.mlflow import (
     MLflowExporter,
@@ -37,6 +41,8 @@ __all__ = [
     "ExportConfig",
     "GSheetsExporter",
     "GSheetsExporterConfig",
+    "HuggingFaceExporter",
+    "HuggingFaceExporterConfig",
     "LocalExporter",
     "LocalExporterConfig",
     "MLflowExporter",

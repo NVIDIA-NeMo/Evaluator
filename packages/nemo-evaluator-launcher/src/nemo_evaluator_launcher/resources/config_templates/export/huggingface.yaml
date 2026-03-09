@@ -1,0 +1,14 @@
+execution:
+  auto_export:
+    destinations: ["huggingface"]
+
+export:
+  huggingface:
+    dataset_id: ???  # HF Hub dataset ID of the benchmark (required)
+    task_id: ???     # Task ID from the benchmark's eval.yaml (required)
+    model_repo: ???  # HF Hub model repo to push results to (required)
+    # metric_name: pass_at_1  # Metric key (substring match); omit to use first metric
+    create_pr: true  # Submit as PR (true) or push directly (false)
+    # notes: "Pass@1, k=1"
+    # source_url: https://example.com/eval-logs
+    # source_name: Evaluation Logs
