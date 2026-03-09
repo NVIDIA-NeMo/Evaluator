@@ -26,35 +26,165 @@ from nemo_evaluator_launcher.common.config_models import (
     TaskModel,
 )
 
+# ---------------------------------------------------------------------------
+# MountsModel
+# ---------------------------------------------------------------------------
+
+VALID_MOUNTS = [
+    pytest.param(
+        {"deployment": {"/host/model": "/model"}, "mount_home": False},
+        {
+            "deployment": {"/host/model": "/model"},
+            "evaluation": {},
+            "mount_home": False,
+        },
+        id="deployment_only_no_home",
+    ),
+    pytest.param(
+        {"evaluation": {"/host/data": "/data"}, "mount_home": True},
+        {"deployment": {}, "evaluation": {"/host/data": "/data"}, "mount_home": True},
+        id="evaluation_only_with_home",
+    ),
+    pytest.param(
+        {"deployment": {"/a": "/b"}, "evaluation": {"/c": "/d"}, "mount_home": False},
+        {"deployment": {"/a": "/b"}, "evaluation": {"/c": "/d"}, "mount_home": False},
+        id="both_mounts_no_home",
+    ),
+    pytest.param(
+        {},
+        {"deployment": {}, "evaluation": {}, "mount_home": True},
+        id="empty_uses_defaults",
+    ),
+]
+
 
 class TestMountsModel:
-    def test_valid(self):
-        MountsModel(deployment={"/host/model": "/model"}, mount_home=False)
+    @pytest.mark.parametrize("kwargs, expected_fields", VALID_MOUNTS)
+    def test_valid(self, kwargs, expected_fields):
+        model = MountsModel(**kwargs)
+        for field, expected in expected_fields.items():
+            assert getattr(model, field) == expected
 
     def test_extra_field_forbidden(self):
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             MountsModel(typo_field="oops")
 
 
+# ---------------------------------------------------------------------------
+# TaskModel
+# ---------------------------------------------------------------------------
+
+VALID_TASKS = [
+    pytest.param(
+        {
+            "name": "lm-evaluation-harness.ifeval",
+            "env_vars": {"HF_TOKEN": "host:HF_TOKEN"},
+            "nemo_evaluator_config": {"config": {"params": {"parallelism": 4}}},
+        },
+        {
+            "name": "lm-evaluation-harness.ifeval",
+            "env_vars": {"HF_TOKEN": "host:HF_TOKEN"},
+            "nemo_evaluator_config": {"config": {"params": {"parallelism": 4}}},
+            "pre_cmd": "",
+            "dataset_mount_path": "/datasets",
+        },
+        id="task_with_env_vars_and_params",
+    ),
+    pytest.param(
+        {"name": "lm-evaluation-harness.ifeval"},
+        {
+            "name": "lm-evaluation-harness.ifeval",
+            "env_vars": {},
+            "nemo_evaluator_config": {},
+            "container": None,
+            "pre_cmd": "",
+        },
+        id="task_name_only_defaults",
+    ),
+    pytest.param(
+        {
+            "name": "lm-evaluation-harness.ifeval",
+            "container": "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.01",
+            "pre_cmd": "echo hello",
+            "dataset_dir": "/host/datasets",
+            "dataset_mount_path": "/mnt/data",
+        },
+        {
+            "name": "lm-evaluation-harness.ifeval",
+            "container": "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.01",
+            "pre_cmd": "echo hello",
+            "dataset_dir": "/host/datasets",
+            "dataset_mount_path": "/mnt/data",
+        },
+        id="task_full_fields",
+    ),
+]
+
+
 class TestTaskModel:
-    def test_valid(self):
-        TaskModel(
-            name="lm-evaluation-harness.ifeval",
-            env_vars={"HF_TOKEN": "host:HF_TOKEN"},
-            nemo_evaluator_config={"config": {"params": {"parallelism": 4}}},
-        )
+    @pytest.mark.parametrize("kwargs, expected_fields", VALID_TASKS)
+    def test_valid(self, kwargs, expected_fields):
+        model = TaskModel(**kwargs)
+        for field, expected in expected_fields.items():
+            assert getattr(model, field) == expected
 
     def test_extra_field_forbidden(self):
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             TaskModel(name="some.task", unknown_key="bad")
 
 
+# ---------------------------------------------------------------------------
+# EvaluationModel
+# ---------------------------------------------------------------------------
+
+VALID_EVALUATIONS = [
+    pytest.param(
+        {
+            "tasks": [{"name": "lm-evaluation-harness.ifeval"}],
+            "env_vars": {"HF_TOKEN": "host:HF_TOKEN"},
+        },
+        {
+            "env_vars": {"HF_TOKEN": "host:HF_TOKEN"},
+            "pre_cmd": "",
+            "nemo_evaluator_config": {},
+        },
+        1,  # expected number of tasks
+        id="evaluation_with_env_vars",
+    ),
+    pytest.param(
+        {
+            "tasks": [
+                {"name": "lm-evaluation-harness.ifeval"},
+                {"name": "lm-evaluation-harness.ifeval", "pre_cmd": "echo hi"},
+            ],
+            "nemo_evaluator_config": {"config": {"params": {"parallelism": 8}}},
+        },
+        {
+            "env_vars": {},
+            "nemo_evaluator_config": {"config": {"params": {"parallelism": 8}}},
+            "pre_cmd": "",
+        },
+        2,
+        id="evaluation_two_tasks_global_params",
+    ),
+    pytest.param(
+        {},
+        {"tasks": [], "env_vars": {}, "nemo_evaluator_config": {}, "pre_cmd": ""},
+        0,
+        id="evaluation_empty_defaults",
+    ),
+]
+
+
 class TestEvaluationModel:
-    def test_valid(self):
-        EvaluationModel(
-            tasks=[{"name": "lm-evaluation-harness.ifeval"}],
-            env_vars={"HF_TOKEN": "host:HF_TOKEN"},
-        )
+    @pytest.mark.parametrize(
+        "kwargs, expected_fields, expected_task_count", VALID_EVALUATIONS
+    )
+    def test_valid(self, kwargs, expected_fields, expected_task_count):
+        model = EvaluationModel(**kwargs)
+        assert len(model.tasks) == expected_task_count
+        for field, expected in expected_fields.items():
+            assert getattr(model, field) == expected
 
     def test_extra_field_forbidden(self):
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
@@ -63,6 +193,11 @@ class TestEvaluationModel:
     def test_task_with_extra_field_forbidden(self):
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             EvaluationModel(tasks=[{"name": "some.task", "bad_key": "value"}])
+
+
+# ---------------------------------------------------------------------------
+# Integration: _validate_config_sections via OmegaConf
+# ---------------------------------------------------------------------------
 
 
 class TestValidateConfigSections:
