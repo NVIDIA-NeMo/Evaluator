@@ -21,6 +21,7 @@ name = "nemo-evaluator"
 dynamic = ["version"]
 dependencies = [
     "flask",
+    "httpx>=0.20.0,<1",
     "jinja2",
     "psutil",
     "pydantic",
@@ -94,6 +95,12 @@ source = [
     "/home/runner/work/Eval/Eval/packages/nemo-evaluator/",
 ]
 
+
+[tool.pytest.ini_options]
+markers = [
+    "network: tests that require network access to staging endpoints",
+    "smoketest: live endpoint smoketests requiring NVIDIA_API_KEY and JUDGE_API_KEY",
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["nemo_evaluator"]

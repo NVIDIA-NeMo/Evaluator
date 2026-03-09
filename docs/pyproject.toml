@@ -1,6 +1,7 @@
 [project]
 name = "nemo-evaluator-docs"
-version = "0.1.0"
+# NOTE(martas): this version num shouldn't matter for docs versioning
+version = "0.2.0"
 description = "Documentation build dependencies for NeMo Evaluator"
 requires-python = ">=3.10,<3.14"
 

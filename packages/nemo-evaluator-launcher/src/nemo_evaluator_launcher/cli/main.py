@@ -19,6 +19,7 @@ import os
 
 from simple_parsing import ArgumentParser
 
+import nemo_evaluator_launcher.cli.config as config
 import nemo_evaluator_launcher.cli.export as export
 import nemo_evaluator_launcher.cli.info as info
 import nemo_evaluator_launcher.cli.kill as kill
@@ -196,6 +197,33 @@ def create_parser() -> ArgumentParser:
     # Stash reference so we can print help when no subcommand is given
     parser._skills_parser = skills_parser  # type: ignore[attr-defined]
 
+    # Config subcommand (with nested subcommands)
+    config_parser = subparsers.add_parser(
+        "config",
+        help="Manage persistent configuration",
+        description="Manage persistent configuration in ~/.config/nemo-evaluator/config.yaml",
+    )
+    config_sub = config_parser.add_subparsers(dest="config_command", required=False)
+
+    config_set_parser = config_sub.add_parser(
+        "set", help="Set a config value", description="Set a config value"
+    )
+    config_set_parser.add_arguments(config.SetCmd, dest="config_set")
+
+    config_get_parser = config_sub.add_parser(
+        "get",
+        help="Get the effective value of a config key",
+        description="Get the effective value of a config key",
+    )
+    config_get_parser.add_arguments(config.GetCmd, dest="config_get")
+
+    config_show_parser = config_sub.add_parser(
+        "show",
+        help="Show the full config file",
+        description="Show the full config file",
+    )
+    config_show_parser.add_arguments(config.ShowCmd, dest="config_show")
+
     # Export subcommand
     export_parser = subparsers.add_parser(
         "export",
@@ -285,6 +313,17 @@ def main() -> None:
             args.skills_build_config.execute()
         else:
             parser._skills_parser.print_help()  # type: ignore[attr-defined]
+    elif args.command == "config":
+        if args.config_command == "set":
+            args.config_set.execute()
+        elif args.config_command == "get":
+            args.config_get.execute()
+        elif args.config_command == "show":
+            args.config_show.execute()
+        else:
+            # No subcommand — print config help
+            parser = create_parser()
+            parser.parse_args(["config", "--help"])
     elif args.command == "export":
         args.export.execute()
     elif args.command == "resume":

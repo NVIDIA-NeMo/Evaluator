@@ -61,15 +61,13 @@ execution:
   walltime: 01:00:00
 
   num_nodes: 2 # Number of SLURM nodes for multi-node deployment
-  deployment:
-    n_tasks: ${execution.num_nodes}  # One vLLM instance per node
+  num_instances: 2   # 2 independent single-node instances → HAProxy auto-enabled
 
   mounts:
     mount_home: false # Whether to mount home directory (default: true)
 
 # Override default deployment arguments
 deployment:
-  multiple_instances: true  # Enable HAProxy load balancing across nodes
   checkpoint_path: null
   hf_model_handle: nvidia/NVIDIA-Nemotron-Nano-9B-v2
   served_model_name: nvidia/NVIDIA-Nemotron-Nano-9B-v2
@@ -86,7 +84,7 @@ evaluation:
         parallelism: 512 # Number of parallel requests (higher for multi-node deployment)
         temperature: 0.6 # Sampling temperature
         top_p: 0.95 # Nucleus sampling parameter
-        max_tokens: 32768 # Maximum number of tokens to generate (32k)
+        max_new_tokens: 32768 # Maximum number of tokens to generate (32k)
         request_timeout: 3600 # Timeout for API requests in seconds
     target:
       api_endpoint:

@@ -346,8 +346,24 @@ def collect_eval_env_vars(
         dict mapping target_name → EnvVarValue.
     """
     # Collect raw env vars (target_name → raw_value_string)
+    raw_env_vars: dict[str, str] = {}
+    # 0. telemetry env vars
+    from nemo_evaluator.telemetry import (
+        TELEMETRY_ENDPOINT_ENV_VAR,
+        TELEMETRY_LEVEL_ENV_VAR,
+        TELEMETRY_SESSION_ID_ENV_VAR,
+    )
+
+    for tel_var in (
+        TELEMETRY_SESSION_ID_ENV_VAR,
+        TELEMETRY_LEVEL_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+    ):
+        if os.getenv(tel_var):
+            # load and use literal so it appears in the dry-run output
+            raw_env_vars[tel_var] = f"{EnvVarLiteral.PREFIX}{os.getenv(tel_var)}"
     # 1. Top-level env_vars (new unified config)
-    raw_env_vars: dict[str, str] = _collect_top_level_env_vars(cfg)
+    raw_env_vars.update(_collect_top_level_env_vars(cfg))
 
     # 2. evaluation.env_vars (global eval-level)
     raw_env_vars.update(copy.deepcopy(dict(cfg.evaluation.get("env_vars", {}))))
@@ -390,6 +406,34 @@ def collect_deployment_env_vars(cfg: DictConfig) -> dict[str, EnvVarValue]:
     # 2. cfg.deployment.env_vars to override the top ones
     if cfg.deployment.get("env_vars"):
         for target_name, raw_value in cfg.deployment["env_vars"].items():
+            parsed[target_name] = parse_env_var_value(str(raw_value))
+
+    return parsed
+
+
+def collect_exporters_env_vars(cfg: DictConfig) -> dict[str, EnvVarValue]:
+    """Collect and parse exporters env vars from config.
+
+    Merges (last wins):
+        cfg.env_vars → cfg.execution.env_vars.export (deprecated)
+        → cfg.deployment.env_vars
+
+    Args:
+        cfg: Full run config.
+
+    Returns:
+        dict mapping target_name → EnvVarValue.
+    """
+    # 1. Top-level env_vars (new unified config) — uses host default
+    top_level_vars = _collect_top_level_env_vars(cfg)
+    parsed: dict[str, EnvVarValue] = {}
+    for target_name, raw_value in top_level_vars.items():
+        parsed[target_name] = parse_env_var_value(str(raw_value))
+
+    # 2. export.env_vars
+    export_vars = cfg.get("export", {}).get("env_vars", {})
+    if export_vars:
+        for target_name, raw_value in export_vars.items():
             parsed[target_name] = parse_env_var_value(str(raw_value))
 
     return parsed

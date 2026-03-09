@@ -312,4 +312,15 @@ class Cmd:
                 )
             )
 
+            # Show a one-time telemetry hint when telemetry is active
+            from nemo_evaluator.config import TelemetryLevel
+            from nemo_evaluator.telemetry import get_telemetry_level
+
+            if get_telemetry_level() != TelemetryLevel.OFF:
+                print(
+                    magenta(
+                        "Telemetry is active. Run 'nel config set telemetry.level 0' to disable."
+                    )
+                )
+
         # Done.

@@ -547,7 +547,7 @@ def test_evaluate_function_url_replacement():
     original_url = "https://api.nvcf.nvidia.com/v2/nvcf/pexec/functions/eb017772-7aa0-4bb8-9aff-9d9dce85734c"
 
     # Create evaluation configs
-    eval_config = EvaluationConfig(output_dir="/tmp/test")
+    eval_config = EvaluationConfig(output_dir="/tmp/test", type="test_task")
     target_config = EvaluationTarget(api_endpoint=ApiEndpoint(url=original_url))
 
     # Capture the dict that gets passed to yaml.dump
@@ -575,6 +575,7 @@ def test_evaluate_function_url_replacement():
         mock_evaluation = mock_validate.return_value
         mock_evaluation.command = "helm-generate-dynamic-model-configs --base-url {{ target.api_endpoint.url }} --model-name test-model"
         mock_evaluation.config.output_dir = "/tmp/test"
+        mock_evaluation.config.required_capabilities = None
         mock_evaluation.pkg_name = "test_package"
         mock_evaluation.framework_name = "test_framework"
 

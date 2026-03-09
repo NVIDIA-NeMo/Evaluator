@@ -205,14 +205,28 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
     def intercept_response(
         self, ar: AdapterResponse, context: AdapterGlobalContext
     ) -> AdapterResponse:
+        # Only count successful, non-cached responses as genuine progress.
+        # This avoids inflating the count from retries (failed attempts return
+        # non-200) and from cache replays during auto-chained Slurm jobs
+        # (cached responses carry cache_hit=True).
+        # NOTE: log field renamed from samples_processed → requests_processed
+        # to reflect that the counter tracks API requests, not evaluation samples.
+        if ar.rctx.cache_hit or ar.r.status_code != 200:
+            self.logger.debug(
+                "Skipping progress count",
+                cache_hit=ar.rctx.cache_hit,
+                status_code=ar.r.status_code,
+            )
+            return ar
+
         curr_samples = 0
         with self._lock:
             self._samples_processed += 1
             curr_samples = self._samples_processed
 
         self.logger.debug(
-            "Sample processed",
-            samples_processed=curr_samples,
+            "Request completed",
+            requests_processed=curr_samples,
             interval=self.progress_tracking_interval,
         )
 
@@ -224,7 +238,7 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
 
             self.logger.info(
                 "Progress milestone reached",
-                samples_processed=curr_samples,
+                requests_processed=curr_samples,
                 interval=self.progress_tracking_interval,
             )
             with self._lock:

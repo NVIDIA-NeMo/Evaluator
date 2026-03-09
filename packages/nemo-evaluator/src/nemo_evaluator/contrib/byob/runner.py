@@ -37,6 +37,7 @@ from nemo_evaluator.contrib.byob.defaults import (
     DEFAULT_TOP_P,
 )
 from nemo_evaluator.contrib.byob.eval_logic import import_benchmark, run_eval_loop
+from nemo_evaluator.core.utils import get_api_key_from_env
 from nemo_evaluator.logging import get_logger
 
 logger = get_logger(__name__)
@@ -564,9 +565,7 @@ def main():
     args = parser.parse_args()
 
     # Resolve API key from environment variable
-    api_key = None
-    if args.api_key_name:
-        api_key = os.environ.get(args.api_key_name)
+    api_key = get_api_key_from_env(args.api_key_name)
 
     # Import benchmark using shared logic
     bench = import_benchmark(args.benchmark_module, args.benchmark_name)

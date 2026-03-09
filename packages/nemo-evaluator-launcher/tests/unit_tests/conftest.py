@@ -358,11 +358,24 @@ def make_job_fs(tmp_path):
         # Required artifacts
         if with_required:
             (artifacts / "results.yml").write_text(
-                "results: {tasks: {demo: {metrics: {accuracy: {value: 0.9}}}}}",
+                "results: {tasks: {demo: {metrics: {accuracy: {scores: {accuracy: {value: 0.9}}}}}}}",
                 encoding="utf-8",
             )
             (artifacts / "eval_factory_metrics.json").write_text(
                 json.dumps({"total_time": 1.23}), encoding="utf-8"
+            )
+            (artifacts / "run_config.yml").write_text(
+                "command: dummy\n"
+                "config: {output_dir: /results, params: {}, supported_endpoint_types: [completions], type: demo}\n"
+                "framework_name: demo-harness\n"
+                "pkg_name: demo_harness\n"
+                "target: {api_endpoint: {api_key: null, model_id: test-model, type: completions, url: http://127.0.0.1:8000/v1/completions}}",
+                encoding="utf-8",
+            )
+            (artifacts / "metadata.yaml").write_text(
+                "versioning: {nemo_evaluator: 0.1.0, git-hash: abc123, nemo_evaluator_launcher: 0.1.0}\n"
+                "launcher_resolved_config: {}",
+                encoding="utf-8",
             )
 
         # Optional artifacts
@@ -448,12 +461,16 @@ def wandb_fake(monkeypatch):
 @pytest.fixture
 def mlflow_fake(monkeypatch):
     class _RunInfo:
-        experiment_id = "exp1"
-        run_id = "run1"
+        def __init__(self, **kwargs):
+            self.experiment_id = kwargs.get("experiment_id", "exp1")
+            self.run_id = kwargs.get("run_id", "run1")
 
     class _RunCtx:
+        def __init__(self, **kwargs):
+            self.info = _RunInfo(**kwargs)
+
         def __enter__(self):
-            return types.SimpleNamespace(info=_RunInfo())
+            return types.SimpleNamespace(info=self.info)
 
         def __exit__(self, *a):
             return False
@@ -461,12 +478,12 @@ def mlflow_fake(monkeypatch):
     class _ML:
         set_tracking_uri = staticmethod(lambda *_: None)
         set_experiment = staticmethod(lambda *_: None)
-        start_run = staticmethod(lambda: _RunCtx())
+        start_run = staticmethod(lambda *a, **k: _RunCtx(*a, **k))
         set_tags = staticmethod(lambda *_: None)
         set_tag = staticmethod(lambda *_: None)
         log_params = staticmethod(lambda *_: None)
         log_metrics = staticmethod(lambda *_: None)
-        log_artifact = staticmethod(lambda *_: None)
+        log_artifact = staticmethod(lambda *_, **k: None)
 
     monkeypatch.setattr(
         "nemo_evaluator_launcher.exporters.mlflow.MLFLOW_AVAILABLE", True, raising=True

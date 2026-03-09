@@ -27,10 +27,12 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationConfig,
     EvaluationTarget,
 )
+from nemo_evaluator.api.capabilities import BENCHMARK_CAPABILITIES
 from nemo_evaluator.core.utils import (
     MisconfigurationError,
     deep_update,
     dotlist_to_dict,
+    get_api_key_from_env,
     validate_params_in_command,
 )
 from nemo_evaluator.logging import get_logger
@@ -592,3 +594,58 @@ def validate_configuration(run_config: dict) -> Evaluation:
     check_type_compatibility(evaluation)
     _logger.info(f"User-invoked config: \n{yaml.dump(evaluation.model_dump())}")
     return evaluation
+
+
+def verify_capabilities(evaluation: Evaluation) -> bool:
+    import requests
+
+    if not evaluation.config.required_capabilities:
+        # nothing to check
+        return True
+
+    if not evaluation.target.api_endpoint.url:
+        _logger.warning(
+            "target.api_endpoint.url is not provided, can not verify required capabilities",
+            capabilities=evaluation.config.required_capabilities,
+        )
+        return False
+    if not evaluation.target.api_endpoint.model_id:
+        _logger.warning(
+            "target.api_endpoint.model_id is not provided, can not verify required capabilities",
+            capabilities=evaluation.config.required_capabilities,
+        )
+        return False
+    url = evaluation.target.api_endpoint.url
+    model_id = evaluation.target.api_endpoint.model_id
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    api_key = get_api_key_from_env(evaluation.target.api_endpoint.api_key_name)
+    if api_key is not None:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    all_successful = True
+    for capability in evaluation.config.required_capabilities:
+        payload = copy.deepcopy(BENCHMARK_CAPABILITIES[capability].payload)
+        payload["model"] = model_id
+        response = requests.post(url, json=payload, timeout=30, headers=headers)
+        if response.status_code != 200:
+            all_successful = False
+            _logger.warning(
+                "Endpoint responded with error status code when checking for capability",
+                url=url,
+                model=model_id,
+                capability=capability,
+                response_status_code=response.status_code,
+                response_text=response.text,
+            )
+        else:
+            _logger.debug(
+                "Capability verified successfully.",
+                url=url,
+                model=model_id,
+                capability=capability,
+            )
+
+    return all_successful

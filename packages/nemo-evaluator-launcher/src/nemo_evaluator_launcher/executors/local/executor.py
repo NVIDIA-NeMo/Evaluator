@@ -35,6 +35,7 @@ from nemo_evaluator_launcher.common.env_vars import (
     build_reexport_commands,
     collect_deployment_env_vars,
     collect_eval_env_vars,
+    collect_exporters_env_vars,
     generate_secrets_env,
     redact_secrets_env_content,
 )
@@ -200,12 +201,16 @@ class LocalExecutor(BaseExecutor):
                 # Set NEMO_EVALUATOR_DATASET_DIR to the container mount path
                 dataset_env_var_value = dataset_mount_container
 
+            exporters_env_parsed = collect_exporters_env_vars(cfg)
+
             # Build env_groups for secrets file generation
             env_groups = {}
             if eval_env_parsed:
                 env_groups[task.name] = eval_env_parsed
             if deployment and deployment_env_parsed:
                 env_groups["deployment"] = deployment_env_parsed
+            if exporters_env_parsed:
+                env_groups["export"] = exporters_env_parsed
 
             secrets_result = None
             eval_reexport_cmd = ""
@@ -217,6 +222,7 @@ class LocalExecutor(BaseExecutor):
                 deployment_reexport_cmd = build_reexport_commands(
                     "deployment", secrets_result
                 )
+                export_reexport_cmd = build_reexport_commands("export", secrets_result)
 
             eval_image = task_definition["container"]
             if "container" in task:
@@ -251,6 +257,7 @@ class LocalExecutor(BaseExecutor):
                 else None,
                 "eval_reexport_cmd": eval_reexport_cmd,
                 "deployment_reexport_cmd": deployment_reexport_cmd,
+                "export_reexport_cmd": export_reexport_cmd,
                 "output_dir": task_output_dir,
                 "eval_factory_command": eval_factory_command,
                 "eval_factory_command_debug_comment": eval_factory_command_debug_comment,
@@ -263,6 +270,13 @@ class LocalExecutor(BaseExecutor):
             # Check if auto-export is enabled by presence of destination(s)
             auto_export_config = cfg.execution.get("auto_export", {})
             auto_export_destinations = auto_export_config.get("destinations", [])
+            export_config = {"export": cfg.get("export", {})}
+            export_payload_clean = OmegaConf.to_container(
+                OmegaConf.create(export_config), resolve=True
+            )
+            auto_export_config_str = yaml.safe_dump(
+                export_payload_clean, sort_keys=False
+            )
 
             extra_docker_args = cfg.execution.get("extra_docker_args", "")
 
@@ -270,6 +284,7 @@ class LocalExecutor(BaseExecutor):
                 run_template.render(
                     evaluation_tasks=[evaluation_task],
                     auto_export_destinations=auto_export_destinations,
+                    auto_export_config_str=auto_export_config_str,
                     extra_docker_args=extra_docker_args,
                 ).rstrip("\n")
                 + "\n"
@@ -287,6 +302,7 @@ class LocalExecutor(BaseExecutor):
                 run_template.render(
                     evaluation_tasks=evaluation_tasks,
                     auto_export_destinations=auto_export_destinations,
+                    auto_export_config_str=auto_export_config_str,
                     extra_docker_args=extra_docker_args,
                 ).rstrip("\n")
                 + "\n"
@@ -1024,31 +1040,27 @@ class LocalExecutor(BaseExecutor):
             f.write(f"{job_id}\n")
 
 
-def _get_progress(artifacts_dir: pathlib.Path) -> Optional[float]:
+def _get_progress(artifacts_dir: pathlib.Path) -> Optional[int]:
     """Get the progress of a local job.
+
+    Returns the raw request count from the task's artifacts/progress file.
+    The count reflects unique successful, non-cached API requests processed
+    by the evaluation framework.
 
     Args:
         artifacts_dir: The directory containing the evaluation artifacts.
 
     Returns:
-        The progress of the job as a float between 0 and 1.
+        Number of completed requests, or None if progress file doesn't exist.
     """
     progress_filepath = artifacts_dir / "progress"
     if not progress_filepath.exists():
         return None
     progress_str = progress_filepath.read_text().strip()
     try:
-        processed_samples = int(progress_str)
+        return int(progress_str)
     except ValueError:
         return None
-
-    dataset_size = _get_dataset_size(artifacts_dir)
-    if dataset_size is not None:
-        progress = processed_samples / dataset_size
-    else:
-        # NOTE(dfridman): if we don't know the dataset size, report the number of processed samples
-        progress = processed_samples
-    return progress
 
 
 def _get_dataset_size(artifacts_dir: pathlib.Path) -> Optional[int]:

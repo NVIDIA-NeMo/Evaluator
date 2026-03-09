@@ -61,7 +61,6 @@ export_results(
         "tags": ["llama-3.1", "8b"],
         "log_mode": "per_task",
         "log_metrics": ["accuracy"],
-        "log_artifacts": True,
         "extra_metadata": {
             "hardware": "A100-80GB"
         }
@@ -76,7 +75,7 @@ export_results(
         "entity": "myorg",
         "project": "model-comparison",
         "log_mode": "multi_task",
-        "log_artifacts": False
+        "copy_artifacts": False
     }
 )
 ```
@@ -107,8 +106,8 @@ export:
     description: "Baseline evaluation"
     log_mode: "multi_task"
     log_metrics: ["accuracy"]
-    log_artifacts: true
-    log_logs: true
+    copy_artifacts: true
+    copy_logs: true
     only_required: false
     
     extra_metadata:
@@ -149,8 +148,8 @@ export:
   - Auto-generated
 * - `group`
   - str
-  - Run group for organizing related runs
-  - Invocation ID
+  - Run group for organizing related runs (set at runtime to Invocation ID if not provided)
+  - null
 * - `tags`
   - list[str]
   - Tags for categorizing the run
@@ -163,11 +162,11 @@ export:
   - list[str]
   - Metric name patterns to filter (e.g., `["accuracy", "f1"]`). Logs only metrics containing these substrings
   - All metrics
-* - `log_artifacts`
+* - `copy_artifacts`
   - bool
   - Whether to upload evaluation artifacts (results files, configs) to W&B
   - `true`
-* - `log_logs`
+* - `copy_logs`
   - bool
   - Upload execution logs
   - `false`
