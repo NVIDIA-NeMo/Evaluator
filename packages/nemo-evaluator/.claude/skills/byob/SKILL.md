@@ -235,7 +235,7 @@ Compiles and auto-installs via `pip install` (no PYTHONPATH setup needed).
 | `--push REGISTRY/IMAGE:TAG` | Push built image to registry (implies `--containerize`) |
 | `--base-image IMAGE` | Custom base Docker image |
 | `--tag TAG` | Docker image tag (default: `byob_<name>:latest`) |
-| `--platform PLATFORM` | Target platform(s) for Docker build (e.g. `linux/amd64,linux/arm64`). Uses `buildx` when set; plain `docker build` otherwise |
+| `--platform PLATFORM` | Target platform for Docker build (e.g. `linux/amd64`). Uses `buildx` when set; plain `docker build` otherwise |
 | `--check-requirements` | Verify declared requirements are importable |
 
 ### Run

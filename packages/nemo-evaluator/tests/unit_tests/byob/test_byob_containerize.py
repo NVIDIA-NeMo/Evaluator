@@ -257,7 +257,7 @@ class TestBuildImage:
 
     @patch("nemo_evaluator.contrib.byob.containerize.subprocess.run")
     def test_build_with_platform_uses_buildx(self, mock_run, tmp_path):
-        """Test that build_image uses buildx when platform is specified."""
+        """Test that build_image uses buildx with --load when platform is specified."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         context_dir = str(tmp_path)
@@ -266,14 +266,15 @@ class TestBuildImage:
             context_dir=context_dir,
             tag=tag,
             pkg_name="byob_test",
-            platform="linux/amd64,linux/arm64",
+            platform="linux/amd64",
         )
 
         mock_run.assert_called_once()
         call_args = mock_run.call_args[0][0]
         assert call_args[:3] == ["docker", "buildx", "build"]
         assert "--platform" in call_args
-        assert "linux/amd64,linux/arm64" in call_args
+        assert "--load" in call_args
+        assert "linux/amd64" in call_args
 
 
 class TestGetBuildCommand:
@@ -283,7 +284,7 @@ class TestGetBuildCommand:
         cmd = _get_build_command("img:tag", "/ctx")
         assert cmd == ["docker", "build", "-t", "img:tag", "/ctx"]
 
-    def test_platform_returns_buildx(self):
+    def test_platform_returns_buildx_with_load(self):
         cmd = _get_build_command("img:tag", "/ctx", platform="linux/amd64")
         assert cmd == [
             "docker",
@@ -291,14 +292,11 @@ class TestGetBuildCommand:
             "build",
             "--platform",
             "linux/amd64",
+            "--load",
             "-t",
             "img:tag",
             "/ctx",
         ]
-
-    def test_multi_platform(self):
-        cmd = _get_build_command("img:tag", "/ctx", platform="linux/amd64,linux/arm64")
-        assert "linux/amd64,linux/arm64" in cmd
 
 
 class TestPushImage:
@@ -354,3 +352,12 @@ class TestCLIContainerizeFlags:
         args = parser.parse_args(["--containerize"])
         assert args.containerize is True
         assert args.push is None
+
+    def test_multi_platform_rejected(self):
+        """Test that multi-platform builds are rejected by the CLI."""
+        from nemo_evaluator.contrib.byob.cli import byob_compile
+
+        with pytest.raises(SystemExit):
+            byob_compile(
+                ["dummy.py", "--containerize", "--platform", "linux/amd64,linux/arm64"]
+            )

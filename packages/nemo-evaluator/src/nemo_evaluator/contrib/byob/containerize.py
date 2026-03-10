@@ -261,21 +261,33 @@ def _get_build_command(
 ) -> List[str]:
     """Build the ``docker build`` command.
 
+    When *platform* is set the command uses ``docker buildx build`` with
+    ``--load`` so that the resulting image is imported into the local
+    Docker daemon (compatible with a subsequent :func:`push_image` call).
+
     Args:
         tag: Docker image tag.
         context_dir: Path to the build context.
-        platform: Target platform(s) (e.g. ``"linux/amd64,linux/arm64"``).
-            Uses ``buildx`` when set; plain ``docker build`` otherwise.
+        platform: Target platform (e.g. ``"linux/amd64"``).
+            Uses ``buildx`` with ``--load`` when set; plain
+            ``docker build`` otherwise.
 
     Returns:
         Command tokens ready for :func:`subprocess.run`.
     """
-    base = (
-        ["docker", "buildx", "build", "--platform", platform]
-        if platform
-        else ["docker", "build"]
-    )
-    return [*base, "-t", tag, context_dir]
+    if platform:
+        return [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            platform,
+            "--load",
+            "-t",
+            tag,
+            context_dir,
+        ]
+    return ["docker", "build", "-t", tag, context_dir]
 
 
 def build_image(
@@ -298,10 +310,9 @@ def build_image(
         base_image: Base Docker image.
         pkg_name: Package name for Dockerfile generation and labels.
         user_requirements: Extra pip requirements.
-        platform: Target platform(s) for the build (e.g.
-            ``"linux/amd64"`` or ``"linux/amd64,linux/arm64"``).
-            When ``None``, runs a normal ``docker build`` for the
-            host architecture.
+        platform: Target platform for the build (e.g.
+            ``"linux/amd64"``).  When ``None``, runs a normal
+            ``docker build`` for the host architecture.
 
     Returns:
         The image tag on success.

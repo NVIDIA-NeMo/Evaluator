@@ -126,8 +126,7 @@ def byob_compile(args=None):
         type=str,
         default=None,
         help=(
-            "Target platform(s) for the Docker build "
-            "(e.g. 'linux/amd64' or 'linux/amd64,linux/arm64'). "
+            "Target platform for the Docker build (e.g. 'linux/amd64'). "
             "Uses buildx when set; plain docker build otherwise."
         ),
     )
@@ -142,6 +141,13 @@ def byob_compile(args=None):
     # --push implies --containerize
     if parsed.push:
         parsed.containerize = True
+
+    # Only single-platform builds are supported.
+    if parsed.platform and "," in parsed.platform:
+        parser.error(
+            "Multi-platform builds are not supported. "
+            "Please specify a single platform (e.g. 'linux/amd64')."
+        )
 
     # --list: show installed benchmarks
     if parsed.list:
