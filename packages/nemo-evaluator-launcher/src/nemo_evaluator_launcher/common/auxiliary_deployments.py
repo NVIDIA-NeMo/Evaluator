@@ -156,16 +156,14 @@ def build_aux_deployment_states(cfg: DictConfig) -> list[AuxDeploymentState]:
 
 def validate_auxiliary_deployments(
     aux_list: list[AuxDeploymentState],
-    primary_port: int,
 ) -> None:
     """Validate auxiliary deployment states for conflicts and correctness.
 
     Raises:
-        ValueError: On duplicate prefixes, port conflicts, reserved prefixes,
+        ValueError: On duplicate prefixes, reserved prefixes,
             indivisible nodes/instances, or missing required fields.
     """
     seen_prefixes: set[str] = set()
-    seen_ports: set[int] = {primary_port}
 
     for state in aux_list:
         # Reserved prefixes
@@ -182,24 +180,6 @@ def validate_auxiliary_deployments(
                 f"Duplicate env_prefix '{state.env_prefix}' in auxiliary deployments"
             )
         seen_prefixes.add(state.env_prefix)
-
-        # Port conflicts
-        port = int(state.cfg.get("port", 0))
-        if port and port in seen_ports:
-            raise ValueError(
-                f"Auxiliary deployment '{state.name}' port {port} "
-                "conflicts with another deployment"
-            )
-        if port:
-            seen_ports.add(port)
-
-        if state.proxy_port and state.proxy_port in seen_ports:
-            raise ValueError(
-                f"Auxiliary deployment '{state.name}' proxy port "
-                f"{state.proxy_port} conflicts with another deployment"
-            )
-        if state.proxy_port:
-            seen_ports.add(state.proxy_port)
 
         # num_nodes divisible by num_instances
         if state.num_instances > 1 and state.num_nodes % state.num_instances != 0:
