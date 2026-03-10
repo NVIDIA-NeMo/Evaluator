@@ -329,19 +329,11 @@ def _retry_with_backoff(
                 raise
             attempt += 1
             if max_retries is not None and attempt > max_retries:
-                log.error(
-                    "%s failed after %d retries: %s", operation_name, attempt - 1, exc
-                )
+                log.error(f"{operation_name} failed after {attempt - 1} retries: {exc}")
                 raise
             delay = min(base_delay * (2 ** (attempt - 1)), max_delay)
             delay *= 1 + random.uniform(-jitter, jitter)
-            log.warning(
-                "%s throttled (attempt %d), retrying in %.1fs: %s",
-                operation_name,
-                attempt,
-                delay,
-                exc,
-            )
+            log.warning(f"{operation_name} throttled (attempt {attempt}), retrying in {delay:.1f}s: {exc}")
             time.sleep(delay)
 
 
@@ -369,7 +361,7 @@ def download_secret_to_file(secret_arn: str, region: str | None = None) -> str:
     finally:
         os.close(fd)
     os.chmod(path, 0o600)
-    log.debug("Downloaded SSH key to %s", path)
+    log.debug(f"Downloaded SSH key to {path}")
     return path
 
 
@@ -455,9 +447,7 @@ class SshTunnel:
                 self._local_port = _free_port()
 
             cmd = self._build_ssh_cmd()
-            log.info(
-                "SSH tunnel attempt %d/%d: %s", attempt, max_retries, " ".join(cmd)
-            )
+            log.info(f"SSH tunnel attempt {attempt}/{max_retries}: {' '.join(cmd)}")
 
             self._proc = subprocess.Popen(
                 cmd,
@@ -472,21 +462,12 @@ class SshTunnel:
                     try:
                         self._wait_for_local_port(self._local_port, timeout=15.0)
                     except Exception as port_exc:
-                        log.warning(
-                            "SSH alive but forward port %d not open: %s",
-                            self._local_port,
-                            port_exc,
-                        )
+                        log.warning(f"SSH alive but forward port {self._local_port} not open: {port_exc}")
                         self._kill()
                         last_err = str(port_exc)
                         time.sleep(min(5.0, attempt * 1.5))
                         continue
-                log.info(
-                    "SSH tunnel started (pid=%d, attempt %d/%d)",
-                    self._proc.pid,
-                    attempt,
-                    max_retries,
-                )
+                log.info(f"SSH tunnel started (pid={self._proc.pid}, attempt {attempt}/{max_retries})")
                 return
 
             stderr = (
@@ -510,13 +491,7 @@ class SshTunnel:
                     f"SSH tunnel exited immediately (attempt {attempt}): {last_err}"
                 )
 
-            log.warning(
-                "SSH tunnel attempt %d/%d failed: %s — retrying in %.0fs",
-                attempt,
-                max_retries,
-                last_err,
-                backoff,
-            )
+            log.warning(f"SSH tunnel attempt {attempt}/{max_retries} failed: {last_err} — retrying in {backoff:.0f}s")
             time.sleep(backoff)
             backoff = min(30.0, backoff * 1.5)
 
@@ -600,7 +575,7 @@ class SshTunnel:
                 self._proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 self._proc.kill()
-            log.info("SSH tunnel closed (pid=%d)", self._proc.pid)
+            log.info(f"SSH tunnel closed (pid={self._proc.pid})")
         except ProcessLookupError:
             pass
         finally:
@@ -634,7 +609,7 @@ class SshTunnel:
                 req = urllib.request.Request(url, method="GET")
                 with urllib.request.urlopen(req, timeout=5) as resp:
                     if resp.status == 200:
-                        log.info("Health endpoint ready (attempt %d): %s", attempt, url)
+                        log.info(f"Health endpoint ready (attempt {attempt}): {url}")
                         return
             except (urllib.error.URLError, OSError, TimeoutError):
                 pass
@@ -895,13 +870,7 @@ class ExecClient:
             except (TimeoutError, OSError, RuntimeError) as exc:
                 last_err = exc
                 if attempt < max_retries:
-                    log.warning(
-                        "upload %s attempt %d/%d: %s",
-                        remote_path,
-                        attempt,
-                        max_retries,
-                        exc,
-                    )
+                    log.warning(f"upload {remote_path} attempt {attempt}/{max_retries}: {exc}")
                     time.sleep(2.0 * attempt)
         raise RuntimeError(
             f"upload to {remote_path} failed after {max_retries} attempts: {last_err}"
@@ -1000,14 +969,7 @@ class ExecClient:
                 last_err = exc
                 if attempt < max_retries:
                     wait = min(15.0, 2.0 ** (attempt - 1))
-                    log.warning(
-                        "%s attempt %d/%d: %s — retry in %.1fs",
-                        label,
-                        attempt,
-                        max_retries,
-                        exc,
-                        wait,
-                    )
+                    log.warning(f"{label} attempt {attempt}/{max_retries}: {exc} — retry in {wait:.1f}s")
                     time.sleep(wait)
                     continue
                 raise ConnectionError(
@@ -1092,19 +1054,19 @@ class ImageBuilder:
         with cls._lock:
             if tag in cls._inflight_builds:
                 event = cls._inflight_builds[tag]
-                log.info("Build already in progress for %s — waiting", tag)
+                log.info(f"Build already in progress for {tag} — waiting")
                 waiting = True
             else:
                 waiting = False
 
         if waiting:
             event.wait()
-            log.info("Build finished (by another thread): %s", tag)
+            log.info(f"Build finished (by another thread): {tag}")
             return image_url
 
         # --- ECR cache check ---
         if not force_build and cls.image_exists_in_ecr(ecr_repo, tag, cfg.region):
-            log.info("ECR cache hit — skipping build: %s", image_url)
+            log.info(f"ECR cache hit — skipping build: {image_url}")
             return image_url
 
         # --- Register as builder ---
@@ -1131,15 +1093,13 @@ class ImageBuilder:
                 cls._build_semaphore_size = cfg.build_parallelism
 
         try:
-            log.info(
-                "Waiting for CodeBuild slot (parallelism=%d)", cfg.build_parallelism
-            )
+            log.info(f"Waiting for CodeBuild slot (parallelism={cfg.build_parallelism})")
             cls._build_semaphore.acquire()  # type: ignore[union-attr]
             try:
                 if not force_build and cls.image_exists_in_ecr(
                     ecr_repo, tag, cfg.region
                 ):
-                    log.info("ECR cache hit (after slot): %s", image_url)
+                    log.info(f"ECR cache hit (after slot): {image_url}")
                     return image_url
                 cls._build_and_push(
                     cfg=cfg,
@@ -1258,7 +1218,7 @@ class ImageBuilder:
             build = status_resp["builds"][0]
             status = build["buildStatus"]
             if status == "SUCCEEDED":
-                log.info("CodeBuild succeeded: %s", build_id)
+                log.info(f"CodeBuild succeeded: {build_id}")
                 return
             if status in ("FAILED", "FAULT", "STOPPED", "TIMED_OUT"):
                 phases = build.get("phases", [])
@@ -1274,12 +1234,7 @@ class ImageBuilder:
                 raise RuntimeError(
                     f"CodeBuild failed for {image_url}: {ctx} (build: {build_id})"
                 )
-            log.debug(
-                "CodeBuild %s — phase=%s status=%s",
-                build_id,
-                build.get("currentPhase"),
-                status,
-            )
+            log.debug(f"CodeBuild {build_id} — phase={build.get('currentPhase')} status={status}")
 
     @classmethod
     def _build_and_push(
@@ -1295,7 +1250,7 @@ class ImageBuilder:
         repo_name = ecr_repo.split("/", 1)[1] if "/" in ecr_repo else ecr_repo
         nonce = uuid.uuid4().hex[:8]
 
-        log.info("Building image via CodeBuild: %s", image_url)
+        log.info(f"Building image via CodeBuild: {image_url}")
 
         s3_key = cls._upload_build_context(cfg, environment_name, nonce)
 
@@ -1315,7 +1270,7 @@ class ImageBuilder:
             computeTypeOverride=cfg.codebuild_compute_type,
         )
         build_id = resp["build"]["id"]
-        log.info("CodeBuild started: %s", build_id)
+        log.info(f"CodeBuild started: {build_id}")
 
         cls._poll_codebuild(cb, build_id, image_url)
 
@@ -1337,9 +1292,7 @@ def _emergency_cleanup() -> None:
             try:
                 sb.stop()
             except Exception:
-                log.debug(
-                    "Emergency cleanup failed for sandbox %s", id(sb), exc_info=True
-                )
+                log.debug(f"Emergency cleanup failed for sandbox {id(sb)}", exc_info=True)
 
 
 class EcsFargateSandbox:
@@ -1694,7 +1647,7 @@ class EcsFargateSandbox:
             ExpiresIn=21600,
         )
         _exec_server_url_cache[cache_key] = url
-        log.info("Uploaded exec server → s3://%s/%s", cfg.s3_bucket, key)
+        log.info(f"Uploaded exec server → s3://{cfg.s3_bucket}/{key}")
         return url
 
     def _build_container_command(
@@ -1781,10 +1734,7 @@ class EcsFargateSandbox:
             except ClientError as exc:
                 code = exc.response.get("Error", {}).get("Code", "")
                 if code in ("ClientException",):
-                    log.warning(
-                        "Base task definition %s not found, will register from scratch",
-                        cfg.task_definition,
-                    )
+                    log.warning(f"Base task definition {cfg.task_definition} not found, will register from scratch")
                     base = None
                 else:
                     raise
@@ -1931,7 +1881,7 @@ class EcsFargateSandbox:
             max_retries=25,
         )
         arn = resp["taskDefinition"]["taskDefinitionArn"]
-        log.info("Registered task def: %s", arn)
+        log.info(f"Registered task def: {arn}")
         return arn
 
     def _make_family_name(self) -> str:
@@ -1970,13 +1920,7 @@ class EcsFargateSandbox:
                 if not _is_retryable_error(exc) or attempt >= cfg.run_task_max_retries:
                     raise
                 delay = min(60.0, 2.0 ** min(6, attempt - 1)) + random.random() * 2
-                log.warning(
-                    "run_task failed (%d/%d): %s — retry in %.1fs",
-                    attempt,
-                    cfg.run_task_max_retries,
-                    exc,
-                    delay,
-                )
+                log.warning(f"run_task failed ({attempt}/{cfg.run_task_max_retries}): {exc} — retry in {delay:.1f}s")
                 time.sleep(delay)
                 continue
 
@@ -1986,7 +1930,7 @@ class EcsFargateSandbox:
                 if not tasks:
                     raise RuntimeError("run_task returned no tasks")
                 task_arn = tasks[0]["taskArn"]
-                log.info("Started ECS task: %s", task_arn)
+                log.info(f"Started ECS task: {task_arn}")
                 return task_arn
 
             last_failures = failures
@@ -1997,13 +1941,7 @@ class EcsFargateSandbox:
             ):
                 raise RuntimeError(f"run_task failures: {failures}")
             delay = min(60.0, 2.0 ** min(6, attempt - 1)) + random.random() * 2
-            log.warning(
-                "run_task capacity issue (%d/%d): %s — retry in %.1fs",
-                attempt,
-                cfg.run_task_max_retries,
-                reasons,
-                delay,
-            )
+            log.warning(f"run_task capacity issue ({attempt}/{cfg.run_task_max_retries}): {reasons} — retry in {delay:.1f}s")
             time.sleep(delay)
 
         raise RuntimeError(
@@ -2039,13 +1977,13 @@ class EcsFargateSandbox:
 
             status = tasks[0].get("lastStatus", "UNKNOWN")
             if status == "RUNNING":
-                log.info("ECS task RUNNING after %.0fs", elapsed)
+                log.info(f"ECS task RUNNING after {elapsed:.0f}s")
                 return
             if status == "STOPPED":
                 raise RuntimeError(f"ECS task stopped: {tasks[0].get('stoppedReason')}")
 
             if status != last_status:
-                log.info("ECS task %s (%.0fs)", status, elapsed)
+                log.info(f"ECS task {status} ({elapsed:.0f}s)")
                 last_status = status
 
             time.sleep(poll + random.random() * 3)
@@ -2086,11 +2024,11 @@ class EcsFargateSandbox:
                 iface = eni["NetworkInterfaces"][0]
                 pub = (iface.get("Association") or {}).get("PublicIp")
                 if pub:
-                    log.info("Container public IP: %s", pub)
+                    log.info(f"Container public IP: {pub}")
                     return pub
                 priv = iface.get("PrivateIpAddress")
                 if priv:
-                    log.info("Container private IP: %s", priv)
+                    log.info(f"Container private IP: {priv}")
                     return priv
                 raise RuntimeError(f"ENI {eni_id} has no IP")
 
@@ -2100,9 +2038,7 @@ class EcsFargateSandbox:
                 if _is_retryable_error(exc):
                     time.sleep(min(15.0, 2.0**attempt + random.random()))
                 else:
-                    log.warning(
-                        "get_task_ip attempt %d/%d: %s", attempt, max_retries, exc
-                    )
+                    log.warning(f"get_task_ip attempt {attempt}/{max_retries}: {exc}")
                     time.sleep(min(15.0, 3.0 + attempt * 2))
 
         raise RuntimeError("get_task_ip exhausted retries")
@@ -2110,7 +2046,7 @@ class EcsFargateSandbox:
     @staticmethod
     def _wait_for_ssh_ready(host: str, port: int, timeout: float) -> None:
         deadline = time.monotonic() + timeout
-        log.info("Waiting for SSH at %s:%d", host, port)
+        log.info(f"Waiting for SSH at {host}:{port}")
         while time.monotonic() < deadline:
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -2119,7 +2055,7 @@ class EcsFargateSandbox:
                     s.settimeout(5.0)
                     data = s.recv(256)
                     if data and b"SSH" in data:
-                        log.info("SSH ready at %s:%d", host, port)
+                        log.info(f"SSH ready at {host}:{port}")
                         return
             except OSError:
                 pass
@@ -2186,9 +2122,9 @@ class EcsFargateSandbox:
                     operation_name="stop_task",
                     max_retries=10,
                 )
-                log.info("Stopped ECS task: %s", self._task_arn)
+                log.info(f"Stopped ECS task: {self._task_arn}")
             except Exception as exc:
-                log.warning("Failed to stop task %s: %s", self._task_arn, exc)
+                log.warning(f"Failed to stop task {self._task_arn}: {exc}")
 
         if self._task_def_arn and self._ecs:
             try:
@@ -2199,21 +2135,15 @@ class EcsFargateSandbox:
                     operation_name="deregister_task_definition",
                     max_retries=5,
                 )
-                log.info("Deregistered task def: %s", self._task_def_arn)
+                log.info(f"Deregistered task def: {self._task_def_arn}")
             except Exception as exc:
-                log.warning(
-                    "Failed to deregister task def %s: %s", self._task_def_arn, exc
-                )
+                log.warning(f"Failed to deregister task def {self._task_def_arn}: {exc}")
 
         if self._ssh_key_file:
             try:
                 os.remove(self._ssh_key_file)
             except Exception:
-                log.debug(
-                    "Failed to remove SSH key file %s",
-                    self._ssh_key_file,
-                    exc_info=True,
-                )
+                log.debug(f"Failed to remove SSH key file {self._ssh_key_file}", exc_info=True)
             self._ssh_key_file = None
 
     def _require_exec_client(self) -> None:
