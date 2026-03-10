@@ -122,6 +122,16 @@ def byob_compile(args=None):
         help=f"Base Docker image for containerization (default: {DEFAULT_BASE_IMAGE})",
     )
     parser.add_argument(
+        "--platform",
+        type=str,
+        default=None,
+        help=(
+            "Target platform(s) for the Docker build "
+            "(e.g. 'linux/amd64' or 'linux/amd64,linux/arm64'). "
+            "Uses buildx when set; plain docker build otherwise."
+        ),
+    )
+    parser.add_argument(
         "--tag",
         type=str,
         default=None,
@@ -267,6 +277,7 @@ def byob_compile(args=None):
                     base_image=parsed.base_image,
                     pkg_name=pkg_name,
                     user_requirements=user_reqs or None,
+                    platform=parsed.platform,
                 )
                 print(f"  Docker image built: {tag}")
 

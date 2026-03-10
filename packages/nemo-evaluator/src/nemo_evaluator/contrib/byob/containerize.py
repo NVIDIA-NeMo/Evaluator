@@ -254,12 +254,37 @@ def prepare_build_context(
     return str(context)
 
 
+def _get_build_command(
+    tag: str,
+    context_dir: str,
+    platform: Optional[str] = None,
+) -> List[str]:
+    """Build the ``docker build`` command.
+
+    Args:
+        tag: Docker image tag.
+        context_dir: Path to the build context.
+        platform: Target platform(s) (e.g. ``"linux/amd64,linux/arm64"``).
+            Uses ``buildx`` when set; plain ``docker build`` otherwise.
+
+    Returns:
+        Command tokens ready for :func:`subprocess.run`.
+    """
+    base = (
+        ["docker", "buildx", "build", "--platform", platform]
+        if platform
+        else ["docker", "build"]
+    )
+    return [*base, "-t", tag, context_dir]
+
+
 def build_image(
     context_dir: str,
     tag: str,
     base_image: str = DEFAULT_BASE_IMAGE,
     pkg_name: str = "",
     user_requirements: Optional[List[str]] = None,
+    platform: Optional[str] = None,
 ) -> str:
     """Build a Docker image from a prepared build context.
 
@@ -273,6 +298,10 @@ def build_image(
         base_image: Base Docker image.
         pkg_name: Package name for Dockerfile generation and labels.
         user_requirements: Extra pip requirements.
+        platform: Target platform(s) for the build (e.g.
+            ``"linux/amd64"`` or ``"linux/amd64,linux/arm64"``).
+            When ``None``, runs a normal ``docker build`` for the
+            host architecture.
 
     Returns:
         The image tag on success.
@@ -296,11 +325,8 @@ def build_image(
             f.write("\n".join(user_requirements) + "\n")
 
     logger.info("Building Docker image", tag=tag, context=context_dir)
-    result = subprocess.run(
-        ["docker", "build", "-t", tag, context_dir],
-        capture_output=True,
-        text=True,
-    )
+    cmd = _get_build_command(tag, context_dir, platform=platform)
+    result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(
             f"docker build failed (exit {result.returncode}):\n{result.stderr}"

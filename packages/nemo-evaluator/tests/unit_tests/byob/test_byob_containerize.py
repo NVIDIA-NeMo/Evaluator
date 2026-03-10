@@ -20,6 +20,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from nemo_evaluator.contrib.byob.containerize import (
+    _get_build_command,
     build_image,
     generate_dockerfile,
     prepare_build_context,
@@ -253,6 +254,51 @@ class TestBuildImage:
             pkg_name="byob_test",
         )
         assert result == "myrepo/byob_test:v1"
+
+    @patch("nemo_evaluator.contrib.byob.containerize.subprocess.run")
+    def test_build_with_platform_uses_buildx(self, mock_run, tmp_path):
+        """Test that build_image uses buildx when platform is specified."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+        context_dir = str(tmp_path)
+        tag = "test/byob:latest"
+        build_image(
+            context_dir=context_dir,
+            tag=tag,
+            pkg_name="byob_test",
+            platform="linux/amd64,linux/arm64",
+        )
+
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args[0][0]
+        assert call_args[:3] == ["docker", "buildx", "build"]
+        assert "--platform" in call_args
+        assert "linux/amd64,linux/arm64" in call_args
+
+
+class TestGetBuildCommand:
+    """Tests for _get_build_command helper."""
+
+    def test_no_platform_returns_plain_build(self):
+        cmd = _get_build_command("img:tag", "/ctx")
+        assert cmd == ["docker", "build", "-t", "img:tag", "/ctx"]
+
+    def test_platform_returns_buildx(self):
+        cmd = _get_build_command("img:tag", "/ctx", platform="linux/amd64")
+        assert cmd == [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            "linux/amd64",
+            "-t",
+            "img:tag",
+            "/ctx",
+        ]
+
+    def test_multi_platform(self):
+        cmd = _get_build_command("img:tag", "/ctx", platform="linux/amd64,linux/arm64")
+        assert "linux/amd64,linux/arm64" in cmd
 
 
 class TestPushImage:
