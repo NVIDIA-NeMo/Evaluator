@@ -190,6 +190,13 @@ class LocalExecutor(BaseExecutor):
             api_key_name = get_api_key_name(cfg)
             eval_env_parsed = collect_eval_env_vars(cfg, task, api_key_name)
 
+            # evaluation mounts from execution config
+            evaluation_mounts_list = []
+            for source_mnt, target_mnt in (
+                cfg.execution.get("mounts", {}).get("evaluation", {}).items()
+            ):
+                evaluation_mounts_list.append(f"{source_mnt}:{target_mnt}")
+
             # Handle dataset directory mounting if dataset_dir is specified in the task config
             dataset_mount_host = None
             dataset_mount_container = None
@@ -261,6 +268,7 @@ class LocalExecutor(BaseExecutor):
                 "output_dir": task_output_dir,
                 "eval_factory_command": eval_factory_command,
                 "eval_factory_command_debug_comment": eval_factory_command_debug_comment,
+                "evaluation_mounts": evaluation_mounts_list,
                 "dataset_mount_host": dataset_mount_host,
                 "dataset_mount_container": dataset_mount_container,
                 "dataset_env_var_value": dataset_env_var_value,

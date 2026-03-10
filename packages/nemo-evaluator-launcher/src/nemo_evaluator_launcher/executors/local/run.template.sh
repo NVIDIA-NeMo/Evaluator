@@ -105,6 +105,9 @@ else
         docker run --rm --shm-size=100g {{ extra_docker_args }} \
         {% if task.deployment %}--network container:$SERVER_CONTAINER_NAME \{% endif %}--name {{ task.client_container_name }} \
       --volume "$artifacts_dir":/results \
+      {% for mount in task.evaluation_mounts -%}
+      --volume "{{ mount }}" \
+      {% endfor -%}
       {% if task.dataset_mount_host and task.dataset_mount_container -%}
       --volume "{{ task.dataset_mount_host }}:{{ task.dataset_mount_container }}" \
       {% endif -%}
