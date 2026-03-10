@@ -283,7 +283,7 @@ nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/l
 :hidden:
 
 NeMo Evaluator Launcher <launcher>
-NeMo Evaluator Launcher Configuration <launcher-configuration>
+Launcher Configuration with nel-assistant <launcher-configuration>
 NeMo Evaluator Core <core>
 NeMo Framework Container <nemo-fw>
 Container Direct <container>
