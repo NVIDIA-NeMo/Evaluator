@@ -1,4 +1,3 @@
-(gs-quickstart-launcher-configuration)=
 # Conversational LLM Evaluations in Minutes with NVIDIA NeMo Evaluator Agent Skills
 
 Running LLM evaluations should not require manually drafting long and complex YAML files. For developers, configuration overhead often becomes the bottleneck. The new **nel-assistant** agent skill enables natural language configuration of production-ready evaluations.
