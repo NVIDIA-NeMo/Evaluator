@@ -2663,19 +2663,23 @@ class TestJudgeDeploymentFeature:
                     "chat": "/v1/chat/completions",
                 },
             },
-            "judge_deployment": {
-                "type": "vllm",
-                "image": "vllm/vllm-openai:v0.16.0",
-                "command": "vllm serve /checkpoint --port 8001",
-                "served_model_name": "judge-model",
-                "port": 8001,
-                "num_nodes": 1,
-                "endpoints": {
-                    "health": "/health",
-                    "chat": "/v1/chat/completions",
-                },
-                "env_vars": {
-                    "HF_TOKEN": "lit:judge-hf-token",
+            "auxiliary_deployments": {
+                "judge": {
+                    "type": "vllm",
+                    "image": "vllm/vllm-openai:v0.16.0",
+                    "command": "vllm serve /checkpoint --port 8001",
+                    "served_model_name": "judge-model",
+                    "port": 8001,
+                    "num_nodes": 1,
+                    "num_instances": 1,
+                    "endpoints": {
+                        "health": "/health",
+                        "chat": "/v1/chat/completions",
+                    },
+                    "env_vars": {
+                        "HF_TOKEN": "lit:judge-hf-token",
+                    },
+                    "env_prefix": "JUDGE",
                 },
             },
             "execution": {
@@ -2691,13 +2695,12 @@ class TestJudgeDeploymentFeature:
                 "deployment": {
                     "n_tasks": 1,
                 },
-                "judge_deployment": {
-                    "n_tasks": 1,
-                },
                 "mounts": {
                     "deployment": {},
-                    "judge_deployment": {
-                        "/cache/huggingface": "/root/.cache/huggingface",
+                    "auxiliary": {
+                        "judge": {
+                            "/cache/huggingface": "/root/.cache/huggingface",
+                        },
                     },
                     "evaluation": {},
                     "mount_home": False,
@@ -2709,7 +2712,7 @@ class TestJudgeDeploymentFeature:
 
     @pytest.fixture
     def base_config_no_judge(self):
-        """Configuration without judge deployment (type: none)."""
+        """Configuration without judge deployment."""
         return {
             "deployment": {
                 "type": "vllm",
@@ -2722,9 +2725,7 @@ class TestJudgeDeploymentFeature:
                     "chat": "/v1/chat/completions",
                 },
             },
-            "judge_deployment": {
-                "type": "none",
-            },
+            "auxiliary_deployments": {},
             "execution": {
                 "type": "slurm",
                 "output_dir": "/test/output",
@@ -2947,7 +2948,7 @@ class TestJudgeDeploymentFeature:
     def test_no_judge_deployment_type_none(
         self, base_config_no_judge, mock_task, mock_dependencies
     ):
-        """When judge_deployment.type is none, no judge infrastructure is generated."""
+        """When auxiliary_deployments is empty, no judge infrastructure is generated."""
         cfg = OmegaConf.create(base_config_no_judge)
         script = _create_slurm_sbatch_script(
             cfg=cfg,
@@ -2967,7 +2968,7 @@ class TestJudgeDeploymentFeature:
         assert "#SBATCH --nodes 1" in script
 
     def test_no_judge_deployment_absent(self, mock_task, mock_dependencies):
-        """When judge_deployment is completely absent from config, no judge infra."""
+        """When auxiliary_deployments is absent from config, no judge infra."""
         config = {
             "deployment": {
                 "type": "vllm",

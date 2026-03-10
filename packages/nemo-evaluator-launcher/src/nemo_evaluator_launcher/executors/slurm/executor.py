@@ -34,7 +34,6 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from nemo_evaluator_launcher.common.auxiliary_deployments import (
     AuxDeploymentState,
     build_aux_deployment_states,
-    normalize_auxiliary_deployments,
     resolve_deployment_command,
     validate_auxiliary_deployments,
 )
@@ -674,8 +673,6 @@ def _create_slurm_sbatch_script(
         endpoint_type=task.get("endpoint_type"),
     )
 
-    # Normalize legacy judge_deployment/user_deployment into auxiliary_deployments
-    normalize_auxiliary_deployments(cfg)
     aux_deployments = build_aux_deployment_states(cfg)
     validate_auxiliary_deployments(aux_deployments, cfg.deployment.get("port", 8000))
 
@@ -2316,19 +2313,6 @@ def _collect_mount_paths(cfg: DictConfig) -> List[str]:
                 .get("auxiliary", {})
                 .get(aux_name, {})
                 .keys()
-            ):
-                mount_paths.append(source_mnt)
-
-    # Legacy judge/user deployment mounts (before normalization runs)
-    for legacy_key in ("judge_deployment", "user_deployment"):
-        legacy_cfg = cfg.get(legacy_key)
-        if legacy_cfg and legacy_cfg.get("type", "none") != "none":
-            if checkpoint_path := legacy_cfg.get("checkpoint_path"):
-                mount_paths.append(checkpoint_path)
-            if cache_path := legacy_cfg.get("cache_path"):
-                mount_paths.append(cache_path)
-            for source_mnt in (
-                cfg.execution.get("mounts", {}).get(legacy_key, {}).keys()
             ):
                 mount_paths.append(source_mnt)
 
