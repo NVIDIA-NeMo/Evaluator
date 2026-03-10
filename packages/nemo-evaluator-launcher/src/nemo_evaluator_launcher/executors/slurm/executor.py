@@ -674,7 +674,7 @@ def _create_slurm_sbatch_script(
     )
 
     aux_deployments = build_aux_deployment_states(cfg)
-    validate_auxiliary_deployments(aux_deployments, cfg.deployment.get("port", 8000))
+    validate_auxiliary_deployments(aux_deployments)
 
     has_aux_deployments = len(aux_deployments) > 0
     total_aux_nodes = sum(a.num_nodes for a in aux_deployments)
