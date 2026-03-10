@@ -333,7 +333,9 @@ def _retry_with_backoff(
                 raise
             delay = min(base_delay * (2 ** (attempt - 1)), max_delay)
             delay *= 1 + random.uniform(-jitter, jitter)
-            log.warning(f"{operation_name} throttled (attempt {attempt}), retrying in {delay:.1f}s: {exc}")
+            log.warning(
+                f"{operation_name} throttled (attempt {attempt}), retrying in {delay:.1f}s: {exc}"
+            )
             time.sleep(delay)
 
 
@@ -462,12 +464,16 @@ class SshTunnel:
                     try:
                         self._wait_for_local_port(self._local_port, timeout=15.0)
                     except Exception as port_exc:
-                        log.warning(f"SSH alive but forward port {self._local_port} not open: {port_exc}")
+                        log.warning(
+                            f"SSH alive but forward port {self._local_port} not open: {port_exc}"
+                        )
                         self._kill()
                         last_err = str(port_exc)
                         time.sleep(min(5.0, attempt * 1.5))
                         continue
-                log.info(f"SSH tunnel started (pid={self._proc.pid}, attempt {attempt}/{max_retries})")
+                log.info(
+                    f"SSH tunnel started (pid={self._proc.pid}, attempt {attempt}/{max_retries})"
+                )
                 return
 
             stderr = (
@@ -491,7 +497,9 @@ class SshTunnel:
                     f"SSH tunnel exited immediately (attempt {attempt}): {last_err}"
                 )
 
-            log.warning(f"SSH tunnel attempt {attempt}/{max_retries} failed: {last_err} — retrying in {backoff:.0f}s")
+            log.warning(
+                f"SSH tunnel attempt {attempt}/{max_retries} failed: {last_err} — retrying in {backoff:.0f}s"
+            )
             time.sleep(backoff)
             backoff = min(30.0, backoff * 1.5)
 
@@ -870,7 +878,9 @@ class ExecClient:
             except (TimeoutError, OSError, RuntimeError) as exc:
                 last_err = exc
                 if attempt < max_retries:
-                    log.warning(f"upload {remote_path} attempt {attempt}/{max_retries}: {exc}")
+                    log.warning(
+                        f"upload {remote_path} attempt {attempt}/{max_retries}: {exc}"
+                    )
                     time.sleep(2.0 * attempt)
         raise RuntimeError(
             f"upload to {remote_path} failed after {max_retries} attempts: {last_err}"
@@ -969,7 +979,9 @@ class ExecClient:
                 last_err = exc
                 if attempt < max_retries:
                     wait = min(15.0, 2.0 ** (attempt - 1))
-                    log.warning(f"{label} attempt {attempt}/{max_retries}: {exc} — retry in {wait:.1f}s")
+                    log.warning(
+                        f"{label} attempt {attempt}/{max_retries}: {exc} — retry in {wait:.1f}s"
+                    )
                     time.sleep(wait)
                     continue
                 raise ConnectionError(
@@ -1093,7 +1105,9 @@ class ImageBuilder:
                 cls._build_semaphore_size = cfg.build_parallelism
 
         try:
-            log.info(f"Waiting for CodeBuild slot (parallelism={cfg.build_parallelism})")
+            log.info(
+                f"Waiting for CodeBuild slot (parallelism={cfg.build_parallelism})"
+            )
             cls._build_semaphore.acquire()  # type: ignore[union-attr]
             try:
                 if not force_build and cls.image_exists_in_ecr(
@@ -1234,7 +1248,9 @@ class ImageBuilder:
                 raise RuntimeError(
                     f"CodeBuild failed for {image_url}: {ctx} (build: {build_id})"
                 )
-            log.debug(f"CodeBuild {build_id} — phase={build.get('currentPhase')} status={status}")
+            log.debug(
+                f"CodeBuild {build_id} — phase={build.get('currentPhase')} status={status}"
+            )
 
     @classmethod
     def _build_and_push(
@@ -1292,7 +1308,9 @@ def _emergency_cleanup() -> None:
             try:
                 sb.stop()
             except Exception:
-                log.debug(f"Emergency cleanup failed for sandbox {id(sb)}", exc_info=True)
+                log.debug(
+                    f"Emergency cleanup failed for sandbox {id(sb)}", exc_info=True
+                )
 
 
 class EcsFargateSandbox:
@@ -1734,7 +1752,9 @@ class EcsFargateSandbox:
             except ClientError as exc:
                 code = exc.response.get("Error", {}).get("Code", "")
                 if code in ("ClientException",):
-                    log.warning(f"Base task definition {cfg.task_definition} not found, will register from scratch")
+                    log.warning(
+                        f"Base task definition {cfg.task_definition} not found, will register from scratch"
+                    )
                     base = None
                 else:
                     raise
@@ -1920,7 +1940,9 @@ class EcsFargateSandbox:
                 if not _is_retryable_error(exc) or attempt >= cfg.run_task_max_retries:
                     raise
                 delay = min(60.0, 2.0 ** min(6, attempt - 1)) + random.random() * 2
-                log.warning(f"run_task failed ({attempt}/{cfg.run_task_max_retries}): {exc} — retry in {delay:.1f}s")
+                log.warning(
+                    f"run_task failed ({attempt}/{cfg.run_task_max_retries}): {exc} — retry in {delay:.1f}s"
+                )
                 time.sleep(delay)
                 continue
 
@@ -1941,7 +1963,9 @@ class EcsFargateSandbox:
             ):
                 raise RuntimeError(f"run_task failures: {failures}")
             delay = min(60.0, 2.0 ** min(6, attempt - 1)) + random.random() * 2
-            log.warning(f"run_task capacity issue ({attempt}/{cfg.run_task_max_retries}): {reasons} — retry in {delay:.1f}s")
+            log.warning(
+                f"run_task capacity issue ({attempt}/{cfg.run_task_max_retries}): {reasons} — retry in {delay:.1f}s"
+            )
             time.sleep(delay)
 
         raise RuntimeError(
@@ -2137,13 +2161,17 @@ class EcsFargateSandbox:
                 )
                 log.info(f"Deregistered task def: {self._task_def_arn}")
             except Exception as exc:
-                log.warning(f"Failed to deregister task def {self._task_def_arn}: {exc}")
+                log.warning(
+                    f"Failed to deregister task def {self._task_def_arn}: {exc}"
+                )
 
         if self._ssh_key_file:
             try:
                 os.remove(self._ssh_key_file)
             except Exception:
-                log.debug(f"Failed to remove SSH key file {self._ssh_key_file}", exc_info=True)
+                log.debug(
+                    f"Failed to remove SSH key file {self._ssh_key_file}", exc_info=True
+                )
             self._ssh_key_file = None
 
     def _require_exec_client(self) -> None:
