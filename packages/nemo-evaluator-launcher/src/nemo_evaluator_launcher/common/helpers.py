@@ -48,7 +48,12 @@ class CmdAndReadableComment:
     secrets_env_result: SecretsEnvResult | None = None
 
 
-def _str_to_echo_command(str_to_save: str, filename: str) -> CmdAndReadableComment:
+def _str_to_echo_command(
+    str_to_save: str,
+    filename: str,
+    *,
+    shell_vars_to_resolve: list[str] | None = None,
+) -> CmdAndReadableComment:
     """Create a safe (see below) echo command saving a string to file.
 
     Safety in this context means the ability to pass such echo command through the
@@ -56,14 +61,25 @@ def _str_to_echo_command(str_to_save: str, filename: str) -> CmdAndReadableComme
 
     Naturally, enconding with base64 creates debuggability issues. For that, the second
     output of the function is the string with bash comment signs prepended.
+
+    If *shell_vars_to_resolve* is provided, a ``sed`` pipeline is appended
+    to replace ``${VAR_NAME}`` placeholders with their runtime shell values.
+    This is a portable alternative to ``envsubst``.
     """
     str_to_save_b64 = base64.b64encode(str_to_save.encode("utf-8")).decode("utf-8")
     debug_str = "\n".join(
         [f"# Contents of {filename}"] + ["# " + s for s in str_to_save.splitlines()]
     )
-    return CmdAndReadableComment(
-        cmd=f'echo "{str_to_save_b64}" | base64 -d > {filename}', debug=debug_str
-    )
+    cmd = f'echo "{str_to_save_b64}" | base64 -d > {filename}'
+    if shell_vars_to_resolve:
+        # Build sed expressions to resolve specific shell variables in-place.
+        # The pattern side escapes the $ so sed matches the literal "${VAR}"
+        # string in the file, while the replacement side uses the shell-expanded value.
+        sed_exprs = " ".join(
+            f'-e "s|\\${{{v}}}|${{{v}}}|g"' for v in shell_vars_to_resolve
+        )
+        cmd += f" && sed -i {sed_exprs} {filename}"
+    return CmdAndReadableComment(cmd=cmd, debug=debug_str)
 
 
 def _set_nested_optionally_overriding(
@@ -283,8 +299,47 @@ def get_eval_factory_command(
     commands.append(create_post_script_cmd.cmd)
     debug.append(create_post_script_cmd.debug)
 
+    # Resolve auxiliary_deployments.NAME.FIELD references in the config.
+    # model_id is resolved to a literal; base_url/endpoint_url use shell vars
+    # that envsubst resolves at runtime.
+    config_yaml = yaml.safe_dump(merged_nemo_evaluator_config)
+    for aux_name, aux_cfg_raw in cfg.get("auxiliary_deployments", {}).items():
+        if not isinstance(aux_cfg_raw, (dict, DictConfig)):
+            continue
+        if OmegaConf.is_dict(aux_cfg_raw):
+            aux_cfg_raw = OmegaConf.to_container(aux_cfg_raw, resolve=True)
+        if aux_cfg_raw.get("type", "none") == "none":
+            continue
+        prefix = aux_cfg_raw.get("env_prefix") or aux_name.upper()
+        refs = {
+            f"auxiliary_deployments.{aux_name}.model_id": str(
+                aux_cfg_raw.get("served_model_name", "")
+            ),
+            f"auxiliary_deployments.{aux_name}.base_url": f"${{{prefix}_BASE_URL}}",
+            f"auxiliary_deployments.{aux_name}.endpoint_url": f"${{{prefix}_ENDPOINT_URL}}",
+        }
+        for ref, value in refs.items():
+            config_yaml = config_yaml.replace(ref, value)
+
+    # Collect shell variables that need runtime resolution in config_ef.yaml
+    shell_vars = []
+    for aux_name_v, aux_cfg_v in cfg.get("auxiliary_deployments", {}).items():
+        if not isinstance(aux_cfg_v, (dict, DictConfig)):
+            continue
+        raw = (
+            OmegaConf.to_container(aux_cfg_v, resolve=True)
+            if OmegaConf.is_dict(aux_cfg_v)
+            else aux_cfg_v
+        )
+        if raw.get("type", "none") == "none":
+            continue
+        pfx = raw.get("env_prefix") or aux_name_v.upper()
+        shell_vars.extend([f"{pfx}_BASE_URL", f"{pfx}_ENDPOINT_URL"])
+
     create_yaml_cmd = _str_to_echo_command(
-        yaml.safe_dump(merged_nemo_evaluator_config), "config_ef.yaml"
+        config_yaml,
+        "config_ef.yaml",
+        shell_vars_to_resolve=shell_vars or None,
     )
     commands.append(create_yaml_cmd.cmd)
     debug.append(create_yaml_cmd.debug)
@@ -371,33 +426,6 @@ def get_endpoint_url(
 
         endpoint_url = f"http://127.0.0.1:{port}{endpoint_uri}"
         return endpoint_url
-
-
-def get_judge_endpoint_url(cfg: DictConfig) -> str | None:
-    """Get the judge deployment endpoint URL.
-
-    Returns None if judge_deployment.type is "none" or judge_deployment is not configured.
-    When a judge is deployed, returns the URL pointing to the judge server.
-    """
-    if not cfg.get("judge_deployment") or cfg.judge_deployment.type == "none":
-        return None
-
-    endpoint_uri = cfg.judge_deployment.endpoints.get("chat", "/v1/chat/completions")
-    port = cfg.judge_deployment.port
-    # Judge always runs on JUDGE_PRIMARY_NODE which is resolved at runtime
-    # in the sbatch script. At config generation time we use a placeholder.
-    endpoint_url = f"http://${{JUDGE_PRIMARY_NODE}}:{port}{endpoint_uri}"
-    return endpoint_url
-
-
-def get_judge_served_model_name(cfg: DictConfig) -> str | None:
-    """Get the judge deployment served model name.
-
-    Returns None if judge_deployment is not configured or type is "none".
-    """
-    if not cfg.get("judge_deployment") or cfg.judge_deployment.type == "none":
-        return None
-    return str(cfg.judge_deployment.served_model_name)
 
 
 def get_health_url(cfg: DictConfig, endpoint_url: str) -> str:
