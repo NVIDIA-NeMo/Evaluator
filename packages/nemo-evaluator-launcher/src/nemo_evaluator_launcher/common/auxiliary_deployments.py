@@ -126,6 +126,15 @@ def normalize_auxiliary_deployments(cfg: DictConfig) -> None:
                 continue
             cfg.auxiliary_deployments[aux_name] = container
 
+            # Migrate execution.mounts.<legacy_key> -> execution.mounts.auxiliary.<aux_name>
+            legacy_mounts = (
+                cfg.get("execution", {}).get("mounts", {}).get(_legacy_key, {})
+            )
+            if legacy_mounts:
+                if not cfg.execution.mounts.get("auxiliary"):
+                    cfg.execution.mounts.auxiliary = {}
+                cfg.execution.mounts.auxiliary[aux_name] = legacy_mounts
+
 
 def collect_auxiliary_deployment_env_vars(
     cfg: DictConfig,
