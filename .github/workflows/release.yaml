@@ -43,8 +43,8 @@ on:
         required: true
         type: string
   schedule:
-    # Mon-Thu
-    - cron: "0 1 * * 1-4"
+    # Wed
+    - cron: "0 1 * * 3"
 
 permissions:
   contents: write # To read repository content
