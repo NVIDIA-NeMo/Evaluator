@@ -322,26 +322,15 @@ def _ensure_pth_file(install_dir: str) -> Optional[str]:
         Path to the ``.pth`` file, or None if site-packages could not
         be determined.
     """
-    import site
+    import sysconfig
 
-    # Find a writable site-packages directory
-    candidates = []
-    try:
-        candidates.append(site.getusersitepackages())
-    except AttributeError:
-        pass
-    try:
-        candidates.extend(site.getsitepackages())
-    except AttributeError:
-        pass
+    # Use sysconfig which correctly resolves site-packages for the
+    # *current* interpreter — including virtual environments.
+    # site.getusersitepackages() / site.getsitepackages() ignore venvs
+    # and return system-level paths, polluting the global Python install.
+    site_dir = sysconfig.get_paths()["purelib"]
 
-    site_dir = None
-    for sp in candidates:
-        if os.path.isdir(sp):
-            site_dir = sp
-            break
-
-    if site_dir is None:
+    if not site_dir or not os.path.isdir(site_dir):
         return None
 
     pth_path = os.path.join(site_dir, _PTH_FILENAME)
