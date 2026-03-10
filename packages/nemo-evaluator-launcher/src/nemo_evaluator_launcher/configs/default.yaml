@@ -16,9 +16,6 @@
 defaults:
   - execution: local
   - deployment: none
-  - judge_deployment: none
-  - user_deployment: none
-  - auxiliary_deployment: none
   - _self_
 
 # Top-level env vars applied to all jobs (deployment + evaluation).
