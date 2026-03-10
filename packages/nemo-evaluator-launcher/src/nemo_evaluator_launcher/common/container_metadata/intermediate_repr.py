@@ -26,6 +26,10 @@ from typing import Any, Optional
 
 import yaml
 
+# Prefer the C extension (libyaml) loader to avoid pure-Python heap issues
+# with large YAML files.  Falls back to SafeLoader when libyaml is absent.
+_YAML_LOADER = yaml.CSafeLoader if yaml.__with_libyaml__ else yaml.SafeLoader
+
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 
@@ -304,12 +308,9 @@ def _load_irs_from_package(
         Tuple of (harnesses dict, tasks list, checksum verified bool)
     """
     try:
-        content = importlib.resources.read_text(
-            package_name,
-            resource_name,
-            encoding="utf-8",
-        )
-        yaml_data = yaml.safe_load(content)
+        resource = importlib.resources.files(package_name).joinpath(resource_name)
+        with resource.open("r", encoding="utf-8") as f:
+            yaml_data = yaml.load(f, Loader=_YAML_LOADER)
 
         logger.info(
             f"Loaded {source} task IRs from package resources",
@@ -372,9 +373,7 @@ def _load_tasks_from_file(
 
     try:
         with open(tasks_file, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        yaml_data = yaml.safe_load(content)
+            yaml_data = yaml.load(f, Loader=_YAML_LOADER)
 
         metadata = yaml_data.get("metadata", {})
         stored_checksum = metadata.get("mapping_toml_checksum")
