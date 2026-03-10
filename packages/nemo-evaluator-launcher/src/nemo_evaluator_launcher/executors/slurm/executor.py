@@ -792,6 +792,10 @@ def _create_slurm_sbatch_script(
                 deployment_env_var_names=list(deployment_env_vars.keys()),
             )
         )
+
+        s += "# Debug contents of the deployment srun command\n"
+        s += deployment_debug
+        s += "\n"
         s += deployment_srun_cmd
 
         # wait for the server to initialize
