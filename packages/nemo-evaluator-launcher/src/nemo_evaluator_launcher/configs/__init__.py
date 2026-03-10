@@ -13,3 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from omegaconf import OmegaConf
+
+
+def select_not_null(key: str, default: str, *, _root_: object) -> str:
+    """Like oc.select but also falls back to default when the value is null."""
+    value = OmegaConf.select(
+        _root_, key, default=None, throw_on_resolution_failure=False
+    )
+    return default if value is None else value
+
+
+OmegaConf.register_new_resolver("select_not_null", select_not_null, use_cache=False)
