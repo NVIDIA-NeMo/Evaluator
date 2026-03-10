@@ -15,15 +15,14 @@
 #
 """Generic auxiliary deployment system for NeMo Evaluator Launcher.
 
-Replaces the hardcoded judge_deployment / user_deployment pattern with a
-generic list of auxiliary deployments, each identified by a config key
-(e.g. "judge", "user", "reranker") and an env_prefix used to derive
-shell variable names for the generated sbatch script.
+Each auxiliary deployment is identified by a config key (e.g. "judge",
+"user", "reranker") and an env_prefix used to derive shell variable
+names for the generated sbatch script.
 """
 
 from dataclasses import dataclass
 
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, OmegaConf
 
 from nemo_evaluator_launcher.common.env_vars import (
     EnvVarValue,
@@ -40,8 +39,11 @@ _DEFAULT_VLLM_COMMAND_TEMPLATE = (
     "vllm serve {hf_model_handle}"
     " --tensor-parallel-size={tensor_parallel_size}"
     " --pipeline-parallel-size={pipeline_parallel_size}"
+    " --data-parallel-size={data_parallel_size}"
     " --port={port}"
     " --served-model-name={served_model_name}"
+    " --gpu-memory-utilization {gpu_memory_utilization}"
+    " {extra_args}"
 )
 
 _PROXY_PORT_START = 5010
@@ -77,63 +79,6 @@ class AuxDeploymentState:
             self.pids_var = f"{self.env_prefix}_SERVER_PIDS"
         if not self.proxy_pid_var:
             self.proxy_pid_var = f"{self.env_prefix}_PROXY_PID"
-
-
-def normalize_auxiliary_deployments(cfg: DictConfig) -> None:
-    """Translate legacy judge_deployment/user_deployment into auxiliary_deployments.
-
-    Mutates cfg in-place. If auxiliary_deployments already exists, legacy keys
-    are skipped with a warning.
-    """
-    legacy_mappings = {
-        "judge_deployment": ("judge", "JUDGE"),
-        "user_deployment": ("user", "USER"),
-    }
-
-    migrations: dict[str, tuple[str, dict]] = {}
-
-    for legacy_key, (aux_name, env_prefix) in legacy_mappings.items():
-        deploy_cfg = cfg.get(legacy_key)
-        if deploy_cfg is None:
-            continue
-        deploy_type = deploy_cfg.get("type", "none")
-        if deploy_type == "none":
-            continue
-
-        logger.warning(
-            f"'{legacy_key}' is deprecated, use 'auxiliary_deployments.{aux_name}' instead",
-            legacy_key=legacy_key,
-            aux_name=aux_name,
-        )
-
-        container = OmegaConf.to_container(deploy_cfg, resolve=False)
-        container["env_prefix"] = env_prefix
-        migrations[aux_name] = (legacy_key, container)
-
-    if not migrations:
-        return
-
-    with open_dict(cfg):
-        if not cfg.get("auxiliary_deployments"):
-            cfg.auxiliary_deployments = {}
-
-        for aux_name, (_legacy_key, container) in migrations.items():
-            if cfg.auxiliary_deployments.get(aux_name):
-                logger.warning(
-                    f"auxiliary_deployments.{aux_name} already exists, "
-                    f"skipping legacy migration from '{_legacy_key}'",
-                )
-                continue
-            cfg.auxiliary_deployments[aux_name] = container
-
-            # Migrate execution.mounts.<legacy_key> -> execution.mounts.auxiliary.<aux_name>
-            legacy_mounts = (
-                cfg.get("execution", {}).get("mounts", {}).get(_legacy_key, {})
-            )
-            if legacy_mounts:
-                if not cfg.execution.mounts.get("auxiliary"):
-                    cfg.execution.mounts.auxiliary = {}
-                cfg.execution.mounts.auxiliary[aux_name] = legacy_mounts
 
 
 def collect_auxiliary_deployment_env_vars(
