@@ -275,19 +275,12 @@ def _get_build_command(
     Returns:
         Command tokens ready for :func:`subprocess.run`.
     """
-    if platform:
-        return [
-            "docker",
-            "buildx",
-            "build",
-            "--platform",
-            platform,
-            "--load",
-            "-t",
-            tag,
-            context_dir,
-        ]
-    return ["docker", "build", "-t", tag, context_dir]
+    base = (
+        ["docker", "buildx", "build", "--platform", platform, "--load"]
+        if platform
+        else ["docker", "build"]
+    )
+    return [*base, "-t", tag, context_dir]
 
 
 def build_image(
