@@ -1815,6 +1815,59 @@ def _generate_haproxy_config(cfg, nodes_ips):
     return config
 
 
+def _build_instance_loop(
+    *,
+    num_instances: int,
+    nodes_per_instance: int,
+    per_instance_ntasks: int,
+    nodes_array_var: str,
+    ips_array_var: str,
+    master_ip_var: str,
+    head_ips_var: str,
+    pids_var: str,
+    pid_var: str,
+    image: str,
+    mounts_list: list[str],
+    mount_home: bool,
+    output_pattern: str,
+    env_var_names: list[str],
+    script: str,
+    label: str,
+) -> str:
+    """Build the per-instance for-loop that launches one srun per instance.
+
+    This is the shared building block used by both the main deployment and
+    auxiliary deployment srun generators.
+    """
+    s = ""
+    s += f"{head_ips_var}=()\n"
+    s += f"{pids_var}=()\n"
+    s += f"for ((g=0; g<{num_instances}; g++)); do\n"
+    s += f"    START_IDX=$((g * {nodes_per_instance}))\n"
+    s += f'    INSTANCE_NODES_ARR=("${{{nodes_array_var}[@]:$START_IDX:{nodes_per_instance}}}")\n'
+    s += '    INSTANCE_NODELIST=$(IFS=,; echo "${INSTANCE_NODES_ARR[*]}")\n'
+    s += f'    {master_ip_var}="${{{ips_array_var}[$START_IDX]}}"\n'
+    s += f'    {head_ips_var}+=("${master_ip_var}")\n'
+    s += f"    export {master_ip_var}\n"
+    s += f'    echo "{label}Instance $g: {master_ip_var}=${master_ip_var}, nodes: ${{INSTANCE_NODES_ARR[*]}}"\n'
+    s += "    srun --mpi pmix --overlap "
+    s += f'--nodelist "$INSTANCE_NODELIST" --nodes {nodes_per_instance} --ntasks {per_instance_ntasks} '
+    s += f"--container-image {image} "
+    if mounts_list:
+        s += "--container-mounts {} ".format(",".join(mounts_list))
+    if not mount_home:
+        s += "--no-container-mount-home "
+    s += f"--output {output_pattern} "
+    if env_var_names:
+        s += f"--container-env {','.join(sorted(env_var_names))} "
+    s += "bash -c '{}' &\n".format(script)
+    s += f"    {pids_var}+=($!)\n"
+    s += "done\n\n"
+    s += f'echo "{head_ips_var}: ${{{head_ips_var}[@]}}"\n'
+    s += f"{pid_var}=${{{pids_var}[0]}}  # reference to first instance PID for health check\n\n"
+    return s
+
+
 def _generate_deployment_srun_command(
     cfg,
     deployment_mounts_list,
@@ -1889,9 +1942,6 @@ def _generate_deployment_srun_command(
     )
     per_instance_ntasks = total_ntasks // num_instances
 
-    s += "HEAD_NODE_IPS=()\n"
-    s += "SERVER_PIDS=()\n"
-
     # Add debug comment for deployment pre_cmd before the loop
     if debug_comment:
         s += "# Debug contents of deployment pre_cmd\n"
@@ -1935,30 +1985,24 @@ def _generate_deployment_srun_command(
     # Per-instance loop: launch one srun per instance on its dedicated nodes.
     # MASTER_IP is exported before each srun so the container inherits the
     # correct per-instance head IP via --container-env.
-    s += f"for ((g=0; g<{num_instances}; g++)); do\n"
-    s += f"    START_IDX=$((g * {nodes_per_instance}))\n"
-    s += f'    INSTANCE_NODES_ARR=("${{DEPLOY_NODES_ARRAY[@]:$START_IDX:{nodes_per_instance}}}")\n'
-    s += '    INSTANCE_NODELIST=$(IFS=,; echo "${INSTANCE_NODES_ARR[*]}")\n'
-    s += '    MASTER_IP="${NODES_IPS_ARRAY[$START_IDX]}"\n'
-    s += '    HEAD_NODE_IPS+=("$MASTER_IP")\n'
-    s += "    export MASTER_IP\n"
-    s += '    echo "Instance $g: MASTER_IP=$MASTER_IP, nodes: ${INSTANCE_NODES_ARR[*]}"\n'
-    s += "    srun --mpi pmix --overlap "
-    s += f'--nodelist "$INSTANCE_NODELIST" --nodes {nodes_per_instance} --ntasks {per_instance_ntasks} '
-    s += "--container-image {} ".format(cfg.deployment.image)
-    if deployment_mounts_list:
-        s += "--container-mounts {} ".format(",".join(deployment_mounts_list))
-    if not cfg.execution.get("mounts", {}).get("mount_home", True):
-        s += "--no-container-mount-home "
-    s += "--output {} ".format(remote_task_subdir / "logs" / "server-${g}-%A-%t.log")
-    if deployment_env_var_names:
-        s += f"--container-env {','.join(sorted(deployment_env_var_names))} "
-    s += "bash -c '{}' &\n".format(script)
-    s += "    SERVER_PIDS+=($!)\n"
-    s += "done\n\n"
-
-    s += 'echo "HEAD_NODE_IPS: ${HEAD_NODE_IPS[@]}"\n'
-    s += "SERVER_PID=${SERVER_PIDS[0]}  # reference to first instance PID for health check\n\n"
+    s += _build_instance_loop(
+        num_instances=num_instances,
+        nodes_per_instance=nodes_per_instance,
+        per_instance_ntasks=per_instance_ntasks,
+        nodes_array_var="DEPLOY_NODES_ARRAY",
+        ips_array_var="NODES_IPS_ARRAY",
+        master_ip_var="MASTER_IP",
+        head_ips_var="HEAD_NODE_IPS",
+        pids_var="SERVER_PIDS",
+        pid_var="SERVER_PID",
+        image=cfg.deployment.image,
+        mounts_list=deployment_mounts_list,
+        mount_home=cfg.execution.get("mounts", {}).get("mount_home", True),
+        output_pattern=str(remote_task_subdir / "logs" / "server-${g}-%A-%t.log"),
+        env_var_names=deployment_env_var_names,
+        script=script,
+        label="",
+    )
 
     return s, is_potentially_unsafe, debug_comment
 
@@ -2029,9 +2073,6 @@ def _generate_auxiliary_deployment_srun_command(
         n_tasks = aux.cfg.get("n_tasks", nodes_per_instance)
         per_instance_ntasks = n_tasks // aux.num_instances
 
-        s += f"{prefix}_HEAD_NODE_IPS=()\n"
-        s += f"{aux.pids_var}=()\n"
-
         # Build the command that runs inside each instance container
         create_script_cmd = _str_to_echo_command(
             deploy_command, filename=f"{name}_deployment_cmd.sh"
@@ -2059,32 +2100,26 @@ def _generate_auxiliary_deployment_srun_command(
                 f"{create_script_cmd.cmd} && bash {name}_deployment_cmd.sh"
             )
 
-        s += f"for ((g=0; g<{aux.num_instances}; g++)); do\n"
-        s += f"    START_IDX=$((g * {nodes_per_instance}))\n"
-        s += f'    INSTANCE_NODES_ARR=("${{{aux.nodes_var}[@]:$START_IDX:{nodes_per_instance}}}")\n'
-        s += '    INSTANCE_NODELIST=$(IFS=,; echo "${INSTANCE_NODES_ARR[*]}")\n'
-        s += f'    {prefix}_MASTER_IP="${{{prefix}_NODES_IPS_ARRAY[$START_IDX]}}"\n'
-        s += f'    {prefix}_HEAD_NODE_IPS+=("${prefix}_MASTER_IP")\n'
-        s += f"    export {prefix}_MASTER_IP\n"
-        s += f'    echo "{name} Instance $g: {prefix}_MASTER_IP=${prefix}_MASTER_IP, nodes: ${{INSTANCE_NODES_ARR[*]}}"\n'
-        s += "    srun --mpi pmix --overlap "
-        s += f'--nodelist "$INSTANCE_NODELIST" --nodes {nodes_per_instance} --ntasks {per_instance_ntasks} '
-        s += f"--container-image {aux.cfg.image} "
-        if aux_mounts_list:
-            s += "--container-mounts {} ".format(",".join(aux_mounts_list))
-        if not cfg.execution.get("mounts", {}).get("mount_home", True):
-            s += "--no-container-mount-home "
-        s += "--output {} ".format(
-            remote_task_subdir / "logs" / f"{name}-server-${{g}}-%A-%t.log"
+        s += _build_instance_loop(
+            num_instances=aux.num_instances,
+            nodes_per_instance=nodes_per_instance,
+            per_instance_ntasks=per_instance_ntasks,
+            nodes_array_var=aux.nodes_var,
+            ips_array_var=f"{prefix}_NODES_IPS_ARRAY",
+            master_ip_var=f"{prefix}_MASTER_IP",
+            head_ips_var=f"{prefix}_HEAD_NODE_IPS",
+            pids_var=aux.pids_var,
+            pid_var=aux.pid_var,
+            image=aux.cfg.image,
+            mounts_list=aux_mounts_list,
+            mount_home=cfg.execution.get("mounts", {}).get("mount_home", True),
+            output_pattern=str(
+                remote_task_subdir / "logs" / f"{name}-server-${{g}}-%A-%t.log"
+            ),
+            env_var_names=env_var_names,
+            script=script,
+            label=f"{name} ",
         )
-        if env_var_names:
-            s += f"--container-env {','.join(sorted(env_var_names))} "
-        s += "bash -c '{}' &\n".format(script)
-        s += f"    {aux.pids_var}+=($!)\n"
-        s += "done\n\n"
-
-        s += f'echo "{prefix}_HEAD_NODE_IPS: ${{{prefix}_HEAD_NODE_IPS[@]}}"\n'
-        s += f"{aux.pid_var}=${{{aux.pids_var}[0]}}  # reference to first instance PID for health check\n\n"
 
     else:
         # Single instance mode: one srun, single PID
@@ -2125,6 +2160,83 @@ def _generate_auxiliary_deployment_srun_command(
     return s, is_potentially_unsafe, debug_comment
 
 
+def _generate_haproxy_srun(
+    *,
+    ips_array_var: str,
+    ip_placeholder_prefix: str,
+    proxy_pid_var: str,
+    proxy_port: int,
+    backend_port: int,
+    health_path: str,
+    label: str,
+    output_path: str,
+    proxy_cfg_path: str,
+    config_setup_script: str,
+    proxy_image: str,
+    num_instances: int,
+    nodes_per_instance: int,
+) -> str:
+    """Generate HAProxy srun command used by both main and auxiliary deployments.
+
+    Args:
+        ips_array_var: Shell array variable holding node IPs (e.g. "NODES_IPS_ARRAY").
+        ip_placeholder_prefix: Prefix for placeholder IPs in the template (e.g. "IP" or "JUDGE_IP").
+        proxy_pid_var: Shell variable to store the proxy PID (e.g. "PROXY_PID").
+        proxy_port: Port HAProxy listens on.
+        backend_port: Port backend servers listen on.
+        health_path: Health check endpoint path.
+        label: Human-readable label for echo/comments (e.g. "" or "judge").
+        output_path: Log output path for srun.
+        proxy_cfg_path: Path where the proxy.cfg file will be written.
+        config_setup_script: Bash lines that create the proxy config file with placeholder IPs.
+        proxy_image: Container image for HAProxy.
+        num_instances: Number of deployment instances.
+        nodes_per_instance: Nodes per instance.
+    """
+    label_prefix = f"{label} " if label else ""
+
+    s = ""
+    s += (
+        f"# {label_prefix}proxy load balancer\n" if label else "# Proxy load balancer\n"
+    )
+
+    # Config file setup (cp template or heredoc — provided by caller)
+    s += config_setup_script
+
+    # Replace placeholder IPs with actual node IPs
+    s += f"proxy_config_file={proxy_cfg_path}\n"
+    s += f'for i in "${{!{ips_array_var}[@]}}"; do\n'
+    s += f'    ip="${{{ips_array_var}[$i]}}"\n'
+    s += f'    sed -i "s/{{{ip_placeholder_prefix}_$i}}/$ip/g" "$proxy_config_file"\n'
+    s += "done\n"
+    s += "\n"
+
+    s += "srun --mpi pmix --overlap "
+    s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
+    s += f"--container-image {proxy_image} "
+    s += f"--container-mounts {proxy_cfg_path}:/usr/local/etc/haproxy/haproxy.cfg:ro "
+    s += f"--output {output_path} "
+    s += "haproxy -f /usr/local/etc/haproxy/haproxy.cfg &\n"
+    s += f"{proxy_pid_var}=$!  # capture the PID of the {label_prefix}proxy background srun process\n"
+    s += (
+        f'echo "{label_prefix}proxy started with PID: ${proxy_pid_var}"\n\n'
+        if label
+        else f'echo "Proxy started with PID: ${proxy_pid_var}"\n\n'
+    )
+
+    # Wait for proxy to be ready
+    s += _get_wait_for_server_handler(
+        "127.0.0.1",
+        proxy_port,
+        health_path,
+        f"{label_prefix}Proxy" if label else "Proxy",
+        check_pid=False,
+    )
+    s += "\n"
+
+    return s
+
+
 def _generate_aux_haproxy_srun_command(
     aux: AuxDeploymentState,
     remote_task_subdir: Path,
@@ -2133,9 +2245,6 @@ def _generate_aux_haproxy_srun_command(
     """Generate HAProxy srun command for a multi-instance auxiliary deployment."""
     prefix = aux.env_prefix
     name = aux.name
-
-    s = ""
-    s += f"# {name} proxy load balancer\n"
 
     # Generate haproxy config with placeholders for this auxiliary
     template_dir = Path(__file__).parent
@@ -2156,37 +2265,29 @@ def _generate_aux_haproxy_srun_command(
         nodes=nodes,
     )
 
-    # Write template inline via heredoc
     proxy_cfg_path = f"{remote_task_subdir}/{name}_proxy.cfg"
-    s += f"cat > {proxy_cfg_path} << 'PROXY_EOF'\n"
-    s += proxy_config
-    s += "\nPROXY_EOF\n"
 
-    # Replace placeholder IPs with actual node IPs
-    s += f"proxy_config_file={proxy_cfg_path}\n"
-    s += f'for i in "${{!{prefix}_NODES_IPS_ARRAY[@]}}"; do\n'
-    s += f'    ip="${{{prefix}_NODES_IPS_ARRAY[$i]}}"\n'
-    s += f'    sed -i "s/{{{prefix}_IP_$i}}/$ip/g" "$proxy_config_file"\n'
-    s += "done\n"
-    s += "\n"
+    # Build config setup: write template inline via heredoc
+    config_setup = ""
+    config_setup += f"cat > {proxy_cfg_path} << 'PROXY_EOF'\n"
+    config_setup += proxy_config
+    config_setup += "\nPROXY_EOF\n"
 
-    proxy_image = cfg.execution.get("proxy", {}).get("image", "haproxy:latest")
-    s += "srun --mpi pmix --overlap "
-    s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
-    s += f"--container-image {proxy_image} "
-    s += f"--container-mounts {proxy_cfg_path}:/usr/local/etc/haproxy/haproxy.cfg:ro "
-    s += f"--output {remote_task_subdir}/logs/{name}-proxy-%A.log "
-    s += "haproxy -f /usr/local/etc/haproxy/haproxy.cfg &\n"
-    s += f"{aux.proxy_pid_var}=$!  # capture the PID of the {name} proxy background srun process\n"
-    s += f'echo "{name} proxy started with PID: ${aux.proxy_pid_var}"\n\n'
-
-    # Wait for proxy to be ready
-    s += _get_wait_for_server_handler(
-        "127.0.0.1", aux.proxy_port, health_check_path, f"{name} Proxy", check_pid=False
+    return _generate_haproxy_srun(
+        ips_array_var=f"{prefix}_NODES_IPS_ARRAY",
+        ip_placeholder_prefix=f"{prefix}_IP",
+        proxy_pid_var=aux.proxy_pid_var,
+        proxy_port=aux.proxy_port,
+        backend_port=int(aux.cfg.port),
+        health_path=health_check_path,
+        label=name,
+        output_path=f"{remote_task_subdir}/logs/{name}-proxy-%A.log",
+        proxy_cfg_path=proxy_cfg_path,
+        config_setup_script=config_setup,
+        proxy_image=cfg.execution.get("proxy", {}).get("image", "haproxy:latest"),
+        num_instances=aux.num_instances,
+        nodes_per_instance=nodes_per_instance,
     )
-    s += "\n"
-
-    return s
 
 
 def _get_wait_for_server_handler(
@@ -2246,36 +2347,35 @@ def _get_proxy_server_srun_command(cfg, remote_task_subdir):
 
 def _generate_haproxy_srun_command(cfg, remote_task_subdir):
     """Generate HAProxy-specific srun command using template-based config."""
-    s = ""
-    s += "# Proxy load balancer\n"
-    s += "# Copy template to config file (important for restarts)\n"
-    s += f"cp {remote_task_subdir}/proxy.cfg.template {remote_task_subdir}/proxy.cfg\n"
-    s += "# Replace placeholder IPs with actual node IPs\n"
-    s += f"proxy_config_file={remote_task_subdir}/proxy.cfg\n"
-    s += 'for i in "${!NODES_IPS_ARRAY[@]}"; do\n'
-    s += '    ip="${NODES_IPS_ARRAY[$i]}"\n'
-    s += '    sed -i "s/{IP_$i}/$ip/g" "$proxy_config_file"\n'
-    s += "done\n"
-    s += "\n"
-    s += "srun --mpi pmix --overlap "
-    s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
-    s += f"--container-image {cfg.execution.get('proxy', {}).get('image', 'haproxy:latest')} "
-    s += f"--container-mounts {remote_task_subdir}/proxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro "
-    s += f"--output {remote_task_subdir}/logs/proxy-%A.log "
-    s += "haproxy -f /usr/local/etc/haproxy/haproxy.cfg &\n"
-    s += "PROXY_PID=$!  # capture the PID of the proxy background srun process\n"
-    s += 'echo "Proxy started with PID: $PROXY_PID"\n\n'
-
-    # Wait for proxy to be ready on localhost
     proxy_config = cfg.execution.get("proxy", {}).get("config", {})
     haproxy_port = proxy_config.get("haproxy_port", 5009)
     health_path = proxy_config.get("health_check_path", "/health")
-    s += _get_wait_for_server_handler(
-        "127.0.0.1", haproxy_port, health_path, "Proxy", check_pid=False
-    )
-    s += "\n"
+    proxy_cfg_path = f"{remote_task_subdir}/proxy.cfg"
 
-    return s
+    num_instances = cfg.execution.num_instances
+    nodes_per_instance = cfg.execution.num_nodes // num_instances
+
+    # Build config setup: copy pre-rendered template
+    config_setup = ""
+    config_setup += "# Copy template to config file (important for restarts)\n"
+    config_setup += f"cp {remote_task_subdir}/proxy.cfg.template {proxy_cfg_path}\n"
+    config_setup += "# Replace placeholder IPs with actual node IPs\n"
+
+    return _generate_haproxy_srun(
+        ips_array_var="NODES_IPS_ARRAY",
+        ip_placeholder_prefix="IP",
+        proxy_pid_var="PROXY_PID",
+        proxy_port=haproxy_port,
+        backend_port=cfg.deployment.port,
+        health_path=health_path,
+        label="",
+        output_path=f"{remote_task_subdir}/logs/proxy-%A.log",
+        proxy_cfg_path=proxy_cfg_path,
+        config_setup_script=config_setup,
+        proxy_image=cfg.execution.get("proxy", {}).get("image", "haproxy:latest"),
+        num_instances=num_instances,
+        nodes_per_instance=nodes_per_instance,
+    )
 
 
 def _collect_mount_paths(cfg: DictConfig) -> List[str]:
