@@ -11,7 +11,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_REWARD_METRIC_KEYS = ("exact_match", "acc", "em", "score", "bleu", "rouge1")
+_REWARD_METRIC_KEYS = (
+    "exact_match", "acc", "em", "score", "bleu", "rouge1",
+    "prompt_level_strict_acc", "prompt_level_loose_acc",
+)
 
 
 class UnsupportedTaskTypeError(RuntimeError):
@@ -122,7 +125,10 @@ class LMEvalEnvironment(EvalEnvironment):
         if isinstance(metrics, dict):
             for key in _REWARD_METRIC_KEYS:
                 if key in metrics:
-                    reward = float(metrics[key])
+                    val = metrics[key]
+                    if isinstance(val, (list, tuple)):
+                        val = sum(val) / len(val) if val else 0.0
+                    reward = float(val)
                     break
 
         return VerifyResult(

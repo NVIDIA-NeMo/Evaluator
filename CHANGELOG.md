@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.8.0 (2026-03-11)
+
+### NAT Agent Integration
+
+- **`NatSolver`**: New solver that communicates with NeMo Agent Toolkit agents via the `/generate/full` SSE endpoint. Sends task prompts, collects full trajectories (LLM calls, tool invocations, results), converts them to PinchBench-compatible transcript format. Works with any benchmark -- set `endpoint_type: nat_agent` in config.
+- **Trajectory conversion**: NAT `IntermediateStep` events (LLM_END, TOOL_START, TOOL_END) are mapped to the OpenClaw-style transcript format for PinchBench grade functions.
+
+### PinchBench
+
+- **New built-in benchmark**: PinchBench agentic task benchmark with 23 tasks. Tasks with embedded `grade()` functions are scored automatically; tasks without use LLM-as-judge via the `needs_judge` mechanism.
+- **Judge-scored tasks**: PinchBench populates `expected_answer` with grading criteria for non-automated tasks, delegating scoring to the judge pipeline.
+
+### lm-eval Improvements
+
+- **IFEval scoring fix**: Added `prompt_level_strict_acc` and `prompt_level_loose_acc` to the lm-eval reward metric key lookup. Handle list-valued metrics (averaged).
+
+### Fixes
+
+- **HumanEval entry_point**: Fixed metadata flow -- `entry_point` is now stored as `_entry_point` to avoid being stripped by the `@benchmark` decorator. `code_sandbox` scorer retrieves it correctly.
+
 ## 0.7.0 (2026-03-09)
 
 ### Sandbox Orchestration

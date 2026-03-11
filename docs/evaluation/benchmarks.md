@@ -1,6 +1,6 @@
 # Built-in Benchmarks
 
-All 11 built-in benchmarks are defined with `@benchmark` + `@scorer` in `src/nemo_evaluator/benchmarks/`.
+All 12 built-in benchmarks are defined with `@benchmark` + `@scorer` in `src/nemo_evaluator/benchmarks/`.
 
 ## Quick Reference
 
@@ -17,10 +17,11 @@ All 11 built-in benchmarks are defined with `@benchmark` + `@scorer` in `src/nem
 | HumanEval | `nel eval run --bench humaneval` | `code_sandbox` | Code generation (Docker) |
 | SimpleQA | `nel eval run --bench simpleqa` | `needs_judge` | Factuality (LLM judge) |
 | HealthBench | `nel eval run --bench healthbench` | `needs_judge` | Health (LLM judge) |
+| PinchBench | `nel eval run --bench pinchbench` | `code_sandbox` / `needs_judge` | Agentic tasks (code/LLM judge) |
 
 ## Extended Environments
 
-Beyond the 11 built-in benchmarks, NEL resolves additional environment types via URI schemes and namespace prefixes:
+Beyond the 12 built-in benchmarks, NEL resolves additional environment types via URI schemes and namespace prefixes:
 
 | Syntax | Source | Example |
 |--------|--------|---------|

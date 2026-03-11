@@ -7,6 +7,7 @@ All environments use ``scheme://task`` URI syntax:
   - ``lm-eval://aime2025``
   - ``pi://simpleqa``
   - ``mteb://STSBenchmark``
+  - ``harbor://swebench-verified``
   - ``container://image#task``
 
 Built-in benchmarks use bare names: ``mmlu``, ``gsm8k``, etc.
@@ -137,6 +138,19 @@ def _make_container(rest: str, **kwargs: Any) -> "EvalEnvironment":
     return ContainerEnvironment(image=image, task=task)
 
 
+def _make_harbor(rest: str, **kwargs: Any) -> "EvalEnvironment":
+    import os
+
+    from nemo_evaluator.environments.harbor import HarborEnvironment
+
+    datasets_dir = os.environ.get("HARBOR_DATASETS_DIR", "./harbor_datasets")
+    dataset_path = Path(datasets_dir) / rest
+    return HarborEnvironment(
+        dataset_path=dataset_path,
+        num_examples=kwargs.get("num_examples"),
+    )
+
+
 _URI_FACTORIES: dict[str, Callable[..., "EvalEnvironment"]] = {
     "gym": _make_gym,
     "skills": _make_skills,
@@ -144,6 +158,7 @@ _URI_FACTORIES: dict[str, Callable[..., "EvalEnvironment"]] = {
     "pi": _make_pi,
     "mteb": _make_mteb,
     "container": _make_container,
+    "harbor": _make_harbor,
 }
 
 

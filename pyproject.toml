@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nemo-evaluator"
-version = "0.7.0"
+version = "0.8.0"
 description = "NeMo Evaluator – benchmark environments, evaluation runner, and decision-grade scoring"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -48,6 +48,9 @@ dev = [
 
 [project.scripts]
 nel = "nemo_evaluator.cli.main:cli"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nemo_evaluator"]

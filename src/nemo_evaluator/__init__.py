@@ -7,13 +7,13 @@ from nemo_evaluator.environments.define import benchmark, scorer
 from nemo_evaluator.environments.registry import get_environment, list_environments, load_benchmark_file, register
 from nemo_evaluator.runner.eval_loop import run_evaluation
 from nemo_evaluator.runner.model_client import ModelClient
+from nemo_evaluator.runner.nat_solver import NatSolver
 from nemo_evaluator.runner.solver import (
     AgentSolver,
     ChatSolver,
     CompletionSolver,
     CrossEncoderSolver,
     EmbeddingSolver,
-    SandboxedAgentSolver,
     Solver,
     SolveResult,
     VLMSolver,
@@ -36,8 +36,7 @@ __all__ = [
     "register", "get_environment", "list_environments", "load_benchmark_file",
     "run_evaluation", "ModelClient",
     # Solver
-    "Solver", "ChatSolver", "CompletionSolver", "AgentSolver",
-    "SandboxedAgentSolver",
+    "Solver", "ChatSolver", "CompletionSolver", "AgentSolver", "NatSolver",
     "VLMSolver", "EmbeddingSolver", "CrossEncoderSolver", "SolveResult",
     # Benchmark definition API
     "benchmark", "scorer", "ScorerInput",

@@ -62,6 +62,15 @@ nel serve -b {benchmark} --host 0.0.0.0 -p {port} &
 {name_upper}_PID=$!
 """
 
+_NAT_SERVICE = """\
+# Service: {name} (nat agent)
+echo "Starting NAT agent server: {name}..."
+{srun_prefix}nat serve --config_file {config_file} --port {port} --host 0.0.0.0 &
+{name_upper}_PID=$!
+{name_upper}_URL="http://localhost:{port}"
+{name_upper}_MODEL="nat-agent"
+"""
+
 _HEALTH_WAIT = """\
 # Wait for {name}
 echo "Waiting for {name} at {url}..."
@@ -194,12 +203,19 @@ _MODEL_CMD = {
 }
 
 
+def _resolve_service_image(svc: ServiceConfig) -> str:
+    """Return the container image for a service, checking per-service override first."""
+    if svc.image:
+        return svc.image
+    return resolve_deployment_image(svc.type)
+
+
 def _service_block(name: str, svc: ServiceConfig, use_containers: bool = False) -> str:
     upper = _safe(name).upper()
 
     if svc.type in _MODEL_CMD:
         cmd, model_flag, tp_flag_name = _MODEL_CMD[svc.type]
-        deploy_image = resolve_deployment_image(svc.type)
+        deploy_image = _resolve_service_image(svc)
         srun_prefix = ""
         if use_containers and deploy_image:
             srun_prefix = (
@@ -216,6 +232,20 @@ def _service_block(name: str, svc: ServiceConfig, use_containers: bool = False) 
             cmd=cmd, model_flag=model_flag, model=svc.model or "",
             port=svc.port, tp_flag=tp_flag, extra_args=extra,
             cuda_prefix=cuda, srun_prefix=srun_prefix,
+        )
+
+    if svc.type == "nat":
+        deploy_image = _resolve_service_image(svc)
+        srun_prefix = ""
+        if use_containers and deploy_image:
+            srun_prefix = (
+                f"srun --overlap --nodes 1 --ntasks 1 "
+                f"--container-image {deploy_image} $CONTAINER_MOUNTS $CONTAINER_ENV "
+            )
+        config_file = svc.nat_config_file or "config.yml"
+        return _NAT_SERVICE.format(
+            name=name, name_upper=upper, port=svc.port,
+            config_file=config_file, srun_prefix=srun_prefix,
         )
 
     if svc.type == "gym":

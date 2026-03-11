@@ -88,8 +88,8 @@ flowchart TB
 | Package | Responsibility | Key types |
 |---------|---------------|-----------|
 | `environments/` | Base class, registry, `@benchmark` API, environment types | `EvalEnvironment`, `SeedResult`, `VerifyResult`, `BenchmarkDefinition` |
-| `benchmarks/` | 11 built-in benchmarks (all `@benchmark` + `@scorer`) | Scorer functions |
-| `runner/` | Eval loop, solvers, model client, deployment, checkpoint, regression | `run_evaluation()`, `ChatSolver`, `CompletionSolver`, `VLMSolver`, `EmbeddingSolver`, `AgentSolver`, `SandboxedAgentSolver`, `ModelClient`, `CheckpointManager` |
+| `benchmarks/` | 12 built-in benchmarks (all `@benchmark` + `@scorer`) | Scorer functions |
+| `runner/` | Eval loop, solvers, model client, deployment, checkpoint, regression | `run_evaluation()`, `ChatSolver`, `CompletionSolver`, `VLMSolver`, `EmbeddingSolver`, `AgentSolver`, `SandboxedAgentSolver`, `NatSolver`, `ModelClient`, `CheckpointManager` |
 | `executors/` | Executor protocol and backends (local, Docker, SLURM) | `Executor`, `get_executor()`, `detect_executor()`, `ProcessState` |
 | `sandbox/` | Per-problem isolated execution (Docker, SLURM, local) | `Sandbox`, `SandboxSpec`, `SandboxManager`, `DockerSandbox`, `SlurmSandbox` |
 | `eval/` | Suite orchestration: `local_runner`, `slurm_gen`, config, containers | `run_local()`, `generate_sbatch()`, `EvalConfig` |
@@ -223,6 +223,7 @@ Solvers decouple inference strategy from benchmark logic. The eval loop calls `s
 | `CrossEncoderSolver` | `/v1/rerank` | Reranking benchmarks |
 | `AgentSolver` | External agent subprocess | Multi-turn agents (OpenHands, SWE-agent) |
 | `SandboxedAgentSolver` | Agent in per-problem sandbox | SWE-bench, terminal-bench (exec or HTTP) |
+| `NatSolver` | NAT agent via SSE (`/generate/full`) | Any benchmark with NAT agent (PinchBench, GSM8K, etc.) |
 
 ```python
 class Solver(Protocol):

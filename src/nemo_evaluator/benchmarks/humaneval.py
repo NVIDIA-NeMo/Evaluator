@@ -11,7 +11,7 @@ _PROMPT = (
 
 def _prepare(row, idx, rng):
     return {**row, "_prompt": row["prompt"], "_test": row["test"],
-            "entry_point": row["entry_point"]}
+            "_entry_point": row["entry_point"]}
 
 
 @benchmark(name="humaneval", dataset="hf://openai/openai_humaneval?split=test",

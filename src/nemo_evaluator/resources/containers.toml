@@ -18,6 +18,7 @@ tag = "latest"
 vllm = "vllm/vllm-openai:latest"
 sglang = "lmsysorg/sglang:latest"
 nim = ""
+nat = "nvcr.io/nvidia/nemo-agent-toolkit:latest"
 
 # Evaluation containers (NEL + harness)
 [eval]

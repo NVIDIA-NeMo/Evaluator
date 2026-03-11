@@ -32,7 +32,7 @@ def code_sandbox(sample: ScorerInput) -> dict[str, Any]:
 
     prompt_code = sample.metadata.get("_prompt", "")
     test_code = sample.metadata.get("_test", "")
-    entry_point = sample.metadata.get("entry_point", "solution")
+    entry_point = sample.metadata.get("_entry_point") or sample.metadata.get("entry_point", "solution")
 
     completion = _extract_code(sample)
     code = f"{prompt_code}{completion}\n{test_code}\ncheck({entry_point})"
@@ -69,7 +69,7 @@ async def code_sandbox_async(
     """
     prompt_code = sample.metadata.get("_prompt", "")
     test_code = sample.metadata.get("_test", "")
-    entry_point = sample.metadata.get("entry_point", "solution")
+    entry_point = sample.metadata.get("_entry_point") or sample.metadata.get("entry_point", "solution")
 
     completion = _extract_code(sample)
     code = f"{prompt_code}{completion}\n{test_code}\ncheck({entry_point})"
