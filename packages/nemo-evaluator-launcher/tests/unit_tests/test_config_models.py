@@ -15,6 +15,9 @@
 #
 """Tests for Pydantic config validation — extra fields forbidden."""
 
+import copy
+from typing import Any, Dict, Optional
+
 import pytest
 from omegaconf import OmegaConf
 from pydantic import ValidationError
@@ -25,6 +28,26 @@ from nemo_evaluator_launcher.common.config_models import (
     MountsModel,
     TaskModel,
 )
+
+# Minimal valid sections for _validate_config_sections integration tests.
+MINIMAL_EVALUATION: Dict[str, Any] = {
+    "tasks": [{"name": "lm-evaluation-harness.ifeval"}],
+}
+MINIMAL_EXECUTION: Dict[str, Any] = {}
+
+
+def make_config(
+    evaluation: Optional[Dict[str, Any]] = None,
+    execution: Optional[Dict[str, Any]] = None,
+):
+    """Build config with evaluation and execution; uses minimal section when omitted."""
+    return OmegaConf.create(
+        {
+            "evaluation": copy.deepcopy(evaluation or MINIMAL_EVALUATION),
+            "execution": copy.deepcopy(execution or MINIMAL_EXECUTION),
+        }
+    )
+
 
 # ---------------------------------------------------------------------------
 # MountsModel
@@ -204,41 +227,38 @@ class TestValidateConfigSections:
     """Integration tests: _validate_config_sections against OmegaConf configs."""
 
     def test_valid_evaluation_passes(self):
-        cfg = OmegaConf.create(
-            {
-                "evaluation": {
-                    "tasks": [{"name": "lm-evaluation-harness.ifeval"}],
-                    "env_vars": {},
-                }
+        cfg = make_config(
+            evaluation={
+                "tasks": [{"name": "lm-evaluation-harness.ifeval"}],
+                "env_vars": {},
             }
         )
         _validate_config_sections(cfg)
 
     def test_unknown_evaluation_key_raises(self):
-        cfg = OmegaConf.create({"evaluation": {"tasks": [], "typo_key": "oops"}})
-        with pytest.raises(ValueError, match="Invalid 'evaluation' config"):
-            _validate_config_sections(cfg)
-
-    def test_unknown_task_key_raises(self):
-        cfg = OmegaConf.create(
-            {"evaluation": {"tasks": [{"name": "some.task", "bad_field": 1}]}}
+        cfg = make_config(
+            evaluation={
+                "tasks": [{"name": "lm-evaluation-harness.ifeval"}],
+                "typo_key": "oops",
+            }
         )
         with pytest.raises(ValueError, match="Invalid 'evaluation' config"):
             _validate_config_sections(cfg)
 
+    def test_unknown_task_key_raises(self):
+        cfg = make_config(evaluation={"tasks": [{"name": "some.task", "bad_field": 1}]})
+        with pytest.raises(ValueError, match="Invalid 'evaluation' config"):
+            _validate_config_sections(cfg)
+
     def test_valid_mounts_passes(self):
-        cfg = OmegaConf.create(
-            {
-                "execution": {
-                    "mounts": {"deployment": {}, "evaluation": {}, "mount_home": False}
-                }
+        cfg = make_config(
+            execution={
+                "mounts": {"deployment": {}, "evaluation": {}, "mount_home": False}
             }
         )
         _validate_config_sections(cfg)
 
     def test_unknown_mounts_key_raises(self):
-        cfg = OmegaConf.create(
-            {"execution": {"mounts": {"deployment": {}, "typo": "oops"}}}
-        )
+        cfg = make_config(execution={"mounts": {"deployment": {}, "typo": "oops"}})
         with pytest.raises(ValueError, match="Invalid 'execution.mounts' config"):
             _validate_config_sections(cfg)
