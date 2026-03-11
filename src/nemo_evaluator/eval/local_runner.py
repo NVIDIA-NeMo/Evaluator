@@ -20,6 +20,7 @@ def _make_solver(bench: BenchmarkConfig, client: Any, model_url: str,
                  model_id: str, api_key: str | None) -> Any:
     """Select the correct solver based on benchmark endpoint_type."""
     from nemo_evaluator.runner.solver import (
+        AgentSolver,
         ChatSolver,
         CompletionSolver,
         EmbeddingSolver,
@@ -27,6 +28,24 @@ def _make_solver(bench: BenchmarkConfig, client: Any, model_url: str,
     )
 
     ep = bench.endpoint_type
+    if ep == "agent":
+        sb = bench.sandbox
+        return AgentSolver(
+            agent_cmd=sb.agent_cmd if sb else "agent",
+            model_url=model_url,
+            model_id=model_id,
+            api_key=api_key,
+            setup_cmd=sb.agent_setup_cmd if sb else None,
+            invocation_template=sb.agent_invocation_template if sb else None,
+            timeout=sb.timeout if sb else 1800.0,
+        )
+    if ep == "nat_agent":
+        from nemo_evaluator.runner.nat_solver import NatSolver
+        nat_url = model_url.rsplit("/v1", 1)[0] if "/v1" in model_url else model_url
+        return NatSolver(
+            nat_url=nat_url,
+            timeout=bench.sandbox.timeout if bench.sandbox else 600.0,
+        )
     if ep == "vlm":
         return VLMSolver(client, system_prompt=bench.system_prompt,
                          image_detail=bench.image_detail)
@@ -82,6 +101,61 @@ def _start_gym_service(svc: ServiceConfig):
     return gym
 
 
+class _NatServiceHandle:
+    """Manages a NAT agent server subprocess."""
+
+    def __init__(self, port: int, config_file: str | None) -> None:
+        self.port = port
+        self._config_file = config_file or "config.yml"
+        self._process: subprocess.Popen | None = None
+        self.endpoint = f"http://localhost:{port}"
+
+    def start(self, startup_timeout: float = 120.0) -> None:
+        import os
+        import socket
+        import subprocess
+        import time
+
+        import httpx
+
+        cmd = f"nat serve --config_file {self._config_file} --port {self.port} --host 0.0.0.0"
+        logger.info("Starting NAT agent: %s", cmd)
+        self._process = subprocess.Popen(
+            cmd, shell=True,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env={**os.environ},
+        )
+        deadline = time.monotonic() + startup_timeout
+        while time.monotonic() < deadline:
+            if self._process.poll() is not None:
+                raise RuntimeError(f"NAT server exited with code {self._process.returncode} during startup")
+            try:
+                r = httpx.get(f"{self.endpoint}/health", timeout=2.0)
+                if r.status_code == 200:
+                    logger.info("NAT agent ready at %s (pid=%d)", self.endpoint, self._process.pid)
+                    return
+            except (httpx.ConnectError, httpx.TimeoutException):
+                pass
+            time.sleep(1.0)
+        self.stop()
+        raise TimeoutError(f"NAT server not healthy within {startup_timeout}s")
+
+    def stop(self) -> None:
+        import signal
+        import subprocess
+
+        if self._process is None:
+            return
+        logger.info("Stopping NAT agent (pid=%d)", self._process.pid)
+        try:
+            self._process.send_signal(signal.SIGTERM)
+            self._process.wait(timeout=10)
+        except (subprocess.TimeoutExpired, OSError):
+            self._process.kill()
+            self._process.wait(timeout=5)
+        self._process = None
+
+
 class _ServiceHandle:
     """Wraps a running service for uniform lifecycle management."""
 
@@ -90,6 +164,7 @@ class _ServiceHandle:
         self.svc = svc
         self._deployment = None
         self._gym = None
+        self._nat = None
         self.url: str = ""
 
     def start(self) -> str:
@@ -102,6 +177,12 @@ class _ServiceHandle:
             self.url = self._gym.endpoint
             return self.url
 
+        if self.svc.type == "nat":
+            self._nat = _NatServiceHandle(self.svc.port, self.svc.nat_config_file)
+            self._nat.start(startup_timeout=self.svc.startup_timeout)
+            self.url = self._nat.endpoint
+            return self.url
+
         self._deployment, self.url = _start_model_service(self.svc)
         return self.url
 
@@ -112,6 +193,51 @@ class _ServiceHandle:
         if self._gym:
             self._gym.stop()
             self._gym = None
+        if self._nat:
+            self._nat.stop()
+            self._nat = None
+
+
+def _warn_incompatible(bench: BenchmarkConfig, env: Any) -> None:
+    """Emit warnings for known-bad solver + environment combinations."""
+    ep = bench.endpoint_type
+    env_cls = type(env).__name__
+    name = bench.name
+
+    from nemo_evaluator.environments.harbor import HarborEnvironment
+    from nemo_evaluator.environments.mteb import MTEBEnvironment
+
+    if isinstance(env, HarborEnvironment) and ep not in ("agent",):
+        logger.warning(
+            "Benchmark %r uses Harbor (requires sandbox interaction) but "
+            "endpoint_type=%r -- only 'agent' solvers modify sandbox state. "
+            "Expect reward=0.0 for all problems.",
+            name, ep,
+        )
+
+    if isinstance(env, MTEBEnvironment) and ep != "embedding":
+        logger.warning(
+            "Benchmark %r uses MTEB (embedding tasks) but endpoint_type=%r "
+            "-- only 'embedding' produces valid results.",
+            name, ep,
+        )
+
+    if ep == "embedding" and not isinstance(env, MTEBEnvironment):
+        logger.warning(
+            "Benchmark %r uses endpoint_type='embedding' but environment is "
+            "%s -- embedding solvers return vectors, not text. Results will "
+            "be meaningless for text-based scoring.",
+            name, env_cls,
+        )
+
+    if ep == "nat_agent" and isinstance(env, HarborEnvironment):
+        logger.warning(
+            "Benchmark %r uses Harbor but endpoint_type='nat_agent' -- NAT "
+            "agents operate via HTTP in their own workspace and do not modify "
+            "the Docker sandbox. Harbor's test-based verification will fail. "
+            "Use endpoint_type='agent' for Harbor benchmarks.",
+            name,
+        )
 
 
 async def _run_single_benchmark(
@@ -120,6 +246,8 @@ async def _run_single_benchmark(
     handles: dict[str, _ServiceHandle],
     output_dir: Path,
     judge_clients: dict[str, Any],
+    *,
+    resume: bool = False,
 ) -> dict[str, Any]:
     """Run a single benchmark and return the bundle."""
     from nemo_evaluator.environments.registry import get_environment
@@ -139,20 +267,27 @@ async def _run_single_benchmark(
     env = get_environment(bench.name, num_examples=bench.max_problems,
                           num_fewshot=bench.fewshot)
 
+    _warn_incompatible(bench, env)
+
     reasoning_pat = _resolve_reasoning_pattern(config, bench.model)
 
     concurrency = bench.max_concurrent
-    client = ModelClient(
-        base_url=model_url,
-        model=model_id,
-        api_key=api_key,
-        temperature=bench.temperature or 0.0,
-        max_tokens=bench.max_tokens or 2048,
-        max_concurrent=concurrency,
-        reasoning_pattern=reasoning_pat,
-    )
-    solver = _make_solver(bench, client, model_url, model_id, api_key)
+    if bench.endpoint_type in ("agent", "nat_agent"):
+        client = None
+        solver = _make_solver(bench, client, model_url, model_id, api_key)
+    else:
+        client = ModelClient(
+            base_url=model_url,
+            model=model_id,
+            api_key=api_key,
+            temperature=bench.temperature or 0.0,
+            max_tokens=bench.max_tokens or 2048,
+            max_concurrent=concurrency,
+            reasoning_pattern=reasoning_pat,
+        )
+        solver = _make_solver(bench, client, model_url, model_id, api_key)
 
+    # run_batch() environments own the full loop — step logging not applicable
     batch_config = {"base_url": model_url, "model": model_id, "api_key": api_key}
     batch_result = await env.run_batch(solver=solver, config=batch_config)
     if batch_result is not None:
@@ -177,6 +312,8 @@ async def _run_single_benchmark(
             backend_kwargs = {"network": sb.network, "memory": sb.memory, "cpus": sb.cpus}
         elif sb.backend == "slurm":
             backend_kwargs = {"shared_fs_root": None}
+        elif sb.backend == "ecs_fargate":
+            backend_kwargs = {"ecs_config": sb.ecs}
 
         slurm_nodes: list[str] | None = None
         if sb.backend == "slurm" and sb.sandbox_nodes > 0:
@@ -195,6 +332,10 @@ async def _run_single_benchmark(
         )
 
     bench_name = getattr(env, "name", bench.name)
+    safe = _safe_name(bench_name)
+    task_dir = output_dir / safe
+    task_dir.mkdir(parents=True, exist_ok=True)
+
     run_config = {
         "benchmark": bench_name,
         "model": model_id,
@@ -213,10 +354,10 @@ async def _run_single_benchmark(
         judge_client=judge_client,
         sandbox_manager=sandbox_mgr,
         model_url=model_url,
+        step_log_dir=task_dir,
+        resume=resume,
     )
 
-    safe = _safe_name(bench_name)
-    task_dir = output_dir / safe
     write_all(bundle, task_dir)
     return bundle
 
@@ -292,13 +433,20 @@ def run_local(config: EvalConfig, *, resume: bool = False) -> list[dict[str, Any
 
             if ckpt.is_completed(bench.name):
                 prior = ckpt.get_completed_result(bench.name)
-                click.echo(f"  Skipping (already completed)")
+                click.echo("  Skipping (already completed)")
                 bundles.append(_load_prior_bundle(prior["bundle_path"]))
                 continue
+
+            if resume and ckpt.has_partial_progress(bench.name):
+                progress = ckpt.get_progress(bench.name)
+                if progress:
+                    click.echo(f"  Resuming ({progress['verified']} verified, "
+                               f"{progress['inferred']} inferred)")
 
             try:
                 bundle = asyncio.run(_run_single_benchmark(
                     bench, config, handles, output_dir, {},
+                    resume=resume,
                 ))
 
                 bench_name = bundle.get("benchmark", {}).get("name", bench.name)

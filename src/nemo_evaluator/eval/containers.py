@@ -1,14 +1,16 @@
-"""Resolve container images for SLURM execution.
+"""Resolve container images for SLURM and Docker execution.
 
-Reads the bundled containers.toml mapping and resolves which eval container
-a given benchmark name requires. Users can override images via
-``cluster.container_overrides`` in their config.
+Images are resolved from the bundled ``containers.toml`` which maps benchmark
+URI schemes to container variants (base, lm-eval, skills, mteb, full).
+
+Override: set ``cluster.container_image`` in config to a base image like
+``my-registry.io/nel:v2.0``. Variants are derived automatically by appending
+``-lm-eval``, ``-skills``, etc. to the tag.
 """
 from __future__ import annotations
 
 import tomllib
 from functools import lru_cache
-from pathlib import Path
 from typing import Any
 
 
@@ -18,46 +20,48 @@ def _load_mapping() -> dict[str, Any]:
     return tomllib.loads(containers_toml_path().read_text(encoding="utf-8"))
 
 
-def _expand(template: str, defaults: dict[str, str]) -> str:
-    """Expand {registry} and {tag} placeholders."""
-    return template.format_map(defaults)
+def _default_base() -> str:
+    """Return the base image from containers.toml."""
+    mapping = _load_mapping()
+    defaults = mapping.get("defaults", {})
+    return f"{defaults['registry']}:{defaults['tag']}"
 
 
-def resolve_eval_image(
-    bench_name: str,
-    *,
-    overrides: dict[str, str] | None = None,
-    tag: str | None = None,
-) -> str:
+def _variant_image(base: str, variant: str) -> str:
+    """Derive a variant image from a base image.
+
+    ``my-registry.io/nel:v2`` + ``lm-eval`` → ``my-registry.io/nel:v2-lm-eval``
+    """
+    if variant == "base" or not variant:
+        return base
+    if ":" in base:
+        return f"{base}-{variant}"
+    return f"{base}:{variant}"
+
+
+def _scheme_to_variant(bench_name: str) -> str:
+    """Map a benchmark URI to its container variant."""
+    mapping = _load_mapping()
+    schemes = mapping.get("schemes", {})
+    for scheme, var in schemes.items():
+        if bench_name.startswith(scheme):
+            return var
+    return "base"
+
+
+def resolve_eval_image(bench_name: str, base_override: str | None = None) -> str:
     """Return the container image for a benchmark.
 
     Args:
         bench_name: Benchmark URI, e.g. ``lm-eval://aime2025``.
-        overrides: Per-scheme overrides from ``cluster.container_overrides``.
-        tag: Override the default image tag.
+        base_override: ``cluster.container_image`` — if set, variants are
+            derived from this instead of the toml default.
     """
-    mapping = _load_mapping()
-    defaults = dict(mapping.get("defaults", {}))
-    if tag:
-        defaults["tag"] = tag
-
-    schemes = mapping.get("schemes", {})
-    eval_images = mapping.get("eval", {})
-
-    variant = "base"
-    for scheme, var in schemes.items():
-        if bench_name.startswith(scheme):
-            variant = var
-            break
-
-    if overrides and variant in overrides:
-        return overrides[variant]
-
+    variant = _scheme_to_variant(bench_name)
     if not variant:
         return ""
-
-    template = eval_images.get(variant, eval_images.get("base", ""))
-    return _expand(template, defaults)
+    base = base_override or _default_base()
+    return _variant_image(base, variant)
 
 
 def resolve_deployment_image(deploy_type: str) -> str:
@@ -66,9 +70,8 @@ def resolve_deployment_image(deploy_type: str) -> str:
     return mapping.get("deployment", {}).get(deploy_type, "")
 
 
-def list_variants() -> dict[str, str]:
-    """Return all eval container variants with their expanded image names."""
-    mapping = _load_mapping()
-    defaults = dict(mapping.get("defaults", {}))
-    eval_images = mapping.get("eval", {})
-    return {k: _expand(v, defaults) for k, v in eval_images.items()}
+def default_base_image(base_override: str | None = None) -> str:
+    """Return the base eval image."""
+    return base_override or _default_base()
+
+

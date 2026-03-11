@@ -11,7 +11,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_REWARD_METRIC_KEYS = ("exact_match", "acc", "em", "score", "bleu", "rouge1")
+_REWARD_METRIC_KEYS = (
+    "exact_match", "acc", "em", "score", "bleu", "rouge1",
+    "prompt_level_strict_acc", "prompt_level_loose_acc",
+)
 
 
 class UnsupportedTaskTypeError(RuntimeError):
@@ -23,36 +26,6 @@ def _ensure_importable() -> None:
         import lm_eval  # noqa: F401
     except ImportError:
         raise ImportError("lm-evaluation-harness not found. Install: pip install lm_eval")
-
-
-def list_tasks() -> list[str]:
-    _ensure_importable()
-    from lm_eval.tasks import TaskManager
-    return sorted(TaskManager().all_tasks)
-
-
-def list_generate_tasks() -> list[str]:
-    _ensure_importable()
-    from lm_eval.tasks import TaskManager, get_task_dict
-    tm = TaskManager()
-    generate_only = []
-    for name in tm.all_tasks:
-        try:
-            task_dict = get_task_dict([name], tm)
-            task = list(task_dict.values())[0]
-            output_type = getattr(task, "OUTPUT_TYPE",
-                                  getattr(task, "output_type", None))
-            if output_type == "generate_until":
-                generate_only.append(name)
-        except (KeyError, IndexError, AttributeError):
-            continue
-    return sorted(generate_only)
-
-
-def list_groups() -> list[str]:
-    _ensure_importable()
-    from lm_eval.tasks import TaskManager
-    return sorted(TaskManager().all_groups)
 
 
 class LMEvalEnvironment(EvalEnvironment):
@@ -152,7 +125,10 @@ class LMEvalEnvironment(EvalEnvironment):
         if isinstance(metrics, dict):
             for key in _REWARD_METRIC_KEYS:
                 if key in metrics:
-                    reward = float(metrics[key])
+                    val = metrics[key]
+                    if isinstance(val, (list, tuple)):
+                        val = sum(val) / len(val) if val else 0.0
+                    reward = float(val)
                     break
 
         return VerifyResult(

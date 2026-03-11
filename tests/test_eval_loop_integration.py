@@ -1,7 +1,6 @@
 """Integration tests: run_evaluation end-to-end with mock solver."""
 import asyncio
 
-import pytest
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.runner.eval_loop import run_evaluation

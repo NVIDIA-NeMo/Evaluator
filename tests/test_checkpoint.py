@@ -1,5 +1,4 @@
 """Tests for checkpointing and resume."""
-import pytest
 from nemo_evaluator.runner.checkpoint import CheckpointManager
 
 

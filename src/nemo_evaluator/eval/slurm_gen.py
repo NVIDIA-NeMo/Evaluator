@@ -5,8 +5,8 @@ import re
 import shlex
 from pathlib import Path
 
-from nemo_evaluator.eval.config import ClusterConfig, EvalConfig, ServiceConfig
-from nemo_evaluator.eval.containers import resolve_deployment_image, resolve_eval_image
+from nemo_evaluator.eval.config import EvalConfig, ServiceConfig
+from nemo_evaluator.eval.containers import default_base_image, resolve_deployment_image, resolve_eval_image
 
 _HEADER = """\
 #!/bin/bash
@@ -62,6 +62,15 @@ nel serve -b {benchmark} --host 0.0.0.0 -p {port} &
 {name_upper}_PID=$!
 """
 
+_NAT_SERVICE = """\
+# Service: {name} (nat agent)
+echo "Starting NAT agent server: {name}..."
+{srun_prefix}nat serve --config_file {config_file} --port {port} --host 0.0.0.0 &
+{name_upper}_PID=$!
+{name_upper}_URL="http://localhost:{port}"
+{name_upper}_MODEL="nat-agent"
+"""
+
 _HEALTH_WAIT = """\
 # Wait for {name}
 echo "Waiting for {name} at {url}..."
@@ -96,8 +105,7 @@ echo "============================================================"
     --model-id "${model_id_var}" \\
     --repeats {repeats} \\
     {extra_flags}\\
-    -o "$OUTPUT_DIR/{safe_name}" \\
-    --no-progress || {{ echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; }}
+    -o "$OUTPUT_DIR/{safe_name}" || {{ echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; }}
 """
 
 _TASK_SEPARATED = """\
@@ -195,12 +203,19 @@ _MODEL_CMD = {
 }
 
 
+def _resolve_service_image(svc: ServiceConfig) -> str:
+    """Return the container image for a service, checking per-service override first."""
+    if svc.image:
+        return svc.image
+    return resolve_deployment_image(svc.type)
+
+
 def _service_block(name: str, svc: ServiceConfig, use_containers: bool = False) -> str:
     upper = _safe(name).upper()
 
     if svc.type in _MODEL_CMD:
         cmd, model_flag, tp_flag_name = _MODEL_CMD[svc.type]
-        deploy_image = resolve_deployment_image(svc.type)
+        deploy_image = _resolve_service_image(svc)
         srun_prefix = ""
         if use_containers and deploy_image:
             srun_prefix = (
@@ -217,6 +232,20 @@ def _service_block(name: str, svc: ServiceConfig, use_containers: bool = False) 
             cmd=cmd, model_flag=model_flag, model=svc.model or "",
             port=svc.port, tp_flag=tp_flag, extra_args=extra,
             cuda_prefix=cuda, srun_prefix=srun_prefix,
+        )
+
+    if svc.type == "nat":
+        deploy_image = _resolve_service_image(svc)
+        srun_prefix = ""
+        if use_containers and deploy_image:
+            srun_prefix = (
+                f"srun --overlap --nodes 1 --ntasks 1 "
+                f"--container-image {deploy_image} $CONTAINER_MOUNTS $CONTAINER_ENV "
+            )
+        config_file = svc.nat_config_file or "config.yml"
+        return _NAT_SERVICE.format(
+            name=name, name_upper=upper, port=svc.port,
+            config_file=config_file, srun_prefix=srun_prefix,
         )
 
     if svc.type == "gym":
@@ -256,20 +285,13 @@ def _health_block(name: str, svc: ServiceConfig) -> str:
 
 def _resolve_eval_image_for_bench(
     bench_name: str,
-    cluster: ClusterConfig,
-    container_overrides: dict | None,
-    tag_override: str | None,
+    base_override: str | None,
     use_containers: bool,
 ) -> str:
     """Return the eval container image for a benchmark, or empty string if not containerized."""
     if not use_containers:
         return ""
-    if cluster.container_image:
-        return cluster.container_image
-    img = resolve_eval_image(bench_name, overrides=container_overrides, tag=tag_override)
-    if not img:
-        img = resolve_eval_image("__base__", tag=tag_override) or "nemo-evaluator:latest"
-    return img
+    return resolve_eval_image(bench_name, base_override=base_override) or default_base_image(base_override)
 
 
 def _sandbox_node_count(config: EvalConfig) -> int:
@@ -367,10 +389,7 @@ def generate_sbatch(config: EvalConfig) -> str:
             ))
 
     # Tasks
-    container_overrides = getattr(cluster, "container_overrides", None)
-    tag_override = None
-    if cluster.container_image:
-        tag_override = cluster.container_image.rsplit(":", 1)[-1] if ":" in cluster.container_image else None
+    base_override = cluster.container_image
 
     separated = cluster.env_mode == "separated" and use_containers
     base_env_port = 9100
@@ -395,14 +414,11 @@ def generate_sbatch(config: EvalConfig) -> str:
             extra_flags += f"--max-problems {bench.max_problems} "
         if cluster.auto_resume:
             extra_flags += "--resume "
-        if bench.sandbox and bench.sandbox.backend == "slurm" and extra_sandbox_nodes > 0:
-            extra_flags += '--sandbox-nodes "$NEL_SANDBOX_NODES" '
-            extra_flags += f"--sandbox-slots-per-node {bench.sandbox.slots_per_node} "
 
         safe_name = _safe(bench.name)
 
         eval_image = _resolve_eval_image_for_bench(
-            bench.name, cluster, container_overrides, tag_override, use_containers,
+            bench.name, base_override, use_containers,
         )
 
         if separated:
@@ -420,7 +436,7 @@ def generate_sbatch(config: EvalConfig) -> str:
                 health_path="/health", max_attempts=60,
             ))
 
-            base_image = resolve_eval_image("__base__", tag=tag_override) or "nemo-evaluator:latest"
+            base_image = default_base_image(base_override)
             orch_prefix = (
                 f"srun --overlap --nodes 1 --ntasks 1 "
                 f"--container-image {base_image} $CONTAINER_MOUNTS $CONTAINER_ENV \\\n    "
@@ -459,7 +475,7 @@ def generate_sbatch(config: EvalConfig) -> str:
     if cluster.auto_resume:
         parts.append(_AUTO_RESUME.format(
             max_attempts=cluster.max_resume_attempts,
-            script_path=f"$OUTPUT_DIR/nel_eval.sbatch",
+            script_path="$OUTPUT_DIR/nel_eval.sbatch",
         ))
 
     # Cleanup

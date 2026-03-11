@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from nemo_evaluator.environments.base import EvalEnvironment, VerifyResult
@@ -15,6 +16,12 @@ from nemo_evaluator.observability.progress import NoOpProgress, ProgressTracker
 from nemo_evaluator.observability.types import StepRecord
 from nemo_evaluator.runner.artifacts import build_artifact_bundle
 from nemo_evaluator.runner.solver import Solver, SolveResult
+from nemo_evaluator.runner.step_log import (
+    INFERENCE_LOG,
+    VERIFIED_LOG,
+    StepLog,
+    config_hash,
+)
 
 if TYPE_CHECKING:
     from nemo_evaluator.sandbox.base import OutsideEndpoint
@@ -37,6 +44,8 @@ async def run_evaluation(
     judge_client: Any = None,
     sandbox_manager: SandboxManager | None = None,
     model_url: str | None = None,
+    step_log_dir: Path | None = None,
+    resume: bool = False,
 ) -> dict[str, Any]:
     config = config or {}
 
@@ -61,6 +70,54 @@ async def run_evaluation(
         if specs:
             await sandbox_manager.pre_pull(specs)
 
+    # --- Step log setup ---
+    inference_log: StepLog | None = None
+    verified_log: StepLog | None = None
+    inferred_cache: dict[tuple[int, int], dict[str, Any]] = {}
+    verified_cache: dict[tuple[int, int], dict[str, Any]] = {}
+
+    if step_log_dir is not None:
+        inference_log = StepLog(step_log_dir / INFERENCE_LOG)
+        verified_log = StepLog(step_log_dir / VERIFIED_LOG)
+
+        cfg_hash = config_hash(config)
+
+        if resume:
+            old_meta = inference_log.load_meta()
+            if old_meta and old_meta.get("config_hash") != cfg_hash:
+                logger.warning(
+                    "Config changed since last run (old=%s new=%s). "
+                    "Inference cache invalidated; verified cache retained.",
+                    old_meta.get("config_hash", "?"), cfg_hash,
+                )
+                verified_cache = verified_log.load()
+                if verified_cache:
+                    verified_log.compact(verified_cache)
+                verified_log.open()
+                inference_log.open(truncate=True)
+                inference_log.write_meta({"config_hash": cfg_hash})
+            else:
+                inferred_cache = inference_log.load()
+                verified_cache = verified_log.load()
+                if inferred_cache:
+                    meta = old_meta or {"config_hash": cfg_hash}
+                    inference_log.compact(inferred_cache, meta=meta)
+                if verified_cache:
+                    verified_log.compact(verified_cache)
+                inference_log.open()
+                verified_log.open()
+
+            n_from_cache = len(verified_cache)
+            n_verify_only = len(inferred_cache) - len(
+                set(inferred_cache) & set(verified_cache))
+            if n_from_cache or n_verify_only:
+                logger.info("resume: %d fully cached, %d verify-only, rest from scratch",
+                            n_from_cache, n_verify_only)
+        else:
+            inference_log.open(truncate=True)
+            inference_log.write_meta({"config_hash": cfg_hash})
+            verified_log.open(truncate=True)
+
     pg = progress or NoOpProgress()
     collector = ArtifactCollector()
 
@@ -81,6 +138,35 @@ async def run_evaluation(
     async def _run_step(idx: int, rep: int, seed_result, seed_ms: float):
         nonlocal cum_correct, cum_total
         async with sem:
+            key = (idx, rep)
+
+            # --- Fast path: fully verified in cache ---
+            cached_verified = verified_cache.get(key)
+            if cached_verified is not None:
+                reward = cached_verified.get("reward", 0.0)
+                tokens = cached_verified.get("tokens", 0)
+                result_dict = {
+                    "problem_idx": idx, "repeat": rep,
+                    "reward": reward,
+                    "model_response": cached_verified.get("response", ""),
+                    "extracted_answer": cached_verified.get("extracted_answer"),
+                    "expected_answer": seed_result.expected_answer,
+                    "scoring_details": cached_verified.get("scoring_details", {}),
+                    "metadata": {**seed_result.metadata,
+                                 **cached_verified.get("scoring_metadata", {})},
+                    "tokens": tokens,
+                    "latency_ms": cached_verified.get("latency_ms", 0),
+                }
+                async with lock:
+                    results.append(result_dict)
+                    if reward > 0:
+                        cum_correct += 1
+                    cum_total += 1
+                    problem_correct.setdefault(idx, []).append(reward)
+                pg.on_step(idx - start, rep, n_problems, n_repeats,
+                           reward, tokens, 0)
+                return
+
             step = StepRecord(
                 problem_idx=idx, repeat=rep,
                 prompt=seed_result.prompt,
@@ -92,6 +178,9 @@ async def run_evaluation(
             step_t0 = time.monotonic()
             solve_result: SolveResult | None = None
             sandbox = None
+            response_text = ""
+            tokens = 0
+            latency_ms = 0.0
 
             # Acquire per-problem sandbox if configured
             if sandbox_manager:
@@ -104,20 +193,43 @@ async def run_evaluation(
                     sandbox = await sandbox_manager.acquire(spec, outside_endpoints=outside_eps)
 
             try:
-                try:
-                    if sandbox is not None and hasattr(solver, "solve") and _solver_accepts_sandbox(solver):
-                        solve_result = await solver.solve(seed_result, sandbox=sandbox)
-                    else:
-                        solve_result = await solver.solve(seed_result)
-                    if solve_result.model_response:
-                        step.model_response = solve_result.model_response
-                        step.model_ms = solve_result.model_response.latency_ms
-                except Exception as e:
-                    step.model_error = str(e)
-                    logger.warning("solve error p%d r%d: %s", idx, rep, e)
+                # --- Inference phase ---
+                cached_inferred = inferred_cache.get(key)
+                if cached_inferred is not None:
+                    response_text = cached_inferred.get("response", "")
+                    tokens = cached_inferred.get("tokens", 0)
+                    latency_ms = cached_inferred.get("latency_ms", 0)
+                    logger.debug("resume p%d r%d: using cached inference", idx, rep)
+                else:
+                    try:
+                        if sandbox is not None and hasattr(solver, "solve") and _solver_accepts_sandbox(solver):
+                            solve_result = await solver.solve(seed_result, sandbox=sandbox)
+                        else:
+                            solve_result = await solver.solve(seed_result)
+                        if solve_result.model_response:
+                            step.model_response = solve_result.model_response
+                            step.model_ms = solve_result.model_response.latency_ms
+                    except Exception as e:
+                        step.model_error = str(e)
+                        logger.warning("solve error p%d r%d: %s", idx, rep, e)
 
-                response_text = solve_result.response if solve_result else ""
+                    response_text = solve_result.response if solve_result else ""
+                    tokens = solve_result.model_response.total_tokens if solve_result and solve_result.model_response else 0
+                    latency_ms = solve_result.model_response.latency_ms if solve_result and solve_result.model_response else 0
 
+                    if inference_log is not None:
+                        inf_record = {
+                            "problem_idx": idx, "repeat": rep,
+                            "response": response_text,
+                            "tokens": tokens, "latency_ms": latency_ms,
+                            "prompt": seed_result.prompt,
+                            "expected_answer": seed_result.expected_answer,
+                            "seed_metadata": seed_result.metadata,
+                            "trajectory": solve_result.trajectory if solve_result else None,
+                        }
+                        await inference_log.append(inf_record)
+
+                # --- Verify phase ---
                 tv = time.monotonic()
                 try:
                     vr = await env.verify(
@@ -151,7 +263,18 @@ async def run_evaluation(
                     except Exception as e:
                         logger.warning("judge error p%d r%d: %s", idx, rep, e)
 
-                tokens = solve_result.model_response.total_tokens if solve_result and solve_result.model_response else 0
+                if verified_log is not None:
+                    ver_record = {
+                        "problem_idx": idx, "repeat": rep,
+                        "reward": vr.reward,
+                        "extracted_answer": vr.extracted_answer,
+                        "scoring_details": vr.scoring_details,
+                        "scoring_metadata": vr.metadata,
+                        "response": response_text,
+                        "tokens": tokens, "latency_ms": latency_ms,
+                    }
+                    await verified_log.append(ver_record)
+
                 result_dict = {
                     "problem_idx": idx, "repeat": rep,
                     "reward": vr.reward,
@@ -161,7 +284,7 @@ async def run_evaluation(
                     "scoring_details": vr.scoring_details,
                     "metadata": {**seed_result.metadata, **vr.metadata},
                     "tokens": tokens,
-                    "latency_ms": solve_result.model_response.latency_ms if solve_result and solve_result.model_response else 0,
+                    "latency_ms": latency_ms,
                 }
                 if solve_result and solve_result.trajectory:
                     result_dict["trajectory"] = solve_result.trajectory
@@ -207,6 +330,10 @@ async def run_evaluation(
                     logger.error("Step failed: %s", t.exception())
 
     finally:
+        if inference_log is not None:
+            inference_log.close()
+        if verified_log is not None:
+            verified_log.close()
         if sandbox_manager:
             await sandbox_manager.shutdown()
         if hasattr(solver, "close"):

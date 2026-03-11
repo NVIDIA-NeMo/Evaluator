@@ -4,12 +4,39 @@ from __future__ import annotations
 import fcntl
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
+
+from nemo_evaluator.runner.step_log import INFERENCE_LOG, VERIFIED_LOG
 
 logger = logging.getLogger(__name__)
 
 CHECKPOINT_FILE = "checkpoint.json"
+
+
+def _safe_name(s: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_.-]", "_", s)
+
+
+def _count_data_lines(path: Path) -> int:
+    """Count non-empty, non-meta lines in a JSONL file."""
+    if not path.exists():
+        return 0
+    count = 0
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if record.get("_type") == "meta":
+                continue
+            count += 1
+    return count
 
 
 class CheckpointManager:
@@ -56,6 +83,29 @@ class CheckpointManager:
     def mark_failed(self, benchmark: str, error: str) -> None:
         self._state["failed_benchmarks"][benchmark] = {"error": error}
         self._save()
+
+    def has_partial_progress(self, benchmark: str) -> bool:
+        """Check if step log files exist with actual data for this benchmark."""
+        bench_dir = self.root / _safe_name(benchmark)
+        if not bench_dir.is_dir():
+            return False
+        inf_path = bench_dir / INFERENCE_LOG
+        ver_path = bench_dir / VERIFIED_LOG
+        return inf_path.exists() or ver_path.exists()
+
+    def get_progress(self, benchmark: str) -> dict[str, int] | None:
+        """Derive step-level progress from log files on disk."""
+        bench_dir = self.root / _safe_name(benchmark)
+        if not bench_dir.is_dir():
+            return None
+        inf_path = bench_dir / INFERENCE_LOG
+        ver_path = bench_dir / VERIFIED_LOG
+        if not inf_path.exists() and not ver_path.exists():
+            return None
+        return {
+            "inferred": _count_data_lines(inf_path),
+            "verified": _count_data_lines(ver_path),
+        }
 
     def pending_benchmarks(self, all_benchmarks: list[str]) -> list[str]:
         done = set(self._state["completed_benchmarks"])

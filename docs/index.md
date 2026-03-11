@@ -42,7 +42,7 @@ Deploy on SLURM, Docker, and CI/CD pipelines.
 - **Executors.** Run locally, in Docker, or on SLURM clusters with automatic model deployment.
 - **Resilient suites.** Per-benchmark checkpointing with failure isolation. Resume partially completed suites with `--resume`.
 - **Statistical regression.** Compare runs with confidence intervals and Mann-Whitney U p-values.
-- **11 built-in benchmarks.** MMLU, MMLU-Pro, MATH-500, GPQA, GSM8K, DROP, MGSM, TriviaQA, HumanEval, SimpleQA, HealthBench.
+- **12 built-in benchmarks.** MMLU, MMLU-Pro, MATH-500, GPQA, GSM8K, DROP, MGSM, TriviaQA, HumanEval, SimpleQA, HealthBench, PinchBench.
 
 ```{toctree}
 :maxdepth: 2

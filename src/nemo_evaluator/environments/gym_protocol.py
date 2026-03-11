@@ -1,26 +1,7 @@
-"""Shared Gym protocol types and response parsing."""
+"""Shared Gym protocol response parsing."""
 from __future__ import annotations
 
 from typing import Any
-
-from pydantic import BaseModel, Field
-
-
-class GymVerifyRequest(BaseModel):
-    responses_create_params: dict[str, Any] = Field(default_factory=dict)
-    response: Any = None
-    expected_answer: str = ""
-    expected: str = ""
-    uuid: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class GymVerifyResponse(BaseModel):
-    responses_create_params: dict[str, Any] = Field(default_factory=dict)
-    response: Any = None
-    reward: float = 0.0
-    expected_answer: str = ""
-    extracted_answer: str | None = None
 
 
 def extract_assistant_text(response: Any) -> str:

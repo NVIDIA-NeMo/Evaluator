@@ -180,9 +180,13 @@ class ByobEnvironment(EvalEnvironment):
                                 extracted_answer=response.strip()[:200],
                                 scoring_details={"method": "default_exact_match"})
 
+        import asyncio
+
         sample = ScorerInput(response=response, target=expected, metadata=meta,
-                             config=self._defn.extra)
+                             config=self._defn.extra, sandbox=sandbox)
         scores = self._defn.scorer_fn(sample)
+        if asyncio.iscoroutine(scores):
+            scores = await scores
 
         reward = float(scores.get("correct", scores.get("reward", next(iter(scores.values()), 0))))
         return VerifyResult(

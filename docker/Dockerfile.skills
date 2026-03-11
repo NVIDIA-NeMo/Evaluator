@@ -7,7 +7,6 @@ RUN pip install --no-cache-dir --upgrade pip
 
 COPY pyproject.toml README.md ./
 COPY src/ src/
-COPY benchmarks/ benchmarks/
 
 RUN pip install --no-cache-dir ".[scoring,stats,skills]"
 

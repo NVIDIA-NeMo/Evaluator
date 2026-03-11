@@ -4,17 +4,21 @@
 # plus the required harness dependencies. The SLURM sbatch generator uses this
 # to select the correct --container-image per benchmark.
 #
-# Users can override any image via cluster.container_overrides in their config.
+# Users can override via cluster.container_image in their config.
 
 [defaults]
-registry = "nvcr.io/nvidia/nemo-evaluator"
-tag = "0.7.0"
+# Built by CI and pushed to the GitLab container registry.
+# Override with cluster.container_image in config — variants are derived automatically.
+registry = "gitlab-master.nvidia.com:5005/dl/JoC/competitive_evaluation/nemo-evaluator-next"
+tag = "latest"
 
-# Deployment containers (model servers)
+# Deployment containers (model servers — public/external images).
+# Users should pin to specific tags via services.*.image in their config.
 [deployment]
 vllm = "vllm/vllm-openai:latest"
 sglang = "lmsysorg/sglang:latest"
-nim = "nvcr.io/nim/meta/llama-3.2-1b-instruct:latest"
+nim = ""
+nat = "nvcr.io/nvidia/nemo-agent-toolkit:latest"
 
 # Evaluation containers (NEL + harness)
 [eval]

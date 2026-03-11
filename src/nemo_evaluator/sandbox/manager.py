@@ -24,7 +24,7 @@ class SandboxManager:
 
     def __init__(
         self,
-        backend: Literal["docker", "slurm", "local"],
+        backend: Literal["docker", "slurm", "local", "ecs_fargate"],
         concurrency: int = 4,
         default_image: str | None = None,
         image_template: str | None = None,
@@ -151,6 +151,9 @@ class SandboxManager:
             from nemo_evaluator.sandbox.slurm import SlurmSandbox
             node, slot = self._allocate_slot()
             return SlurmSandbox(spec, node=node, slot=slot, **self._backend_kwargs)
+        elif self._backend == "ecs_fargate":
+            from nemo_evaluator.sandbox.ecs_fargate import EcsFargateSandbox
+            return EcsFargateSandbox(spec, **self._backend_kwargs)
         else:
             from nemo_evaluator.sandbox.local import LocalSandbox
             return LocalSandbox(spec)
@@ -190,6 +193,8 @@ class SandboxManager:
                         ["docker", "rm", "-f", sb._container_id],
                         capture_output=True, timeout=5,
                     )
+                elif hasattr(sb, "_sync_stop"):
+                    sb._sync_stop()
                 elif hasattr(sb, "_container_name") and hasattr(sb, "_running") and sb._running:
                     subprocess.run(
                         [

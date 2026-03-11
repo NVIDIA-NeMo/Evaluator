@@ -22,6 +22,12 @@ class SolveResult:
 
 
 class Solver(Protocol):
+    """Solvers MAY also accept ``sandbox: Sandbox | None = None`` in solve().
+
+    The eval loop detects this via ``_solver_accepts_sandbox()`` introspection
+    and passes the sandbox when available.
+    """
+
     async def solve(self, task: SeedResult) -> SolveResult: ...
 
 
@@ -156,11 +162,23 @@ class CrossEncoderSolver:
 
 
 class AgentSolver:
-    """Wraps an external agent framework (OpenHands, SWE-agent, etc.).
+    """Runs an agent, either inside a per-problem sandbox or as a local subprocess.
 
-    The agent receives the task prompt and produces a solution through
-    multi-turn interaction with tools/environments. NEL doesn't own
-    the inner loop -- the agent does.
+    If ``solve()`` receives a sandbox, the agent runs inside it.  Two sandbox
+    modes are supported, inferred from the sandbox spec:
+
+    - **exec-server** (no entrypoint): solver execs the agent command inside
+      the sandbox and reads output from a file.
+    - **agent-server** (entrypoint starts an HTTP agent): solver connects to
+      the agent API via the container IP and POSTs the task.
+
+    If no sandbox is provided, the agent runs as a local subprocess.
+
+    ``setup_cmd`` runs before the agent (e.g., ``pip install openhands-ai``).
+    ``invocation_template`` overrides the default ``--task-file``/``--output-file``
+    command protocol; supports ``{task_file}``, ``{output_file}``, ``{model_url}``,
+    ``{model_id}`` placeholders, plus ``{metadata.KEY}`` for any key in the
+    task's metadata dict (e.g., ``{metadata.workspace_path}``).
     """
 
     def __init__(
@@ -169,6 +187,9 @@ class AgentSolver:
         model_url: str,
         model_id: str,
         api_key: str | None = None,
+        setup_cmd: str | None = None,
+        invocation_template: str | None = None,
+        agent_port: int = 3000,
         max_turns: int = 100,
         timeout: float = 1800.0,
     ) -> None:
@@ -176,10 +197,119 @@ class AgentSolver:
         self._model_url = model_url
         self._model_id = model_id
         self._api_key = api_key
+        self._setup_cmd = setup_cmd
+        self._invocation_template = invocation_template
+        self._agent_port = agent_port
         self._max_turns = max_turns
         self._timeout = timeout
 
-    async def solve(self, task: SeedResult) -> SolveResult:
+    def _build_command(
+        self, task_file: str, output_file: str, *,
+        in_sandbox: bool, metadata: dict[str, Any] | None = None,
+    ) -> str:
+        import shlex
+
+        effective_model_url = (
+            "$MODEL_BASE_URL" if in_sandbox else shlex.quote(self._model_url)
+        )
+
+        if self._invocation_template:
+            cmd = self._invocation_template.format(
+                task_file=shlex.quote(task_file),
+                output_file=shlex.quote(output_file),
+                model_url=effective_model_url,
+                model_id=shlex.quote(self._model_id),
+            )
+            if metadata:
+                for k, v in metadata.items():
+                    cmd = cmd.replace(f"{{metadata.{k}}}", shlex.quote(str(v)))
+            return cmd
+
+        return (
+            f"{self._agent_cmd} "
+            f"--task-file {shlex.quote(task_file)} "
+            f"--output-file {shlex.quote(output_file)} "
+            f"--model-url {effective_model_url} "
+            f"--model-id {shlex.quote(self._model_id)}"
+        )
+
+    async def solve(
+        self, task: SeedResult, sandbox: Sandbox | None = None,
+    ) -> SolveResult:
+        if sandbox is not None:
+            return await self._solve_sandbox(task, sandbox)
+        return await self._solve_local(task)
+
+    async def _solve_sandbox(self, task: SeedResult, sandbox: Sandbox) -> SolveResult:
+        import json
+        import tempfile
+        from pathlib import Path
+
+        task_data = json.dumps({
+            "prompt": task.prompt,
+            "expected_answer": task.expected_answer,
+            "metadata": task.metadata,
+        }).encode()
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            f.write(task_data)
+            f.flush()
+            await sandbox.upload(Path(f.name), "/workspace/task.json")
+
+        if self._setup_cmd:
+            logger.info("Running agent setup: %s", self._setup_cmd[:120])
+            setup_result = await sandbox.exec(self._setup_cmd, timeout_sec=600)
+            if setup_result.return_code != 0:
+                logger.warning("Agent setup failed (rc=%d): %s",
+                               setup_result.return_code, setup_result.stderr[:500])
+
+        # agent-server: entrypoint started the agent, talk HTTP
+        if sandbox.spec.entrypoint:
+            return await self._solve_agent_server(task, sandbox)
+
+        # exec-server: no entrypoint -> run agent command inside sandbox
+        cmd = self._build_command(
+            "/workspace/task.json", "/workspace/output.json",
+            in_sandbox=True, metadata=task.metadata,
+        )
+        result = await sandbox.exec(cmd, timeout_sec=self._timeout)
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            out_path = Path(f.name)
+        try:
+            await sandbox.download("/workspace/output.json", out_path)
+            output = json.loads(out_path.read_text())
+            return SolveResult(
+                response=output.get("response", ""),
+                trajectory=output.get("trajectory", []),
+            )
+        except (json.JSONDecodeError, FileNotFoundError, OSError):
+            return SolveResult(
+                response=result.stdout[:5000] if result.stdout else "[agent modified sandbox state]",
+                trajectory=[{"stderr": result.stderr[:2000] if result.stderr else ""}],
+            )
+
+    async def _solve_agent_server(self, task: SeedResult, sandbox: Sandbox) -> SolveResult:
+        agent_ip = sandbox.container_ip
+        if not agent_ip:
+            raise RuntimeError("Cannot reach agent: no container IP")
+        agent_url = f"http://{agent_ip}:{self._agent_port}"
+
+        import httpx
+
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            resp = await client.post(f"{agent_url}/solve", json={
+                "prompt": task.prompt,
+                "model_url": sandbox.resolve_outside_endpoint(self._model_url),
+                "model_id": self._model_id,
+            })
+            data = resp.json()
+            return SolveResult(
+                response=data.get("response", ""),
+                trajectory=data.get("trajectory", []),
+            )
+
+    async def _solve_local(self, task: SeedResult) -> SolveResult:
         import asyncio
         import json
         import shlex
@@ -196,13 +326,12 @@ class AgentSolver:
 
             output_file = Path(tmpdir) / "output.json"
 
-            cmd = (
-                f"{self._agent_cmd} "
-                f"--task-file {task_file} "
-                f"--output-file {output_file} "
-                f"--model-url {self._model_url} "
-                f"--model-id {self._model_id} "
-                f"--max-turns {self._max_turns}"
+            if self._setup_cmd:
+                logger.info("Running local agent setup: %s", self._setup_cmd[:120])
+
+            cmd = self._build_command(
+                str(task_file), str(output_file),
+                in_sandbox=False, metadata=task.metadata,
             )
 
             import os
@@ -236,103 +365,6 @@ class AgentSolver:
             return SolveResult(
                 response=stdout.decode()[:5000] if stdout else "",
                 trajectory=[{"stderr": stderr.decode()[:2000] if stderr else ""}],
-            )
-
-    async def close(self) -> None:
-        pass
-
-
-class SandboxedAgentSolver:
-    """Runs an agent inside a per-problem sandbox.
-
-    The solver owns all agent-specific logic. The sandbox is infrastructure.
-
-    Two modes, inferred from the sandbox spec:
-
-    - **exec-server** (no entrypoint / ``sleep infinity``): solver execs the
-      agent command inside the sandbox, reads output from a file.
-    - **agent-server** (entrypoint starts an HTTP agent): solver connects to
-      the agent API via the container IP and POSTs the task.
-    """
-
-    def __init__(
-        self,
-        agent_cmd: str,
-        model_url: str,
-        model_id: str,
-        agent_port: int = 3000,
-        timeout: float = 1800.0,
-    ) -> None:
-        self._agent_cmd = agent_cmd
-        self._model_url = model_url
-        self._model_id = model_id
-        self._agent_port = agent_port
-        self._timeout = timeout
-
-    async def solve(
-        self, task: SeedResult, sandbox: Sandbox | None = None,
-    ) -> SolveResult:
-        if sandbox is None:
-            raise RuntimeError("SandboxedAgentSolver requires a sandbox")
-
-        import json
-        import tempfile
-        from pathlib import Path
-
-        task_data = json.dumps({
-            "prompt": task.prompt,
-            "expected_answer": task.expected_answer,
-            "metadata": task.metadata,
-        }).encode()
-
-        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
-            f.write(task_data)
-            f.flush()
-            await sandbox.upload(Path(f.name), "/workspace/task.json")
-
-        # exec-server: no entrypoint → agent launched via sandbox.exec()
-        if not sandbox.spec.entrypoint:
-            result = await sandbox.exec(
-                f"{self._agent_cmd} "
-                f"--task-file /workspace/task.json "
-                f"--output-file /workspace/output.json "
-                f"--model-url $MODEL_BASE_URL "
-                f"--model-id {self._model_id}",
-                timeout_sec=self._timeout,
-            )
-            with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
-                out_path = Path(f.name)
-            await sandbox.download("/workspace/output.json", out_path)
-            try:
-                output = json.loads(out_path.read_text())
-            except (json.JSONDecodeError, FileNotFoundError):
-                return SolveResult(
-                    response=result.stdout[:5000],
-                    trajectory=[{"stderr": result.stderr[:2000]}],
-                )
-            return SolveResult(
-                response=output.get("response", ""),
-                trajectory=output.get("trajectory", []),
-            )
-
-        # agent-server: entrypoint started the agent, talk HTTP
-        agent_ip = sandbox.container_ip
-        if not agent_ip:
-            raise RuntimeError("Cannot reach agent: no container IP")
-        agent_url = f"http://{agent_ip}:{self._agent_port}"
-
-        import httpx
-
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            resp = await client.post(f"{agent_url}/solve", json={
-                "prompt": task.prompt,
-                "model_url": sandbox.resolve_outside_endpoint(self._model_url),
-                "model_id": self._model_id,
-            })
-            data = resp.json()
-            return SolveResult(
-                response=data.get("response", ""),
-                trajectory=data.get("trajectory", []),
             )
 
     async def close(self) -> None:

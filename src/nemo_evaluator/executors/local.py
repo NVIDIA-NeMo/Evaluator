@@ -41,6 +41,13 @@ class LocalExecutor:
 
     def run(self, config, *, dry_run=False, resume=False,
             background=False, submit=False) -> None:
+        if dry_run:
+            import click
+            click.echo(f"Dry-run: would run {len(config.benchmarks)} benchmark(s) locally")
+            for b in config.benchmarks:
+                click.echo(f"  - {b.name} (repeats={b.repeats})")
+            click.echo(f"Output: {config.output.dir}")
+            return
         if background:
             self._run_background(config, resume=resume)
         else:

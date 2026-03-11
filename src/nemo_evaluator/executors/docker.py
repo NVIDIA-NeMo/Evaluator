@@ -22,14 +22,14 @@ class DockerExecutor:
             background=False, submit=False) -> None:
         import click
 
-        from nemo_evaluator.eval.containers import resolve_eval_image
+        from nemo_evaluator.eval.containers import default_base_image, resolve_eval_image
 
-        image = config.cluster.container_image
+        base = config.cluster.container_image
+        image = None
+        if config.benchmarks:
+            image = resolve_eval_image(config.benchmarks[0].name, base_override=base)
         if not image:
-            if config.benchmarks:
-                image = resolve_eval_image(config.benchmarks[0].name)
-            if not image:
-                image = resolve_eval_image("__base__") or "nemo-evaluator:latest"
+            image = default_base_image(base)
 
         output_dir = str(Path(config.output.dir).resolve())
 
@@ -63,6 +63,8 @@ class DockerExecutor:
             image,
             "nel", "eval", "run", str(cfg_path),
         ]
+        if resume:
+            cmd.append("--resume")
 
         if dry_run:
             click.echo(f"Docker command:\n  {shlex.join(cmd)}")

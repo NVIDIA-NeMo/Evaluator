@@ -32,10 +32,27 @@ def _expand_env(value: Any) -> Any:
 # Sandbox config
 # ---------------------------------------------------------------------------
 
+class EcsFargateConfig(BaseModel):
+    """AWS ECS Fargate sandbox backend configuration."""
+
+    cluster: str
+    subnets: list[str]
+    security_groups: list[str]
+    task_role_arn: str | None = None
+    execution_role_arn: str | None = None
+    ssh_key_name: str | None = None
+    codebuild_project: str | None = None
+    ecr_repo: str | None = None
+    vcpus: float = 2.0
+    memory_mb: int = 4096
+    ephemeral_storage_gb: int = 21
+    assign_public_ip: bool = True
+
+
 class SandboxConfig(BaseModel):
     """Per-problem sandbox configuration for agent/code evaluations."""
 
-    backend: Literal["docker", "slurm", "local", "none"] = "none"
+    backend: Literal["docker", "slurm", "local", "ecs_fargate", "none"] = "none"
     image: str | None = None
     image_template: str | None = None
     memory: str = "4g"
@@ -43,11 +60,14 @@ class SandboxConfig(BaseModel):
     timeout: float = 1800.0
     concurrency: int = 4
     network: str = "bridge"
-    pre_pull: bool = True
     sandbox_nodes: int = 0
     slots_per_node: int = 4
-    partition: str | None = None
-    gres: str | None = None
+
+    agent_cmd: str | None = None
+    agent_setup_cmd: str | None = None
+    agent_invocation_template: str | None = None
+
+    ecs: EcsFargateConfig | None = None
 
     @field_validator("image_template")
     @classmethod
@@ -72,6 +92,7 @@ class BenchmarkConfig(BaseModel):
       - ``gym://host:port``       remote Gym environment
       - ``gym://swebench``        managed Gym benchmark (auto-detected)
       - ``mteb://mteb-task``      MTEB embedding benchmark
+      - ``harbor://swebench``       Harbor agent benchmark
       - ``container://image#task`` legacy container harness
     """
     name: str
@@ -84,9 +105,8 @@ class BenchmarkConfig(BaseModel):
     temperature: float | None = None
     max_tokens: int | None = None
     fewshot: int | None = None
-    endpoint_type: Literal["chat", "completions", "vlm", "embedding"] = "chat"
+    endpoint_type: Literal["chat", "completions", "vlm", "embedding", "agent", "nat_agent"] = "chat"
     image_detail: str = "auto"
-    reranker: str | None = None
     sandbox: SandboxConfig | None = None
 
 
@@ -122,8 +142,11 @@ class ModelConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ServiceConfig(BaseModel):
-    """Named infrastructure service: model server, judge, gym server."""
-    type: Literal["vllm", "sglang", "nim", "docker", "api", "gym"]
+    """Named infrastructure service: model server, judge, gym server, NAT agent."""
+    type: Literal["vllm", "sglang", "nim", "docker", "api", "gym", "nat"]
+
+    # Per-service container image override (takes precedence over containers.toml)
+    image: str | None = None
 
     # Model server fields
     model: str | None = None
@@ -144,6 +167,9 @@ class ServiceConfig(BaseModel):
     benchmark: str | None = None
     server_cmd: str | None = None
 
+    # NAT agent fields
+    nat_config_file: str | None = None
+
     @property
     def is_model_server(self) -> bool:
         return self.type in ("vllm", "sglang", "nim", "docker", "api")
@@ -157,6 +183,8 @@ class ServiceConfig(BaseModel):
     def base_url(self) -> str:
         if self.type == "api":
             return self.url or ""
+        if self.type == "nat":
+            return f"http://localhost:{self.port}"
         return f"http://localhost:{self.port}/v1"
 
 
@@ -175,14 +203,11 @@ class ClusterConfig(BaseModel):
     ntasks_per_node: int = 1
     gres: str | None = None
     walltime: str = "04:00:00"
-    subproject: str | None = None
     conda_env: str | None = None
-    mounts: dict[str, Any] = Field(default_factory=dict)
     container_image: str | None = None
     container_mounts: list[str] = Field(default_factory=list)
     container_env: dict[str, str] = Field(default_factory=dict)
     mount_home: bool = True
-    max_walltime: str | None = None
     auto_resume: bool = False
     max_resume_attempts: int = 3
     env_mode: Literal["colocated", "separated"] = "colocated"

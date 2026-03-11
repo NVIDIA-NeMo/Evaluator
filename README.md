@@ -7,6 +7,7 @@ LLM evaluation framework: benchmark environments, pluggable solvers, multi-forma
 ```bash
 pip install -e .                # core
 pip install -e ".[scoring]"     # + sympy
+pip install -e ".[scoring,stats]"  # + sympy + scipy (CIs, regression)
 pip install -e ".[mteb]"        # + MTEB embedding benchmarks
 pip install -e ".[export]"      # + WandB / MLflow
 pip install -e ".[all]"         # everything
@@ -43,8 +44,9 @@ nel eval report ./eval_results/ -f markdown -o report.md
 | HumanEval | `nel eval run --bench humaneval` | Code (Docker sandbox) |
 | SimpleQA | `nel eval run --bench simpleqa` | Factuality (judge) |
 | HealthBench | `nel eval run --bench healthbench` | Health (judge) |
+| PinchBench | `nel eval run --bench pinchbench` | Agentic tasks (automated + judge) |
 
-Plus: any lm-eval task (`lm-eval://aime25`), NeMo Skills benchmark (`skills://mmlu-pro`), MTEB embedding benchmark (`mteb://STSBenchmark`), legacy eval-factory container (`container://nvcr.io/image#task`), or remote Gym environment (`gym://host:port`). All external environments use the consistent `scheme://task` URI syntax.
+Plus: any lm-eval task (`lm-eval://ifeval`), MTEB embedding benchmark (`mteb://STSBenchmark`), legacy eval-factory container (`container://nvcr.io/image#task`), or remote Gym environment (`gym://host:port`). All external environments use the consistent `scheme://task` URI syntax.
 
 ## Write a Benchmark in 5 Minutes
 
@@ -105,15 +107,42 @@ The eval loop is decoupled from inference. Plug in any solver:
 | `CrossEncoderSolver` | Reranking via `/v1/rerank` |
 | `AgentSolver` | External agent (OpenHands, SWE-agent, etc.) |
 | `SandboxedAgentSolver` | Agent in per-problem sandbox (SWE-bench) |
+| `NatSolver` | NeMo Agent Toolkit via SSE (`/generate/full`) |
 
 Set `endpoint_type` in your benchmark config to select the solver automatically:
 
 ```yaml
 benchmarks:
   - name: my-vlm-bench
-    endpoint_type: vlm        # chat | completions | vlm | embedding
+    endpoint_type: vlm        # chat | completions | vlm | embedding | agent | nat_agent
     image_detail: high
 ```
+
+## External Harness Dependencies
+
+```bash
+pip install lm_eval langdetect immutabledict   # for lm-eval:// environments
+```
+
+## NAT Agent Integration
+
+Evaluate NeMo Agent Toolkit agents against any benchmark:
+
+```bash
+pip install "nvidia-nat[langchain]" langchain-nvidia-ai-endpoints
+pip install -e ".[scoring,stats]"   # reinstall nel (nvidia-nat may shadow the CLI)
+```
+
+```yaml
+# Start NAT: nat serve --config_file agent.yaml --port 9000
+benchmarks:
+  - name: pinchbench
+    endpoint_type: nat_agent
+    max_concurrent: 1
+    max_problems: 10
+```
+
+NatSolver sends task prompts to NAT's `/generate/full` SSE endpoint, collects the trajectory (LLM calls, tool invocations), and converts it for scoring. Works with any benchmark -- PinchBench, GSM8K, MMLU, etc.
 
 ## Resilience
 
@@ -146,15 +175,15 @@ Each problem gets its own container with per-task images. The sandbox stays aliv
 
 ## SLURM / Containers
 
-SLURM execution uses Pyxis/Enroot to run each benchmark in a pre-built container. Each URI scheme maps to a container variant:
+SLURM execution uses Pyxis/Enroot to run each benchmark in a pre-built container. CI builds images automatically and pushes them to the GitLab container registry. Each URI scheme maps to a container variant:
 
-| Image | Contains |
-|-------|----------|
-| `nemo-evaluator:0.7.0` | Base: built-in benchmarks, gym, pi |
-| `nemo-evaluator:0.7.0-lm-eval` | + lm-evaluation-harness |
-| `nemo-evaluator:0.7.0-skills` | + NeMo Skills |
-| `nemo-evaluator:0.7.0-mteb` | + MTEB |
-| `nemo-evaluator:0.7.0-full` | All harnesses |
+| Tag suffix | Contains |
+|------------|----------|
+| `:latest` | Base: built-in benchmarks, gym, pi |
+| `:latest-lm-eval` | + lm-evaluation-harness |
+| `:latest-skills` | + NeMo Skills |
+| `:latest-mteb` | + MTEB |
+| `:latest-full` | All harnesses |
 
 The sbatch generator automatically selects the right container per benchmark. Two container modes are supported:
 
@@ -165,7 +194,7 @@ The sbatch generator automatically selects the right container per benchmark. Tw
 cluster:
   type: slurm
   env_mode: colocated              # or "separated" for full isolation
-  container_image: nvcr.io/nvidia/nemo-evaluator:0.7.0-full  # optional override
+  container_image: my-registry.io/nel:v2.0  # optional: overrides default registry
 ```
 
 ## Experiment Tracking
@@ -217,7 +246,7 @@ src/nemo_evaluator/
         mteb.py           MTEB embedding benchmarks
         container.py      Legacy eval-factory containers
         server.py         HTTP server (Gym protocol)
-    benchmarks/           11 built-in benchmarks (all @benchmark + @scorer)
+    benchmarks/           12 built-in benchmarks (all @benchmark + @scorer)
     scoring/
         types.py          ScorerInput dataclass
         text.py           exact_match, fuzzy_match
@@ -227,6 +256,7 @@ src/nemo_evaluator/
         json_schema.py    JSON schema validation
     runner/
         solver.py         Solver protocol (Chat, Completion, VLM, Embedding, Agent, SandboxedAgent)
+        nat_solver.py     NatSolver: NAT agent via SSE (/generate/full)
         eval_loop.py      Async parallel eval with back-pressure and sandbox lifecycle
         model_client.py   HTTP client with retry, cache, VLM, embeddings
         deployment.py     Model server lifecycle + DeployConfig

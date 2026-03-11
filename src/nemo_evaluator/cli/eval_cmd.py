@@ -39,12 +39,11 @@ def eval_cmd():
 @click.option("--submit", is_flag=True, help="Submit to cluster via SSH")
 @click.option("--background", is_flag=True, help="Run locally in background, write PID file")
 @click.option("--resume", is_flag=True, help="Resume a partially completed evaluation")
-@click.option("--no-progress", is_flag=True, hidden=True)
 @click.option("--override", "-O", multiple=True, help="Override config value: key=value (dot notation)")
 @click.option("--verbose", "-v", is_flag=True)
 def eval_run(config_file, bench, model_url, model_id, api_key,
              repeats, max_problems, system_prompt, temperature, max_tokens,
-             output_dir, dry_run, submit, background, resume, no_progress, override, verbose):
+             output_dir, dry_run, submit, background, resume, override, verbose):
     """Start evaluation. Accepts a config YAML or --bench for quick mode."""
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
@@ -104,8 +103,21 @@ def _apply_override(data: dict, override: str) -> None:
 
     d = data
     for p in parts[:-1]:
-        d = d.setdefault(p, {})
-    d[parts[-1]] = parsed_value
+        if isinstance(d, list):
+            try:
+                d = d[int(p)]
+            except (ValueError, IndexError):
+                raise click.ClickException(f"Cannot index list with {p!r} in override {key!r}")
+        else:
+            d = d.setdefault(p, {})
+    last = parts[-1]
+    if isinstance(d, list):
+        try:
+            d[int(last)] = parsed_value
+        except (ValueError, IndexError):
+            raise click.ClickException(f"Cannot index list with {last!r} in override {key!r}")
+    else:
+        d[last] = parsed_value
 
 
 def _build_quick_config(bench, model_url, model_id, api_key, repeats,
