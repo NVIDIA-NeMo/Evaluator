@@ -43,11 +43,8 @@ class SandboxConfig(BaseModel):
     timeout: float = 1800.0
     concurrency: int = 4
     network: str = "bridge"
-    pre_pull: bool = True
     sandbox_nodes: int = 0
     slots_per_node: int = 4
-    partition: str | None = None
-    gres: str | None = None
 
     @field_validator("image_template")
     @classmethod
@@ -86,7 +83,6 @@ class BenchmarkConfig(BaseModel):
     fewshot: int | None = None
     endpoint_type: Literal["chat", "completions", "vlm", "embedding"] = "chat"
     image_detail: str = "auto"
-    reranker: str | None = None
     sandbox: SandboxConfig | None = None
 
 
@@ -175,14 +171,11 @@ class ClusterConfig(BaseModel):
     ntasks_per_node: int = 1
     gres: str | None = None
     walltime: str = "04:00:00"
-    subproject: str | None = None
     conda_env: str | None = None
-    mounts: dict[str, Any] = Field(default_factory=dict)
     container_image: str | None = None
     container_mounts: list[str] = Field(default_factory=list)
     container_env: dict[str, str] = Field(default_factory=dict)
     mount_home: bool = True
-    max_walltime: str | None = None
     auto_resume: bool = False
     max_resume_attempts: int = 3
     env_mode: Literal["colocated", "separated"] = "colocated"

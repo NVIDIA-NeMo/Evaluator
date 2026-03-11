@@ -25,11 +25,6 @@ from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, Verify
 
 logger = logging.getLogger(__name__)
 
-# Maps well-known harness names to NVCR container images.
-# Users can override via the full container:// URI.
-DEFAULT_IMAGE_MAP: dict[str, str] = {}
-
-
 class ContainerEnvironment(EvalEnvironment):
     """Runs a legacy eval-factory container and parses its results.
 

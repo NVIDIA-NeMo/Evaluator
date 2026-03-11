@@ -120,6 +120,8 @@ async def _run_single_benchmark(
     handles: dict[str, _ServiceHandle],
     output_dir: Path,
     judge_clients: dict[str, Any],
+    *,
+    resume: bool = False,
 ) -> dict[str, Any]:
     """Run a single benchmark and return the bundle."""
     from nemo_evaluator.environments.registry import get_environment
@@ -153,6 +155,7 @@ async def _run_single_benchmark(
     )
     solver = _make_solver(bench, client, model_url, model_id, api_key)
 
+    # run_batch() environments own the full loop — step logging not applicable
     batch_config = {"base_url": model_url, "model": model_id, "api_key": api_key}
     batch_result = await env.run_batch(solver=solver, config=batch_config)
     if batch_result is not None:
@@ -195,6 +198,10 @@ async def _run_single_benchmark(
         )
 
     bench_name = getattr(env, "name", bench.name)
+    safe = _safe_name(bench_name)
+    task_dir = output_dir / safe
+    task_dir.mkdir(parents=True, exist_ok=True)
+
     run_config = {
         "benchmark": bench_name,
         "model": model_id,
@@ -213,10 +220,10 @@ async def _run_single_benchmark(
         judge_client=judge_client,
         sandbox_manager=sandbox_mgr,
         model_url=model_url,
+        step_log_dir=task_dir,
+        resume=resume,
     )
 
-    safe = _safe_name(bench_name)
-    task_dir = output_dir / safe
     write_all(bundle, task_dir)
     return bundle
 
@@ -296,9 +303,16 @@ def run_local(config: EvalConfig, *, resume: bool = False) -> list[dict[str, Any
                 bundles.append(_load_prior_bundle(prior["bundle_path"]))
                 continue
 
+            if resume and ckpt.has_partial_progress(bench.name):
+                progress = ckpt.get_progress(bench.name)
+                if progress:
+                    click.echo(f"  Resuming ({progress['verified']} verified, "
+                               f"{progress['inferred']} inferred)")
+
             try:
                 bundle = asyncio.run(_run_single_benchmark(
                     bench, config, handles, output_dir, {},
+                    resume=resume,
                 ))
 
                 bench_name = bundle.get("benchmark", {}).get("name", bench.name)

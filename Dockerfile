@@ -2,14 +2,16 @@
 # Contains: nemo-evaluator[scoring,stats] + built-in BYOB benchmarks.
 # Sufficient for: built-in benchmarks, gym://, pi://, container://.
 #
-# Build:
-#   docker build -t nemo-evaluator:0.7.0 .
+# Build locally:
+#   docker build -t nemo-evaluator .
 #
 # Per-harness variants:
-#   docker build -f docker/Dockerfile.lm-eval -t nemo-evaluator:0.7.0-lm-eval .
-#   docker build -f docker/Dockerfile.skills  -t nemo-evaluator:0.7.0-skills  .
-#   docker build -f docker/Dockerfile.mteb    -t nemo-evaluator:0.7.0-mteb    .
-#   docker build -f docker/Dockerfile.full    -t nemo-evaluator:0.7.0-full    .
+#   docker build -f docker/Dockerfile.lm-eval -t nemo-evaluator:lm-eval .
+#   docker build -f docker/Dockerfile.skills  -t nemo-evaluator:skills  .
+#   docker build -f docker/Dockerfile.mteb    -t nemo-evaluator:mteb    .
+#   docker build -f docker/Dockerfile.full    -t nemo-evaluator:full    .
+#
+# CI builds and pushes to the GitLab container registry automatically.
 
 FROM python:3.11-slim AS base
 
@@ -18,7 +20,6 @@ RUN pip install --no-cache-dir --upgrade pip
 
 COPY pyproject.toml README.md ./
 COPY src/ src/
-COPY benchmarks/ benchmarks/
 
 RUN pip install --no-cache-dir ".[scoring,stats]"
 

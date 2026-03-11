@@ -146,15 +146,15 @@ Each problem gets its own container with per-task images. The sandbox stays aliv
 
 ## SLURM / Containers
 
-SLURM execution uses Pyxis/Enroot to run each benchmark in a pre-built container. Each URI scheme maps to a container variant:
+SLURM execution uses Pyxis/Enroot to run each benchmark in a pre-built container. CI builds images automatically and pushes them to the GitLab container registry. Each URI scheme maps to a container variant:
 
-| Image | Contains |
-|-------|----------|
-| `nemo-evaluator:0.7.0` | Base: built-in benchmarks, gym, pi |
-| `nemo-evaluator:0.7.0-lm-eval` | + lm-evaluation-harness |
-| `nemo-evaluator:0.7.0-skills` | + NeMo Skills |
-| `nemo-evaluator:0.7.0-mteb` | + MTEB |
-| `nemo-evaluator:0.7.0-full` | All harnesses |
+| Tag suffix | Contains |
+|------------|----------|
+| `:latest` | Base: built-in benchmarks, gym, pi |
+| `:latest-lm-eval` | + lm-evaluation-harness |
+| `:latest-skills` | + NeMo Skills |
+| `:latest-mteb` | + MTEB |
+| `:latest-full` | All harnesses |
 
 The sbatch generator automatically selects the right container per benchmark. Two container modes are supported:
 
@@ -165,7 +165,7 @@ The sbatch generator automatically selects the right container per benchmark. Tw
 cluster:
   type: slurm
   env_mode: colocated              # or "separated" for full isolation
-  container_image: nvcr.io/nvidia/nemo-evaluator:0.7.0-full  # optional override
+  container_image: my-registry.io/nel:v2.0  # optional: overrides default registry
 ```
 
 ## Experiment Tracking

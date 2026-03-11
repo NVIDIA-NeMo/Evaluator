@@ -88,25 +88,6 @@ class ShardConfig(BaseModel):
         return v
 
 
-class RegressionDelta(BaseModel):
-    metric: str
-    baseline: float
-    candidate: float
-    delta: float
-    pct_change: float | None = None
-    ci_overlap: bool | None = None
-
-
-class RegressionReport(BaseModel):
-    baseline_id: str
-    candidate_id: str
-    score_deltas: list[RegressionDelta] = Field(default_factory=list)
-    runtime_deltas: dict[str, Any] = Field(default_factory=dict)
-    category_deltas: list[dict[str, Any]] = Field(default_factory=list)
-    has_regression: bool = False
-    threshold: float = 0.05
-
-
 class RetryConfig(BaseModel):
     max_retries: int = 3
     base_delay: float = 1.0

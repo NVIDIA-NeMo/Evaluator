@@ -26,9 +26,9 @@ spec:
       containers:
         - name: eval
           image: nemo-evaluator:latest
-          command: ["nel", "run"]
+          command: ["nel", "eval", "run"]
           args:
-            - "--benchmark"
+            - "--bench"
             - "gsm8k"
             - "--repeats"
             - "4"

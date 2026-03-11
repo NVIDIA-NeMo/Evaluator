@@ -8,7 +8,7 @@ stages:
 variables:
   BENCHMARK: gsm8k
   MODEL_URL: https://inference-api.nvidia.com/v1
-  MODEL_ID: azure/openai/gpt-5.2
+  MODEL_ID: ${EVAL_MODEL_ID:-"meta/llama-3.1-8b-instruct"}
   REPEATS: "2"
   MAX_PROBLEMS: "50"
   NEL_IMAGE: nemo-evaluator:latest
@@ -20,7 +20,7 @@ eval:candidate:
     - nel eval run --bench $BENCHMARK
         --model-url $MODEL_URL --model-id $MODEL_ID
         --repeats $REPEATS --max-problems $MAX_PROBLEMS
-        --output-dir ./results/candidate --no-progress
+        --output-dir ./results/candidate
   artifacts:
     paths:
       - results/candidate/
@@ -37,7 +37,7 @@ eval:baseline:
     - nel eval run --bench $BENCHMARK
         --model-url $MODEL_URL --model-id $MODEL_ID
         --repeats $REPEATS --max-problems $MAX_PROBLEMS
-        --output-dir ./results/baseline --no-progress
+        --output-dir ./results/baseline
   artifacts:
     paths:
       - results/baseline/
@@ -56,8 +56,8 @@ regression:check:
       from pathlib import Path
       import glob, sys, json
 
-      baseline = glob.glob('results/baseline/eval-*.json')[0]
-      candidate = glob.glob('results/candidate/eval-*.json')[0]
+      baseline = glob.glob('results/baseline/**/eval-*.json', recursive=True)[0]
+      candidate = glob.glob('results/candidate/**/eval-*.json', recursive=True)[0]
       report = compare_runs(baseline, candidate)
       write_regression(report, 'results/regression.json')
 
