@@ -24,9 +24,15 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 from nemo_evaluator.core.utils import validate_params_in_command
 from omegaconf import DictConfig, OmegaConf
+from pydantic import ValidationError
 
 from nemo_evaluator_launcher import __version__
 from nemo_evaluator_launcher.api.types import RunConfig
+from nemo_evaluator_launcher.common.config_models import (
+    EvaluationModel,
+    MountsModel,
+    TaskModel,
+)
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.common.helpers import get_eval_factory_config
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -60,49 +66,36 @@ def get_tasks_list() -> list[list[Any]]:
     return data
 
 
-def _validate_config_sections(cfg: Any) -> None:
+def _allowed_keys(model_cls: type) -> str:
+    return ", ".join(sorted(model_cls.model_fields))
+
+
+def _validate_config_sections(cfg: RunConfig) -> None:
     """Validate known config sections using Pydantic models (extra fields forbidden).
 
     Raises:
         ValueError: If an unknown or removed key is present in a validated section.
     """
-    from pydantic import ValidationError
-
-    from nemo_evaluator_launcher.common.config_models import (
-        EvaluationModel,
-        MountsModel,
-        TaskModel,
-    )
-
-    def _allowed(model_cls) -> str:
-        return ", ".join(sorted(model_cls.model_fields))
-
-    # evaluation section
-    eval_cfg = cfg.get("evaluation") if OmegaConf.is_dict(cfg) else None
-    if eval_cfg is not None and OmegaConf.is_dict(eval_cfg):
-        eval_dict = OmegaConf.to_container(eval_cfg, resolve=False)
+    if cfg.evaluation is not None:
+        eval_dict = OmegaConf.to_container(cfg.evaluation, resolve=False)
         try:
             EvaluationModel.model_validate(eval_dict)
         except ValidationError as e:
             raise ValueError(
                 f"Invalid 'evaluation' config:\n{e}\n"
-                f"Allowed top-level evaluation keys: {_allowed(EvaluationModel)}\n"
-                f"Allowed task keys: {_allowed(TaskModel)}"
+                f"Allowed top-level evaluation keys: {_allowed_keys(EvaluationModel)}\n"
+                f"Allowed task keys: {_allowed_keys(TaskModel)}"
             ) from e
 
-    # execution.mounts section
-    exec_cfg = cfg.get("execution") if OmegaConf.is_dict(cfg) else None
-    if exec_cfg is not None and OmegaConf.is_dict(exec_cfg):
-        mounts_cfg = exec_cfg.get("mounts")
-        if mounts_cfg is not None and OmegaConf.is_dict(mounts_cfg):
-            mounts_dict = OmegaConf.to_container(mounts_cfg, resolve=False)
-            try:
-                MountsModel.model_validate(mounts_dict)
-            except ValidationError as e:
-                raise ValueError(
-                    f"Invalid 'execution.mounts' config:\n{e}\n"
-                    f"Allowed mounts keys: {_allowed(MountsModel)}"
-                ) from e
+    if cfg.execution is not None and getattr(cfg.execution, "mounts", None) is not None:
+        mounts_dict = OmegaConf.to_container(cfg.execution.mounts, resolve=False)
+        try:
+            MountsModel.model_validate(mounts_dict)
+        except ValidationError as e:
+            raise ValueError(
+                f"Invalid 'execution.mounts' config:\n{e}\n"
+                f"Allowed mounts keys: {_allowed_keys(MountsModel)}"
+            ) from e
 
 
 def _validate_nemo_evaluator_config_params(cfg: Any) -> None:

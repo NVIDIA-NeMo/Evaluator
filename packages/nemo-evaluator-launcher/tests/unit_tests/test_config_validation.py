@@ -206,14 +206,11 @@ class TestStructuralValidation:
 
 
 # ---------------------------------------------------------------------------
-# nemo_evaluator_config param validation — real packaged IRs, no mocking.
+# nemo_evaluator_config param validation — real packaged IRs.
 #
 # lm-evaluation-harness.ifeval  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.01
 #   params: parallelism, request_timeout, limit_samples, max_retries
 #   extras: num_fewshot, tokenizer, tokenizer_backend, ...
-# simple_evals.gpqa_diamond     container: nvcr.io/nvidia/eval-factory/simple-evals:26.01
-#   params: temperature, top_p, max_new_tokens, parallelism, request_timeout, max_retries
-#   extras: n_samples, ...
 # ---------------------------------------------------------------------------
 
 VALID_PARAM_CONFIGS = [
