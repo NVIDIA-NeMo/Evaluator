@@ -93,9 +93,9 @@ The config files are located in this directory:
 
 | Config File | Purpose |
 |-------------|---------|
-| `local_nemotron-3-super-120b-a12b.yaml` | Main evaluation suite |
-| `local_nemotron-3-super-120b-a12b_tools.yaml` | Tool usage evaluation |
-| `local_nemotron-3-super-120b-a12b_low_budget.yaml` | Low-budget / low-effort thinking evaluation |
+| [`local_nemotron-3-super-120b-a12b.yaml`](./local_nemotron-3-super-120b-a12b.yaml) | Main evaluation suite |
+| [`local_nemotron-3-super-120b-a12b_tools.yaml`](./local_nemotron-3-super-120b-a12b_tools.yaml) | Tool usage evaluation |
+| [`local_nemotron-3-super-120b-a12b_low_budget.yaml`](./local_nemotron-3-super-120b-a12b_low_budget.yaml) | Low-budget / low-effort thinking evaluation |
 
 ### 2. Run the Evaluation
 
@@ -217,13 +217,9 @@ Different benchmarks use tailored parameters:
 - 1 repeat
 - 10-choice boxed prompt format (`eval/aai/mcq-10choices-boxed`)
 
-#### AIME 2025
+#### AIME
 - 64 repeated samples (`num_repeats: 64`)
 - Math-specific prompt template (`math-oai.yaml`)
-
-#### AIME 2026
-- 64 repeated samples
-- Math-specific prompt template + `tokens_to_generate=null`
 
 #### HMMT Feb 2025
 - 64 repeated samples
@@ -395,7 +391,7 @@ The Nemotron 3 Super 120B A12B model supports tool usage, allowing it to call a 
 
 | Config File | Model |
 |-------------|-------|
-| `local_nemotron-3-super-120b-a12b_tools.yaml` | nvidia/nemotron-3-super-120b-a12b |
+| [`local_nemotron-3-super-120b-a12b_tools.yaml`](./local_nemotron-3-super-120b-a12b_tools.yaml) | nvidia/nemotron-3-super-120b-a12b |
 
 ### Tool Usage Benchmarks
 
@@ -459,7 +455,7 @@ A separate configuration runs a subset of benchmarks with low-effort thinking mo
 
 | Config File | Model |
 |-------------|-------|
-| `local_nemotron-3-super-120b-a12b_low_budget.yaml` | nvidia/nemotron-3-super-120b-a12b |
+| [`local_nemotron-3-super-120b-a12b_low_budget.yaml`](./local_nemotron-3-super-120b-a12b_low_budget.yaml) | nvidia/nemotron-3-super-120b-a12b |
 
 ### Low-Budget Benchmarks
 
@@ -499,7 +495,7 @@ In addition to the instruct model, you can reproduce evaluation results for the 
 
 | Config File | Model |
 |-------------|-------|
-| `local_nemotron-3-super-120b-a12b-base.yaml` | nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-Base |
+| [`local_nemotron-3-super-120b-a12b-base.yaml`](./local_nemotron-3-super-120b-a12b-base.yaml) | nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-Base |
 
 ### Base Model Benchmarks
 
