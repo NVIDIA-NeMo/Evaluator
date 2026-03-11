@@ -18,10 +18,10 @@ Config ─→ Executor ─→ Solver ─→ Environment ─→ Scorer ─→ Art
 **What you will learn:**
 
 1. Run evaluations from the CLI and YAML configs
-2. Use NeMo Skills, lm-eval, Gym, and legacy container environments
-3. Build and serve your own benchmark (BYOB)
+2. Execute all environment types in one suite: built-in, lm-eval, NeMo Skills, Gym, BYOB
+3. Build and serve your own benchmark (BYOB deep dive)
 4. Compare runs with statistical regression testing
-5. Scale to SLURM clusters
+5. Scale to SLURM clusters with container auto-selection
 6. Generate multi-format reports
 
 ---
@@ -153,9 +153,10 @@ nel eval run workshop_suite.yaml -O benchmarks.0.max_problems=5
 Generate reports from the results:
 
 ```bash
-nel eval report ./workshop_results/02_suite --all-formats -o ./workshop_results/02_suite/report
+nel eval report ./workshop_results/02_suite --all-formats
 ```
 
+Reports are written as `report.{md,html,csv,json,tex}` inside the results directory.
 Open `report.html` in your browser. MMLU shows per-subject category breakdowns.
 
 ### Resume after failure
@@ -212,105 +213,21 @@ nel eval run workshop_suite.yaml --resume
 
 ---
 
-## Part 3: External Environments (8 min)
+## Part 3: Run Every Environment Type (12 min)
 
-NEL resolves benchmarks by URI scheme. Every scheme below works in both
-`--bench` and YAML configs.
+NEL resolves benchmarks by URI scheme. In this part we will actually **run
+one evaluation of each type** so you see how they differ.
 
-### 3a. NeMo Skills (`skills://`)
-
-Requires: `pip install nemo-skills` (or `pip install -e ".[skills]"`)
+### 3a. Install the optional harnesses
 
 ```bash
-nel eval run --bench skills://gsm8k \
-  --repeats 1 --max-problems 15 \
-  -o ./workshop_results/03_skills
+pip install lm_eval                             # for lm-eval://
+pip install "nemo-skills @ git+https://github.com/NVIDIA-NeMo/Skills.git"  # for skills://
 ```
 
-Skills environments use NeMo Skills' own graders (math_equal, multichoice),
-which can be stricter or more lenient than built-in scorers.
+### 3b. Create the BYOB benchmark file
 
-### 3b. lm-evaluation-harness (`lm-eval://`)
-
-Requires: `pip install lm_eval` (or `pip install -e ".[lm-eval]"`)
-
-```bash
-nel eval run --bench lm-eval://aime2025 \
-  --repeats 1 --max-problems 10 \
-  -o ./workshop_results/03_lmeval
-```
-
-### 3c. Gym environments (`gym://`)
-
-Evaluate against any running Gym server:
-
-```bash
-# Start a server (in background)
-nel serve -b gsm8k -p 9090 &
-sleep 2
-
-# Evaluate against it
-nel eval run --bench gym://localhost:9090 \
-  --repeats 2 --max-problems 15 \
-  -o ./workshop_results/03_gym
-
-# Clean up
-kill %1
-```
-
-This is the same protocol NeMo Gym training uses. The model call goes through
-NEL (full observability), while seed/verify go through the Gym server.
-
-### 3d. Legacy containers (`container://`)
-
-For eval-factory containers that own the entire eval loop:
-
-```yaml
-benchmarks:
-  - name: container://nvcr.io/eval-factory/mmlu:latest#mmlu_pro
-```
-
-The container runs via `docker run`, and NEL parses the output into its
-standard artifact format. Useful for migrating existing container-based evals.
-
-### 3e. Mix everything in one config
-
-```yaml
-# workshop_mixed.yaml
-model:
-  url: ${NEMO_MODEL_URL}
-  id: ${NEMO_MODEL_ID}
-  api_key: ${NEMO_API_KEY:-}
-
-benchmarks:
-  - name: gsm8k                # built-in
-    max_problems: 10
-  - name: skills://mmlu-pro     # NeMo Skills
-    max_problems: 10
-  - name: lm-eval://aime2025    # lm-evaluation-harness
-    max_problems: 5
-
-output:
-  dir: ./workshop_results/03_mixed
-  report: [markdown]
-```
-
-```bash
-nel eval run workshop_mixed.yaml
-```
-
-**Checkpoint:** Three URI schemes resolve and evaluate in one suite.
-
----
-
-## Part 4: Build Your Own Benchmark — BYOB (10 min)
-
-A BYOB benchmark is a standalone Python file. No need to install it inside the
-package or edit any config -- just point `nel` at the file.
-
-### 4a. Create the benchmark file
-
-Create `workshop_trivia.py` anywhere (e.g. in the repo root):
+We'll need this for the mixed suite. Create `workshop_trivia.py`:
 
 ```python
 from nemo_evaluator import benchmark, scorer, ScorerInput, fuzzy_match
@@ -340,30 +257,17 @@ def workshop_trivia_scorer(sample: ScorerInput) -> dict:
     return fuzzy_match(sample)
 ```
 
-That's the entire benchmark. The `@benchmark` decorator handles dataset loading,
-prompt formatting, and registration. The `@scorer` function defines scoring.
-
-### 4b. Run it directly from the file
-
-Point `--bench` at the `.py` file -- NEL imports it automatically:
+### 3c. Start a Gym server (for `gym://`)
 
 ```bash
-nel eval run --bench ./workshop_trivia.py --repeats 3 -o ./workshop_results/04_byob
+nel serve -b gsm8k -p 9090 &
+sleep 3
+curl -s http://localhost:9090/health   # confirm it's up
 ```
 
-No registration step, no package edits. All CLI commands accept `.py` paths:
+### 3d. Run one of each — the mixed suite
 
-```bash
-# Validate
-nel validate -b ./workshop_trivia.py --samples 5
-
-# Serve for Gym training
-nel serve -b ./workshop_trivia.py -p 9090
-```
-
-### 4c. Use in YAML configs
-
-File paths work in config files too:
+Create `workshop_mixed.yaml`:
 
 ```yaml
 model:
@@ -372,16 +276,113 @@ model:
   api_key: ${NEMO_API_KEY:-}
 
 benchmarks:
+  # 1. Built-in benchmark (deterministic scorer)
+  - name: gsm8k
+    max_problems: 10
+    system_prompt: "Solve step by step. Put your final answer after 'The answer is'."
+
+  # 2. BYOB from external Python file
   - name: ./workshop_trivia.py
-    repeats: 3
-  - name: gsm8k                   # mix with built-in benchmarks
+    repeats: 2
+
+  # 3. lm-evaluation-harness
+  - name: lm-eval://ifeval
+    max_problems: 10
+
+  # 4. NeMo Skills (uses NeMo Skills' own graders)
+  - name: skills://gsm8k
+    max_problems: 10
+
+  # 5. Gym server (same protocol used by NeMo Gym training)
+  - name: gym://localhost:9090
     max_problems: 10
 
 output:
-  dir: ./workshop_results/04_mixed
+  dir: ./workshop_results/03_all_types
+  report: [markdown, html]
 ```
 
-### 4d. Use a HuggingFace dataset instead of inline data
+```bash
+nel eval run workshop_mixed.yaml
+```
+
+Each benchmark runs sequentially. Watch the progress — you'll see NEL resolve
+each URI scheme, load the environment, call the model, and score:
+
+```
+  [1/5] gsm8k              — built-in, numeric_match scorer
+  [2/5] workshop_trivia     — BYOB .py file, fuzzy_match scorer
+  [3/5] lm-eval://ifeval    — lm-eval harness, generate_until
+  [4/5] skills://gsm8k      — NeMo Skills grader (math_equal)
+  [5/5] gym://localhost:9090 — remote Gym server, server-side verify
+```
+
+Stop the Gym server:
+
+```bash
+kill %1
+```
+
+### 3e. Compare scores across environment types
+
+```bash
+nel eval report ./workshop_results/03_all_types --all-formats
+```
+
+Open `report.html`. Note that `gsm8k` (built-in) and `skills://gsm8k` may
+produce slightly different scores on the same model — the built-in uses
+`numeric_match` while Skills uses `math_equal`, which handles LaTeX and
+symbolic equivalence differently.
+
+### 3f. Legacy containers (`container://`)
+
+For eval-factory containers that own the entire eval loop (requires Docker):
+
+```yaml
+benchmarks:
+  - name: container://nvcr.io/eval-factory/mmlu:latest#mmlu_pro
+```
+
+The container runs via `docker run`, and NEL parses the output into its
+standard artifact format. Useful for migrating existing container-based evals.
+This isn't run live because it requires pulling a container image, but the
+pattern works identically in SLURM with Pyxis/Enroot.
+
+**Checkpoint:** Five different environment types evaluated in one suite.
+
+---
+
+## Part 4: BYOB Deep Dive (7 min)
+
+You already created and ran `workshop_trivia.py` in Part 3. Here we explore
+the full BYOB system.
+
+### 4a. CLI commands that work with .py files
+
+All CLI commands accept `.py` paths — no installation or registration needed:
+
+```bash
+# Validate (dry-run sanity check)
+nel validate -b ./workshop_trivia.py --samples 5
+
+# Serve for Gym training
+nel serve -b ./workshop_trivia.py -p 9090 &
+curl -s http://localhost:9090/health
+kill %1
+
+# Run standalone
+nel eval run --bench ./workshop_trivia.py --repeats 3 -o ./workshop_results/04_byob
+```
+
+### 4b. Multiple benchmarks in one file
+
+If a single file registers multiple benchmarks, select one explicitly:
+
+```bash
+nel eval run --bench ./my_benchmarks.py:specific_name --repeats 2
+```
+
+### 4c. Use a HuggingFace dataset instead of inline data
 
 Replace the `dataset` field to load from HuggingFace:
 
@@ -466,6 +467,10 @@ nel regression \
   ./workshop_results/05_regression/candidate/gsm8k/eval-*.json \
   --strict --threshold 0.05
 ```
+
+> The glob must expand to exactly one file per run. Each `nel eval run`
+> produces one `eval-*.json` bundle per benchmark, so this works as long as
+> you haven't run the same benchmark twice into the same directory.
 
 Output:
 
@@ -573,12 +578,16 @@ cluster:
   ntasks_per_node: 1
   gres: "gpu:8"
   walltime: "01:00:00"
-  conda_env: gym
+  conda_env: gym    # uses: source /opt/anaconda3/bin/activate gym
 
 output:
   dir: ./eval_results/slurm_workshop
   report: [markdown, html, csv]
 ```
+
+> **Note:** The `conda_env` activation path is hardcoded to
+> `/opt/anaconda3/bin/activate`. Adjust in the generated sbatch if your
+> cluster uses a different conda installation path.
 
 Generate the sbatch script without submitting:
 
@@ -616,7 +625,18 @@ The script:
 >   # → skills benchmarks use my-registry.io/nel:v2.0-skills
 > ```
 
-### 7b. Submit to a cluster
+### 7b. Auto-resume on SLURM
+
+Add `auto_resume: true` to enable step-level resume inside the generated sbatch.
+If the job hits the walltime limit, it can resubmit itself:
+
+```yaml
+cluster:
+  auto_resume: true
+  max_resume_attempts: 3    # default: 3
+```
+
+### 7c. Submit to a cluster
 
 ```bash
 nel eval run workshop_slurm.yaml --submit
@@ -634,14 +654,20 @@ cluster:
   # ... rest of config
 ```
 
-### 7c. Monitor and control
+### 7d. Monitor and control
+
+For jobs submitted via `--submit` (SSH), NEL tracks the SLURM job ID:
 
 ```bash
 nel eval status -o ./eval_results/slurm_workshop
 nel eval stop -o ./eval_results/slurm_workshop
 ```
 
-### 7d. SLURM with Gym environment
+> **Note:** These commands require the `slurm_job.json` metadata file that is
+> created during SSH submission. For locally-submitted sbatch jobs, use
+> `squeue` / `scancel` directly.
+
+### 7e. SLURM with Gym environment
 
 ```yaml
 services:
@@ -675,11 +701,15 @@ cluster:
 The generated sbatch script starts both the model server and the Gym server,
 waits for health checks, and orchestrates the evaluations.
 
-### 7e. SLURM with legacy containers
+### 7f. SLURM with legacy containers
 
 For environments that ship as Docker images (eval-factory pattern):
 
 ```yaml
+model:
+  url: ${NEMO_MODEL_URL}
+  id: ${NEMO_MODEL_ID}
+
 benchmarks:
   - name: container://nvcr.io/eval-factory/mmlu:latest#mmlu_pro
 
@@ -689,22 +719,21 @@ cluster:
   gres: "gpu:8"
   walltime: "01:00:00"
   container_image: nvcr.io/eval-factory/mmlu:latest
-  container_mounts: "/data:/data:ro"
+  container_mounts: ["/data:/data:ro"]
 ```
 
-### 7f. Distributed sharding
+### 7g. Distributed sharding
 
-For large datasets, NEL shards automatically across SLURM array jobs:
+For large datasets, shard evaluations manually across nodes using env vars:
 
 ```bash
-# Manual sharding (any orchestrator):
 NEL_SHARD_IDX=0 NEL_TOTAL_SHARDS=4 nel eval run --bench mmlu -o ./results/shard_0
 NEL_SHARD_IDX=1 NEL_TOTAL_SHARDS=4 nel eval run --bench mmlu -o ./results/shard_1
-# ... (run in parallel across nodes)
+# ... (run each shard in parallel across SLURM array tasks or separate jobs)
 ```
 
-On SLURM, `SLURM_ARRAY_TASK_ID` and `SLURM_ARRAY_TASK_COUNT` are detected
-automatically -- just set `shards` in the cluster config.
+> **Note:** Sharding is currently manual. Set up `#SBATCH --array=0-3` in your
+> sbatch script and map `SLURM_ARRAY_TASK_ID` to `NEL_SHARD_IDX`.
 
 **Checkpoint:** You can generate, inspect, and submit SLURM jobs for any
 combination of model servers, Gym environments, and legacy containers.
@@ -724,7 +753,7 @@ The server speaks Gym's native protocol:
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/health` | GET | Health check |
-| `/dataset_size` | POST | Number of problems |
+| `/dataset_size` | GET | Number of problems |
 | `/seed_session` | POST | Get prompt + expected answer |
 | `/verify` | POST | Score a response |
 
@@ -762,7 +791,7 @@ evaluation artifacts.
 ```bash
 nel eval report ./workshop_results/02_suite -f html -o report.html
 nel eval report ./workshop_results/02_suite -f latex -o table.tex
-nel eval report ./workshop_results/02_suite --all-formats -o report
+nel eval report ./workshop_results/02_suite --all-formats
 ```
 
 Formats: `markdown`, `html`, `csv`, `json`, `latex`.
@@ -791,8 +820,7 @@ nel validate -b gsm8k --samples 3   # dry-run sanity check
 
 ```bash
 rm -rf ./workshop_results /tmp/bg_test /tmp/rollout_data
-rm -f workshop_suite.yaml workshop_mixed.yaml workshop_judge.yaml workshop_slurm.yaml
-rm -f workshop_trivia.py
+rm -f workshop_suite.yaml workshop_mixed.yaml workshop_judge.yaml workshop_slurm.yaml workshop_trivia.py
 ```
 
 ---
@@ -810,7 +838,7 @@ rm -f workshop_trivia.py
 | Re-verify only | Delete `verified_log.jsonl`, then `--resume` |
 | Check status | `nel eval status -o ./results` |
 | Stop | `nel eval stop -o ./results` |
-| Reports | `nel eval report ./results --all-formats` |
+| Reports | `nel eval report ./results --all-formats` (writes to results dir) |
 | Compare runs | `nel regression baseline/eval-*.json candidate/eval-*.json --strict` |
 | List benchmarks | `nel list --source all` |
 | Validate | `nel validate -b gsm8k --samples 5` |
@@ -818,7 +846,7 @@ rm -f workshop_trivia.py
 | Evaluate remote | `nel eval run --bench gym://host:9090` |
 | SLURM dry-run | `nel eval run slurm.yaml --dry-run` |
 | SLURM submit | `nel eval run slurm.yaml --submit` |
-| Package BYOB | `nel package -m my_bench.py --push` |
+| Package BYOB | `nel package -m my_bench.py -t my-bench:latest --push` |
 
 ### URI schemes
 
@@ -829,8 +857,8 @@ rm -f workshop_trivia.py
 | `lm-eval://` | `lm-eval://aime2025` | lm-evaluation-harness |
 | `gym://` | `gym://host:9090` | Remote Gym server |
 | `container://` | `container://image:tag#task` | Legacy eval-factory containers |
-| `mteb://` | `mteb://STSBenchmark` | MTEB embedding benchmarks |
-| `pi://` | `pi://simpleqa` | Prime Intellect verifiers |
+| `mteb://` | `mteb://STSBenchmark` | MTEB embedding benchmarks (requires `pip install mteb`) |
+| `pi://` | `pi://simpleqa` | Prime Intellect verifiers (requires `pip install verifiers`) |
 
 ### Scoring primitives
 
@@ -843,6 +871,8 @@ rm -f workshop_trivia.py
 | `numeric_match` | Last number in response | GSM8K |
 | `code_sandbox` | Docker-sandboxed test execution | HumanEval |
 | `needs_judge` | LLM-as-judge post-processing | SimpleQA |
+| `extract_json` | Extract JSON from response text | structured output |
+| `validate_json_schema` | Validate response against a JSON schema | structured output |
 
 ### Config structure
 
@@ -882,5 +912,5 @@ cluster:
 output:
   dir: ./eval_results
   report: [markdown, html, csv, json, latex]
-  export: wandb | mlflow
+  export: [wandb, mlflow]
 ```

@@ -49,7 +49,6 @@ cluster:
   ntasks_per_node: 1
   gres: "gpu:8"
   walltime: "01:00:00"
-  subproject: nv-eval
 
 output:
   dir: ./eval_results/qwen3.5-9b
