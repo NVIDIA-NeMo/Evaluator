@@ -646,6 +646,7 @@ def verify_capabilities(evaluation: Evaluation) -> bool:
                 url=url,
                 model=model_id,
                 capability=capability,
+                response_text=response.text,
             )
 
     return all_successful
