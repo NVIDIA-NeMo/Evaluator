@@ -269,7 +269,7 @@ def run_eval(
     telemetry_handler = None
     telemetry_level = get_telemetry_level()
 
-    # Extract telemetry metadata from config
+    # Extract telemetry metadata from config (evaluation.tasks must exist)
     task_names = []
     if hasattr(cfg, "evaluation") and cfg.evaluation.tasks:
         task_names = [t.name for t in cfg.evaluation.tasks if hasattr(t, "name")]

@@ -76,7 +76,7 @@ class DummyExecutor(BaseExecutor):
         # Generate invocation ID
         invocation_id = generate_invocation_id()
 
-        # Create job IDs for each evaluation task
+        # Create job IDs for each evaluation task (evaluation.tasks must exist)
         job_ids = []
         for idx, task in enumerate(cfg.evaluation.tasks):
             job_id = generate_job_id(invocation_id, idx)
