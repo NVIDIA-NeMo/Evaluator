@@ -134,7 +134,7 @@ evaluation:
         params:
           extra:
             num_repeats: 1
-            args: "++prompt_config=eval/aai/mcq-10choices-boxed"
+            args: "++prompt_config=eval/aai/mcq-10choices-boxed" #pragma: allowlist secret
   - name: nemo_skills.ns_aime2025
     nemo_evaluator_config:
       config:

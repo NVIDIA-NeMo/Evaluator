@@ -58,7 +58,7 @@ evaluation:
         parallelism: 4  # number of parallel requests
         # limit_samples: 10 # uncomment to limit number of samples for quick testing
         extra:
-          tokenizer: nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-base-BF16
+          tokenizer: nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-Base #pragma: allowlist secret 
           tokenizer_backend: huggingface
   tasks:
     # General Knowledge
