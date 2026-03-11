@@ -199,3 +199,129 @@ class TestImageLoggingSanitization:
         # Non-base64 URLs should be preserved
         assert sanitized["image_url"]["url"] == "https://example.com/image.png"
         assert sanitized["avatar_url"] == "https://example.com/avatar.jpg"
+
+    def test_sanitize_base64_audio_in_audio_url(self):
+        """Test that base64 audio data in audio_url field is sanitized."""
+        audio_b64 = base64.b64encode(b"fake audio data").decode("utf-8")
+        request_data = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "audio_url",
+                            "audio_url": {"url": f"data:audio/mp3;base64,{audio_b64}"},
+                        },
+                        {"type": "text", "text": "Transcribe this audio."},
+                    ],
+                }
+            ]
+        }
+
+        sanitized = CachingInterceptor.sanitize_request_data_for_logging(request_data)
+
+        audio_content = sanitized["messages"][0]["content"][0]
+        url = audio_content["audio_url"]["url"]
+        assert url.startswith("<audio:")
+        assert "format=mp3" in url
+        assert "size≈" in url
+        assert "bytes>" in url
+        assert audio_b64 not in str(sanitized)
+
+    def test_sanitize_base64_audio_different_formats(self):
+        """Test sanitization works for different audio formats."""
+        for fmt in ["mp3", "wav", "ogg", "flac"]:
+            request_data = {
+                "audio_url": {"url": f"data:audio/{fmt};base64,SUQzBAAAAAAAI1RTU0U"}
+            }
+            sanitized = CachingInterceptor.sanitize_request_data_for_logging(
+                request_data
+            )
+            url = sanitized["audio_url"]["url"]
+            assert url.startswith("<audio:")
+            assert f"format={fmt}" in url
+            assert "size≈" in url
+
+    def test_sanitize_base64_video_in_video_url(self):
+        """Test that base64 video data in video_url field is sanitized."""
+        video_b64 = base64.b64encode(b"fake video data").decode("utf-8")
+        request_data = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Describe the video."},
+                        {
+                            "type": "video_url",
+                            "video_url": {"url": f"data:video/mp4;base64,{video_b64}"},
+                        },
+                    ],
+                }
+            ]
+        }
+
+        sanitized = CachingInterceptor.sanitize_request_data_for_logging(request_data)
+
+        video_content = sanitized["messages"][0]["content"][1]
+        url = video_content["video_url"]["url"]
+        assert url.startswith("<video:")
+        assert "format=mp4" in url
+        assert "size≈" in url
+        assert "bytes>" in url
+        assert video_b64 not in str(sanitized)
+
+    def test_sanitize_base64_video_different_formats(self):
+        """Test sanitization works for different video formats."""
+        for fmt in ["mp4", "webm", "avi"]:
+            request_data = {
+                "video_url": {"url": f"data:video/{fmt};base64,AAAAHGZ0eXBpc29t"}
+            }
+            sanitized = CachingInterceptor.sanitize_request_data_for_logging(
+                request_data
+            )
+            url = sanitized["video_url"]["url"]
+            assert url.startswith("<video:")
+            assert f"format={fmt}" in url
+            assert "size≈" in url
+
+    def test_sanitize_mixed_media_content(self):
+        """Test sanitization with image, audio, and video in the same request."""
+        request_data = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg"
+                            },
+                        },
+                        {
+                            "type": "audio_url",
+                            "audio_url": {
+                                "url": "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0U"
+                            },
+                        },
+                        {
+                            "type": "video_url",
+                            "video_url": {
+                                "url": "data:video/mp4;base64,AAAAHGZ0eXBpc29t"
+                            },
+                        },
+                        {"type": "text", "text": "Describe all media."},
+                    ],
+                }
+            ]
+        }
+
+        sanitized = CachingInterceptor.sanitize_request_data_for_logging(request_data)
+        content = sanitized["messages"][0]["content"]
+
+        assert content[0]["image_url"]["url"].startswith("<image:")
+        assert "format=png" in content[0]["image_url"]["url"]
+        assert content[1]["audio_url"]["url"].startswith("<audio:")
+        assert "format=mp3" in content[1]["audio_url"]["url"]
+        assert content[2]["video_url"]["url"].startswith("<video:")
+        assert "format=mp4" in content[2]["video_url"]["url"]
+        assert content[3]["text"] == "Describe all media."
