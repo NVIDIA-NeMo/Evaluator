@@ -642,13 +642,37 @@ def _create_slurm_sbatch_script(
     Returns:
         str: The contents of the sbatch script.
     """
-    # Remove deprecated deployment.multiple_instances if present
-    if cfg.deployment.get("multiple_instances") is not None:
+    # Handle deprecated deployment.multiple_instances: replicate old behavior or error if both set
+    # Old behavior: when multiple_instances was True, num_instances effectively equalled num_nodes.
+    multiple_instances_val = cfg.deployment.get("multiple_instances")
+    if multiple_instances_val is not None:
+        num_instances_val = getattr(cfg.execution, "num_instances", None)
+        num_nodes_val = getattr(cfg.execution, "num_nodes", None)
+        # Error only when both deprecated multiple_instances and num_instances are set
+        num_instances_explicitly_set = num_instances_val is not None and (
+            num_nodes_val is None or num_instances_val != num_nodes_val
+        )
+        if num_instances_explicitly_set:
+            raise ValueError(
+                "Do not set both deprecated deployment.multiple_instances and "
+                "execution.num_instances. Remove deployment.multiple_instances and use "
+                "execution.num_instances and execution.num_nodes instead."
+            )
+        # Replicate old behavior: when multiple_instances is True, set num_instances = num_nodes
+        if num_nodes_val is None:
+            raise ValueError(
+                "deployment.multiple_instances is deprecated. Set "
+                "execution.num_nodes and execution.num_instances instead."
+            )
         logger.warning(
-            "deployment.multiple_instances is deprecated and will be "
-            "removed from config — use execution.num_instances instead."
+            "deployment.multiple_instances is deprecated and will be removed — "
+            "replicating old behavior: setting execution.num_instances = execution.num_nodes. "
+            "Use execution.num_instances and execution.num_nodes instead."
         )
         with open_dict(cfg):
+            cfg.execution.num_instances = (
+                num_nodes_val  # old behavior: True -> num_instances = num_nodes
+            )
             del cfg.deployment.multiple_instances
 
     # Validate topology: num_nodes must be divisible by num_instances
