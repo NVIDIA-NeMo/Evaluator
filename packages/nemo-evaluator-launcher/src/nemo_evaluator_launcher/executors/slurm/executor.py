@@ -646,7 +646,9 @@ def _create_slurm_sbatch_script(
     if cfg.deployment.get("multiple_instances") is not None:
         raise ValueError(
             "deployment.multiple_instances is deprecated and no longer supported. "
-            "Use execution.num_instances and execution.num_nodes instead."
+            "Use execution.num_instances (number of instances) and execution.num_nodes "
+            "(total nodes) instead — num_nodes must be divisible by num_instances, so "
+            "one instance uses num_nodes // num_instances nodes."
         )
 
     # Validate topology: num_nodes must be divisible by num_instances
