@@ -199,7 +199,7 @@ def filter_tasks(cfg: RunConfig, task_names: list[str]) -> RunConfig:
     if not task_names:
         return cfg
 
-    if not hasattr(cfg.evaluation, "tasks") or not cfg.evaluation.tasks:
+    if not cfg.evaluation.tasks:
         raise ValueError("No tasks defined in config. Cannot filter tasks.")
 
     requested_tasks = set(task_names)
@@ -271,11 +271,7 @@ def run_eval(
 
     # Extract telemetry metadata from config
     task_names = []
-    if (
-        hasattr(cfg, "evaluation")
-        and hasattr(cfg.evaluation, "tasks")
-        and cfg.evaluation.tasks
-    ):
+    if hasattr(cfg, "evaluation") and cfg.evaluation.tasks:
         task_names = [t.name for t in cfg.evaluation.tasks if hasattr(t, "name")]
 
     exporter_names = []

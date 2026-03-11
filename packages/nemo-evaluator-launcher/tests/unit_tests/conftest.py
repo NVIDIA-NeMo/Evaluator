@@ -78,7 +78,7 @@ class DummyExecutor(BaseExecutor):
 
         # Create job IDs for each evaluation task
         job_ids = []
-        for idx, task in enumerate(cfg.evaluation):
+        for idx, task in enumerate(cfg.evaluation.tasks):
             job_id = generate_job_id(invocation_id, idx)
             job_ids.append(job_id)
 
@@ -87,8 +87,8 @@ class DummyExecutor(BaseExecutor):
 
         if dry_run:
             print("🔍 DRY RUN: Dummy executor job configurations prepared")
-            print(f"   - Tasks: {len(cfg.evaluation)}")
-            for idx, task in enumerate(cfg.evaluation):
+            print(f"   - Tasks: {len(cfg.evaluation.tasks)}")
+            for idx, task in enumerate(cfg.evaluation.tasks):
                 print(f"   - Task {idx}: {task.name}")
             print(f"   - Invocation ID: {invocation_id}")
             print("\nTo execute, run the executor without --dry-run")
@@ -96,7 +96,7 @@ class DummyExecutor(BaseExecutor):
 
         # Save job metadata to database
         db = ExecutionDB()
-        for job_id, task in zip(job_ids, cfg.evaluation):
+        for job_id, task in zip(job_ids, cfg.evaluation.tasks):
             # Convert OmegaConf objects to regular Python dicts for JSON serialization
             overrides = task.get("overrides", {})
             if hasattr(overrides, "_content"):
