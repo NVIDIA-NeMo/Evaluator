@@ -16,19 +16,37 @@
 """Config validation tests — parametrized valid/invalid configs.
 
 Structural validation (_validate_config_sections) and nemo_evaluator_config
-param validation (_validate_nemo_evaluator_config_params).
+param validation (via _validate_config_sections).
 """
 
+import copy
 import textwrap
+from typing import Any, Dict, Optional
 
 import pytest
 import yaml
 from omegaconf import OmegaConf
 
-from nemo_evaluator_launcher.api.functional import (
-    _validate_config_sections,
-    _validate_nemo_evaluator_config_params,
-)
+from nemo_evaluator_launcher.api.functional import _validate_config_sections
+
+# Minimal valid sections; use make_config() to build full configs.
+MINIMAL_EVALUATION: Dict[str, Any] = {
+    "tasks": [{"name": "lm-evaluation-harness.ifeval"}],
+}
+MINIMAL_EXECUTION: Dict[str, Any] = {}
+
+
+def make_config(
+    evaluation: Optional[Dict[str, Any]] = None,
+    execution: Optional[Dict[str, Any]] = None,
+):
+    """Build config with evaluation and execution; uses minimal section when omitted."""
+    return OmegaConf.create(
+        {
+            "evaluation": copy.deepcopy(evaluation or MINIMAL_EVALUATION),
+            "execution": copy.deepcopy(execution or MINIMAL_EXECUTION),
+        }
+    )
 
 
 def _from_yaml(s: str):
@@ -51,6 +69,7 @@ VALID_STRUCTURAL_CONFIGS = [
                 config:
                   params:
                     parallelism: 4
+        execution: {}
         """,
         id="evaluation_task_with_known_fields",
     ),
@@ -64,11 +83,15 @@ VALID_STRUCTURAL_CONFIGS = [
             - name: lm-evaluation-harness.ifeval
               env_vars:
                 TASK_TOKEN: host:TASK_TOKEN
+        execution: {}
         """,
         id="evaluation_env_vars_at_both_levels",
     ),
     pytest.param(
         """\
+        evaluation:
+          tasks:
+            - name: lm-evaluation-harness.ifeval
         execution:
           mounts:
             deployment:
@@ -81,6 +104,9 @@ VALID_STRUCTURAL_CONFIGS = [
     ),
     pytest.param(
         """\
+        evaluation:
+          tasks:
+            - name: lm-evaluation-harness.ifeval
         execution:
           mounts:
             deployment: {}
@@ -89,6 +115,9 @@ VALID_STRUCTURAL_CONFIGS = [
     ),
     pytest.param(
         """\
+        evaluation:
+          tasks:
+            - name: lm-evaluation-harness.ifeval
         execution:
           mounts:
             mount_home: true
@@ -104,6 +133,7 @@ INVALID_STRUCTURAL_CONFIGS = [
           tasks:
             - name: lm-evaluation-harness.ifeval
           extra_setting: should_not_exist
+        execution: {}
         """,
         "Invalid 'evaluation' config",
         id="evaluation_unknown_top_level_key",
@@ -114,6 +144,7 @@ INVALID_STRUCTURAL_CONFIGS = [
           tasks:
             - name: lm-evaluation-harness.ifeval
               non_existing_field: true
+        execution: {}
         """,
         "Invalid 'evaluation' config",
         id="evaluation_task_non_existing_field",
@@ -128,6 +159,7 @@ INVALID_STRUCTURAL_CONFIGS = [
               env_vars:
                 nested_mistake:
                   key: value
+        execution: {}
         """,
         "Invalid 'evaluation' config",
         id="evaluation_task_env_vars_value_not_a_string",
@@ -139,6 +171,7 @@ INVALID_STRUCTURAL_CONFIGS = [
             - name: lm-evaluation-harness.ifeval
               env_var:
                 HF_TOKEN: host:HF_TOKEN
+        execution: {}
         """,
         "Invalid 'evaluation' config",
         id="evaluation_task_typo_env_var_vs_env_vars",
@@ -149,12 +182,16 @@ INVALID_STRUCTURAL_CONFIGS = [
           tasks:
             - name: lm-evaluation-harness.ifeval
               precmd: echo hi
+        execution: {}
         """,
         "Invalid 'evaluation' config",
         id="evaluation_task_typo_precmd_vs_pre_cmd",
     ),
     pytest.param(
         """\
+        evaluation:
+          tasks:
+            - name: lm-evaluation-harness.ifeval
         execution:
           mounts:
             deployment: {}
@@ -165,6 +202,9 @@ INVALID_STRUCTURAL_CONFIGS = [
     ),
     pytest.param(
         """\
+        evaluation:
+          tasks:
+            - name: lm-evaluation-harness.ifeval
         execution:
           mounts:
             deployment:
@@ -175,6 +215,9 @@ INVALID_STRUCTURAL_CONFIGS = [
     ),
     pytest.param(
         """\
+        evaluation:
+          tasks:
+            - name: lm-evaluation-harness.ifeval
         execution:
           mounts:
             evaluation:
@@ -278,18 +321,16 @@ _IFEVAL_CONTAINER = "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.01"
 
 class TestNemoEvaluatorParamValidation:
     def _make_cfg(self, task_name: str, params: dict):
-        return OmegaConf.create(
-            {
-                "evaluation": {
-                    "tasks": [
-                        {
-                            "name": task_name,
-                            "container": _IFEVAL_CONTAINER,
-                            "nemo_evaluator_config": {"config": {"params": params}},
-                        }
-                    ],
-                    "nemo_evaluator_config": {},
-                }
+        return make_config(
+            evaluation={
+                "tasks": [
+                    {
+                        "name": task_name,
+                        "container": _IFEVAL_CONTAINER,
+                        "nemo_evaluator_config": {"config": {"params": params}},
+                    }
+                ],
+                "nemo_evaluator_config": {},
             }
         )
 
@@ -297,8 +338,8 @@ class TestNemoEvaluatorParamValidation:
     def test_valid_params_no_warning(self, task_name, params, caplog):
         # Given a config using params that exist in the task's command template
         cfg = self._make_cfg(task_name, params)
-        # When validated against real packaged IRs
-        _validate_nemo_evaluator_config_params(cfg)
+        # When validated against real packaged IRs (includes param validation)
+        _validate_config_sections(cfg)
         # Then no warning about unused params
         assert "not used in the command" not in caplog.text
 
@@ -310,57 +351,53 @@ class TestNemoEvaluatorParamValidation:
     ):
         # Given a config with params not referenced in the task's command template
         cfg = self._make_cfg(task_name, params)
-        # When validated against real packaged IRs
-        _validate_nemo_evaluator_config_params(cfg)
+        # When validated against real packaged IRs (includes param validation)
+        _validate_config_sections(cfg)
         # Then a warning is emitted naming the unknown param (run is not blocked)
         assert expected_in_warning in caplog.text
 
     def test_global_valid_task_invalid_emits_warning(self, caplog):
         # Given global nemo_evaluator_config has valid params
         # but task-level adds an invalid param on top
-        cfg = OmegaConf.create(
-            {
-                "evaluation": {
-                    "tasks": [
-                        {
-                            "name": "lm-evaluation-harness.ifeval",
-                            "container": _IFEVAL_CONTAINER,
-                            "nemo_evaluator_config": {
-                                "config": {"params": {"bad_task_param": 1}}
-                            },
-                        }
-                    ],
-                    "nemo_evaluator_config": {"config": {"params": {"parallelism": 4}}},
-                }
+        cfg = make_config(
+            evaluation={
+                "tasks": [
+                    {
+                        "name": "lm-evaluation-harness.ifeval",
+                        "container": _IFEVAL_CONTAINER,
+                        "nemo_evaluator_config": {
+                            "config": {"params": {"bad_task_param": 1}}
+                        },
+                    }
+                ],
+                "nemo_evaluator_config": {"config": {"params": {"parallelism": 4}}},
             }
         )
-        # When validated
-        _validate_nemo_evaluator_config_params(cfg)
+        # When validated (includes param validation)
+        _validate_config_sections(cfg)
         # Then warning fired for the task-level bad param
         assert "bad_task_param" in caplog.text
 
     def test_global_invalid_task_valid_emits_warning(self, caplog):
         # Given global nemo_evaluator_config has an invalid param
         # but task-level only sets valid params
-        cfg = OmegaConf.create(
-            {
-                "evaluation": {
-                    "tasks": [
-                        {
-                            "name": "lm-evaluation-harness.ifeval",
-                            "container": _IFEVAL_CONTAINER,
-                            "nemo_evaluator_config": {
-                                "config": {"params": {"parallelism": 4}}
-                            },
-                        }
-                    ],
-                    "nemo_evaluator_config": {
-                        "config": {"params": {"bad_global_param": 99}}
-                    },
-                }
+        cfg = make_config(
+            evaluation={
+                "tasks": [
+                    {
+                        "name": "lm-evaluation-harness.ifeval",
+                        "container": _IFEVAL_CONTAINER,
+                        "nemo_evaluator_config": {
+                            "config": {"params": {"parallelism": 4}}
+                        },
+                    }
+                ],
+                "nemo_evaluator_config": {
+                    "config": {"params": {"bad_global_param": 99}}
+                },
             }
         )
-        # When validated
-        _validate_nemo_evaluator_config_params(cfg)
+        # When validated (includes param validation)
+        _validate_config_sections(cfg)
         # Then warning fired for the global bad param (survives merge)
         assert "bad_global_param" in caplog.text

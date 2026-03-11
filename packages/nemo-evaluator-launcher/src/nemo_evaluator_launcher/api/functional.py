@@ -79,13 +79,14 @@ def _validate_config_sections(cfg: RunConfig) -> None:
     if cfg.evaluation is not None:
         eval_dict = OmegaConf.to_container(cfg.evaluation, resolve=False)
         try:
-            EvaluationModel.model_validate(eval_dict)
+            eval_model = EvaluationModel.model_validate(eval_dict)
         except ValidationError as e:
             raise ValueError(
                 f"Invalid 'evaluation' config:\n{e}\n"
                 f"Allowed top-level evaluation keys: {_allowed_keys(EvaluationModel)}\n"
                 f"Allowed task keys: {_allowed_keys(TaskModel)}"
             ) from e
+        _validate_nemo_evaluator_config_params(cfg, eval_model)
 
     if cfg.execution is not None and getattr(cfg.execution, "mounts", None) is not None:
         mounts_dict = OmegaConf.to_container(cfg.execution.mounts, resolve=False)
@@ -98,18 +99,14 @@ def _validate_config_sections(cfg: RunConfig) -> None:
             ) from e
 
 
-def _validate_nemo_evaluator_config_params(cfg: Any) -> None:
+def _validate_nemo_evaluator_config_params(
+    cfg: RunConfig, evaluation: EvaluationModel
+) -> None:
     """Warn if nemo_evaluator_config params are not referenced in the task's command template.
 
-    Uses real packaged IRs — no network calls required.
+    Uses real packaged IRs — no network calls required. Needs cfg to merge task config via get_eval_factory_config.
     """
-
-    eval_cfg = cfg.get("evaluation") if OmegaConf.is_dict(cfg) else None
-    if not eval_cfg or not OmegaConf.is_dict(eval_cfg):
-        return
-
-    tasks = eval_cfg.get("tasks") or []
-    if not tasks:
+    if not evaluation.tasks:
         return
 
     try:
@@ -121,16 +118,15 @@ def _validate_nemo_evaluator_config_params(cfg: Any) -> None:
         )
         return
 
-    for task_cfg in tasks:
-        task_name = task_cfg.get("name", "") if OmegaConf.is_dict(task_cfg) else ""
-        if not task_name:
+    for i, task in enumerate(evaluation.tasks):
+        if not task.name:
             continue
 
         try:
-            task_def = get_task_from_mapping(task_name, mapping)
+            task_def = get_task_from_mapping(task.name, mapping)
         except (ValueError, KeyError):
             logger.debug(
-                "Task not found in mapping, skipping param validation", task=task_name
+                "Task not found in mapping, skipping param validation", task=task.name
             )
             continue
 
@@ -138,16 +134,17 @@ def _validate_nemo_evaluator_config_params(cfg: Any) -> None:
         if not command:
             logger.debug(
                 "No command template in task definition, skipping param validation",
-                task=task_name,
+                task=task.name,
             )
             continue
 
+        raw_task = cfg.evaluation.tasks[i]
         try:
-            merged_config = get_eval_factory_config(cfg, task_cfg)
+            merged_config = get_eval_factory_config(cfg, raw_task)
         except Exception as e:
             logger.debug(
                 "Could not build merged nemo_evaluator_config for task",
-                task=task_name,
+                task=task.name,
                 error=str(e),
             )
             continue
@@ -156,7 +153,7 @@ def _validate_nemo_evaluator_config_params(cfg: Any) -> None:
             validate_params_in_command(command, merged_config)
         except Exception as e:
             logger.warning(
-                f"nemo_evaluator_config param validation failed for task '{task_name}'",
+                f"nemo_evaluator_config param validation failed for task '{task.name}'",
                 error=str(e),
             )
 
@@ -249,7 +246,6 @@ def run_eval(
     # Validate that no MISSING values exist in the configuration
     _validate_no_missing_values(cfg)
     _validate_config_sections(cfg)
-    _validate_nemo_evaluator_config_params(cfg)
 
     if dry_run:
         print(OmegaConf.to_yaml(cfg))
