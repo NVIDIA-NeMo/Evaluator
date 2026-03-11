@@ -299,7 +299,7 @@ def run_local(config: EvalConfig, *, resume: bool = False) -> list[dict[str, Any
 
             if ckpt.is_completed(bench.name):
                 prior = ckpt.get_completed_result(bench.name)
-                click.echo(f"  Skipping (already completed)")
+                click.echo("  Skipping (already completed)")
                 bundles.append(_load_prior_bundle(prior["bundle_path"]))
                 continue
 

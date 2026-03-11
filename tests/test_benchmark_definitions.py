@@ -1,5 +1,4 @@
 """Golden tests: verify benchmark scorers produce correct results on known data."""
-import pytest
 from nemo_evaluator.scoring import (
     ScorerInput, answer_line, exact_match, fuzzy_match, multichoice_regex, numeric_match,
 )

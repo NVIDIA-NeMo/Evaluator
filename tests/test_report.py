@@ -1,6 +1,5 @@
 """Tests for nel report command."""
 import json
-from pathlib import Path
 from click.testing import CliRunner
 
 import pytest

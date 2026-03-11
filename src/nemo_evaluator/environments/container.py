@@ -112,7 +112,7 @@ class ContainerEnvironment(EvalEnvironment):
             except _aio.TimeoutError:
                 proc.kill()
                 await proc.wait()
-                stdout, stderr = b"", b"timeout"
+                stderr = b"timeout"
 
             if proc.returncode != 0:
                 logger.error("Container failed (exit %d): %s",

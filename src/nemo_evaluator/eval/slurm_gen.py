@@ -5,7 +5,7 @@ import re
 import shlex
 from pathlib import Path
 
-from nemo_evaluator.eval.config import ClusterConfig, EvalConfig, ServiceConfig
+from nemo_evaluator.eval.config import EvalConfig, ServiceConfig
 from nemo_evaluator.eval.containers import default_base_image, resolve_deployment_image, resolve_eval_image
 
 _HEADER = """\
@@ -445,7 +445,7 @@ def generate_sbatch(config: EvalConfig) -> str:
     if cluster.auto_resume:
         parts.append(_AUTO_RESUME.format(
             max_attempts=cluster.max_resume_attempts,
-            script_path=f"$OUTPUT_DIR/nel_eval.sbatch",
+            script_path="$OUTPUT_DIR/nel_eval.sbatch",
         ))
 
     # Cleanup

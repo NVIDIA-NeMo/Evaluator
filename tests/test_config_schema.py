@@ -6,8 +6,6 @@ from nemo_evaluator.eval.config import (
     ModelConfig,
     BenchmarkConfig,
     ServiceConfig,
-    ClusterConfig,
-    OutputConfig,
     parse_eval_config,
     _expand_env,
 )
