@@ -98,15 +98,10 @@ execution:
 - **`num_nodes`**: Total number of SLURM nodes to allocate
 - **`num_instances`**: Number of independent deployment instances. When `> 1`, HAProxy is automatically configured to load-balance across instances. `num_nodes` must be divisible by `num_instances`.
 
-For multi-node deployments requiring Ray (e.g., pipeline parallelism across nodes), use the `vllm_ray` deployment config instead of `vllm`:
 
-```yaml
-defaults:
-  - deployment: vllm_ray     # Built-in Ray cluster setup
-```
 
 :::{note}
-The deprecated `deployment.multiple_instances` field is still accepted but will be removed in a future release. Use `execution.num_instances` instead.
+You can use the `vllm_ray` deployment config when you need vllm Ray-based multi-node deployment (see deployment docs).
 :::
 
 ### Mounting and Storage
