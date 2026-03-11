@@ -126,6 +126,13 @@ class TaskModel(BaseModel):
             "Requires ``NEMO_EVALUATOR_TRUST_PRE_CMD=1``."
         ),
     )
+    post_cmd: str = Field(
+        default="",
+        description=(
+            "Shell command executed inside the container after the evaluator finishes. "
+            "Runs even if evaluation fails (EXIT trap)."
+        ),
+    )
 
 
 class EvaluationModel(BaseModel):
@@ -161,5 +168,12 @@ class EvaluationModel(BaseModel):
         description=(
             "Global pre-command executed in all task containers. "
             "Task-level ``pre_cmd`` overrides this per task."
+        ),
+    )
+    post_cmd: str = Field(
+        default="",
+        description=(
+            "Global post-command executed in all task containers after the evaluator. "
+            "Task-level ``post_cmd`` overrides this per task. Runs even if evaluation fails."
         ),
     )
