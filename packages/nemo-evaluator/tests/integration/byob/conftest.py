@@ -15,6 +15,8 @@
 
 """Shared fixtures for BYOB integration tests."""
 
+from unittest.mock import patch
+
 import pytest
 
 from nemo_evaluator.contrib.byob.decorators import clear_registry
@@ -32,6 +34,20 @@ def _clear_byob_registry():
     clear_registry()
     yield
     clear_registry()
+
+
+@pytest.fixture(autouse=True)
+def _mock_pth_file():
+    """Prevent integration tests from writing .pth files to site-packages.
+
+    install_benchmark() calls _ensure_pth_file() which writes to site-packages.
+    Without this mock, every test run pollutes site-packages with stale
+    /tmp/pytest-* paths.
+    """
+    with patch(
+        "nemo_evaluator.contrib.byob.compiler._ensure_pth_file", return_value=None
+    ):
+        yield
 
 
 @pytest.fixture

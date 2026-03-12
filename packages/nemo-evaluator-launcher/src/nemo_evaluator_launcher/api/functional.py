@@ -22,12 +22,24 @@ import copy
 import os
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
+from nemo_evaluator.core.utils import validate_params_in_command
 from omegaconf import DictConfig, OmegaConf
+from pydantic import ValidationError
 
 from nemo_evaluator_launcher import __version__
 from nemo_evaluator_launcher.api.types import RunConfig
+from nemo_evaluator_launcher.common.config_models import (
+    EvaluationModel,
+    MountsModel,
+    TaskModel,
+)
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
-from nemo_evaluator_launcher.common.mapping import load_tasks_mapping
+from nemo_evaluator_launcher.common.helpers import get_eval_factory_config
+from nemo_evaluator_launcher.common.logging_utils import logger
+from nemo_evaluator_launcher.common.mapping import (
+    get_task_definition_for_job,
+    load_tasks_mapping,
+)
 from nemo_evaluator_launcher.executors.registry import get_executor
 from nemo_evaluator_launcher.exporters import create_exporter
 
@@ -52,6 +64,107 @@ def get_tasks_list() -> list[list[Any]]:
         for task_data in mapping.values()
     ]
     return data
+
+
+def _allowed_keys(model_cls: type) -> str:
+    return ", ".join(sorted(model_cls.model_fields))
+
+
+def _validate_config_sections(cfg: RunConfig) -> None:
+    """Validate known config sections using Pydantic models (extra fields forbidden).
+
+    Raises:
+        ValueError: If an unknown or removed key is present in a validated section.
+    """
+    if cfg.evaluation is not None:
+        eval_dict = OmegaConf.to_container(cfg.evaluation, resolve=False)
+        try:
+            eval_model = EvaluationModel.model_validate(eval_dict)
+        except ValidationError as e:
+            raise ValueError(
+                f"Invalid 'evaluation' config:\n{e}\n"
+                f"Allowed top-level evaluation keys: {_allowed_keys(EvaluationModel)}\n"
+                f"Allowed task keys: {_allowed_keys(TaskModel)}"
+            ) from e
+        _validate_nemo_evaluator_config_params(cfg, eval_model)
+
+    if cfg.execution is not None and getattr(cfg.execution, "mounts", None) is not None:
+        mounts_dict = OmegaConf.to_container(cfg.execution.mounts, resolve=False)
+        try:
+            MountsModel.model_validate(mounts_dict)
+        except ValidationError as e:
+            raise ValueError(
+                f"Invalid 'execution.mounts' config:\n{e}\n"
+                f"Allowed mounts keys: {_allowed_keys(MountsModel)}"
+            ) from e
+
+
+def _validate_nemo_evaluator_config_params(
+    cfg: RunConfig, evaluation: EvaluationModel
+) -> None:
+    """Warn if nemo_evaluator_config params are not referenced in the task's command template.
+
+    Uses packaged IRs or, when a task specifies a custom container, the mapping from that
+    container. Needs cfg to merge task config via get_eval_factory_config.
+    """
+    if not evaluation.tasks:
+        return
+
+    default_mapping: dict | None = None
+    try:
+        default_mapping = load_tasks_mapping()
+    except Exception as e:
+        logger.warning(
+            "Skipping nemo_evaluator_config param validation: mapping unavailable",
+            error=str(e),
+        )
+        return
+
+    for i, task in enumerate(evaluation.tasks):
+        if not task.name:
+            continue
+
+        try:
+            task_def = get_task_definition_for_job(
+                task_query=task.name,
+                base_mapping=default_mapping,
+                container=task.container,
+                endpoint_type=task.endpoint_type,
+            )
+        except (ValueError, KeyError) as e:
+            logger.warning(
+                "Task not found or could not resolve task definition, skipping param validation",
+                task=task.name,
+                error=str(e),
+            )
+            continue
+
+        command = task_def.get("command", "")
+        if not command:
+            logger.warning(
+                "No command template in task definition, skipping param validation",
+                task=task.name,
+            )
+            continue
+
+        raw_task = cfg.evaluation.tasks[i]
+        try:
+            merged_config = get_eval_factory_config(cfg, raw_task)
+        except Exception as e:
+            logger.warning(
+                "Could not build merged nemo_evaluator_config for task",
+                task=task.name,
+                error=str(e),
+            )
+            continue
+
+        try:
+            validate_params_in_command(command, merged_config)
+        except Exception as e:
+            logger.warning(
+                f"nemo_evaluator_config param validation failed for task '{task.name}'",
+                error=str(e),
+            )
 
 
 def _validate_no_missing_values(cfg: Any, path: str = "") -> None:
@@ -95,7 +208,7 @@ def filter_tasks(cfg: RunConfig, task_names: list[str]) -> RunConfig:
     if not task_names:
         return cfg
 
-    if not hasattr(cfg.evaluation, "tasks") or not cfg.evaluation.tasks:
+    if not cfg.evaluation.tasks:
         raise ValueError("No tasks defined in config. Cannot filter tasks.")
 
     requested_tasks = set(task_names)
@@ -141,6 +254,7 @@ def run_eval(
 
     # Validate that no MISSING values exist in the configuration
     _validate_no_missing_values(cfg)
+    _validate_config_sections(cfg)
 
     if dry_run:
         print(OmegaConf.to_yaml(cfg))
@@ -164,13 +278,9 @@ def run_eval(
     telemetry_handler = None
     telemetry_level = get_telemetry_level()
 
-    # Extract telemetry metadata from config
+    # Extract telemetry metadata from config (evaluation.tasks must exist)
     task_names = []
-    if (
-        hasattr(cfg, "evaluation")
-        and hasattr(cfg.evaluation, "tasks")
-        and cfg.evaluation.tasks
-    ):
+    if hasattr(cfg, "evaluation") and cfg.evaluation.tasks:
         task_names = [t.name for t in cfg.evaluation.tasks if hasattr(t, "name")]
 
     exporter_names = []
@@ -256,7 +366,6 @@ def resume_eval(invocation_id: str) -> str:
         FileNotFoundError: If run scripts no longer exist on disk.
         RuntimeError: If script execution fails immediately.
     """
-    from nemo_evaluator_launcher.common.logging_utils import logger
 
     db = ExecutionDB()
     jobs = db.get_jobs(invocation_id)

@@ -18,7 +18,7 @@ import os
 import subprocess
 import tempfile
 import time
-from typing import Any, Literal, TypeVar
+from typing import Any, Literal, Optional, TypeVar
 
 import requests
 import yaml
@@ -317,10 +317,27 @@ def check_health(
     return False
 
 
+def get_api_key_from_env(api_key_env_var_name: Optional[str]) -> Optional[str]:
+    """Get API key from environment variable.
+    Raises ValueError if the variable name was provided, but the variable was not found in the environment.
+    Returns None if the variable name was not provided.
+    """
+    if api_key_env_var_name is None:
+        return None
+    api_key = os.getenv(api_key_env_var_name)
+    if api_key is None:
+        raise ValueError(
+            f"API key variable name was provided, but the variable was not found in the environment: {api_key_env_var_name}. "
+            f"Set the variable or remove the API key from your config."
+        )
+    return api_key
+
+
 def check_endpoint(
     endpoint_url: str,
     endpoint_type: Literal["completions", "chat"],
     model_name: str,
+    api_key_name: Optional[str] = None,
     max_retries: int = 600,
     retry_interval: int = 2,
 ) -> bool:
@@ -339,6 +356,13 @@ def check_endpoint(
     Returns:
         bool: whether the endpoint is alive
     """
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    api_key = get_api_key_from_env(api_key_name)
+    if api_key is not None:
+        headers["Authorization"] = f"Bearer {api_key}"
     payload = {"model": model_name, "max_tokens": 1}
     if endpoint_type == "completions":
         payload["prompt"] = "hello, my name is"

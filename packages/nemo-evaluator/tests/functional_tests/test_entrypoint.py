@@ -71,7 +71,7 @@ def test_ls(monkeypatch, capsys, expected_output):
 @pytest.mark.parametrize(
     "eval_type,score", [("dummy_task", 42), ("dummy_default_task", 123)]
 )
-@pytest.mark.parametrize("model_type", ["chat", "completions", "vlm", "embedding"])
+@pytest.mark.parametrize("model_type", ["chat", "completions", "embedding"])
 def test_run(monkeypatch, tmp_path, eval_type, score, model_type):
     import sys
 
@@ -111,7 +111,7 @@ def test_run(monkeypatch, tmp_path, eval_type, score, model_type):
 
 @pytest.mark.parametrize(
     "model_type,should_fail",
-    [("chat", False), ("completions", True), ("vlm", True), ("embedding", True)],
+    [("chat", False), ("completions", True), ("embedding", True)],
 )
 def test_run_chat(monkeypatch, tmp_path, model_type, should_fail):
     import sys

@@ -85,6 +85,25 @@ env_vars:
 
 **Security:** Secret values are never written into the generated `run.sub` script. They are stored in a separate `.secrets.env` file and sourced at runtime, preventing accidental exposure in logs or artifacts.
 
+### Multi-Node and Multi-Instance
+
+Configure multi-node deployments using `num_nodes` and `num_instances`:
+
+```yaml
+execution:
+  num_nodes: 4              # Total SLURM nodes
+  num_instances: 2          # Independent deployment instances (default: 1)
+```
+
+- **`num_nodes`**: Total number of SLURM nodes to allocate
+- **`num_instances`**: Number of independent deployment instances. When `> 1`, HAProxy is automatically configured to load-balance across instances. `num_nodes` must be divisible by `num_instances`.
+
+
+
+:::{note}
+You can use the `vllm_ray` deployment config when you need vllm Ray-based multi-node deployment (see deployment docs).
+:::
+
 ### Mounting and Storage
 
 The Slurm executor provides sophisticated mounting capabilities:

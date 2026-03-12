@@ -38,6 +38,14 @@ Select the approach that best matches your workflow and technical requirements:
 Unified CLI experience with automated container management, built-in orchestration, and result export capabilities.
 :::
 
+:::{grid-item-card} {octicon}`comment-discussion;1.5em;sd-mr-1` Launcher Configuration with nel-assistant
+:link: gs-quickstart-launcher-configuration
+:link-type: ref
+**For conversational config**
+
+Natural language evaluation setup via the nel-assistant agent skill. No manual YAML authoring required.
+:::
+
 :::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` NeMo Evaluator Core
 :link: gs-quickstart-core
 :link-type: ref
@@ -275,6 +283,7 @@ nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/l
 :hidden:
 
 NeMo Evaluator Launcher <launcher>
+Launcher Configuration with nel-assistant <launcher-configuration>
 NeMo Evaluator Core <core>
 NeMo Framework Container <nemo-fw>
 Container Direct <container>
