@@ -75,8 +75,8 @@ def check(sample):
             f"Expected 1 evaluation, got {len(fdf['evaluations'])}"
         )
         eval_entry = fdf["evaluations"][0]
-        assert eval_entry["name"] == "test-compile", (
-            f"Expected evaluation name 'test-compile', got {eval_entry['name']}"
+        assert eval_entry["name"] == "test_compile", (
+            f"Expected evaluation name 'test_compile', got {eval_entry['name']}"
         )
         assert "byob_test_compile" in eval_entry["defaults"]["config"]["type"], (
             f"Config type should contain 'byob_test_compile', got {eval_entry['defaults']['config']['type']}"
@@ -144,11 +144,46 @@ def scorer_two(sample):
         assert len(result) == 2, f"Expected 2 benchmarks, got {len(result)}"
         assert "bench_one" in result, "Missing 'bench_one' in compiled result"
         assert "bench_two" in result, "Missing 'bench_two' in compiled result"
-        assert result["bench_one"]["evaluations"][0]["name"] == "bench-one", (
-            f"Expected name 'bench-one', got {result['bench_one']['evaluations'][0]['name']}"
+        assert result["bench_one"]["evaluations"][0]["name"] == "bench_one", (
+            f"Expected name 'bench_one', got {result['bench_one']['evaluations'][0]['name']}"
         )
-        assert result["bench_two"]["evaluations"][0]["name"] == "bench-two", (
-            f"Expected name 'bench-two', got {result['bench_two']['evaluations'][0]['name']}"
+        assert result["bench_two"]["evaluations"][0]["name"] == "bench_two", (
+            f"Expected name 'bench_two', got {result['bench_two']['evaluations'][0]['name']}"
+        )
+
+
+class TestEvalTypeName:
+    """Tests that the evaluation name in FDF matches what import_benchmark expects."""
+
+    def test_eval_name_matches_registry_key(self, tmp_path):
+        """The evaluation name in FDF must use the normalized name so that
+        the run command (--eval_type pkg.NAME) resolves at runtime.
+
+        Regression test: hyphenated names like 'test-benchmark' were stored
+        as-is in fdf['evaluations'][0]['name'], but the registry keyed them as
+        'test_benchmark', causing ValueError at runtime.
+        """
+        benchmark_code = """
+from nemo_evaluator.contrib.byob import benchmark, scorer
+
+@benchmark(name="test-benchmark", dataset="data.jsonl", prompt="Q: {q}")
+@scorer
+def check(sample):
+    return {"correct": sample.target.lower() in sample.response.lower()}
+"""
+        benchmark_file = tmp_path / "bench.py"
+        benchmark_file.write_text(benchmark_code)
+
+        result = compile_benchmark(str(benchmark_file))
+        fdf = result["test_benchmark"]
+
+        eval_name = fdf["evaluations"][0]["name"]
+        registry_key = "test_benchmark"
+
+        assert eval_name == registry_key, (
+            f"Evaluation name '{eval_name}' does not match registry key "
+            f"'{registry_key}'. The run command will fail with "
+            f"'Benchmark not found' at runtime."
         )
 
 
