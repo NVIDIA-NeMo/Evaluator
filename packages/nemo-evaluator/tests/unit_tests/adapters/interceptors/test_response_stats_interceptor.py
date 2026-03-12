@@ -102,6 +102,7 @@ class TestResponseStatsInterceptor:
         # Check stats structure
         assert "count" in interceptor._stats
         assert "avg_prompt_tokens" in interceptor._stats
+        assert "sum_prompt_tokens" in interceptor._stats
         assert "max_prompt_tokens" in interceptor._stats
 
     def test_add_basic_response_stats(self, interceptor, context):
@@ -500,6 +501,248 @@ class TestResponseStatsInterceptor:
         # Verify stats counting behavior
         assert interceptor._stats["count"] == expected_total_responses
         assert interceptor._stats["successful_count"] == expected_successful_responses
+
+    def test_average_precision_with_many_requests(self, tmp_path):
+        """Test that averages remain precise over many requests.
+
+        Previously, running averages with round(..., 2) at each step accumulated
+        floating-point error. With sum-based computation, the average should be
+        exact (within floating-point precision of a single division).
+        """
+        cache_dir = tmp_path / "test_cache_precision"
+        interceptor = ResponseStatsInterceptor(
+            ResponseStatsInterceptor.Params(
+                save_individuals=False, cache_dir=str(cache_dir)
+            )
+        )
+        context = AdapterGlobalContext(
+            output_dir=str(tmp_path), url="http://test.api.com/v1/chat/completions"
+        )
+
+        # Simulate 10,000 requests with varying token counts
+        total_completion = 0
+        num_requests = 10000
+        for i in range(num_requests):
+            completion_tokens = 100 + (i % 997)  # Varying values
+            total_completion += completion_tokens
+
+            mock_resp = Mock(spec=requests.Response)
+            mock_resp.status_code = 200
+            mock_resp.headers = {}
+            mock_resp.json.return_value = {
+                "usage": {
+                    "prompt_tokens": 50,
+                    "total_tokens": 50 + completion_tokens,
+                    "completion_tokens": completion_tokens,
+                },
+                "choices": [{"finish_reason": "stop", "message": {}}],
+            }
+            adapter_response = AdapterResponse(
+                r=mock_resp,
+                rctx=AdapterRequestContext(request_id=f"req_{i}"),
+                latency_ms=10.0,
+            )
+            interceptor.intercept_response(adapter_response, context)
+
+        # Verify exact sum
+        assert interceptor._stats["sum_completion_tokens"] == total_completion
+
+        # Verify average is precise (should match exact computation)
+        expected_avg = total_completion / num_requests
+        assert abs(interceptor._stats["avg_completion_tokens"] - expected_avg) < 1e-10
+
+        # Verify count
+        assert interceptor._stats["successful_count"] == num_requests
+
+    def test_retry_deduplication(self, tmp_path):
+        """Test that retried requests (same cache_key) are not double-counted.
+
+        When chain jobs requeue, previously in-flight requests are re-sent.
+        The response_stats interceptor should detect these retries via cache_key
+        and exclude them from token stats to avoid inflating averages.
+        """
+        cache_dir = tmp_path / "test_cache_retry"
+        interceptor = ResponseStatsInterceptor(
+            ResponseStatsInterceptor.Params(
+                save_individuals=False, cache_dir=str(cache_dir)
+            )
+        )
+        context = AdapterGlobalContext(
+            output_dir=str(tmp_path), url="http://test.api.com/v1/chat/completions"
+        )
+
+        def make_response(req_id, cache_key, completion_tokens):
+            mock_resp = Mock(spec=requests.Response)
+            mock_resp.status_code = 200
+            mock_resp.headers = {}
+            mock_resp.json.return_value = {
+                "usage": {
+                    "prompt_tokens": 50,
+                    "total_tokens": 50 + completion_tokens,
+                    "completion_tokens": completion_tokens,
+                },
+                "choices": [{"finish_reason": "stop", "message": {}}],
+            }
+            rctx = AdapterRequestContext(request_id=req_id)
+            rctx.cache_key = cache_key
+            return AdapterResponse(r=mock_resp, rctx=rctx, latency_ms=10.0)
+
+        # Simulate allocation 1: process 3 unique requests
+        interceptor.intercept_response(make_response("req_1", "hash_aaa", 100), context)
+        interceptor.intercept_response(make_response("req_2", "hash_bbb", 200), context)
+        interceptor.intercept_response(make_response("req_3", "hash_ccc", 300), context)
+
+        assert interceptor._stats["successful_count"] == 3
+        assert interceptor._stats["sum_completion_tokens"] == 600
+        assert interceptor._stats["retry_count"] == 0
+        assert interceptor._stats["count"] == 3
+
+        # Simulate chain job requeue: re-send req_2 and req_3 (same cache_keys)
+        interceptor.intercept_response(
+            make_response("req_2_retry", "hash_bbb", 210), context
+        )
+        interceptor.intercept_response(
+            make_response("req_3_retry", "hash_ccc", 310), context
+        )
+
+        # Retries should NOT affect token stats
+        assert interceptor._stats["successful_count"] == 3  # unchanged
+        assert interceptor._stats["sum_completion_tokens"] == 600  # unchanged
+        assert interceptor._stats["retry_count"] == 2  # 2 retries detected
+        assert interceptor._stats["count"] == 5  # total API calls still tracked
+
+        # New unique request should still be counted
+        interceptor.intercept_response(make_response("req_4", "hash_ddd", 400), context)
+        assert interceptor._stats["successful_count"] == 4
+        assert interceptor._stats["sum_completion_tokens"] == 1000
+        assert interceptor._stats["retry_count"] == 2
+        assert interceptor._stats["count"] == 6
+
+    def test_retry_deduplication_persists_across_reloads(self, tmp_path):
+        """Test that seen_cache_keys survive cache save/load cycle.
+
+        This simulates the real chain-job scenario: allocation 1 processes
+        requests and saves state, allocation 2 loads state and should still
+        detect retries of requests from allocation 1.
+        """
+        cache_dir = tmp_path / "test_cache_retry_persist"
+        context = AdapterGlobalContext(
+            output_dir=str(tmp_path), url="http://test.api.com/v1/chat/completions"
+        )
+
+        def make_response(req_id, cache_key, completion_tokens):
+            mock_resp = Mock(spec=requests.Response)
+            mock_resp.status_code = 200
+            mock_resp.headers = {}
+            mock_resp.json.return_value = {
+                "usage": {
+                    "prompt_tokens": 50,
+                    "total_tokens": 50 + completion_tokens,
+                    "completion_tokens": completion_tokens,
+                },
+                "choices": [{"finish_reason": "stop", "message": {}}],
+            }
+            rctx = AdapterRequestContext(request_id=req_id)
+            rctx.cache_key = cache_key
+            return AdapterResponse(r=mock_resp, rctx=rctx, latency_ms=10.0)
+
+        # Allocation 1
+        interceptor1 = ResponseStatsInterceptor(
+            ResponseStatsInterceptor.Params(
+                save_individuals=False, cache_dir=str(cache_dir)
+            )
+        )
+        interceptor1.intercept_response(
+            make_response("req_1", "hash_aaa", 100), context
+        )
+        interceptor1.intercept_response(
+            make_response("req_2", "hash_bbb", 200), context
+        )
+        # Force save to cache
+        interceptor1._save_aggregated_stats_to_cache()
+
+        # Allocation 2 — new interceptor instance, loads from cache
+        interceptor2 = ResponseStatsInterceptor(
+            ResponseStatsInterceptor.Params(
+                save_individuals=False, cache_dir=str(cache_dir)
+            )
+        )
+
+        # Verify state was restored
+        assert interceptor2._stats["successful_count"] == 2
+        assert interceptor2._stats["sum_completion_tokens"] == 300
+        assert "hash_aaa" in interceptor2._seen_cache_keys
+        assert "hash_bbb" in interceptor2._seen_cache_keys
+
+        # Retry of req_2 from allocation 1 — should be detected
+        interceptor2.intercept_response(
+            make_response("req_2_retry", "hash_bbb", 200), context
+        )
+        assert interceptor2._stats["successful_count"] == 2  # unchanged
+        assert interceptor2._stats["retry_count"] == 1
+
+        # New unique request — should be counted
+        interceptor2.intercept_response(
+            make_response("req_3", "hash_ccc", 300), context
+        )
+        assert interceptor2._stats["successful_count"] == 3
+        assert interceptor2._stats["sum_completion_tokens"] == 600
+
+    def test_total_fields_in_saved_file(self, tmp_path):
+        """Test that saved metrics include exact total_* fields."""
+        cache_dir = tmp_path / "test_cache_totals"
+        interceptor = ResponseStatsInterceptor(
+            ResponseStatsInterceptor.Params(
+                save_individuals=False, cache_dir=str(cache_dir)
+            )
+        )
+        context = AdapterGlobalContext(
+            output_dir=str(tmp_path), url="http://test.api.com/v1/chat/completions"
+        )
+
+        # Process a few requests
+        token_values = [100, 200, 333]
+        for i, ct in enumerate(token_values):
+            mock_resp = Mock(spec=requests.Response)
+            mock_resp.status_code = 200
+            mock_resp.headers = {}
+            mock_resp.json.return_value = {
+                "usage": {
+                    "prompt_tokens": 50,
+                    "total_tokens": 50 + ct,
+                    "completion_tokens": ct,
+                },
+                "choices": [{"finish_reason": "stop", "message": {}}],
+            }
+            adapter_response = AdapterResponse(
+                r=mock_resp,
+                rctx=AdapterRequestContext(request_id=f"req_{i}"),
+                latency_ms=10.0,
+            )
+            interceptor.intercept_response(adapter_response, context)
+
+        # Save to file
+        interceptor.post_eval_hook(context)
+
+        # Read and verify
+        metrics_path = Path(tmp_path) / "eval_factory_metrics.json"
+        with open(metrics_path) as f:
+            metrics = json.load(f)
+
+        rs = metrics["response_stats"]
+
+        # Exact totals should be present
+        assert rs["total_completion_tokens"] == sum(token_values)
+        assert rs["total_prompt_tokens"] == 50 * len(token_values)
+
+        # Averages should be rounded to 2dp
+        expected_avg_ct = round(sum(token_values) / len(token_values), 2)
+        assert rs["avg_completion_tokens"] == expected_avg_ct
+
+        # Internal sum_* fields should NOT be in the output
+        assert "sum_completion_tokens" not in rs
+        assert "sum_prompt_tokens" not in rs
+        assert "sum_latency_ms" not in rs
 
 
 class TestResponseStatsInterceptorCache:
