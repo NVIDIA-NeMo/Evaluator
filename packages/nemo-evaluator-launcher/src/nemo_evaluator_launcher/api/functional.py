@@ -37,7 +37,7 @@ from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.common.helpers import get_eval_factory_config
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.mapping import (
-    get_task_from_mapping,
+    get_task_definition_for_job,
     load_tasks_mapping,
 )
 from nemo_evaluator_launcher.executors.registry import get_executor
@@ -104,15 +104,17 @@ def _validate_nemo_evaluator_config_params(
 ) -> None:
     """Warn if nemo_evaluator_config params are not referenced in the task's command template.
 
-    Uses real packaged IRs — no network calls required. Needs cfg to merge task config via get_eval_factory_config.
+    Uses packaged IRs or, when a task specifies a custom container, the mapping from that
+    container. Needs cfg to merge task config via get_eval_factory_config.
     """
     if not evaluation.tasks:
         return
 
+    default_mapping: dict | None = None
     try:
-        mapping = load_tasks_mapping()
+        default_mapping = load_tasks_mapping()
     except Exception as e:
-        logger.debug(
+        logger.warning(
             "Skipping nemo_evaluator_config param validation: mapping unavailable",
             error=str(e),
         )
@@ -123,16 +125,23 @@ def _validate_nemo_evaluator_config_params(
             continue
 
         try:
-            task_def = get_task_from_mapping(task.name, mapping)
-        except (ValueError, KeyError):
-            logger.debug(
-                "Task not found in mapping, skipping param validation", task=task.name
+            task_def = get_task_definition_for_job(
+                task_query=task.name,
+                base_mapping=default_mapping,
+                container=task.container,
+                endpoint_type=task.endpoint_type,
+            )
+        except (ValueError, KeyError) as e:
+            logger.warning(
+                "Task not found or could not resolve task definition, skipping param validation",
+                task=task.name,
+                error=str(e),
             )
             continue
 
         command = task_def.get("command", "")
         if not command:
-            logger.debug(
+            logger.warning(
                 "No command template in task definition, skipping param validation",
                 task=task.name,
             )
@@ -142,7 +151,7 @@ def _validate_nemo_evaluator_config_params(
         try:
             merged_config = get_eval_factory_config(cfg, raw_task)
         except Exception as e:
-            logger.debug(
+            logger.warning(
                 "Could not build merged nemo_evaluator_config for task",
                 task=task.name,
                 error=str(e),

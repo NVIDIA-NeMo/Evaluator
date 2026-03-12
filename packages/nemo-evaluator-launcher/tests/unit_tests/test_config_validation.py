@@ -401,3 +401,26 @@ class TestNemoEvaluatorParamValidation:
         _validate_config_sections(cfg)
         # Then warning fired for the global bad param (survives merge)
         assert "bad_global_param" in caplog.text
+
+    def test_task_with_custom_container_unresolvable_emits_warning(self, caplog):
+        """When a task overrides container (e.g. simple-evals) and definition cannot be resolved, a warning is logged."""
+        # Use a container image that cannot be loaded (no pull in test env), so param validation is skipped with a warning
+        unloadable_container = "nvcr.io/nvidia/eval-factory/simple-evals:26.01"
+        cfg = make_config(
+            evaluation={
+                "tasks": [
+                    {
+                        "name": "lm-evaluation-harness.ifeval",
+                        "container": unloadable_container,
+                        "nemo_evaluator_config": {
+                            "config": {"params": {"parallelism": 4}}
+                        },
+                    }
+                ],
+                "nemo_evaluator_config": {},
+            }
+        )
+
+        _validate_config_sections(cfg)
+
+        assert "skipping param validation" in caplog.text
