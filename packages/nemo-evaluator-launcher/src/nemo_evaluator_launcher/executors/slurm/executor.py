@@ -29,7 +29,7 @@ from typing import Dict, List, Optional
 
 import yaml
 from jinja2 import Environment, FileSystemLoader
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, OmegaConf
 
 from nemo_evaluator_launcher.common.env_vars import (
     SecretsEnvResult,
@@ -642,14 +642,14 @@ def _create_slurm_sbatch_script(
     Returns:
         str: The contents of the sbatch script.
     """
-    # Remove deprecated deployment.multiple_instances if present
+    # deployment.multiple_instances is deprecated — use execution.num_instances and execution.num_nodes
     if cfg.deployment.get("multiple_instances") is not None:
-        logger.warning(
-            "deployment.multiple_instances is deprecated and will be "
-            "removed from config — use execution.num_instances instead."
+        raise ValueError(
+            "deployment.multiple_instances is deprecated and no longer supported. "
+            "Use execution.num_instances (number of instances) and execution.num_nodes "
+            "(total nodes) instead — num_nodes must be divisible by num_instances, so "
+            "one instance uses num_nodes // num_instances nodes."
         )
-        with open_dict(cfg):
-            del cfg.deployment.multiple_instances
 
     # Validate topology: num_nodes must be divisible by num_instances
     if cfg.execution.num_nodes % cfg.execution.num_instances != 0:
