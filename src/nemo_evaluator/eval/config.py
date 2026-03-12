@@ -148,8 +148,10 @@ class BenchmarkConfig(BaseModel):
     system_prompt: str | None = None
     temperature: float | None = None
     max_tokens: int | None = None
+    context_window: int | None = None
     fewshot: int | None = None
     endpoint_type: EndpointType = EndpointType.chat
+    openclaw_config: str | None = None
     image_detail: str = "auto"
     sandbox: SandboxConfig | None = None
 

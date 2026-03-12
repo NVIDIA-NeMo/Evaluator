@@ -50,10 +50,19 @@ def _make_solver(bench: BenchmarkConfig, client: Any, model_url: str,
             )
         case EndpointType.openclaw:
             from nemo_evaluator.solvers import OpenClawSolver
+            uses_sandbox = sb is not None and sb.backend != "none"
             return OpenClawSolver(
                 openclaw_bin=sb.agent_cmd if sb and sb.agent_cmd else "openclaw",
                 thinking="high",
                 timeout=sb.timeout if sb else 600.0,
+                model_url=model_url,
+                model_id=model_id,
+                api_key=api_key,
+                context_window=bench.context_window or 131_072,
+                max_tokens=bench.max_tokens or 16_384,
+                max_concurrent=bench.max_concurrent,
+                config_path=bench.openclaw_config,
+                skip_preflight=uses_sandbox,
             )
         case EndpointType.vlm:
             return VLMSolver(client, system_prompt=bench.system_prompt,

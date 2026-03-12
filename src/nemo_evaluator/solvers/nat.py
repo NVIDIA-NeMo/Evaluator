@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from nemo_evaluator.environments.base import SeedResult
+from nemo_evaluator.observability.types import ModelResponse
 
 from .base import SolveResult
 
@@ -232,11 +233,21 @@ class NatSolver:
             except OSError as exc:
                 logger.warning("Failed to write transcript: %s", exc)
 
+        total_tokens = len(final_text) // 4 if final_text else 0
+        model_resp = ModelResponse(
+            content=final_text,
+            model="nat-agent",
+            total_tokens=total_tokens,
+            completion_tokens=total_tokens,
+            latency_ms=round(latency, 2),
+        )
+
         logger.info("NatSolver: %.0fms, %d events, %d chars response",
                      latency, len(events), len(final_text))
 
         return SolveResult(
             response=final_text,
+            model_response=model_resp,
             trajectory=trajectory,
         )
 

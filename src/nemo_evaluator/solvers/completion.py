@@ -5,6 +5,7 @@ from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.observability.types import ModelResponse
 
 from .base import SolveResult
+from .trajectory_util import _single_turn_trajectory
 
 
 class CompletionSolver:
@@ -45,7 +46,8 @@ class CompletionSolver:
             latency_ms=round(latency, 2),
             raw_response=data,
         )
-        return SolveResult(response=text, model_response=model_resp)
+        trajectory = _single_turn_trajectory(task.prompt, text)
+        return SolveResult(response=text, model_response=model_resp, trajectory=trajectory)
 
     async def close(self) -> None:
         await self._model_client.close()

@@ -6,6 +6,7 @@ from typing import Any
 from nemo_evaluator.environments.base import SeedResult
 
 from .base import SolveResult
+from .trajectory_util import _single_turn_trajectory
 
 
 class ChatSolver:
@@ -21,7 +22,8 @@ class ChatSolver:
             resp = await self._client.chat(messages=task.messages)
         else:
             resp = await self._client.chat(task.prompt, system=effective_system)
-        return SolveResult(response=resp.content, model_response=resp)
+        trajectory = _single_turn_trajectory(task.prompt, resp.content, effective_system)
+        return SolveResult(response=resp.content, model_response=resp, trajectory=trajectory)
 
     async def close(self) -> None:
         await self._client.close()

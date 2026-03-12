@@ -5,6 +5,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from nemo_evaluator.environments.base import SeedResult
+from nemo_evaluator.observability.types import ModelResponse
 
 from .base import SolveResult
 
@@ -12,6 +13,17 @@ if TYPE_CHECKING:
     from nemo_evaluator.sandbox.base import Sandbox
 
 logger = logging.getLogger(__name__)
+
+
+def _make_model_response(text: str, latency_ms: float, model: str) -> ModelResponse:
+    total_tokens = len(text) // 4 if text else 0
+    return ModelResponse(
+        content=text,
+        model=model,
+        total_tokens=total_tokens,
+        completion_tokens=total_tokens,
+        latency_ms=round(latency_ms, 2),
+    )
 
 
 class SandboxSolver:
@@ -96,6 +108,7 @@ class SandboxSolver:
     async def _solve_sandbox(self, task: SeedResult, sandbox: Sandbox) -> SolveResult:
         import json
         import tempfile
+        import time
         from pathlib import Path
 
         task_data = json.dumps({
@@ -123,24 +136,32 @@ class SandboxSolver:
             "/workspace/task.json", "/workspace/output.json",
             in_sandbox=True, metadata=task.metadata,
         )
+        t0 = time.monotonic()
         result = await sandbox.exec(cmd, timeout_sec=self._timeout)
+        latency = (time.monotonic() - t0) * 1000
 
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
             out_path = Path(f.name)
         try:
             await sandbox.download("/workspace/output.json", out_path)
             output = json.loads(out_path.read_text())
+            response_text = output.get("response", "")
             return SolveResult(
-                response=output.get("response", ""),
+                response=response_text,
+                model_response=_make_model_response(response_text, latency, self._model_id),
                 trajectory=output.get("trajectory", []),
             )
         except (json.JSONDecodeError, FileNotFoundError, OSError):
+            fallback = result.stdout[:5000] if result.stdout else "[agent modified sandbox state]"
             return SolveResult(
-                response=result.stdout[:5000] if result.stdout else "[agent modified sandbox state]",
+                response=fallback,
+                model_response=_make_model_response(fallback, latency, self._model_id),
                 trajectory=[{"stderr": result.stderr[:2000] if result.stderr else ""}],
             )
 
     async def _solve_agent_server(self, task: SeedResult, sandbox: Sandbox) -> SolveResult:
+        import time
+
         agent_ip = sandbox.container_ip
         if not agent_ip:
             raise RuntimeError("Cannot reach agent: no container IP")
@@ -148,6 +169,7 @@ class SandboxSolver:
 
         import httpx
 
+        t0 = time.monotonic()
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             resp = await client.post(f"{agent_url}/solve", json={
                 "prompt": task.prompt,
@@ -155,16 +177,21 @@ class SandboxSolver:
                 "model_id": self._model_id,
             })
             data = resp.json()
-            return SolveResult(
-                response=data.get("response", ""),
-                trajectory=data.get("trajectory", []),
-            )
+        latency = (time.monotonic() - t0) * 1000
+
+        response_text = data.get("response", "")
+        return SolveResult(
+            response=response_text,
+            model_response=_make_model_response(response_text, latency, self._model_id),
+            trajectory=data.get("trajectory", []),
+        )
 
     async def _solve_local(self, task: SeedResult) -> SolveResult:
         import asyncio
         import json
         import shlex
         import tempfile
+        import time
         from pathlib import Path
 
         with tempfile.TemporaryDirectory(prefix="nel_agent_") as tmpdir:
@@ -190,6 +217,7 @@ class SandboxSolver:
             if self._api_key:
                 env["NEL_API_KEY"] = self._api_key
 
+            t0 = time.monotonic()
             process = await asyncio.create_subprocess_shell(
                 f"/bin/bash -c {shlex.quote(cmd)}",
                 stdout=asyncio.subprocess.PIPE,
@@ -205,16 +233,21 @@ class SandboxSolver:
                 process.kill()
                 await process.wait()
                 return SolveResult(response="", trajectory=[{"error": "agent_timeout"}])
+            latency = (time.monotonic() - t0) * 1000
 
             if output_file.exists():
                 result = json.loads(output_file.read_text())
+                response_text = result.get("response", "")
                 return SolveResult(
-                    response=result.get("response", ""),
+                    response=response_text,
+                    model_response=_make_model_response(response_text, latency, self._model_id),
                     trajectory=result.get("trajectory", []),
                 )
 
+            fallback = stdout.decode()[:5000] if stdout else ""
             return SolveResult(
-                response=stdout.decode()[:5000] if stdout else "",
+                response=fallback,
+                model_response=_make_model_response(fallback, latency, self._model_id),
                 trajectory=[{"stderr": stderr.decode()[:2000] if stderr else ""}],
             )
 

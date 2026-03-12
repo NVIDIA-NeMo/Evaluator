@@ -1,9 +1,13 @@
 """CrossEncoderSolver: cross-encoder/reranking tasks."""
 from __future__ import annotations
 
+import time
+
 from nemo_evaluator.environments.base import SeedResult
+from nemo_evaluator.observability.types import ModelResponse
 
 from .base import SolveResult
+from .trajectory_util import _single_turn_trajectory
 
 
 class CrossEncoderSolver:
@@ -20,12 +24,26 @@ class CrossEncoderSolver:
 
     async def solve(self, task: SeedResult) -> SolveResult:
         import json
+
         query = task.metadata.get("query", task.prompt)
         documents = task.metadata.get("documents", [task.prompt])
 
         payload = {"model": self._model, "query": query, "documents": documents}
+        t0 = time.monotonic()
         data = await self._model_client._post_with_retry(self._url, payload)
-        return SolveResult(response=json.dumps(data.get("results", [])))
+        latency = (time.monotonic() - t0) * 1000
+
+        text = json.dumps(data.get("results", []))
+        prompt_tokens = (len(query) + sum(len(d) for d in documents)) // 4
+        model_resp = ModelResponse(
+            content=text,
+            model=self._model,
+            prompt_tokens=prompt_tokens,
+            total_tokens=prompt_tokens,
+            latency_ms=round(latency, 2),
+        )
+        trajectory = _single_turn_trajectory(query, text)
+        return SolveResult(response=text, model_response=model_resp, trajectory=trajectory)
 
     async def close(self) -> None:
         await self._model_client.close()
