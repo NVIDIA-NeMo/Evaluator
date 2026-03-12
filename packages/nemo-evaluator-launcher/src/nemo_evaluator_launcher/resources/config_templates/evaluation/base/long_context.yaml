@@ -1,0 +1,20 @@
+evaluation:
+  tasks:
+    - name: ruler-128k-completions
+      nemo_evaluator_config:
+        config:
+          params:
+            extra:
+              tokenizer_backend: hf
+    - name: ruler-256k-completions
+      nemo_evaluator_config:
+        config:
+          params:
+            extra:
+              tokenizer_backend: hf
+    - name: ruler-512k-completions
+      nemo_evaluator_config:
+        config:
+          params:
+            extra:
+              tokenizer_backend: hf

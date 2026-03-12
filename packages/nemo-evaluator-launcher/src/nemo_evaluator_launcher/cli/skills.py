@@ -205,9 +205,9 @@ class BuildConfigCmd:
     """Build evaluation config from templates.
 
     Examples:
-      nel skills build-config -e local -d vllm -m chat -b standard
-      nel skills build-config -e slurm -d nim -m reasoning -b standard code -x mlflow
-      nel skills build-config -e local -d vllm -m chat -b standard -o my_config.yaml
+      nel skills build-config -e local -d vllm -m chat_reasoning -b core_reasoning long_context
+      nel skills build-config -e slurm -d nim -m chat_reasoning -b agentic multilingual -x mlflow
+      nel skills build-config -e local -d vllm -m base -b general_knowledge coding -o my_config.yaml
     """
 
     execution: str = field(
@@ -222,14 +222,21 @@ class BuildConfigCmd:
     )
     model_type: str = field(
         alias=["-m"],
-        choices=["base", "chat", "reasoning"],
+        choices=["base", "chat_reasoning"],
         help="Model type",
     )
     benchmarks: List[str] = field(
         alias=["-b"],
         nargs="+",
-        choices=["standard", "code", "math_reasoning", "safety", "multilingual"],
-        help="Benchmark types to include",
+        choices=[
+            "general_knowledge",
+            "coding",
+            "core_reasoning",
+            "agentic",
+            "long_context",
+            "multilingual",
+        ],
+        help="Benchmark bundles to include",
     )
     export: str = field(
         alias=["-x"],

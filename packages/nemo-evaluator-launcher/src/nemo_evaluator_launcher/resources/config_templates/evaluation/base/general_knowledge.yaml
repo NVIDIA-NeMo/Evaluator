@@ -1,0 +1,7 @@
+evaluation:
+  tasks:
+    - name: adlr_mmlu_pro_5_shot_base
+    - name: adlr_agieval_en_cot
+    - name: adlr_gpqa_diamond_cot_5_shot
+    - name: adlr_gsm8k_cot_8_shot
+    - name: adlr_math_500_4_shot_sampled

@@ -1,7 +1,0 @@
-# Chat model evaluation configuration (chat endpoint)
-evaluation:
-  nemo_evaluator_config:
-    config:
-      params:
-        request_timeout: 3600
-        parallelism: 64

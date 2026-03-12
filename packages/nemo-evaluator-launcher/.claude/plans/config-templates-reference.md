@@ -46,11 +46,10 @@ config file. Located in:
 - **execution/** — `local.yaml`, `slurm.yaml`
 - **export/** — `none.yaml`, `mlflow.yaml`, `wandb.yaml`
 - **evaluation/**
-  - `base/` — `default.yaml`, `standard.yaml`, `code.yaml`, `multilingual.yaml`
-  - `chat/` — `default.yaml`, `standard.yaml`, `code.yaml`, `math_reasoning.yaml`,
-    `safety.yaml`, `multilingual.yaml`
-  - `reasoning/` — `default.yaml`, `standard.yaml`, `code.yaml`,
-    `math_reasoning.yaml`, `safety.yaml`, `multilingual.yaml`
+  - `base/` — `default.yaml`, `general_knowledge.yaml`, `coding.yaml`,
+    `long_context.yaml`, `multilingual.yaml`
+  - `chat_reasoning/` — `default.yaml`, `core_reasoning.yaml`, `agentic.yaml`,
+    `long_context.yaml`, `multilingual.yaml`
 
 ### Layer 4: Examples (user-facing documentation)
 
@@ -105,17 +104,19 @@ NIM additionally sets `execution.mounts.deployment` for cache directories.
 - **`default.yaml`** in each model-type directory sets global evaluation params
   (parallelism, timeout, temperature, max_new_tokens). It does **not** define
   tasks.
-- **Benchmark files** (`standard.yaml`, `code.yaml`, etc.) define
-  `evaluation.tasks` lists. Each task entry has at minimum a `name` field.
+- **Benchmark files** (`general_knowledge.yaml`, `coding.yaml`,
+  `core_reasoning.yaml`, etc.) define `evaluation.tasks` lists. Each task entry
+  has at minimum a `name` field.
 - Task names use the fully-qualified form
   `<harness>.<task_name>` (e.g., `lm-evaluation-harness.ifeval`,
   `nemo_skills.ns_mmlu_pro`, `simple_evals.humanevalplus`,
   `bigcode-evaluation-harness.mbppplus_nemo`).
 - Per-task overrides go under `nemo_evaluator_config` nested within the task.
 - Per-task environment variables go under `env_vars` within the task.
-- `gpqa_diamond` (and its nemo variant) appears only in `math_reasoning.yaml`
-  to avoid duplicates when benchmarks are combined. Each file that excludes it
-  includes a comment explaining this.
+- Base-model templates support `general_knowledge`, `coding`, `long_context`,
+  and `multilingual`.
+- Chat/reasoning templates support `core_reasoning`, `agentic`,
+  `long_context`, and `multilingual`.
 
 ### Export templates
 
