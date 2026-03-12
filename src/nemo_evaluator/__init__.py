@@ -1,19 +1,22 @@
 """NeMo Evaluator -- environments, solvers, evaluation orchestration."""
 
-__version__ = "0.7.0"
+__version__ = "0.9.0"
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.environments.define import benchmark, scorer
 from nemo_evaluator.environments.registry import get_environment, list_environments, load_benchmark_file, register
+from nemo_evaluator.eval.config import EndpointType
 from nemo_evaluator.runner.eval_loop import run_evaluation
 from nemo_evaluator.runner.model_client import ModelClient
-from nemo_evaluator.runner.nat_solver import NatSolver
-from nemo_evaluator.runner.solver import (
+from nemo_evaluator.solvers import (
     AgentSolver,
     ChatSolver,
     CompletionSolver,
     CrossEncoderSolver,
     EmbeddingSolver,
+    NatSolver,
+    OpenClawSolver,
+    SandboxSolver,
     Solver,
     SolveResult,
     VLMSolver,
@@ -34,10 +37,11 @@ __all__ = [
     # Core
     "EvalEnvironment", "SeedResult", "VerifyResult",
     "register", "get_environment", "list_environments", "load_benchmark_file",
-    "run_evaluation", "ModelClient",
+    "run_evaluation", "ModelClient", "EndpointType",
     # Solver
-    "Solver", "ChatSolver", "CompletionSolver", "AgentSolver", "NatSolver",
-    "VLMSolver", "EmbeddingSolver", "CrossEncoderSolver", "SolveResult",
+    "Solver", "ChatSolver", "CompletionSolver", "SandboxSolver", "AgentSolver",
+    "NatSolver", "OpenClawSolver", "VLMSolver", "EmbeddingSolver", "CrossEncoderSolver",
+    "SolveResult",
     # Benchmark definition API
     "benchmark", "scorer", "ScorerInput",
     # Scoring primitives

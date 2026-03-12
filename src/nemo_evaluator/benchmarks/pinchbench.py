@@ -6,8 +6,9 @@ grading code are scored directly; the rest use LLM-as-judge via the
 ``needs_judge`` mechanism with the task's grading criteria as reference.
 
 Solver-independent: works with NatSolver (rich trajectory via
-``.nel_transcript.jsonl``), AgentSolver (reads workspace from task JSON),
-or even ChatSolver (fallback transcript built from response text).
+``.nel_transcript.jsonl``), SandboxSolver (reads workspace from task JSON),
+OpenClawSolver, or even ChatSolver (fallback transcript built from
+response text).
 
 Dataset is downloaded once from GitHub as a zip archive.
 """
@@ -213,7 +214,7 @@ def pinchbench_scorer(sample: ScorerInput) -> dict[str, Any]:
     1. If ``.nel_transcript.jsonl`` exists in workspace (written by NatSolver),
        use the rich trajectory.
     2. Otherwise, build a minimal transcript from the solver's text response.
-       This enables ChatSolver, AgentSolver, etc. to be scored -- the grade
+       This enables ChatSolver, SandboxSolver, etc. to be scored -- the grade
        function may not find tool calls but can still check workspace files.
     """
     task_id = sample.metadata.get("task_id", "")

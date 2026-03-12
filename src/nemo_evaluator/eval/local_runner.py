@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from nemo_evaluator.eval.config import BenchmarkConfig, EvalConfig, ServiceConfig
+from nemo_evaluator.eval.config import BenchmarkConfig, EndpointType, EvalConfig, ServiceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -19,45 +19,55 @@ def _safe_name(s: str) -> str:
 def _make_solver(bench: BenchmarkConfig, client: Any, model_url: str,
                  model_id: str, api_key: str | None) -> Any:
     """Select the correct solver based on benchmark endpoint_type."""
-    from nemo_evaluator.runner.solver import (
-        AgentSolver,
+    from nemo_evaluator.solvers import (
         ChatSolver,
         CompletionSolver,
         EmbeddingSolver,
+        SandboxSolver,
         VLMSolver,
     )
 
     ep = bench.endpoint_type
-    if ep == "agent":
-        sb = bench.sandbox
-        return AgentSolver(
-            agent_cmd=sb.agent_cmd if sb else "agent",
-            model_url=model_url,
-            model_id=model_id,
-            api_key=api_key,
-            setup_cmd=sb.agent_setup_cmd if sb else None,
-            invocation_template=sb.agent_invocation_template if sb else None,
-            timeout=sb.timeout if sb else 1800.0,
-        )
-    if ep == "nat_agent":
-        from nemo_evaluator.runner.nat_solver import NatSolver
-        nat_url = model_url.rsplit("/v1", 1)[0] if "/v1" in model_url else model_url
-        return NatSolver(
-            nat_url=nat_url,
-            timeout=bench.sandbox.timeout if bench.sandbox else 600.0,
-        )
-    if ep == "vlm":
-        return VLMSolver(client, system_prompt=bench.system_prompt,
-                         image_detail=bench.image_detail)
-    if ep == "completions":
-        return CompletionSolver(
-            base_url=model_url, model=model_id, api_key=api_key,
-            temperature=bench.temperature or 0.0,
-            max_tokens=bench.max_tokens or 2048,
-        )
-    if ep == "embedding":
-        return EmbeddingSolver(client)
-    return ChatSolver(client, system_prompt=bench.system_prompt)
+    sb = bench.sandbox
+
+    match ep:
+        case EndpointType.sandbox:
+            return SandboxSolver(
+                agent_cmd=sb.agent_cmd if sb else "agent",
+                model_url=model_url,
+                model_id=model_id,
+                api_key=api_key,
+                setup_cmd=sb.agent_setup_cmd if sb else None,
+                invocation_template=sb.agent_invocation_template if sb else None,
+                timeout=sb.timeout if sb else 1800.0,
+            )
+        case EndpointType.nat:
+            from nemo_evaluator.solvers import NatSolver
+            nat_url = model_url.rsplit("/v1", 1)[0] if "/v1" in model_url else model_url
+            return NatSolver(
+                nat_url=nat_url,
+                timeout=sb.timeout if sb else 600.0,
+            )
+        case EndpointType.openclaw:
+            from nemo_evaluator.solvers import OpenClawSolver
+            return OpenClawSolver(
+                openclaw_bin=sb.agent_cmd if sb and sb.agent_cmd else "openclaw",
+                thinking="high",
+                timeout=sb.timeout if sb else 600.0,
+            )
+        case EndpointType.vlm:
+            return VLMSolver(client, system_prompt=bench.system_prompt,
+                             image_detail=bench.image_detail)
+        case EndpointType.completions:
+            return CompletionSolver(
+                base_url=model_url, model=model_id, api_key=api_key,
+                temperature=bench.temperature or 0.0,
+                max_tokens=bench.max_tokens or 2048,
+            )
+        case EndpointType.embedding:
+            return EmbeddingSolver(client)
+        case _:
+            return ChatSolver(client, system_prompt=bench.system_prompt)
 
 
 def _start_model_service(svc: ServiceConfig):
@@ -201,42 +211,33 @@ class _ServiceHandle:
 def _warn_incompatible(bench: BenchmarkConfig, env: Any) -> None:
     """Emit warnings for known-bad solver + environment combinations."""
     ep = bench.endpoint_type
-    env_cls = type(env).__name__
     name = bench.name
 
     from nemo_evaluator.environments.harbor import HarborEnvironment
     from nemo_evaluator.environments.mteb import MTEBEnvironment
 
-    if isinstance(env, HarborEnvironment) and ep not in ("agent",):
+    if isinstance(env, HarborEnvironment) and not ep.modifies_sandbox:
         logger.warning(
             "Benchmark %r uses Harbor (requires sandbox interaction) but "
-            "endpoint_type=%r -- only 'agent' solvers modify sandbox state. "
+            "endpoint_type=%r does not modify sandbox state. "
+            "Only 'sandbox' runs inside the container. "
             "Expect reward=0.0 for all problems.",
             name, ep,
         )
 
-    if isinstance(env, MTEBEnvironment) and ep != "embedding":
+    if isinstance(env, MTEBEnvironment) and ep is not EndpointType.embedding:
         logger.warning(
             "Benchmark %r uses MTEB (embedding tasks) but endpoint_type=%r "
             "-- only 'embedding' produces valid results.",
             name, ep,
         )
 
-    if ep == "embedding" and not isinstance(env, MTEBEnvironment):
+    if ep is EndpointType.embedding and not isinstance(env, MTEBEnvironment):
         logger.warning(
             "Benchmark %r uses endpoint_type='embedding' but environment is "
             "%s -- embedding solvers return vectors, not text. Results will "
             "be meaningless for text-based scoring.",
-            name, env_cls,
-        )
-
-    if ep == "nat_agent" and isinstance(env, HarborEnvironment):
-        logger.warning(
-            "Benchmark %r uses Harbor but endpoint_type='nat_agent' -- NAT "
-            "agents operate via HTTP in their own workspace and do not modify "
-            "the Docker sandbox. Harbor's test-based verification will fail. "
-            "Use endpoint_type='agent' for Harbor benchmarks.",
-            name,
+            name, type(env).__name__,
         )
 
 
@@ -272,7 +273,7 @@ async def _run_single_benchmark(
     reasoning_pat = _resolve_reasoning_pattern(config, bench.model)
 
     concurrency = bench.max_concurrent
-    if bench.endpoint_type in ("agent", "nat_agent"):
+    if bench.endpoint_type.manages_own_client:
         client = None
         solver = _make_solver(bench, client, model_url, model_id, api_key)
     else:

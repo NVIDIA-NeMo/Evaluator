@@ -333,7 +333,7 @@ sandboxes, task delivery, and verification.
 
 ### How it works
 
-Set `endpoint_type: agent` on a benchmark and configure the agent command.
+Set `endpoint_type: sandbox` on a benchmark and configure the agent command.
 For each problem, the eval loop:
 
 1. Seeds the problem from the environment (prompt + optional sandbox spec)
@@ -357,7 +357,7 @@ model:
 
 benchmarks:
   - name: harbor://swebench-verified
-    endpoint_type: agent
+    endpoint_type: sandbox
     max_problems: 3
     sandbox:
       backend: docker
@@ -481,7 +481,7 @@ model:
 
 benchmarks:
   - name: gsm8k
-    endpoint_type: nat_agent
+    endpoint_type: nat
     max_concurrent: 1
     max_problems: 5
 
@@ -516,7 +516,7 @@ benchmarks:
   - name: pinchbench
     model: model
     judge: judge
-    endpoint_type: nat_agent
+    endpoint_type: nat
     max_concurrent: 1
     max_problems: 5
 
@@ -573,34 +573,9 @@ kill $(lsof -ti:9000) 2>/dev/null   # stop the NAT server
 
 ## Appendix: Solver x Environment Compatibility
 
-Not every solver works with every environment. Evaluator emits warnings for
-known-bad pairings at runtime.
-
-| Environment    | chat | completions | vlm | agent | nat_agent | embedding |
-|----------------|------|-------------|-----|-------|-----------|-----------|
-| skills://      | yes  | yes         | yes | yes   | yes       | --        |
-| lm-eval://     | yes  | yes         | yes | yes   | yes       | --        |
-| gym://         | yes  | yes         | yes | yes   | yes       | --        |
-| pi://          | yes  | yes         | yes | yes   | yes       | --        |
-| BYOB (text)    | yes  | yes         | yes | yes   | yes       | --        |
-| harbor://      | --   | --          | --  | yes   | --        | --        |
-| BYOB (sandbox) | --   | --          | --  | yes   | partial   | --        |
-| mteb://        | --   | --          | --  | --    | --        | yes       |
-| pinchbench     | partial | partial  | partial | yes | yes     | --        |
-
-- **yes** -- fully supported
-- **--** -- incompatible (Evaluator warns at runtime)
-- **partial** -- works but results may be limited
-
-**Harbor requires `agent`** because its `verify()` runs test scripts inside
-the Docker sandbox. Only AgentSolver executes commands inside the sandbox.
-
-**NAT cannot do Harbor** because NAT agents communicate via HTTP and do not
-modify the Docker sandbox filesystem. Use `endpoint_type: agent` with a
-subprocess-based agent for Harbor.
-
-**Gym works with everything** because its `verify()` sends the response text
-to a remote server. It never inspects local sandbox state.
+Not every solver works with every environment. See the
+[Solver / Environment Compatibility table in README.md](README.md#solver--environment-compatibility)
+for the full matrix. The evaluator warns at runtime for known-bad pairings.
 
 ---
 

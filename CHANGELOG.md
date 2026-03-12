@@ -4,7 +4,7 @@
 
 ### NAT Agent Integration
 
-- **`NatSolver`**: New solver that communicates with NeMo Agent Toolkit agents via the `/generate/full` SSE endpoint. Sends task prompts, collects full trajectories (LLM calls, tool invocations, results), converts them to PinchBench-compatible transcript format. Works with any benchmark -- set `endpoint_type: nat_agent` in config.
+- **`NatSolver`**: New solver that communicates with NeMo Agent Toolkit agents via the `/generate/full` SSE endpoint. Sends task prompts, collects full trajectories (LLM calls, tool invocations, results), converts them to PinchBench-compatible transcript format. Works with any benchmark -- set `endpoint_type: nat` in config.
 - **Trajectory conversion**: NAT `IntermediateStep` events (LLM_END, TOOL_START, TOOL_END) are mapped to the OpenClaw-style transcript format for PinchBench grade functions.
 
 ### PinchBench

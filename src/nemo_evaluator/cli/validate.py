@@ -24,7 +24,7 @@ def validate_cmd(benchmark, samples, model_url, model_id, api_key, verbose):
     from nemo_evaluator.observability.progress import ConsoleProgress
     from nemo_evaluator.runner.eval_loop import run_evaluation
     from nemo_evaluator.runner.model_client import ModelClient
-    from nemo_evaluator.runner.solver import ChatSolver
+    from nemo_evaluator.solvers import ChatSolver
 
     try:
         env = get_environment(benchmark)

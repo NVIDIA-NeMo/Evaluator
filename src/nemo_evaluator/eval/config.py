@@ -8,9 +8,53 @@ from __future__ import annotations
 
 import os
 import re
+from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+# ---------------------------------------------------------------------------
+# Endpoint types -- how the eval loop talks to the model / agent
+# ---------------------------------------------------------------------------
+
+class EndpointType(StrEnum):
+    """Solver selection key.
+
+    Each value maps to a concrete ``Solver`` implementation.  The semantic
+    properties below let the runner make decisions without hard-coding
+    string tuples everywhere.
+    """
+
+    chat = "chat"
+    completions = "completions"
+    vlm = "vlm"
+    embedding = "embedding"
+    sandbox = "sandbox"
+    nat = "nat"
+    openclaw = "openclaw"
+
+    @property
+    def manages_own_client(self) -> bool:
+        """Agentic solvers that bring their own model connection.
+
+        These solvers do NOT receive a shared ``ModelClient`` -- they either
+        spawn a subprocess, hit their own HTTP endpoint, or invoke an
+        external CLI.
+        """
+        return self in _AGENTIC_TYPES
+
+    @property
+    def modifies_sandbox(self) -> bool:
+        """Whether this solver can modify Docker sandbox state.
+
+        Only ``sandbox`` runs commands *inside* the sandbox container.  NAT
+        and OpenClaw operate outside it.
+        """
+        return self is EndpointType.sandbox
+
+
+_AGENTIC_TYPES = frozenset({EndpointType.sandbox, EndpointType.nat, EndpointType.openclaw})
 
 _ENV_RE = re.compile(r"\$\{(\w+)(?::-(.*?))?\}")
 
@@ -105,9 +149,15 @@ class BenchmarkConfig(BaseModel):
     temperature: float | None = None
     max_tokens: int | None = None
     fewshot: int | None = None
-    endpoint_type: Literal["chat", "completions", "vlm", "embedding", "agent", "nat_agent"] = "chat"
+    endpoint_type: EndpointType = EndpointType.chat
     image_detail: str = "auto"
     sandbox: SandboxConfig | None = None
+
+    @field_validator("endpoint_type", mode="before")
+    @classmethod
+    def _normalize_endpoint_type(cls, v: str) -> str:
+        _LEGACY = {"nat_agent": "nat", "agent": "sandbox"}
+        return _LEGACY.get(v, v)
 
 
 # ---------------------------------------------------------------------------

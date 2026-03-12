@@ -15,7 +15,7 @@ from nemo_evaluator.observability.collector import ArtifactCollector
 from nemo_evaluator.observability.progress import NoOpProgress, ProgressTracker
 from nemo_evaluator.observability.types import StepRecord
 from nemo_evaluator.runner.artifacts import build_artifact_bundle
-from nemo_evaluator.runner.solver import Solver, SolveResult
+from nemo_evaluator.solvers import Solver, SolveResult
 from nemo_evaluator.runner.step_log import (
     INFERENCE_LOG,
     VERIFIED_LOG,

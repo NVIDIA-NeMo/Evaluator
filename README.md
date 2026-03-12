@@ -105,18 +105,53 @@ The eval loop is decoupled from inference. Plug in any solver:
 | `VLMSolver` | Vision-language models (images + text) |
 | `EmbeddingSolver` | Embedding models via `/v1/embeddings` |
 | `CrossEncoderSolver` | Reranking via `/v1/rerank` |
-| `AgentSolver` | External agent (OpenHands, SWE-agent, etc.) |
-| `SandboxedAgentSolver` | Agent in per-problem sandbox (SWE-bench) |
+| `SandboxSolver` | Command-based agent in Docker sandbox (SWE-bench, Harbor) |
 | `NatSolver` | NeMo Agent Toolkit via SSE (`/generate/full`) |
+| `OpenClawSolver` | OpenClaw CLI agent |
 
 Set `endpoint_type` in your benchmark config to select the solver automatically:
 
 ```yaml
 benchmarks:
   - name: my-vlm-bench
-    endpoint_type: vlm        # chat | completions | vlm | embedding | agent | nat_agent
+    endpoint_type: vlm        # chat | completions | vlm | embedding | sandbox | nat | openclaw
     image_detail: high
 ```
+
+### Solver / Environment Compatibility
+
+Not every solver works with every environment. The evaluator warns at runtime
+for known-bad pairings.
+
+| Environment | chat | completions | vlm | sandbox | nat | openclaw | embedding |
+|-------------|------|-------------|-----|---------|-----|----------|-----------|
+| skills://   | yes  | yes         | yes | yes     | yes | yes      | --        |
+| lm-eval://  | yes  | yes         | yes | yes     | yes | yes      | --        |
+| gym://      | yes  | yes         | yes | yes     | yes | yes      | --        |
+| pi://       | yes  | yes         | yes | yes     | yes | yes      | --        |
+| BYOB        | yes  | yes         | yes | yes     | yes | yes      | --        |
+| harbor://   | --   | --          | --  | yes     | --  | --       | --        |
+| mteb://     | --   | --          | --  | --      | --  | --       | yes       |
+| pinchbench  | partial | partial  | partial | yes  | yes | yes     | --        |
+
+- **yes** -- fully supported
+- **partial** -- runs but most tasks will score 0; only LLM-as-judge tasks get meaningful grades
+- **--** -- incompatible (evaluator warns at runtime)
+
+**Harbor** verification runs test scripts inside the Docker container. Only
+`SandboxSolver` (`endpoint_type: sandbox`) executes commands inside the
+container -- all other solvers leave the sandbox untouched.
+
+**PinchBench** scores via `grade(transcript, workspace_path)`. Agentic
+solvers (`sandbox`, `nat`, `openclaw`) create files in the workspace so
+grading works. Non-agentic solvers return text only; tasks with automated
+grading code will score 0, but tasks using LLM-as-judge can still award
+partial credit for a good explanation.
+
+**BYOB scorers that use the sandbox** (e.g. `code_sandbox` for HumanEval)
+extract code from the solver's *text response* and execute it in a container.
+This works with any text-producing solver -- the solver itself does not need
+to modify the sandbox.
 
 ## External Harness Dependencies
 
@@ -137,7 +172,7 @@ pip install -e ".[scoring,stats]"   # reinstall nel (nvidia-nat may shadow the C
 # Start NAT: nat serve --config_file agent.yaml --port 9000
 benchmarks:
   - name: pinchbench
-    endpoint_type: nat_agent
+    endpoint_type: nat
     max_concurrent: 1
     max_problems: 10
 ```

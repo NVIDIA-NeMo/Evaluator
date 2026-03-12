@@ -36,7 +36,7 @@ def run_shard(
     from nemo_evaluator.runner.eval_loop import run_evaluation
     from nemo_evaluator.runner.model_client import ModelClient
     from nemo_evaluator.runner.sharding import get_shard_range
-    from nemo_evaluator.runner.solver import ChatSolver
+    from nemo_evaluator.solvers import ChatSolver
 
     env = get_environment(benchmark)
     client = ModelClient(base_url=model_url, model=model_id, api_key=api_key, temperature=0.0)
