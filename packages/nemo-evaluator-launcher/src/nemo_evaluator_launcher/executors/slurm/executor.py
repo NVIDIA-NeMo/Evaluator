@@ -145,7 +145,7 @@ class SlurmExecutor(BaseExecutor):
                 )
 
                 # Create proxy config file with placeholder IPs for multi-instance deployments
-                if cfg.execution.num_instances > 1:
+                if cfg.execution.get("num_instances", 1) > 1:
                     proxy_type = cfg.execution.get("proxy", {}).get("type", "haproxy")
                     if proxy_type == "haproxy":
                         proxy_config = _generate_haproxy_config_with_placeholders(cfg)
@@ -652,10 +652,10 @@ def _create_slurm_sbatch_script(
         )
 
     # Validate topology: num_nodes must be divisible by num_instances
-    if cfg.execution.num_nodes % cfg.execution.num_instances != 0:
+    if cfg.execution.num_nodes % cfg.execution.get("num_instances", 1) != 0:
         raise ValueError(
             f"execution.num_nodes ({cfg.execution.num_nodes}) must be divisible by "
-            f"execution.num_instances ({cfg.execution.num_instances})"
+            f"execution.num_instances ({cfg.execution.get('num_instances', 1)})"
         )
 
     # get task from mapping, overrides, urls
@@ -792,12 +792,16 @@ def _create_slurm_sbatch_script(
                 deployment_env_var_names=list(deployment_env_vars.keys()),
             )
         )
+
+        s += "# Debug contents of the deployment srun command\n"
+        s += deployment_debug
+        s += "\n"
         s += deployment_srun_cmd
 
         # wait for the server to initialize
         health_path = cfg.deployment.endpoints.get("health", "/health")
         # HEAD_NODE_IPS is always set: subset of heads when NPI > 1, all nodes otherwise
-        if cfg.execution.num_instances > 1:
+        if cfg.execution.get("num_instances", 1) > 1:
             ip_list = '"${HEAD_NODE_IPS[@]}"'
         else:
             ip_list = '"127.0.0.1"'
@@ -811,7 +815,7 @@ def _create_slurm_sbatch_script(
         s += "\n\n"
 
         # add proxy load balancer for multi-instance deployments
-        if cfg.execution.num_instances > 1:
+        if cfg.execution.get("num_instances", 1) > 1:
             s += _get_proxy_server_srun_command(cfg, remote_task_subdir)
 
     # prepare evaluation mounts
@@ -874,7 +878,7 @@ def _create_slurm_sbatch_script(
     # terminate the server after all evaluation clients finish
     if cfg.deployment.type != "none":
         s += 'for _pid in "${SERVER_PIDS[@]}"; do kill "$_pid" 2>/dev/null || true; done  # terminate servers\n'
-        if cfg.execution.num_instances > 1:
+        if cfg.execution.get("num_instances", 1) > 1:
             s += "kill $PROXY_PID  # terminate proxy to finish gracefully\n"
         s += "\n"
 
@@ -1599,8 +1603,8 @@ def _generate_haproxy_config_with_placeholders(cfg):
 
     # Prepare template data with placeholder IPs - one backend per instance head node
     nodes = []
-    for i in range(cfg.execution.num_instances):
-        head_idx = i * cfg.execution.num_nodes // cfg.execution.num_instances
+    for i in range(cfg.execution.get("num_instances", 1)):
+        head_idx = i * cfg.execution.num_nodes // cfg.execution.get("num_instances", 1)
         nodes.append({"ip": f"{{IP_{head_idx}}}", "port": cfg.deployment.port})
 
     # Get health check parameters - prefer proxy config, fallback to deployment.endpoints.health
@@ -1701,7 +1705,7 @@ def _generate_deployment_srun_command(
     s += 'echo "Node IPs: ${NODES_IPS_ARRAY[@]}"\n'
     s += 'export ALL_NODE_IPS=$(IFS=,; echo "${NODES_IPS_ARRAY[*]}")\n'
 
-    num_instances = cfg.execution.num_instances
+    num_instances = cfg.execution.get("num_instances", 1)
     nodes_per_instance = cfg.execution.num_nodes // num_instances
     # n_tasks is total tasks across all instances (= num_nodes by default via slurm/default.yaml).
     # Executor divides by num_instances to get per-instance ntasks for each srun.

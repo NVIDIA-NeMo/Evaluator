@@ -21,6 +21,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+import yaml
 from omegaconf import OmegaConf
 
 import nemo_evaluator_launcher.api.functional as F
@@ -48,6 +49,7 @@ from nemo_evaluator_launcher.exporters.utils import (
     get_relevant_artifacts,
     load_benchmark_info,
     load_config_from_metadata,
+    load_old_config_for_autoexport,
     should_exclude_artifact,
 )
 
@@ -936,3 +938,86 @@ class TestConfigLoadingErrorHandling:
         harness, benchmark = load_benchmark_info(artifacts_dir)
         assert harness == "lm-eval"
         assert benchmark == "mmlu"
+
+
+class TestLoadOldConfigForAutoexport:
+    """Tests for the pre-0.2.0 backward-compatibility config loader."""
+
+    MLFLOW_EXPORT_CONFIG = {
+        "export": {
+            "mlflow": {
+                "tracking_uri": "http://mlflow.example.com",
+                "experiment_name": "my-exp",
+            }
+        }
+    }
+
+    def _write_results_yml(self, path: Path, version: str) -> None:
+        content = {"metadata": {"versioning": {"nemo_evaluator_launcher": version}}}
+        path.write_text(yaml.dump(content), encoding="utf-8")
+
+    def _write_mlflow_export_config(self, path: Path) -> None:
+        path.write_text(
+            yaml.dump(self.MLFLOW_EXPORT_CONFIG),
+            encoding="utf-8",
+        )
+
+    def test_version_gte_0_2_0_returns_empty(self, tmp_path: Path, monkeypatch):
+        """NEL version >= 0.2.0: nothing to do, return empty dict."""
+        monkeypatch.chdir(tmp_path)
+        self._write_results_yml(tmp_path / "results.yml", "0.4.2")
+        self._write_mlflow_export_config(tmp_path / "export_config.yml")
+        result = load_old_config_for_autoexport("mlflow")
+        assert result == {}
+
+    def test_no_results_yml_returns_empty(self, tmp_path: Path, monkeypatch):
+        """No results.yml present: return empty dict without error."""
+        monkeypatch.chdir(tmp_path)
+        self._write_mlflow_export_config(tmp_path / "export_config.yml")
+        result = load_old_config_for_autoexport("mlflow")
+        assert result == {}
+
+    def test_version_lt_0_2_no_export_config_returns_empty(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """NEL version < 0.2 but export_config.yml absent: return empty dict."""
+        monkeypatch.chdir(tmp_path)
+        self._write_results_yml(tmp_path / "results.yml", "0.1.5")
+        result = load_old_config_for_autoexport("mlflow")
+        assert result == {}
+
+    def test_version_lt_0_2_with_export_config_loads_legacy(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """NEL version < 0.2 with both files present: legacy config is returned."""
+        # Simulate the exporter running from inside an artifact dir:
+        # execution.output_dir / invocation_id / job_id / artifacts/
+        cwd = tmp_path / "invocation_id" / "job_id" / "artifacts"
+        cwd.mkdir(parents=True)
+        monkeypatch.chdir(cwd)
+        self._write_results_yml(cwd / "results.yml", "0.1.9")
+        self._write_mlflow_export_config(cwd / "export_config.yml")
+
+        result = load_old_config_for_autoexport("mlflow")
+
+        assert (
+            result["tracking_uri"]
+            == self.MLFLOW_EXPORT_CONFIG["export"]["mlflow"]["tracking_uri"]
+        )
+        assert (
+            result["experiment_name"]
+            == self.MLFLOW_EXPORT_CONFIG["export"]["mlflow"]["experiment_name"]
+        )
+        # job_dirs should be 3 levels up: job_id -> invocation_id -> execution_output_dir -> tmp_path
+        assert result["job_dirs"] == [str(tmp_path)]
+
+    def test_version_lt_0_2_wrong_destination_returns_empty(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """Legacy path but destination key missing in export config: return empty dict."""
+        monkeypatch.chdir(tmp_path)
+        self._write_results_yml(tmp_path / "results.yml", "0.1.0")
+        self._write_mlflow_export_config(tmp_path / "export_config.yml")
+
+        result = load_old_config_for_autoexport("wandb")
+        assert result == {}

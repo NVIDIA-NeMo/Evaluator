@@ -5,5 +5,3 @@ evaluation:
       params:
         request_timeout: 3600
         parallelism: 64
-        temperature: 0.0 # Deterministic for reproducibility
-        max_new_tokens: 2048

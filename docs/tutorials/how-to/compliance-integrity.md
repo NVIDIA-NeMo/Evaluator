@@ -17,7 +17,7 @@ Please note: this example uses a small model for the judge to get you started. C
   tasks:
     - name: compliance
       env_vars:
-        JUDGE_API_KEY: $host:COMPLIANCE_JUDGE_SERVICE_API_KEY
+        JUDGE_API_KEY: host:COMPLIANCE_JUDGE_SERVICE_API_KEY
       nemo_evaluator_config:
         config:
           params:

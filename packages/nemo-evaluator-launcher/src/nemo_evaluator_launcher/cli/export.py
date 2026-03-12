@@ -21,10 +21,12 @@ from typing import List, Optional
 from omegaconf import OmegaConf
 from simple_parsing import field
 
+from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.exporters.config import (
     apply_export_overrides,
     load_export_config_from_file,
 )
+from nemo_evaluator_launcher.exporters.utils import load_old_config_for_autoexport
 
 
 @dataclass
@@ -131,6 +133,10 @@ class ExportCmd:
             config = load_export_config_from_file(self.config, self.dest)
         else:
             config = OmegaConf.create({})
+        legacy_config = load_old_config_for_autoexport(self.dest)
+        if legacy_config:
+            logger.info("Found legacy config for auto-export. Merging with new config.")
+            config = OmegaConf.merge(config, OmegaConf.create(legacy_config))
 
         # CLI arguments override config file values
         # We default to None to avoid overriding the config file values if not explicitly passed via CLI
