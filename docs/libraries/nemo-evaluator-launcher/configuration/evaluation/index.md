@@ -23,7 +23,7 @@ evaluation:
             temperature: 0.6
             top_p: 0.95
       env_vars:  # Task-specific environment variables
-        HF_TOKEN: $host:HF_TOKEN
+        HF_TOKEN: host:HF_TOKEN
 ```
 
 ## Key Components
@@ -96,19 +96,19 @@ Environment variables can be declared at multiple levels. Values at more specifi
 ```yaml
 # 1. Top-level — applies to ALL jobs (deployment + evaluation)
 env_vars:
-  HF_TOKEN: $host:HF_TOKEN
-  CACHE_DIR: $lit:/cache/huggingface
+  HF_TOKEN: host:HF_TOKEN
+  CACHE_DIR: lit:/cache/huggingface
 
 # 2. Evaluation-level — applies to all evaluation tasks
 evaluation:
   env_vars:
-    CUSTOM_VAR: $lit:some_value
+    CUSTOM_VAR: lit:some_value
 
   # 3. Task-level — applies to a single task only
   tasks:
     - name: task_name1
       env_vars:
-        HF_TOKEN: $host:HF_TOKEN_FOR_GPQA_DIAMOND  # overrides top-level
+        HF_TOKEN: host:HF_TOKEN_FOR_GPQA_DIAMOND  # overrides top-level
     - name: task_name2   # inherits top-level HF_TOKEN
 ```
 
@@ -118,9 +118,9 @@ Every value must use one of three explicit prefixes:
 
 | Prefix | Meaning | Example |
 |--------|---------|---------|
-| `$host:VAR` | Resolved from the host environment (or `.env` file) at config-load time. Fails if the variable is not set. | `$host:HF_TOKEN` |
-| `$lit:value` | Literal value, written as-is. Use for paths, URLs, flags. | `$lit:/cache/huggingface` |
-| `$runtime:VAR` | Late-bound — resolved by the execution environment at runtime (e.g., a variable set by SLURM or the deployment container). | `$runtime:SLURM_JOB_ID` |
+| `host:VAR` | Resolved from the host environment (or `.env` file) at config-load time. Fails if the variable is not set. | `host:HF_TOKEN` |
+| `lit:value` | Literal value, written as-is. Use for paths, URLs, flags. | `lit:/cache/huggingface` |
+| `runtime:VAR` | Late-bound — resolved by the execution environment at runtime (e.g., a variable set by SLURM or the deployment container). | `runtime:SLURM_JOB_ID` |
 
 Bare (unprefixed) values still work for backward compatibility but emit deprecation warnings.
 
@@ -148,7 +148,7 @@ If you need to override the API key for a specific task, declare it explicitly i
 
 #### Loading from `.env` Files
 
-The launcher can load environment variables from a `.env` file before resolving `$host:` references. This is useful for keeping secrets out of your shell history:
+The launcher can load environment variables from a `.env` file before resolving `host:` references. This is useful for keeping secrets out of your shell history:
 
 ```bash
 # Loads $PWD/.env by default (if it exists)
@@ -162,7 +162,7 @@ Variables already set in the shell environment take precedence over `.env` file 
 
 #### Secrets Handling
 
-Secrets (`$host:` values) are never written into generated scripts (`run.sh`, `run.sub`). Instead, they are stored in a separate `.secrets.env` file alongside the script and sourced at runtime. This prevents accidental exposure in logs, artifacts, and dry-run output.
+Secrets (`host:` values) are never written into generated scripts (`run.sh`, `run.sub`). Instead, they are stored in a separate `.secrets.env` file alongside the script and sourced at runtime. This prevents accidental exposure in logs, artifacts, and dry-run output.
 
 ### Dataset Directory Mounting
 
