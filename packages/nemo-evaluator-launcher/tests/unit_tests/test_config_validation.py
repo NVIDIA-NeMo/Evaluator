@@ -22,6 +22,7 @@ param validation (via _validate_config_sections).
 import copy
 import textwrap
 from typing import Any, Dict, Optional
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -317,19 +318,21 @@ INVALID_PARAM_CONFIGS = [
 
 
 _IFEVAL_CONTAINER = "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.01"
+SIMPLE_EVALS_CONTAINER = "nvcr.io/nvidia/eval-factory/simple-evals:26.01"
 
 
 class TestNemoEvaluatorParamValidation:
-    def _make_cfg(self, task_name: str, params: dict):
+    def _make_cfg(self, task_name: str, params: dict, container: Optional[str] = None):
+        """Build config for param validation. Omit container to use packaged IRs (default mapping)."""
+        task = {
+            "name": task_name,
+            "nemo_evaluator_config": {"config": {"params": params}},
+        }
+        if container is not None:
+            task["container"] = container
         return make_config(
             evaluation={
-                "tasks": [
-                    {
-                        "name": task_name,
-                        "container": _IFEVAL_CONTAINER,
-                        "nemo_evaluator_config": {"config": {"params": params}},
-                    }
-                ],
+                "tasks": [task],
                 "nemo_evaluator_config": {},
             }
         )
@@ -358,13 +361,12 @@ class TestNemoEvaluatorParamValidation:
 
     def test_global_valid_task_invalid_emits_warning(self, caplog):
         # Given global nemo_evaluator_config has valid params
-        # but task-level adds an invalid param on top
+        # but task-level adds an invalid param on top (no container -> use packaged IRs)
         cfg = make_config(
             evaluation={
                 "tasks": [
                     {
                         "name": "lm-evaluation-harness.ifeval",
-                        "container": _IFEVAL_CONTAINER,
                         "nemo_evaluator_config": {
                             "config": {"params": {"bad_task_param": 1}}
                         },
@@ -380,13 +382,12 @@ class TestNemoEvaluatorParamValidation:
 
     def test_global_invalid_task_valid_emits_warning(self, caplog):
         # Given global nemo_evaluator_config has an invalid param
-        # but task-level only sets valid params
+        # but task-level only sets valid params (no container -> use packaged IRs)
         cfg = make_config(
             evaluation={
                 "tasks": [
                     {
                         "name": "lm-evaluation-harness.ifeval",
-                        "container": _IFEVAL_CONTAINER,
                         "nemo_evaluator_config": {
                             "config": {"params": {"parallelism": 4}}
                         },
@@ -402,16 +403,39 @@ class TestNemoEvaluatorParamValidation:
         # Then warning fired for the global bad param (survives merge)
         assert "bad_global_param" in caplog.text
 
+    @pytest.mark.parametrize(
+        "container_image",
+        [_IFEVAL_CONTAINER, SIMPLE_EVALS_CONTAINER],
+        ids=["ifeval", "simple_evals"],
+    )
+    def test_task_with_container_calls_get_task_definition_with_that_image(
+        self, container_image
+    ):
+        """When a task has a container override, get_task_definition_for_job is called with that image."""
+        cfg = self._make_cfg(
+            "lm-evaluation-harness.ifeval",
+            {"parallelism": 4},
+            container=container_image,
+        )
+        with patch(
+            "nemo_evaluator_launcher.api.functional.get_task_definition_for_job"
+        ) as mock_get_task_def:
+            mock_get_task_def.return_value = {
+                "command": "echo {{ parallelism }}",
+                "harness": "lm-evaluation-harness",
+            }
+            _validate_config_sections(cfg)
+        mock_get_task_def.assert_called_once()
+        assert mock_get_task_def.call_args.kwargs["container"] == container_image
+
     def test_task_with_custom_container_unresolvable_emits_warning(self, caplog):
         """When a task overrides container (e.g. simple-evals) and definition cannot be resolved, a warning is logged."""
-        # Use a container image that cannot be loaded (no pull in test env), so param validation is skipped with a warning
-        unloadable_container = "nvcr.io/nvidia/eval-factory/simple-evals:26.01"
         cfg = make_config(
             evaluation={
                 "tasks": [
                     {
                         "name": "lm-evaluation-harness.ifeval",
-                        "container": unloadable_container,
+                        "container": SIMPLE_EVALS_CONTAINER,
                         "nemo_evaluator_config": {
                             "config": {"params": {"parallelism": 4}}
                         },
@@ -420,7 +444,11 @@ class TestNemoEvaluatorParamValidation:
                 "nemo_evaluator_config": {},
             }
         )
-
-        _validate_config_sections(cfg)
-
+        with patch(
+            "nemo_evaluator_launcher.api.functional.get_task_definition_for_job",
+            side_effect=ValueError("Task not found in container mapping"),
+        ) as mock_get_task_def:
+            _validate_config_sections(cfg)
         assert "skipping param validation" in caplog.text
+        mock_get_task_def.assert_called_once()
+        assert mock_get_task_def.call_args.kwargs["container"] == SIMPLE_EVALS_CONTAINER
