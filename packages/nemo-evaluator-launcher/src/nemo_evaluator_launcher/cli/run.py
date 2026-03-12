@@ -284,13 +284,7 @@ class Cmd:
 
             # Show actual job IDs and task names
             print(bold(cyan("To kill individual jobs:")))
-            # Access tasks - will work after normalization in run_eval
-            tasks = (
-                config.evaluation.tasks
-                if hasattr(config.evaluation, "tasks")
-                else config.evaluation
-            )
-            for idx, task in enumerate(tasks):
+            for idx, task in enumerate(config.evaluation.tasks):
                 job_id = f"{invocation_id}.{idx}"
                 print(f"  nemo-evaluator-launcher kill {job_id}  # {task.name}")
 

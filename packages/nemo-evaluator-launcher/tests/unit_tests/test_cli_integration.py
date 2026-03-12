@@ -42,20 +42,22 @@ class TestCLIWorkflowIntegration:
             "target": {
                 "api_endpoint": {"api_key_name": "test_key", "model_id": "test_model"}
             },
-            "evaluation": [
-                {
-                    "name": "test_task_1",
-                    "nemo_evaluator_config": {
-                        "config": {"params": {"param1": "value1"}}
+            "evaluation": {
+                "tasks": [
+                    {
+                        "name": "test_task_1",
+                        "nemo_evaluator_config": {
+                            "config": {"params": {"param1": "value1"}}
+                        },
                     },
-                },
-                {
-                    "name": "test_task_2",
-                    "nemo_evaluator_config": {
-                        "config": {"params": {"param2": "value2"}}
+                    {
+                        "name": "test_task_2",
+                        "nemo_evaluator_config": {
+                            "config": {"params": {"param2": "value2"}}
+                        },
                     },
-                },
-            ],
+                ],
+            },
         }
 
         with patch("nemo_evaluator_launcher.api.types.hydra.compose") as mock_compose:
@@ -181,7 +183,7 @@ class TestCLIWorkflowIntegration:
             "deployment": {"type": "none"},
             "execution": {"type": "dummy", "output_dir": "/tmp/test1"},
             "target": {"api_endpoint": {"api_key_name": "key1", "model_id": "model1"}},
-            "evaluation": [{"name": "task1"}],
+            "evaluation": {"tasks": [{"name": "task1"}]},
         }
 
         with patch("nemo_evaluator_launcher.api.types.hydra.compose") as mock_compose:
@@ -199,7 +201,7 @@ class TestCLIWorkflowIntegration:
                 "target": {
                     "api_endpoint": {"api_key_name": "key2", "model_id": "model2"}
                 },
-                "evaluation": [{"name": "task2"}],
+                "evaluation": {"tasks": [{"name": "task2"}]},
             }
 
             mock_compose.return_value = OmegaConf.create(config2)
@@ -252,10 +254,12 @@ class TestCLIWorkflowIntegration:
             "deployment": {"type": "none"},
             "execution": {"type": "dummy", "output_dir": "/tmp/test"},
             "target": {"api_endpoint": {"api_key_name": "key", "model_id": "model"}},
-            "evaluation": [
-                {"name": "task1"},
-                {"name": "task2"},
-            ],
+            "evaluation": {
+                "tasks": [
+                    {"name": "task1"},
+                    {"name": "task2"},
+                ],
+            },
         }
 
         with patch("nemo_evaluator_launcher.api.types.hydra.compose") as mock_compose:
@@ -298,10 +302,12 @@ class TestCLIWorkflowIntegration:
             "deployment": {"type": "none"},
             "execution": {"type": "dummy", "output_dir": "/tmp/test"},
             "target": {"api_endpoint": {"api_key_name": "key", "model_id": "model"}},
-            "evaluation": [
-                {"name": "task1"},
-                {"name": "task2"},
-            ],
+            "evaluation": {
+                "tasks": [
+                    {"name": "task1"},
+                    {"name": "task2"},
+                ],
+            },
         }
 
         with patch("nemo_evaluator_launcher.api.types.hydra.compose") as mock_compose:
@@ -349,7 +355,7 @@ class TestCLIWorkflowIntegration:
             "deployment": {"type": "none"},
             "execution": {"type": "dummy", "output_dir": "/tmp/test"},
             "target": {"api_endpoint": {"api_key_name": "key", "model_id": "model"}},
-            "evaluation": [{"name": "task1"}],
+            "evaluation": {"tasks": [{"name": "task1"}]},
         }
 
         with patch("nemo_evaluator_launcher.api.types.hydra.compose") as mock_compose:
@@ -442,20 +448,22 @@ class TestCLIWorkflowIntegration:
             "target": {
                 "api_endpoint": {"api_key_name": "OPENAI_API_KEY", "model_id": "gpt-4"}
             },
-            "evaluation": [
-                {
-                    "name": "mmlu",
-                    "nemo_evaluator_config": {
-                        "config": {"params": {"temperature": 0.1, "num_fewshot": 5}}
+            "evaluation": {
+                "tasks": [
+                    {
+                        "name": "mmlu",
+                        "nemo_evaluator_config": {
+                            "config": {"params": {"temperature": 0.1, "num_fewshot": 5}}
+                        },
                     },
-                },
-                {
-                    "name": "arc",
-                    "nemo_evaluator_config": {
-                        "config": {"params": {"temperature": 0.0, "num_fewshot": 0}}
+                    {
+                        "name": "arc",
+                        "nemo_evaluator_config": {
+                            "config": {"params": {"temperature": 0.0, "num_fewshot": 0}}
+                        },
                     },
-                },
-            ],
+                ],
+            },
         }
 
         with patch("nemo_evaluator_launcher.api.types.hydra.compose") as mock_compose:
@@ -686,7 +694,7 @@ class TestCLIConfigParameter:
             "target": {
                 "api_endpoint": {"api_key_name": "test_key", "model_id": "test_model"}
             },
-            "evaluation": [{"name": "test_task_1"}],
+            "evaluation": {"tasks": [{"name": "test_task_1"}]},
         }
 
         with (
@@ -755,7 +763,7 @@ class TestCLIConfigParameter:
             "target": {
                 "api_endpoint": {"api_key_name": "test_key", "model_id": "test_model"}
             },
-            "evaluation": [{"name": "test_task_1"}],
+            "evaluation": {"tasks": [{"name": "test_task_1"}]},
         }
 
         # Test with .yaml extension
