@@ -217,7 +217,7 @@ Print the following commands to the user. Propose to execute them in order to co
 **Important**: Export required environment variables based on your config. If any tokens or keys are missing (e.g. `HF_TOKEN`, `NGC_API_KEY`, `api_key_name` from the config), ask the user to put them in a `.env` file in the project root so you can run `set -a && source .env && set +a` (or equivalent) before executing `nel run` commands.
 
 ```bash
-# If using pre_cmd:
+# If using pre_cmd or post_cmd:
 export NEMO_EVALUATOR_TRUST_PRE_CMD=1
 
 # If using nemo_skills.* tasks with self-deployment:
