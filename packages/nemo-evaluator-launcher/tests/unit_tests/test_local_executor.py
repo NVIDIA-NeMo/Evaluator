@@ -199,7 +199,11 @@ class TestLocalExecutorDryRun:
             patch(
                 "nemo_evaluator_launcher.executors.local.executor.get_task_definition_for_job"
             ) as mock_get_task_def,
+            patch(
+                "nemo_evaluator_launcher.executors.local.executor.ContainerRuntime"
+            ) as mock_runtime_cls,
         ):
+            mock_runtime_cls.return_value.command = "docker"
             mock_load_mapping.return_value = mock_tasks_mapping
 
             def mock_get_task_def_side_effect(*_args, **kwargs):
@@ -233,7 +237,11 @@ class TestLocalExecutorDryRun:
                 patch(
                     "nemo_evaluator_launcher.executors.local.executor.get_task_definition_for_job"
                 ) as mock_get_task_def,
+                patch(
+                    "nemo_evaluator_launcher.executors.local.executor.ContainerRuntime"
+                ) as mock_runtime_cls,
             ):
+                mock_runtime_cls.return_value.command = "docker"
                 mock_load_mapping.return_value = mock_tasks_mapping
 
                 def mock_get_task_def_side_effect(*_args, **kwargs):

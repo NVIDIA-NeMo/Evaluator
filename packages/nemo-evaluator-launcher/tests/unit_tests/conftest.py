@@ -564,3 +564,13 @@ def job_slurm():
     )
     ExecutionDB().write_job(jd)
     return jd
+
+
+@pytest.fixture
+def mock_container_runtime():
+    """Mock ContainerRuntime to avoid requiring docker/podman in CI."""
+    with patch(
+        "nemo_evaluator_launcher.executors.local.executor.ContainerRuntime"
+    ) as mock_cls:
+        mock_cls.return_value.command = "docker"
+        yield mock_cls

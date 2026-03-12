@@ -14,8 +14,14 @@
 # limitations under the License.
 
 
-# check if docker exists
-command -v docker >/dev/null 2>&1 || { echo 'docker not found'; exit 1; }
+# check if container runtime exists
+{% if container_runtime %}
+RUNTIME="{{ container_runtime }}"
+{% else %}
+RUNTIME="docker"
+{% endif %}
+
+command -v $RUNTIME >/dev/null 2>&1 || { echo "$RUNTIME not found"; exit 1; }
 
 # Initialize: remove killed jobs file from previous runs
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -57,7 +63,7 @@ else
     # Debug contents of the eval factory command's config
     {{ task.eval_factory_command_debug_comment | indent(4) }}
 
-    # Docker run with eval factory command
+    # Container run with eval factory command
     (
         {% if task.secrets_env_content -%}
         # Source secrets (scoped to subshell); re-exports happen before each docker run
@@ -70,7 +76,7 @@ else
         # Re-export deployment env vars to original names
         {{ task.deployment_reexport_cmd }}
         {% endif -%}
-        docker run --rm --shm-size=100g --gpus all {{ task.deployment.extra_docker_args }} \
+        $RUNTIME run --rm --shm-size=100g --gpus all {{ task.deployment.extra_docker_args }} \
         --name {{ task.deployment.container_name }} --entrypoint '' \
         -p {{ task.deployment.port }}:{{ task.deployment.port }} \
         {% for var_name in task.deployment.env_var_names -%}
@@ -102,7 +108,7 @@ else
         # Re-export eval env vars to original names
         {{ task.eval_reexport_cmd }}
         {% endif -%}
-        docker run --rm --shm-size=100g {{ extra_docker_args }} \
+        $RUNTIME run --rm --shm-size=100g {{ extra_docker_args }} \
         {% if task.deployment %}--network container:$SERVER_CONTAINER_NAME \{% endif %}--name {{ task.client_container_name }} \
       --volume "$artifacts_dir":/results \
       {% if task.dataset_mount_host and task.dataset_mount_container -%}
@@ -130,7 +136,7 @@ else
 
     {% if task.deployment %}
     # Stop the server
-    docker stop $SERVER_CONTAINER_NAME 2>/dev/null || true
+    $RUNTIME stop $SERVER_CONTAINER_NAME 2>/dev/null || true
     {% endif %}
 
     echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $exit_code" > "$logs_dir/stage.exit"
