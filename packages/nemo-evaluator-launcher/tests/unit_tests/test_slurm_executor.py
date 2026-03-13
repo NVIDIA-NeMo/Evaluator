@@ -2776,18 +2776,16 @@ class TestMultiNodeMultiInstance:
 
     # ── Deprecated multiple_instances handling ────────────────────────────
 
-    def test_deprecated_multiple_instances_removed_with_warning(
+    def test_deprecated_multiple_instances_raises(
         self, base_config, mock_task, mock_dependencies
     ):
-        """deployment.multiple_instances should be deleted and a warning logged."""
+        """deployment.multiple_instances is deprecated and raises ValueError."""
         base_config["deployment"]["multiple_instances"] = True
         base_config["execution"]["num_instances"] = 2
         base_config["execution"]["num_nodes"] = 2
         cfg = OmegaConf.create(base_config)
 
-        with patch(
-            "nemo_evaluator_launcher.executors.slurm.executor.logger"
-        ) as mock_logger:
+        with pytest.raises(ValueError, match="multiple_instances.*deprecated"):
             _create_slurm_sbatch_script(
                 cfg=cfg,
                 task=mock_task,
@@ -2797,21 +2795,14 @@ class TestMultiNodeMultiInstance:
                 job_id="test123.0",
             )
 
-        # Warning should have been logged
-        mock_logger.warning.assert_called_once()
-        assert "multiple_instances" in mock_logger.warning.call_args[0][0]
-
-        # Field should be removed from config
-        assert cfg.deployment.get("multiple_instances") is None
-
-    def test_multiple_instances_false_still_removed(
+    def test_multiple_instances_false_raises(
         self, base_config, mock_task, mock_dependencies
     ):
-        """Even multiple_instances=False should trigger deprecation removal."""
+        """Any deployment.multiple_instances value (e.g. False) raises ValueError."""
         base_config["deployment"]["multiple_instances"] = False
         cfg = OmegaConf.create(base_config)
 
-        with patch("nemo_evaluator_launcher.executors.slurm.executor.logger"):
+        with pytest.raises(ValueError, match="multiple_instances.*deprecated"):
             _create_slurm_sbatch_script(
                 cfg=cfg,
                 task=mock_task,
@@ -2820,8 +2811,6 @@ class TestMultiNodeMultiInstance:
                 invocation_id="test123",
                 job_id="test123.0",
             )
-
-        assert cfg.deployment.get("multiple_instances") is None
 
     # ── ALL_NODE_IPS and HEAD_NODE_IPS in srun command ───────────────────
 

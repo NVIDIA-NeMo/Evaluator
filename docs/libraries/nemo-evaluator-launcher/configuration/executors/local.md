@@ -32,16 +32,16 @@ nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/l
 
 ## Environment Variables and Secrets
 
-Environment variables use the unified prefix syntax (`$host:`, `$lit:`, `$runtime:`) described in {ref}`env-vars-configuration`. Declare them at the top-level `env_vars:` section, at `evaluation.env_vars`, or per-task. Secret values are stored in a `.secrets.env` file alongside the generated `run.sh` and sourced at runtime — they never appear in the script itself.
+Environment variables use the unified prefix syntax (`host:`, `lit:`, `runtime:`) described in {ref}`env-vars-configuration`. Declare them at the top-level `env_vars:` section, at `evaluation.env_vars`, or per-task. Secret values are stored in a `.secrets.env` file alongside the generated `run.sh` and sourced at runtime — they never appear in the script itself.
 
 ```yaml
 env_vars:
-  HF_TOKEN: $host:HF_TOKEN
+  HF_TOKEN: host:HF_TOKEN
 evaluation:
   tasks:
     - name: my_task
       env_vars:
-        CUSTOM_VAR: $host:MY_CUSTOM_VAR
+        CUSTOM_VAR: host:MY_CUSTOM_VAR
 ```
 
 ## Mounting and Storage

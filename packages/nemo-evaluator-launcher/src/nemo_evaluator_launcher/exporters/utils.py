@@ -732,3 +732,72 @@ def mlflow_sanitize(s: Any, kind: str = "key") -> str:
     s = s.replace("\n", " ").replace("\r", " ").strip()
     max_len = _MLFLOW_TAG_VAL_MAX if kind == "tag_value" else _MLFLOW_PARAM_VAL_MAX
     return s[:max_len]
+
+
+def load_old_config_for_autoexport(destination: str) -> dict:
+    """Backward-compatibility loader for pre-0.2.0 auto-export results.
+
+    When the Slurm executor ran the exporter directly from the artifact directory
+    using an older launcher version, `results.yml` and `export_config.yml` were
+    written alongside the results.  This function detects that situation and
+    synthesises the raw config dict that MLflowExporterConfig expects, so the
+    caller can fall back gracefully instead of raising a missing-URI error.
+
+    Returns the raw MLflowExporterConfig data dict (with `job_dirs` set to the
+    current directory), or None if the old-config path does not apply.
+    """
+    import yaml
+    from packaging.version import Version
+
+    results_path = Path("results.yml")
+    if not results_path.exists():
+        return {}
+
+    try:
+        with open(results_path) as f:
+            results = yaml.safe_load(f)
+    except Exception as e:
+        logger.debug(f"Could not parse results.yml: {e}")
+        return {}
+
+    version_str = (
+        (results or {})
+        .get("metadata", {})
+        .get("versioning", {})
+        .get("nemo_evaluator_launcher")
+    )
+    if version_str is None:
+        return {}
+    try:
+        if Version(str(version_str)) >= Version("0.2.0"):
+            # there's no version mismatch, nothing to do here
+            return {}
+        else:
+            logger.warning(
+                "Version mismatch between nemo-evaluator-launcher used to launch the evaluation "
+                "and nemo-evaluator-launcher used to export the results. Falling back to old way of loading the config."
+            )
+    except Exception as e:
+        logger.debug(
+            f"Could not parse nemo_evaluator_launcher version '{version_str}': {e}"
+        )
+        return {}
+
+    export_config_path = Path("export_config.yml")
+    if not export_config_path.exists():
+        return {}
+
+    try:
+        with open(export_config_path) as f:
+            export_config = yaml.safe_load(f)
+    except Exception as e:
+        logger.debug(f"Could not parse export_config.yml: {e}")
+        return {}
+
+    exporter_config = (export_config or {}).get("export", {}).get(destination, {})
+    if not exporter_config:
+        return {}
+
+    # 1st parent -> job dir, 2nd parent -> invocation dir, 3rd parent -> execution.output_dir
+    exporter_config["job_dirs"] = [str(Path(".").resolve().parent.parent.parent)]
+    return exporter_config

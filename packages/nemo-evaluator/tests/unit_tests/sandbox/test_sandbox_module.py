@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import importlib
 import sys
-from subprocess import CompletedProcess
+from pathlib import Path
 from types import ModuleType
 
 import pytest
@@ -30,18 +30,12 @@ def _purge_modules(prefix: str) -> None:
 
 
 def test_sandbox_import_is_lightweight(monkeypatch: pytest.MonkeyPatch):
-    """
-    Importing `nemo_evaluator.sandbox` must not eagerly import optional AWS SDK deps.
-    """
-
-    # Ensure a fresh import so our spy sees any calls made during import-time.
+    """Importing ``nemo_evaluator.sandbox`` must not eagerly pull in boto3."""
     _purge_modules("nemo_evaluator.sandbox")
 
     real_import_module = importlib.import_module
-    calls: list[str] = []
 
     def spy_import_module(name: str, package: str | None = None) -> ModuleType:
-        calls.append(name)
         if name == "boto3" or name.startswith("botocore"):
             raise AssertionError(
                 f"Optional AWS SDK dependency imported at import-time: {name}"
@@ -52,259 +46,115 @@ def test_sandbox_import_is_lightweight(monkeypatch: pytest.MonkeyPatch):
 
     sandbox = real_import_module("nemo_evaluator.sandbox")
 
-    # Ensure the module exposes the expected public surface (smoke check).
-    assert hasattr(sandbox, "NemoEvaluatorSandbox")
+    assert hasattr(sandbox, "Sandbox")
+    assert hasattr(sandbox, "ExecResult")
     assert hasattr(sandbox, "EcsFargateSandbox")
 
 
-def test_ecs_require_aws_sdks_raises_helpful_error(monkeypatch: pytest.MonkeyPatch):
-    """
-    If AWS SDK deps are missing, `_require_aws_sdks()` should raise a clear RuntimeError.
-    """
+def test_ecs_fargate_config_from_dict_coerces_strings():
+    """from_dict must accept a bare string for list fields (subnets, security_groups)."""
+    from nemo_evaluator.sandbox.ecs_fargate import EcsFargateConfig
 
-    ecs_fargate = importlib.import_module("nemo_evaluator.sandbox.ecs_fargate")
-    real_import_module = importlib.import_module
-
-    def fail_import(name: str, package: str | None = None) -> ModuleType:
-        if name in {"boto3", "botocore.config", "botocore.exceptions"}:
-            raise ModuleNotFoundError(name)
-        return real_import_module(name, package=package)
-
-    monkeypatch.setattr(importlib, "import_module", fail_import)
-
-    with pytest.raises(RuntimeError) as excinfo:
-        ecs_fargate._require_aws_sdks()
-
-    msg = str(excinfo.value)
-    assert "requires AWS SDK dependencies" in msg
-    assert "boto3" in msg
+    cfg = EcsFargateConfig.from_dict(
+        {
+            "region": "eu-west-1",
+            "cluster": "my-cluster",
+            "subnets": "subnet-a",
+            "security_groups": ["sg-b"],
+            "cpu": "2048",
+            "memory": "4096",
+        }
+    )
+    assert cfg.subnets == ["subnet-a"]
+    assert cfg.security_groups == ["sg-b"]
+    assert cfg.cpu == "2048"
 
 
-def test_ecs_sandbox_checks_for_aws_cli(monkeypatch: pytest.MonkeyPatch):
-    """
-    Instantiating the ECS sandbox should fail fast if required host tools are missing.
-    """
+def test_get_ecr_image_tag_deterministic(tmp_path: Path):
+    from nemo_evaluator.sandbox.ecs_fargate import ImageBuilder
 
-    ecs_fargate = importlib.import_module("nemo_evaluator.sandbox.ecs_fargate")
+    (tmp_path / "Dockerfile").write_text("FROM alpine\n")
+    (tmp_path / "app.py").write_text("print('hello')\n")
 
-    monkeypatch.setattr(ecs_fargate, "_which", lambda _name: None)
+    tag1 = ImageBuilder.get_ecr_image_tag(tmp_path, "myenv")
+    tag2 = ImageBuilder.get_ecr_image_tag(tmp_path, "myenv")
+    assert tag1 == tag2
+    assert tag1.startswith("myenv__")
+    assert len(tag1.split("__")[1]) == 8
 
-    cfg = ecs_fargate.EcsFargateConfig(
-        region=None,
-        cluster="dummy",
-        task_definition="dummy",
-        container_name="dummy",
-        subnets=["subnet-123"],
-        security_groups=["sg-123"],
+
+def test_get_ecr_image_tag_changes_on_content(tmp_path: Path):
+    from nemo_evaluator.sandbox.ecs_fargate import ImageBuilder
+
+    (tmp_path / "Dockerfile").write_text("FROM alpine\n")
+    tag_before = ImageBuilder.get_ecr_image_tag(tmp_path, "env")
+
+    (tmp_path / "Dockerfile").write_text("FROM ubuntu\n")
+    tag_after = ImageBuilder.get_ecr_image_tag(tmp_path, "env")
+
+    assert tag_before != tag_after
+
+
+def test_exec_client_health_returns_false_when_no_server():
+    from nemo_evaluator.sandbox.ecs_fargate import ExecClient
+
+    client = ExecClient(port=1, connect_timeout=0.5)
+    assert client.health() is False
+
+
+def test_retryable_message_matching_is_case_insensitive():
+    from nemo_evaluator.sandbox.ecs_fargate import _is_retryable_error
+
+    class FakeError(Exception):
+        pass
+
+    assert _is_retryable_error(FakeError("Capacity is unavailable right now"))
+    assert _is_retryable_error(FakeError("CAPACITY IS UNAVAILABLE RIGHT NOW"))
+    assert _is_retryable_error(FakeError("rate exceeded"))
+    assert not _is_retryable_error(FakeError("completely unrelated error"))
+
+
+def test_resolve_outside_endpoint_remaps_to_tunnel_port():
+    """resolve_outside_endpoint() replaces host:port with 127.0.0.1:<tunnel-port>."""
+    from nemo_evaluator.sandbox.ecs_fargate import EcsFargateSandbox
+
+    sandbox = EcsFargateSandbox.__new__(EcsFargateSandbox)
+    sandbox._ssh_tunnel_port = 54321
+    assert (
+        sandbox.resolve_outside_endpoint("http://localhost:3825")
+        == "http://127.0.0.1:54321"
     )
 
-    with pytest.raises(ecs_fargate.AwsCliMissingError):
-        ecs_fargate.EcsFargateSandbox(
-            cfg=cfg,
-            task_arn="dummy",
-            run_id="dummy",
-            task_id="dummy",
-            trial_name="dummy",
-        )
+
+def test_resolve_outside_endpoint_raises_before_start():
+    """resolve_outside_endpoint() raises RuntimeError when tunnel port is not set."""
+    from nemo_evaluator.sandbox.ecs_fargate import EcsFargateSandbox
+
+    sandbox = EcsFargateSandbox.__new__(EcsFargateSandbox)
+    sandbox._ssh_tunnel_port = None
+    with pytest.raises(RuntimeError, match="resolve_outside_endpoint"):
+        sandbox.resolve_outside_endpoint("http://localhost:3825")
 
 
-def test_parse_exec_markers_extracts_payload_and_strips_noise(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    ecs_fargate = importlib.import_module("nemo_evaluator.sandbox.ecs_fargate")
+def test_resolve_tunnel_target_uses_outside_endpoints():
+    """_resolve_tunnel_target() extracts host and port from OutsideEndpoint."""
+    from nemo_evaluator.sandbox.base import OutsideEndpoint
+    from nemo_evaluator.sandbox.ecs_fargate import EcsFargateSandbox
 
-    # Avoid host-tool checks in constructor.
-    monkeypatch.setattr(ecs_fargate, "_which", lambda _name: "/usr/bin/true")
-
-    s = ecs_fargate.EcsFargateSandbox(
-        cfg=ecs_fargate.EcsFargateConfig(
-            region=None,
-            cluster="c",
-            task_definition="td",
-            container_name="cn",
-            subnets=["s"],
-            security_groups=["sg"],
-        ),
-        task_arn="t",
-        run_id="r",
-        task_id="id",
-        trial_name="trial",
-    )
-
-    cp = CompletedProcess(
-        args=["aws", "ecs", "execute-command"],
-        returncode=0,
-        stdout=(
-            "Starting session with SessionId: abc\n"
-            "__NEMO_BEGIN__\n"
-            "hello\n"
-            "__NEMO_RC__=0\n"
-            "Exiting session with sessionId: abc\n"
-        ),
-        stderr="The Session Manager plugin was installed successfully. Use the AWS CLI to start a session.\n",
-    )
-
-    assert s._parse_exec_markers(cp=cp, check=True) == "hello"
+    sandbox = EcsFargateSandbox.__new__(EcsFargateSandbox)
+    sandbox._outside_endpoints = [
+        OutsideEndpoint(url="http://myhost.internal:8080", env_var="MODEL_BASE_URL")
+    ]
+    host, port = sandbox._resolve_tunnel_target()
+    assert host == "myhost.internal"
+    assert port == 8080
 
 
-def test_parse_exec_markers_raises_when_rc_nonzero(monkeypatch: pytest.MonkeyPatch):
-    ecs_fargate = importlib.import_module("nemo_evaluator.sandbox.ecs_fargate")
-    monkeypatch.setattr(ecs_fargate, "_which", lambda _name: "/usr/bin/true")
+def test_resolve_tunnel_target_raises_without_endpoints():
+    """_resolve_tunnel_target() raises ValueError when no endpoints configured."""
+    from nemo_evaluator.sandbox.ecs_fargate import EcsFargateSandbox
 
-    s = ecs_fargate.EcsFargateSandbox(
-        cfg=ecs_fargate.EcsFargateConfig(
-            region=None,
-            cluster="c",
-            task_definition="td",
-            container_name="cn",
-            subnets=["s"],
-            security_groups=["sg"],
-        ),
-        task_arn="t",
-        run_id="r",
-        task_id="id",
-        trial_name="trial",
-    )
-
-    cp = CompletedProcess(
-        args=["aws", "ecs", "execute-command"],
-        returncode=0,
-        stdout="__NEMO_BEGIN__\nboom\n__NEMO_RC__=7\n",
-        stderr="",
-    )
-
-    with pytest.raises(ecs_fargate.EcsExecError) as excinfo:
-        s._parse_exec_markers(cp=cp, check=True)
-
-    assert "rc=7" in str(excinfo.value)
-
-
-def test_exec_capture_uses_s3_fallback_when_aws_reports_command_too_long(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    ecs_fargate = importlib.import_module("nemo_evaluator.sandbox.ecs_fargate")
-    monkeypatch.setattr(ecs_fargate, "_which", lambda _name: "/usr/bin/true")
-
-    s = ecs_fargate.EcsFargateSandbox(
-        cfg=ecs_fargate.EcsFargateConfig(
-            region=None,
-            cluster="c",
-            task_definition="td",
-            container_name="cn",
-            subnets=["s"],
-            security_groups=["sg"],
-            s3_bucket="bucket",
-        ),
-        task_arn="t",
-        run_id="r",
-        task_id="id",
-        trial_name="trial",
-    )
-
-    called = {"s3": 0}
-
-    def fake_s3(*, shell: str, timeout_sec: float, check: bool) -> str:
-        assert "echo" in shell
-        called["s3"] += 1
-        return "via_s3"
-
-    def fake_aws(*, command: str, timeout_sec: float):
-        return CompletedProcess(
-            args=["aws"], returncode=0, stdout=b"", stderr=b"COMMAND TOO LONG"
-        )
-
-    monkeypatch.setattr(s, "_exec_capture_via_s3_script", fake_s3)
-    monkeypatch.setattr(s, "_aws_ecs_execute_with_retry", fake_aws)
-
-    assert s._exec_capture(cmd=["bash", "-lc", "echo hi"], timeout_sec=1.0) == "via_s3"
-    assert called["s3"] == 1
-
-
-def test_tmux_session_send_keys_large_payload_uses_paste_buffer(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    ecs_fargate = importlib.import_module("nemo_evaluator.sandbox.ecs_fargate")
-    monkeypatch.setattr(ecs_fargate, "_which", lambda _name: "/usr/bin/true")
-
-    s = ecs_fargate.EcsFargateSandbox(
-        cfg=ecs_fargate.EcsFargateConfig(
-            region=None,
-            cluster="c",
-            task_definition="td",
-            container_name="cn",
-            subnets=["s"],
-            security_groups=["sg"],
-        ),
-        task_arn="t",
-        run_id="r",
-        task_id="id",
-        trial_name="trial",
-    )
-
-    exec_calls: list[list[str]] = []
-    paste_calls: list[str] = []
-
-    def fake_exec_capture(
-        *, cmd: list[str], timeout_sec: float, check: bool = True
-    ) -> str:
-        _ = timeout_sec, check
-        exec_calls.append(cmd)
-        return ""
-
-    def fake_paste(*, session_name: str, text: str, timeout_sec: float) -> None:
-        _ = session_name, timeout_sec
-        paste_calls.append(text)
-
-    monkeypatch.setattr(s, "_exec_capture", fake_exec_capture)
-    monkeypatch.setattr(s, "_tmux_paste_large_text", fake_paste)
-
-    sess = ecs_fargate.EcsFargateTmuxSession(session_name="main", sandbox=s)
-    big = "x" * (ecs_fargate.EcsFargateTmuxSession._LONG_TEXT_THRESHOLD + 10)
-
-    sess.send_keys([big, "Enter"], block=False)
-
-    assert paste_calls == [big]
-    assert exec_calls, "expected tmux send-keys call"
-    # Ensure we did NOT send the huge payload via `tmux send-keys`.
-    assert all(big not in " ".join(c) for c in exec_calls)
-
-
-def test_tmux_session_blocking_send_keys_waits_for_done(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    ecs_fargate = importlib.import_module("nemo_evaluator.sandbox.ecs_fargate")
-    monkeypatch.setattr(ecs_fargate, "_which", lambda _name: "/usr/bin/true")
-
-    s = ecs_fargate.EcsFargateSandbox(
-        cfg=ecs_fargate.EcsFargateConfig(
-            region=None,
-            cluster="c",
-            task_definition="td",
-            container_name="cn",
-            subnets=["s"],
-            security_groups=["sg"],
-        ),
-        task_arn="t",
-        run_id="r",
-        task_id="id",
-        trial_name="trial",
-    )
-
-    exec_calls: list[list[str]] = []
-
-    def fake_exec_capture(
-        *, cmd: list[str], timeout_sec: float, check: bool = True
-    ) -> str:
-        _ = timeout_sec, check
-        exec_calls.append(cmd)
-        return ""
-
-    monkeypatch.setattr(s, "_exec_capture", fake_exec_capture)
-
-    sess = ecs_fargate.EcsFargateTmuxSession(session_name="main", sandbox=s)
-    sess.send_keys(["echo hi", "Enter"], block=True, max_timeout_sec=5.0)
-
-    assert exec_calls[0][:4] == ["tmux", "send-keys", "-t", "main"]
-    assert ecs_fargate.EcsFargateTmuxSession._TMUX_COMPLETION_COMMAND in exec_calls[0]
-    assert exec_calls[1][:3] == ["timeout", "5.0s", "tmux"]
-    assert exec_calls[1][-2:] == ["wait", "done"]
+    sandbox = EcsFargateSandbox.__new__(EcsFargateSandbox)
+    sandbox._outside_endpoints = []
+    with pytest.raises(ValueError, match="OutsideEndpoint"):
+        sandbox._resolve_tunnel_target()

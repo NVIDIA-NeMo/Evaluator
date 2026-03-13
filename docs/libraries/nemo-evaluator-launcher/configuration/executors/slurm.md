@@ -74,13 +74,13 @@ deployment:
 
 ### Environment Variables and Secrets
 
-Environment variables use the unified prefix syntax (`$host:`, `$lit:`, `$runtime:`) described in {ref}`env-vars-configuration`. Declare them at the top-level `env_vars:` section, at `evaluation.env_vars`, or per-task — the launcher handles writing a `.secrets.env` file that is uploaded alongside the batch script and sourced at runtime.
+Environment variables use the unified prefix syntax (`host:`, `lit:`, `runtime:`) described in {ref}`env-vars-configuration`. Declare them at the top-level `env_vars:` section, at `evaluation.env_vars`, or per-task — the launcher handles writing a `.secrets.env` file that is uploaded alongside the batch script and sourced at runtime.
 
 ```yaml
 env_vars:
-  HF_TOKEN: $host:HF_TOKEN              # resolved from host, never in batch script
-  CACHE_DIR: $lit:/cache/huggingface     # literal path
-  TRANSFORMERS_OFFLINE: $lit:1           # literal flag
+  HF_TOKEN: host:HF_TOKEN              # resolved from host, never in batch script
+  CACHE_DIR: lit:/cache/huggingface     # literal path
+  TRANSFORMERS_OFFLINE: lit:1           # literal flag
 ```
 
 **Security:** Secret values are never written into the generated `run.sub` script. They are stored in a separate `.secrets.env` file and sourced at runtime, preventing accidental exposure in logs or artifacts.
@@ -98,15 +98,10 @@ execution:
 - **`num_nodes`**: Total number of SLURM nodes to allocate
 - **`num_instances`**: Number of independent deployment instances. When `> 1`, HAProxy is automatically configured to load-balance across instances. `num_nodes` must be divisible by `num_instances`.
 
-For multi-node deployments requiring Ray (e.g., pipeline parallelism across nodes), use the `vllm_ray` deployment config instead of `vllm`:
 
-```yaml
-defaults:
-  - deployment: vllm_ray     # Built-in Ray cluster setup
-```
 
 :::{note}
-The deprecated `deployment.multiple_instances` field is still accepted but will be removed in a future release. Use `execution.num_instances` instead.
+You can use the `vllm_ray` deployment config when you need vllm Ray-based multi-node deployment (see deployment docs).
 :::
 
 ### Mounting and Storage
@@ -144,7 +139,7 @@ defaults:
   - _self_
 
 env_vars:
-  HF_TOKEN: $host:HF_TOKEN   # Needed to access meta-llama/Llama-3.1-8B-Instruct gated model
+  HF_TOKEN: host:HF_TOKEN   # Needed to access meta-llama/Llama-3.1-8B-Instruct gated model
 
 execution:
   hostname: your-cluster-headnode

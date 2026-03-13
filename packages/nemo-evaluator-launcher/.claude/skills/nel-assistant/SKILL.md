@@ -62,7 +62,7 @@ DON'T ALLOW FOR ANY OTHER OPTIONS, only the ones listed above under each categor
 When you have all the answers, run the script to build the base config:
 
 ```bash
-nel skills build-config --execution <local|slurm> --deployment <none|vllm|sglang|nim|trtllm> --model-type <base|chat|reasoning> --benchmarks <standard|code|math_reasoning|safety|multilingual> [--export <none|mlflow|wandb>] [--output <OUTPUT>]
+nel skills build-config --execution <local|slurm> --deployment <none|vllm|sglang|nim|trtllm> --model_type <base|chat|reasoning> --benchmarks <standard|code|math_reasoning|safety|multilingual> [--export <none|mlflow|wandb>] [--output <OUTPUT>]
 ```
 
 Where `--output` depends on what the user provides:
@@ -94,6 +94,9 @@ Use WebSearch to find model card (HuggingFace, build.nvidia.com). Read it carefu
   - etc.
 - Deployment-specific `extra_args` for vLLM/SGLang (look for the vLLM/SGLang deployment command)
 - Deployment-specific vLLM/SGLang versions (by default we use latest docker images, but you can control it with `deployment.image` e.g. vLLM above `vllm/vllm-openai:v0.11.0` stopped supporting `rope-scaling` arg used by Qwen models)
+- ARM64 / non-standard GPU compatibility: The default `vllm/vllm-openai` image only supports common GPU architectures. For ARM64 platforms or GPUs with non-standard compute capabilities (e.g., NVIDIA GB10 with sm_121), use NGC vLLM images instead:
+  - Example: `deployment.image: nvcr.io/nvidia/vllm:26.01-py3`
+  - AskUserQuestion about their GPU architecture if the model card doesn't specify deployment constraints
 - Any preparation requirements (e.g., downloading reasoning parsers, custom plugins):
   - If the model card mentions downloading files (like reasoning parsers, custom plugins) before deployment, add `deployment.pre_cmd` with the download command
   - Use `curl` instead of `wget` as it's more widely available in Docker containers
@@ -214,7 +217,7 @@ Print the following commands to the user. Propose to execute them in order to co
 **Important**: Export required environment variables based on your config. If any tokens or keys are missing (e.g. `HF_TOKEN`, `NGC_API_KEY`, `api_key_name` from the config), ask the user to put them in a `.env` file in the project root so you can run `set -a && source .env && set +a` (or equivalent) before executing `nel run` commands.
 
 ```bash
-# If using pre_cmd:
+# If using pre_cmd or post_cmd:
 export NEMO_EVALUATOR_TRUST_PRE_CMD=1
 
 # If using nemo_skills.* tasks with self-deployment:

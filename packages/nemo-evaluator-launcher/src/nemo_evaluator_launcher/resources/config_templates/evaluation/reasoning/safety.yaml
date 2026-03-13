@@ -27,5 +27,5 @@ evaluation:
               use_system_prompt: true
               custom_system_prompt: "/no_think"
       env_vars:
-        HF_TOKEN: HF_TOKEN_FOR_AEGIS_V2
-        JUDGE_API_KEY: JUDGE_API_KEY
+        HF_TOKEN: host:HF_TOKEN
+        JUDGE_API_KEY: host:JUDGE_API_KEY # API key for judge endpoint

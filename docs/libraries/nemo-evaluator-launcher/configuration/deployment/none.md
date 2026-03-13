@@ -61,7 +61,7 @@ evaluation:
   tasks:
     - name: gpqa_diamond
       env_vars:
-        HF_TOKEN: $host:HF_TOKEN_FOR_GPQA_DIAMOND  # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
+        HF_TOKEN: host:HF_TOKEN_FOR_GPQA_DIAMOND  # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
 ```
 
 **Key Points:**
@@ -146,7 +146,7 @@ evaluation:
   tasks:
     - name: gpqa_diamond
       env_vars:
-        HF_TOKEN: $host:HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
+        HF_TOKEN: host:HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
 ```
 
 **Key Points:**

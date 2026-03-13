@@ -1,55 +1,84 @@
 ``nemo_evaluator.sandbox``
 ======================================
 
-Sandbox implementations used by evaluation harnesses that need a tmux-like interactive session.
+Sandbox implementations used by evaluation harnesses that need isolated
+container environments for command execution, file transfer, and agent hosting.
 
 This module is designed to keep dependencies **optional**:
 
 - The ECS Fargate implementation only imports AWS SDKs (``boto3``/``botocore``) when actually used.
-- Using the ECS sandbox also requires the AWS CLI (``aws``) and ``session-manager-plugin`` on the host.
+- Transport is SSH-based; no AWS CLI or session-manager-plugin required on the host.
 
-Usage (ECS Fargate)
--------------------
+Sandbox Protocol
+----------------
 
-Typical usage is:
+All sandbox backends implement the :class:`~nemo_evaluator.sandbox.base.Sandbox`
+protocol, so harnesses can be written backend-agnostically:
 
-- configure :class:`~nemo_evaluator.sandbox.ecs_fargate.EcsFargateConfig`
-- :meth:`~nemo_evaluator.sandbox.ecs_fargate.EcsFargateSandbox.spin_up` a sandbox context
-- create an interactive :class:`~nemo_evaluator.sandbox.base.NemoSandboxSession`
+- ``start()`` / ``stop()`` — lifecycle
+- ``exec(command)`` — run a shell command
+- ``upload(local_path, remote_path)`` / ``download(remote_path, local_path)`` — file transfer
+- ``is_running`` — health check
+- Context manager (``with sandbox: ...``) for automatic cleanup
 
-Example::
+Usage (ECS Fargate — exec-server mode)
+--------------------------------------
 
-    from nemo_evaluator.sandbox import EcsFargateConfig, EcsFargateSandbox
+For harnesses that drive execution from the orchestrator (e.g. terminal-bench)::
+
+    from nemo_evaluator.sandbox import EcsFargateConfig, EcsFargateSandbox, SshSidecarConfig
 
     cfg = EcsFargateConfig(
         region="us-west-2",
         cluster="my-ecs-cluster",
-        task_definition="my-task-def:1",
-        container_name="eval",
         subnets=["subnet-abc"],
         security_groups=["sg-xyz"],
+        image_template="123456789.dkr.ecr.us-west-2.amazonaws.com/my-repo:{task_id}",
         s3_bucket="my-staging-bucket",
+        ssh_sidecar=SshSidecarConfig(
+            public_key_secret_arn="arn:aws:secretsmanager:...:my-pubkey",
+            private_key_secret_arn="arn:aws:secretsmanager:...:my-privkey",
+            exec_server_port=19542,
+        ),
     )
 
-    with EcsFargateSandbox.spin_up(
-        cfg=cfg,
-        task_id="task-001",
-        trial_name="trial-0001",
-        run_id="run-2026-01-12",
-    ) as sandbox:
-        session = sandbox.create_session("main")
-        session.send_keys(["echo hello", "Enter"], block=True)
-        print(session.capture_pane())
+    with EcsFargateSandbox(cfg, task_id="task-001", run_id="run-001") as sandbox:
+        sandbox.start()
+        result = sandbox.exec("echo hello")
+        print(result.stdout)
+
+Usage (ECS Fargate — agent-server mode)
+---------------------------------------
+
+For harnesses that host an agent inside the container (e.g. openhands),
+omit ``exec_server_port`` and pass ``OutsideEndpoint`` to ``start()``::
+
+    from nemo_evaluator.sandbox import OutsideEndpoint
+
+    cfg = EcsFargateConfig(
+        ...
+        ssh_sidecar=SshSidecarConfig(
+            public_key_secret_arn="arn:aws:secretsmanager:...:my-pubkey",
+            private_key_secret_arn="arn:aws:secretsmanager:...:my-privkey",
+        ),
+    )
+
+    model_ep = OutsideEndpoint(url="http://localhost:8080", env_var="MODEL_BASE_URL")
+
+    with EcsFargateSandbox(cfg, task_id="task-001", run_id="run-001") as sandbox:
+        sandbox.start(outside_endpoints=[model_ep])
+        # The agent inside the container can now reach the model via the reverse tunnel.
+        # The orchestrator can reach the agent's API via sandbox.local_port.
 
 Prerequisites / Notes
 ---------------------
 
-- The harness host must have **AWS CLI** and **session-manager-plugin** installed.
-- If you use S3-based fallbacks (large uploads / long commands), configure ``s3_bucket``.
+- SSH keys must be **pre-provisioned** in AWS Secrets Manager.
+- If you use S3-based file staging (large uploads / downloads), configure ``s3_bucket``.
+- Docker image building via AWS CodeBuild is available through :class:`~nemo_evaluator.sandbox.ecs_fargate.ImageBuilder`.
 
 .. automodule:: nemo_evaluator.sandbox
     :members:
     :undoc-members:
     :member-order: bysource
-
 

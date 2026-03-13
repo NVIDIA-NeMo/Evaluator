@@ -13,21 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from .base import NemoEvaluatorSandbox, NemoSandboxCommand, NemoSandboxSession
-from .ecs_fargate import (
-    AwsCliMissingError,
-    EcsExecError,
+from nemo_evaluator.sandbox.base import ExecResult, OutsideEndpoint, Sandbox
+from nemo_evaluator.sandbox.ecs_fargate import (
     EcsFargateConfig,
     EcsFargateSandbox,
+    ExecClient,
+    ImageBuilder,
+    SshSidecarConfig,
+    SshTunnel,
 )
 
 __all__ = [
-    "NemoEvaluatorSandbox",
-    "NemoSandboxCommand",
-    "NemoSandboxSession",
-    "AwsCliMissingError",
-    "EcsExecError",
+    "ExecResult",
+    "OutsideEndpoint",
+    "Sandbox",
     "EcsFargateConfig",
     "EcsFargateSandbox",
+    "ExecClient",
+    "ImageBuilder",
+    "SshSidecarConfig",
+    "SshTunnel",
 ]

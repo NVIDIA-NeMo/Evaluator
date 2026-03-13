@@ -289,7 +289,7 @@ Do not use this functionality for running at scale, because it a)
 reduces the reproducility of evaluations; b) introduces security issues (remote command execution).
 :::
 
-For various debugging or testing purposes, one can supply a field `pre_cmd` under
+For various debugging or testing purposes, one can supply fields `pre_cmd` and/or `post_cmd` under
 the following configuration positions:
 
 ```yaml
@@ -299,12 +299,19 @@ evaluation:
     any script that will be executed inside of
     the container before running evaluation
     it can be multiline
+  post_cmd: |
+    any script that will be executed inside of
+    the container after evaluation finishes
+    runs even if evaluation fails
   tasks:
     - name: <task>
       pre_cmd: one can override this command
+      post_cmd: one can override this command
 ```
 
-For security reasons (running configs from untrusted sources), if `pre_cmd` is
+`post_cmd` is executed after the evaluator finishes and runs even if the evaluation fails.
+
+For security reasons (running configs from untrusted sources), if `pre_cmd` or `post_cmd` is
 non-empty, the `nemo-evaluator-launcher` will fail unless `NEMO_EVALUATOR_TRUST_PRE_CMD=1` environment
 variable is supplied.
 
