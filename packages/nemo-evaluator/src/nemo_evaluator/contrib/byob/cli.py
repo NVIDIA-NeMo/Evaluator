@@ -122,6 +122,15 @@ def byob_compile(args=None):
         help=f"Base Docker image for containerization (default: {DEFAULT_BASE_IMAGE})",
     )
     parser.add_argument(
+        "--platform",
+        type=str,
+        default=None,
+        help=(
+            "Target platform for the Docker build (e.g. 'linux/amd64'). "
+            "Uses buildx when set; plain docker build otherwise."
+        ),
+    )
+    parser.add_argument(
         "--tag",
         type=str,
         default=None,
@@ -132,6 +141,13 @@ def byob_compile(args=None):
     # --push implies --containerize
     if parsed.push:
         parsed.containerize = True
+
+    # Only single-platform builds are supported.
+    if parsed.platform and "," in parsed.platform:
+        parser.error(
+            "Multi-platform builds are not supported. "
+            "Please specify a single platform (e.g. 'linux/amd64')."
+        )
 
     # --list: show installed benchmarks
     if parsed.list:
@@ -267,6 +283,7 @@ def byob_compile(args=None):
                     base_image=parsed.base_image,
                     pkg_name=pkg_name,
                     user_requirements=user_reqs or None,
+                    platform=parsed.platform,
                 )
                 print(f"  Docker image built: {tag}")
 

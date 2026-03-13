@@ -69,7 +69,8 @@ The `--push` flag implies `--containerize` automatically.
 |------|-------------|
 | `--install-dir DIR` | Custom installation directory |
 | `--base-image IMAGE` | Base Docker image (default: `python:3.12-slim`) |
-| `--tag TAG` | Docker image tag (default: `byob_<name>:latest`) |
+| `--tag TAG` | Docker image tag (default: `byob_<name>:latest`). The target platform is always appended as a suffix (e.g. `byob_qa:latest-linux-amd64`) |
+| `--platform PLATFORM` | Target platform for Docker build (e.g. `linux/amd64`). Uses `buildx` when set; plain `docker build` otherwise |
 | `--check-requirements` | Verify declared requirements are importable |
 | `--version` | Show version |
 
