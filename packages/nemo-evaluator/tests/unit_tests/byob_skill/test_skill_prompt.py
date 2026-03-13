@@ -33,14 +33,14 @@ def test_skill_prompt_exists_and_within_budget(skill_prompt_path):
     """T001: Skill prompt file exists and is within token budget.
 
     Validates:
-    - File exists at .claude/commands/byob.md
+    - File exists at .claude/skills/byob/SKILL.md
     - Content is non-empty (>100 chars)
     - File size < 20KB (safety upper bound)
     - Estimated token count < 4,000
     """
     assert os.path.isfile(skill_prompt_path), (
         f"Skill prompt not found at: {skill_prompt_path}. "
-        f"Expected .claude/commands/byob.md relative to package root."
+        f"Expected .claude/skills/byob/SKILL.md relative to package root."
     )
 
     with open(skill_prompt_path) as f:
