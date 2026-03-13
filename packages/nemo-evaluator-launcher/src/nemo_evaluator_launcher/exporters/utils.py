@@ -26,6 +26,10 @@ import yaml
 from nemo_evaluator_launcher.common.execdb import JobData
 from nemo_evaluator_launcher.common.logging_utils import logger
 
+from nemo_evaluator_launcher.common.ssh_utils import (
+    close_master_connection,
+)
+
 # =============================================================================
 # ARTIFACTS
 # =============================================================================
@@ -250,19 +254,13 @@ def ssh_cleanup_masters(control_paths: Dict[Tuple[str, str], str]) -> None:
     """Clean up SSH master connections from control_paths."""
     for (username, hostname), socket_path in (control_paths or {}).items():
         try:
-            cmd = [
-                "ssh",
-                "-O",
-                "exit",
-                "-o",
-                f"ControlPath={socket_path}",
-                f"{username}@{hostname}",
-            ]
-            subprocess.run(cmd, check=False, capture_output=True)
+            close_master_connection(
+                username=username, hostname=hostname, socket=socket_path
+            )
         except Exception as e:
             logger.warning(f"Failed to stop SSH master for {username}@{hostname}: {e}")
 
-        # Clean up
+        # Clean up socket file
         try:
             Path(socket_path).unlink(missing_ok=True)
         except Exception as e:

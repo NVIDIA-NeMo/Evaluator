@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 import yaml
 from omegaconf import OmegaConf
@@ -74,6 +74,12 @@ class ConversionConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    execution_params: dict[str, Any] = Field(
+        description="Execution parameters to use for the "
+        "conversion job (e.g., username, hostname, account, etc). "
+        "These are used to submit the conversion job to the cluster."
+    )
+
     container: str = Field(description="Docker image to use for the conversion job.")
     mounts: Optional[dict[str, str]] = Field(
         default=None,
@@ -85,6 +91,9 @@ class ConversionConfig(BaseModel):
             "Must contain '{input_path}' and '{output_path}' placeholders. "
             "It can also contain other placeholders that will be populated during runtime."
         )
+    )
+    output_dir: str = Field(
+        description="Path to the output directory for the conversion job."
     )
 
     @field_validator("command_pattern")
@@ -118,6 +127,7 @@ class WatchConfig(BaseModel):
     @model_validator(mode="after")
     def validate_eval_config_structure(self) -> "WatchConfig":
         for i, cfg in enumerate(self.evaluation_configs):
+            # TODO add validation for checking if execution type is slurm - other executors are not supported
             if "deployment" not in cfg or cfg.get("deployment") is None:
                 raise ValueError(
                     f"evaluation_configs[{i}] must have a 'deployment' section"
