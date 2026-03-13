@@ -2935,6 +2935,40 @@ class TestMultiNodeMultiInstance:
         # The wait-for-server handler should use 127.0.0.1
         assert '"127.0.0.1"' in script
 
+    @pytest.mark.parametrize(
+        "config_override, expected_timeout",
+        [
+            (
+                {},
+                432000,
+            ),  # no max_walltime in base_config -> default 120:00:00 -> 432000s
+            ({"health_check_timeout": 1200}, 1200),  # explicit override
+            ({"max_walltime": "02:00:00"}, 7200),  # max_walltime -> 7200s
+        ],
+        ids=["default", "explicit-override", "from-max-walltime"],
+    )
+    def test_health_check_timeout_in_sbatch_script(
+        self,
+        base_config,
+        mock_task,
+        mock_dependencies,
+        config_override,
+        expected_timeout,
+    ):
+        """Health check timeout should appear in the generated sbatch script."""
+        base_config["execution"].update(config_override)
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert f"TIMEOUT={expected_timeout}" in script
+
     def test_health_check_uses_head_node_ips_for_multi_instance(
         self, base_config, mock_task, mock_dependencies
     ):

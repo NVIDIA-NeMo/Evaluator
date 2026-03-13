@@ -53,6 +53,7 @@ from nemo_evaluator_launcher.common.helpers import (
     get_api_key_name,
     get_eval_factory_command,
     get_timestamp_string,
+    resolve_health_check_timeout,
 )
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.mapping import (
@@ -801,12 +802,14 @@ def _create_slurm_sbatch_script(
             ip_list = '"${HEAD_NODE_IPS[@]}"'
         else:
             ip_list = '"127.0.0.1"'
+        health_check_timeout = resolve_health_check_timeout(cfg)
         s += _get_wait_for_server_handler(
             ip_list,
             cfg.deployment.port,
             health_path,
             "server",
             check_pid=True,
+            timeout=health_check_timeout,
         )
         s += "\n\n"
 
@@ -1791,6 +1794,7 @@ def _get_wait_for_server_handler(
     health_check_path: str,
     service_name: str = "server",
     check_pid: bool = False,
+    timeout: int = 600,
 ):
     """Generate wait for server handler that takes a list of IPs."""
     pid_check = ""
@@ -1799,11 +1803,15 @@ def _get_wait_for_server_handler(
 
     handler = f"""date
 # wait for the {service_name} to initialize
+TIMEOUT={timeout}
+ELAPSED=0
 for ip in {ip_list}; do
   echo "Waiting for {service_name} on $ip..."
   while [[ "$(curl -s -o /dev/null -w "%{{http_code}}" http://$ip:{port}{health_check_path})" != "200" ]]; do
     {pid_check}
+    [ $ELAPSED -ge $TIMEOUT ] && {{ echo "Health check timeout after ${{TIMEOUT}}s"; exit 1; }}
     sleep 5
+    ELAPSED=$((ELAPSED + 5))
   done
   echo "{service_name} ready on $ip!"
 done
@@ -1851,8 +1859,14 @@ def _generate_haproxy_srun_command(cfg, remote_task_subdir):
     proxy_config = cfg.execution.get("proxy", {}).get("config", {})
     haproxy_port = proxy_config.get("haproxy_port", 5009)
     health_path = proxy_config.get("health_check_path", "/health")
+    health_check_timeout = resolve_health_check_timeout(cfg)
     s += _get_wait_for_server_handler(
-        "127.0.0.1", haproxy_port, health_path, "Proxy", check_pid=False
+        "127.0.0.1",
+        haproxy_port,
+        health_path,
+        "Proxy",
+        check_pid=False,
+        timeout=health_check_timeout,
     )
     s += "\n"
 
