@@ -69,6 +69,12 @@ from nemo_evaluator_launcher.common.mapping import (
     load_tasks_mapping,
 )
 from nemo_evaluator_launcher.common.printing_utils import bold, cyan, grey, red
+from nemo_evaluator_launcher.common.ssh_utils import (
+    close_master_connection,
+    make_remote_dir,
+    open_master_connection,
+    rsync_upload,
+)
 from nemo_evaluator_launcher.executors.base import (
     BaseExecutor,
     ExecutionState,
@@ -1194,14 +1200,7 @@ def _open_master_connection(
     hostname: str,
     socket: str,
 ) -> str | None:
-    ssh_command = f"ssh -MNf -S {socket} {username}@{hostname}"
-    logger.info("Opening master connection", cmd=ssh_command)
-    completed_process = subprocess.run(args=shlex.split(ssh_command))
-    if completed_process.returncode == 0:
-        logger.info("Opened master connection successfully", cmd=ssh_command)
-        return socket
-    logger.error("Failed to open master connection", code=completed_process.returncode)
-    return None
+    return open_master_connection(username=username, hostname=hostname, socket=socket)
 
 
 def _close_master_connection(
@@ -1209,16 +1208,7 @@ def _close_master_connection(
     hostname: str,
     socket: str | None,
 ) -> None:
-    if socket is None:
-        return
-    ssh_command = f"ssh -O exit -S {socket} {username}@{hostname}"
-    completed_process = subprocess.run(args=shlex.split(ssh_command))
-    if completed_process.returncode != 0:
-        raise RuntimeError(
-            "failed to close the master connection\n{}".format(
-                completed_process.stderr.decode("utf-8")
-            )
-        )
+    close_master_connection(username=username, hostname=hostname, socket=socket)
 
 
 def _make_remote_execution_output_dir(
@@ -1227,31 +1217,9 @@ def _make_remote_execution_output_dir(
     hostname: str,
     socket: str | None,
 ) -> None:
-    mkdir_command = f"mkdir -p {dirpath}"
-    ssh_command = ["ssh"]
-    if socket is not None:
-        ssh_command.append(f"-S {socket}")
-    ssh_command.append(f"{username}@{hostname}")
-    ssh_command.append(mkdir_command)
-    ssh_command = " ".join(ssh_command)
-    logger.info("Creating remote dir", cmd=ssh_command)
-    completed_process = subprocess.run(
-        args=shlex.split(ssh_command), stderr=subprocess.PIPE
+    make_remote_dir(
+        dirpath=dirpath, username=username, hostname=hostname, socket=socket
     )
-    if completed_process.returncode != 0:
-        error_msg = (
-            completed_process.stderr.decode("utf-8")
-            if completed_process.stderr
-            else "Unknown error"
-        )
-        logger.error(
-            "Erorr creating remote dir",
-            code=completed_process.returncode,
-            msg=error_msg,
-        )
-        raise RuntimeError(
-            "failed to make a remote execution output dir\n{}".format(error_msg)
-        )
 
 
 def _rsync_upload_rundirs(
@@ -1260,40 +1228,12 @@ def _rsync_upload_rundirs(
     username: str,
     hostname: str,
 ) -> None:
-    """Upload local run directories to a remote host using rsync over SSH.
-
-    Args:
-        local_sources: List of local Path objects to upload.
-        remote_target: Remote directory path as a string.
-        hostname: SSH hostname.
-        username: SSH username.
-
-    Raises:
-        RuntimeError: If rsync fails.
-    """
-    for local_source in local_sources:
-        assert local_source.is_dir()
-    remote_destination_str = f"{username}@{hostname}:{remote_target}"
-    local_sources_str = " ".join(map(str, local_sources))
-    rsync_upload_command = f"rsync -qcaz {local_sources_str} {remote_destination_str}"
-    logger.info("Rsyncing to remote dir", cmd=rsync_upload_command)
-    completed_process = subprocess.run(
-        args=shlex.split(rsync_upload_command),
-        stderr=subprocess.PIPE,
+    rsync_upload(
+        local_sources=local_sources,
+        remote_target=remote_target,
+        username=username,
+        hostname=hostname,
     )
-    if completed_process.returncode != 0:
-        error_msg = (
-            completed_process.stderr.decode("utf-8")
-            if completed_process.stderr
-            else "Unknown error"
-        )
-
-        logger.error(
-            "Erorr rsyncing to remote dir",
-            code=completed_process.returncode,
-            msg=error_msg,
-        )
-        raise RuntimeError("failed to upload local sources\n{}".format(error_msg))
 
 
 def _sbatch_remote_runsubs(
