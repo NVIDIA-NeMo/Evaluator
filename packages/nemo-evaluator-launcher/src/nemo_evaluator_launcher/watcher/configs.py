@@ -111,26 +111,29 @@ class WatchConfig(BaseModel):
         description="Conversion config to run for each discovered checkpoint before evaluation. "
         "If not provided the original checkpoint is used for evaluation.",
     )
-    # FIXME: rename to evaluation_configs
-    eval_configs: list[RunConfig] = Field(
+    evaluation_configs: list[RunConfig] = Field(
         description="Evaluation configs to run for each discovered checkpoint.",
     )
 
     @model_validator(mode="after")
     def validate_eval_config_structure(self) -> "WatchConfig":
-        for i, cfg in enumerate(self.eval_configs):
+        for i, cfg in enumerate(self.evaluation_configs):
             if "deployment" not in cfg or cfg.get("deployment") is None:
-                raise ValueError(f"eval_configs[{i}] must have a 'deployment' section")
+                raise ValueError(
+                    f"evaluation_configs[{i}] must have a 'deployment' section"
+                )
             if OmegaConf.select(cfg, CHECKPOINT_FIELD, default=None) is not None:
                 logger.warning(
-                    f"eval_configs[{i}] pre-defines '{CHECKPOINT_FIELD}' "
+                    f"evaluation_configs[{i}] pre-defines '{CHECKPOINT_FIELD}' "
                     f"— watch mode will override it for each discovered checkpoint"
                 )
             if "execution" not in cfg or cfg.get("execution") is None:
-                raise ValueError(f"eval_configs[{i}] must have an 'execution' section")
+                raise ValueError(
+                    f"evaluation_configs[{i}] must have an 'execution' section"
+                )
             if cfg.get("execution", {}).get("output_dir") is not None:
                 raise ValueError(
-                    f"eval_configs[{i}] must not pre-define 'execution.output_dir' "
+                    f"evaluation_configs[{i}] must not pre-define 'execution.output_dir' "
                     f"— watch mode sets it per checkpoint"
                 )
         return self
@@ -143,6 +146,6 @@ class WatchConfig(BaseModel):
         Each path is loaded via :func:`RunConfig.from_hydra` before validation.
         """
         data = yaml.safe_load(path.read_text()) or {}
-        raw_eval_configs = data.pop("eval_configs", [])
+        raw_eval_configs = data.pop("evaluation_configs", [])
         loaded = [RunConfig.from_hydra(config=str(p)) for p in raw_eval_configs]
-        return cls.model_validate({**data, "eval_configs": loaded})
+        return cls.model_validate({**data, "evaluation_configs": loaded})
