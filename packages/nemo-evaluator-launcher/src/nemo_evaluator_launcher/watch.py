@@ -41,17 +41,14 @@ CHECKPOINT_FIELD = "deployment.checkpoint_path"
 WATCH_STATE_DIR = Path.home() / ".nemo-evaluator" / "watch-state"
 
 
-class WatchConfig(BaseModel):
-    """Top-level configuration for nel-watch, loadable from a YAML file."""
+class MonitoringConfig(BaseModel):
+    """Configuration for monitoring directories for new checkpoints."""
 
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+    model_config = ConfigDict(extra="forbid")
 
     directories: list[str] = Field(
         description="Checkpoint directories to watch for new subdirectories. "
         "Use absolute local paths or '[user@]hostname:/path' for remote directories.",
-    )
-    eval_configs: list[RunConfig] = Field(
-        description="Evaluation configs to run for each discovered checkpoint.",
     )
     interval: Optional[int] = Field(
         default=DEFAULT_INTERVAL,
@@ -81,7 +78,6 @@ class WatchConfig(BaseModel):
             "'first' processes the lowest name (e.g. step_1000) first."
         ),
     )
-    # TODO: add overrides for eval_configs
 
     @field_validator("interval")
     @classmethod
@@ -96,6 +92,53 @@ class WatchConfig(BaseModel):
         if not v:
             raise ValueError("must contain at least one entry")
         return v
+
+
+class ConversionConfig(BaseModel):
+    """Configuration for a checkpoint conversion job run before evaluation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    container: str = Field(description="Docker image to use for the conversion job.")
+    mounts: Optional[dict[str, str]] = Field(
+        default=None,
+        description="Mount directories (source:target format) to pass to the conversion job.",
+    )
+    command_pattern: str = Field(
+        description=(
+            "Command template to run inside the container. "
+            "Must contain '{input_path}' and '{output_path}' placeholders. "
+            "It can also contain other placeholders that will be populated during runtime."
+        )
+    )
+
+    @field_validator("command_pattern")
+    @classmethod
+    def command_pattern_must_have_placeholders(cls, v: str) -> str:
+        missing = [p for p in ("{input_path}", "{output_path}") if p not in v]
+        if missing:
+            raise ValueError(
+                f"command_pattern is missing required placeholder(s): {', '.join(missing)}"
+            )
+        return v
+
+
+class WatchConfig(BaseModel):
+    """Top-level configuration for nel-watch, loadable from a YAML file."""
+
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
+    monitoring_config: MonitoringConfig = Field(
+        description="Configuration for monitoring directories for new checkpoints.",
+    )
+    conversion_config: Optional[ConversionConfig] = Field(
+        default=None,
+        description="Conversion config to run for each discovered checkpoint before evaluation. "
+        "If not provided the original checkpoint is used for evaluation.",
+    )
+    eval_configs: list[RunConfig] = Field(
+        description="Evaluation configs to run for each discovered checkpoint.",
+    )
 
     @model_validator(mode="after")
     def validate_eval_config_structure(self) -> "WatchConfig":
@@ -271,16 +314,18 @@ def watch_checkpoints(
 
     try:
         while True:
-            for watch_dir_str in watch_config.directories:
+            for watch_dir_str in watch_config.monitoring_config.directories:
                 if stop_requested:
                     break
 
                 wd = Path(watch_dir_str)
                 checkpoints = discover_checkpoints(
-                    wd, watch_config.ready_markers, watch_config.checkpoint_patterns
+                    wd,
+                    watch_config.monitoring_config.ready_markers,
+                    watch_config.monitoring_config.checkpoint_patterns,
                 )
 
-                if watch_config.order == "last":
+                if watch_config.monitoring_config.order == "last":
                     checkpoints = list(reversed(checkpoints))
 
                 already_submitted = state.submitted_paths()
@@ -336,13 +381,17 @@ def watch_checkpoints(
                             state.append(record)
                             session_submissions.append(record)
 
-            if watch_config.interval is None or stop_requested:
+            if watch_config.monitoring_config.interval is None or stop_requested:
                 break
 
-            logger.debug(f"Sleeping {watch_config.interval}s before next poll")
+            logger.debug(
+                f"Sleeping {watch_config.monitoring_config.interval}s before next poll"
+            )
             elapsed = 0
-            while elapsed < watch_config.interval and not stop_requested:
-                time.sleep(min(1, watch_config.interval - elapsed))
+            while (
+                elapsed < watch_config.monitoring_config.interval and not stop_requested
+            ):
+                time.sleep(min(1, watch_config.monitoring_config.interval - elapsed))
                 elapsed += 1
 
     finally:
