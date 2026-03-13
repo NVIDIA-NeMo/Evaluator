@@ -37,7 +37,7 @@ class WatchStateDB:
             session_id = generate_invocation_id()
             path = WATCH_STATE_DIR / f"watch-state.{session_id}.v1.jsonl"
         self._path = path
-        self._submitted: dict[str, SubmittedCheckpoint] = {}
+        self._submitted: dict[str, SubmittedCheckpoint] = {}  # keyed by invocation_id
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._load()
 
@@ -52,10 +52,8 @@ class WatchStateDB:
                         continue
                     try:
                         record = json.loads(line)
-                        # FIXME we can have multiple submissions for the same checkpoint (if multiple eval configs are used)
-                        self._submitted[record["checkpoint"]] = SubmittedCheckpoint(
-                            **record
-                        )
+                        entry = SubmittedCheckpoint(**record)
+                        self._submitted[entry.invocation_id] = entry
                     except json.JSONDecodeError as e:
                         logger.warning("Failed to parse watch state line", error=str(e))
         except OSError as e:
@@ -65,11 +63,11 @@ class WatchStateDB:
             )
 
     def submitted_paths(self) -> set[str]:
-        return set(self._submitted.keys())
+        return {r.checkpoint for r in self._submitted.values()}
 
     def append(self, record: SubmittedCheckpoint) -> None:
         """Append a submitted checkpoint to the log and update in-memory state."""
-        self._submitted[record.checkpoint] = record
+        self._submitted[record.invocation_id] = record
         try:
             with open(self._path, "a") as f:
                 f.write(json.dumps(record.model_dump()) + "\n")

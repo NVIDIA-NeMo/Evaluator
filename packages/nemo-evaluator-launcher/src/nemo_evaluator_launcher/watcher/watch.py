@@ -148,7 +148,7 @@ def watch_and_evaluate(
                     # this main blocking loop should only register that the job was submitted
                     # so the checkpoint is not picked up again
 
-                    for eval_config in watch_config.eval_configs:
+                    for eval_config in watch_config.evaluation_configs:
                         cfg_copy = OmegaConf.create(
                             OmegaConf.to_container(eval_config, resolve=True)
                         )
@@ -193,13 +193,11 @@ def watch_and_evaluate(
             logger.debug(
                 f"Sleeping {watch_config.monitoring_config.interval}s before next poll"
             )
-            # FIXME: this looks overcomplicated. why can't we use time.sleep(watch_config.monitoring_config.interval) directly?
-            elapsed = 0
-            while (
-                elapsed < watch_config.monitoring_config.interval and not stop_requested
-            ):
-                time.sleep(min(1, watch_config.monitoring_config.interval - elapsed))
-                elapsed += 1
+            # Sleep 1 second at a time so SIGINT is handled promptly.
+            for _ in range(watch_config.monitoring_config.interval):
+                if stop_requested:
+                    break
+                time.sleep(1)
 
     finally:
         signal.signal(signal.SIGINT, original_handler)
