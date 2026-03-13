@@ -179,7 +179,9 @@ def test_skill_prompt_file_references_exist(skill_prompt_path):
     )
 
     # Resolve paths relative to REPO_ROOT (packages/nemo-evaluator/)
-    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(skill_prompt_path)))
+    repo_root = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..")
+    )
     for rel_path in paths:
         full_path = os.path.join(repo_root, rel_path)
         assert os.path.isfile(full_path), (
