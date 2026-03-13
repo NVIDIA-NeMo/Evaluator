@@ -1,11 +1,8 @@
 defaults:
   - deployment: nim
 
-execution:
-  env_vars:
-    deployment:
-      NGC_API_KEY: host:NGC_API_KEY # Required for NIM container authentication
-
 deployment:
+  env_vars:
+    NGC_API_KEY: host:NGC_API_KEY # Required for NIM container authentication
   image: ??? # NIM image (e.g., nvcr.io/nim/meta/llama-3.2-1b-instruct:latest)
   served_model_name: ??? # Model name (e.g., meta/llama-3.2-1b-instruct)

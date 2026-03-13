@@ -116,6 +116,9 @@ Use WebSearch to find model card (HuggingFace, build.nvidia.com). Read it carefu
   - Short mount examples:
     - deployment: `execution.mounts.deployment: {"./reasoning_parser.py": "/vllm-workspace/reasoning_parser.py"}`
     - evaluation: `execution.mounts.evaluation: {"./hf_cache": "/root/.cache/huggingface"}`
+- Env vars:
+  - Use `deployment.env_vars` for deployment-side settings, `evaluation.env_vars` for evaluation-wide settings, and `evaluation.tasks[].env_vars` for task-specific overrides.
+  - Supported value types: `host:VAR_NAME` = read the value from the host env var `VAR_NAME`; `lit:value` = use the literal value directly; `runtime:VAR_NAME` = resolve `VAR_NAME` only at runtime inside the execution environment.
 - Any other model-specific requirements
 
 Remember to check `evaluation.nemo_evaluator_config` and `evaluation.tasks.*.nemo_evaluator_config` overrides too for parameters to adjust (e.g. disabling reasoning)!

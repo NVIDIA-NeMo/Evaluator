@@ -1,12 +1,9 @@
 defaults:
   - deployment: vllm
 
-execution:
-  env_vars:
-    deployment:
-      HF_TOKEN: host:HF_TOKEN # Required for gated HuggingFace models
-
 deployment:
+  env_vars:
+    HF_TOKEN: host:HF_TOKEN # Required for gated HuggingFace models
   checkpoint_path: null # Set to path if using local checkpoint
   hf_model_handle: ??? # HuggingFace model handle (e.g., meta-llama/Llama-3.1-8B)
   served_model_name: ??? # Model name for API (e.g., meta-llama/Llama-3.1-8B)
