@@ -152,6 +152,7 @@ execution:
   output_dir: /shared/scratch/your_username/eval_results
   partition: gpu
   walltime: "04:00:00"
+  endpoint_readiness_timeout: 1200  # wait up to 20 minutes for model server
   gpus_per_node: 8
 
 deployment:
