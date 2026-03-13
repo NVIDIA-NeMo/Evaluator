@@ -15,6 +15,7 @@
 #
 """Watch mode: poll checkpoint directories and trigger evaluations for new checkpoints."""
 
+import copy
 import fnmatch
 import re
 import signal
@@ -78,7 +79,7 @@ def discover_checkpoints(
     return checkpoints
 
 
-def watch_checkpoints(
+def watch_and_evaluate(
     watch_config: WatchConfig,
     dry_run: bool = False,
     state_file: Optional[Path] = None,
@@ -127,19 +128,25 @@ def watch_checkpoints(
                     cp for cp in checkpoints if str(cp) not in already_submitted
                 ]
 
-                if new_checkpoints:
-                    logger.info(
-                        f"Found {len(new_checkpoints)} new checkpoint(s)",
-                        watch_dir=str(wd),
-                    )
-                else:
+                if not new_checkpoints:
                     logger.debug("No new checkpoints found", watch_dir=str(wd))
+                    continue
+                logger.info(
+                    f"Found {len(new_checkpoints)} new checkpoint(s)", watch_dir=str(wd)
+                )
 
                 for cp in new_checkpoints:
                     if stop_requested:
                         break
 
                     logger.info(f"Processing checkpoint: {cp.name}", path=str(cp))
+                    # FIXME: trigger conversion job if defined
+                    # this should be done in a non-blocking manner
+                    # conversion is sent to the background, and we should have
+                    # a concurrent process to wait for the conversion to complete
+                    # and then trigger the evaluation
+                    # this main blocking loop should only register that the job was submitted
+                    # so the checkpoint is not picked up again
 
                     for eval_config in watch_config.eval_configs:
                         cfg_copy = OmegaConf.create(
@@ -170,17 +177,23 @@ def watch_checkpoints(
                                 checkpoint=str(cp),
                                 invocation_id=invocation_id,
                                 timestamp=datetime.now(timezone.utc).isoformat(),
-                                watch_dir=str(wd),
+                                watch_config=copy.deepcopy(watch_config),
+                                eval_config=cfg_copy,
                             )
                             state.append(record)
                             session_submissions.append(record)
 
-            if watch_config.monitoring_config.interval is None or stop_requested:
+            if (
+                watch_config.monitoring_config.interval is None
+                or stop_requested
+                or dry_run
+            ):
                 break
 
             logger.debug(
                 f"Sleeping {watch_config.monitoring_config.interval}s before next poll"
             )
+            # FIXME: this looks overcomplicated. why can't we use time.sleep(watch_config.monitoring_config.interval) directly?
             elapsed = 0
             while (
                 elapsed < watch_config.monitoring_config.interval and not stop_requested
