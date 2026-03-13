@@ -984,6 +984,7 @@ class TestSlurmExecutorHelperFunctions:
             ip_list=ip_list,
             port=port,
             health_check_path=health_path,
+            timeout=600,
             service_name=service_name,
             check_pid=check_pid,
         )

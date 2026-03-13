@@ -811,9 +811,9 @@ def _create_slurm_sbatch_script(
             ip_list,
             cfg.deployment.port,
             health_path,
-            "server",
+            health_check_timeout,
+            service_name="server",
             check_pid=True,
-            timeout=health_check_timeout,
         )
         s += "\n\n"
 
@@ -1796,9 +1796,9 @@ def _get_wait_for_server_handler(
     ip_list: str,
     port: int,
     health_check_path: str,
+    timeout: int,
     service_name: str = "server",
     check_pid: bool = False,
-    timeout: int = 600,
 ):
     """Generate wait for server handler that takes a list of IPs."""
     pid_check = ""
@@ -1868,9 +1868,9 @@ def _generate_haproxy_srun_command(cfg, remote_task_subdir):
         "127.0.0.1",
         haproxy_port,
         health_path,
-        "Proxy",
+        health_check_timeout,
+        service_name="Proxy",
         check_pid=False,
-        timeout=health_check_timeout,
     )
     s += "\n"
 
