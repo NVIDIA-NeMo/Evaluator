@@ -748,8 +748,8 @@ class TestLocalExecutorStreamLogs:
         assert task_name == "some_task_name"
 
 
-class TestLocalExecutorHealthCheckTimeout:
-    """Test that LocalExecutor propagates health_check_timeout to the generated run script."""
+class TestLocalExecutorEndpointReadinessTimeout:
+    """Test that LocalExecutor propagates endpoint_readiness_timeout to the generated run script."""
 
     @pytest.fixture
     def mock_tasks_mapping(self):
@@ -762,7 +762,7 @@ class TestLocalExecutorHealthCheckTimeout:
             },
         }
 
-    def _make_config(self, tmpdir, health_check_timeout=None):
+    def _make_config(self, tmpdir, endpoint_readiness_timeout=None):
         config_dict = {
             "deployment": {
                 "type": "vllm",
@@ -791,28 +791,30 @@ class TestLocalExecutorHealthCheckTimeout:
                 "tasks": [{"name": "test_task"}],
             },
         }
-        if health_check_timeout is not None:
-            config_dict["execution"]["health_check_timeout"] = health_check_timeout
+        if endpoint_readiness_timeout is not None:
+            config_dict["execution"]["endpoint_readiness_timeout"] = (
+                endpoint_readiness_timeout
+            )
         return OmegaConf.create(config_dict)
 
     @pytest.mark.parametrize(
-        "health_check_timeout, expected_timeout",
+        "endpoint_readiness_timeout, expected_timeout",
         [
             (1200, 1200),
             (None, 600),
         ],
         ids=["custom", "default"],
     )
-    def test_health_check_timeout_in_generated_script(
+    def test_endpoint_readiness_timeout_in_generated_script(
         self,
         mock_execdb,
         mock_tasks_mapping,
         tmpdir,
-        health_check_timeout,
+        endpoint_readiness_timeout,
         expected_timeout,
     ):
         """Dry run with deployment produces run script with the correct timeout."""
-        sample_config = self._make_config(tmpdir, health_check_timeout)
+        sample_config = self._make_config(tmpdir, endpoint_readiness_timeout)
         os.environ["TEST_API_KEY"] = "test_key_value"
 
         try:

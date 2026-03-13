@@ -617,29 +617,37 @@ class TestWalltimeToSeconds:
             walltime_to_seconds(walltime)
 
 
-class TestResolveHealthCheckTimeout:
-    """Tests for resolve_health_check_timeout."""
+class TestResolveEndpointReadinessTimeout:
+    """Tests for resolve_endpoint_readiness_timeout."""
 
     def test_explicit_value(self):
-        from nemo_evaluator_launcher.common.helpers import resolve_health_check_timeout
+        from nemo_evaluator_launcher.common.helpers import (
+            resolve_endpoint_readiness_timeout,
+        )
 
-        cfg = OmegaConf.create({"execution": {"health_check_timeout": 1200}})
-        assert resolve_health_check_timeout(cfg) == 1200
+        cfg = OmegaConf.create({"execution": {"endpoint_readiness_timeout": 1200}})
+        assert resolve_endpoint_readiness_timeout(cfg) == 1200
 
     def test_falls_back_to_walltime(self):
-        from nemo_evaluator_launcher.common.helpers import resolve_health_check_timeout
+        from nemo_evaluator_launcher.common.helpers import (
+            resolve_endpoint_readiness_timeout,
+        )
 
         cfg = OmegaConf.create({"execution": {"walltime": "02:00:00"}})
-        assert resolve_health_check_timeout(cfg) == 7200
+        assert resolve_endpoint_readiness_timeout(cfg) == 7200
 
     def test_null_walltime_uses_default(self):
-        from nemo_evaluator_launcher.common.helpers import resolve_health_check_timeout
+        from nemo_evaluator_launcher.common.helpers import (
+            resolve_endpoint_readiness_timeout,
+        )
 
         cfg = OmegaConf.create({"execution": {"walltime": None}})
-        assert resolve_health_check_timeout(cfg) == 3600
+        assert resolve_endpoint_readiness_timeout(cfg) == 3600
 
     def test_no_config_uses_default(self):
-        from nemo_evaluator_launcher.common.helpers import resolve_health_check_timeout
+        from nemo_evaluator_launcher.common.helpers import (
+            resolve_endpoint_readiness_timeout,
+        )
 
         cfg = OmegaConf.create({"execution": {}})
-        assert resolve_health_check_timeout(cfg) == 3600
+        assert resolve_endpoint_readiness_timeout(cfg) == 3600

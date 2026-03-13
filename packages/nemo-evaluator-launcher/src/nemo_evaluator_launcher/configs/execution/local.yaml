@@ -17,4 +17,4 @@ type: local
 output_dir: ???
 extra_docker_args: ""
 mode: sequential
-health_check_timeout: 600
+endpoint_readiness_timeout: 600

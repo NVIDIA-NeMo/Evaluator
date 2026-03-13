@@ -2939,12 +2939,12 @@ class TestMultiNodeMultiInstance:
         "config_override, expected_timeout",
         [
             ({}, 3600),  # walltime 01:00:00 in base_config -> 3600s
-            ({"health_check_timeout": 1200}, 1200),  # explicit override
+            ({"endpoint_readiness_timeout": 1200}, 1200),  # explicit override
             ({"walltime": "02:00:00"}, 7200),  # walltime override -> 7200s
         ],
         ids=["default-from-walltime", "explicit-override", "custom-walltime"],
     )
-    def test_health_check_timeout_in_sbatch_script(
+    def test_endpoint_readiness_timeout_in_sbatch_script(
         self,
         base_config,
         mock_task,

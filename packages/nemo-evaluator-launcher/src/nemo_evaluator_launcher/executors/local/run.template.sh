@@ -87,7 +87,7 @@ else
 
         date
         # wait for the server to initialize
-        TIMEOUT={{ health_check_timeout }}
+        TIMEOUT={{ endpoint_readiness_timeout }}
         ELAPSED=0
         while [[ "$(curl -s -o /dev/null -w "%{http_code}" {{ task.deployment.health_url }})" != "200" ]]; do
             kill -0 $SERVER_PID 2>/dev/null || { echo "Server process $SERVER_PID died"; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) 1" > "$logs_dir/stage.exit"; exit 1; }

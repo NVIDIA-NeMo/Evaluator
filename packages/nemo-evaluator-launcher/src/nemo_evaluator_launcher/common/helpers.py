@@ -520,9 +520,9 @@ def walltime_to_seconds(walltime: str) -> int:
     return int(td.total_seconds())
 
 
-def resolve_health_check_timeout(cfg: DictConfig) -> int:
-    """Resolve health check timeout: explicit config value, or walltime in seconds."""
-    explicit = cfg.execution.get("health_check_timeout")
+def resolve_endpoint_readiness_timeout(cfg: DictConfig) -> int:
+    """Resolve endpoint readiness timeout: explicit config value, or walltime in seconds."""
+    explicit = cfg.execution.get("endpoint_readiness_timeout")
     if explicit is not None:
         return int(explicit)
     wt = cfg.execution.get("walltime")
