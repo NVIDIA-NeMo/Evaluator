@@ -283,6 +283,18 @@ def _get_build_command(
     return [*base, "-t", tag, context_dir]
 
 
+def _resolve_platform_tag(tag: str, platform: Optional[str] = None) -> str:
+    """Append the target platform as a suffix to the image tag.
+
+    Uses the host platform when *platform* is not specified.
+    """
+    import platform as platform_mod
+
+    platform_str = platform or f"{platform_mod.system()}/{platform_mod.machine()}"
+    suffix = platform_str.lower().replace("/", "-")
+    return f"{tag}-{suffix}"
+
+
 def build_image(
     context_dir: str,
     tag: str,
@@ -327,6 +339,8 @@ def build_image(
         reqs_path = os.path.join(context_dir, "requirements.txt")
         with open(reqs_path, "w") as f:
             f.write("\n".join(user_requirements) + "\n")
+
+    tag = _resolve_platform_tag(tag, platform)
 
     logger.info("Building Docker image", tag=tag, context=context_dir)
     cmd = _get_build_command(tag, context_dir, platform=platform)

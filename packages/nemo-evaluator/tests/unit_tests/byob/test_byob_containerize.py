@@ -21,6 +21,7 @@ import pytest
 
 from nemo_evaluator.contrib.byob.containerize import (
     _get_build_command,
+    _resolve_platform_tag,
     build_image,
     generate_dockerfile,
     prepare_build_context,
@@ -211,7 +212,8 @@ class TestBuildImage:
         assert call_args[0] == "docker"
         assert call_args[1] == "build"
         assert "-t" in call_args
-        assert tag in call_args
+        expected_tag = _resolve_platform_tag(tag)
+        assert expected_tag in call_args
         assert context_dir in call_args
 
     @patch("nemo_evaluator.contrib.byob.containerize.subprocess.run")
@@ -244,16 +246,17 @@ class TestBuildImage:
             )
 
     @patch("nemo_evaluator.contrib.byob.containerize.subprocess.run")
-    def test_build_returns_tag(self, mock_run, tmp_path):
-        """Test that build_image returns the tag on success."""
+    def test_build_returns_tag_with_platform(self, mock_run, tmp_path):
+        """Test that build_image returns tag with platform suffix."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         result = build_image(
             context_dir=str(tmp_path),
             tag="myrepo/byob_test:v1",
             pkg_name="byob_test",
+            platform="linux/amd64",
         )
-        assert result == "myrepo/byob_test:v1"
+        assert result == "myrepo/byob_test:v1-linux-amd64"
 
     @patch("nemo_evaluator.contrib.byob.containerize.subprocess.run")
     def test_build_with_platform_uses_buildx(self, mock_run, tmp_path):
@@ -275,6 +278,30 @@ class TestBuildImage:
         assert "--platform" in call_args
         assert "--load" in call_args
         assert "linux/amd64" in call_args
+
+
+class TestResolvePlatformTag:
+    """Tests for _resolve_platform_tag helper."""
+
+    def test_explicit_platform(self):
+        assert (
+            _resolve_platform_tag("img:latest", "linux/amd64")
+            == "img:latest-linux-amd64"
+        )
+
+    def test_explicit_platform_arm(self):
+        assert _resolve_platform_tag("img:v1", "linux/arm64") == "img:v1-linux-arm64"
+
+    def test_no_platform_uses_host(self):
+        import platform as platform_mod
+
+        expected_suffix = (
+            f"{platform_mod.system()}/{platform_mod.machine()}".lower().replace(
+                "/", "-"
+            )
+        )
+        result = _resolve_platform_tag("img:latest")
+        assert result == f"img:latest-{expected_suffix}"
 
 
 class TestGetBuildCommand:
