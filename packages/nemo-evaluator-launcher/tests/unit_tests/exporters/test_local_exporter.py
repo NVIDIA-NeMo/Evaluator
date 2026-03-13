@@ -403,3 +403,52 @@ class TestLocalExporterManualScenarios:
         result2 = exporter.export([j1.job_id])
         assert result2.skipped_jobs == [j1.job_id]
         assert result2.successful_jobs == []
+
+
+def test_export_does_not_fail_when_launcher_command_and_results_dir_missing(
+    tmp_path: Path, mock_execdb, prepare_local_job
+):
+    """Export must succeed even when launcher_command / results_dir are absent (None)."""
+    from unittest.mock import patch
+
+    inv = "test_missing_meta"
+    j1 = JobData(
+        invocation_id=inv,
+        job_id=f"{inv}.0",
+        timestamp=0.0,
+        executor="local",
+        data={},
+        config={"evaluation": {"tasks": [{"name": "simple_evals.mmlu"}]}},
+    )
+    prepare_local_job(j1, with_required=True, with_optional=False)
+    ExecutionDB().write_job(j1)
+
+    output_dir = tmp_path / "output"
+    exporter = LocalExporter({"format": "json", "output_dir": str(output_dir)})
+
+    with (
+        patch(
+            "nemo_evaluator_launcher.exporters.base.extract_accuracy_metrics",
+            return_value={"accuracy": 0.9},
+        ),
+        patch(
+            "nemo_evaluator_launcher.exporters.base.load_benchmark_info",
+            return_value=("harness", "mmlu"),
+        ),
+        patch(
+            "nemo_evaluator_launcher.exporters.base.get_model_id",
+            return_value="mymodel",
+        ),
+        patch(
+            "nemo_evaluator_launcher.exporters.base.load_launcher_command_from_metadata",
+            return_value=None,
+        ),
+        patch(
+            "nemo_evaluator_launcher.exporters.base.get_results_dir_from_job_data",
+            return_value=None,
+        ),
+    ):
+        result = exporter.export([j1.job_id])
+
+    assert result.successful_jobs == [j1.job_id]
+    assert result.failed_jobs == []

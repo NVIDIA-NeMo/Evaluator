@@ -16,6 +16,8 @@
 import base64
 import datetime
 import os
+import shlex
+import sys
 from dataclasses import dataclass
 from typing import Optional
 
@@ -116,6 +118,15 @@ nemo-evaluator-launcher run --config my_config.yaml \\
     -o evaluation.nemo_evaluator_config.config.params.top_p=0.95
 ```
 """
+
+
+def _get_launcher_command() -> str:
+    """Return the launcher CLI command as a single string.
+
+    sys.argv already starts at the entrypoint (e.g. ``nemo-evaluator-launcher run ...``),
+    so shell-level ``export KEY=VALUE`` prefixes are never included.
+    """
+    return shlex.join(sys.argv)
 
 
 def get_eval_factory_config(
@@ -235,6 +246,11 @@ def get_eval_factory_command(
         merged_nemo_evaluator_config,
         ["metadata", "versioning"],
         get_versions(),
+    )
+    _set_nested_optionally_overriding(
+        merged_nemo_evaluator_config,
+        ["metadata", "launcher_command"],
+        _get_launcher_command(),
     )
 
     # Now get the pre_cmd/post_cmd either from `evaluation.*` or task-level. Note the

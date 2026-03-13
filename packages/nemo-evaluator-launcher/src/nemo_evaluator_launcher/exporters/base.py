@@ -30,8 +30,10 @@ from nemo_evaluator_launcher.exporters.utils import (
     copy_artifacts,
     extract_accuracy_metrics,
     get_model_id,
+    get_results_dir_from_job_data,
     load_benchmark_info,
     load_config_from_metadata,
+    load_launcher_command_from_metadata,
 )
 
 
@@ -331,6 +333,8 @@ class BaseExporter(ABC):
             harness, task = load_benchmark_info(artifacts_dir)
             container = job_data.data.get("eval_image", None)
             model_id = get_model_id(artifacts_dir)
+            launcher_command = load_launcher_command_from_metadata(artifacts_dir)
+            results_dir = get_results_dir_from_job_data(job_data.data)
 
             return DataForExport(
                 artifacts_dir=artifacts_dir,
@@ -346,6 +350,8 @@ class BaseExporter(ABC):
                 job_id=job_data.job_id,
                 timestamp=job_data.timestamp,
                 job_data=job_data.data,
+                launcher_command=launcher_command,
+                results_dir=results_dir,
             )
         except Exception as e:
             logger.error(
