@@ -111,6 +111,7 @@ class WatchConfig(BaseModel):
         description="Conversion config to run for each discovered checkpoint before evaluation. "
         "If not provided the original checkpoint is used for evaluation.",
     )
+    # FIXME: rename to evaluation_configs
     eval_configs: list[RunConfig] = Field(
         description="Evaluation configs to run for each discovered checkpoint.",
     )
