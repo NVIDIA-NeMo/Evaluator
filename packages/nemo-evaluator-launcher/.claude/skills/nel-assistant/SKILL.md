@@ -93,6 +93,7 @@ Use WebSearch to find model card (HuggingFace, build.nvidia.com). Read it carefu
   - reasoning on/off: use either:
     - `adapter_config.custom_system_prompt` (like `/think`, `/no_think`) and no `adapter_config.params_to_add` (leave `params_to_add` unrelated to reasoning untouched)
     - `adapter_config.params_to_add` for payload modifier (like `"chat_template_kwargs": {"enable_thinking": true/false}`) and no `adapter_config.custom_system_prompt` and `adapter_config.use_system_prompt: false` (leave `custom_system_prompt` and `use_system_prompt` unrelated to reasoning untouched).
+  - If a task override contains `[placeholder to disable thinking e.g. {"chat_template_kwargs": {"enable_thinking": false}, "skip_special_tokens": false}]`, replace it with the model-specific payload from the model card that disables reasoning.
   - For pure-chat models, remove `adapter_config.params_to_add` completely if the model card does not define a reasoning toggle.
   - reasoning effort (if it's configurable, AskUserQuestion what reasoning effort they want)
   - higher `max_new_tokens`

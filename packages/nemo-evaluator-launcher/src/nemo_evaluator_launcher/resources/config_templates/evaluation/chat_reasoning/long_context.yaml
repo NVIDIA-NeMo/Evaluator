@@ -14,7 +14,8 @@ evaluation:
         target:
           api_endpoint:
             adapter_config:
-              params_to_add: {"chat_template_kwargs": {"enable_thinking": false}, "skip_special_tokens": false}
+              process_reasoning_traces: false
+              params_to_add: '[placeholder to disable thinking e.g. {"chat_template_kwargs": {"enable_thinking": false}, "skip_special_tokens": false}]'
     - name: ruler-256k-chat
       nemo_evaluator_config:
         config:
@@ -29,7 +30,8 @@ evaluation:
         target:
           api_endpoint:
             adapter_config:
-              params_to_add: {"chat_template_kwargs": {"enable_thinking": false}, "skip_special_tokens": false}
+              process_reasoning_traces: false
+              params_to_add: '[placeholder to disable thinking e.g. {"chat_template_kwargs": {"enable_thinking": false}, "skip_special_tokens": false}]'
     - name: ruler-512k-chat
       nemo_evaluator_config:
         config:
@@ -44,4 +46,5 @@ evaluation:
         target:
           api_endpoint:
             adapter_config:
-              params_to_add: {"chat_template_kwargs": {"enable_thinking": false}, "skip_special_tokens": false}
+              process_reasoning_traces: false
+              params_to_add: '[placeholder to disable thinking e.g. {"chat_template_kwargs": {"enable_thinking": false}, "skip_special_tokens": false}]'
