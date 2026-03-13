@@ -69,8 +69,8 @@ container = "nvcr.io/nvidia/eval-factory/garak:26.01"
 # container-digest:sha256:72514ac2c35f76fdb139b02f1c1d4159103969946a121592e50b129087dd455e
 
 [nemo_skills]
-container = "nvcr.io/nvidia/eval-factory/nemo-skills:26.01"
-# container-digest:sha256:43e2c4d6e197744f7fd0a874d06c5600a8b46b54e16d333c0ebf057b6d54635a
+container = "nvcr.io/nvidia/eval-factory/nemo-skills:26.03"
+# container-digest:sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
 # NeMo Skills container name has changed from nemo_skills to nemo-skills in 26.01
 
 [safety_eval]

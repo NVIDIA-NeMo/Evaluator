@@ -2,14 +2,15 @@
 # Uses log-probabilities for multiple-choice tasks
 # See: https://docs.nvidia.com/nemo/evaluator/latest/evaluation/run-evals/logprobs.html
 evaluation:
+  env_vars:
+    HF_TOKEN: host:HF_TOKEN # Required to access gated tokenizers
   nemo_evaluator_config:
     config:
       params:
         request_timeout: 3600
-        parallelism: 64
+        max_retries: 5
+        parallelism: 16
         extra:
           # Tokenizer required for log-probability tasks
           tokenizer: ??? # HuggingFace model handle or path to tokenizer (must match evaluated model)
-          tokenizer_backend: huggingface # or "tiktoken"
-  env_vars:
-    HF_TOKEN: host:HF_TOKEN # Required to access gated tokenizers
+          tokenizer_backend: huggingface
