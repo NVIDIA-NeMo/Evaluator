@@ -712,6 +712,8 @@ def _create_slurm_sbatch_script(
             s += "#SBATCH --{}\n".format(flag_name)
         elif not isinstance(flag_value, bool) and flag_value is not None:
             s += "#SBATCH --{} {}\n".format(flag_name, shlex.quote(str(flag_value)))
+    if cfg.execution.get("sbatch_dependency"):
+        s += f"#SBATCH --dependency {cfg.execution.sbatch_dependency}\n"
     job_name = "{account}-{subproject}.{details}".format(
         account=cfg.execution.account,
         subproject=cfg.execution.subproject,
