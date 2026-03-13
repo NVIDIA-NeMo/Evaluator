@@ -217,6 +217,17 @@ execution:
 The `max_walltime` tracks **actual job execution time only**, excluding time spent waiting in the queue. This ensures accurate runtime accounting even when jobs are repeatedly preempted or must wait for resources.
 :::
 
+### Endpoint Readiness Timeout
+
+When deploying a model server on Slurm, the executor waits for the server's health endpoint to return HTTP 200 before starting the evaluation. By default it waits up to the configured `walltime`. You can override this with `endpoint_readiness_timeout` (in seconds):
+
+```yaml
+execution:
+  endpoint_readiness_timeout: 1200  # wait up to 20 minutes
+```
+
+If the server does not become ready within the timeout, the job fails with a clear error instead of waiting until the Slurm walltime expires.
+
 ## Monitoring and Job Management
 
 For monitoring jobs, checking status, and managing evaluations, see the [Executors Overview](overview.md#job-management) section.

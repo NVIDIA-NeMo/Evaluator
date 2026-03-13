@@ -76,6 +76,17 @@ execution:
 ```
 
 
+### Endpoint Readiness Timeout
+
+When using a deployment (e.g., vLLM), the local executor waits for the model server to become ready before running the evaluation. By default it waits up to 600 seconds (10 minutes). You can adjust this with `endpoint_readiness_timeout`:
+
+```yaml
+execution:
+  endpoint_readiness_timeout: 1200  # wait up to 20 minutes
+```
+
+If the server does not respond within the timeout, the job fails instead of hanging indefinitely.
+
 ## Rerunning Evaluations
 
 The Local executor generates reusable scripts for rerunning evaluations:
