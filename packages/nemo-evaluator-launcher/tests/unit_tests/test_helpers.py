@@ -626,20 +626,20 @@ class TestResolveHealthCheckTimeout:
         cfg = OmegaConf.create({"execution": {"health_check_timeout": 1200}})
         assert resolve_health_check_timeout(cfg) == 1200
 
-    def test_falls_back_to_max_walltime(self):
+    def test_falls_back_to_walltime(self):
         from nemo_evaluator_launcher.common.helpers import resolve_health_check_timeout
 
-        cfg = OmegaConf.create({"execution": {"max_walltime": "02:00:00"}})
+        cfg = OmegaConf.create({"execution": {"walltime": "02:00:00"}})
         assert resolve_health_check_timeout(cfg) == 7200
 
-    def test_null_max_walltime_uses_default(self):
+    def test_null_walltime_uses_default(self):
         from nemo_evaluator_launcher.common.helpers import resolve_health_check_timeout
 
-        cfg = OmegaConf.create({"execution": {"max_walltime": None}})
-        assert resolve_health_check_timeout(cfg) == 432000
+        cfg = OmegaConf.create({"execution": {"walltime": None}})
+        assert resolve_health_check_timeout(cfg) == 3600
 
     def test_no_config_uses_default(self):
         from nemo_evaluator_launcher.common.helpers import resolve_health_check_timeout
 
         cfg = OmegaConf.create({"execution": {}})
-        assert resolve_health_check_timeout(cfg) == 432000
+        assert resolve_health_check_timeout(cfg) == 3600

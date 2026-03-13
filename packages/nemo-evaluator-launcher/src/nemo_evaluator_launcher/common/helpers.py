@@ -521,11 +521,11 @@ def walltime_to_seconds(walltime: str) -> int:
 
 
 def resolve_health_check_timeout(cfg: DictConfig) -> int:
-    """Resolve health check timeout: explicit config value, or max_walltime in seconds."""
+    """Resolve health check timeout: explicit config value, or walltime in seconds."""
     explicit = cfg.execution.get("health_check_timeout")
     if explicit is not None:
         return int(explicit)
-    max_wt = cfg.execution.get("max_walltime")
-    if max_wt is not None:
-        return walltime_to_seconds(str(max_wt))
-    return walltime_to_seconds("120:00:00")
+    wt = cfg.execution.get("walltime")
+    if wt is not None:
+        return walltime_to_seconds(str(wt))
+    return walltime_to_seconds("01:00:00")

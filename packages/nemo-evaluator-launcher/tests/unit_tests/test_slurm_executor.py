@@ -2938,14 +2938,11 @@ class TestMultiNodeMultiInstance:
     @pytest.mark.parametrize(
         "config_override, expected_timeout",
         [
-            (
-                {},
-                432000,
-            ),  # no max_walltime in base_config -> default 120:00:00 -> 432000s
+            ({}, 3600),  # walltime 01:00:00 in base_config -> 3600s
             ({"health_check_timeout": 1200}, 1200),  # explicit override
-            ({"max_walltime": "02:00:00"}, 7200),  # max_walltime -> 7200s
+            ({"walltime": "02:00:00"}, 7200),  # walltime override -> 7200s
         ],
-        ids=["default", "explicit-override", "from-max-walltime"],
+        ids=["default-from-walltime", "explicit-override", "custom-walltime"],
     )
     def test_health_check_timeout_in_sbatch_script(
         self,
