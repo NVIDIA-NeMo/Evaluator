@@ -279,6 +279,9 @@ class LocalExecutor(BaseExecutor):
             )
 
             extra_docker_args = cfg.execution.get("extra_docker_args", "")
+            endpoint_readiness_timeout = cfg.execution.get(
+                "endpoint_readiness_timeout", 600
+            )
 
             run_sh_content = (
                 run_template.render(
@@ -286,6 +289,7 @@ class LocalExecutor(BaseExecutor):
                     auto_export_destinations=auto_export_destinations,
                     auto_export_config_str=auto_export_config_str,
                     extra_docker_args=extra_docker_args,
+                    endpoint_readiness_timeout=endpoint_readiness_timeout,
                 ).rstrip("\n")
                 + "\n"
             )
@@ -304,6 +308,7 @@ class LocalExecutor(BaseExecutor):
                     auto_export_destinations=auto_export_destinations,
                     auto_export_config_str=auto_export_config_str,
                     extra_docker_args=extra_docker_args,
+                    endpoint_readiness_timeout=endpoint_readiness_timeout,
                 ).rstrip("\n")
                 + "\n"
             )
