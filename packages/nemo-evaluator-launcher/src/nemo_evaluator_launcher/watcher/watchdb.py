@@ -4,6 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from nemo_evaluator_launcher.api.functional import RunConfig
 from nemo_evaluator_launcher.common.execdb import generate_invocation_id
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.watcher.configs import WatchConfig
@@ -20,6 +21,7 @@ class SubmittedCheckpoint(BaseModel):
     invocation_id: str = Field(description="Invocation ID of the submitted evaluation.")
     timestamp: str = Field(description="Timestamp of the submission.")
     watch_config: WatchConfig = Field(description="Watch configuration used.")
+    eval_config: RunConfig = Field(description="Evaluation configuration used.")
 
 
 class WatchStateDB:
@@ -50,6 +52,7 @@ class WatchStateDB:
                         continue
                     try:
                         record = json.loads(line)
+                        # FIXME we can have multiple submissions for the same checkpoint (if multiple eval configs are used)
                         self._submitted[record["checkpoint"]] = SubmittedCheckpoint(
                             **record
                         )
