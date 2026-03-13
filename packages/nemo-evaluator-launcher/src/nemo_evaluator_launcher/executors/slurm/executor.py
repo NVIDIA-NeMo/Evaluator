@@ -700,6 +700,8 @@ def _create_slurm_sbatch_script(
         s += "#SBATCH --gres {}\n".format(cfg.execution.gres)
     if cfg.execution.get("sbatch_comment"):
         s += "#SBATCH --comment='{}'\n".format(cfg.execution.sbatch_comment)
+    if cfg.execution.get("sbatch_dependency"):
+        s += f"#SBATCH --dependency {cfg.execution.sbatch_dependency}\n"
     job_name = "{account}-{subproject}.{details}".format(
         account=cfg.execution.account,
         subproject=cfg.execution.subproject,
