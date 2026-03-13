@@ -108,11 +108,14 @@ Use WebSearch to find model card (HuggingFace, build.nvidia.com). Read it carefu
   - For self-deployment, extract the exact tool-calling flags/settings from the model card (for example vLLM/SGLang tool parser flags) and apply them.
   - For external endpoints, confirm the endpoint already supports tool calling before proceeding.
 - Any preparation requirements (e.g., downloading reasoning parsers, custom plugins):
-  - If the model card mentions downloading files (like reasoning parsers, custom plugins) before deployment, add `deployment.pre_cmd` with the download command
-  - Use `curl` instead of `wget` as it's more widely available in Docker containers
-  - Example: `pre_cmd: curl -L -o reasoning_parser.py https://huggingface.co/.../reasoning_parser.py`
-  - When using `pip install` in `pre_cmd`, always use `--no-cache-dir` to avoid cross-device link errors in Docker containers (the pip cache and temp directories may be on different filesystems)
-  - Example: `pre_cmd: pip3 install --no-cache-dir flash-attn --no-build-isolation`
+  - If the model card requires downloading files or running setup steps before deployment or evaluation, use `deployment.pre_cmd` or `evaluation.pre_cmd` for non-local execution.
+  - In `pre_cmd` script:
+    - Use `curl` instead of `wget` as it's more widely available in Docker containers. Example: `pre_cmd: curl -L -o reasoning_parser.py https://huggingface.co/.../reasoning_parser.py`
+    - Always use `--no-cache-dir` when installing Python packages to avoid cross-device link errors in Docker containers (the pip cache and temp directories may be on different filesystems). Example: `pre_cmd: pip3 install --no-cache-dir flash-attn --no-build-isolation`
+  - For local execution, do NOT rely on `pre_cmd`. Run the preparation steps yourself on the host first, then mount the resulting files/directories into the container if needed.
+  - Short mount examples:
+    - deployment: `execution.mounts.deployment: {"./reasoning_parser.py": "/vllm-workspace/reasoning_parser.py"}`
+    - evaluation: `execution.mounts.evaluation: {"./hf_cache": "/root/.cache/huggingface"}`
 - Any other model-specific requirements
 
 Remember to check `evaluation.nemo_evaluator_config` and `evaluation.tasks.*.nemo_evaluator_config` overrides too for parameters to adjust (e.g. disabling reasoning)!
