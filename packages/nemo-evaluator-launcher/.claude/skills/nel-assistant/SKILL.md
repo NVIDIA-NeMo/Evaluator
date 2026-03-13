@@ -114,8 +114,8 @@ Use WebSearch to find model card (HuggingFace, build.nvidia.com). Read it carefu
     - Always use `--no-cache-dir` when installing Python packages to avoid cross-device link errors in Docker containers (the pip cache and temp directories may be on different filesystems). Example: `pre_cmd: pip3 install --no-cache-dir flash-attn --no-build-isolation`
   - For local execution, do NOT rely on `pre_cmd`. Run the preparation steps yourself on the host first, then mount the resulting files/directories into the container if needed.
   - Short mount examples:
-    - deployment: `execution.mounts.deployment: {"./reasoning_parser.py": "/vllm-workspace/reasoning_parser.py"}`
-    - evaluation: `execution.mounts.evaluation: {"./hf_cache": "/root/.cache/huggingface"}`
+    - deployment: `execution.mounts.deployment: {"/absolute/path/to/reasoning_parser.py": "/vllm-workspace/reasoning_parser.py"}`
+    - evaluation: `execution.mounts.evaluation: {"/absolute/path/to/hf_cache": "/root/.cache/huggingface"}`
 - Env vars:
   - Use `deployment.env_vars` for deployment-side settings, `evaluation.env_vars` for evaluation-wide settings, and `evaluation.tasks[].env_vars` for task-specific overrides.
   - Supported value types: `host:VAR_NAME` = read the value from the host env var `VAR_NAME`; `lit:value` = use the literal value directly; `runtime:VAR_NAME` = resolve `VAR_NAME` only at runtime inside the execution environment.
