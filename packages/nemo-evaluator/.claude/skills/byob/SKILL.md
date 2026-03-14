@@ -1,6 +1,7 @@
 ---
 name: byob
 description: Create custom LLM evaluation benchmarks using the BYOB decorator framework. Use when the user wants to (1) create a new benchmark from a dataset, (2) pick or write a scorer, (3) compile and run a BYOB benchmark, (4) containerize a benchmark, or (5) use LLM-as-Judge evaluation. Triggers on mentions of BYOB, custom benchmark, bring your own benchmark, scorer, or benchmark compilation.
+version: v2.0
 ---
 
 # BYOB (Bring Your Own Benchmark) — Skill Instructions
