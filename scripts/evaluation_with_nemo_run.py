@@ -19,7 +19,9 @@
 # (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
 
 import argparse
+import logging
 import os
+import sys
 from dataclasses import dataclass
 from typing import Optional
 
@@ -33,6 +35,8 @@ from nemo_evaluator.api.api_dataclasses import (
 )
 from nemo_run.config import get_nemorun_home
 from nemo_run.core.execution.slurm import SlurmJobDetails
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(kw_only=True)
@@ -501,6 +505,15 @@ def main():
             exp.dryrun()
         else:
             exp.run()
+            status_dict = exp.status(return_dict=True) or {}
+            failed = [
+                f"{name}: {info['status']}"
+                for name, info in status_dict.items()
+                if str(info.get("status")) != "SUCCEEDED"
+            ]
+            if failed:
+                logger.error(f"Experiment finished with failures: {failed}")
+                sys.exit(1)
     # [snippet-experiment-end]
 
 
