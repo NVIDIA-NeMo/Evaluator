@@ -34,6 +34,7 @@ from nemo_evaluator_launcher.common.execdb import (
 from nemo_evaluator_launcher.common.helpers import (
     check_unlisted_tasks_safeguard,
     get_eval_factory_command,
+    is_local_image_path,
 )
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.mapping import (
@@ -112,7 +113,9 @@ class LeptonExecutor(BaseExecutor):
                 container=task.get("container"),
                 endpoint_type=task.get("endpoint_type"),
             )
-            if task_definition.get("is_unlisted", False):
+            if task_definition.get("is_unlisted", False) and not is_local_image_path(
+                task_definition.get("container")
+            ):
                 unlisted_task_names.append(task.name)
 
         # Check for deployment pre_cmd

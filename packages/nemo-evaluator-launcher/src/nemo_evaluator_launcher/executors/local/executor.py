@@ -53,6 +53,7 @@ from nemo_evaluator_launcher.common.helpers import (
     get_eval_factory_dataset_size_from_run_config,
     get_health_url,
     get_timestamp_string,
+    is_local_image_path,
 )
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.mapping import (
@@ -139,7 +140,11 @@ class LocalExecutor(BaseExecutor):
             )
 
             # Track unlisted tasks for safeguard check
-            if task_definition.get("is_unlisted", False):
+            # Skip the safeguard for local image paths (e.g. .sqsh files) since
+            # the user has explicitly provided the container to run.
+            if task_definition.get("is_unlisted", False) and not is_local_image_path(
+                task_definition.get("container")
+            ):
                 unlisted_task_names.append(task.name)
 
             if cfg.deployment.type != "none":
