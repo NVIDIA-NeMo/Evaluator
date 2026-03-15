@@ -651,3 +651,25 @@ class TestResolveEndpointReadinessTimeout:
 
         cfg = OmegaConf.create({"execution": {}})
         assert resolve_endpoint_readiness_timeout(cfg) == 3600
+
+
+class TestIsLocalImagePath:
+    """Tests for is_local_image_path function."""
+
+    @pytest.mark.parametrize(
+        "image_path, expected",
+        [
+            pytest.param(None, False, id="none"),
+            pytest.param("", False, id="empty_string"),
+            pytest.param("nvcr.io/nvidia/nemo-evaluator:latest", False, id="registry_image"),
+            pytest.param("registry.example.com/org/image:v1.2.3", False, id="registry_image_with_tag"),
+            pytest.param("/mnt/containers/eval-harness.sqsh", True, id="sqsh_file"),
+            pytest.param("containers/eval-harness.sqsh", True, id="sqsh_relative_path"),
+            pytest.param("/mnt/containers/my-image", True, id="absolute_path"),
+            pytest.param("/shared/nfs/images/lm-eval-harness-v2.1.sqsh", True, id="sqsh_nested_path"),
+        ],
+    )
+    def test_is_local_image_path(self, image_path, expected):
+        from nemo_evaluator_launcher.common.helpers import is_local_image_path
+
+        assert is_local_image_path(image_path) is expected

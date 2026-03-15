@@ -448,6 +448,30 @@ def get_eval_factory_dataset_size_from_run_config(run_config: dict) -> Optional[
     return dataset_size
 
 
+def is_local_image_path(container: str | None) -> bool:
+    """Check if a container reference is a local image path (e.g. a squash .sqsh file).
+
+    Local image paths are explicitly user-provided and should bypass the
+    unlisted-task safeguard since the user has already made an explicit choice
+    about which container to run.
+
+    Args:
+        container: The container image string (e.g. "nvcr.io/foo:latest" or "/path/to/image.sqsh").
+
+    Returns:
+        True if the container looks like a local file path rather than a registry image reference.
+    """
+    if not container:
+        return False
+    # Squash images (.sqsh) are the primary local image format on Slurm clusters
+    if container.endswith(".sqsh"):
+        return True
+    # Also treat absolute paths as local images (e.g. /mnt/containers/my-image)
+    if container.startswith("/"):
+        return True
+    return False
+
+
 def check_unlisted_tasks_safeguard(
     unlisted_task_names: list[str],
     dry_run: bool,

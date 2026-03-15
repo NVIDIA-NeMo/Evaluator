@@ -53,6 +53,7 @@ from nemo_evaluator_launcher.common.helpers import (
     get_api_key_name,
     get_eval_factory_command,
     get_timestamp_string,
+    is_local_image_path,
     resolve_endpoint_readiness_timeout,
 )
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -132,7 +133,9 @@ class SlurmExecutor(BaseExecutor):
                 eval_images.append(eval_image)
 
                 # Track unlisted tasks for safeguard check
-                if task_definition.get("is_unlisted", False):
+                # Skip the safeguard for local image paths (e.g. .sqsh files) since
+                # the user has explicitly provided the container to run.
+                if task_definition.get("is_unlisted", False) and not is_local_image_path(eval_image):
                     unlisted_task_names.append(task.name)
 
                 # generate and write down sbatch script
