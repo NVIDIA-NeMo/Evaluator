@@ -18,7 +18,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from nemo_evaluator.environments.base import SeedResult, VerifyResult
 
 
 # ---------------------------------------------------------------------------
@@ -313,7 +312,7 @@ class TestGymEnvironmentNative:
             client.post = capture_post
             mc.return_value = client
 
-            vr = await env.verify("answer", "expected", prompt="What?")
+            await env.verify("answer", "expected", prompt="What?")
 
         assert captured["responses_create_params"]["input"][0]["content"] == "What?"
         assert captured["response"]["output_text"] == "answer"

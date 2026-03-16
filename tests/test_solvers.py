@@ -62,9 +62,7 @@ class TestChatSolver:
         solver = ChatSolver(client=mock_client, system_prompt="Override system")
         await solver.solve(seed)
 
-        call_kwargs = mock_client.chat.call_args
-        msgs = call_kwargs.kwargs.get("messages") or call_kwargs.args[0] if call_kwargs.args else None
-        assert call_kwargs is not None
+        assert mock_client.chat.call_args is not None
 
     @pytest.mark.asyncio
     async def test_empty_response_handled(self):
@@ -110,9 +108,8 @@ class TestSandboxSolver:
 
         seed = _make_seed("Fix the bug in main.py")
         # SandboxSolver talks to an agent process inside sandbox --
-        # we just verify it doesn't crash with a mock
         try:
-            result = await solver.solve(seed, sandbox=sb)
+            await solver.solve(seed, sandbox=sb)
         except Exception:
             pass  # Expected: agent process doesn't exist in mock
 

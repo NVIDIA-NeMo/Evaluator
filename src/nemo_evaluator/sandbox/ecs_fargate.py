@@ -327,7 +327,8 @@ class SshTunnel:
         raise TimeoutError(f"Local port 127.0.0.1:{port} not open after {timeout:.0f}s")
 
     def _poll_health(self, url: str, timeout: float) -> None:
-        import urllib.error, urllib.request
+        import urllib.error
+        import urllib.request
         deadline = time.monotonic() + timeout
         attempt = 0
         while time.monotonic() < deadline:
@@ -555,7 +556,8 @@ class ExecClient:
     def _request(self, *, label: str, url: str, method: str,
                  data: bytes | None = None, headers: dict[str, str] | None = None,
                  timeout: float, max_retries: int) -> bytes:
-        import urllib.error, urllib.request
+        import urllib.error
+        import urllib.request
         last_err: Exception | None = None
         for attempt in range(1, max_retries + 1):
             req = urllib.request.Request(url, data=data, method=method)

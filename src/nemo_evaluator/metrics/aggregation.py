@@ -42,6 +42,58 @@ def category_breakdown(
     return breakdown
 
 
+def scoring_details_breakdown(
+    results: list[dict[str, Any]],
+    *,
+    max_cardinality: int = 50,
+) -> dict[str, list[CategoryResult]]:
+    """Auto-discover groupable fields in scoring_details and compute per-group stats.
+
+    Only considers string/bool fields with 2..max_cardinality distinct values
+    (filters out unique IDs and constant fields).  Returns a dict mapping
+    field name to a list of CategoryResult.
+    """
+    if not results:
+        return {}
+
+    # Collect candidate fields and their values
+    field_values: dict[str, list[tuple[str, float]]] = {}
+    for r in results:
+        sd = r.get("scoring_details", {})
+        reward = float(r.get("reward", 0.0))
+        for k, v in sd.items():
+            if isinstance(v, bool):
+                field_values.setdefault(k, []).append((str(v), reward))
+            elif isinstance(v, str) and len(v) < 100:
+                field_values.setdefault(k, []).append((v, reward))
+
+    breakdowns: dict[str, list[CategoryResult]] = {}
+    for field_name, pairs in field_values.items():
+        if len(pairs) != len(results):
+            continue
+        distinct = {v for v, _ in pairs}
+        if len(distinct) < 2 or len(distinct) > max_cardinality:
+            continue
+
+        groups: dict[str, list[float]] = {}
+        for val, reward in pairs:
+            groups.setdefault(val, []).append(reward)
+
+        cats = []
+        for cat in sorted(groups):
+            scores = groups[cat]
+            ci = bootstrap_ci(scores)
+            cats.append(CategoryResult(
+                category=cat,
+                n_samples=len(scores),
+                mean_reward=ci.mean,
+                ci=ci,
+            ))
+        breakdowns[field_name] = cats
+
+    return breakdowns
+
+
 def summary_stats(rewards: list[float]) -> dict[str, float]:
     """Compute basic summary statistics over a list of reward values."""
     import numpy as np

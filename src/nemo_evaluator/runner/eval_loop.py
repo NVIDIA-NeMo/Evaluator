@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from nemo_evaluator.environments.base import EvalEnvironment, VerifyResult
-from nemo_evaluator.metrics.aggregation import category_breakdown, summary_stats
+from nemo_evaluator.metrics.aggregation import category_breakdown, scoring_details_breakdown, summary_stats
 from nemo_evaluator.metrics.confidence import bootstrap_ci
 from nemo_evaluator.metrics.pass_at_k import aggregate_pass_at_k, pass_at_k
 from nemo_evaluator.observability.collector import ArtifactCollector
@@ -400,6 +400,17 @@ async def run_evaluation(
         cat_results = category_breakdown(results, "category")
         cats = [{"category": c.category, "n_samples": c.n_samples,
                  "mean_reward": round(c.mean_reward, 4)} for c in cat_results]
+
+    sd_breakdowns = scoring_details_breakdown(results)
+    if sd_breakdowns:
+        metrics["breakdowns"] = {
+            field: [{"group": c.category, "n": c.n_samples,
+                     "mean_reward": round(c.mean_reward, 4),
+                     "ci_lower": round(c.ci.ci_lower, 4),
+                     "ci_upper": round(c.ci.ci_upper, 4)}
+                    for c in groups]
+            for field, groups in sd_breakdowns.items()
+        }
 
     artifacts = collector.build(elapsed)
     metrics["runtime"] = artifacts.runtime.to_dict()

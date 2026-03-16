@@ -142,7 +142,6 @@ class TestStatelessSandbox:
     @pytest.mark.asyncio
     async def test_apply_cmd_executed(self):
         """apply_cmd is run in verify container after acquisition."""
-        from tests.conftest import MockExecResult
 
         ctx, mgr = self._make_ctx(apply_cmd="git apply /input/patch.diff")
         lc = StatelessSandbox(ctx)

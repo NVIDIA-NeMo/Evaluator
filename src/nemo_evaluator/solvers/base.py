@@ -9,7 +9,7 @@ from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.observability.types import ModelResponse
 
 if TYPE_CHECKING:
-    from nemo_evaluator.sandbox.base import Sandbox
+    pass
 
 logger = logging.getLogger(__name__)
 

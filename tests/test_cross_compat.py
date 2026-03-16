@@ -10,9 +10,8 @@ import inspect
 
 import pytest
 
-from nemo_evaluator.environments.base import SeedResult, VerifyResult
+from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.sandbox.base import SandboxSpec
-from nemo_evaluator.solvers.base import SolveResult
 from nemo_evaluator.sandbox.lifecycle import (
     NoSandbox,
     StatefulSandbox,
@@ -23,8 +22,6 @@ from nemo_evaluator.sandbox.lifecycle import (
 from tests.conftest import (
     CachedSolver,
     FIXTURE_DIR,
-    MockExecResult,
-    MockSandbox,
     MockSandboxManager,
 )
 
@@ -103,7 +100,7 @@ class TestSolverLifecycleCombos:
     @pytest.mark.asyncio
     async def test_chat_solver_no_sandbox(self):
         """ChatSolver + NoSandbox: common case for text-only benchmarks."""
-        seed = self._make_seed(needs_sandbox=False)
+        self._make_seed(needs_sandbox=False)
         lc = NoSandbox()
         await lc.setup()
 

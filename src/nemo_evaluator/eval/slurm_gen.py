@@ -62,6 +62,13 @@ nel serve -b {benchmark} --host 0.0.0.0 -p {port} &
 {name_upper}_PID=$!
 """
 
+_GYM_CMD_SERVICE = """\
+# Service: {name} (gym / custom server)
+echo "Starting server: {name}..."
+{server_cmd} &
+{name_upper}_PID=$!
+"""
+
 _NAT_SERVICE = """\
 # Service: {name} (nat agent)
 echo "Starting NAT agent server: {name}..."
@@ -77,6 +84,28 @@ echo "Waiting for {name} at {url}..."
 {name_upper}_READY=0
 for _i in $(seq 1 {max_attempts}); do
     if curl -sf "{url}{health_path}" > /dev/null 2>&1; then
+        echo "  {name} ready."
+        {name_upper}_READY=1
+        break
+    fi
+    if [ -n "${{{name_upper}_PID:-}}" ] && ! kill -0 ${name_upper}_PID 2>/dev/null; then
+        echo "  {name} died during startup."
+        exit 1
+    fi
+    sleep 5
+done
+if [ ${name_upper}_READY -eq 0 ]; then
+    echo "ERROR: {name} did not become healthy after {max_attempts} attempts."
+    exit 1
+fi
+"""
+
+_HEALTH_WAIT_MULTI = """\
+# Wait for {name} (try multiple health endpoints)
+echo "Waiting for {name} at {url}..."
+{name_upper}_READY=0
+for _i in $(seq 1 {max_attempts}); do
+    if curl -sf "{url}/health" > /dev/null 2>&1 || curl -sf "{url}/openapi.json" > /dev/null 2>&1; then
         echo "  {name} ready."
         {name_upper}_READY=1
         break
@@ -249,6 +278,11 @@ def _service_block(name: str, svc: ServiceConfig, use_containers: bool = False) 
         )
 
     if svc.type == "gym":
+        if svc.server_cmd:
+            return _GYM_CMD_SERVICE.format(
+                name=name, name_upper=upper,
+                server_cmd=svc.server_cmd,
+            )
         return _GYM_SERVICE.format(
             name=name, name_upper=upper,
             benchmark=svc.benchmark or "", port=svc.port,
@@ -275,8 +309,15 @@ def _health_block(name: str, svc: ServiceConfig) -> str:
         return ""
     upper = _safe(name).upper()
     url = f"http://localhost:{svc.port}"
-    health = svc.health_path if svc.is_model_server else "/health"
     max_attempts = int(svc.startup_timeout / 5) or 120
+
+    if svc.type == "gym" and svc.server_cmd:
+        return _HEALTH_WAIT_MULTI.format(
+            name=name, name_upper=upper, url=url,
+            max_attempts=max_attempts,
+        )
+
+    health = svc.health_path if svc.is_model_server else "/health"
     return _HEALTH_WAIT.format(
         name=name, name_upper=upper, url=url,
         health_path=health, max_attempts=max_attempts,

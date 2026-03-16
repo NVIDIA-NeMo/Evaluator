@@ -6,8 +6,6 @@ from nemo_evaluator.scoring import ScorerInput, needs_judge
 
 def _load_healthbench():
     import json as _json
-    import tempfile
-    from pathlib import Path
 
     import httpx
     from datasets import load_dataset

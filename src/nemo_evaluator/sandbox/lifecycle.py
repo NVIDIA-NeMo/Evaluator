@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
-    from nemo_evaluator.sandbox.base import OutsideEndpoint, Sandbox, SandboxSpec, VolumeMount
+    from nemo_evaluator.sandbox.base import OutsideEndpoint, Sandbox, SandboxSpec
     from nemo_evaluator.sandbox.manager import SandboxManager
 
 logger = logging.getLogger(__name__)

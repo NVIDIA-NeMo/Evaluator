@@ -2,6 +2,13 @@
 
 ## 0.9.0 (2026-03-16)
 
+### Native Gym Servers on SLURM
+
+- **`server_cmd` for gym services**: `ServiceConfig(type="gym")` now honors the `server_cmd` field on SLURM. When provided, the sbatch generator starts the custom command instead of `nel serve`. This makes the integration fully abstract -- any server that speaks `/seed_session` + `/verify` works, whether it's a native Gym resource server, a custom FastAPI app, or anything else.
+- **Multi-path health checks**: SLURM health waits for gym services with `server_cmd` now try both `/health` and `/openapi.json`, matching the `ManagedGymEnvironment` fallback behavior for native Gym servers.
+- **`scoring_details`-based breakdowns**: The eval loop now produces per-group breakdowns from `scoring_details` fields returned by verify (e.g., per-`db_id` accuracy for Spider2, per-`label` safety rates for XSTest). All aggregation is computed by NEL, not the server.
+- **Example configs**: `gym_spider2_lite.yaml`, `gym_xstest.yaml`, `gym_finance.yaml`, and `gym_slurm_suite.yaml` demonstrate running Spider 2.0-Lite, XSTest, and Finance SEC Search as native Gym resource servers.
+
 ### Gym Integration
 
 - **Unified `GymEnvironment`**: Collapsed three Gym client classes (`GymEnvironment`, `NativeGymEnvironment`, and the inner `GymEnvironment` delegate) into a single `GymEnvironment` with an explicit `protocol` parameter (`"evaluator"` or `"native"`). No auto-detection -- the caller chooses the protocol.

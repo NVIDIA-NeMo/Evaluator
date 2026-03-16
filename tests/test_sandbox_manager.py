@@ -1,7 +1,6 @@
 """Tests for SandboxManager: resolve_spec merge logic, image template rendering."""
 from __future__ import annotations
 
-import pytest
 
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.sandbox.base import SandboxSpec, VolumeMount

@@ -20,7 +20,6 @@ or parsed from the Dockerfile's ``FROM`` line as a fallback.
 from __future__ import annotations
 
 import logging
-import re
 import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -28,7 +27,7 @@ from typing import TYPE_CHECKING, Any
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 
 if TYPE_CHECKING:
-    from nemo_evaluator.sandbox.base import Sandbox, SandboxSpec
+    from nemo_evaluator.sandbox.base import Sandbox
 
 logger = logging.getLogger(__name__)
 

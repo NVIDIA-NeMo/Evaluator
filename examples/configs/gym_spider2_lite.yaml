@@ -1,0 +1,40 @@
+# Spider 2.0-Lite: execution-based Text-to-SQL evaluation via native Gym server.
+#
+# Prerequisites:
+#   - Gym repo cloned and set up (uv sync / pip install)
+#   - Spider2 SQLite data downloaded (ng_prepare_data or auto-download on first run)
+#   - A model endpoint running (vLLM, API, etc.)
+#
+# Usage (local):
+#   nel eval run examples/configs/gym_spider2_lite.yaml
+#
+# Usage (SLURM, dry-run):
+#   nel eval run examples/configs/gym_spider2_lite.yaml --cluster slurm --dry-run
+#
+# The server_cmd starts the native Gym resource server.  NEL treats it as
+# an opaque process -- it doesn't matter that it's a Gym server vs any
+# other FastAPI app that speaks /seed_session + /verify.
+
+services:
+  spider2:
+    type: gym
+    server_cmd: >-
+      cd ${GYM_PATH:-/opt/Gym}
+      && python resources_servers/spider2_lite/app.py --port 9100
+    port: 9100
+    startup_timeout: 120
+  model:
+    type: api
+    url: ${NEMO_MODEL_URL}
+    model: ${NEMO_MODEL_ID}
+    api_key: ${NEMO_API_KEY:-}
+
+benchmarks:
+  - name: gym://localhost:9100?protocol=native&data=${GYM_PATH:-/opt/Gym}/resources_servers/spider2_lite/data/example.jsonl
+    model: model
+    max_problems: 5
+    max_concurrent: 8
+
+output:
+  dir: ./results/gym_spider2_lite
+  report: [markdown, html]

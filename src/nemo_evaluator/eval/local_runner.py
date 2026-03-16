@@ -126,6 +126,8 @@ class _NatServiceHandle:
     """Manages a NAT agent server subprocess."""
 
     def __init__(self, port: int, config_file: str | None) -> None:
+        import subprocess
+
         self.port = port
         self._config_file = config_file or "config.yml"
         self._process: subprocess.Popen | None = None
@@ -133,7 +135,6 @@ class _NatServiceHandle:
 
     def start(self, startup_timeout: float = 120.0) -> None:
         import os
-        import socket
         import subprocess
         import time
 
