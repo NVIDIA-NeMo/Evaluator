@@ -915,6 +915,7 @@ def _create_slurm_sbatch_script(
 
         # Wait for auxiliary server to initialize
         aux_health_path = aux.cfg.endpoints.get("health", "/health")
+        aux_health_timeout = resolve_endpoint_readiness_timeout(cfg)
         if aux.num_instances > 1:
             ip_list = f'"${{{aux.env_prefix}_HEAD_NODE_IPS[@]}}"'
             pid_var = aux.pids_var
@@ -922,7 +923,8 @@ def _create_slurm_sbatch_script(
                 ip_list,
                 aux.cfg.port,
                 aux_health_path,
-                f"{aux.name} server",
+                aux_health_timeout,
+                service_name=f"{aux.name} server",
                 check_pid=True,
                 pid_var=pid_var,
             )
@@ -931,7 +933,8 @@ def _create_slurm_sbatch_script(
                 f'"${{{aux.primary_node_var}}}"',
                 aux.cfg.port,
                 aux_health_path,
-                f"{aux.name} server",
+                aux_health_timeout,
+                service_name=f"{aux.name} server",
                 check_pid=True,
                 pid_var=aux.pid_var,
             )
