@@ -43,7 +43,7 @@ framework:
 # 2. Default Command and Configuration
 defaults:
   command: >-
-    {% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}} && {% endif %}
+    {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %}
     my-eval-cli --model {{target.api_endpoint.model_id}} 
                 --task {{config.params.task}}
                 --output {{config.output_dir}}

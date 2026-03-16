@@ -25,7 +25,7 @@ target:
     url: https://integrate.api.nvidia.com/v1/chat/completions
     model_id: meta/llama-3.2-3b-instruct
     type: chat
-    api_key: NGC_API_KEY
+    api_key_name: NGC_API_KEY
 ```
 
 Run evaluation:
@@ -80,7 +80,7 @@ target:
     url: https://integrate.api.nvidia.com/v1/chat/completions
     model_id: meta/llama-3.2-3b-instruct
     type: chat
-    api_key: NGC_API_KEY
+    api_key_name: NGC_API_KEY
     adapter_config:
       interceptors:
         - name: "request_logging"
@@ -114,7 +114,7 @@ target:
     url: https://integrate.api.nvidia.com/v1/chat/completions
     model_id: meta/llama-3.2-3b-instruct
     type: chat
-    api_key: NGC_API_KEY
+    api_key_name: NGC_API_KEY
     adapter_config:
       interceptors:
         - name: "caching"
@@ -152,7 +152,7 @@ target:
     url: https://integrate.api.nvidia.com/v1/chat/completions
     model_id: meta/llama-3.2-3b-instruct
     type: chat
-    api_key: NGC_API_KEY
+    api_key_name: NGC_API_KEY
     adapter_config:
       interceptors:
         - name: "caching"

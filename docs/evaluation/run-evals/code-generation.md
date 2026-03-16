@@ -44,7 +44,7 @@ nemo-evaluator-launcher run \
     --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
     -o 'evaluation.tasks=["mbpp"]' \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
-    -o target.api_endpoint.api_key=${YOUR_API_KEY}
+    -o target.api_endpoint.api_key_name=${YOUR_API_KEY}
 
 # Run multiple code generation benchmarks
 nemo-evaluator-launcher run \
@@ -82,7 +82,7 @@ target_config = EvaluationTarget(
         url="https://integrate.api.nvidia.com/v1/chat/completions",
         model_id="meta/llama-3.2-3b-instruct", 
         type=EndpointType.CHAT,
-        api_key="your_api_key"
+        api_key_name="your_api_key"
     )
 )
 
@@ -212,7 +212,7 @@ target_config = EvaluationTarget(
         url="https://integrate.api.nvidia.com/v1/chat/completions",
         model_id="meta/llama-3.2-3b-instruct", 
         type=EndpointType.CHAT,
-        api_key="your_api_key"
+        api_key_name="your_api_key"
     )
 )
 
