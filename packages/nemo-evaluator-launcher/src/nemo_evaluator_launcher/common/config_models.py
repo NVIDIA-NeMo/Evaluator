@@ -49,6 +49,13 @@ class MountsModel(BaseModel):
             "Mapping of host_path → container_path."
         ),
     )
+    auxiliary: Dict[str, Dict[str, str]] = Field(
+        default_factory=dict,
+        description=(
+            "Extra volume mounts for auxiliary deployment containers, "
+            "keyed by deployment name. E.g. auxiliary.judge: {/host/path: /container/path}."
+        ),
+    )
     evaluation: Dict[str, str] = Field(
         default_factory=dict,
         description=(
