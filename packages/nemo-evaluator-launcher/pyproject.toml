@@ -84,6 +84,7 @@ where = ["src"]
   "configs/**/*",
   "executors/**/*.sh",
   "executors/**/*.template",
+  "watcher/**/*.template",
 ]
 
 [tool.setuptools.dynamic]
