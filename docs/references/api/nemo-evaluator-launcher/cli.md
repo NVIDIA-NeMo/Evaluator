@@ -31,6 +31,8 @@ nemo-evaluator-launcher --version                 # Show version information
   - Export evaluation results to various destinations
 * - `version`
   - Show version information
+* - `nel-watch`
+  - Continuously evaluate new training checkpoints (separate entrypoint)
 ```
 
 ## run - Run Evaluations
@@ -399,6 +401,88 @@ nemo-evaluator-launcher version
 # Alternative
 nemo-evaluator-launcher --version
 ```
+
+## nel-watch - Continuous Checkpoint Evaluation
+
+`nel-watch` is a standalone command that polls a checkpoint directory and automatically submits evaluation jobs for each new checkpoint. It is installed as a separate entrypoint alongside `nel`.
+
+### nel-watch Basic Usage
+
+```bash
+# Watch a single directory
+nel-watch --config my-eval-config.yaml --watch-dir /path/to/checkpoints
+
+# Dry run — preview what would be submitted
+nel-watch --config my-eval-config.yaml --watch-dir /path/to/checkpoints --dry-run --once
+
+# Watch multiple directories via config file
+nel-watch --config my-eval-config.yaml --watch-config watch-dirs.yaml
+```
+
+### nel-watch Options
+
+```{list-table}
+:header-rows: 1
+:widths: 30 15 55
+
+* - Option
+  - Default
+  - Description
+* - `--config`
+  - *(required)*
+  - Path to eval config file (same as `nel run`).
+* - `--watch-dir`
+  - —
+  - Directory to watch for checkpoint subdirectories.
+* - `--watch-config`
+  - —
+  - YAML file defining multiple watch directories (mutually exclusive with `--watch-dir`).
+* - `--interval`
+  - `300`
+  - Polling interval in seconds.
+* - `--ready-markers`
+  - `metadata.json,config.yaml`
+  - Comma-separated marker files. Checkpoint is ready if ANY exist.
+* - `--checkpoint-patterns`
+  - `iter_*,step_*`
+  - Comma-separated glob patterns for checkpoint directory names.
+* - `--checkpoint-field`
+  - `deployment.hf_model_handle`
+  - Dot-separated config field to override with checkpoint path.
+* - `--order`
+  - `newest`
+  - Processing order: `newest` or `oldest`.
+* - `--state-file`
+  - *(auto)*
+  - Path to state file for tracking submissions.
+* - `-n`, `--dry-run`
+  - `false`
+  - Preview without submitting.
+* - `--once`
+  - `false`
+  - Scan once and exit.
+* - `-o`
+  - —
+  - Hydra overrides (repeatable).
+```
+
+### Watch Config File Format
+
+For watching multiple directories simultaneously:
+
+```yaml
+# watch-config.yaml
+checkpoint_field: deployment.hf_model_handle  # global default
+
+watch_dirs:
+  - checkpoint_dir: /training/run-A/checkpoints
+    output_dir: /results/run-A
+  - checkpoint_dir: /training/run-B/checkpoints
+    output_dir: /results/run-B
+    checkpoint_field: target.model_path  # per-directory override
+```
+
+See the {ref}`how-to-continuous-checkpoint-evaluation` guide for a full walkthrough.
 
 ## Environment Variables
 
