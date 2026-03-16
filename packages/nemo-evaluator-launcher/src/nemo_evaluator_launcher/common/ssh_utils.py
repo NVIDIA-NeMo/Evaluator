@@ -17,8 +17,10 @@
 
 import shlex
 import subprocess
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
-from typing import List, Optional
+from typing import Generator, List, Optional
 
 from nemo_evaluator_launcher.common.logging_utils import logger
 
@@ -38,9 +40,17 @@ def open_master_connection(
     Returns:
         The socket path on success, None on failure.
     """
-    ssh_command = f"ssh -MNf -S {socket} {username}@{hostname}"
-    logger.info("Opening master connection", cmd=ssh_command)
-    completed_process = subprocess.run(args=shlex.split(ssh_command))
+    ssh_command = [
+        "ssh",
+        "-Nf",
+        "-o",
+        "ControlMaster=auto",
+        "-S",
+        socket,
+        f"{username}@{hostname}",
+    ]
+    logger.info("Opening master connection", cmd=" ".join(ssh_command))
+    completed_process = subprocess.run(args=ssh_command)
     if completed_process.returncode == 0:
         logger.info("Opened master connection successfully", cmd=ssh_command)
         return socket
@@ -75,48 +85,73 @@ def close_master_connection(
         )
 
 
-def make_remote_dir(
-    dirpath: str,
+def run_remote_command(
+    command: str,
     username: str,
     hostname: str,
     socket: Optional[str] = None,
-) -> None:
-    """Create a directory on a remote host via SSH.
+) -> str:
+    """Run a command on a remote host via SSH and return stdout.
 
     Args:
-        dirpath: Absolute path to create on the remote host.
+        command: Shell command to execute on the remote host.
         username: SSH username.
         hostname: SSH hostname.
         socket: Optional path to a multiplexing socket for connection reuse.
 
+    Returns:
+        stdout of the remote command as a string.
+
     Raises:
-        RuntimeError: If the remote mkdir fails.
+        RuntimeError: If the remote command exits with a non-zero return code.
     """
-    mkdir_command = f"mkdir -p {dirpath}"
-    ssh_command = ["ssh"]
+    ssh_cmd = ["ssh"]
     if socket is not None:
-        ssh_command.append(f"-S {socket}")
-    ssh_command.append(f"{username}@{hostname}")
-    ssh_command.append(mkdir_command)
-    ssh_command = " ".join(ssh_command)
-    logger.info("Creating remote dir", cmd=ssh_command)
-    completed_process = subprocess.run(
-        args=shlex.split(ssh_command), stderr=subprocess.PIPE
+        ssh_cmd += ["-S", socket]
+    ssh_cmd.append(f"{username}@{hostname}")
+    ssh_cmd.append(command)
+    completed = subprocess.run(
+        args=ssh_cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
-    if completed_process.returncode != 0:
-        error_msg = (
-            completed_process.stderr.decode("utf-8")
-            if completed_process.stderr
-            else "Unknown error"
-        )
-        logger.error(
-            "Error creating remote dir",
-            code=completed_process.returncode,
-            msg=error_msg,
-        )
+    if completed.returncode != 0:
         raise RuntimeError(
-            "failed to make a remote execution output dir\n{}".format(error_msg)
+            f"Remote command failed on {hostname}:\n{completed.stderr.decode()}"
         )
+    return completed.stdout.decode()
+
+
+@contextmanager
+def master_connection(username: str, hostname: str) -> Generator[str, None, None]:
+    """Context manager that opens a persistent SSH master connection and closes it on exit.
+
+    Args:
+        username: SSH username.
+        hostname: SSH hostname.
+
+    Yields:
+        Path to the Unix socket file for connection multiplexing.
+
+    Raises:
+        RuntimeError: If the connection cannot be opened.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        socket = str(Path(tmpdir) / "socket")
+        socket_or_none = open_master_connection(
+            username=username, hostname=hostname, socket=socket
+        )
+        if socket_or_none is None:
+            raise RuntimeError(
+                f"Failed to connect to {hostname} as {username}. "
+                "Please check your SSH configuration."
+            )
+        try:
+            yield socket_or_none
+        finally:
+            close_master_connection(
+                username=username, hostname=hostname, socket=socket_or_none
+            )
 
 
 def rsync_upload(

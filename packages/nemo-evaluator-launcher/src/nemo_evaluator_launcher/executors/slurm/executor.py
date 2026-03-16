@@ -69,10 +69,9 @@ from nemo_evaluator_launcher.common.mapping import (
 )
 from nemo_evaluator_launcher.common.printing_utils import bold, cyan, grey, red
 from nemo_evaluator_launcher.common.ssh_utils import (
-    close_master_connection,
-    make_remote_dir,
-    open_master_connection,
+    master_connection,
     rsync_upload,
+    run_remote_command,
 )
 from nemo_evaluator_launcher.executors.base import (
     BaseExecutor,
@@ -267,51 +266,37 @@ class SlurmExecutor(BaseExecutor):
                         "set NEMO_EVALUATOR_TRUST_PRE_CMD=1."
                     )
 
-            socket = str(Path(tmpdirname) / "socket")
-            socket_or_none = _open_master_connection(
+            with master_connection(
                 username=cfg.execution.username,
                 hostname=cfg.execution.hostname,
-                socket=socket,
-            )
-
-            if socket_or_none is None:
-                raise RuntimeError(
-                    f"Failed to connect to the cluster {cfg.execution.hostname} as user {cfg.execution.username}. "
-                    "Please check your SSH configuration."
+            ) as socket:
+                # Validate that all mount paths exist on the remote host
+                mount_paths = _collect_mount_paths(cfg)
+                _validate_remote_paths_exist(
+                    paths=mount_paths,
+                    username=cfg.execution.username,
+                    hostname=cfg.execution.hostname,
+                    socket=socket,
                 )
 
-            # Validate that all mount paths exist on the remote host
-            mount_paths = _collect_mount_paths(cfg)
-            _validate_remote_paths_exist(
-                paths=mount_paths,
-                username=cfg.execution.username,
-                hostname=cfg.execution.hostname,
-                socket=socket_or_none,
-            )
-
-            _make_remote_execution_output_dir(
-                dirpath=cfg.execution.output_dir,
-                username=cfg.execution.username,
-                hostname=cfg.execution.hostname,
-                socket=socket_or_none,
-            )
-            _rsync_upload_rundirs(
-                local_sources=[local_rundir],
-                remote_target=cfg.execution.output_dir,
-                username=cfg.execution.username,
-                hostname=cfg.execution.hostname,
-            )
-            slurm_job_ids = _sbatch_remote_runsubs(
-                remote_runsub_paths=remote_runsub_paths,
-                username=cfg.execution.username,
-                hostname=cfg.execution.hostname,
-                socket=socket_or_none,
-            )
-            _close_master_connection(
-                username=cfg.execution.username,
-                hostname=cfg.execution.hostname,
-                socket=socket_or_none,
-            )
+                _make_remote_execution_output_dir(
+                    dirpath=cfg.execution.output_dir,
+                    username=cfg.execution.username,
+                    hostname=cfg.execution.hostname,
+                    socket=socket,
+                )
+                _rsync_upload_rundirs(
+                    local_sources=[local_rundir],
+                    remote_target=cfg.execution.output_dir,
+                    username=cfg.execution.username,
+                    hostname=cfg.execution.hostname,
+                )
+                slurm_job_ids = _sbatch_remote_runsubs(
+                    remote_runsub_paths=remote_runsub_paths,
+                    username=cfg.execution.username,
+                    hostname=cfg.execution.hostname,
+                    socket=socket,
+                )
 
             # save launched jobs metadata
             db = ExecutionDB()
@@ -429,19 +414,13 @@ class SlurmExecutor(BaseExecutor):
         hostname: str,
         job_id_to_execdb_id: dict,
     ) -> List[ExecutionStatus]:
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            socket = str(Path(tmpdirname) / "socket")
-            socket_or_none = _open_master_connection(
-                username=username,
-                hostname=hostname,
-                socket=socket,
-            )
+        with master_connection(username=username, hostname=hostname) as socket:
             # get slurm job status for initial jobs:
             slurm_jobs_status = _query_slurm_jobs_status(
                 slurm_job_ids=slurm_job_ids,
                 username=username,
                 hostname=hostname,
-                socket=socket_or_none,
+                socket=socket,
             )
             # handle slurm status for autoresumed jobs:
             autoresumed_slurm_job_ids = _read_autoresumed_slurm_job_ids(
@@ -449,7 +428,7 @@ class SlurmExecutor(BaseExecutor):
                 remote_rundir_paths=remote_rundir_paths,
                 username=username,
                 hostname=hostname,
-                socket=socket_or_none,
+                socket=socket,
             )
             latest_slurm_job_ids = {
                 slurm_job_id: slurm_job_id_list[-1]
@@ -460,19 +439,14 @@ class SlurmExecutor(BaseExecutor):
                 slurm_job_ids=list(latest_slurm_job_ids.values()),
                 username=username,
                 hostname=hostname,
-                socket=socket_or_none,
+                socket=socket,
             )
             # get progress:
             progress_list = _get_progress(
                 remote_rundir_paths=remote_rundir_paths,
                 username=username,
                 hostname=hostname,
-                socket=socket_or_none,
-            )
-            _close_master_connection(
-                username=username,
-                hostname=hostname,
-                socket=socket_or_none,
+                socket=socket,
             )
         statuses = []
         for i, slurm_job_id in enumerate(slurm_job_ids):
@@ -1184,30 +1158,17 @@ def _generate_auto_export_section(
     return s
 
 
-def _open_master_connection(
-    username: str,
-    hostname: str,
-    socket: str,
-) -> str | None:
-    return open_master_connection(username=username, hostname=hostname, socket=socket)
-
-
-def _close_master_connection(
-    username: str,
-    hostname: str,
-    socket: str | None,
-) -> None:
-    close_master_connection(username=username, hostname=hostname, socket=socket)
-
-
 def _make_remote_execution_output_dir(
     dirpath: str,
     username: str,
     hostname: str,
     socket: str | None,
 ) -> None:
-    make_remote_dir(
-        dirpath=dirpath, username=username, hostname=hostname, socket=socket
+    run_remote_command(
+        command=f"mkdir -p {dirpath}",
+        username=username,
+        hostname=hostname,
+        socket=socket,
     )
 
 
