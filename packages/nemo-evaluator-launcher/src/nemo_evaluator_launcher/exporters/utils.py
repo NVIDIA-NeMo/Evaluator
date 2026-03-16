@@ -25,9 +25,9 @@ import yaml
 
 from nemo_evaluator_launcher.common.execdb import JobData
 from nemo_evaluator_launcher.common.logging_utils import logger
-
 from nemo_evaluator_launcher.common.ssh_utils import (
     close_master_connection,
+    open_master_connection,
 )
 
 # =============================================================================
@@ -262,24 +262,14 @@ def ssh_setup_masters(remotes: List[Tuple[str, str]]) -> Dict[Tuple[str, str], s
     CONNECTIONS_DIR.mkdir(parents=True, exist_ok=True)
     control_paths: Dict[Tuple[str, str], str] = {}
     for username, hostname in remotes:
-        socket_path = CONNECTIONS_DIR / f"{username}_{hostname}.sock"
-        try:
-            cmd = [
-                "ssh",
-                "-N",
-                "-f",
-                "-o",
-                "ControlMaster=auto",
-                "-o",
-                "ControlPersist=60",
-                "-o",
-                f"ControlPath={socket_path}",
-                f"{username}@{hostname}",
-            ]
-            subprocess.run(cmd, check=False, capture_output=True)
-            control_paths[(username, hostname)] = str(socket_path)
-        except Exception as e:
-            logger.warning(f"Failed to start SSH master for {username}@{hostname}: {e}")
+        socket_path = str(CONNECTIONS_DIR / f"{username}_{hostname}.sock")
+        socket_or_none = open_master_connection(
+            username=username,
+            hostname=hostname,
+            socket=socket_path,
+        )
+        if socket_or_none is not None:
+            control_paths[(username, hostname)] = socket_or_none
     return control_paths
 
 
