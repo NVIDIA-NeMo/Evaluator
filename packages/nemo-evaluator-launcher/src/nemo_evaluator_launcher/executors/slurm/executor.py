@@ -789,10 +789,10 @@ def _create_slurm_sbatch_script(
         s += f"MODEL_NUM_NODES={cfg.execution.num_nodes}\n"
         for aux in aux_deployments:
             s += f"{aux.env_prefix}_NUM_NODES={aux.num_nodes}\n"
-        s += 'MODEL_NODES=("${ALL_NODES[@]:0:$MODEL_NUM_NODES}")\n'
+        s += 'MODEL_NODES=("${ALL_NODES[@]:0:$((MODEL_NUM_NODES))}")\n'
         offset_expr = "MODEL_NUM_NODES"
         for aux in aux_deployments:
-            s += f'{aux.nodes_var}=("${{ALL_NODES[@]:${offset_expr}:${aux.env_prefix}_NUM_NODES}}")\n'
+            s += f'{aux.nodes_var}=("${{ALL_NODES[@]:$(({offset_expr})):$(({aux.env_prefix}_NUM_NODES))}}")\n'
             offset_expr = f"{offset_expr}+{aux.env_prefix}_NUM_NODES"
         s += 'MODEL_NODELIST=$(IFS=,; echo "${MODEL_NODES[*]}")\n'
         for aux in aux_deployments:
@@ -2031,7 +2031,7 @@ def _generate_auxiliary_deployment_srun_command(
     if aux.num_instances > 1:
         # Multi-instance mode: loop over instances, collect PIDs
         nodes_per_instance = aux.num_nodes // aux.num_instances
-        n_tasks = aux.cfg.get("n_tasks", nodes_per_instance)
+        n_tasks = aux.cfg.get("n_tasks", aux.num_nodes)
         per_instance_ntasks = n_tasks // aux.num_instances
 
         s += f"{prefix}_HEAD_NODE_IPS=()\n"
@@ -2054,9 +2054,6 @@ def _generate_auxiliary_deployment_srun_command(
         )
 
         if pre_cmd:
-            create_pre_script_cmd = _str_to_echo_command(
-                pre_cmd, filename=f"{name}_deployment_pre_cmd.sh"
-            )
             script = (
                 f"{env_setup} && "
                 f"{create_pre_script_cmd.cmd} && "
