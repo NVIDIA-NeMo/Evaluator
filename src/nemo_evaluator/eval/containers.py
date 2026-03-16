@@ -43,7 +43,7 @@ def _variant_image(base: str, variant: str) -> str:
     return f"{base}:{variant}"
 
 
-def _scheme_to_variant(bench_name: str) -> str:
+def scheme_to_variant(bench_name: str) -> str:
     """Map a benchmark URI to its container variant."""
     mapping = _load_mapping()
     schemes = mapping.get("schemes", {})
@@ -63,7 +63,7 @@ def resolve_eval_image(bench_name: str, base_override: str | None = None) -> str
     """
     if base_override:
         return base_override
-    variant = _scheme_to_variant(bench_name)
+    variant = scheme_to_variant(bench_name)
     if not variant:
         return ""
     return _variant_image(_default_base(), variant)

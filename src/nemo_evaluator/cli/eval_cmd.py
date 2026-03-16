@@ -60,10 +60,19 @@ def eval_run(config_file, bench, model_url, model_id, api_key,
     else:
         raise click.ClickException("Specify a config file or --bench <name>.")
 
+    import os
+
     from nemo_evaluator.executors import get_executor
 
+    executor_type = config.cluster.type
+    if os.environ.get("NEL_INNER_EXECUTION") == "1":
+        logging.getLogger(__name__).warning(
+            "NEL_INNER_EXECUTION=1 — forcing local executor (config says %s)", executor_type,
+        )
+        executor_type = "local"
+
     try:
-        executor = get_executor(config.cluster.type)
+        executor = get_executor(executor_type)
     except KeyError as e:
         raise click.ClickException(str(e))
     executor.run(config, dry_run=dry_run, resume=resume,

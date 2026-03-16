@@ -13,6 +13,61 @@ from nemo_evaluator.executors import ProcessState
 logger = logging.getLogger(__name__)
 
 _META_FILE = "docker.json"
+_LOCAL_TAG_PREFIX = "nemo-evaluator"
+
+
+def _is_repo_root(p: Path) -> bool:
+    return (
+        (p / "pyproject.toml").exists()
+        and (p / "docker").is_dir()
+        and (p / "src" / "nemo_evaluator").is_dir()
+    )
+
+
+def _find_repo_root() -> Path | None:
+    """Locate the NEL repo root by walking up from CWD (then __file__ as fallback)."""
+    for start in (Path.cwd().resolve(), Path(__file__).resolve().parent):
+        p = start
+        for _ in range(10):
+            if _is_repo_root(p):
+                return p
+            parent = p.parent
+            if parent == p:
+                break
+            p = parent
+    return None
+
+
+def _build_local_image(variant: str, *, quiet: bool = False) -> str:
+    """Build a local Docker image from ``docker/Dockerfile.<variant>``.
+
+    Returns the local image tag, e.g. ``nemo-evaluator:local-gym``.
+    """
+    repo = _find_repo_root()
+    if repo is None:
+        raise FileNotFoundError(
+            "Cannot find repo root (need pyproject.toml + docker/ directory). "
+            "Local builds only work from a source checkout."
+        )
+
+    suffix = variant if variant and variant != "base" else "base"
+    dockerfile = repo / "docker" / f"Dockerfile.{suffix}"
+    if not dockerfile.exists():
+        raise FileNotFoundError(f"Dockerfile not found: {dockerfile}")
+
+    tag = f"{_LOCAL_TAG_PREFIX}:local" if suffix == "base" else f"{_LOCAL_TAG_PREFIX}:local-{suffix}"
+
+    cmd = ["docker", "build", "-f", str(dockerfile), "-t", tag, str(repo)]
+    logger.info("Building local image: %s", shlex.join(cmd))
+    if not quiet:
+        import click
+        click.echo(f"Building {tag} from {dockerfile.relative_to(repo)} …")
+
+    result = subprocess.run(cmd, capture_output=quiet, text=True)
+    if result.returncode != 0:
+        msg = result.stderr.strip() if quiet else "(see output above)"
+        raise RuntimeError(f"docker build failed: {msg}")
+    return tag
 
 
 class DockerExecutor:
@@ -22,14 +77,26 @@ class DockerExecutor:
             background=False, submit=False) -> None:
         import click
 
-        from nemo_evaluator.eval.containers import default_base_image, resolve_eval_image
+        from nemo_evaluator.eval.containers import resolve_eval_image, scheme_to_variant
 
         base = config.cluster.container_image
-        image = None
-        if config.benchmarks:
-            image = resolve_eval_image(config.benchmarks[0].name, base_override=base)
-        if not image:
-            image = default_base_image(base)
+        local_build = not base or base == "local"
+
+        if local_build:
+            variant = "base"
+            if config.benchmarks:
+                variant = scheme_to_variant(config.benchmarks[0].name) or "base"
+            if dry_run:
+                suffix = variant if variant and variant != "base" else "base"
+                image = f"{_LOCAL_TAG_PREFIX}:local" if suffix == "base" else f"{_LOCAL_TAG_PREFIX}:local-{suffix}"
+                click.echo(f"Would build: docker/Dockerfile.{suffix} → {image}")
+            else:
+                image = _build_local_image(variant)
+        else:
+            image = resolve_eval_image(
+                config.benchmarks[0].name if config.benchmarks else "",
+                base_override=base,
+            )
 
         output_dir = str(Path(config.output.dir).resolve())
 
@@ -48,6 +115,8 @@ class DockerExecutor:
             val = os.environ.get(key)
             if val:
                 env_args.extend(["-e", f"{key}={val}"])
+
+        env_args.extend(["-e", "NEL_INNER_EXECUTION=1"])
 
         Path(output_dir).mkdir(parents=True, exist_ok=True)
         cfg_path = Path(output_dir) / "_docker_config.json"

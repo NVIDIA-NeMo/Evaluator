@@ -21,6 +21,8 @@ _HEADER = """\
 {account_line}
 
 set -uo pipefail
+# Prevent nel from re-submitting to SLURM/Docker from inside the job.
+export NEL_INNER_EXECUTION=1
 
 OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
