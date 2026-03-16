@@ -127,14 +127,14 @@ VALID_TASKS = [
     pytest.param(
         {
             "name": "lm-evaluation-harness.ifeval",
-            "container": "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.01",
+            "container": "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03",
             "pre_cmd": "echo hello",
             "dataset_dir": "/host/datasets",
             "dataset_mount_path": "/mnt/data",
         },
         {
             "name": "lm-evaluation-harness.ifeval",
-            "container": "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.01",
+            "container": "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03",
             "pre_cmd": "echo hello",
             "dataset_dir": "/host/datasets",
             "dataset_mount_path": "/mnt/data",
