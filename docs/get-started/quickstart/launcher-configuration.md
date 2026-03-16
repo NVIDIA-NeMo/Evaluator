@@ -58,7 +58,7 @@ You: "Evaluate NVIDIA Nemotron-3-Nano-30B-A3B on standard benchmarks
       using vLLM locally. Export to Weights & Biases."
 
 Agent: I'll help you set that up. First, let me check your environment...
-       ✓ NeMo Evaluator 26.03 detected
+       ✓ NeMo Evaluator 26.01+ detected
        I'll need 5 quick answers to build your config:
        1. Execution: local (detected from your request)
        2. Deployment: vllm (confirmed)
@@ -226,5 +226,5 @@ Just: *"Evaluate this model on these benchmarks."*
 - **GitHub:** [NVIDIA NeMo Evaluator Library](https://github.com/NVIDIA-NeMo/Evaluator)
 - **Skill:** [nel-assistant](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator-launcher/.claude/skills/nel-assistant/SKILL.md)
 
-The nel-assistant skill is open-source and ships with NVIDIA NeMo Evaluator 26.03+.
+The nel-assistant skill is open-source and ships with NVIDIA NeMo Evaluator 26.01+.
 Contributions welcome on GitHub!
