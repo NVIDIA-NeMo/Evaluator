@@ -12,7 +12,6 @@ stages:
 
 variables:
   REGISTRY: "${CI_REGISTRY_IMAGE}"
-  TAG: "${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}"
 
 # ---------------------------------------------------------------------------
 # Lint & Test
@@ -108,9 +107,25 @@ pages:
   image: docker:27
   before_script:
     - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - TS=$(echo "$CI_COMMIT_TIMESTAMP" | sed 's/[-:]//g; s/T/-/; s/+.*//')
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        export TAG="${CI_COMMIT_TAG}"
+      elif [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        export TAG="${TS}-${CI_COMMIT_SHORT_SHA}"
+      else
+        export TAG="dev-${TS}-${CI_COMMIT_SHORT_SHA}"
+      fi
+    - echo "TAG=${TAG}"
   rules:
     - if: $CI_COMMIT_TAG
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - docker/**
+        - src/**/*
+        - pyproject.toml
+    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
       changes:
         - docker/**
         - src/**/*
@@ -119,44 +134,61 @@ pages:
 container-base:
   extends: .container-build
   script:
-    - docker build
-      --pull
+    - docker build --pull
       --cache-from "${REGISTRY}:latest"
       --tag "${REGISTRY}:${TAG}"
-      --tag "${REGISTRY}:latest"
       -f docker/Dockerfile.base .
     - docker push "${REGISTRY}:${TAG}"
-    - docker push "${REGISTRY}:latest"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "${REGISTRY}:${TAG}" "${REGISTRY}:latest"
+        docker push "${REGISTRY}:latest"
+      fi
 
 container-lm-eval:
   extends: .container-build
   needs: ["container-base"]
   script:
     - docker build
-      --cache-from "${REGISTRY}:${TAG}-lm-eval"
+      --cache-from "${REGISTRY}:latest-lm-eval"
       --tag "${REGISTRY}:${TAG}-lm-eval"
       -f docker/Dockerfile.lm-eval .
     - docker push "${REGISTRY}:${TAG}-lm-eval"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "${REGISTRY}:${TAG}-lm-eval" "${REGISTRY}:latest-lm-eval"
+        docker push "${REGISTRY}:latest-lm-eval"
+      fi
 
 container-skills:
   extends: .container-build
   needs: ["container-base"]
   script:
     - docker build
-      --cache-from "${REGISTRY}:${TAG}-skills"
+      --cache-from "${REGISTRY}:latest-skills"
       --tag "${REGISTRY}:${TAG}-skills"
       -f docker/Dockerfile.skills .
     - docker push "${REGISTRY}:${TAG}-skills"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "${REGISTRY}:${TAG}-skills" "${REGISTRY}:latest-skills"
+        docker push "${REGISTRY}:latest-skills"
+      fi
 
 container-mteb:
   extends: .container-build
   needs: ["container-base"]
   script:
     - docker build
-      --cache-from "${REGISTRY}:${TAG}-mteb"
+      --cache-from "${REGISTRY}:latest-mteb"
       --tag "${REGISTRY}:${TAG}-mteb"
       -f docker/Dockerfile.mteb .
     - docker push "${REGISTRY}:${TAG}-mteb"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "${REGISTRY}:${TAG}-mteb" "${REGISTRY}:latest-mteb"
+        docker push "${REGISTRY}:latest-mteb"
+      fi
 
 container-gym:
   extends: .container-build
@@ -164,17 +196,27 @@ container-gym:
   script:
     - docker build
       --build-arg "GYM_REPO=https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab-master.nvidia.com/dl/JoC/nemo-gym.git"
-      --cache-from "${REGISTRY}:${TAG}-gym"
+      --cache-from "${REGISTRY}:latest-gym"
       --tag "${REGISTRY}:${TAG}-gym"
       -f docker/Dockerfile.gym .
     - docker push "${REGISTRY}:${TAG}-gym"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "${REGISTRY}:${TAG}-gym" "${REGISTRY}:latest-gym"
+        docker push "${REGISTRY}:latest-gym"
+      fi
 
 container-full:
   extends: .container-build
   needs: ["container-base"]
   script:
     - docker build
-      --cache-from "${REGISTRY}:${TAG}-full"
+      --cache-from "${REGISTRY}:latest-full"
       --tag "${REGISTRY}:${TAG}-full"
       -f docker/Dockerfile.full .
     - docker push "${REGISTRY}:${TAG}-full"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "${REGISTRY}:${TAG}-full" "${REGISTRY}:latest-full"
+        docker push "${REGISTRY}:latest-full"
+      fi
