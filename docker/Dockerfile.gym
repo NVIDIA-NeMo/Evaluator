@@ -1,0 +1,48 @@
+# nemo-evaluator + NeMo Gym resource servers
+# For: gym:// benchmarks running native Gym servers (spider2_lite, xstest, finance, etc.)
+#
+# Gym requires Python >=3.12.
+#
+# Build:
+#   docker build -f docker/Dockerfile.gym -t nemo-evaluator:gym .
+#
+# To pin a Gym version:
+#   docker build -f docker/Dockerfile.gym \
+#       --build-arg GYM_REF=v1.2.0 \
+#       -t nemo-evaluator:gym .
+#
+# For private repos, pass a token:
+#   docker build -f docker/Dockerfile.gym \
+#       --build-arg GYM_REPO=https://oauth2:${TOKEN}@gitlab-master.nvidia.com/dl/JoC/nemo-gym.git \
+#       -t nemo-evaluator:gym .
+FROM python:3.12-slim AS base
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+RUN pip install --no-cache-dir --upgrade pip
+
+COPY pyproject.toml README.md ./
+COPY src/ src/
+
+RUN pip install --no-cache-dir ".[scoring,stats]"
+
+ARG GYM_REPO=https://gitlab-master.nvidia.com/dl/JoC/nemo-gym.git
+ARG GYM_REF=main
+
+RUN git clone --depth 1 -b ${GYM_REF} ${GYM_REPO} /opt/Gym \
+    && cd /opt/Gym \
+    && pip install --no-cache-dir . \
+    && for req in resources_servers/*/requirements.txt; do \
+         grep -v '^-e ' "$req" \
+           | pip install --no-cache-dir -r /dev/stdin 2>/dev/null || true; \
+       done \
+    && pip cache purge
+
+ENV GYM_PATH=/opt/Gym
+ENV PYTHONUNBUFFERED=1
+
+ENTRYPOINT ["nel"]
+CMD ["--help"]

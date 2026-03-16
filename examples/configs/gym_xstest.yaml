@@ -5,7 +5,8 @@
 # This config uses string-matching mode (no judge) for simplicity.
 #
 # Prerequisites:
-#   - Gym repo cloned and set up
+#   - nemo-evaluator:gym container (docker build -f docker/Dockerfile.gym), or
+#     Gym repo cloned and set up
 #   - A model endpoint running
 #
 # Usage:

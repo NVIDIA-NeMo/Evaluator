@@ -1,7 +1,8 @@
 # Spider 2.0-Lite: execution-based Text-to-SQL evaluation via native Gym server.
 #
 # Prerequisites:
-#   - Gym repo cloned and set up (uv sync / pip install)
+#   - nemo-evaluator:gym container (docker build -f docker/Dockerfile.gym), or
+#     Gym repo cloned and set up (uv sync / pip install)
 #   - Spider2 SQLite data downloaded (ng_prepare_data or auto-download on first run)
 #   - A model endpoint running (vLLM, API, etc.)
 #

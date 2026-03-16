@@ -5,7 +5,8 @@
 # The model interacts with these tools to answer financial questions.
 #
 # Prerequisites:
-#   - Gym repo cloned and set up
+#   - nemo-evaluator:gym container (docker build -f docker/Dockerfile.gym), or
+#     Gym repo cloned and set up
 #   - A model endpoint running
 #   - Optional: Tavily API key for web search augmentation
 #

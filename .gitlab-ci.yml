@@ -38,18 +38,32 @@ lint:
 
 test-offline:
   stage: test
+  variables:
+    VENV_DIR: "$CI_PROJECT_DIR/.venv-ci"
   before_script:
-    - pip install --cache-dir $PIP_CACHE_DIR -e ".[dev]"
+    - |
+      if [ -f "$VENV_DIR/installed.sha" ] && echo "$CI_COMMIT_SHA" | grep -qF "$(cat "$VENV_DIR/installed.sha" 2>/dev/null)"; then
+        echo "Using cached venv"
+      else
+        python -m venv "$VENV_DIR"
+        "$VENV_DIR/bin/pip" install --quiet --upgrade pip
+        "$VENV_DIR/bin/pip" install --quiet -e ".[dev]"
+        echo "$CI_COMMIT_SHA" > "$VENV_DIR/installed.sha"
+      fi
+    - export PATH="$VENV_DIR/bin:$PATH"
   script:
-    - pytest tests/ -m "not network" -v --tb=short --junitxml=report-offline.xml
+    - pytest tests/ -m "not network" -v --tb=short -x -n auto --junitxml=report-offline.xml
   artifacts:
     reports:
       junit: report-offline.xml
     when: always
   cache:
-    key: test-pip
+    key: test-venv-${CI_COMMIT_REF_SLUG}
     paths:
-      - .pip-cache/
+      - .venv-ci/
+    fallback_keys:
+      - test-venv-${CI_DEFAULT_BRANCH}
+      - test-venv-
   rules:
     - changes:
         - src/**/*
@@ -61,19 +75,32 @@ test-offline:
 test-network:
   stage: test
   variables:
+    VENV_DIR: "$CI_PROJECT_DIR/.venv-ci"
     HF_HOME: "$CI_PROJECT_DIR/.hf-cache"
   before_script:
-    - pip install --cache-dir $PIP_CACHE_DIR -e ".[dev]"
+    - |
+      if [ -f "$VENV_DIR/installed.sha" ] && echo "$CI_COMMIT_SHA" | grep -qF "$(cat "$VENV_DIR/installed.sha" 2>/dev/null)"; then
+        echo "Using cached venv"
+      else
+        python -m venv "$VENV_DIR"
+        "$VENV_DIR/bin/pip" install --quiet --upgrade pip
+        "$VENV_DIR/bin/pip" install --quiet -e ".[dev]"
+        echo "$CI_COMMIT_SHA" > "$VENV_DIR/installed.sha"
+      fi
+    - export PATH="$VENV_DIR/bin:$PATH"
   script:
-    - pytest tests/ -m "network" -v --tb=short --junitxml=report-network.xml
+    - pytest tests/ -m "network" -v --tb=short -x --junitxml=report-network.xml
   artifacts:
     reports:
       junit: report-network.xml
     when: always
   cache:
-    - key: test-pip
+    - key: test-venv-${CI_COMMIT_REF_SLUG}
       paths:
-        - .pip-cache/
+        - .venv-ci/
+      fallback_keys:
+        - test-venv-${CI_DEFAULT_BRANCH}
+        - test-venv-
     - key: hf-datasets
       paths:
         - .hf-cache/
@@ -127,17 +154,12 @@ pages:
 
 .container-build:
   stage: containers
-  image:
-    name: gcr.io/kaniko-project/executor:v1.23.2-debug
-    entrypoint: [""]
   before_script:
-    - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf '%s:%s' "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
   rules:
     - if: $CI_COMMIT_TAG
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       changes:
-        - Dockerfile
         - docker/**
         - src/**/*
         - pyproject.toml
@@ -145,54 +167,62 @@ pages:
 container-base:
   extends: .container-build
   script:
-    - /kaniko/executor
-      --context "${CI_PROJECT_DIR}"
-      --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
-      --destination "${REGISTRY}:${TAG}"
-      --destination "${REGISTRY}:latest"
-      --cache=true
-      --cache-repo="${REGISTRY}/cache"
+    - docker build
+      --pull
+      --cache-from "${REGISTRY}:latest"
+      --tag "${REGISTRY}:${TAG}"
+      --tag "${REGISTRY}:latest"
+      -f docker/Dockerfile.base .
+    - docker push "${REGISTRY}:${TAG}"
+    - docker push "${REGISTRY}:latest"
 
 container-lm-eval:
   extends: .container-build
   needs: ["container-base"]
   script:
-    - /kaniko/executor
-      --context "${CI_PROJECT_DIR}"
-      --dockerfile "${CI_PROJECT_DIR}/docker/Dockerfile.lm-eval"
-      --destination "${REGISTRY}:${TAG}-lm-eval"
-      --cache=true
-      --cache-repo="${REGISTRY}/cache"
+    - docker build
+      --cache-from "${REGISTRY}:${TAG}-lm-eval"
+      --tag "${REGISTRY}:${TAG}-lm-eval"
+      -f docker/Dockerfile.lm-eval .
+    - docker push "${REGISTRY}:${TAG}-lm-eval"
 
 container-skills:
   extends: .container-build
   needs: ["container-base"]
   script:
-    - /kaniko/executor
-      --context "${CI_PROJECT_DIR}"
-      --dockerfile "${CI_PROJECT_DIR}/docker/Dockerfile.skills"
-      --destination "${REGISTRY}:${TAG}-skills"
-      --cache=true
-      --cache-repo="${REGISTRY}/cache"
+    - docker build
+      --cache-from "${REGISTRY}:${TAG}-skills"
+      --tag "${REGISTRY}:${TAG}-skills"
+      -f docker/Dockerfile.skills .
+    - docker push "${REGISTRY}:${TAG}-skills"
 
 container-mteb:
   extends: .container-build
   needs: ["container-base"]
   script:
-    - /kaniko/executor
-      --context "${CI_PROJECT_DIR}"
-      --dockerfile "${CI_PROJECT_DIR}/docker/Dockerfile.mteb"
-      --destination "${REGISTRY}:${TAG}-mteb"
-      --cache=true
-      --cache-repo="${REGISTRY}/cache"
+    - docker build
+      --cache-from "${REGISTRY}:${TAG}-mteb"
+      --tag "${REGISTRY}:${TAG}-mteb"
+      -f docker/Dockerfile.mteb .
+    - docker push "${REGISTRY}:${TAG}-mteb"
+
+container-gym:
+  extends: .container-build
+  needs: ["container-base"]
+  script:
+    - docker build
+      --build-arg "GYM_REPO=https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab-master.nvidia.com/dl/JoC/nemo-gym.git"
+      --cache-from "${REGISTRY}:${TAG}-gym"
+      --tag "${REGISTRY}:${TAG}-gym"
+      -f docker/Dockerfile.gym .
+    - docker push "${REGISTRY}:${TAG}-gym"
 
 container-full:
   extends: .container-build
   needs: ["container-base"]
   script:
-    - /kaniko/executor
-      --context "${CI_PROJECT_DIR}"
-      --dockerfile "${CI_PROJECT_DIR}/docker/Dockerfile.full"
-      --destination "${REGISTRY}:${TAG}-full"
-      --cache=true
-      --cache-repo="${REGISTRY}/cache"
+    - docker build
+      --cache-from "${REGISTRY}:${TAG}-full"
+      --tag "${REGISTRY}:${TAG}-full"
+      -f docker/Dockerfile.full .
+    - docker push "${REGISTRY}:${TAG}-full"

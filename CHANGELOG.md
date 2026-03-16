@@ -8,6 +8,7 @@
 - **Multi-path health checks**: SLURM health waits for gym services with `server_cmd` now try both `/health` and `/openapi.json`, matching the `ManagedGymEnvironment` fallback behavior for native Gym servers.
 - **`scoring_details`-based breakdowns**: The eval loop now produces per-group breakdowns from `scoring_details` fields returned by verify (e.g., per-`db_id` accuracy for Spider2, per-`label` safety rates for XSTest). All aggregation is computed by NEL, not the server.
 - **Example configs**: `gym_spider2_lite.yaml`, `gym_xstest.yaml`, `gym_finance.yaml`, and `gym_slurm_suite.yaml` demonstrate running Spider 2.0-Lite, XSTest, and Finance SEC Search as native Gym resource servers.
+- **`Dockerfile.gym`**: New container variant (`docker/Dockerfile.gym`) that bundles NEL with the full NeMo Gym repository and all resource server dependencies. On SLURM, the `gym://` scheme now auto-selects this image. CI builds and pushes `${REGISTRY}:${TAG}-gym` via Kaniko.
 
 ### Gym Integration
 

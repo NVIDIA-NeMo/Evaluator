@@ -41,6 +41,7 @@ all = ["nemo-evaluator[scoring,stats,ray,pi,skills,lm-eval,mteb]"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
+    "pytest-xdist>=3.0",
     "ruff>=0.1",
     "pre-commit>=3.0",
     "nemo-evaluator[scoring,stats,lm-eval,mteb]",

@@ -3,12 +3,13 @@
 # Sufficient for: built-in benchmarks, gym://, pi://, container://.
 #
 # Build locally:
-#   docker build -t nemo-evaluator .
+#   docker build -f docker/Dockerfile.base -t nemo-evaluator .
 #
 # Per-harness variants:
 #   docker build -f docker/Dockerfile.lm-eval -t nemo-evaluator:lm-eval .
 #   docker build -f docker/Dockerfile.skills  -t nemo-evaluator:skills  .
 #   docker build -f docker/Dockerfile.mteb    -t nemo-evaluator:mteb    .
+#   docker build -f docker/Dockerfile.gym     -t nemo-evaluator:gym     .
 #   docker build -f docker/Dockerfile.full    -t nemo-evaluator:full    .
 #
 # CI builds and pushes to the GitLab container registry automatically.

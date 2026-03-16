@@ -4,11 +4,15 @@
 # a model against all three.  Each server is an opaque process started via
 # server_cmd -- NEL doesn't care about their internals.
 #
+# Requires the nemo-evaluator:gym container, which bundles NEL + all Gym
+# resource servers and their dependencies:
+#   docker build -f docker/Dockerfile.gym -t nemo-evaluator:gym .
+#
 # Usage:
 #   nel eval run examples/configs/gym_slurm_suite.yaml --submit
 #
 # Environment variables:
-#   GYM_PATH      Path to the Gym repo (default: /opt/Gym)
+#   GYM_PATH         Path to the Gym repo inside the container (default: /opt/Gym)
 #   NEMO_MODEL_URL   Model endpoint URL
 #   NEMO_MODEL_ID    Model name
 #   NEMO_API_KEY     API key (optional)
