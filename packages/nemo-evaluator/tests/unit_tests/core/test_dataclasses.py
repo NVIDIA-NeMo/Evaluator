@@ -20,13 +20,7 @@ from datetime import datetime
 import pytest
 from pydantic import ValidationError
 
-from nemo_evaluator.api.api_dataclasses import (
-    ApiEndpoint,
-    ConfigParams,
-    Evaluation,
-    EvaluationConfig,
-    EvaluationTarget,
-)
+from nemo_evaluator.api.api_dataclasses import ApiEndpoint
 
 
 def test_api_key_field_removed():
@@ -57,33 +51,6 @@ def test_endpoint_vlm_type_deprecation(endpoint_type, expected_type, expect_warn
         config = ApiEndpoint(**kwargs)
 
     assert config.type == expected_type
-
-
-def test_render_command_api_key_backwards_compat():
-    """Test that render_command injects api_key alias for backwards compatibility.
-
-    External framework.yml templates may still reference target.api_endpoint.api_key
-    even though the field was removed. The alias ensures they still render correctly.
-    """
-    evaluation = Evaluation(
-        command="{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}} && {% endif %}echo done",
-        framework_name="test",
-        pkg_name="test_pkg",
-        config=EvaluationConfig(
-            type="test_eval",
-            output_dir="/tmp/test",
-            params=ConfigParams(),
-        ),
-        target=EvaluationTarget(
-            api_endpoint=ApiEndpoint(
-                api_key_name="MY_API_KEY",
-                model_id="test-model",
-                url="http://localhost:8000",
-            )
-        ),
-    )
-    rendered = evaluation.render_command()
-    assert "export API_KEY=$MY_API_KEY" in rendered
 
 
 def test_vlm_endpoint_type_deprecation_removal_reminder():

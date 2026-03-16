@@ -224,12 +224,6 @@ class Evaluation(BaseModel):
 
     def render_command(self):
         values = self.model_dump()
-        # Backwards-compat: external framework.yml templates may still reference
-        # target.api_endpoint.api_key (removed field). Inject it as an alias
-        # so Jinja rendering does not fail with StrictUndefined.
-        api_ep = values.get("target", {}).get("api_endpoint")
-        if api_ep is not None and "api_key" not in api_ep and "api_key_name" in api_ep:
-            api_ep["api_key"] = api_ep["api_key_name"]
         env = get_jinja2_environment()
 
         def recursive_render(tpl):
