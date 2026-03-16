@@ -3596,7 +3596,7 @@ class TestJudgeDeploymentFeature:
     def test_judge_endpoint_exported_to_eval(
         self, base_config_with_judge, mock_task, mock_dependencies
     ):
-        """JUDGE_ENDPOINT_URL and JUDGE_MODEL_ID are exported for eval containers."""
+        """JUDGE_CHAT_URL and JUDGE_MODEL_ID are exported for eval containers."""
         cfg = OmegaConf.create(base_config_with_judge)
         script = _create_slurm_sbatch_script(
             cfg=cfg,
@@ -3608,12 +3608,12 @@ class TestJudgeDeploymentFeature:
         ).cmd
 
         assert (
-            'export JUDGE_ENDPOINT_URL="http://${JUDGE_PRIMARY_NODE}:8001/v1/chat/completions"'
+            'export JUDGE_CHAT_URL="http://${JUDGE_PRIMARY_NODE}:8001/v1/chat/completions"'
             in script
         )
         assert 'export JUDGE_MODEL_ID="judge-model"' in script
         # Both should be passed to eval container
-        assert "JUDGE_ENDPOINT_URL" in script
+        assert "JUDGE_CHAT_URL" in script
         assert "JUDGE_MODEL_ID" in script
 
     def test_judge_server_killed_after_eval(
@@ -3683,7 +3683,7 @@ class TestJudgeDeploymentFeature:
         # Should not contain judge-specific elements
         assert "JUDGE_SERVER_PID" not in script
         assert "JUDGE_PRIMARY_NODE" not in script
-        assert "JUDGE_ENDPOINT_URL" not in script
+        assert "JUDGE_CHAT_URL" not in script
         assert "judge deployment server" not in script
         # Node count should be just the model nodes
         assert "#SBATCH --nodes 1" in script

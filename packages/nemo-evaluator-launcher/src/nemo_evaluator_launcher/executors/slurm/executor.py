@@ -990,26 +990,29 @@ def _create_slurm_sbatch_script(
     # Export auxiliary endpoint information for evaluation containers
     aux_extra_env_names = []
     for aux in aux_deployments:
-        chat_endpoint = aux.cfg.endpoints.get("chat", "/v1/chat/completions")
-        base_path = chat_endpoint.rsplit("/chat/completions", 1)[0] or "/v1"
-        endpoint_url_var = f"{aux.env_prefix}_ENDPOINT_URL"
-        base_url_var = f"{aux.env_prefix}_BASE_URL"
-        model_id_var = f"{aux.env_prefix}_MODEL_ID"
-        s += f"# {aux.name} endpoint for evaluation tasks\n"
+        endpoint_vars = []
         if aux.num_instances > 1:
-            # Multi-instance: route through proxy
-            s += f'export {endpoint_url_var}="http://${{PRIMARY_NODE}}:{aux.proxy_port}{chat_endpoint}"\n'
-            s += f'export {base_url_var}="http://${{PRIMARY_NODE}}:{aux.proxy_port}{base_path}"\n'
+            host_expr = "${PRIMARY_NODE}"
+            port = aux.proxy_port
         else:
-            # Single instance: direct to primary node
-            s += f'export {endpoint_url_var}="http://${{{aux.primary_node_var}}}:{aux.cfg.port}{chat_endpoint}"\n'
-            s += f'export {base_url_var}="http://${{{aux.primary_node_var}}}:{aux.cfg.port}{base_path}"\n'
+            host_expr = f"${{{aux.primary_node_var}}}"
+            port = aux.cfg.port
+
+        s += f"# {aux.name} endpoints for evaluation tasks\n"
+        for ep_name, ep_path in aux.cfg.endpoints.items():
+            if ep_name == "health":
+                continue
+            var_name = f"{aux.env_prefix}_{ep_name.upper()}_URL"
+            s += f'export {var_name}="http://{host_expr}:{port}{ep_path}"\n'
+            s += f'echo "{var_name}: ${{{var_name}}}"\n'
+            endpoint_vars.append(var_name)
+
+        model_id_var = f"{aux.env_prefix}_MODEL_ID"
         s += f'export {model_id_var}="{aux.cfg.served_model_name}"\n'
-        s += f'echo "{endpoint_url_var}: ${{{endpoint_url_var}}}"\n'
-        s += f'echo "{base_url_var}: ${{{base_url_var}}}"\n'
         s += f'echo "{model_id_var}: ${{{model_id_var}}}"\n'
         s += "\n"
-        aux_extra_env_names.extend([endpoint_url_var, base_url_var, model_id_var])
+        endpoint_vars.append(model_id_var)
+        aux_extra_env_names.extend(endpoint_vars)
 
     s += "# evaluation client\n"
     s += "srun --mpi pmix --overlap "

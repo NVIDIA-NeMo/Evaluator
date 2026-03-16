@@ -300,7 +300,7 @@ def get_eval_factory_command(
     debug.append(create_post_script_cmd.debug)
 
     # Resolve auxiliary_deployments.NAME.FIELD references in the config.
-    # model_id is resolved to a literal; base_url/endpoint_url use shell vars
+    # model_id is resolved to a literal; endpoint URLs use shell vars
     # that envsubst resolves at runtime.
     config_yaml = yaml.safe_dump(merged_nemo_evaluator_config)
     for aux_name, aux_cfg_raw in cfg.get("auxiliary_deployments", {}).items():
@@ -315,9 +315,15 @@ def get_eval_factory_command(
             f"auxiliary_deployments.{aux_name}.model_id": str(
                 aux_cfg_raw.get("served_model_name", "")
             ),
-            f"auxiliary_deployments.{aux_name}.base_url": f"${{{prefix}_BASE_URL}}",
-            f"auxiliary_deployments.{aux_name}.endpoint_url": f"${{{prefix}_ENDPOINT_URL}}",
         }
+        # Per-endpoint URL references (e.g. chat_url, embedding_url, ranking_url)
+        endpoints = aux_cfg_raw.get("endpoints", {})
+        for ep_name in endpoints:
+            if ep_name == "health":
+                continue
+            refs[f"auxiliary_deployments.{aux_name}.{ep_name}_url"] = (
+                f"${{{prefix}_{ep_name.upper()}_URL}}"
+            )
         for ref, value in refs.items():
             config_yaml = config_yaml.replace(ref, value)
 
@@ -334,7 +340,10 @@ def get_eval_factory_command(
         if raw.get("type", "none") == "none":
             continue
         pfx = raw.get("env_prefix") or aux_name_v.upper()
-        shell_vars.extend([f"{pfx}_BASE_URL", f"{pfx}_ENDPOINT_URL"])
+        for ep_name in raw.get("endpoints") or {}:
+            if ep_name == "health":
+                continue
+            shell_vars.append(f"{pfx}_{ep_name.upper()}_URL")
 
     create_yaml_cmd = _str_to_echo_command(
         config_yaml,
