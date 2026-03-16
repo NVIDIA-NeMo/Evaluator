@@ -20,8 +20,6 @@ This module defines data structures and helpers for configuration and type safet
 
 import pathlib
 import warnings
-from dataclasses import dataclass
-from typing import cast
 
 # ruff: noqa: E402
 # Later when adding optional module to hydra, since the internal package is optional,
@@ -38,10 +36,10 @@ from omegaconf import DictConfig, OmegaConf
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 
-@dataclass
 class RunConfig(DictConfig):
-    @staticmethod
+    @classmethod
     def from_hydra(
+        cls,
         config: str | None = None,
         hydra_overrides: list[str] | None = None,
         dict_overrides: dict | None = None,
@@ -108,4 +106,4 @@ class RunConfig(DictConfig):
             dict_overrides=dict_overrides,
             result=cfg,
         )
-        return cast("RunConfig", cfg)
+        return cls(cfg)
