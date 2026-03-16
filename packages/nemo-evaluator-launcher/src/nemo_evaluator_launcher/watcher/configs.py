@@ -30,6 +30,9 @@ class ClusterConfig(BaseModel):
     partition: str = Field(
         default="batch", description="Partition of the cluster. Defaults to batch."
     )
+    output_dir: str = Field(
+        description="Path to the output directory for storing results.",
+    )
     sbtch_flags: dict[str, Any] = Field(
         default_factory=dict,
         description="Additional flags to pass to the sbatch command as '#SBATCH --<key> <value>'.",
@@ -112,9 +115,6 @@ class ConversionConfig(BaseModel):
             "Jinja2 command template to run inside the container. "
             "Must contain '{{ input_path }}' and '{{ output_path }}' placeholders. "
         )
-    )
-    output_dir: str = Field(
-        description="Path to the output directory for the conversion job."
     )
 
     @field_validator("command_pattern")
