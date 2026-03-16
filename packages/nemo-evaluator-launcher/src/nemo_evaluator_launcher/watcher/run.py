@@ -16,11 +16,9 @@
 """Watch mode: poll checkpoint directories and trigger evaluations for new checkpoints."""
 
 import copy
-import fnmatch
 import re
 import shlex
 import signal
-import subprocess
 import tempfile
 import time
 from datetime import datetime, timezone
@@ -35,13 +33,13 @@ from nemo_evaluator_launcher.api.types import RunConfig
 from nemo_evaluator_launcher.common.execdb import generate_invocation_id
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.ssh_utils import (
-    close_master_connection,
-    make_remote_dir,
-    open_master_connection,
+    master_connection,
     rsync_upload,
+    run_remote_command,
 )
 from nemo_evaluator_launcher.watcher.configs import (
     CHECKPOINT_FIELD,
+    ClusterConfig,
     ConversionConfig,
     WatchConfig,
 )
@@ -62,8 +60,10 @@ def _natural_sort_key(name: str) -> list:
 
 def discover_checkpoints(
     watch_dir: Path,
+    cluster_config: ClusterConfig,
     ready_markers: list[str],
-    checkpoint_patterns: Optional[list[str]] = None,
+    checkpoint_patterns: list[str],
+    socket: Optional[str] = None,
 ) -> list[Path]:
     """Find checkpoint subdirectories that contain any ready marker file.
 
@@ -72,32 +72,48 @@ def discover_checkpoints(
         ready_markers: A checkpoint is ready if ANY of these files exist in it.
         checkpoint_patterns: Glob patterns for checkpoint directory names.
             Only subdirectories matching ANY pattern are considered.
-            If None, all subdirectories are candidates.
+        cluster_config: Discovery runs on the remote host via SSH.
+        socket: Optional path to a multiplexing socket for connection reuse.
 
     Returns:
         Paths sorted in natural order by name (lowest first).
     """
-    if not watch_dir.is_dir():
+    # Build the find command, optionally filtering by checkpoint name patterns.
+    name_exprs = " -o ".join(f"-name {shlex.quote(p)}" for p in checkpoint_patterns)
+    find_cmd = (
+        f"find {shlex.quote(str(watch_dir))} -maxdepth 1 -mindepth 1 -type d"
+        f" \\( {name_exprs} \\)"
+    )
+
+    # Pipe into a loop that checks for any ready marker.
+    marker_tests = " || ".join(f'[ -f "$d/{m}" ]' for m in ready_markers)
+    remote_cmd = (
+        f"{find_cmd} 2>/dev/null"
+        f" | while IFS= read -r d; do"
+        f' if {marker_tests}; then echo "$d"; fi;'
+        f" done"
+    )
+
+    try:
+        output = run_remote_command(
+            command=remote_cmd,
+            username=cluster_config.username,
+            hostname=cluster_config.hostname,
+            socket=socket,
+        )
+    except RuntimeError as e:
+        logger.warning(f"Failed to discover checkpoints in {watch_dir}", error=str(e))
         return []
-    checkpoints = []
-    for child in watch_dir.iterdir():
-        if not child.is_dir():
-            continue
-        # Check if directory name matches any checkpoint pattern
-        if checkpoint_patterns is not None:
-            if not any(fnmatch.fnmatch(child.name, pat) for pat in checkpoint_patterns):
-                continue
-        # Check if any ready marker exists
-        if not any((child / marker).exists() for marker in ready_markers):
-            continue
-        checkpoints.append(child)
-    checkpoints.sort(key=lambda p: _natural_sort_key(p.name))
-    return checkpoints
+
+    paths = [Path(line.strip()) for line in output.splitlines() if line.strip()]
+    paths.sort(key=lambda p: _natural_sort_key(p.name))
+    return paths
 
 
 def _submit_conversion_job(
     input_path: Path,
     conversion_config: ConversionConfig,
+    cluster_config: ClusterConfig,
     dry_run: bool = False,
 ) -> tuple[Optional[str], str]:
     """Submit a conversion job for a checkpoint.
@@ -106,33 +122,40 @@ def _submit_conversion_job(
         Tuple of (slurm_job_id, output_path). slurm_job_id is None in dry-run mode.
     """
     # 1. Resolve output path
-    output_path = Path(conversion_config.output_dir) / input_path.name
+
+    invocation_id = generate_invocation_id()
+    remote_dir = f"{conversion_config.output_dir}/{invocation_id}"
+
+    output_path = Path(remote_dir) / input_path.name
 
     # 2. Render the command
-    command = conversion_config.command_pattern.format(
-        input_path=str(input_path),
-        output_path=str(output_path),
+    command = (
+        Environment()
+        .from_string(conversion_config.command_pattern)
+        .render(
+            input_path=str(input_path),
+            output_path=str(output_path),
+        )
     )
 
     # 3. Build mounts: start from configured mounts, auto-add input and output paths
     mounts_str = ""
-    for src, dst in conversion_config.mounts.items():
+    for mount in conversion_config.mounts:
+        src = mount.source
+        dst = mount.target
         mounts_str += f"{src}:{dst},"
     mounts_str += (
         f"{str(input_path)}:{str(input_path)},{str(output_path)}:{str(output_path)}"
     )
 
     # 4. Extract SSH connection params; remaining keys become #SBATCH directives
-    execution_params = dict(conversion_config.execution_params)
-    username = execution_params.pop("username")
-    hostname = execution_params.pop("hostname")
 
     # 5. Render sbatch script from Jinja template
     template_dir = Path(__file__).parent
     env = Environment(loader=FileSystemLoader(str(template_dir)))
     template = env.get_template("conversion_sbatch.template")
     sbatch_script = template.render(
-        execution_params=execution_params,
+        execution_params=cluster_config.sbtch_flags,
         container=conversion_config.container,
         mounts=mounts_str,
         command=command,
@@ -147,48 +170,35 @@ def _submit_conversion_job(
         return None, str(output_path)
 
     # 6. Submit via SSH
-    invocation_id = generate_invocation_id()
-    remote_dir = f"/tmp/nel-conversion-{invocation_id}"
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        local_script_dir = Path(tmpdir) / "conversion"
+        local_script_dir = Path(tmpdir) / invocation_id
         local_script_dir.mkdir()
-        (local_script_dir / "conversion.sh").write_text(sbatch_script)
+        (local_script_dir / "run.sub").write_text(sbatch_script)
 
-        socket = str(Path(tmpdir) / "socket")
-        socket_or_none = open_master_connection(
-            username=username, hostname=hostname, socket=socket
-        )
-        if socket_or_none is None:
-            raise RuntimeError(
-                f"Failed to connect to {hostname} as {username}. "
-                "Please check your SSH configuration."
-            )
-        try:
-            make_remote_dir(
-                dirpath=remote_dir,
-                username=username,
-                hostname=hostname,
-                socket=socket_or_none,
+        with master_connection(
+            username=cluster_config.username,
+            hostname=cluster_config.hostname,
+        ) as socket:
+            run_remote_command(
+                command=f"mkdir -p {remote_dir}",
+                username=cluster_config.username,
+                hostname=cluster_config.hostname,
+                socket=socket,
             )
             rsync_upload(
                 local_sources=[local_script_dir],
                 remote_target=remote_dir,
-                username=username,
-                hostname=hostname,
+                username=cluster_config.username,
+                hostname=cluster_config.hostname,
             )
-            slurm_job_ids = _sbatch_remote(
-                remote_script=f"{remote_dir}/conversion/conversion.sh",
-                username=username,
-                hostname=hostname,
-                socket=socket_or_none,
-            )
-        finally:
-            close_master_connection(
-                username=username, hostname=hostname, socket=socket_or_none
+            job_id = _sbatch_remote(
+                remote_script=f"{remote_dir}/run.sub",
+                username=cluster_config.username,
+                hostname=cluster_config.hostname,
+                socket=socket,
             )
 
-    job_id = slurm_job_ids[0]
     logger.info(
         "Submitted conversion job",
         job_id=job_id,
@@ -203,51 +213,45 @@ def _sbatch_remote(
     username: str,
     hostname: str,
     socket: str | None,
-) -> list[str]:
+) -> str:
     """Submit a single sbatch script on a remote host and return the SLURM job ID."""
-    ssh_command = ["ssh"]
-    if socket is not None:
-        ssh_command.append(f"-S {socket}")
-    ssh_command.append(f"{username}@{hostname}")
-    ssh_command.append(f"sbatch {remote_script}")
-    ssh_command_str = " ".join(ssh_command)
-    logger.info("Running sbatch", cmd=ssh_command_str)
-    completed = subprocess.run(
-        args=shlex.split(ssh_command_str),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+    stdout = run_remote_command(
+        command=f"sbatch --parsable {remote_script}",
+        username=username,
+        hostname=hostname,
+        socket=socket,
     )
-    if completed.returncode != 0:
+    # --parsable output is "<job_id>" or "<job_id>;<cluster_name>"
+    job_id = stdout.strip().split(";")[0]
+    if not job_id:
         raise RuntimeError(
-            f"failed to submit sbatch script\n{completed.stderr.decode()}"
+            f"Could not parse SLURM job ID from sbatch output: {stdout!r}"
         )
-    stdout = completed.stdout.decode()
-    job_ids = re.findall(r"(?<=Submitted batch job )\d+", stdout)
-    if not job_ids:
-        raise RuntimeError(f"Could not parse SLURM job ID from sbatch output: {stdout}")
-    logger.info("Started sbatch successfully", slurm_job_ids=job_ids)
-    return job_ids
+    logger.info("Started sbatch successfully", slurm_job_id=job_id)
+    return job_id
 
 
 def _convert_and_evaluate(
+    *,
     checkpoint: Path,
     conversion_config: ConversionConfig | None,
     evaluation_config: RunConfig,
+    cluster_config: ClusterConfig,
     dry_run: bool = False,
 ) -> tuple[str, RunConfig]:
     """Convert a checkpoint and evaluate it."""
-    # TODO:
-    # 1. trigger the conversion job using _submit_conversion_job function
-    # 2. add dependency on the conversion job to the config
-    # 3. return invocation_id and the evaluation config with the dependency added
 
     cfg_copy = OmegaConf.create(OmegaConf.to_container(evaluation_config, resolve=True))
 
     if conversion_config is not None:
         conversion_slurm_id, converted_checkpoint_path = _submit_conversion_job(
-            checkpoint, conversion_config, dry_run=dry_run
+            checkpoint, conversion_config, cluster_config, dry_run=dry_run
         )
-        evaluation_config.execution.sbatch_dependency = f"afterok:{conversion_slurm_id}"
+        OmegaConf.update(
+            cfg_copy,
+            "execution.sbatch_dependency",
+            f"afterok:{conversion_slurm_id}",
+        )
         OmegaConf.update(cfg_copy, CHECKPOINT_FIELD, str(converted_checkpoint_path))
     else:
         OmegaConf.update(cfg_copy, CHECKPOINT_FIELD, str(checkpoint))
@@ -257,9 +261,11 @@ def _convert_and_evaluate(
             f"[dry-run] Would submit eval for checkpoint: {checkpoint.name}",
             checkpoint_path=str(checkpoint),
         )
-        return None, cfg_copy
+
     try:
-        invocation_id = run_eval(cfg_copy)
+        invocation_id = run_eval(cfg_copy, dry_run=dry_run)
+        if dry_run:
+            return None, cfg_copy
         return invocation_id, cfg_copy
     except Exception as e:
         logger.error(

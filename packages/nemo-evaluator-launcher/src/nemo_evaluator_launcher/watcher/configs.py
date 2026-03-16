@@ -16,6 +16,26 @@ CHECKPOINT_FIELD = "deployment.checkpoint_path"
 WATCH_STATE_DIR = Path.home() / ".nemo-evaluator" / "watch-state"
 
 
+class ClusterConfig(BaseModel):
+    """Configuration for a cluster."""
+
+    model_config = ConfigDict(extra="forbid")
+    username: str = Field(description="Username of the cluster.")
+    hostname: str = Field(
+        default="localhost",
+        description="Hostname of the cluster. Defaults to localhost "
+        "(script launched from the cluster login node).",
+    )
+    account: str = Field(description="Account of the cluster.")
+    partition: str = Field(
+        default="batch", description="Partition of the cluster. Defaults to batch."
+    )
+    sbtch_flags: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional flags to pass to the sbatch command as '#SBATCH --<key> <value>'.",
+    )
+
+
 class MonitoringConfig(BaseModel):
     """Configuration for monitoring directories for new checkpoints."""
 
@@ -69,27 +89,28 @@ class MonitoringConfig(BaseModel):
         return v
 
 
+class MountConfig(BaseModel):
+    """Configuration for a mount directory."""
+
+    model_config = ConfigDict(extra="forbid")
+    target: str = Field(description="Target directory to mount (inside the container).")
+    source: str = Field(description="Source directory to mount (on the host).")
+
+
 class ConversionConfig(BaseModel):
     """Configuration for a checkpoint conversion job run before evaluation."""
 
     model_config = ConfigDict(extra="forbid")
 
-    execution_params: dict[str, Any] = Field(
-        description="Execution parameters to use for the "
-        "conversion job (e.g., username, hostname, account, etc). "
-        "These are used to submit the conversion job to the cluster."
-    )
-
     container: str = Field(description="Docker image to use for the conversion job.")
-    mounts: Optional[dict[str, str]] = Field(
-        default=None,
-        description="Mount directories (source:target format) to pass to the conversion job.",
+    mounts: list[MountConfig] = Field(
+        default_factory=list,
+        description="Mount directories to pass to the conversion job.",
     )
     command_pattern: str = Field(
         description=(
-            "Command template to run inside the container. "
-            "Must contain '{input_path}' and '{output_path}' placeholders. "
-            "It can also contain other placeholders that will be populated during runtime."
+            "Jinja2 command template to run inside the container. "
+            "Must contain '{{ input_path }}' and '{{ output_path }}' placeholders. "
         )
     )
     output_dir: str = Field(
@@ -99,10 +120,10 @@ class ConversionConfig(BaseModel):
     @field_validator("command_pattern")
     @classmethod
     def command_pattern_must_have_placeholders(cls, v: str) -> str:
-        missing = [p for p in ("{input_path}", "{output_path}") if p not in v]
+        missing = [p for p in ("{{ input_path }}", "{{ output_path }}") if p not in v]
         if missing:
             raise ValueError(
-                f"command_pattern is missing required placeholder(s): {', '.join(missing)}"
+                f"command_pattern is missing required Jinja2 placeholder(s): {', '.join(missing)}"
             )
         return v
 
@@ -112,6 +133,9 @@ class WatchConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
+    cluster_config: ClusterConfig = Field(
+        description="Configuration for the cluster (used for monitoring, conversion and evaluation jobs).",
+    )
     monitoring_config: MonitoringConfig = Field(
         description="Configuration for monitoring directories for new checkpoints.",
     )
@@ -135,16 +159,16 @@ class WatchConfig(BaseModel):
             if OmegaConf.select(cfg, CHECKPOINT_FIELD, default=None) is not None:
                 logger.warning(
                     f"evaluation_configs[{i}] pre-defines '{CHECKPOINT_FIELD}' "
-                    f"— watch mode will override it for each discovered checkpoint"
+                    f"as watch mode will override it for each discovered checkpoint"
                 )
             if "execution" not in cfg or cfg.get("execution") is None:
                 raise ValueError(
                     f"evaluation_configs[{i}] must have an 'execution' section"
                 )
             if cfg.get("execution", {}).get("output_dir") is not None:
-                raise ValueError(
-                    f"evaluation_configs[{i}] must not pre-define 'execution.output_dir' "
-                    f"— watch mode sets it per checkpoint"
+                logger.warning(
+                    f"Ignoring evaluation_configs[{i}] pre-define 'execution.output_dir' "
+                    f"as watch mode sets it per checkpoint"
                 )
         return self
 
