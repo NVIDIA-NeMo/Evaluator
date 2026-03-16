@@ -192,12 +192,17 @@ def _submit_conversion_job(
                 username=cluster_config.username,
                 hostname=cluster_config.hostname,
             )
-            job_id = _sbatch_remote(
-                remote_script=f"{remote_dir}/run.sub",
+            stdout = run_remote_command(
+                command=f"sbatch --parsable {remote_dir}/run.sub",
                 username=cluster_config.username,
                 hostname=cluster_config.hostname,
                 socket=socket,
             )
+            job_id = stdout.strip().split(";")[0]
+            if not job_id:
+                raise RuntimeError(
+                    f"Could not parse SLURM job ID from sbatch output: {stdout!r}"
+                )
 
     logger.info(
         "Submitted conversion job",
@@ -206,29 +211,6 @@ def _submit_conversion_job(
         output_path=str(output_path),
     )
     return job_id, str(output_path)
-
-
-def _sbatch_remote(
-    remote_script: str,
-    username: str,
-    hostname: str,
-    socket: str | None,
-) -> str:
-    """Submit a single sbatch script on a remote host and return the SLURM job ID."""
-    stdout = run_remote_command(
-        command=f"sbatch --parsable {remote_script}",
-        username=username,
-        hostname=hostname,
-        socket=socket,
-    )
-    # --parsable output is "<job_id>" or "<job_id>;<cluster_name>"
-    job_id = stdout.strip().split(";")[0]
-    if not job_id:
-        raise RuntimeError(
-            f"Could not parse SLURM job ID from sbatch output: {stdout!r}"
-        )
-    logger.info("Started sbatch successfully", slurm_job_id=job_id)
-    return job_id
 
 
 def _convert_and_evaluate(
@@ -303,78 +285,89 @@ def watch_and_evaluate(
     original_handler = signal.getsignal(signal.SIGINT)
     signal.signal(signal.SIGINT, _handle_sigint)
 
+    # FIXME improve code structure
     try:
-        while True:
-            for watch_dir_str in watch_config.monitoring_config.directories:
-                if stop_requested:
-                    break
-
-                wd = Path(watch_dir_str)
-                checkpoints = discover_checkpoints(
-                    wd,
-                    watch_config.monitoring_config.ready_markers,
-                    watch_config.monitoring_config.checkpoint_patterns,
-                )
-
-                if watch_config.monitoring_config.order == "last":
-                    checkpoints = list(reversed(checkpoints))
-
-                already_submitted = state.submitted_paths()
-                new_checkpoints = [
-                    cp for cp in checkpoints if str(cp) not in already_submitted
-                ]
-
-                if not new_checkpoints:
-                    logger.debug("No new checkpoints found", watch_dir=str(wd))
-                    continue
-                logger.info(
-                    f"Found {len(new_checkpoints)} new checkpoint(s)", watch_dir=str(wd)
-                )
-
-                for cp in new_checkpoints:
+        with master_connection(
+            username=watch_config.cluster_config.username,
+            hostname=watch_config.cluster_config.hostname,
+        ) as socket:
+            while True:
+                for watch_dir_str in watch_config.monitoring_config.directories:
                     if stop_requested:
                         break
 
-                    logger.info(f"Processing checkpoint: {cp.name}", path=str(cp))
+                    wd = Path(watch_dir_str)
+                    checkpoints = discover_checkpoints(
+                        wd,
+                        watch_config.cluster_config,
+                        watch_config.monitoring_config.ready_markers,
+                        watch_config.monitoring_config.checkpoint_patterns,
+                        socket=socket,
+                    )
 
-                    for eval_config in watch_config.evaluation_configs:
-                        invocation_id, resolved_eval_config = _convert_and_evaluate(
-                            cp,
-                            watch_config.conversion_config,
-                            eval_config,
-                            dry_run=dry_run,
-                        )
-                        if invocation_id is not None:
-                            logger.info(
-                                f"Submitted eval for checkpoint: {cp.name}",
-                                invocation_id=invocation_id,
+                    if watch_config.monitoring_config.order == "last":
+                        checkpoints = list(reversed(checkpoints))
+
+                    already_submitted = state.submitted_paths()
+                    new_checkpoints = [
+                        cp for cp in checkpoints if str(cp) not in already_submitted
+                    ]
+
+                    if not new_checkpoints:
+                        logger.debug("No new checkpoints found", watch_dir=str(wd))
+                        continue
+                    logger.info(
+                        f"Found {len(new_checkpoints)} new checkpoint(s)",
+                        watch_dir=str(wd),
+                    )
+
+                    for cp in new_checkpoints:
+                        if stop_requested:
+                            break
+
+                        logger.info(f"Processing checkpoint: {cp.name}", path=str(cp))
+
+                        for eval_config in watch_config.evaluation_configs:
+                            invocation_id, resolved_eval_config = _convert_and_evaluate(
+                                checkpoint=cp,
+                                conversion_config=watch_config.conversion_config,
+                                evaluation_config=eval_config,
+                                cluster_config=watch_config.cluster_config,
+                                dry_run=dry_run,
                             )
+                            if invocation_id is not None:
+                                logger.info(
+                                    f"Submitted eval for checkpoint: {cp.name}",
+                                    invocation_id=invocation_id,
+                                )
 
-                            record = SubmittedCheckpoint(
-                                checkpoint=str(cp),
-                                invocation_id=invocation_id,
-                                timestamp=datetime.now(timezone.utc).isoformat(),
-                                watch_config=copy.deepcopy(watch_config),
-                                eval_config=resolved_eval_config,
-                            )
-                            state.append(record)
-                            session_submissions.append(record)
+                                record = SubmittedCheckpoint(
+                                    checkpoint=str(cp),
+                                    invocation_id=invocation_id,
+                                    timestamp=datetime.now(timezone.utc).isoformat(),
+                                    watch_config=copy.deepcopy(watch_config),
+                                    eval_config=OmegaConf.to_container(
+                                        resolved_eval_config, resolve=True
+                                    ),
+                                )
+                                state.append(record)
+                                session_submissions.append(record)
 
-            if (
-                watch_config.monitoring_config.interval is None
-                or stop_requested
-                or dry_run
-            ):
-                break
-
-            logger.debug(
-                f"Sleeping {watch_config.monitoring_config.interval}s before next poll"
-            )
-            # Sleep 1 second at a time so SIGINT is handled promptly.
-            for _ in range(watch_config.monitoring_config.interval):
-                if stop_requested:
+                if (
+                    watch_config.monitoring_config.interval is None
+                    or stop_requested
+                    or dry_run
+                ):
                     break
-                time.sleep(1)
+
+                logger.debug(
+                    f"Sleeping {watch_config.monitoring_config.interval}s before next poll"
+                )
+                # Sleep 1 second at a time so SIGINT is handled promptly.
+                for _ in range(watch_config.monitoring_config.interval):
+                    if stop_requested:
+                        break
+                    time.sleep(1)
 
     finally:
         signal.signal(signal.SIGINT, original_handler)
