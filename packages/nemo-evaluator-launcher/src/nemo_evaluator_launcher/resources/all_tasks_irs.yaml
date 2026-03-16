@@ -1,5 +1,5 @@
 metadata:
-  mapping_toml_checksum: sha256:3fbfa7e2d95610355369908ab3274da8457a2d93621de3a307f905836563545e
+  mapping_toml_checksum: sha256:684a594af1f5dbd089d2eb04366579a6ecd43a02cdd09770006badc1aa2325d7
   num_tasks: 421
   num_harnesses: 23
 harnesses:
@@ -95,8 +95,8 @@ harnesses:
     evaluation results obtained with both exact matching and LLM-based answer extraction.
   full_name: VLMEvalKit
   url: https://github.com/open-compass/VLMEvalKit
-  container: nvcr.io/nvidia/eval-factory/vlmevalkit:26.01
-  container_digest: sha256:24c650c547cfd666bcc5ec822c996eb90e89e4964a1d4ec29e4d01d8bd3a22dc
+  container: nvcr.io/nvidia/eval-factory/vlmevalkit:26.03
+  container_digest: sha256:6d2c141dd36c827f76e62557ed10d42749cafd8b79f1574708869abe55e9351f
   arch: amd
 - name: garak
   description: Garak is an LLM vulnerability scanner.
