@@ -19,7 +19,7 @@ import os
 import re
 import time
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from omegaconf import OmegaConf
@@ -1544,12 +1544,14 @@ class TestSlurmExecutorGetStatus:
         hostname = "slurm.example.com"
         job_id_to_execdb_id = {"123456789": "def67890.0"}
 
+        mock_master_conn = MagicMock()
+        mock_master_conn.return_value.__enter__ = MagicMock(return_value="/tmp/socket")
+        mock_master_conn.return_value.__exit__ = MagicMock(return_value=False)
+
         with (
             patch(
-                "nemo_evaluator_launcher.executors.slurm.executor._open_master_connection"
-            ) as mock_open,
-            patch(
-                "nemo_evaluator_launcher.executors.slurm.executor._close_master_connection"
+                "nemo_evaluator_launcher.executors.slurm.executor.master_connection",
+                mock_master_conn,
             ),
             patch(
                 "nemo_evaluator_launcher.executors.slurm.executor._query_slurm_jobs_status"
@@ -1561,7 +1563,6 @@ class TestSlurmExecutorGetStatus:
                 "nemo_evaluator_launcher.executors.slurm.executor._get_progress"
             ) as mock_progress,
         ):
-            mock_open.return_value = "/tmp/socket"
             mock_query_status.return_value = {"123456789": ("COMPLETED", "123456789")}
             mock_autoresume.return_value = {"123456789": ["123456789"]}
             mock_progress.return_value = [800]
@@ -1587,12 +1588,14 @@ class TestSlurmExecutorGetStatus:
         hostname = "slurm.example.com"
         job_id_to_execdb_id = {"123456789": "def67890.0"}
 
+        mock_master_conn = MagicMock()
+        mock_master_conn.return_value.__enter__ = MagicMock(return_value="/tmp/socket")
+        mock_master_conn.return_value.__exit__ = MagicMock(return_value=False)
+
         with (
             patch(
-                "nemo_evaluator_launcher.executors.slurm.executor._open_master_connection"
-            ) as mock_open,
-            patch(
-                "nemo_evaluator_launcher.executors.slurm.executor._close_master_connection"
+                "nemo_evaluator_launcher.executors.slurm.executor.master_connection",
+                mock_master_conn,
             ),
             patch(
                 "nemo_evaluator_launcher.executors.slurm.executor._query_slurm_jobs_status"
@@ -1604,7 +1607,6 @@ class TestSlurmExecutorGetStatus:
                 "nemo_evaluator_launcher.executors.slurm.executor._get_progress"
             ) as mock_progress,
         ):
-            mock_open.return_value = "/tmp/socket"
             # Initial job was preempted, latest job is running
             mock_query_status.side_effect = [
                 {"123456789": ("PREEMPTED", "123456789")},  # Original job status
@@ -1637,12 +1639,14 @@ class TestSlurmExecutorGetStatus:
         hostname = "slurm.example.com"
         job_id_to_execdb_id = {"123456789": "def67890.0"}
 
+        mock_master_conn = MagicMock()
+        mock_master_conn.return_value.__enter__ = MagicMock(return_value="/tmp/socket")
+        mock_master_conn.return_value.__exit__ = MagicMock(return_value=False)
+
         with (
             patch(
-                "nemo_evaluator_launcher.executors.slurm.executor._open_master_connection"
-            ) as mock_open,
-            patch(
-                "nemo_evaluator_launcher.executors.slurm.executor._close_master_connection"
+                "nemo_evaluator_launcher.executors.slurm.executor.master_connection",
+                mock_master_conn,
             ),
             patch(
                 "nemo_evaluator_launcher.executors.slurm.executor._query_slurm_jobs_status"
@@ -1654,7 +1658,6 @@ class TestSlurmExecutorGetStatus:
                 "nemo_evaluator_launcher.executors.slurm.executor._get_progress"
             ) as mock_progress,
         ):
-            mock_open.return_value = "/tmp/socket"
             mock_query_status.return_value = {"123456789": ("RUNNING", "123456789")}
             mock_autoresume.return_value = {"123456789": ["123456789"]}
             mock_progress.return_value = [None]  # Unknown progress
@@ -1795,13 +1798,9 @@ class TestSlurmExecutorSystemCalls:
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
                 patch("subprocess.run", side_effect=mock_subprocess_run),
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor._open_master_connection"
-                ) as mock_open_connection,
             ):
                 # Configure mocks
                 mock_load_mapping.return_value = mock_tasks_mapping
-                mock_open_connection.return_value = "/tmp/socket"
 
                 def mock_get_task_def_side_effect(*_args, **kwargs):
                     task_name = kwargs.get("task_query")
@@ -1911,7 +1910,7 @@ class TestSlurmExecutorSystemCalls:
 
                 with pytest.raises(
                     RuntimeError,
-                    match="Failed to connect to the cluster slurm.example.com as user testuser. Please check your SSH configuration.",
+                    match="Failed to connect to slurm.example.com as testuser. Please check your SSH configuration.",
                 ):
                     SlurmExecutor.execute_eval(sample_config, dry_run=False)
 
@@ -2252,44 +2251,38 @@ class TestSlurmExecutorSystemCalls:
                 )
 
     def test_open_master_connection_success(self):
-        """Test _open_master_connection with successful SSH connection."""
-        from nemo_evaluator_launcher.executors.slurm.executor import (
-            _open_master_connection,
-        )
+        """Test open_master_connection with successful SSH connection."""
+        from nemo_evaluator_launcher.common.ssh_utils import open_master_connection
 
         def mock_subprocess_run(*args, **kwargs):
             """Mock subprocess.run for successful SSH master connection."""
             return Mock(returncode=0)
 
         with patch("subprocess.run", side_effect=mock_subprocess_run):
-            result = _open_master_connection(
+            result = open_master_connection(
                 username="testuser", hostname="slurm.example.com", socket="/tmp/socket"
             )
 
             assert result == "/tmp/socket"
 
     def test_open_master_connection_failure(self):
-        """Test _open_master_connection with failed SSH connection."""
-        from nemo_evaluator_launcher.executors.slurm.executor import (
-            _open_master_connection,
-        )
+        """Test open_master_connection with failed SSH connection."""
+        from nemo_evaluator_launcher.common.ssh_utils import open_master_connection
 
         def mock_subprocess_run(*args, **kwargs):
             """Mock subprocess.run for failed SSH master connection."""
             return Mock(returncode=1)
 
         with patch("subprocess.run", side_effect=mock_subprocess_run):
-            result = _open_master_connection(
+            result = open_master_connection(
                 username="testuser", hostname="slurm.example.com", socket="/tmp/socket"
             )
 
             assert result is None
 
     def test_close_master_connection_success(self):
-        """Test _close_master_connection with successful connection close."""
-        from nemo_evaluator_launcher.executors.slurm.executor import (
-            _close_master_connection,
-        )
+        """Test close_master_connection with successful connection close."""
+        from nemo_evaluator_launcher.common.ssh_utils import close_master_connection
 
         def mock_subprocess_run(*args, **kwargs):
             """Mock subprocess.run for successful SSH connection close."""
@@ -2297,15 +2290,13 @@ class TestSlurmExecutorSystemCalls:
 
         with patch("subprocess.run", side_effect=mock_subprocess_run):
             # Should not raise an exception
-            _close_master_connection(
+            close_master_connection(
                 username="testuser", hostname="slurm.example.com", socket="/tmp/socket"
             )
 
     def test_close_master_connection_failure(self):
-        """Test _close_master_connection with failed connection close."""
-        from nemo_evaluator_launcher.executors.slurm.executor import (
-            _close_master_connection,
-        )
+        """Test close_master_connection with failed connection close."""
+        from nemo_evaluator_launcher.common.ssh_utils import close_master_connection
 
         def mock_subprocess_run(*args, **kwargs):
             """Mock subprocess.run for failed SSH connection close."""
@@ -2315,21 +2306,19 @@ class TestSlurmExecutorSystemCalls:
             with pytest.raises(
                 RuntimeError, match="failed to close the master connection"
             ):
-                _close_master_connection(
+                close_master_connection(
                     username="testuser",
                     hostname="slurm.example.com",
                     socket="/tmp/socket",
                 )
 
     def test_close_master_connection_none_socket(self):
-        """Test _close_master_connection with None socket (should do nothing)."""
-        from nemo_evaluator_launcher.executors.slurm.executor import (
-            _close_master_connection,
-        )
+        """Test close_master_connection with None socket (should do nothing)."""
+        from nemo_evaluator_launcher.common.ssh_utils import close_master_connection
 
         # Should not call subprocess.run or raise any exception
         with patch("subprocess.run") as mock_run:
-            _close_master_connection(
+            close_master_connection(
                 username="testuser", hostname="slurm.example.com", socket=None
             )
             mock_run.assert_not_called()
@@ -2365,7 +2354,7 @@ class TestSlurmExecutorSystemCalls:
 
         with patch("subprocess.run", side_effect=mock_subprocess_run):
             with pytest.raises(
-                RuntimeError, match="failed to make a remote execution output dir"
+                RuntimeError, match="Remote command failed on slurm.example.com"
             ):
                 _make_remote_execution_output_dir(
                     dirpath="/remote/output",
