@@ -1,0 +1,192 @@
+[
+  {
+    "idx": 0,
+    "prompt": "Answer the following multiple choice question. The last line of your response should be of the following format: 'Answer: $LETTER' (without quotes) where LETTER is one of ABCD. Think step by step before answering.\n\nFind the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q.\n\nA) 0\nB) 4\nC) 2\nD) 6",
+    "expected_answer": "B",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "mmlu",
+      "question": "Find the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q.",
+      "subject": "abstract_algebra",
+      "choices": [
+        "0",
+        "4",
+        "2",
+        "6"
+      ],
+      "Question": "Find the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q.",
+      "A": "0",
+      "B": "4",
+      "C": "2",
+      "D": "6",
+      "category": "abstract_algebra"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Answer the following multiple choice question. The last line of your response should be of the following format: 'Answer: $LETTER' (without quotes) where LETTER is one of ABCD. Think step by step before answering.\n\nFind the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q.\n\nA) 0\nB) 4\nC) 2\nD) 6"
+      }
+    ],
+    "system": null,
+    "model_response": "We want \\([\\,\\mathbb{Q}(\\sqrt2,\\sqrt3,\\sqrt{18}) : \\mathbb{Q}\\,]\\).\n\nNote that \\(\\sqrt{18}=\\sqrt{9\\cdot 2}=3\\sqrt2\\), so \\(\\sqrt{18}\\in \\mathbb{Q}(\\sqrt2)\\). Hence\n\\[\n\\mathbb{Q}(\\sqrt2,\\sqrt3,\\sqrt{18})=\\mathbb{Q}(\\sqrt2,\\sqrt3).\n\\]\nNow \\([\\mathbb{Q}(\\sqrt2):\\mathbb{Q}]=2\\). Also \\(\\sqrt3\\notin \\mathbb{Q}(\\sqrt2)\\) (since \\(\\mathbb{Q}(\\sqrt2)=\\{a+b\\sqrt2:a,b\\in\\mathbb{Q}\\}\\), and squaring \\(a+b\\sqrt2\\) cannot equal \\(3\\) unless \\(b=0\\), which would force \\(a^2=3\\), impossible in \\(\\mathbb{Q}\\)). Therefore adjoining \\(\\sqrt3\\) doubles the degree:\n\\[\n[\\mathbb{Q}(\\sqrt2,\\sqrt3):\\mathbb{Q}(\\sqrt2)]=2.\n\\]\nSo\n\\[\n[\\mathbb{Q}(\\sqrt2,\\sqrt3):\\mathbb{Q}]=2\\cdot 2=4.\n\\]\n\nAnswer: B",
+    "reward": 1.0,
+    "extracted_answer": "B",
+    "scoring_details": {
+      "method": "byob_mmlu",
+      "correct": true,
+      "extracted": "B"
+    }
+  },
+  {
+    "idx": 1,
+    "prompt": "Answer the following multiple choice question. The last line of your response should be of the following format: 'Answer: $LETTER' (without quotes) where LETTER is one of ABCD. Think step by step before answering.\n\nLet p = (1, 2, 5, 4)(2, 3) in S_5 . Find the index of <p> in S_5.\n\nA) 8\nB) 2\nC) 24\nD) 120",
+    "expected_answer": "C",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "mmlu",
+      "question": "Let p = (1, 2, 5, 4)(2, 3) in S_5 . Find the index of <p> in S_5.",
+      "subject": "abstract_algebra",
+      "choices": [
+        "8",
+        "2",
+        "24",
+        "120"
+      ],
+      "Question": "Let p = (1, 2, 5, 4)(2, 3) in S_5 . Find the index of <p> in S_5.",
+      "A": "8",
+      "B": "2",
+      "C": "24",
+      "D": "120",
+      "category": "abstract_algebra"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Answer the following multiple choice question. The last line of your response should be of the following format: 'Answer: $LETTER' (without quotes) where LETTER is one of ABCD. Think step by step before answering.\n\nLet p = (1, 2, 5, 4)(2, 3) in S_5 . Find the index of <p> in S_5.\n\nA) 8\nB) 2\nC) 24\nD) 120"
+      }
+    ],
+    "system": null,
+    "model_response": "Compute \\(p=(1\\,2\\,5\\,4)(2\\,3)\\) by composing right-to-left.\n\nTrack images:\n- \\(1 \\xrightarrow{(2\\,3)} 1 \\xrightarrow{(1\\,2\\,5\\,4)} 2\\), so \\(p(1)=2\\).\n- \\(2 \\xrightarrow{(2\\,3)} 3 \\xrightarrow{(1\\,2\\,5\\,4)} 3\\), so \\(p(2)=3\\).\n- \\(3 \\xrightarrow{(2\\,3)} 2 \\xrightarrow{(1\\,2\\,5\\,4)} 5\\), so \\(p(3)=5\\).\n- \\(5 \\xrightarrow{(2\\,3)} 5 \\xrightarrow{(1\\,2\\,5\\,4)} 4\\), so \\(p(5)=4\\).\n- \\(4 \\xrightarrow{(2\\,3)} 4 \\xrightarrow{(1\\,2\\,5\\,4)} 1\\), so \\(p(4)=1\\).\n\nThus \\(p = (1\\,2\\,3\\,5\\,4)\\), a 5-cycle, so \\(|\\langle p\\rangle|=5\\).\nSince \\(|S_5|=120\\), the index is \\([S_5:\\langle p\\rangle]=120/5=24\\).\n\nAnswer: C",
+    "reward": 1.0,
+    "extracted_answer": "C",
+    "scoring_details": {
+      "method": "byob_mmlu",
+      "correct": true,
+      "extracted": "C"
+    }
+  },
+  {
+    "idx": 2,
+    "prompt": "Answer the following multiple choice question. The last line of your response should be of the following format: 'Answer: $LETTER' (without quotes) where LETTER is one of ABCD. Think step by step before answering.\n\nFind all zeros in the indicated finite field of the given polynomial with coefficients in that field. x^5 + 3x^3 + x^2 + 2x in Z_5\n\nA) 0\nB) 1\nC) 0,1\nD) 0,4",
+    "expected_answer": "D",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "mmlu",
+      "question": "Find all zeros in the indicated finite field of the given polynomial with coefficients in that field. x^5 + 3x^3 + x^2 + 2x in Z_5",
+      "subject": "abstract_algebra",
+      "choices": [
+        "0",
+        "1",
+        "0,1",
+        "0,4"
+      ],
+      "Question": "Find all zeros in the indicated finite field of the given polynomial with coefficients in that field. x^5 + 3x^3 + x^2 + 2x in Z_5",
+      "A": "0",
+      "B": "1",
+      "C": "0,1",
+      "D": "0,4",
+      "category": "abstract_algebra"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Answer the following multiple choice question. The last line of your response should be of the following format: 'Answer: $LETTER' (without quotes) where LETTER is one of ABCD. Think step by step before answering.\n\nFind all zeros in the indicated finite field of the given polynomial with coefficients in that field. x^5 + 3x^3 + x^2 + 2x in Z_5\n\nA) 0\nB) 1\nC) 0,1\nD) 0,4"
+      }
+    ],
+    "system": null,
+    "model_response": "Work in \\(\\mathbb{Z}_5\\). Factor:\n\\[\nx^5+3x^3+x^2+2x = x(x^4+3x^2+x+2).\n\\]\nSo \\(x=0\\) is a zero.\n\nNow test \\(x=1,2,3,4\\) in the polynomial mod 5:\n\n- \\(f(1)=1+3+1+2=7\\equiv 2\\neq 0\\).\n- \\(f(2)=2^5+3\\cdot 2^3+2^2+2\\cdot 2=32+24+4+4=64\\equiv 4\\neq 0\\).\n- \\(f(3)=3^5+3\\cdot 3^3+3^2+2\\cdot 3=243+81+9+6=339\\equiv 4\\neq 0\\).\n- \\(f(4)=4^5+3\\cdot 4^3+4^2+2\\cdot 4=1024+192+16+8=1240\\equiv 0\\).\n\nThus the zeros in \\(\\mathbb{Z}_5\\) are \\(0\\) and \\(4\\).\n\nAnswer: D",
+    "reward": 1.0,
+    "extracted_answer": "D",
+    "scoring_details": {
+      "method": "byob_mmlu",
+      "correct": true,
+      "extracted": "D"
+    }
+  },
+  {
+    "idx": 3,
+    "prompt": "Answer the following multiple choice question. The last line of your response should be of the following format: 'Answer: $LETTER' (without quotes) where LETTER is one of ABCD. Think step by step before answering.\n\nStatement 1 | A factor group of a non-Abelian group is non-Abelian. Statement 2 | If K is a normal subgroup of H and H is a normal subgroup of G, then K is a normal subgroup of G.\n\nA) True, True\nB) False, False\nC) True, False\nD) False, True",
+    "expected_answer": "B",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "mmlu",
+      "question": "Statement 1 | A factor group of a non-Abelian group is non-Abelian. Statement 2 | If K is a normal subgroup of H and H is a normal subgroup of G, then K is a normal subgroup of G.",
+      "subject": "abstract_algebra",
+      "choices": [
+        "True, True",
+        "False, False",
+        "True, False",
+        "False, True"
+      ],
+      "Question": "Statement 1 | A factor group of a non-Abelian group is non-Abelian. Statement 2 | If K is a normal subgroup of H and H is a normal subgroup of G, then K is a normal subgroup of G.",
+      "A": "True, True",
+      "B": "False, False",
+      "C": "True, False",
+      "D": "False, True",
+      "category": "abstract_algebra"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Answer the following multiple choice question. The last line of your response should be of the following format: 'Answer: $LETTER' (without quotes) where LETTER is one of ABCD. Think step by step before answering.\n\nStatement 1 | A factor group of a non-Abelian group is non-Abelian. Statement 2 | If K is a normal subgroup of H and H is a normal subgroup of G, then K is a normal subgroup of G.\n\nA) True, True\nB) False, False\nC) True, False\nD) False, True"
+      }
+    ],
+    "system": null,
+    "model_response": "Statement 1: False. A non-abelian group can have an abelian quotient. Example: \\(S_3\\) is non-abelian, but \\(S_3/A_3 \\cong C_2\\) is abelian.\n\nStatement 2: False. Normality is not transitive. Example: Let \\(G=S_4\\), \\(H=V_4\\) (the Klein four), which is normal in \\(S_4\\). Let \\(K=\\langle (12)(34)\\rangle\\), which is normal in \\(V_4\\) (since \\(V_4\\) is abelian). But \\(K\\) is not normal in \\(S_4\\) because conjugation by \\((13)\\) sends \\((12)(34)\\) to \\((14)(23)\\notin K\\).\n\nAnswer: B",
+    "reward": 1.0,
+    "extracted_answer": "B",
+    "scoring_details": {
+      "method": "byob_mmlu",
+      "correct": true,
+      "extracted": "B"
+    }
+  },
+  {
+    "idx": 4,
+    "prompt": "Answer the following multiple choice question. The last line of your response should be of the following format: 'Answer: $LETTER' (without quotes) where LETTER is one of ABCD. Think step by step before answering.\n\nFind the product of the given polynomials in the given polynomial ring. f(x) = 4x - 5, g(x) = 2x^2 - 4x + 2 in Z_8[x].\n\nA) 2x^2 + 5\nB) 6x^2 + 4x + 6\nC) 0\nD) x^2 + 1",
+    "expected_answer": "B",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "mmlu",
+      "question": "Find the product of the given polynomials in the given polynomial ring. f(x) = 4x - 5, g(x) = 2x^2 - 4x + 2 in Z_8[x].",
+      "subject": "abstract_algebra",
+      "choices": [
+        "2x^2 + 5",
+        "6x^2 + 4x + 6",
+        "0",
+        "x^2 + 1"
+      ],
+      "Question": "Find the product of the given polynomials in the given polynomial ring. f(x) = 4x - 5, g(x) = 2x^2 - 4x + 2 in Z_8[x].",
+      "A": "2x^2 + 5",
+      "B": "6x^2 + 4x + 6",
+      "C": "0",
+      "D": "x^2 + 1",
+      "category": "abstract_algebra"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Answer the following multiple choice question. The last line of your response should be of the following format: 'Answer: $LETTER' (without quotes) where LETTER is one of ABCD. Think step by step before answering.\n\nFind the product of the given polynomials in the given polynomial ring. f(x) = 4x - 5, g(x) = 2x^2 - 4x + 2 in Z_8[x].\n\nA) 2x^2 + 5\nB) 6x^2 + 4x + 6\nC) 0\nD) x^2 + 1"
+      }
+    ],
+    "system": null,
+    "model_response": "Multiply in \\( \\mathbb{Z}_8[x] \\) (all coefficients reduced mod 8):\n\\[\n(4x-5)(2x^2-4x+2)\n\\]\nDistribute:\n- \\(4x\\cdot 2x^2 = 8x^3 \\equiv 0\\)\n- \\(4x\\cdot (-4x) = -16x^2 \\equiv 0\\)\n- \\(4x\\cdot 2 = 8x \\equiv 0\\)\n- \\((-5)\\cdot 2x^2 = -10x^2 \\equiv 6x^2\\)\n- \\((-5)\\cdot (-4x) = 20x \\equiv 4x\\)\n- \\((-5)\\cdot 2 = -10 \\equiv 6\\)\n\nSo the product is:\n\\[\n6x^2 + 4x + 6\n\\]\n\nAnswer: B",
+    "reward": 1.0,
+    "extracted_answer": "B",
+    "scoring_details": {
+      "method": "byob_mmlu",
+      "correct": true,
+      "extracted": "B"
+    }
+  }
+]

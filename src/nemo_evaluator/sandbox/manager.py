@@ -10,7 +10,7 @@ import sys
 from typing import Any, Literal
 
 from nemo_evaluator.environments.base import SeedResult
-from nemo_evaluator.sandbox.base import OutsideEndpoint, Sandbox, SandboxSpec
+from nemo_evaluator.sandbox.base import OutsideEndpoint, Sandbox, SandboxSpec, VolumeMount
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,7 @@ class SandboxManager:
         self._backend_kwargs = backend_kwargs
         self._active: set[Any] = set()
         self._pulled: set[str] = set()
+        self._pulling: dict[str, asyncio.Event] = {}
 
         # SLURM multiplexing state
         self._slurm_nodes = slurm_nodes or []
@@ -63,46 +64,113 @@ class SandboxManager:
                      len(unique), self._concurrency)
         pull_sem = asyncio.Semaphore(self._concurrency)
 
-        async def _pull(img: str) -> None:
+        async def _pull_one(img: str) -> None:
             async with pull_sem:
-                if self._backend == "docker":
-                    proc = await asyncio.create_subprocess_exec(
-                        "docker", "pull", img,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                    )
-                    await proc.wait()
-                elif self._backend == "slurm":
-                    for node in self._slurm_nodes:
-                        proc = await asyncio.create_subprocess_exec(
-                            "srun", "--overlap", f"--nodelist={node}",
-                            "--ntasks=1",
-                            "enroot", "import", f"docker://{img}",
-                            stdout=asyncio.subprocess.PIPE,
-                            stderr=asyncio.subprocess.PIPE,
-                        )
-                        await proc.wait()
-                self._pulled.add(img)
+                try:
+                    await self._ensure_pulled(img)
+                except Exception:
+                    logger.warning("Pre-pull failed for %s", img, exc_info=True)
 
-        await asyncio.gather(*[_pull(img) for img in unique])
+        await asyncio.gather(*[_pull_one(img) for img in unique])
 
     # ------------------------------------------------------------------
     # Spec resolution
     # ------------------------------------------------------------------
 
-    def resolve_spec(self, seed: SeedResult) -> SandboxSpec | None:
-        """Resolve sandbox spec from seed result, image_template, or default image."""
-        if seed.sandbox_spec:
-            return seed.sandbox_spec
+    def resolve_spec(
+        self,
+        seed: SeedResult,
+        extra_volumes: list[VolumeMount] | None = None,
+    ) -> SandboxSpec | None:
+        """Resolve sandbox spec: merge seed spec with config overrides.
+
+        Priority: image_template overrides the image, but per-problem fields
+        (workdir, env, files, entrypoint) from seed.sandbox_spec are preserved.
+        Extra volumes (e.g. shared volume for stateless verification) are appended.
+        """
+        base = seed.sandbox_spec
+        vols = extra_volumes or []
+
         if self._image_template:
             try:
                 image = self._image_template.format_map(seed.metadata)
             except KeyError:
-                return None
-            return SandboxSpec(image=image)
+                image = base.image if base else None
+            if image:
+                return SandboxSpec(
+                    image=image,
+                    workdir=base.workdir if base else "/workspace",
+                    env=dict(base.env) if base else {},
+                    files=dict(base.files) if base else {},
+                    entrypoint=base.entrypoint if base else None,
+                    volumes=(list(base.volumes) if base else []) + vols,
+                )
+
+        if base:
+            if vols:
+                return SandboxSpec(
+                    image=base.image,
+                    workdir=base.workdir,
+                    env=dict(base.env),
+                    files=dict(base.files),
+                    entrypoint=base.entrypoint,
+                    volumes=list(base.volumes) + vols,
+                )
+            return base
+
         if self._default_image:
-            return SandboxSpec(image=self._default_image)
+            return SandboxSpec(image=self._default_image, volumes=vols)
         return None
+
+    # ------------------------------------------------------------------
+    # On-demand image pull with dedup
+    # ------------------------------------------------------------------
+
+    async def _ensure_pulled(self, image: str) -> None:
+        """Pull *image* if not already available, deduplicating concurrent requests."""
+        if image in self._pulled:
+            return
+        if image in self._pulling:
+            await self._pulling[image].wait()
+            if image not in self._pulled:
+                raise RuntimeError(f"Image pull failed for {image}")
+            return
+
+        event = asyncio.Event()
+        self._pulling[image] = event
+        try:
+            await self._pull_image(image)
+            self._pulled.add(image)
+        finally:
+            event.set()
+            self._pulling.pop(image, None)
+
+    async def _pull_image(self, image: str) -> None:
+        """Pull a single image via the configured backend."""
+        logger.info("Pulling image: %s", image)
+        if self._backend == "docker":
+            proc = await asyncio.create_subprocess_exec(
+                "docker", "pull", image,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                raise RuntimeError(f"docker pull {image} failed: {stderr.decode()[:500]}")
+        elif self._backend == "slurm":
+            for node in self._slurm_nodes:
+                proc = await asyncio.create_subprocess_exec(
+                    "srun", "--overlap", f"--nodelist={node}",
+                    "--ntasks=1",
+                    "enroot", "import", f"docker://{image}",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await proc.communicate()
+                if proc.returncode != 0:
+                    raise RuntimeError(
+                        f"enroot import {image} on {node} failed: {stderr.decode()[:500]}"
+                    )
 
     # ------------------------------------------------------------------
     # Acquire / Release
@@ -113,6 +181,7 @@ class SandboxManager:
         spec: SandboxSpec,
         outside_endpoints: list[OutsideEndpoint] | None = None,
     ) -> Sandbox:
+        await self._ensure_pulled(spec.image)
         await self._sem.acquire()
         try:
             sandbox = self._create(spec)

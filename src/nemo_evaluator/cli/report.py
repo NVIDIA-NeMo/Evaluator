@@ -53,24 +53,35 @@ def _build_table(bundles: list[dict[str, Any]]) -> dict[str, Any]:
     return {"model": model_name, "benchmarks": benchmarks, "n_benchmarks": len(benchmarks)}
 
 
+def _primary_metric(row: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """Pick the best headline metric: mean_reward if available, else pass@1."""
+    mr = row.get("mean_reward", {})
+    if isinstance(mr, dict) and "value" in mr:
+        return "mean_reward", mr
+    p1 = row.get("pass@1", {})
+    if isinstance(p1, dict) and "value" in p1:
+        return "pass@1", p1
+    return "", {}
+
+
 def _render_markdown(table: dict[str, Any]) -> str:
     lines = [f"# Evaluation Report: {table['model']}\n"]
 
-    header = "| Benchmark | Samples | pass@1 | CI (95%) |"
-    sep = "|-----------|---------|--------|----------|"
+    header = "| Benchmark | Samples | Score | Metric | CI (95%) |"
+    sep = "|-----------|---------|-------|--------|----------|"
     lines.extend([header, sep])
 
     for name, row in sorted(table["benchmarks"].items()):
-        p1 = row.get("pass@1", {})
-        if isinstance(p1, dict) and "value" in p1:
-            val = f"{p1['value']:.4f}"
-            lo = p1.get("ci_lower", "")
-            hi = p1.get("ci_upper", "")
+        metric_name, metric = _primary_metric(row)
+        if metric:
+            val = f"{metric['value']:.4f}"
+            lo = metric.get("ci_lower", "")
+            hi = metric.get("ci_upper", "")
             ci = f"[{lo:.4f}, {hi:.4f}]" if lo and hi else ""
         else:
             val = "-"
             ci = ""
-        lines.append(f"| {name} | {row.get('samples', '-')} | {val} | {ci} |")
+        lines.append(f"| {name} | {row.get('samples', '-')} | {val} | {metric_name} | {ci} |")
 
     lines.append("")
 
@@ -93,36 +104,36 @@ def _render_latex(table: dict[str, Any]) -> str:
         "\\begin{table}[h]",
         "\\centering",
         f"\\caption{{Evaluation results: {table['model']}}}",
-        "\\begin{tabular}{lrcc}",
+        "\\begin{tabular}{lrccc}",
         "\\toprule",
-        "Benchmark & Samples & pass@1 & 95\\% CI \\\\",
+        "Benchmark & Samples & Score & Metric & 95\\% CI \\\\",
         "\\midrule",
     ]
 
     for name, row in sorted(table["benchmarks"].items()):
-        p1 = row.get("pass@1", {})
-        if isinstance(p1, dict) and "value" in p1:
-            val = f"{p1['value']:.4f}"
-            lo = p1.get("ci_lower", "")
-            hi = p1.get("ci_upper", "")
+        metric_name, metric = _primary_metric(row)
+        if metric:
+            val = f"{metric['value']:.4f}"
+            lo = metric.get("ci_lower", "")
+            hi = metric.get("ci_upper", "")
             ci = f"[{lo:.4f}, {hi:.4f}]" if lo and hi else ""
         else:
             val = "--"
             ci = ""
-        lines.append(f"{name} & {row.get('samples', '--')} & {val} & {ci} \\\\")
+        lines.append(f"{name} & {row.get('samples', '--')} & {val} & {metric_name} & {ci} \\\\")
 
     lines.extend(["\\bottomrule", "\\end{tabular}", "\\end{table}"])
     return "\n".join(lines)
 
 
 def _render_csv(table: dict[str, Any]) -> str:
-    lines = ["benchmark,samples,repeats,pass@1,ci_lower,ci_upper"]
+    lines = ["benchmark,samples,repeats,metric,score,ci_lower,ci_upper"]
     for name, row in sorted(table["benchmarks"].items()):
-        p1 = row.get("pass@1", {})
-        val = p1.get("value", "") if isinstance(p1, dict) else ""
-        lo = p1.get("ci_lower", "") if isinstance(p1, dict) else ""
-        hi = p1.get("ci_upper", "") if isinstance(p1, dict) else ""
-        lines.append(f"{name},{row.get('samples', '')},{row.get('repeats', '')},{val},{lo},{hi}")
+        metric_name, metric = _primary_metric(row)
+        val = metric.get("value", "") if metric else ""
+        lo = metric.get("ci_lower", "") if metric else ""
+        hi = metric.get("ci_upper", "") if metric else ""
+        lines.append(f"{name},{row.get('samples', '')},{row.get('repeats', '')},{metric_name},{val},{lo},{hi}")
     return "\n".join(lines)
 
 
@@ -135,15 +146,16 @@ def _render_html(table: dict[str, Any]) -> str:
 
     rows_html = []
     for name, row in sorted(table["benchmarks"].items()):
-        p1 = row.get("pass@1", {})
-        if isinstance(p1, dict) and "value" in p1:
-            val = f"{p1['value']:.4f}"
-            lo = p1.get("ci_lower", "")
-            hi = p1.get("ci_upper", "")
+        metric_name, metric = _primary_metric(row)
+        if metric:
+            val = f"{metric['value']:.4f}"
+            lo = metric.get("ci_lower", "")
+            hi = metric.get("ci_upper", "")
             ci = f"[{lo:.4f}, {hi:.4f}]" if lo and hi else "&mdash;"
         else:
             val = "&mdash;"
             ci = "&mdash;"
+            metric_name = "&mdash;"
 
         tokens = row.get("total_tokens", "")
         latency = row.get("latency_p50_ms", "")
@@ -152,7 +164,8 @@ def _render_html(table: dict[str, Any]) -> str:
 
         rows_html.append(
             f"<tr><td>{name}</td><td>{row.get('samples', '')}</td>"
-            f"<td>{row.get('repeats', '')}</td><td><strong>{val}</strong></td>"
+            f"<td>{row.get('repeats', '')}</td><td>{metric_name}</td>"
+            f"<td><strong>{val}</strong></td>"
             f"<td>{ci}</td><td>{tokens}</td><td>{latency}</td></tr>"
         )
 
@@ -208,7 +221,7 @@ def _render_html(table: dict[str, Any]) -> str:
 <p class="meta">{n} benchmark(s) &middot; {ts}</p>
 <table>
 <thead>
-<tr><th>Benchmark</th><th>Samples</th><th>Repeats</th><th>pass@1</th><th>95% CI</th><th>Tokens</th><th>P50 ms</th></tr>
+<tr><th>Benchmark</th><th>Samples</th><th>Repeats</th><th>Metric</th><th>Score</th><th>95% CI</th><th>Tokens</th><th>P50 ms</th></tr>
 </thead>
 <tbody>
 {"".join(rows_html)}

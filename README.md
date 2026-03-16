@@ -29,6 +29,9 @@ nel eval run config.yaml
 nel eval report ./eval_results/ -f markdown -o report.md
 ```
 
+For a hands-on walkthrough covering BYOB benchmarks, Gym integration, regression detection,
+agentic evaluation, and more, see the [Getting Started guide](examples/getting_started.md).
+
 ## Available Benchmarks
 
 | Benchmark | Command | Type |
@@ -45,6 +48,8 @@ nel eval report ./eval_results/ -f markdown -o report.md
 | SimpleQA | `nel eval run --bench simpleqa` | Factuality (judge) |
 | HealthBench | `nel eval run --bench healthbench` | Health (judge) |
 | PinchBench | `nel eval run --bench pinchbench` | Agentic tasks (automated + judge) |
+| SWE-bench Verified | `nel eval run --bench swebench-verified` | Software engineering (Docker) |
+| SWE-bench Multilingual | `nel eval run --bench swebench-multilingual` | Software engineering, multi-lang (Docker) |
 
 Plus: any lm-eval task (`lm-eval://ifeval`), MTEB embedding benchmark (`mteb://STSBenchmark`), legacy eval-factory container (`container://nvcr.io/image#task`), or remote Gym environment (`gym://host:port`). All external environments use the consistent `scheme://task` URI syntax.
 
@@ -130,17 +135,28 @@ for known-bad pairings.
 | gym://      | yes  | yes         | yes | yes     | yes | yes      | --        |
 | pi://       | yes  | yes         | yes | yes     | yes | yes      | --        |
 | BYOB        | yes  | yes         | yes | yes     | yes | yes      | --        |
-| harbor://   | --   | --          | --  | yes     | --  | --       | --        |
+| harbor://   | yes* | yes*        | yes*| yes     | yes | yes      | --        |
+| swebench-*  | yes* | yes*        | yes*| yes     | yes | yes      | --        |
 | mteb://     | --   | --          | --  | --      | --  | --       | yes       |
 | pinchbench  | partial | partial  | partial | yes  | yes | yes     | --        |
 
 - **yes** -- fully supported
+- **yes*** -- supported via two-container mode; non-agentic solvers produce a text patch, which is applied in a fresh verification container (functional but less effective than agentic solvers)
 - **partial** -- runs but most tasks will score 0; only LLM-as-judge tasks get meaningful grades
 - **--** -- incompatible (evaluator warns at runtime)
 
-**Harbor** verification runs test scripts inside the Docker container. Only
-`SandboxSolver` (`endpoint_type: sandbox`) executes commands inside the
-container -- all other solvers leave the sandbox untouched.
+#### Two-Container Architecture (Harbor, SWE-bench)
+
+Agentic benchmarks use a **two-container model** for solver-agnostic verification:
+
+1. **Agent container** -- the solver runs here (Docker image varies by solver). A shared volume is mounted at `/output` for the agent to write artifacts.
+2. **Verification container** -- a fresh instance of the per-problem image. The shared volume is mounted read-only at `/input`; a benchmark-defined `apply_cmd` restores the agent's changes before test execution.
+
+This architecture ensures:
+- **Any solver works with any agentic benchmark.** In-container solvers (`sandbox`) produce artifacts via `capture_cmd` (e.g. `git diff`). External solvers (`nat`, `openclaw`, `chat`) write their text response to the shared volume, and `apply_cmd` applies it.
+- **Verification is isolated.** No agent side-effects leak into the scoring container.
+
+**Harbor** captures the workspace as a tarball; **SWE-bench** captures a git diff.
 
 **PinchBench** scores via `grade(transcript, workspace_path)`. Agentic
 solvers (`sandbox`, `nat`, `openclaw`) create files in the workspace so
@@ -193,20 +209,32 @@ nel eval run suite.yaml --resume
 
 ## Per-Problem Sandboxes
 
-For agent evaluations (SWE-bench, terminal-bench) and code execution (HumanEval), NEL provides per-problem isolated sandboxes:
+For agent evaluations and code execution, NEL provides per-problem isolated sandboxes in two modes:
+
+**Stateful** (HumanEval, simple code execution): one sandbox shared between solve and verify.
 
 ```yaml
 benchmarks:
-  - name: gym://swebench-server
+  - name: humaneval
     sandbox:
-      backend: docker                # docker | slurm | local
-      image_template: "swebench/sweb.eval.x86_64.{instance_id}:latest"
+      backend: docker
       concurrency: 8
-      memory: 4g
-      network: bridge
 ```
 
-Each problem gets its own container with per-task images. The sandbox stays alive through `seed → solve → verify` so agents can modify files and verification can run tests in the same environment. See [sandbox architecture](docs/architecture/sandbox.md) for details.
+**Stateless / Two-Container** (SWE-bench, Harbor): agent and verification run in separate containers with a shared host volume for artifact transfer.
+
+```yaml
+benchmarks:
+  - name: swebench-verified
+    endpoint_type: openclaw          # or sandbox, nat, chat, ...
+    sandbox:
+      backend: docker                # docker | slurm
+      concurrency: 8
+      verify_timeout: 600            # timeout for apply_cmd + test execution
+      memory: 8g
+```
+
+SWE-bench images are pulled lazily on demand (deduped) -- no need to pre-pull hundreds of images. See [sandbox architecture](docs/architecture/sandbox.md) for details.
 
 ## SLURM / Containers
 
@@ -271,39 +299,51 @@ output:
 ```
 src/nemo_evaluator/
     environments/
-        base.py           EvalEnvironment base class
-        define.py         @benchmark + @scorer decorator API
+        base.py           EvalEnvironment, SeedResult, VerifyResult
+        byob.py           @benchmark + @scorer decorator API, ByobEnvironment
         registry.py       Resolution: names, URIs, namespaces
-        gym.py            Gym + ManagedGym environments
+        gym.py            GymDataset, GymEnvironment, ManagedGymEnvironment
+        gym_protocol.py   NeMoGymResponse helpers, text extraction
         skills.py         NeMo Skills environments
         lm_eval.py        lm-evaluation-harness tasks
         pi.py             Prime Intellect environments
         mteb.py           MTEB embedding benchmarks
         container.py      Legacy eval-factory containers
-        server.py         HTTP server (Gym protocol)
-    benchmarks/           12 built-in benchmarks (all @benchmark + @scorer)
+        harbor.py         Harbor agentic benchmark
+    benchmarks/           14 built-in benchmarks (all @benchmark + @scorer)
+        _swebench_base.py Shared SWE-bench logic (seed, score, two-container setup)
+    solvers/
+        base.py           Solver protocol, SolveResult
+        chat.py           ChatSolver (single-turn chat completion)
+        completion.py     CompletionSolver (text completion)
+        vlm.py            VLMSolver (vision-language)
+        embedding.py      EmbeddingSolver
+        cross_encoder.py  CrossEncoderSolver
+        sandbox.py        SandboxSolver / AgentSolver (agent in sandbox)
+        nat.py            NatSolver (NAT agent via SSE)
+        openclaw.py       OpenClawSolver (OpenClaw agent)
     scoring/
         types.py          ScorerInput dataclass
         text.py           exact_match, fuzzy_match
         pattern.py        multichoice_regex, answer_line, numeric_match
-        sandbox.py        code_sandbox (sync) + code_sandbox_async (Sandbox protocol)
+        sandbox.py        code_sandbox (sync) + code_sandbox_async
         judge.py          LLM-as-judge (needs_judge, judge_score)
         json_schema.py    JSON schema validation
-    runner/
-        solver.py         Solver protocol (Chat, Completion, VLM, Embedding, Agent, SandboxedAgent)
-        nat_solver.py     NatSolver: NAT agent via SSE (/generate/full)
-        eval_loop.py      Async parallel eval with back-pressure and sandbox lifecycle
-        model_client.py   HTTP client with retry, cache, VLM, embeddings
-        deployment.py     Model server lifecycle + DeployConfig
-        checkpoint.py     Per-benchmark checkpoint tracking and resume
-        regression.py     Run comparison with Mann-Whitney U p-values
-        exporters/        WandB, MLflow export plugins
     sandbox/
-        base.py           Sandbox protocol, SandboxSpec, ExecResult, OutsideEndpoint
+        base.py           Sandbox protocol, SandboxSpec, VolumeMount, ExecResult
+        lifecycle.py      NoSandbox / StatefulSandbox / StatelessSandbox strategies
+        manager.py        SandboxManager (concurrency, pre-pull, emergency cleanup)
         docker.py         DockerSandbox (async, bridge network, per-task images)
         slurm.py          SlurmSandbox (Pyxis/Enroot, multiplexed slots)
         local.py          LocalSandbox (temp dir, no isolation)
-        manager.py        SandboxManager (concurrency, pre-pull, emergency cleanup)
+    runner/
+        eval_loop.py      Async parallel eval with back-pressure
+        model_client.py   HTTP client with retry, cache, VLM, embeddings
+        checkpoint.py     Per-benchmark checkpoint tracking and resume
+        regression.py     Run comparison with Mann-Whitney U p-values
+        exporters/        WandB, MLflow export plugins
+    serving/
+        app.py            HTTP server for environments (Gym + evaluator protocol)
     executors/
         __init__.py       Executor protocol, ProcessState, registry
         local.py          LocalExecutor (in-process or background fork)
@@ -311,13 +351,13 @@ src/nemo_evaluator/
         slurm.py          SlurmExecutor (sbatch generation + SSH submit)
     eval/
         config.py         EvalConfig Pydantic schema
+        deployment.py     Model server lifecycle + DeployConfig
         local_runner.py   Local execution with service orchestration
         slurm_gen.py      SLURM sbatch generation (colocated + separated)
         containers.py     Container image resolution from containers.toml
     observability/        StepRecord, RuntimeStats, FailureReport
     metrics/              pass@k, bootstrap CI, aggregation
     cli/                  nel eval, serve, validate, list, config, package
-    telemetry.py          Opt-in usage analytics
 ```
 
 ## License

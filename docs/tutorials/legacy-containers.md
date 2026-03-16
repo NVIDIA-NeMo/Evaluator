@@ -52,7 +52,7 @@ Plus 10+ more (see `nel list --source lm-eval`).
 ```python
 from nemo_evaluator.environments.container import ContainerEnvironment
 from nemo_evaluator.runner.eval_loop import run_evaluation
-from nemo_evaluator.runner.solver import ChatSolver
+from nemo_evaluator.solvers import ChatSolver
 from nemo_evaluator.runner.model_client import ModelClient
 
 env = ContainerEnvironment(

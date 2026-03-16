@@ -52,6 +52,12 @@ class DockerSandbox:
             f"-w={self._spec.workdir}",
         ]
 
+        for vol in self._spec.volumes:
+            flag = f"{vol.host_path}:{vol.container_path}"
+            if vol.readonly:
+                flag += ":ro"
+            cmd.extend(["-v", flag])
+
         for k, v in self._spec.env.items():
             cmd.extend(["-e", f"{k}={v}"])
         if outside_endpoints:

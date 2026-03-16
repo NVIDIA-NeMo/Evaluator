@@ -50,6 +50,13 @@ class SlurmSandbox:
 
         entrypoint = self._spec.entrypoint or "sleep infinity"
 
+        mount_args: list[str] = []
+        for vol in self._spec.volumes:
+            mount = f"{vol.host_path}:{vol.container_path}"
+            if vol.readonly:
+                mount += ":ro"
+            mount_args.append(f"--container-mounts={mount}")
+
         cmd = [
             "srun", "--overlap",
             f"--nodelist={self._node}",
@@ -57,6 +64,7 @@ class SlurmSandbox:
             f"--container-image={self._spec.image}",
             f"--container-workdir={self._spec.workdir}",
             f"--container-name={self._container_name}",
+            *mount_args,
             *env_args,
             "/bin/bash", "-c", entrypoint,
         ]

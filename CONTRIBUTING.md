@@ -24,7 +24,7 @@ make clean         # remove build artifacts
 2. Use `@benchmark` + `@scorer`:
 
 ```python
-from nemo_evaluator.environments.define import benchmark, scorer
+from nemo_evaluator.environments.byob import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput, answer_line
 
 @benchmark(

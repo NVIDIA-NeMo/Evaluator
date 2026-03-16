@@ -59,9 +59,11 @@ def _make_solver(bench: BenchmarkConfig, client: Any, model_url: str,
                 model_id=model_id,
                 api_key=api_key,
                 context_window=bench.context_window or 131_072,
-                max_tokens=bench.max_tokens or 16_384,
+                max_tokens=bench.max_tokens,
                 max_concurrent=bench.max_concurrent,
                 config_path=bench.openclaw_config,
+                temperature=bench.temperature,
+                top_p=bench.top_p,
                 skip_preflight=uses_sandbox,
             )
         case EndpointType.vlm:
@@ -81,7 +83,7 @@ def _make_solver(bench: BenchmarkConfig, client: Any, model_url: str,
 
 def _start_model_service(svc: ServiceConfig):
     """Start a model server process and return the deployment handle."""
-    from nemo_evaluator.runner.deployment import DeployConfig, get_deployment
+    from nemo_evaluator.eval.deployment import DeployConfig, get_deployment
 
     deploy_cfg = DeployConfig(
         type=svc.type,
@@ -346,13 +348,15 @@ async def _run_single_benchmark(
     task_dir = output_dir / safe
     task_dir.mkdir(parents=True, exist_ok=True)
 
-    run_config = {
+    run_config: dict[str, Any] = {
         "benchmark": bench_name,
         "model": model_id,
         "base_url": model_url,
         "repeats": bench.repeats,
         "max_problems": bench.max_problems,
     }
+    if sb:
+        run_config["_sandbox_config"] = sb
 
     bundle = await run_evaluation(
         env, solver,

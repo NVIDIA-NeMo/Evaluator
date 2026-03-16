@@ -12,7 +12,8 @@ class ProgressTracker(Protocol):
     def on_start(self, benchmark: str, total_problems: int, total_repeats: int) -> None: ...
     def on_step(self, problem: int, repeat: int, total_problems: int, total_repeats: int,
                 reward: float, tokens: int, latency_ms: float) -> None: ...
-    def on_done(self, correct: int, total: int, elapsed: float, total_tokens: int) -> None: ...
+    def on_done(self, correct: int, total: int, elapsed: float, total_tokens: int,
+                mean_reward: float | None = None) -> None: ...
 
 
 class ConsoleProgress:
@@ -78,9 +79,11 @@ class ConsoleProgress:
         sys.stderr.flush()
         self._line_len = len(line)
 
-    def on_done(self, correct: int, total: int, elapsed: float, total_tokens: int) -> None:
+    def on_done(self, correct: int, total: int, elapsed: float, total_tokens: int,
+                mean_reward: float | None = None) -> None:
+        mr = f" | mean_reward={mean_reward:.4f}" if mean_reward is not None else ""
         acc = correct / total if total else 0
-        msg = f"Done {elapsed:.1f}s | {acc:.1%} ({correct}/{total}) | {total_tokens:,} tok"
+        msg = f"Done {elapsed:.1f}s | pass@1={acc:.1%} ({correct}/{total}){mr} | {total_tokens:,} tok"
         if self._is_tty:
             sys.stderr.write(f"\n\n{'='*60}\n  {msg}\n{'='*60}\n\n")
             sys.stderr.flush()
@@ -92,4 +95,5 @@ class NoOpProgress:
     def on_start(self, benchmark: str, total_problems: int, total_repeats: int) -> None: pass
     def on_step(self, problem: int, repeat: int, total_problems: int, total_repeats: int,
                 reward: float, tokens: int, latency_ms: float) -> None: pass
-    def on_done(self, correct: int, total: int, elapsed: float, total_tokens: int) -> None: pass
+    def on_done(self, correct: int, total: int, elapsed: float, total_tokens: int,
+                mean_reward: float | None = None) -> None: pass

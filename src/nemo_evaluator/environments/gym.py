@@ -1,6 +1,22 @@
-"""Gym environments: remote client + managed server orchestration."""
+"""Gym environments: unified client + managed server lifecycle.
+
+Two classes:
+
+- ``GymEnvironment``: HTTP client that talks to any Gym-compatible server.
+  Supports two protocols (``evaluator`` and ``native``) and an optional
+  ``GymDataset`` for environments where the server doesn't serve task data.
+
+- ``ManagedGymEnvironment``: Starts a subprocess server, delegates to
+  ``GymEnvironment``, and tears down the process on close.
+
+One helper:
+
+- ``GymDataset``: Loads Gym JSONL task files.  Provides ``__len__`` and
+  ``__getitem__`` for task data without mixing file I/O into the HTTP client.
+"""
 from __future__ import annotations
 
+import json
 import logging
 import os
 import signal
@@ -8,11 +24,18 @@ import socket
 import subprocess
 import sys
 import time
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
+from nemo_evaluator.environments.gym_protocol import (
+    extract_prompt_from_rcp,
+    messages_from_rcp,
+    wrap_text_as_gym_response,
+    wrap_text_as_responses_create_params,
+)
 
 if TYPE_CHECKING:
     from nemo_evaluator.sandbox.base import Sandbox
@@ -26,22 +49,112 @@ def _find_free_port() -> int:
         return s.getsockname()[1]
 
 
-class GymEnvironment(EvalEnvironment):
-    """Remote environment client using seed_session/verify REST calls."""
+# ---------------------------------------------------------------------------
+# GymDataset -- JSONL loader, separate from the HTTP client
+# ---------------------------------------------------------------------------
 
-    def __init__(self, endpoint: str, timeout: float = 60.0) -> None:
+class GymDataset:
+    """Loads a Gym-format JSONL file (responses_create_params + metadata per row).
+
+    Each row is expected to have at least ``responses_create_params``
+    with an ``input`` field containing the prompt messages.  Additional
+    fields (``db_id``, ``gold_sql``, ``verifier_metadata``, etc.) are
+    benchmark-specific and are forwarded to the server at verify time.
+    """
+
+    def __init__(self, path: str | Path) -> None:
+        self._path = Path(path)
+        self._rows: list[dict[str, Any]] = []
+        if self._path.exists():
+            with open(self._path) as f:
+                self._rows = [json.loads(line) for line in f if line.strip()]
+
+    def __len__(self) -> int:
+        return len(self._rows)
+
+    def __getitem__(self, idx: int) -> dict[str, Any]:
+        return self._rows[idx]
+
+    @property
+    def name(self) -> str:
+        return self._path.stem
+
+
+# ---------------------------------------------------------------------------
+# GymEnvironment -- unified HTTP client
+# ---------------------------------------------------------------------------
+
+class GymEnvironment(EvalEnvironment):
+    """HTTP client for Gym-compatible servers.
+
+    Parameters
+    ----------
+    endpoint:
+        Base URL of the server (e.g. ``http://localhost:8000``).
+    protocol:
+        ``"evaluator"`` -- sends plain text to ``/verify`` (for ``nel serve``).
+        ``"native"`` -- wraps text in NeMoGymResponse envelope and forwards
+        all per-task metadata (for native Gym resource servers).
+    dataset:
+        Optional ``GymDataset``.  When provided, ``seed()`` reads from the
+        dataset instead of calling ``/seed_session``, and ``dataset_size()``
+        returns the dataset length.  Required for ``protocol="native"``
+        since native Gym servers don't serve task data via HTTP.
+    timeout:
+        HTTP request timeout in seconds.
+    """
+
+    def __init__(
+        self,
+        endpoint: str,
+        *,
+        protocol: Literal["evaluator", "native"] = "evaluator",
+        dataset: GymDataset | None = None,
+        timeout: float = 60.0,
+    ) -> None:
         super().__init__()
         self.endpoint = endpoint.rstrip("/")
+        self.protocol = protocol
+        self._dataset = dataset
         self.timeout = timeout
-        self.name = f"gym@{self.endpoint}"
         self._client: httpx.AsyncClient | None = None
+
+        ds_label = dataset.name if dataset else self.endpoint
+        self.name = f"gym@{ds_label}" if protocol == "evaluator" else f"gym-native@{ds_label}"
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(timeout=self.timeout)
         return self._client
 
+    # -- seed ---------------------------------------------------------------
+
     async def seed(self, idx: int) -> SeedResult:
+        if self._dataset is not None:
+            return self._seed_from_dataset(idx)
+        return await self._seed_from_server(idx)
+
+    def _seed_from_dataset(self, idx: int) -> SeedResult:
+        row = self._dataset[idx]
+        rcp = row.get("responses_create_params", {})
+        prompt = extract_prompt_from_rcp(rcp)
+        expected = row.get("expected_answer", "")
+
+        # Clean metadata: exclude bulky/internal fields that should not
+        # be serialized into step logs.  The original row is kept in
+        # self._dataset and looked up by problem_idx at verify time.
+        meta = {k: v for k, v in row.items()
+                if k not in ("responses_create_params", "expected_answer")
+                and not isinstance(v, (list, dict)) or k in ("verifier_metadata",)}
+
+        return SeedResult(
+            prompt=prompt,
+            expected_answer=expected,
+            metadata=meta,
+            messages=messages_from_rcp(rcp),
+        )
+
+    async def _seed_from_server(self, idx: int) -> SeedResult:
         c = await self._get_client()
         r = await c.post(f"{self.endpoint}/seed_session", json={"idx": idx})
         r.raise_for_status()
@@ -57,8 +170,15 @@ class GymEnvironment(EvalEnvironment):
             sandbox_spec=sandbox_spec,
         )
 
+    # -- verify -------------------------------------------------------------
+
     async def verify(self, response: str, expected: str,
                      sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
+        if self.protocol == "native":
+            return await self._verify_native(response, expected, **meta)
+        return await self._verify_evaluator(response, expected, **meta)
+
+    async def _verify_evaluator(self, response: str, expected: str, **meta: Any) -> VerifyResult:
         c = await self._get_client()
         r = await c.post(
             f"{self.endpoint}/verify",
@@ -73,13 +193,60 @@ class GymEnvironment(EvalEnvironment):
             metadata=d.get("metadata", {}),
         )
 
+    async def _verify_native(self, response: str, expected: str, **meta: Any) -> VerifyResult:
+        c = await self._get_client()
+
+        # Look up the full original row from the dataset by problem_idx
+        # to get responses_create_params and benchmark-specific fields
+        # without smuggling them through SeedResult.metadata.
+        problem_idx = meta.get("problem_idx")
+        row: dict[str, Any] = {}
+        if self._dataset is not None and problem_idx is not None:
+            try:
+                row = self._dataset[int(problem_idx)]
+            except (IndexError, TypeError):
+                pass
+
+        rcp = row.get("responses_create_params")
+        if rcp is None:
+            rcp = wrap_text_as_responses_create_params(meta.get("prompt", ""))
+
+        body: dict[str, Any] = {
+            "responses_create_params": rcp,
+            "response": wrap_text_as_gym_response(response),
+        }
+        # Forward benchmark-specific fields from the original row
+        for k, v in row.items():
+            if k in ("responses_create_params", "expected_answer"):
+                continue
+            body[k] = v
+        # Also forward any metadata the eval loop passed that isn't already set
+        for k, v in meta.items():
+            if k not in body and k != "problem_idx":
+                body[k] = v
+
+        r = await c.post(f"{self.endpoint}/verify", json=body)
+        r.raise_for_status()
+        d = r.json()
+        return VerifyResult(
+            reward=float(d.get("reward", 0.0)),
+            extracted_answer=d.get("extracted_sql") or d.get("extracted_answer"),
+            scoring_details={k: v for k, v in d.items()
+                            if k not in ("reward", "responses_create_params", "response")},
+            metadata=d.get("metadata", {}),
+        )
+
+    # -- dataset_size -------------------------------------------------------
+
     async def dataset_size(self) -> int:
+        if self._dataset is not None:
+            return len(self._dataset)
         try:
             c = await self._get_client()
             r = await c.get(f"{self.endpoint}/dataset_size")
             r.raise_for_status()
             return r.json().get("size", -1)
-        except (httpx.HTTPError, KeyError, ValueError):
+        except Exception:
             return -1
 
     async def close(self) -> None:
@@ -88,8 +255,22 @@ class GymEnvironment(EvalEnvironment):
             self._client = None
 
 
+# ---------------------------------------------------------------------------
+# ManagedGymEnvironment -- subprocess lifecycle
+# ---------------------------------------------------------------------------
+
 class ManagedGymEnvironment(EvalEnvironment):
-    """Starts a Gym-compatible server, runs eval through it, tears it down."""
+    """Starts a subprocess server, delegates to GymEnvironment, tears it down.
+
+    Parameters
+    ----------
+    server_cmd / server_module / nel_benchmark:
+        How to start the server (at least one required).
+    protocol:
+        Passed to the inner ``GymEnvironment``.
+    dataset:
+        Passed to the inner ``GymEnvironment``.
+    """
 
     def __init__(
         self,
@@ -100,6 +281,8 @@ class ManagedGymEnvironment(EvalEnvironment):
         port: int | None = None,
         startup_timeout: float = 60.0,
         request_timeout: float = 120.0,
+        protocol: Literal["evaluator", "native"] = "evaluator",
+        dataset: GymDataset | None = None,
     ) -> None:
         super().__init__()
         self._server_cmd = server_cmd
@@ -108,9 +291,11 @@ class ManagedGymEnvironment(EvalEnvironment):
         self._host = host
         self._port = port or _find_free_port()
         self._startup_timeout = startup_timeout
+        self._request_timeout = request_timeout
+        self._protocol = protocol
+        self._dataset_obj = dataset
         self._process: subprocess.Popen | None = None
         self._inner: GymEnvironment | None = None
-        self._request_timeout = request_timeout
         self.name = f"managed-gym@{host}:{self._port}"
 
     @property
@@ -127,7 +312,12 @@ class ManagedGymEnvironment(EvalEnvironment):
             cmd, shell=isinstance(cmd, str), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env,
         )
         self._wait_for_health()
-        self._inner = GymEnvironment(self.endpoint, timeout=self._request_timeout)
+        self._inner = GymEnvironment(
+            self.endpoint,
+            protocol=self._protocol,
+            dataset=self._dataset_obj,
+            timeout=self._request_timeout,
+        )
         logger.info("Managed Gym server ready at %s (pid=%d)", self.endpoint, self._process.pid)
 
     def _build_cmd(self) -> list[str] | str:
@@ -142,6 +332,12 @@ class ManagedGymEnvironment(EvalEnvironment):
         raise ValueError("ManagedGymEnvironment requires one of: server_cmd, server_module, or nel_benchmark")
 
     def _wait_for_health(self) -> None:
+        """Wait for the server to become responsive.
+
+        Tries ``/health`` first (evaluator servers).  Falls back to
+        ``/openapi.json`` which every FastAPI app serves by default
+        (native Gym resource servers don't expose ``/health``).
+        """
         deadline = time.monotonic() + self._startup_timeout
         while time.monotonic() < deadline:
             if self._process.poll() is not None:
@@ -152,6 +348,14 @@ class ManagedGymEnvironment(EvalEnvironment):
                     return
             except (httpx.ConnectError, httpx.TimeoutException):
                 pass
+            else:
+                # /health returned non-200 (e.g. 404) -- try FastAPI default
+                try:
+                    r2 = httpx.get(f"{self.endpoint}/openapi.json", timeout=2.0)
+                    if r2.status_code == 200:
+                        return
+                except (httpx.ConnectError, httpx.TimeoutException):
+                    pass
             time.sleep(0.5)
         self.stop()
         raise TimeoutError(f"Server at {self.endpoint} not healthy within {self._startup_timeout}s")
@@ -175,6 +379,8 @@ class ManagedGymEnvironment(EvalEnvironment):
 
     async def verify(self, response: str, expected: str,
                      sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
+        if self._inner is None:
+            self.start()
         return await self._inner.verify(response, expected, sandbox=sandbox, **meta)
 
     async def dataset_size(self) -> int:

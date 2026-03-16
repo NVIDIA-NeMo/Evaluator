@@ -1,5 +1,5 @@
 """SimpleQA -- short-form factuality (requires LLM-as-judge)."""
-from nemo_evaluator.environments.define import benchmark, scorer
+from nemo_evaluator.environments.byob import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput, needs_judge
 
 

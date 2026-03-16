@@ -189,8 +189,8 @@ class ModelClient:
 
                     if resp.status_code in self.retry.retry_on_status and attempt < self.retry.max_retries:
                         delay = self._backoff_delay(attempt)
-                        logger.warning("Retryable status %d on attempt %d/%d, sleeping %.1fs",
-                                       resp.status_code, attempt + 1, self.retry.max_retries + 1, delay)
+                        logger.warning("Retryable status %d on attempt %d/%d, sleeping %.1fs | body: %.500s",
+                                       resp.status_code, attempt + 1, self.retry.max_retries + 1, delay, resp.text)
                         await asyncio.sleep(delay)
                         continue
 

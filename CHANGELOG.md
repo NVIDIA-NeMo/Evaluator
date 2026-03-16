@@ -1,5 +1,61 @@
 # Changelog
 
+## 0.9.0 (2026-03-16)
+
+### Gym Integration
+
+- **Unified `GymEnvironment`**: Collapsed three Gym client classes (`GymEnvironment`, `NativeGymEnvironment`, and the inner `GymEnvironment` delegate) into a single `GymEnvironment` with an explicit `protocol` parameter (`"evaluator"` or `"native"`). No auto-detection -- the caller chooses the protocol.
+- **`GymDataset`**: New helper class that loads Gym JSONL task files with `__len__`/`__getitem__`. Separates file I/O from the HTTP client. Passed to `GymEnvironment` via the `dataset` parameter.
+- **Metadata smuggling fix**: The old `NativeGymEnvironment` smuggled `_responses_create_params` through `SeedResult.metadata`, which leaked into step logs and got splat into `verify(**meta)`. The unified `GymEnvironment` keeps metadata clean and looks up the original dataset row by `problem_idx` at verify time.
+- **`ManagedGymEnvironment`**: Now accepts `protocol` and `dataset` parameters, passes them to the inner `GymEnvironment`. Health check falls back to `/openapi.json` for native Gym servers that don't expose `/health`.
+- **`gym_protocol.py`**: Public helpers `wrap_text_as_gym_response()`, `wrap_text_as_responses_create_params()`, `extract_prompt_from_rcp()`, `messages_from_rcp()`, and `extract_assistant_text()`.
+- **Registry**: `gym://` URIs now support `?protocol=native&data=/path.jsonl` query params. Removed the opaque `gym://native:` URI scheme.
+
+### Two-Container Agentic Architecture
+
+- **`StatelessSandbox`**: New sandbox lifecycle strategy for agentic benchmarks (SWE-bench, Harbor). Runs the agent in one container and verification in a fresh container, transferring state via shared volumes and `capture_cmd`/`apply_cmd`.
+- **`StatefulSandbox`**: Lazy sandbox acquisition -- sandbox is created on first call to `get_agent_sandbox()` or `get_verify_sandbox()`, avoiding unnecessary container startup for non-sandbox benchmarks.
+- **SWE-bench Verified and SWE-bench Multilingual**: Integrated as BYOB benchmarks with configurable `image_template` for per-problem Docker images.
+- **Harbor**: Refactored to use the two-container model, making it compatible with all solvers (not just `SandboxSolver`).
+- **`SandboxManager.resolve_spec`**: Merge-based strategy -- `image_template` from config overrides the image while preserving other spec fields; volumes are appended rather than replaced.
+
+### Test Suite
+
+- **Comprehensive offline tests**: 293 tests covering environments, solvers, sandbox lifecycle, sandbox manager, eval loop, cross-compatibility, Gym integration, server protocol, sharding, metrics, observability, and more.
+- **Golden fixture generation**: `tests/generate_fixtures.py` generates reference responses against a real model API and stores them as JSON fixtures for deterministic offline replay.
+- **`FixturedEnvironment` + `CachedSolver`**: Mock implementations in `tests/conftest.py` for offline E2E testing without real model calls.
+- **GitLab CI**: Split into `test-offline` (required, no network) and `test-network` (HF downloads, allowed to fail) stages with JUnit reports.
+
+### Module Refactor
+
+Restructured the codebase for clear separation of concerns. All old import paths are **removed** (breaking change).
+
+- **`environments/define.py` → `environments/byob.py`**: Renamed to reflect its purpose (Bring-Your-Own-Benchmark API). Contains `@benchmark`, `@scorer`, `ByobEnvironment`, `BenchmarkDefinition`, and dataset loaders.
+- **`environments/server.py` → `serving/app.py`**: New `serving/` package for the FastAPI HTTP server (`generate_app`). Import: `from nemo_evaluator.serving.app import generate_app`.
+- **`runner/sandbox_lifecycle.py` → `sandbox/lifecycle.py`**: Sandbox lifecycle strategies moved to the `sandbox/` package where they belong. `NoSandbox`, `StatefulSandbox`, `StatelessSandbox`, `pick_lifecycle` now exported from `nemo_evaluator.sandbox`.
+- **`runner/deployment.py` → `eval/deployment.py`**: Model deployment strategies moved next to `eval/config.py`.
+- **`runner/solver.py` deleted**: Was a re-export shim. Import solvers from `nemo_evaluator.solvers`.
+- **`runner/nat_solver.py` deleted**: Was a re-export shim. Import `NatSolver` from `nemo_evaluator.solvers.nat`.
+
+### Breaking Changes
+
+- **Import paths changed**: `environments.define` → `environments.byob`, `environments.server` → `serving.app`, `runner.sandbox_lifecycle` → `sandbox.lifecycle`, `runner.deployment` → `eval.deployment`. The old modules are deleted, not deprecated.
+- **`runner.solver` and `runner.nat_solver` removed**: Import from `nemo_evaluator.solvers` instead.
+- **`NativeGymEnvironment` removed**: Use `GymEnvironment(endpoint, protocol="native", dataset=GymDataset(path))`.
+- **`gym://native:` URI scheme removed**: Use `gym://host:port?protocol=native&data=/path.jsonl`.
+
+### Documentation
+
+- **Getting Started guide**: Moved workshop files (`workshop.md`, `workshop_trivia.py`, `workshop_mixed.yaml`) into `examples/`. The workshop content is now available as [`examples/getting_started.md`](examples/getting_started.md) with updated paths and a link from the README Quick Start section.
+
+### Fixes
+
+- **`mean_reward` vs `pass@1`**: `mean_reward` is now only emitted as the headline metric when there are fractional (non-binary) rewards. Binary benchmarks correctly report `pass@1`.
+- **`SandboxSpec` priority**: User-configured `image_template` now overrides `seed.sandbox_spec.image` instead of being ignored.
+- **`GymEnvironment.dataset_size`**: Catches generic `Exception` instead of only `httpx` errors, preventing crashes on connection refused.
+- **Python 3.12 compatibility**: Fixed `tempfile.mkdtemp` `mode` parameter incompatibility in `StatelessSandbox`.
+- **`FixturedEnvironment.verify`**: Matches on both `expected_answer` and `model_response` to prevent collisions in multi-problem fixtures.
+
 ## 0.8.0 (2026-03-11)
 
 ### NAT Agent Integration

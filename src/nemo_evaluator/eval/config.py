@@ -110,6 +110,8 @@ class SandboxConfig(BaseModel):
     agent_cmd: str | None = None
     agent_setup_cmd: str | None = None
     agent_invocation_template: str | None = None
+    capture_cmd: str | None = None
+    verify_timeout: float = 600.0
 
     ecs: EcsFargateConfig | None = None
 
@@ -147,6 +149,7 @@ class BenchmarkConfig(BaseModel):
     max_concurrent: int = 32
     system_prompt: str | None = None
     temperature: float | None = None
+    top_p: float | None = None
     max_tokens: int | None = None
     context_window: int | None = None
     fewshot: int | None = None

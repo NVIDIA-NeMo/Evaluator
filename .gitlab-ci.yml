@@ -36,12 +36,16 @@ lint:
         - pyproject.toml
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-test:
+test-offline:
   stage: test
   before_script:
     - pip install --cache-dir $PIP_CACHE_DIR -e ".[dev]"
   script:
-    - pytest tests/ -x --tb=short
+    - pytest tests/ -m "not network" -v --tb=short --junitxml=report-offline.xml
+  artifacts:
+    reports:
+      junit: report-offline.xml
+    when: always
   cache:
     key: test-pip
     paths:
@@ -53,6 +57,30 @@ test:
         - pyproject.toml
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+test-network:
+  stage: test
+  variables:
+    HF_HOME: "$CI_PROJECT_DIR/.hf-cache"
+  before_script:
+    - pip install --cache-dir $PIP_CACHE_DIR -e ".[dev]"
+  script:
+    - pytest tests/ -m "network" -v --tb=short --junitxml=report-network.xml
+  artifacts:
+    reports:
+      junit: report-network.xml
+    when: always
+  cache:
+    - key: test-pip
+      paths:
+        - .pip-cache/
+    - key: hf-datasets
+      paths:
+        - .hf-cache/
+  allow_failure: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
 
 # ---------------------------------------------------------------------------
 # Docs

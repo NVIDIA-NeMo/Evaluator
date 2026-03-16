@@ -15,4 +15,6 @@ import nemo_evaluator.benchmarks.mmlu  # noqa: F401
 import nemo_evaluator.benchmarks.mmlu_pro  # noqa: F401
 import nemo_evaluator.benchmarks.pinchbench  # noqa: F401
 import nemo_evaluator.benchmarks.simpleqa  # noqa: F401
+import nemo_evaluator.benchmarks.swebench_multilingual  # noqa: F401
+import nemo_evaluator.benchmarks.swebench_verified  # noqa: F401
 import nemo_evaluator.benchmarks.triviaqa  # noqa: F401

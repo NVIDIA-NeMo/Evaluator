@@ -136,7 +136,7 @@ HTTP client for consuming `nel serve` endpoints or Gym resource servers.
 
 ```python
 from nemo_evaluator.environments.gym import GymEnvironment
-from nemo_evaluator.runner.solver import ChatSolver
+from nemo_evaluator.solvers import ChatSolver
 
 env = GymEnvironment("http://localhost:9090")
 solver = ChatSolver(client)
@@ -180,7 +180,7 @@ bundle = await run_evaluation(env, solver, n_repeats=4)
 Serve an `EvalEnvironment` as a Gym-compatible HTTP endpoint.
 
 ```python
-from nemo_evaluator.environments.server import generate_app
+from nemo_evaluator.serving.app import generate_app
 
 app = generate_app(env, gym_compat=True)
 # Use with uvicorn: uvicorn.run(app, port=9090)

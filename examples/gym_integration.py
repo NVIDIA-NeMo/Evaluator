@@ -25,7 +25,7 @@ def serve(args):
     import uvicorn
 
     from nemo_evaluator.environments.registry import get_environment
-    from nemo_evaluator.environments.server import generate_app
+    from nemo_evaluator.serving.app import generate_app
 
     env = get_environment(args.benchmark)
     app = generate_app(env, gym_compat=True)
@@ -39,7 +39,7 @@ def consume(args):
     from nemo_evaluator.runner.artifacts import write_all
     from nemo_evaluator.runner.eval_loop import run_evaluation
     from nemo_evaluator.runner.model_client import ModelClient
-    from nemo_evaluator.runner.solver import ChatSolver
+    from nemo_evaluator.solvers import ChatSolver
 
     env = GymEnvironment(args.endpoint)
     client = ModelClient(

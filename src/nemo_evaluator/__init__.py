@@ -3,7 +3,7 @@
 __version__ = "0.9.0"
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
-from nemo_evaluator.environments.define import benchmark, scorer
+from nemo_evaluator.environments.byob import benchmark, scorer
 from nemo_evaluator.environments.registry import get_environment, list_environments, load_benchmark_file, register
 from nemo_evaluator.eval.config import EndpointType
 from nemo_evaluator.runner.eval_loop import run_evaluation

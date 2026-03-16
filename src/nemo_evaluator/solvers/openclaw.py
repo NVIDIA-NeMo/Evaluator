@@ -58,8 +58,10 @@ def _build_openclaw_config(
     *,
     api_key: str = "",
     context_window: int = _DEFAULT_CONTEXT_WINDOW,
-    max_tokens: int = _DEFAULT_MAX_TOKENS,
+    max_tokens: int | None = None,
     max_concurrent: int = _DEFAULT_MAX_CONCURRENT,
+    temperature: float | None = None,
+    top_p: float | None = None,
 ) -> dict[str, Any]:
     """Build an OpenClaw config for an arbitrary OpenAI-compatible provider.
 
@@ -69,6 +71,27 @@ def _build_openclaw_config(
     provider_name = model_id.split("/")[0] if "/" in model_id else "custom"
     openclaw_model_ref = f"{provider_name}/{model_id}"
 
+    model_entry: dict[str, Any] = {
+        "id": model_id,
+        "name": model_id,
+        "input": ["text"],
+        "contextWindow": context_window,
+    }
+    if max_tokens is not None:
+        model_entry["maxTokens"] = max_tokens
+
+    agent_defaults: dict[str, Any] = {
+        "model": {"primary": openclaw_model_ref},
+        "workspace": _CONTAINER_WORKSPACE,
+        "skipBootstrap": True,
+        "compaction": {"mode": "safeguard"},
+        "maxConcurrent": max_concurrent,
+    }
+    if temperature is not None:
+        agent_defaults["temperature"] = temperature
+    if top_p is not None:
+        agent_defaults["topP"] = top_p
+
     return {
         "models": {
             "mode": "merge",
@@ -77,26 +100,11 @@ def _build_openclaw_config(
                     "baseUrl": model_url,
                     "apiKey": api_key or "NVIDIA_API_KEY",
                     "api": "openai-completions",
-                    "models": [
-                        {
-                            "id": model_id,
-                            "name": model_id,
-                            "input": ["text"],
-                            "contextWindow": context_window,
-                            "maxTokens": max_tokens,
-                        },
-                    ],
+                    "models": [model_entry],
                 },
             },
         },
-        "agents": {
-            "defaults": {
-                "model": {"primary": openclaw_model_ref},
-                "workspace": _CONTAINER_WORKSPACE,
-                "compaction": {"mode": "safeguard"},
-                "maxConcurrent": max_concurrent,
-            },
-        },
+        "agents": {"defaults": agent_defaults},
         "tools": {"fs": {"workspaceOnly": False}},
     }
 
@@ -108,18 +116,35 @@ _TEXT_EXTENSIONS = frozenset({
 })
 _MAX_FILE_SIZE = 50_000
 
-
-def _read_workspace_files(workspace: Path) -> str:
-    """Read text files from the workspace and format them for the response.
+def _read_workspace_files(
+    workspace: Path,
+    pre_existing: set[str] | None = None,
+) -> str:
+    """Read *new* text files from the workspace and format them for the response.
 
     Agent solvers create files that automated graders check directly.
     But the LLM-as-judge pipeline only sees ``SolveResult.response``.
     Including file contents in the response lets the judge evaluate
     the actual deliverable, not just the agent's summary.
+
+    ``pre_existing`` is the set of relative paths that existed before the
+    agent ran.  Files in that set and anything under ``.openclaw/`` are
+    skipped so that task inputs don't pollute the response.  OpenClaw's
+    workspace boilerplate is suppressed at the source via the
+    ``skipBootstrap`` config flag.
     """
+    if pre_existing is None:
+        pre_existing = set()
+
     parts: list[str] = []
     for path in sorted(workspace.rglob("*")):
         if not path.is_file():
+            continue
+        rel = path.relative_to(workspace)
+        rel_str = str(rel)
+        if rel_str.startswith(".openclaw"):
+            continue
+        if rel_str in pre_existing:
             continue
         if path.suffix.lower() not in _TEXT_EXTENSIONS:
             continue
@@ -129,7 +154,6 @@ def _read_workspace_files(workspace: Path) -> str:
             content = path.read_text(encoding="utf-8", errors="replace").rstrip()
         except OSError:
             continue
-        rel = path.relative_to(workspace)
         parts.append(f"--- {rel} ---\n{content}")
     return "\n\n".join(parts)
 
@@ -315,9 +339,11 @@ class OpenClawSolver:
         model_id: str = "",
         api_key: str | None = None,
         context_window: int = _DEFAULT_CONTEXT_WINDOW,
-        max_tokens: int = _DEFAULT_MAX_TOKENS,
+        max_tokens: int | None = None,
         max_concurrent: int = _DEFAULT_MAX_CONCURRENT,
         config_path: str | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
         *,
         skip_preflight: bool = False,
     ) -> None:
@@ -330,6 +356,8 @@ class OpenClawSolver:
         self._context_window = context_window
         self._max_tokens = max_tokens
         self._max_concurrent = max_concurrent
+        self._temperature = temperature
+        self._top_p = top_p
         self._config_path = Path(config_path) if config_path else None
         if self._config_path and not self._config_path.is_file():
             raise FileNotFoundError(
@@ -358,8 +386,14 @@ class OpenClawSolver:
 
         await self._setup_config(sandbox)
 
+        pre_existing_files: set[str] = set()
         if workspace_path and Path(workspace_path).is_dir():
             await self._upload_workspace(sandbox, Path(workspace_path))
+            pre_existing_files = {
+                str(p.relative_to(workspace_path))
+                for p in Path(workspace_path).rglob("*")
+                if p.is_file()
+            }
 
         effective_prompt = self._build_prompt(task.prompt, _CONTAINER_WORKSPACE if workspace_path else None)
 
@@ -414,7 +448,7 @@ class OpenClawSolver:
         response_text, model_response, trajectory = _parse_response(output)
 
         if workspace_path:
-            file_addendum = _read_workspace_files(Path(workspace_path))
+            file_addendum = _read_workspace_files(Path(workspace_path), pre_existing_files)
             if file_addendum:
                 response_text = f"{response_text}\n\n{file_addendum}" if response_text else file_addendum
 
@@ -464,19 +498,24 @@ class OpenClawSolver:
                 context_window=self._context_window,
                 max_tokens=self._max_tokens,
                 max_concurrent=self._max_concurrent,
+                temperature=self._temperature,
+                top_p=self._top_p,
             )
             config_json = json.dumps(config, indent=2)
         await self._write_file(sandbox, f"{_OPENCLAW_CONFIG_DIR}/openclaw.json", config_json)
 
     async def _upload_workspace(self, sandbox: Sandbox, host_workspace: Path) -> None:
-        """Copy workspace files from host into the container."""
+        """Copy workspace files from host into the container.
+
+        Handles both text and binary files (e.g. PDFs) correctly.
+        """
         await sandbox.exec(f"mkdir -p {_CONTAINER_WORKSPACE}")
         for item in host_workspace.rglob("*"):
             if item.is_file():
                 rel = item.relative_to(host_workspace)
                 remote = f"{_CONTAINER_WORKSPACE}/{rel}"
-                content = item.read_text(encoding="utf-8", errors="replace")
-                await self._write_file(sandbox, remote, content)
+                data = item.read_bytes()
+                await self._write_file(sandbox, remote, data)
 
     async def _download_workspace(self, sandbox: Sandbox, host_workspace: Path) -> None:
         """Sync container workspace files back to the host.
@@ -523,19 +562,42 @@ class OpenClawSolver:
 
         logger.debug("Downloaded %d files to %s", len(remote_files), host_workspace)
 
+    _WRITE_CHUNK_SIZE = 65_536
+
     @staticmethod
-    async def _write_file(sandbox: Sandbox, remote_path: str, content: str) -> None:
+    async def _write_file(
+        sandbox: Sandbox,
+        remote_path: str,
+        content: str | bytes,
+    ) -> None:
         """Write a file inside the container via base64-encoded exec.
 
         Files are created by the container user (avoids ``docker cp``
         ownership issues with the non-root ``node`` user).
+
+        Large payloads are split into chunks to stay under the OS
+        argument-length limit for ``docker exec``.
         """
         import base64
 
-        b64 = base64.b64encode(content.encode()).decode()
+        raw = content if isinstance(content, bytes) else content.encode()
         remote_dir = str(Path(remote_path).parent)
         await sandbox.exec(f"mkdir -p {shlex.quote(remote_dir)}")
-        await sandbox.exec(f"echo {shlex.quote(b64)} | base64 -d > {shlex.quote(remote_path)}")
+
+        chunk_size = OpenClawSolver._WRITE_CHUNK_SIZE
+        if len(raw) <= chunk_size:
+            b64 = base64.b64encode(raw).decode()
+            await sandbox.exec(
+                f"echo {shlex.quote(b64)} | base64 -d > {shlex.quote(remote_path)}"
+            )
+            return
+
+        for i in range(0, len(raw), chunk_size):
+            chunk_b64 = base64.b64encode(raw[i : i + chunk_size]).decode()
+            op = ">" if i == 0 else ">>"
+            await sandbox.exec(
+                f"echo {shlex.quote(chunk_b64)} | base64 -d {op} {shlex.quote(remote_path)}"
+            )
 
     # ------------------------------------------------------------------
     # Local path: run as a host subprocess (original behavior)
@@ -563,6 +625,14 @@ class OpenClawSolver:
         task_id = task.metadata.get("task_id", "task")
         session_id = f"nel-{task_id}-{uuid.uuid4().hex[:8]}"
         workspace_path = task.metadata.get("workspace_path")
+
+        pre_existing_files: set[str] = set()
+        if workspace_path and Path(workspace_path).is_dir():
+            pre_existing_files = {
+                str(p.relative_to(workspace_path))
+                for p in Path(workspace_path).rglob("*")
+                if p.is_file()
+            }
 
         effective_prompt = self._build_prompt(task.prompt, workspace_path)
 
@@ -633,7 +703,7 @@ class OpenClawSolver:
         response_text, model_response, trajectory = _parse_response(output)
 
         if workspace_path:
-            file_addendum = _read_workspace_files(Path(workspace_path))
+            file_addendum = _read_workspace_files(Path(workspace_path), pre_existing_files)
             if file_addendum:
                 response_text = f"{response_text}\n\n{file_addendum}" if response_text else file_addendum
 

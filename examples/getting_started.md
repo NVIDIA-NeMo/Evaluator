@@ -1,4 +1,4 @@
-# NeMo Evaluator Workshop
+# NeMo Evaluator -- Getting Started
 
 **Duration:** 35 minutes | **Level:** Beginner to intermediate
 
@@ -39,9 +39,9 @@ pip install -e ".[scoring,stats]"
 
 export NEMO_MODEL_URL=https://inference-api.nvidia.com/v1/chat/completions
 export NEMO_MODEL_ID=azure/openai/gpt-5.2
-export NEMO_API_KEY=<provided at the workshop>
+export NEMO_API_KEY=<your API key>
 
-nel list --source builtin   # 12 built-in benchmarks
+nel list --source builtin   # 14 built-in benchmarks
 ```
 
 ---
@@ -78,7 +78,7 @@ for m, v in b["benchmark"]["scores"].items():
 Scale to a suite with one YAML file:
 
 ```yaml
-# workshop_suite.yaml
+# examples/workshop_suite.yaml
 model:
   url: ${NEMO_MODEL_URL}
   id: ${NEMO_MODEL_ID}
@@ -100,7 +100,7 @@ output:
 ```
 
 ```bash
-nel eval run workshop_suite.yaml
+nel eval run examples/workshop_suite.yaml
 nel eval report ./results/01_suite --all-formats
 open ./results/01_suite/report.html
 ```
@@ -108,7 +108,7 @@ open ./results/01_suite/report.html
 Override anything from the CLI without editing the file:
 
 ```bash
-nel eval run workshop_suite.yaml -O benchmarks.0.max_problems=5
+nel eval run examples/workshop_suite.yaml -O benchmarks.0.max_problems=5
 ```
 
 Every inference response and scoring result is persisted to disk as it
@@ -117,7 +117,7 @@ last completed step -- already-scored problems are skipped, cached inference
 without scoring is re-verified without calling the model again:
 
 ```bash
-nel eval run workshop_suite.yaml --resume
+nel eval run examples/workshop_suite.yaml --resume
 ```
 
 ---
@@ -128,7 +128,7 @@ Multiple URI schemes. One base class. One eval loop.
 
 ### BYOB in 15 lines
 
-Create `workshop_trivia.py`:
+See [`examples/workshop_trivia.py`](workshop_trivia.py):
 
 ```python
 from nemo_evaluator import benchmark, scorer, ScorerInput, fuzzy_match
@@ -156,12 +156,12 @@ Point any CLI command at the `.py` file -- no package installation or
 registration step needed:
 
 ```bash
-nel eval run --bench ./workshop_trivia.py --repeats 2 -o ./results/02_byob
-nel serve -b ./workshop_trivia.py -p 9090   # serve as HTTP endpoint for Gym training
-nel validate -b ./workshop_trivia.py --samples 3   # dry-run sanity check
+nel eval run --bench ./examples/workshop_trivia.py --repeats 2 -o ./results/02_byob
+nel serve -b ./examples/workshop_trivia.py -p 9090
+nel validate -b ./examples/workshop_trivia.py --samples 3
 ```
 
-All 12 built-in benchmarks use the same `@benchmark + @scorer` API with
+All 14 built-in benchmarks use the same `@benchmark + @scorer` API with
 different scoring primitives: GSM8K uses `numeric_match` (extract last number),
 MMLU uses `multichoice_regex` (extract A/B/C/D letter), HumanEval uses
 `code_sandbox` (run code in Docker), and SimpleQA uses `needs_judge` (send
@@ -180,7 +180,7 @@ nel serve -b gsm8k -p 9090 &
 sleep 3
 ```
 
-Create `workshop_mixed.yaml`:
+See [`examples/workshop_mixed.yaml`](workshop_mixed.yaml):
 
 ```yaml
 model:
@@ -191,7 +191,7 @@ model:
 benchmarks:
   - name: gsm8k                   # built-in (numeric_match)
     max_problems: 10
-  - name: ./workshop_trivia.py    # BYOB file (fuzzy_match)
+  - name: ./examples/workshop_trivia.py    # BYOB file (fuzzy_match)
     repeats: 2
   - name: lm-eval://ifeval        # lm-evaluation-harness
     max_problems: 10
@@ -204,7 +204,7 @@ output:
 ```
 
 ```bash
-nel eval run workshop_mixed.yaml
+nel eval run examples/workshop_mixed.yaml
 kill %1   # stop the Gym server
 ```
 
@@ -574,14 +574,14 @@ kill $(lsof -ti:9000) 2>/dev/null   # stop the NAT server
 ## Appendix: Solver x Environment Compatibility
 
 Not every solver works with every environment. See the
-[Solver / Environment Compatibility table in README.md](README.md#solver--environment-compatibility)
+[Solver / Environment Compatibility table in README.md](../README.md#solver--environment-compatibility)
 for the full matrix. The evaluator warns at runtime for known-bad pairings.
 
 ---
 
 ## Appendix: Running on SLURM
 
-All examples in this workshop use a remote API endpoint. For self-hosted model
+All examples in this guide use a remote API endpoint. For self-hosted model
 evaluation on SLURM clusters, set `cluster.type: slurm` in your config. NEL
 generates a self-contained sbatch script that starts model servers inside
 containers (via Pyxis/Enroot), runs benchmarks, and collects results. NAT
@@ -594,8 +594,4 @@ container image. See the `deploy/` directory for full SLURM examples.
 
 ```bash
 rm -rf ./results
-rm -f workshop_suite.yaml workshop_mixed.yaml
-rm -f workshop_judge.yaml workshop_trivia.py
-rm -f workshop_nat_pinchbench.yaml workshop_pinchbench_chat.yaml
-rm -f workshop_nat_gsm8k.yaml nat_agent.yaml
 ```

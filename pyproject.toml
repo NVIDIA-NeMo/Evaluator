@@ -58,6 +58,12 @@ packages = ["src/nemo_evaluator"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "network: tests that download from HF or hit external services (deselect via: -m 'not network')",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
 
 [tool.ruff]
 line-length = 120

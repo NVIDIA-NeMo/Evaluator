@@ -1,6 +1,6 @@
 """MGSM -- Multilingual Grade School Math (11 languages)."""
 from nemo_evaluator.environments.base import SeedResult
-from nemo_evaluator.environments.define import benchmark, scorer
+from nemo_evaluator.environments.byob import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput, numeric_match
 
 _LANGS = ["en", "de", "fr", "es", "ru", "zh", "ja", "th", "te", "bn", "sw"]
@@ -24,7 +24,7 @@ def _load_mgsm():
     from datasets import load_dataset
     rows = []
     for lang in _LANGS:
-        ds = load_dataset("juletxara/mgsm", lang, split="test")
+        ds = load_dataset("juletxara/mgsm", lang, split="test", trust_remote_code=True)
         for row in ds:
             answer = str(row["answer_number"]).rstrip("0").rstrip(".")
             rows.append({"question": row["question"], "answer": answer, "language": lang})

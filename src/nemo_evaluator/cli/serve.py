@@ -13,7 +13,7 @@ import click
 def serve_cmd(benchmark, host, port, gym_compat, export_data):
     """Serve a benchmark as HTTP environment."""
     from nemo_evaluator.environments.registry import get_environment
-    from nemo_evaluator.environments.server import generate_app
+    from nemo_evaluator.serving.app import generate_app
 
     env = get_environment(benchmark)
     app = generate_app(env, gym_compat=gym_compat, data_export_dir=export_data)

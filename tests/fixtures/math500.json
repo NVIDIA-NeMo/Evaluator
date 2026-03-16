@@ -1,0 +1,152 @@
+[
+  {
+    "idx": 0,
+    "prompt": "Solve the following math problem step by step. The last line of your response should be of the form Answer: $ANSWER (without quotes) where $ANSWER is the answer to the problem.\n\nConvert the point $(0,3)$ in rectangular coordinates to polar coordinates.  Enter your answer in the form $(r,\\theta),$ where $r > 0$ and $0 \\le \\theta < 2 \\pi.$",
+    "expected_answer": "\\left( 3, \\frac{\\pi}{2} \\right)",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "math500",
+      "problem": "Convert the point $(0,3)$ in rectangular coordinates to polar coordinates.  Enter your answer in the form $(r,\\theta),$ where $r > 0$ and $0 \\le \\theta < 2 \\pi.$",
+      "solution": "We have that $r = \\sqrt{0^2 + 3^2} = 3.$  Also, if we draw the line connecting the origin and $(0,3),$ this line makes an angle of $\\frac{\\pi}{2}$ with the positive $x$-axis.\n\n[asy]\nunitsize(0.8 cm);\n\ndraw((-0.5,0)--(3.5,0));\ndraw((0,-0.5)--(0,3.5));\ndraw(arc((0,0),3,0,90),red,Arrow(6));\n\ndot((0,3), red);\nlabel(\"$(0,3)$\", (0,3), W);\ndot((3,0), red);\n[/asy]\n\nTherefore, the polar coordinates are $\\boxed{\\left( 3, \\frac{\\pi}{2} \\right)}.$",
+      "subject": "Precalculus",
+      "level": 2,
+      "unique_id": "test/precalculus/807.json",
+      "category": ""
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Solve the following math problem step by step. The last line of your response should be of the form Answer: $ANSWER (without quotes) where $ANSWER is the answer to the problem.\n\nConvert the point $(0,3)$ in rectangular coordinates to polar coordinates.  Enter your answer in the form $(r,\\theta),$ where $r > 0$ and $0 \\le \\theta < 2 \\pi.$"
+      }
+    ],
+    "system": null,
+    "model_response": "To convert \\((x,y)=(0,3)\\) to polar coordinates \\((r,\\theta)\\):\n\n1. Compute \\(r=\\sqrt{x^2+y^2}=\\sqrt{0^2+3^2}=3\\).\n2. Find \\(\\theta\\): the point \\((0,3)\\) lies on the positive \\(y\\)-axis, which corresponds to angle \\(\\theta=\\frac{\\pi}{2}\\) (and this is in \\(0 \\le \\theta < 2\\pi\\)).\n\nAnswer: \\((3,\\tfrac{\\pi}{2})\\)",
+    "reward": 0.0,
+    "extracted_answer": "\\((3,\\tfrac{\\pi}{2})\\)",
+    "scoring_details": {
+      "method": "byob_math500",
+      "correct": false,
+      "extracted": "\\((3,\\tfrac{\\pi}{2})\\)"
+    }
+  },
+  {
+    "idx": 1,
+    "prompt": "Solve the following math problem step by step. The last line of your response should be of the form Answer: $ANSWER (without quotes) where $ANSWER is the answer to the problem.\n\nDefine\n\\[p = \\sum_{k = 1}^\\infty \\frac{1}{k^2} \\quad \\text{and} \\quad q = \\sum_{k = 1}^\\infty \\frac{1}{k^3}.\\]Find a way to write\n\\[\\sum_{j = 1}^\\infty \\sum_{k = 1}^\\infty \\frac{1}{(j + k)^3}\\]in terms of $p$ and $q.$",
+    "expected_answer": "p - q",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "math500",
+      "problem": "Define\n\\[p = \\sum_{k = 1}^\\infty \\frac{1}{k^2} \\quad \\text{and} \\quad q = \\sum_{k = 1}^\\infty \\frac{1}{k^3}.\\]Find a way to write\n\\[\\sum_{j = 1}^\\infty \\sum_{k = 1}^\\infty \\frac{1}{(j + k)^3}\\]in terms of $p$ and $q.$",
+      "solution": "We count the number of times $\\frac{1}{n^3}$ appears in the sum\n\\[\\sum_{j = 1}^\\infty \\sum_{k = 1}^\\infty \\frac{1}{(j + k)^3},\\]where $n$ is a fixed positive integer.  (In other words, we are conditioning the sum on $j + k$.)  We get a term of $\\frac{1}{n^3}$ each time $j + k = n.$  The pairs $(j,k)$ that work are $(1,n - 1),$ $(2,n - 2),$ $\\dots,$ $(n - 1,1),$ for a total of $n - 1$ pairs.  Therefore,\n\\begin{align*}\n\\sum_{j = 1}^\\infty \\sum_{k = 1}^\\infty \\frac{1}{(j + k)^3} &= \\sum_{n = 1}^\\infty \\frac{n - 1}{n^3} \\\\\n&= \\sum_{n = 1}^\\infty \\left( \\frac{n}{n^3} - \\frac{1}{n^3} \\right) \\\\\n&= \\sum_{n = 1}^\\infty \\left( \\frac{1}{n^2} - \\frac{1}{n^3} \\right) \\\\\n&= \\sum_{n = 1}^\\infty \\frac{1}{n^2} - \\sum_{n = 1}^\\infty \\frac{1}{n^3} \\\\\n&= \\boxed{p - q}.\n\\end{align*}",
+      "subject": "Intermediate Algebra",
+      "level": 5,
+      "unique_id": "test/intermediate_algebra/1994.json",
+      "category": ""
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Solve the following math problem step by step. The last line of your response should be of the form Answer: $ANSWER (without quotes) where $ANSWER is the answer to the problem.\n\nDefine\n\\[p = \\sum_{k = 1}^\\infty \\frac{1}{k^2} \\quad \\text{and} \\quad q = \\sum_{k = 1}^\\infty \\frac{1}{k^3}.\\]Find a way to write\n\\[\\sum_{j = 1}^\\infty \\sum_{k = 1}^\\infty \\frac{1}{(j + k)^3}\\]in terms of $p$ and $q.$"
+      }
+    ],
+    "system": null,
+    "model_response": "Let\n\\[\nS=\\sum_{j=1}^\\infty\\sum_{k=1}^\\infty \\frac1{(j+k)^3}.\n\\]\nGroup terms by \\(n=j+k\\). For a fixed \\(n\\ge 2\\), the number of positive integer pairs \\((j,k)\\) with \\(j+k=n\\) is \\(n-1\\). Thus\n\\[\nS=\\sum_{n=2}^\\infty \\frac{n-1}{n^3}\n=\\sum_{n=2}^\\infty\\left(\\frac1{n^2}-\\frac1{n^3}\\right).\n\\]\nNow use\n\\[\n\\sum_{n=2}^\\infty \\frac1{n^2}= \\left(\\sum_{n=1}^\\infty \\frac1{n^2}\\right)-1 = p-1,\n\\quad\n\\sum_{n=2}^\\infty \\frac1{n^3}= \\left(\\sum_{n=1}^\\infty \\frac1{n^3}\\right)-1 = q-1.\n\\]\nTherefore\n\\[\nS=(p-1)-(q-1)=p-q.\n\\]\n\nAnswer: \\(p-q\\)",
+    "reward": 0.0,
+    "extracted_answer": "\\(p-q\\)",
+    "scoring_details": {
+      "method": "byob_math500",
+      "correct": false,
+      "extracted": "\\(p-q\\)"
+    }
+  },
+  {
+    "idx": 2,
+    "prompt": "Solve the following math problem step by step. The last line of your response should be of the form Answer: $ANSWER (without quotes) where $ANSWER is the answer to the problem.\n\nIf $f(x) = \\frac{3x-2}{x-2}$, what is the value of $f(-2) +f(-1)+f(0)$? Express your answer as a common fraction.",
+    "expected_answer": "\\frac{14}{3}",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "math500",
+      "problem": "If $f(x) = \\frac{3x-2}{x-2}$, what is the value of $f(-2) +f(-1)+f(0)$? Express your answer as a common fraction.",
+      "solution": "$f(-2)+f(-1)+f(0)=\\frac{3(-2)-2}{-2-2}+\\frac{3(-1)-2}{-1-2}+\\frac{3(0)-2}{0-2}=\\frac{-8}{-4}+\\frac{-5}{-3}+\\frac{-2}{-2}=2+\\frac{5}{3}+1=\\boxed{\\frac{14}{3}}$",
+      "subject": "Algebra",
+      "level": 3,
+      "unique_id": "test/algebra/2584.json",
+      "category": ""
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Solve the following math problem step by step. The last line of your response should be of the form Answer: $ANSWER (without quotes) where $ANSWER is the answer to the problem.\n\nIf $f(x) = \\frac{3x-2}{x-2}$, what is the value of $f(-2) +f(-1)+f(0)$? Express your answer as a common fraction."
+      }
+    ],
+    "system": null,
+    "model_response": "Compute each value:\n\n\\[\nf(x)=\\frac{3x-2}{x-2}\n\\]\n\n\\[\nf(-2)=\\frac{3(-2)-2}{-2-2}=\\frac{-6-2}{-4}=\\frac{-8}{-4}=2\n\\]\n\n\\[\nf(-1)=\\frac{3(-1)-2}{-1-2}=\\frac{-3-2}{-3}=\\frac{-5}{-3}=\\frac{5}{3}\n\\]\n\n\\[\nf(0)=\\frac{3(0)-2}{0-2}=\\frac{-2}{-2}=1\n\\]\n\nAdd them:\n\n\\[\n2+\\frac{5}{3}+1=3+\\frac{5}{3}=\\frac{9}{3}+\\frac{5}{3}=\\frac{14}{3}\n\\]\n\nAnswer: $\\frac{14}{3}$",
+    "reward": 1.0,
+    "extracted_answer": "$\\frac{14}{3}$",
+    "scoring_details": {
+      "method": "byob_math500",
+      "correct": true,
+      "extracted": "$\\frac{14}{3}$"
+    }
+  },
+  {
+    "idx": 3,
+    "prompt": "Solve the following math problem step by step. The last line of your response should be of the form Answer: $ANSWER (without quotes) where $ANSWER is the answer to the problem.\n\nHow many positive whole-number divisors does 196 have?",
+    "expected_answer": "9",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "math500",
+      "problem": "How many positive whole-number divisors does 196 have?",
+      "solution": "First prime factorize $196=2^2\\cdot7^2$.  The prime factorization of any divisor of 196 cannot include any primes other than 2 and 7.  We are free to choose either 0, 1, or 2 as the exponent of 2 in the prime factorization of a divisor of 196.  Similarly, we may choose 0, 1, or 2 as the exponent of 7.  In total, there are $3\\times 3=9$ possibilities for the prime factorization of a divisor of 196.  Distinct prime factorizations correspond to distinct integers, so there are $\\boxed{9}$ divisors of 196.",
+      "subject": "Number Theory",
+      "level": 3,
+      "unique_id": "test/number_theory/572.json",
+      "category": ""
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Solve the following math problem step by step. The last line of your response should be of the form Answer: $ANSWER (without quotes) where $ANSWER is the answer to the problem.\n\nHow many positive whole-number divisors does 196 have?"
+      }
+    ],
+    "system": null,
+    "model_response": "First factor 196 into primes:\n- \\(196 = 14^2 = (2\\cdot 7)^2 = 2^2 \\cdot 7^2\\).\n\nFor a number \\(n = p^a q^b\\), the number of positive divisors is \\((a+1)(b+1)\\).\nSo the number of positive divisors of \\(196 = 2^2\\cdot 7^2\\) is:\n\\[\n(2+1)(2+1)=3\\cdot 3=9.\n\\]\n\nAnswer: $9$",
+    "reward": 1.0,
+    "extracted_answer": "$9$",
+    "scoring_details": {
+      "method": "byob_math500",
+      "correct": true,
+      "extracted": "$9$"
+    }
+  },
+  {
+    "idx": 4,
+    "prompt": "Solve the following math problem step by step. The last line of your response should be of the form Answer: $ANSWER (without quotes) where $ANSWER is the answer to the problem.\n\nThe results of a cross-country team's training run are graphed below. Which student has the greatest average speed? [asy]\nfor ( int i = 1; i <= 7; ++i )\n{\n\ndraw((i,0)--(i,6));\n}\n\nfor ( int i = 1; i <= 5; ++i )\n{\n\ndraw((0,i)--(8,i));\n}\ndraw((-0.5,0)--(8,0), linewidth(1));\ndraw((0,-0.5)--(0,6), linewidth(1));\nlabel(\"$O$\", (0,0), SW);\nlabel(scale(.85)*rotate(90)*\"distance\", (0, 3), W);\nlabel(scale(.85)*\"time\", (4, 0), S);\ndot((1.25, 4.5));\nlabel(scale(.85)*\"Evelyn\", (1.25, 4.8), N);\ndot((2.5, 2.2));\nlabel(scale(.85)*\"Briana\", (2.5, 2.2), S);\ndot((4.25,5.2));\nlabel(scale(.85)*\"Carla\", (4.25, 5.2), SE);\ndot((5.6, 2.8));\nlabel(scale(.85)*\"Debra\", (5.6, 2.8), N);\ndot((6.8, 1.4));\nlabel(scale(.85)*\"Angela\", (6.8, 1.4), E);\n[/asy]",
+    "expected_answer": "\\text{Evelyn}",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "math500",
+      "problem": "The results of a cross-country team's training run are graphed below. Which student has the greatest average speed? [asy]\nfor ( int i = 1; i <= 7; ++i )\n{\n\ndraw((i,0)--(i,6));\n}\n\nfor ( int i = 1; i <= 5; ++i )\n{\n\ndraw((0,i)--(8,i));\n}\ndraw((-0.5,0)--(8,0), linewidth(1));\ndraw((0,-0.5)--(0,6), linewidth(1));\nlabel(\"$O$\", (0,0), SW);\nlabel(scale(.85)*rotate(90)*\"distance\", (0, 3), W);\nlabel(scale(.85)*\"time\", (4, 0), S);\ndot((1.25, 4.5));\nlabel(scale(.85)*\"Evelyn\", (1.25, 4.8), N);\ndot((2.5, 2.2));\nlabel(scale(.85)*\"Briana\", (2.5, 2.2), S);\ndot((4.25,5.2));\nlabel(scale(.85)*\"Carla\", (4.25, 5.2), SE);\ndot((5.6, 2.8));\nlabel(scale(.85)*\"Debra\", (5.6, 2.8), N);\ndot((6.8, 1.4));\nlabel(scale(.85)*\"Angela\", (6.8, 1.4), E);\n[/asy]",
+      "solution": "Evelyn covered more distance in less time than Briana, Debra and Angela, so her average speed is greater than any of their average speeds. Evelyn went almost as far as Carla in less than half the time that it took Carla, so Evelyn's average speed is also greater than Carla's. Therefore, $\\boxed{\\text{Evelyn}}$ is our answer.",
+      "subject": "Algebra",
+      "level": 2,
+      "unique_id": "test/algebra/1349.json",
+      "category": ""
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Solve the following math problem step by step. The last line of your response should be of the form Answer: $ANSWER (without quotes) where $ANSWER is the answer to the problem.\n\nThe results of a cross-country team's training run are graphed below. Which student has the greatest average speed? [asy]\nfor ( int i = 1; i <= 7; ++i )\n{\n\ndraw((i,0)--(i,6));\n}\n\nfor ( int i = 1; i <= 5; ++i )\n{\n\ndraw((0,i)--(8,i));\n}\ndraw((-0.5,0)--(8,0), linewidth(1));\ndraw((0,-0.5)--(0,6), linewidth(1));\nlabel(\"$O$\", (0,0), SW);\nlabel(scale(.85)*rotate(90)*\"distance\", (0, 3), W);\nlabel(scale(.85)*\"time\", (4, 0), S);\ndot((1.25, 4.5));\nlabel(scale(.85)*\"Evelyn\", (1.25, 4.8), N);\ndot((2.5, 2.2));\nlabel(scale(.85)*\"Briana\", (2.5, 2.2), S);\ndot((4.25,5.2));\nlabel(scale(.85)*\"Carla\", (4.25, 5.2), SE);\ndot((5.6, 2.8));\nlabel(scale(.85)*\"Debra\", (5.6, 2.8), N);\ndot((6.8, 1.4));\nlabel(scale(.85)*\"Angela\", (6.8, 1.4), E);\n[/asy]"
+      }
+    ],
+    "system": null,
+    "model_response": "Average speed is \\(\\dfrac{\\text{distance}}{\\text{time}}\\), which is the slope of the line from the origin to each point.\n\nFrom the graph, the approximate coordinates \\((\\text{time},\\text{distance})\\) are:\n- Evelyn: \\((1.25, 4.5)\\) so speed \\(= \\frac{4.5}{1.25} = 3.6\\)\n- Briana: \\((2.5, 2.2)\\) so speed \\(= \\frac{2.2}{2.5} = 0.88\\)\n- Carla: \\((4.25, 5.2)\\) so speed \\(= \\frac{5.2}{4.25} \\approx 1.22\\)\n- Debra: \\((5.6, 2.8)\\) so speed \\(= \\frac{2.8}{5.6} = 0.5\\)\n- Angela: \\((6.8, 1.4)\\) so speed \\(= \\frac{1.4}{6.8} \\approx 0.21\\)\n\nThe greatest average speed is Evelyn’s.\n\nAnswer: $\\text{Evelyn}$",
+    "reward": 1.0,
+    "extracted_answer": "$\\text{Evelyn}$",
+    "scoring_details": {
+      "method": "byob_math500",
+      "correct": true,
+      "extracted": "$\\text{Evelyn}$"
+    }
+  }
+]

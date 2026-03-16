@@ -34,6 +34,15 @@ class OutsideEndpoint:
 
 
 @dataclass
+class VolumeMount:
+    """Host-to-container volume mount."""
+
+    host_path: str
+    container_path: str
+    readonly: bool = False
+
+
+@dataclass
 class SandboxSpec:
     """Per-problem sandbox requirements. Returned by env.seed() or sandbox_specs()."""
 
@@ -42,6 +51,7 @@ class SandboxSpec:
     env: dict[str, str] = field(default_factory=dict)
     files: dict[str, str] = field(default_factory=dict)
     entrypoint: str | None = None
+    volumes: list[VolumeMount] = field(default_factory=list)
 
 
 class Sandbox(Protocol):

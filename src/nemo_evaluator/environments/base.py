@@ -19,6 +19,9 @@ class SeedResult:
     system: str | None = None
     images: list[str] | None = None
     sandbox_spec: SandboxSpec | None = None
+    verify_sandbox_spec: SandboxSpec | None = None
+    capture_cmd: str | None = None
+    apply_cmd: str | None = None
 
 
 @dataclass

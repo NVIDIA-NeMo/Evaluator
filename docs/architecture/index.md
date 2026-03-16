@@ -87,16 +87,18 @@ flowchart TB
 
 | Package | Responsibility | Key types |
 |---------|---------------|-----------|
-| `environments/` | Base class, registry, `@benchmark` API, environment types | `EvalEnvironment`, `SeedResult`, `VerifyResult`, `BenchmarkDefinition` |
-| `benchmarks/` | 12 built-in benchmarks (all `@benchmark` + `@scorer`) | Scorer functions |
-| `runner/` | Eval loop, solvers, model client, deployment, checkpoint, regression | `run_evaluation()`, `ChatSolver`, `CompletionSolver`, `VLMSolver`, `EmbeddingSolver`, `AgentSolver`, `SandboxedAgentSolver`, `NatSolver`, `ModelClient`, `CheckpointManager` |
+| `environments/` | Base class, registry, `@benchmark` BYOB API, environment types | `EvalEnvironment`, `SeedResult`, `VerifyResult`, `BenchmarkDefinition` |
+| `benchmarks/` | 14 built-in benchmarks (all `@benchmark` + `@scorer`) | Scorer functions |
+| `solvers/` | Pluggable inference strategies | `Solver`, `ChatSolver`, `CompletionSolver`, `VLMSolver`, `EmbeddingSolver`, `AgentSolver`, `NatSolver`, `OpenClawSolver` |
+| `runner/` | Eval loop, model client, checkpoint, regression | `run_evaluation()`, `ModelClient`, `CheckpointManager` |
+| `serving/` | HTTP server for environments (evaluator + Gym protocol) | `generate_app()` |
 | `executors/` | Executor protocol and backends (local, Docker, SLURM) | `Executor`, `get_executor()`, `detect_executor()`, `ProcessState` |
-| `sandbox/` | Per-problem isolated execution (Docker, SLURM, local) | `Sandbox`, `SandboxSpec`, `SandboxManager`, `DockerSandbox`, `SlurmSandbox` |
-| `eval/` | Suite orchestration: `local_runner`, `slurm_gen`, config, containers | `run_local()`, `generate_sbatch()`, `EvalConfig` |
-| `scoring/` | Judge pipeline and JSON schema validation | `judge.py`, `json_schema.py` |
+| `sandbox/` | Per-problem isolated execution and lifecycle strategies | `Sandbox`, `SandboxSpec`, `SandboxManager`, `NoSandbox`, `StatefulSandbox`, `StatelessSandbox` |
+| `eval/` | Suite orchestration, config, deployment, SLURM generation | `run_local()`, `EvalConfig`, `DeployConfig`, `generate_sbatch()` |
+| `scoring/` | Verification scorers, judge pipeline, JSON schema | `exact_match`, `code_sandbox`, `needs_judge` |
 | `observability/` | Rich telemetry capture | `StepRecord`, `ModelResponse`, `RuntimeStats`, `ArtifactCollector` |
 | `metrics/` | Statistical aggregation | `pass_at_k()`, `bootstrap_ci()`, `category_breakdown()` |
-| `cli/` | CLI commands | `nel eval run`, `nel eval run --resume`, `nel serve`, `nel validate`, `nel eval report`, `nel regression` |
+| `cli/` | CLI commands | `nel eval run`, `nel serve`, `nel validate`, `nel report`, `nel regression` |
 
 ## Environment Abstraction
 
@@ -272,7 +274,7 @@ nel eval run config.yaml    # with cluster.type: slurm
 
 ## Model Deployment
 
-The `runner/deployment.py` module manages model server lifecycle:
+The `eval/deployment.py` module manages model server lifecycle:
 
 | Type | Class | Description |
 |------|-------|-------------|

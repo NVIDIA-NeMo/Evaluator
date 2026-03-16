@@ -1,5 +1,5 @@
 """TriviaQA -- trivia questions with multi-alias exact match."""
-from nemo_evaluator.environments.define import benchmark, scorer
+from nemo_evaluator.environments.byob import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput
 
 

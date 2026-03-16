@@ -6,12 +6,18 @@ from nemo_evaluator.sandbox.base import (
     Sandbox,
     SandboxSpec,
 )
+from nemo_evaluator.sandbox.lifecycle import LifecycleContext, NoSandbox, StatefulSandbox, StatelessSandbox, pick_lifecycle
 from nemo_evaluator.sandbox.manager import SandboxManager
 
 __all__ = [
     "ExecResult",
+    "LifecycleContext",
+    "NoSandbox",
     "OutsideEndpoint",
     "Sandbox",
     "SandboxManager",
     "SandboxSpec",
+    "StatefulSandbox",
+    "StatelessSandbox",
+    "pick_lifecycle",
 ]

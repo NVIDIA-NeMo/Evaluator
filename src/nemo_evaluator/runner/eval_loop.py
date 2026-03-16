@@ -15,6 +15,7 @@ from nemo_evaluator.observability.collector import ArtifactCollector
 from nemo_evaluator.observability.progress import NoOpProgress, ProgressTracker
 from nemo_evaluator.observability.types import StepRecord
 from nemo_evaluator.runner.artifacts import build_artifact_bundle
+from nemo_evaluator.sandbox.lifecycle import pick_lifecycle
 from nemo_evaluator.solvers import Solver, SolveResult
 from nemo_evaluator.runner.step_log import (
     INFERENCE_LOG,
@@ -182,17 +183,23 @@ async def run_evaluation(
             tokens = 0
             latency_ms = 0.0
 
-            # Acquire per-problem sandbox if configured
-            if sandbox_manager:
-                spec = sandbox_manager.resolve_spec(seed_result)
-                if spec:
-                    outside_eps: list[OutsideEndpoint] = []
-                    if model_url:
-                        from nemo_evaluator.sandbox.base import OutsideEndpoint as OE
-                        outside_eps.append(OE(url=model_url, env_var="MODEL_BASE_URL"))
-                    sandbox = await sandbox_manager.acquire(spec, outside_endpoints=outside_eps)
+            outside_eps: list[OutsideEndpoint] = []
+            if model_url:
+                from nemo_evaluator.sandbox.base import OutsideEndpoint as OE
+                outside_eps.append(OE(url=model_url, env_var="MODEL_BASE_URL"))
+
+            sandbox_cfg = config.get("_sandbox_config")
+            lifecycle = pick_lifecycle(
+                seed_result,
+                sandbox_manager,
+                outside_endpoints=outside_eps,
+                config_capture_cmd=sandbox_cfg.capture_cmd if sandbox_cfg else None,
+                verify_timeout=sandbox_cfg.verify_timeout if sandbox_cfg else 600.0,
+            )
 
             try:
+                await lifecycle.setup()
+
                 # --- Inference phase ---
                 cached_inferred = inferred_cache.get(key)
                 if cached_inferred is not None:
@@ -202,7 +209,9 @@ async def run_evaluation(
                     logger.debug("resume p%d r%d: using cached inference", idx, rep)
                 else:
                     try:
-                        if sandbox is not None and hasattr(solver, "solve") and _solver_accepts_sandbox(solver):
+                        if _solver_accepts_sandbox(solver):
+                            sandbox = await lifecycle.get_agent_sandbox()
+                        if sandbox is not None:
                             solve_result = await solver.solve(seed_result, sandbox=sandbox)
                         else:
                             solve_result = await solver.solve(seed_result)
@@ -229,12 +238,18 @@ async def run_evaluation(
                         }
                         await inference_log.append(inf_record)
 
+                # --- Transition: capture agent output / write response ---
+                await lifecycle.transition_to_verify(
+                    response_text, solver_modified=(sandbox is not None),
+                )
+
                 # --- Verify phase ---
                 tv = time.monotonic()
                 try:
+                    verify_sandbox = await lifecycle.get_verify_sandbox()
                     vr = await env.verify(
                         response_text, seed_result.expected_answer,
-                        sandbox=sandbox, **seed_result.metadata,
+                        sandbox=verify_sandbox, **seed_result.metadata,
                     )
                 except Exception as e:
                     logger.warning("verify error p%d r%d: %s", idx, rep, e)
@@ -300,8 +315,7 @@ async def run_evaluation(
                 pg.on_step(idx - start, rep, n_problems, n_repeats, vr.reward, tokens, step.total_ms)
 
             finally:
-                if sandbox and sandbox_manager:
-                    await sandbox_manager.release(sandbox)
+                await lifecycle.teardown()
 
     # Pipeline: seed problems and fan out repeats with back-pressure
     max_buffered = max_concurrent * 2
@@ -342,14 +356,33 @@ async def run_evaluation(
             await env.close()
 
     elapsed = time.monotonic() - t0
-    pg.on_done(cum_correct, cum_total, elapsed, sum(
-        s.model_response.total_tokens for s in collector.steps if s.model_response))
+    all_rewards = [r["reward"] for r in results]
+    per_problem_means = [
+        sum(rewards) / len(rewards)
+        for rewards in problem_correct.values()
+        if rewards
+    ]
+    has_fractional = any(r not in (0, 0.0, 1, 1.0) for r in all_rewards)
 
+    metrics: dict[str, Any] = {}
+    if per_problem_means and has_fractional:
+        ci = bootstrap_ci(per_problem_means)
+        metrics["mean_reward"] = {
+            "value": round(ci.mean, 4),
+            "ci_lower": round(ci.ci_lower, 4),
+            "ci_upper": round(ci.ci_upper, 4),
+        }
+
+    overall_mean = metrics["mean_reward"]["value"] if "mean_reward" in metrics else None
+    pg.on_done(cum_correct, cum_total, elapsed, sum(
+        s.model_response.total_tokens for s in collector.steps if s.model_response),
+        mean_reward=overall_mean)
+
+    # pass@k: useful for binary-scored benchmarks (code generation, etc.)
     problem_list = [
         (n_repeats, sum(1 for r in rewards if r > 0))
         for rewards in problem_correct.values()
     ]
-    metrics: dict[str, Any] = {}
     for k in [1] + ([n_repeats] if n_repeats > 1 else []):
         if k <= n_repeats and problem_list:
             pak = aggregate_pass_at_k(problem_list, k)
@@ -360,7 +393,7 @@ async def run_evaluation(
                 "ci_upper": round(ci.ci_upper, 4),
             }
 
-    metrics["summary"] = summary_stats([r["reward"] for r in results])
+    metrics["summary"] = summary_stats(all_rewards)
 
     cats = None
     if results and "category" in results[0].get("metadata", {}):

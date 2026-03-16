@@ -1,4 +1,8 @@
-"""Shared Gym protocol response parsing."""
+"""Gym protocol: response parsing and NeMoGymResponse envelope construction.
+
+Shared by GymEnvironment (native protocol mode) and the evaluator server
+(gym-compat mode).
+"""
 from __future__ import annotations
 
 from typing import Any
@@ -28,3 +32,74 @@ def extract_assistant_text(response: Any) -> str:
             if msg:
                 return msg
     return str(response)
+
+
+def wrap_text_as_gym_response(text: str) -> dict[str, Any]:
+    """Wrap plain text into a NeMoGymResponse-compatible dict.
+
+    Native Gym resource servers validate ``body.response`` against
+    ``NeMoGymResponse`` (an OpenAI ``Response`` subclass).  The
+    ``output_text`` property concatenates text from output message items.
+    We set it as a top-level key for servers that read it directly.
+    """
+    return {
+        "id": "eval-synthetic",
+        "object": "response",
+        "created_at": 0,
+        "status": "completed",
+        "model": "evaluator",
+        "output": [
+            {
+                "id": "msg-eval-synthetic",
+                "type": "message",
+                "role": "assistant",
+                "status": "completed",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": text,
+                        "annotations": [],
+                    }
+                ],
+            }
+        ],
+        "output_text": text,
+    }
+
+
+def wrap_text_as_responses_create_params(
+    prompt: str, model: str = "evaluator",
+) -> dict[str, Any]:
+    """Build a minimal NeMoGymResponseCreateParamsNonStreaming-compatible dict."""
+    return {
+        "input": [{"role": "user", "content": prompt}],
+        "model": model,
+    }
+
+
+def extract_prompt_from_rcp(rcp: dict[str, Any]) -> str:
+    """Extract the user prompt from a responses_create_params dict."""
+    inp = rcp.get("input", "")
+    if isinstance(inp, str):
+        return inp
+    if isinstance(inp, list):
+        for msg in reversed(inp):
+            if isinstance(msg, dict) and msg.get("role") == "user":
+                content = msg.get("content", "")
+                return content if isinstance(content, str) else str(content)
+    return ""
+
+
+def messages_from_rcp(rcp: dict[str, Any]) -> list[dict[str, str]]:
+    """Build a messages list from responses_create_params.input."""
+    inp = rcp.get("input", [])
+    if not isinstance(inp, list):
+        return []
+    return [
+        {
+            "role": m.get("role", "user"),
+            "content": m.get("content", "") if isinstance(m.get("content"), str) else str(m.get("content", "")),
+        }
+        for m in inp
+        if isinstance(m, dict)
+    ]

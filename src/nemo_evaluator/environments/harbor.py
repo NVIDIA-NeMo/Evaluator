@@ -125,12 +125,23 @@ class HarborEnvironment(EvalEnvironment):
         from nemo_evaluator.sandbox.base import SandboxSpec
 
         sandbox_spec = None
+        verify_sandbox_spec = None
+        capture_cmd = None
+        apply_cmd = None
         if image:
-            env_config = config.get("environment", {})
             sandbox_spec = SandboxSpec(
                 image=image,
                 workdir="/testbed",
                 env={"HARBOR_TASK_DIR": str(task_dir)},
+            )
+            verify_sandbox_spec = SandboxSpec(
+                image=image,
+                workdir="/testbed",
+            )
+            capture_cmd = "cd /testbed && tar cf /output/workspace.tar --exclude=.git ."
+            apply_cmd = (
+                "if [ -f /input/workspace.tar ]; then "
+                "tar xf /input/workspace.tar -C /testbed; fi"
             )
 
         metadata: dict[str, Any] = {
@@ -147,12 +158,21 @@ class HarborEnvironment(EvalEnvironment):
             expected_answer="",
             metadata=metadata,
             sandbox_spec=sandbox_spec,
+            verify_sandbox_spec=verify_sandbox_spec,
+            capture_cmd=capture_cmd,
+            apply_cmd=apply_cmd,
         )
 
     async def verify(
         self, response: str, expected: str,
         sandbox: Sandbox | None = None, **metadata: Any,
     ) -> VerifyResult:
+        """Run test scripts in the verification sandbox.
+
+        With the StatelessSandbox lifecycle the workspace has already been
+        restored from ``/input/workspace.tar`` by ``apply_cmd``.  This
+        method only uploads test scripts and executes them.
+        """
         if sandbox is None:
             logger.warning("Harbor verify called without sandbox -- cannot run tests")
             return VerifyResult(

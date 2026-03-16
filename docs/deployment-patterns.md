@@ -213,7 +213,7 @@ nel eval run --bench pi://math500 --repeats 4
 # Or programmatically
 from nemo_evaluator.environments.pi import PIEnvironment
 from nemo_evaluator.runner import run_evaluation, ModelClient
-from nemo_evaluator.runner.solver import ChatSolver
+from nemo_evaluator.solvers import ChatSolver
 
 env = PIEnvironment("simpleqa")  # loads via vf.load_environment()
 client = ModelClient(base_url="...", model="...", api_key="...")
@@ -248,7 +248,7 @@ sequenceDiagram
 **For MultiTurnEnv/SandboxEnv** (agent environments where decomposition isn't possible), use `AgentSolver`:
 
 ```python
-from nemo_evaluator.runner.solver import AgentSolver
+from nemo_evaluator.solvers import AgentSolver
 
 solver = AgentSolver(
     agent_cmd="python -m my_agent",
@@ -278,7 +278,7 @@ nel serve -b gsm8k --gym-compat --port 9090
 # Or programmatically
 import uvicorn
 from nemo_evaluator.environments.registry import get_environment
-from nemo_evaluator.environments.server import generate_app
+from nemo_evaluator.serving.app import generate_app
 
 env = get_environment("gsm8k")
 app = generate_app(env, gym_compat=True)

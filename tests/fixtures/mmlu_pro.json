@@ -1,0 +1,267 @@
+[
+  {
+    "idx": 0,
+    "prompt": "Answer the following multiple choice question. The last line of your response should be in the following format: 'Answer: $LETTER' where LETTER is one of A/B/C/D/E/F/G/H/I/J.\n\nTypical advertising regulatory bodies suggest, for example that adverts must not: encourage _________, cause unnecessary ________ or _____, and must not cause _______ offence.\n\nA) Safe practices, Fear, Jealousy, Trivial\nB) Unsafe practices, Distress, Joy, Trivial\nC) Safe practices, Wants, Jealousy, Trivial\nD) Safe practices, Distress, Fear, Trivial\nE) Unsafe practices, Wants, Jealousy, Serious\nF) Safe practices, Distress, Jealousy, Serious\nG) Safe practices, Wants, Fear, Serious\nH) Unsafe practices, Wants, Fear, Trivial\nI) Unsafe practices, Distress, Fear, Serious\nJ) ",
+    "expected_answer": "I",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "mmlu_pro",
+      "question_id": 70,
+      "question": "Typical advertising regulatory bodies suggest, for example that adverts must not: encourage _________, cause unnecessary ________ or _____, and must not cause _______ offence.",
+      "options": [
+        "Safe practices, Fear, Jealousy, Trivial",
+        "Unsafe practices, Distress, Joy, Trivial",
+        "Safe practices, Wants, Jealousy, Trivial",
+        "Safe practices, Distress, Fear, Trivial",
+        "Unsafe practices, Wants, Jealousy, Serious",
+        "Safe practices, Distress, Jealousy, Serious",
+        "Safe practices, Wants, Fear, Serious",
+        "Unsafe practices, Wants, Fear, Trivial",
+        "Unsafe practices, Distress, Fear, Serious",
+        ""
+      ],
+      "answer_index": 8,
+      "cot_content": "",
+      "category": "business",
+      "src": "ori_mmlu-business_ethics",
+      "Question": "Typical advertising regulatory bodies suggest, for example that adverts must not: encourage _________, cause unnecessary ________ or _____, and must not cause _______ offence.",
+      "A": "Safe practices, Fear, Jealousy, Trivial",
+      "B": "Unsafe practices, Distress, Joy, Trivial",
+      "C": "Safe practices, Wants, Jealousy, Trivial",
+      "D": "Safe practices, Distress, Fear, Trivial",
+      "E": "Unsafe practices, Wants, Jealousy, Serious",
+      "F": "Safe practices, Distress, Jealousy, Serious",
+      "G": "Safe practices, Wants, Fear, Serious",
+      "H": "Unsafe practices, Wants, Fear, Trivial",
+      "I": "Unsafe practices, Distress, Fear, Serious",
+      "J": ""
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Answer the following multiple choice question. The last line of your response should be in the following format: 'Answer: $LETTER' where LETTER is one of A/B/C/D/E/F/G/H/I/J.\n\nTypical advertising regulatory bodies suggest, for example that adverts must not: encourage _________, cause unnecessary ________ or _____, and must not cause _______ offence.\n\nA) Safe practices, Fear, Jealousy, Trivial\nB) Unsafe practices, Distress, Joy, Trivial\nC) Safe practices, Wants, Jealousy, Trivial\nD) Safe practices, Distress, Fear, Trivial\nE) Unsafe practices, Wants, Jealousy, Serious\nF) Safe practices, Distress, Jealousy, Serious\nG) Safe practices, Wants, Fear, Serious\nH) Unsafe practices, Wants, Fear, Trivial\nI) Unsafe practices, Distress, Fear, Serious\nJ) "
+      }
+    ],
+    "system": null,
+    "model_response": "Advertising regulators commonly state that ads must not encourage **unsafe practices**, cause unnecessary **distress** or **fear**, and must not cause **serious** offence.\n\nAnswer: I",
+    "reward": 1.0,
+    "extracted_answer": "I",
+    "scoring_details": {
+      "method": "byob_mmlu_pro",
+      "correct": true,
+      "extracted": "I"
+    }
+  },
+  {
+    "idx": 1,
+    "prompt": "Answer the following multiple choice question. The last line of your response should be in the following format: 'Answer: $LETTER' where LETTER is one of A/B/C/D/E/F/G/H/I/J.\n\nManagers are entrusted to run the company in the best interest of ________. Specifically, they have a duty to act for the benefit of the company, as well as a duty of ________ and of _______.\n\nA) Shareholders, Diligence, Self-interest\nB) Shareholders, Self-interest, Care and Skill\nC) Stakeholders, Care and skill, Self-interest\nD) Stakeholders, Diligence, Care and Skill\nE) Customers, Care and Skill, Diligence\nF) Shareholders, Care and Skill, Diligence\nG) Shareholders, Self-interest, Diligence\nH) Employees, Care and Skill, Diligence\nI) Stakeholders, Self-interest, Diligence\nJ) Stakeholder, Care and Skill, Diligence",
+    "expected_answer": "F",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "mmlu_pro",
+      "question_id": 71,
+      "question": "Managers are entrusted to run the company in the best interest of ________. Specifically, they have a duty to act for the benefit of the company, as well as a duty of ________ and of _______.",
+      "options": [
+        "Shareholders, Diligence, Self-interest",
+        "Shareholders, Self-interest, Care and Skill",
+        "Stakeholders, Care and skill, Self-interest",
+        "Stakeholders, Diligence, Care and Skill",
+        "Customers, Care and Skill, Diligence",
+        "Shareholders, Care and Skill, Diligence",
+        "Shareholders, Self-interest, Diligence",
+        "Employees, Care and Skill, Diligence",
+        "Stakeholders, Self-interest, Diligence",
+        "Stakeholder, Care and Skill, Diligence"
+      ],
+      "answer_index": 5,
+      "cot_content": "",
+      "category": "business",
+      "src": "ori_mmlu-business_ethics",
+      "Question": "Managers are entrusted to run the company in the best interest of ________. Specifically, they have a duty to act for the benefit of the company, as well as a duty of ________ and of _______.",
+      "A": "Shareholders, Diligence, Self-interest",
+      "B": "Shareholders, Self-interest, Care and Skill",
+      "C": "Stakeholders, Care and skill, Self-interest",
+      "D": "Stakeholders, Diligence, Care and Skill",
+      "E": "Customers, Care and Skill, Diligence",
+      "F": "Shareholders, Care and Skill, Diligence",
+      "G": "Shareholders, Self-interest, Diligence",
+      "H": "Employees, Care and Skill, Diligence",
+      "I": "Stakeholders, Self-interest, Diligence",
+      "J": "Stakeholder, Care and Skill, Diligence"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Answer the following multiple choice question. The last line of your response should be in the following format: 'Answer: $LETTER' where LETTER is one of A/B/C/D/E/F/G/H/I/J.\n\nManagers are entrusted to run the company in the best interest of ________. Specifically, they have a duty to act for the benefit of the company, as well as a duty of ________ and of _______.\n\nA) Shareholders, Diligence, Self-interest\nB) Shareholders, Self-interest, Care and Skill\nC) Stakeholders, Care and skill, Self-interest\nD) Stakeholders, Diligence, Care and Skill\nE) Customers, Care and Skill, Diligence\nF) Shareholders, Care and Skill, Diligence\nG) Shareholders, Self-interest, Diligence\nH) Employees, Care and Skill, Diligence\nI) Stakeholders, Self-interest, Diligence\nJ) Stakeholder, Care and Skill, Diligence"
+      }
+    ],
+    "system": null,
+    "model_response": "Managers (directors) are generally expected to act in the best interests of the company/shareholders, and they owe duties of care and skill and diligence.\n\nAnswer: F",
+    "reward": 1.0,
+    "extracted_answer": "F",
+    "scoring_details": {
+      "method": "byob_mmlu_pro",
+      "correct": true,
+      "extracted": "F"
+    }
+  },
+  {
+    "idx": 2,
+    "prompt": "Answer the following multiple choice question. The last line of your response should be in the following format: 'Answer: $LETTER' where LETTER is one of A/B/C/D/E/F/G/H/I/J.\n\nThere are two main issues associated with _____ sizing. _______ is a key issue as due to the information policy of the corporation it can be argued that employees have a right to know if they are being made redundant. _______ is a second issue, particularly the ________ package that employees receive when laid off.\n\nA) Down, Autonomy, Remuneration, Benefit\nB) Down, Involvement, Independence, Benefit\nC) Up, Independence, Involvement, Benefit\nD) Down, Privacy, Autonomy, Benefit\nE) Up, Involvement, Autonomy, Compensation\nF) Down, Independence, Autonomy, Compensation\nG) Up, Involvement, Remuneration, Severance\nH) Up, Privacy, Remuneration, Severance\nI) Up, Autonomy, Remuneration, Compensation\nJ) Down, Involvement, Remuneration, Compensation",
+    "expected_answer": "J",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "mmlu_pro",
+      "question_id": 72,
+      "question": "There are two main issues associated with _____ sizing. _______ is a key issue as due to the information policy of the corporation it can be argued that employees have a right to know if they are being made redundant. _______ is a second issue, particularly the ________ package that employees receive when laid off.",
+      "options": [
+        "Down, Autonomy, Remuneration, Benefit",
+        "Down, Involvement, Independence, Benefit",
+        "Up, Independence, Involvement, Benefit",
+        "Down, Privacy, Autonomy, Benefit",
+        "Up, Involvement, Autonomy, Compensation",
+        "Down, Independence, Autonomy, Compensation",
+        "Up, Involvement, Remuneration, Severance",
+        "Up, Privacy, Remuneration, Severance",
+        "Up, Autonomy, Remuneration, Compensation",
+        "Down, Involvement, Remuneration, Compensation"
+      ],
+      "answer_index": 9,
+      "cot_content": "",
+      "category": "business",
+      "src": "ori_mmlu-business_ethics",
+      "Question": "There are two main issues associated with _____ sizing. _______ is a key issue as due to the information policy of the corporation it can be argued that employees have a right to know if they are being made redundant. _______ is a second issue, particularly the ________ package that employees receive when laid off.",
+      "A": "Down, Autonomy, Remuneration, Benefit",
+      "B": "Down, Involvement, Independence, Benefit",
+      "C": "Up, Independence, Involvement, Benefit",
+      "D": "Down, Privacy, Autonomy, Benefit",
+      "E": "Up, Involvement, Autonomy, Compensation",
+      "F": "Down, Independence, Autonomy, Compensation",
+      "G": "Up, Involvement, Remuneration, Severance",
+      "H": "Up, Privacy, Remuneration, Severance",
+      "I": "Up, Autonomy, Remuneration, Compensation",
+      "J": "Down, Involvement, Remuneration, Compensation"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Answer the following multiple choice question. The last line of your response should be in the following format: 'Answer: $LETTER' where LETTER is one of A/B/C/D/E/F/G/H/I/J.\n\nThere are two main issues associated with _____ sizing. _______ is a key issue as due to the information policy of the corporation it can be argued that employees have a right to know if they are being made redundant. _______ is a second issue, particularly the ________ package that employees receive when laid off.\n\nA) Down, Autonomy, Remuneration, Benefit\nB) Down, Involvement, Independence, Benefit\nC) Up, Independence, Involvement, Benefit\nD) Down, Privacy, Autonomy, Benefit\nE) Up, Involvement, Autonomy, Compensation\nF) Down, Independence, Autonomy, Compensation\nG) Up, Involvement, Remuneration, Severance\nH) Up, Privacy, Remuneration, Severance\nI) Up, Autonomy, Remuneration, Compensation\nJ) Down, Involvement, Remuneration, Compensation"
+      }
+    ],
+    "system": null,
+    "model_response": "The question refers to issues associated with **downsizing**. A key issue is **privacy**, since employees may claim a right to know about redundancy decisions under corporate information policies. A second issue is **remuneration**, particularly the **severance** package provided when employees are laid off.\n\nAnswer: H",
+    "reward": 0.0,
+    "extracted_answer": "H",
+    "scoring_details": {
+      "method": "byob_mmlu_pro",
+      "correct": false,
+      "extracted": "H"
+    }
+  },
+  {
+    "idx": 3,
+    "prompt": "Answer the following multiple choice question. The last line of your response should be in the following format: 'Answer: $LETTER' where LETTER is one of A/B/C/D/E/F/G/H/I/J.\n\n_______ locate morality beyond the sphere of rationality in an emotional 'moral impulse' towards others.\n\nA) Ethical egoism\nB) Ethics of duty\nC) Postmodern ethics\nD) Consequentialist ethics\nE) Utilitarian ethics\nF) Deontological ethics\nG) Virtue ethics\nH) Ethics of care\nI) Ethics of rights\nJ) Relativist ethics",
+    "expected_answer": "C",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "mmlu_pro",
+      "question_id": 73,
+      "question": "_______ locate morality beyond the sphere of rationality in an emotional 'moral impulse' towards others.",
+      "options": [
+        "Ethical egoism",
+        "Ethics of duty",
+        "Postmodern ethics",
+        "Consequentialist ethics",
+        "Utilitarian ethics",
+        "Deontological ethics",
+        "Virtue ethics",
+        "Ethics of care",
+        "Ethics of rights",
+        "Relativist ethics"
+      ],
+      "answer_index": 2,
+      "cot_content": "",
+      "category": "business",
+      "src": "ori_mmlu-business_ethics",
+      "Question": "_______ locate morality beyond the sphere of rationality in an emotional 'moral impulse' towards others.",
+      "A": "Ethical egoism",
+      "B": "Ethics of duty",
+      "C": "Postmodern ethics",
+      "D": "Consequentialist ethics",
+      "E": "Utilitarian ethics",
+      "F": "Deontological ethics",
+      "G": "Virtue ethics",
+      "H": "Ethics of care",
+      "I": "Ethics of rights",
+      "J": "Relativist ethics"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Answer the following multiple choice question. The last line of your response should be in the following format: 'Answer: $LETTER' where LETTER is one of A/B/C/D/E/F/G/H/I/J.\n\n_______ locate morality beyond the sphere of rationality in an emotional 'moral impulse' towards others.\n\nA) Ethical egoism\nB) Ethics of duty\nC) Postmodern ethics\nD) Consequentialist ethics\nE) Utilitarian ethics\nF) Deontological ethics\nG) Virtue ethics\nH) Ethics of care\nI) Ethics of rights\nJ) Relativist ethics"
+      }
+    ],
+    "system": null,
+    "model_response": "The view that places morality beyond rational calculation and grounds it in an emotional moral impulse or responsiveness toward others is **postmodern ethics** (often associated with Levinas and Bauman).\n\nAnswer: C",
+    "reward": 1.0,
+    "extracted_answer": "C",
+    "scoring_details": {
+      "method": "byob_mmlu_pro",
+      "correct": true,
+      "extracted": "C"
+    }
+  },
+  {
+    "idx": 4,
+    "prompt": "Answer the following multiple choice question. The last line of your response should be in the following format: 'Answer: $LETTER' where LETTER is one of A/B/C/D/E/F/G/H/I/J.\n\n Some of key differences between Islamic finance and conventional finance include - prohibition of charging and paying _______, prohibition on ______ and ______ transactions, prohibition of sinful investment and requirement for all financial products to be backed by __________.\n\nA) Interest, Certain, Assured, Both tangible and intangible assets\nB) Interest, Uncertain, Assured, Both tangible and intangible assets\nC) Interest, Uncertain, Speculative, Intangible assets\nD) Interest, Certain, Assured, Tangible assets\nE) Interest, Uncertain, Assured, Intangible assets\nF) Profit, Uncertain, Speculative, Tangible assets\nG) Interest, Uncertain, Speculative, Tangible assets\nH) Interest, Certain, Speculative, Intangible assets\nI) Profit, Certain, Assured, Tangible assets\nJ) Interest, Certain, Speculative, Both tangible and intangible assets",
+    "expected_answer": "G",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "mmlu_pro",
+      "question_id": 74,
+      "question": " Some of key differences between Islamic finance and conventional finance include - prohibition of charging and paying _______, prohibition on ______ and ______ transactions, prohibition of sinful investment and requirement for all financial products to be backed by __________.",
+      "options": [
+        "Interest, Certain, Assured, Both tangible and intangible assets",
+        "Interest, Uncertain, Assured, Both tangible and intangible assets",
+        "Interest, Uncertain, Speculative, Intangible assets",
+        "Interest, Certain, Assured, Tangible assets",
+        "Interest, Uncertain, Assured, Intangible assets",
+        "Profit, Uncertain, Speculative, Tangible assets",
+        "Interest, Uncertain, Speculative, Tangible assets",
+        "Interest, Certain, Speculative, Intangible assets",
+        "Profit, Certain, Assured, Tangible assets",
+        "Interest, Certain, Speculative, Both tangible and intangible assets"
+      ],
+      "answer_index": 6,
+      "cot_content": "",
+      "category": "business",
+      "src": "ori_mmlu-business_ethics",
+      "Question": " Some of key differences between Islamic finance and conventional finance include - prohibition of charging and paying _______, prohibition on ______ and ______ transactions, prohibition of sinful investment and requirement for all financial products to be backed by __________.",
+      "A": "Interest, Certain, Assured, Both tangible and intangible assets",
+      "B": "Interest, Uncertain, Assured, Both tangible and intangible assets",
+      "C": "Interest, Uncertain, Speculative, Intangible assets",
+      "D": "Interest, Certain, Assured, Tangible assets",
+      "E": "Interest, Uncertain, Assured, Intangible assets",
+      "F": "Profit, Uncertain, Speculative, Tangible assets",
+      "G": "Interest, Uncertain, Speculative, Tangible assets",
+      "H": "Interest, Certain, Speculative, Intangible assets",
+      "I": "Profit, Certain, Assured, Tangible assets",
+      "J": "Interest, Certain, Speculative, Both tangible and intangible assets"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Answer the following multiple choice question. The last line of your response should be in the following format: 'Answer: $LETTER' where LETTER is one of A/B/C/D/E/F/G/H/I/J.\n\n Some of key differences between Islamic finance and conventional finance include - prohibition of charging and paying _______, prohibition on ______ and ______ transactions, prohibition of sinful investment and requirement for all financial products to be backed by __________.\n\nA) Interest, Certain, Assured, Both tangible and intangible assets\nB) Interest, Uncertain, Assured, Both tangible and intangible assets\nC) Interest, Uncertain, Speculative, Intangible assets\nD) Interest, Certain, Assured, Tangible assets\nE) Interest, Uncertain, Assured, Intangible assets\nF) Profit, Uncertain, Speculative, Tangible assets\nG) Interest, Uncertain, Speculative, Tangible assets\nH) Interest, Certain, Speculative, Intangible assets\nI) Profit, Certain, Assured, Tangible assets\nJ) Interest, Certain, Speculative, Both tangible and intangible assets"
+      }
+    ],
+    "system": null,
+    "model_response": "Islamic finance prohibits charging/paying **interest (riba)**, prohibits **uncertain (gharar)** and **speculative (maysir)** transactions, and requires financing to be backed by **tangible assets**.\n\nAnswer: G",
+    "reward": 1.0,
+    "extracted_answer": "G",
+    "scoring_details": {
+      "method": "byob_mmlu_pro",
+      "correct": true,
+      "extracted": "G"
+    }
+  }
+]

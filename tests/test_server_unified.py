@@ -3,7 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
-from nemo_evaluator.environments.server import generate_app
+from nemo_evaluator.serving.app import generate_app
 
 
 class _TestBench(EvalEnvironment):

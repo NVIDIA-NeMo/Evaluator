@@ -90,16 +90,44 @@ def load_benchmark_file(file_path: str) -> list[str]:
 # --- URI scheme factories (scheme://rest) ---
 
 def _make_gym(rest: str, **kwargs: Any) -> "EvalEnvironment":
-    """Auto-detect gym://host:port (remote) vs gym://name (managed benchmark)."""
-    from nemo_evaluator.environments.gym import GymEnvironment, ManagedGymEnvironment
+    """Resolve gym:// URIs.
+
+    URI variants:
+      gym://host:port                       → GymEnvironment (evaluator protocol)
+      gym://host:port?protocol=native&data=/path.jsonl
+                                            → GymEnvironment (native protocol + dataset)
+      gym://cmd:<shell_command>             → ManagedGymEnvironment (server_cmd)
+      gym://module:<mod.path>               → ManagedGymEnvironment (uvicorn module)
+      gym://module:<mod.path>?protocol=native&data=/path.jsonl
+                                            → ManagedGymEnvironment (native protocol + dataset)
+      gym://<benchmark_name>                → ManagedGymEnvironment (nel serve)
+    """
+    from nemo_evaluator.environments.gym import GymDataset, GymEnvironment, ManagedGymEnvironment
+
+    protocol = kwargs.get("protocol", "evaluator")
+    data_path = kwargs.get("data")
+    dataset = GymDataset(data_path) if data_path else None
+
+    # Parse inline query params: gym://host:port?protocol=native&data=/foo.jsonl
+    if "?" in rest:
+        rest_base, qs = rest.split("?", 1)
+        for kv in qs.split("&"):
+            if "=" not in kv:
+                continue
+            k, v = kv.split("=", 1)
+            if k == "protocol":
+                protocol = v
+            elif k == "data":
+                dataset = GymDataset(v)
+        rest = rest_base
 
     if _HOST_PORT_RE.match(rest):
-        return GymEnvironment(f"http://{rest}")
+        return GymEnvironment(f"http://{rest}", protocol=protocol, dataset=dataset)
     if rest.startswith("cmd:"):
-        return ManagedGymEnvironment(server_cmd=rest[4:])
+        return ManagedGymEnvironment(server_cmd=rest[4:], protocol=protocol, dataset=dataset)
     if rest.startswith("module:"):
-        return ManagedGymEnvironment(server_module=rest[7:])
-    return ManagedGymEnvironment(nel_benchmark=rest)
+        return ManagedGymEnvironment(server_module=rest[7:], protocol=protocol, dataset=dataset)
+    return ManagedGymEnvironment(nel_benchmark=rest, protocol=protocol, dataset=dataset)
 
 
 def _make_skills(rest: str, **kwargs: Any) -> "EvalEnvironment":
