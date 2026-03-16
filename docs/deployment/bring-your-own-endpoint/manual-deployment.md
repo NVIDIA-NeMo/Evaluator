@@ -89,7 +89,7 @@ api_endpoint = ApiEndpoint(
     url="http://localhost:8080/v1/completions",
     type=EndpointType.COMPLETIONS,
     model_id="llama-3.1-8b",
-    api_key="API_KEY"  # Name of environment variable holding API key
+    api_key_name="API_KEY"  # Name of environment variable holding API key
 )
 
 target = EvaluationTarget(api_endpoint=api_endpoint)
@@ -148,7 +148,7 @@ api_endpoint = ApiEndpoint(
     url="http://localhost:8080/v1/completions",
     type=EndpointType.COMPLETIONS,
     model_id="llama-3.1-8b",
-    api_key="API_KEY",
+    api_key_name="API_KEY",
     adapter_config=adapter_config
 )
 

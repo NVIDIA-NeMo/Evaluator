@@ -121,12 +121,12 @@ command: >-
 
 **Export API keys conditionally**:
 ```jinja
-{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}} && {% endif %}
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %}
 ```
 
 **Set multiple environment variables**:
 ```jinja
-{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}} && {% endif %}
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %}
 {% if config.params.extra.custom_env is defined %}export CUSTOM_VAR={{config.params.extra.custom_env}} && {% endif %}
 ```
 
@@ -135,7 +135,7 @@ command: >-
 **Multi-line commands with conditionals**:
 ```yaml
 command: >-
-  {% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}} && {% endif %}
+  {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %}
   example_eval 
     --model {{target.api_endpoint.model_id}}
     --task {{config.params.task}}
