@@ -111,7 +111,9 @@ def discover_checkpoints(
 
 
 def _submit_conversion_job(
+    *,
     input_path: Path,
+    output_dir: Path,
     conversion_config: ConversionConfig,
     cluster_config: ClusterConfig,
     dry_run: bool = False,
@@ -123,10 +125,8 @@ def _submit_conversion_job(
     """
     # 1. Resolve output path
 
-    invocation_id = generate_invocation_id()
-    remote_dir = f"{conversion_config.output_dir}/{invocation_id}"
-
-    output_path = Path(remote_dir) / input_path.name
+    remote_dir = output_dir / "conversion"
+    output_path = remote_dir / "converted_checkpoint"
 
     # 2. Render the command
     command = (
@@ -172,7 +172,7 @@ def _submit_conversion_job(
     # 6. Submit via SSH
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        local_script_dir = Path(tmpdir) / invocation_id
+        local_script_dir = Path(tmpdir) / input_path.name / "conversion"
         local_script_dir.mkdir()
         (local_script_dir / "run.sub").write_text(sbatch_script)
 
@@ -188,12 +188,12 @@ def _submit_conversion_job(
             )
             rsync_upload(
                 local_sources=[local_script_dir],
-                remote_target=remote_dir,
+                remote_target=str(remote_dir),
                 username=cluster_config.username,
                 hostname=cluster_config.hostname,
             )
             stdout = run_remote_command(
-                command=f"sbatch --parsable {remote_dir}/run.sub",
+                command=f"sbatch --parsable {str(remote_dir / 'run.sub')}",
                 username=cluster_config.username,
                 hostname=cluster_config.hostname,
                 socket=socket,
@@ -215,6 +215,7 @@ def _submit_conversion_job(
 
 def _convert_and_evaluate(
     *,
+    output_dir: Path,
     checkpoint: Path,
     conversion_config: ConversionConfig | None,
     evaluation_config: RunConfig,
@@ -225,9 +226,14 @@ def _convert_and_evaluate(
 
     cfg_copy = OmegaConf.create(OmegaConf.to_container(evaluation_config, resolve=True))
 
+    job_dir = output_dir / checkpoint.name
     if conversion_config is not None:
         conversion_slurm_id, converted_checkpoint_path = _submit_conversion_job(
-            checkpoint, conversion_config, cluster_config, dry_run=dry_run
+            output_dir=job_dir,
+            input_path=checkpoint,
+            conversion_config=conversion_config,
+            cluster_config=cluster_config,
+            dry_run=dry_run,
         )
         OmegaConf.update(
             cfg_copy,
@@ -237,6 +243,21 @@ def _convert_and_evaluate(
         OmegaConf.update(cfg_copy, CHECKPOINT_FIELD, str(converted_checkpoint_path))
     else:
         OmegaConf.update(cfg_copy, CHECKPOINT_FIELD, str(checkpoint))
+
+    cfg_copy = OmegaConf.merge(
+        cfg_copy,
+        OmegaConf.create(
+            {
+                "execution": {
+                    "hostname": cluster_config.hostname,
+                    "account": cluster_config.account,
+                    "partition": cluster_config.partition,
+                    "username": cluster_config.username,
+                    "output_dir": str(job_dir / "evaluation"),
+                }
+            }
+        ),
+    )
 
     if dry_run:
         logger.info(
@@ -273,6 +294,7 @@ def watch_and_evaluate(
         List of all submitted checkpoints during this session.
     """
     state = WatchStateDB(state_file)
+    session_id = generate_invocation_id()
     session_submissions: list[SubmittedCheckpoint] = []
 
     stop_requested = False
@@ -308,6 +330,7 @@ def watch_and_evaluate(
                     if watch_config.monitoring_config.order == "last":
                         checkpoints = list(reversed(checkpoints))
 
+                    # TODO add flag to resubmit previously submitted checkpoints
                     already_submitted = state.submitted_paths()
                     new_checkpoints = [
                         cp for cp in checkpoints if str(cp) not in already_submitted
@@ -329,6 +352,8 @@ def watch_and_evaluate(
 
                         for eval_config in watch_config.evaluation_configs:
                             invocation_id, resolved_eval_config = _convert_and_evaluate(
+                                output_dir=Path(watch_config.cluster_config.output_dir)
+                                / session_id,
                                 checkpoint=cp,
                                 conversion_config=watch_config.conversion_config,
                                 evaluation_config=eval_config,
