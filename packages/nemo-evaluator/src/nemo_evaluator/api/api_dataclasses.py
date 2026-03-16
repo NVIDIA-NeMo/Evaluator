@@ -224,13 +224,6 @@ class Evaluation(BaseModel):
 
     def render_command(self):
         values = self.model_dump()
-        # TODO: Remove once nvidia-simple-evals framework.yml templates are
-        # updated to use api_key_name instead of api_key. Their Jinja2 command
-        # templates still reference target.api_endpoint.api_key, which no
-        # longer exists in ApiEndpoint after the deprecation removal.
-        api_ep = values.get("target", {}).get("api_endpoint")
-        if api_ep is not None and "api_key" not in api_ep and "api_key_name" in api_ep:
-            api_ep["api_key"] = api_ep["api_key_name"]
         env = get_jinja2_environment()
 
         def recursive_render(tpl):
