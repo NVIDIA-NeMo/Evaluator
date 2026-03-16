@@ -1,6 +1,6 @@
 # BYOB (Bring Your Own Benchmark)
 
-Create custom evaluation benchmarks for NeMo Evaluator in ~12 lines of Python.
+Create custom evaluation benchmarks for NeMo Evaluator with minimal Python.
 
 ## Prerequisites
 
@@ -23,7 +23,12 @@ Create a `benchmark.py` file (see [`medmcqa/benchmark.py`](./medmcqa/benchmark.p
 > The `datasets` pip package is listed in `requirements`  in order to enable access to the HuggingFace dataset.
 
 ```python
+import re
+
 from nemo_evaluator.contrib.byob import ScorerInput, benchmark, scorer
+
+# Map HF integer answer codes to letters
+_COP_TO_LETTER = {"0": "A", "1": "B", "2": "C", "3": "D"}
 
 @benchmark(
     name="medmcqa",
@@ -31,7 +36,10 @@ from nemo_evaluator.contrib.byob import ScorerInput, benchmark, scorer
     prompt=(
         "You are a medical expert taking a licensing examination.\n\n"
         "Question: {question}\n\n"
-        "A) {a}\nB) {b}\nC) {c}\nD) {d}\n\n"
+        "A) {a}\n"
+        "B) {b}\n"
+        "C) {c}\n"
+        "D) {d}\n\n"
         "Answer with just the letter (A, B, C, or D):"
     ),
     target_field="cop",
@@ -41,11 +49,33 @@ from nemo_evaluator.contrib.byob import ScorerInput, benchmark, scorer
 )
 @scorer
 def medmcqa_scorer(sample: ScorerInput) -> dict:
-    # Extract letter choice from response and compare to target (0-3 -> A-D)
-    predicted = sample.response.strip()[0].upper() if sample.response.strip() else ""
-    cop_to_letter = {"0": "A", "1": "B", "2": "C", "3": "D"}
-    target_letter = cop_to_letter.get(str(sample.target).strip(), "")
-    return {"correct": predicted == target_letter}
+    response_clean = sample.response.strip()
+
+    # Try: first character is A-D
+    if response_clean and response_clean[0].upper() in "ABCD":
+        predicted = response_clean[0].upper()
+    else:
+        # Try: find "answer is X" or standalone letter
+        match = re.search(
+            r"(?:answer\s+is\s+|^\s*\(?)\s*([A-Da-d])\b",
+            response_clean,
+            re.IGNORECASE,
+        )
+        if match:
+            predicted = match.group(1).upper()
+        else:
+            # Last resort: find any standalone A-D in first 50 chars
+            match = re.search(r"\b([A-Da-d])\b", response_clean[:50])
+            predicted = match.group(1).upper() if match else ""
+
+    # Convert HF integer target (0-3) to letter (A-D)
+    target_str = str(sample.target).strip()
+    target_letter = _COP_TO_LETTER.get(target_str, target_str.upper())
+
+    return {
+        "correct": predicted == target_letter,
+        "parsed": bool(predicted),
+    }
 ```
 
 ### Step 2: Compile
