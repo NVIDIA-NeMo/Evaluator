@@ -1241,6 +1241,145 @@ class TestClientAutoDetect:
                 create_client_model_call_fn(args, api_key=None)
 
 
+class TestOutputDirectoryIsolation:
+    """Tests for per-benchmark output subdirectories."""
+
+    def test_two_benchmarks_same_output_dir_no_overwrite(self, tmp_path):
+        """Running two benchmarks with the same --output-dir must not overwrite results.
+
+        Each benchmark writes to <output_dir>/<benchmark_name>/byob_results.json.
+        """
+        from nemo_evaluator.contrib.byob.runner import main
+
+        output_dir = str(tmp_path / "results")
+        mock_model_fn = MagicMock(return_value="response")
+
+        for bench_name in ["bench_a", "bench_b"]:
+            test_args = [
+                "runner.py",
+                "--benchmark-module",
+                "test.py",
+                "--benchmark-name",
+                bench_name,
+                "--dataset",
+                "test.jsonl",
+                "--output-dir",
+                output_dir,
+                "--model-url",
+                "http://localhost:8000",
+                "--model-id",
+                "test-model",
+            ]
+
+            mock_benchmark = MagicMock()
+            mock_benchmark.requirements = []
+            mock_benchmark.normalized_name = bench_name
+
+            with (
+                patch.object(sys, "argv", test_args),
+                patch(
+                    "nemo_evaluator.contrib.byob.runner.create_client_model_call_fn",
+                    return_value=(mock_model_fn, None),
+                ),
+                patch(
+                    "nemo_evaluator.contrib.byob.runner.import_benchmark",
+                    return_value=mock_benchmark,
+                ),
+                patch(
+                    "nemo_evaluator.contrib.byob.runner.load_dataset",
+                    return_value=[],
+                ),
+                patch(
+                    "nemo_evaluator.contrib.byob.runner.run_eval_loop",
+                    return_value=([], []),
+                ),
+                patch(
+                    "nemo_evaluator.contrib.byob.runner.aggregate_scores",
+                    return_value={"tasks": {bench_name: {"score": 1.0}}},
+                ),
+            ):
+                main()
+
+        # Both benchmark subdirectories must exist with their own results
+        results_a = tmp_path / "results" / "bench_a" / "byob_results.json"
+        results_b = tmp_path / "results" / "bench_b" / "byob_results.json"
+
+        assert results_a.exists(), f"bench_a results missing at {results_a}"
+        assert results_b.exists(), f"bench_b results missing at {results_b}"
+
+        # Verify they contain their respective benchmark data
+        with open(results_a) as f:
+            data_a = json.load(f)
+        with open(results_b) as f:
+            data_b = json.load(f)
+
+        assert "bench_a" in data_a["tasks"], "bench_a key missing from results"
+        assert "bench_b" in data_b["tasks"], "bench_b key missing from results"
+
+    def test_output_uses_normalized_name(self, tmp_path):
+        """Output subdirectory uses bench.normalized_name (underscores, not hyphens).
+
+        Regression: hyphenated names like 'my-bench' should write to 'my_bench/'.
+        """
+        from nemo_evaluator.contrib.byob.runner import main
+
+        output_dir = str(tmp_path / "results")
+        mock_model_fn = MagicMock(return_value="response")
+
+        test_args = [
+            "runner.py",
+            "--benchmark-module",
+            "test.py",
+            "--benchmark-name",
+            "my-bench",
+            "--dataset",
+            "test.jsonl",
+            "--output-dir",
+            output_dir,
+            "--model-url",
+            "http://localhost:8000",
+            "--model-id",
+            "test-model",
+        ]
+
+        mock_benchmark = MagicMock()
+        mock_benchmark.requirements = []
+        mock_benchmark.normalized_name = "my_bench"
+
+        with (
+            patch.object(sys, "argv", test_args),
+            patch(
+                "nemo_evaluator.contrib.byob.runner.create_client_model_call_fn",
+                return_value=(mock_model_fn, None),
+            ),
+            patch(
+                "nemo_evaluator.contrib.byob.runner.import_benchmark",
+                return_value=mock_benchmark,
+            ),
+            patch(
+                "nemo_evaluator.contrib.byob.runner.load_dataset",
+                return_value=[],
+            ),
+            patch(
+                "nemo_evaluator.contrib.byob.runner.run_eval_loop",
+                return_value=([], []),
+            ),
+            patch(
+                "nemo_evaluator.contrib.byob.runner.aggregate_scores",
+                return_value={"tasks": {}},
+            ),
+        ):
+            main()
+
+        # Must use normalized name (underscores), not the raw hyphenated name
+        assert (tmp_path / "results" / "my_bench" / "byob_results.json").exists(), (
+            "Expected output at my_bench/ (normalized), not my-bench/"
+        )
+        assert not (tmp_path / "results" / "my-bench").exists(), (
+            "Should not create directory with hyphenated name"
+        )
+
+
 class TestCommandTemplateExtensions:
     """Tests for COMMAND_TEMPLATE additions in compiler.py."""
 
