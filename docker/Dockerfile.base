@@ -26,5 +26,4 @@ RUN pip install --no-cache-dir ".[scoring,stats]"
 
 ENV PYTHONUNBUFFERED=1
 
-ENTRYPOINT ["nel"]
-CMD ["--help"]
+CMD ["nel", "--help"]

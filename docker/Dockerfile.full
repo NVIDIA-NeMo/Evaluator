@@ -13,5 +13,4 @@ COPY src/ src/
 RUN pip install --no-cache-dir ".[all]"
 
 ENV PYTHONUNBUFFERED=1
-ENTRYPOINT ["nel"]
-CMD ["--help"]
+CMD ["nel", "--help"]

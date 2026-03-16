@@ -31,8 +31,12 @@ def _variant_image(base: str, variant: str) -> str:
     """Derive a variant image from a base image.
 
     ``my-registry.io/nel:v2`` + ``lm-eval`` → ``my-registry.io/nel:v2-lm-eval``
+
+    Skips appending if the base already ends with the variant suffix.
     """
     if variant == "base" or not variant:
+        return base
+    if base.endswith(f"-{variant}"):
         return base
     if ":" in base:
         return f"{base}-{variant}"
@@ -54,14 +58,15 @@ def resolve_eval_image(bench_name: str, base_override: str | None = None) -> str
 
     Args:
         bench_name: Benchmark URI, e.g. ``lm-eval://aime2025``.
-        base_override: ``cluster.container_image`` — if set, variants are
-            derived from this instead of the toml default.
+        base_override: ``cluster.container_image`` — if set, used as-is
+            (the user knows which image they want).
     """
+    if base_override:
+        return base_override
     variant = _scheme_to_variant(bench_name)
     if not variant:
         return ""
-    base = base_override or _default_base()
-    return _variant_image(base, variant)
+    return _variant_image(_default_base(), variant)
 
 
 def resolve_deployment_image(deploy_type: str) -> str:

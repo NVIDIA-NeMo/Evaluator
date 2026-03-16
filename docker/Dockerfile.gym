@@ -39,5 +39,4 @@ RUN for req in resources_servers/*/requirements.txt; do \
 ENV GYM_PATH=/opt/Gym
 ENV PYTHONUNBUFFERED=1
 
-ENTRYPOINT ["nel"]
-CMD ["--help"]
+CMD ["nel", "--help"]
