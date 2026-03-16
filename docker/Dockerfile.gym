@@ -7,14 +7,7 @@
 #   docker build -f docker/Dockerfile.gym -t nemo-evaluator:gym .
 #
 # To pin a Gym version:
-#   docker build -f docker/Dockerfile.gym \
-#       --build-arg GYM_REF=v1.2.0 \
-#       -t nemo-evaluator:gym .
-#
-# For private repos, pass a token:
-#   docker build -f docker/Dockerfile.gym \
-#       --build-arg GYM_REPO=https://oauth2:${TOKEN}@gitlab-master.nvidia.com/dl/JoC/nemo-gym.git \
-#       -t nemo-evaluator:gym .
+#   docker build -f docker/Dockerfile.gym --build-arg GYM_REF=v0.2.0 -t nemo-evaluator:gym .
 FROM python:3.12-slim AS base
 
 RUN apt-get update \
@@ -29,16 +22,18 @@ COPY src/ src/
 
 RUN pip install --no-cache-dir ".[scoring,stats]"
 
-ARG GYM_REPO=https://gitlab-master.nvidia.com/dl/JoC/nemo-gym.git
+ARG GYM_REPO=https://github.com/NVIDIA-NeMo/Gym.git
 ARG GYM_REF=main
 
-RUN git clone --depth 1 -b ${GYM_REF} ${GYM_REPO} /opt/Gym \
-    && cd /opt/Gym \
-    && pip install --no-cache-dir . \
-    && for req in resources_servers/*/requirements.txt; do \
-         grep -v '^-e ' "$req" \
-           | pip install --no-cache-dir -r /dev/stdin 2>/dev/null || true; \
-       done \
+RUN git clone --depth 1 -b ${GYM_REF} ${GYM_REPO} /opt/Gym
+
+WORKDIR /opt/Gym
+RUN ls -la && pip install --no-cache-dir .
+
+RUN for req in resources_servers/*/requirements.txt; do \
+      grep -v '^-e ' "$req" \
+        | pip install --no-cache-dir -r /dev/stdin 2>/dev/null || true; \
+    done \
     && pip cache purge
 
 ENV GYM_PATH=/opt/Gym

@@ -195,7 +195,6 @@ container-gym:
   needs: ["container-base"]
   script:
     - docker build
-      --build-arg "GYM_REPO=https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab-master.nvidia.com/dl/JoC/nemo-gym.git"
       --cache-from "${REGISTRY}:latest-gym"
       --tag "${REGISTRY}:${TAG}-gym"
       -f docker/Dockerfile.gym .
