@@ -144,9 +144,7 @@ def _submit_conversion_job(
         src = mount.source
         dst = mount.target
         mounts_str += f"{src}:{dst},"
-    mounts_str += (
-        f"{str(input_path)}:{str(input_path)},{str(output_path)}:{str(output_path)}"
-    )
+    mounts_str += f"{input_path}:{input_path}:ro,{output_path}:{output_path}"
 
     # 4. Extract SSH connection params; remaining keys become #SBATCH directives
 
