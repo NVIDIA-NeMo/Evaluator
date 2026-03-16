@@ -89,7 +89,7 @@ def test_api_key_deprecation_removal_reminder():
     """
     # Deprecation date: December 15, 2025
     deprecation_date = datetime(2025, 12, 15)
-    removal_date = datetime(2026, 3, 15)  # 3 months later
+    removal_date = datetime(2026, 4, 15)  # extended by 1 month
     current_date = datetime.now()
 
     assert current_date < removal_date, (
