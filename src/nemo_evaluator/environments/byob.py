@@ -62,12 +62,18 @@ _BYOB_REGISTRY: dict[str, BenchmarkDefinition] = {}
 
 # ── Dataset loading ───────────────────────────────────────────────────────
 
-def _load_dataset_from_spec(spec: str | Callable) -> list[dict[str, Any]]:
+def _load_dataset_from_spec(spec: str | Callable, num_examples: int | None = None) -> list[dict[str, Any]]:
     if callable(spec):
-        return spec()
+        import inspect
+        sig = inspect.signature(spec)
+        if "num_examples" in sig.parameters:
+            rows = spec(num_examples=num_examples)
+        else:
+            rows = spec()
+        return rows[:num_examples] if num_examples else rows
 
     if spec.startswith("hf://"):
-        return _load_hf(spec[5:])
+        return _load_hf(spec[5:], num_examples=num_examples)
 
     path = Path(spec)
     if path.exists():
@@ -81,9 +87,11 @@ def _load_dataset_from_spec(spec: str | Callable) -> list[dict[str, Any]]:
             for line in f:
                 if line.strip():
                     rows.append(json.loads(line))
+                    if num_examples and len(rows) >= num_examples:
+                        break
         return rows
 
-    return _load_hf(spec)
+    return _load_hf(spec, num_examples=num_examples)
 
 
 def _load_csv(path: Path, delimiter: str = ",") -> list[dict[str, Any]]:
@@ -93,7 +101,7 @@ def _load_csv(path: Path, delimiter: str = ",") -> list[dict[str, Any]]:
         return [dict(row) for row in reader]
 
 
-def _load_hf(spec: str) -> list[dict[str, Any]]:
+def _load_hf(spec: str, num_examples: int | None = None) -> list[dict[str, Any]]:
     from datasets import load_dataset
 
     parts = spec.split("?")
@@ -107,6 +115,9 @@ def _load_hf(spec: str) -> list[dict[str, Any]]:
 
     split = params.get("split", "test")
     config = params.get("config")
+
+    if num_examples and "[" not in split:
+        split = f"{split}[:{num_examples}]"
 
     args = [dataset_name]
     if config:
@@ -140,9 +151,7 @@ class ByobEnvironment(EvalEnvironment):
         self._defn = definition
         self.name = definition.name
 
-        raw = _load_dataset_from_spec(definition.dataset)
-        if num_examples:
-            raw = raw[:num_examples]
+        raw = _load_dataset_from_spec(definition.dataset, num_examples=num_examples)
 
         rng = random.Random(42)
         if definition.prepare_row:
