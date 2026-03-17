@@ -6,7 +6,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from nemo_evaluator_launcher.common.execdb import generate_invocation_id
 from nemo_evaluator_launcher.common.logging_utils import logger
-from nemo_evaluator_launcher.watcher.configs import WatchConfig
 
 WATCH_STATE_DIR = Path.home() / ".nemo-evaluator" / "watch-state"
 
@@ -19,7 +18,7 @@ class SubmittedCheckpoint(BaseModel):
     checkpoint: str = Field(description="Path to the checkpoint directory.")
     invocation_id: str = Field(description="Invocation ID of the submitted evaluation.")
     timestamp: str = Field(description="Timestamp of the submission.")
-    watch_config: WatchConfig = Field(description="Watch configuration used.")
+    watch_config: dict[str, Any] = Field(description="Watch configuration used.")
     eval_config: dict[str, Any] = Field(description="Evaluation configuration used.")
 
 
