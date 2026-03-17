@@ -746,3 +746,122 @@ class TestLocalExecutorStreamLogs:
 
         task_name = LocalExecutor._extract_task_name(job_data, job_id)
         assert task_name == "some_task_name"
+
+
+class TestLocalExecutorEndpointReadinessTimeout:
+    """Test that LocalExecutor propagates endpoint_readiness_timeout to the generated run script."""
+
+    @pytest.fixture
+    def mock_tasks_mapping(self):
+        return {
+            ("lm-eval", "test_task"): {
+                "task": "test_task",
+                "endpoint_type": "chat",
+                "harness": "lm-eval",
+                "container": "test-container:latest",
+            },
+        }
+
+    def _make_config(self, tmpdir, endpoint_readiness_timeout=None):
+        config_dict = {
+            "deployment": {
+                "type": "vllm",
+                "image": "vllm/vllm-openai:latest",
+                "command": "vllm serve /checkpoint",
+                "checkpoint_path": "/models/test",
+                "served_model_name": "test-model",
+                "port": 8000,
+                "endpoints": {
+                    "chat": "/v1/chat/completions",
+                    "health": "/health",
+                },
+            },
+            "execution": {
+                "type": "local",
+                "output_dir": str(tmpdir / "test_output"),
+                "mode": "sequential",
+            },
+            "target": {
+                "api_endpoint": {
+                    "api_key_name": "TEST_API_KEY",
+                    "model_id": "test-model",
+                }
+            },
+            "evaluation": {
+                "tasks": [{"name": "test_task"}],
+            },
+        }
+        if endpoint_readiness_timeout is not None:
+            config_dict["execution"]["endpoint_readiness_timeout"] = (
+                endpoint_readiness_timeout
+            )
+        return OmegaConf.create(config_dict)
+
+    @pytest.mark.parametrize(
+        "endpoint_readiness_timeout, expected_timeout",
+        [
+            (1200, 1200),
+            (None, 600),
+        ],
+        ids=["custom", "default"],
+    )
+    def test_endpoint_readiness_timeout_in_generated_script(
+        self,
+        mock_execdb,
+        mock_tasks_mapping,
+        tmpdir,
+        endpoint_readiness_timeout,
+        expected_timeout,
+    ):
+        """Dry run with deployment produces run script with the correct timeout."""
+        sample_config = self._make_config(tmpdir, endpoint_readiness_timeout)
+        os.environ["TEST_API_KEY"] = "test_key_value"
+
+        try:
+            with (
+                patch(
+                    "nemo_evaluator_launcher.executors.local.executor.load_tasks_mapping"
+                ) as mock_load_mapping,
+                patch(
+                    "nemo_evaluator_launcher.executors.local.executor.get_task_definition_for_job"
+                ) as mock_get_task_def,
+                patch(
+                    "nemo_evaluator_launcher.executors.local.executor.get_eval_factory_command"
+                ) as mock_get_command,
+                patch("builtins.print"),
+            ):
+                mock_load_mapping.return_value = mock_tasks_mapping
+
+                def mock_get_task_def_side_effect(*_args, **kwargs):
+                    task_name = kwargs.get("task_query")
+                    mapping = kwargs.get("base_mapping", {})
+                    for (_harness, name), definition in mapping.items():
+                        if name == task_name:
+                            return definition
+                    raise KeyError(f"Task {task_name} not found")
+
+                mock_get_task_def.side_effect = mock_get_task_def_side_effect
+                from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+                mock_get_command.return_value = CmdAndReadableComment(
+                    cmd="nemo-evaluator run_eval --task test",
+                    debug="# debug",
+                )
+
+                invocation_id = LocalExecutor.execute_eval(sample_config, dry_run=True)
+
+                # Find the generated sequential run script
+                output_base = pathlib.Path(sample_config.execution.output_dir)
+                output_dir = next(
+                    item
+                    for item in output_base.iterdir()
+                    if item.name.endswith(f"-{invocation_id}")
+                )
+                script_content = (output_dir / "run_all.sequential.sh").read_text()
+
+                assert f"TIMEOUT={expected_timeout}" in script_content, (
+                    f"Expected TIMEOUT={expected_timeout} in generated script"
+                )
+
+        finally:
+            os.environ.pop("TEST_API_KEY", None)

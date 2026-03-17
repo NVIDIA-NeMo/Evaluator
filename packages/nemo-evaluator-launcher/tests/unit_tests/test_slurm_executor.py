@@ -984,6 +984,7 @@ class TestSlurmExecutorHelperFunctions:
             ip_list=ip_list,
             port=port,
             health_check_path=health_path,
+            timeout=600,
             service_name=service_name,
             check_pid=check_pid,
         )
@@ -2923,6 +2924,37 @@ class TestMultiNodeMultiInstance:
 
         # The wait-for-server handler should use 127.0.0.1
         assert '"127.0.0.1"' in script
+
+    @pytest.mark.parametrize(
+        "config_override, expected_timeout",
+        [
+            ({}, 3600),  # walltime 01:00:00 in base_config -> 3600s
+            ({"endpoint_readiness_timeout": 1200}, 1200),  # explicit override
+            ({"walltime": "02:00:00"}, 7200),  # walltime override -> 7200s
+        ],
+        ids=["default-from-walltime", "explicit-override", "custom-walltime"],
+    )
+    def test_endpoint_readiness_timeout_in_sbatch_script(
+        self,
+        base_config,
+        mock_task,
+        mock_dependencies,
+        config_override,
+        expected_timeout,
+    ):
+        """Health check timeout should appear in the generated sbatch script."""
+        base_config["execution"].update(config_override)
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert f"TIMEOUT={expected_timeout}" in script
 
     def test_health_check_uses_head_node_ips_for_multi_instance(
         self, base_config, mock_task, mock_dependencies

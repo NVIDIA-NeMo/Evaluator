@@ -13,6 +13,12 @@
       "source": "./packages/nemo-evaluator-launcher/.claude/skills/nel-assistant",
       "skills": "./",
       "description": "Interactive assistant for NeMo Evaluator Launcher. Guides you through configuring, running, and monitoring model evaluations with support for SLURM and Local executors, all deployment types (vLLM, SGLang, NIM, TRT-LLM), and auto-exporters (MLflow, W&B)."
+    },
+    {
+      "name": "nemo-evaluator-byob",
+      "source": "./packages/nemo-evaluator/.claude/skills/byob",
+      "skills": "./",
+      "description": "Create custom LLM evaluation benchmarks using the BYOB decorator framework. Guides you through dataset preparation, scorer selection, compilation, and containerization."
     }
   ]
 }
