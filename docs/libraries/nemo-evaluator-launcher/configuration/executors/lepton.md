@@ -94,6 +94,19 @@ These example files include:
 - Storage mount configurations for model caching
 - Auto-scaling settings for deployments
 
+## Endpoint Readiness Timeout
+
+When deploying model endpoints, the Lepton executor waits for each endpoint to become ready before submitting evaluation jobs. By default it waits up to 600 seconds. You can adjust this via `execution.lepton_platform.deployment.endpoint_readiness_timeout`:
+
+```yaml
+execution:
+  lepton_platform:
+    deployment:
+      endpoint_readiness_timeout: 1200  # wait up to 20 minutes
+```
+
+If an endpoint does not become ready within the timeout, the job fails with a clear error.
+
 ## Monitoring and Troubleshooting
 
 Check the status of your evaluation runs:

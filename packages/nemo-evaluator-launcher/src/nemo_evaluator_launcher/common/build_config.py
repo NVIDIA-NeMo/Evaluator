@@ -23,6 +23,11 @@ from typing import List, Optional
 
 import yaml
 
+_SUPPORTED_BENCHMARKS_BY_MODEL_TYPE = {
+    "base": {"general_knowledge", "coding", "long_context", "multilingual"},
+    "chat_reasoning": {"core_reasoning", "agentic", "long_context", "multilingual"},
+}
+
 
 def _load_template(relative_path: str) -> dict:
     """Load a YAML config template from package resources."""
@@ -81,6 +86,25 @@ def deep_merge(base: dict, override: dict) -> dict:
     return result
 
 
+def _validate_benchmarks(model_type: str, benchmarks: List[str]) -> None:
+    """Validate benchmark bundles for a given model type."""
+    supported = _SUPPORTED_BENCHMARKS_BY_MODEL_TYPE.get(model_type)
+    if supported is None:
+        supported_models = ", ".join(sorted(_SUPPORTED_BENCHMARKS_BY_MODEL_TYPE))
+        raise ValueError(
+            f"Unsupported model_type '{model_type}'. Expected one of: {supported_models}."
+        )
+
+    invalid = sorted(set(benchmarks) - supported)
+    if invalid:
+        supported_benchmarks = ", ".join(sorted(supported))
+        invalid_benchmarks = ", ".join(invalid)
+        raise ValueError(
+            f"Benchmark bundles [{invalid_benchmarks}] are not supported for model_type "
+            f"'{model_type}'. Supported bundles: {supported_benchmarks}."
+        )
+
+
 def build_config(
     execution: str,
     deployment: str,
@@ -96,13 +120,18 @@ def build_config(
         execution: Execution type (local, slurm)
         deployment: Deployment type (none, vllm, sglang, nim, trtllm)
         export: Export type (none, mlflow, wandb)
-        model_type: Model type (base, chat, reasoning)
-        benchmarks: List of benchmark types (standard, code, math_reasoning, safety)
+        model_type: Model type (base, chat_reasoning)
+        benchmarks: List of benchmark bundle names. Base-model templates use
+            (`general_knowledge`, `coding`, `multilingual`, `long_context`),
+            while chat_reasoning templates use
+            (`core_reasoning`, `agentic`, `long_context`, `multilingual`).
         output: Optional output file path
 
     Returns:
         Combined config dictionary
     """
+    _validate_benchmarks(model_type, benchmarks)
+
     config: dict = {}
 
     # 1. Load execution config (base execution settings)
@@ -117,10 +146,7 @@ def build_config(
     # 4. Load benchmark configs
     for benchmark in benchmarks:
         template_path = f"evaluation/{model_type}/{benchmark}.yaml"
-        try:
-            config = deep_merge(config, _load_template(template_path))
-        except FileNotFoundError:
-            print(f"Warning: Benchmark config not found: {template_path}")
+        config = deep_merge(config, _load_template(template_path))
 
     # 5. Load deployment config (applied last so deployment-specific overrides take effect)
     # e.g., none.yaml sets parallelism: 1 for rate-limited external APIs

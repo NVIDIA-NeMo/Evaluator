@@ -48,7 +48,7 @@ target_config = EvaluationTarget(
         model_id="meta/llama-3.2-3b-instruct",
         url="https://integrate.api.nvidia.com/v1/chat/completions",
         type=EndpointType.CHAT,
-        api_key="nvapi-your-key-here"
+        api_key_name="nvapi-your-key-here"
     )
 )
 
@@ -136,7 +136,7 @@ target_config = EvaluationTarget(
         model_id="meta/llama-3.2-3b-instruct",
         url="https://integrate.api.nvidia.com/v1/chat/completions",
         type=EndpointType.CHAT,
-        api_key="nvapi-your-key-here",
+        api_key_name="nvapi-your-key-here",
         adapter_config=adapter_config
     )
 )

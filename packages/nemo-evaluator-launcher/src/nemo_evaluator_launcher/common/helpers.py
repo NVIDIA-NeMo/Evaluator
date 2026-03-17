@@ -499,3 +499,33 @@ def check_unlisted_tasks_safeguard(
             f"Unlisted tasks found: {', '.join(unlisted_task_names)}. "
             "Set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1 to proceed."
         )
+
+
+def walltime_to_seconds(walltime: str) -> int:
+    """Convert a walltime string (HH:MM:SS or D-HH:MM:SS) to total seconds.
+
+    Raises:
+        ValueError: If the walltime string does not match HH:MM:SS or D-HH:MM:SS format.
+    """
+    import re
+
+    match = re.fullmatch(r"(?:(\d+)-)?(\d+):(\d+):(\d+)", walltime)
+    if not match:
+        raise ValueError(
+            f"Invalid walltime format: '{walltime}'. Expected HH:MM:SS or D-HH:MM:SS."
+        )
+    days = int(match.group(1) or 0)
+    h, m, s = int(match.group(2)), int(match.group(3)), int(match.group(4))
+    td = datetime.timedelta(days=days, hours=h, minutes=m, seconds=s)
+    return int(td.total_seconds())
+
+
+def resolve_endpoint_readiness_timeout(cfg: DictConfig) -> int:
+    """Resolve endpoint readiness timeout: explicit config value, or walltime in seconds."""
+    explicit = cfg.execution.get("endpoint_readiness_timeout")
+    if explicit is not None:
+        return int(explicit)
+    wt = cfg.execution.get("walltime")
+    if wt is not None:
+        return walltime_to_seconds(str(wt))
+    return walltime_to_seconds("01:00:00")

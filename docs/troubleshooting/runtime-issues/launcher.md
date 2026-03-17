@@ -48,9 +48,9 @@ nemo-evaluator-launcher ls tasks
 :icon: code-square
 
 ```
-Error: Cannot specify both 'api_key' and 'api_key_name' in target.api_endpoint
+Error: Extra inputs are not permitted [type=extra_forbidden, input_value='...', input_type=str] for field 'api_key'
 ```
-**Fix**: Use only one authentication method in configuration.
+**Fix**: The `api_key` field has been removed. Use `api_key_name` instead in your configuration.
 
 ::::
 

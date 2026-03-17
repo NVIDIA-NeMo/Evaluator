@@ -1,14 +1,20 @@
-# Reasoning model evaluation configuration (chat endpoint + reasoning)
+# Chat/reasoning model evaluation configuration (chat endpoint)
 # See docs: https://docs.nvidia.com/nemo/evaluator/latest/evaluation/run-evals/reasoning.html
 evaluation:
+  env_vars:
+    HF_TOKEN: host:HF_TOKEN
   nemo_evaluator_config:
     config:
       params:
         request_timeout: 3600
-        parallelism: 32 # Lower parallelism for longer generations
-        temperature: 0.6 # Recommended for reasoning models
+        max_retries: 10
+        parallelism: 16
+        temperature: 1.0
         top_p: 0.95
-        max_new_tokens: 32768 # Extended for reasoning + final answer
+        max_new_tokens: 131072
+        extra:
+          tokenizer: ???
+          tokenizer_backend: huggingface
     target:
       api_endpoint:
         adapter_config:
@@ -17,8 +23,7 @@ evaluation:
           # use_system_prompt: true
           # Set to match your model, e.g. "/think" for Llama and Nemotron 2 or "detailed thinking on" for Nemotron 1
           # custom_system_prompt: ???
-          # For newer models, use payload modifier instead
-          # Set to match your model e.g. `"chat_template_kwargs": {"enable_thinking": true}` for Nemotron 3
-          # CONFIRM IT WITH THE MODEL CARD
+          # For newer models, use payload modifier instead.
+          # Set to match your model e.g. `"chat_template_kwargs": {"enable_thinking": true}` for Nemotron 3.
+          # Remove this field entirely for pure-chat models that do not expose a reasoning toggle.
           params_to_add: ???
-

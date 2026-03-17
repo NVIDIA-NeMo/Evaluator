@@ -1755,7 +1755,7 @@ wheels = [
 
 [[package]]
 name = "nemo-evaluator"
-version = "0.1.92"
+version = "0.2.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "flask" },
@@ -1771,9 +1771,9 @@ dependencies = [
     { name = "werkzeug" },
     { name = "yq" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d5/ba/f4c275c7a7ac14a413df588ed9dc6b986b7d4dad8df6872170b04ee319f7/nemo_evaluator-0.1.92.tar.gz", hash = "sha256:b274e0f28f37389647d70c890f12ec081ba449a5ec251cab39f320ca349dbc30", size = 150204, upload-time = "2026-03-02T11:54:31.486Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bc/10/4606b8bd0b314fe25ad83df59f382211791bb3fe2a2f0576504dc1e5abf8/nemo_evaluator-0.2.4.tar.gz", hash = "sha256:015f9d83f46028151acfacbce63730ff492b983c8938ce3bb642c55a2d9ac25c", size = 167528, upload-time = "2026-03-12T14:40:40.436Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c4/4f/a57f61da43fc12e5e934e4a1eb658c0411a609bea888beb6112b8f418fbf/nemo_evaluator-0.1.92-py3-none-any.whl", hash = "sha256:f075345f0c02aaa8f09edb4dcaaabff87283c78580b61f197a173f99bf98ea83", size = 197442, upload-time = "2026-03-02T11:54:30.436Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/3a/b7ed3ee4f863d1c0b2d4bdfebf5d2dbe1a2c91112c9aed6e9087a0406cbc/nemo_evaluator-0.2.4-py3-none-any.whl", hash = "sha256:ff3220520011e7b1d680630ceef92e1bd3380086759273b0fc9343adf6f2ac83", size = 214546, upload-time = "2026-03-12T14:40:39.162Z" },
 ]
 
 [[package]]
@@ -1839,7 +1839,7 @@ requires-dist = [
     { name = "mlflow", marker = "extra == 'all'" },
     { name = "mlflow", marker = "extra == 'exporters'" },
     { name = "mlflow", marker = "extra == 'mlflow'", specifier = ">=2.8.0" },
-    { name = "nemo-evaluator", specifier = ">=0.1.92" },
+    { name = "nemo-evaluator", specifier = ">=0.2.0,<0.3.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "requests", specifier = ">=2.32.4" },

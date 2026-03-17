@@ -1,0 +1,9 @@
+evaluation:
+  tasks:
+    - name: ns_mmlu_prox
+      nemo_evaluator_config:
+        config:
+          params:
+            extra:
+              num_repeats: 1
+    - name: ns_wmt24pp

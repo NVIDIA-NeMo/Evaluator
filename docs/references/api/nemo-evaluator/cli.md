@@ -132,7 +132,7 @@ target:
     url: https://integrate.api.nvidia.com/v1/chat/completions
     model_id: meta/llama-3.2-3b-instruct
     type: chat
-    api_key: MY_API_KEY
+    api_key_name: MY_API_KEY
     adapter_config:
       interceptors:
         - name: "request_logging"
