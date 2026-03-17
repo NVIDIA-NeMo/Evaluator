@@ -1,6 +1,7 @@
 ---
 name: byob
 description: Create custom LLM evaluation benchmarks using the BYOB decorator framework. Use when the user wants to (1) create a new benchmark from a dataset, (2) pick or write a scorer, (3) compile and run a BYOB benchmark, (4) containerize a benchmark, or (5) use LLM-as-Judge evaluation. Triggers on mentions of BYOB, custom benchmark, bring your own benchmark, scorer, or benchmark compilation.
+version: v2.0
 ---
 
 # BYOB (Bring Your Own Benchmark) — Skill Instructions
@@ -234,7 +235,8 @@ Compiles and auto-installs via `pip install` (no PYTHONPATH setup needed).
 | `--containerize` | Build a Docker image from the compiled benchmark |
 | `--push REGISTRY/IMAGE:TAG` | Push built image to registry (implies `--containerize`) |
 | `--base-image IMAGE` | Custom base Docker image |
-| `--tag TAG` | Docker image tag (default: `byob_<name>:latest`) |
+| `--tag TAG` | Docker image tag (default: `byob_<name>:latest`). The target platform is always appended as a suffix (e.g. `byob_qa:latest-linux-amd64`) |
+| `--platform PLATFORM` | Target platform for Docker build (e.g. `linux/amd64`). Uses `buildx` when set; plain `docker build` otherwise. Defaults to host platform |
 | `--check-requirements` | Verify declared requirements are importable |
 
 ### Run

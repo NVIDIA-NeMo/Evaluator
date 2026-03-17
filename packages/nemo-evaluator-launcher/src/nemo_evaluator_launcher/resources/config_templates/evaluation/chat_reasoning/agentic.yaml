@@ -1,0 +1,26 @@
+evaluation:
+  tasks:
+    - name: ns_bfcl_v4
+      nemo_evaluator_config:
+        config:
+          params:
+            max_new_tokens: 8192
+            extra:
+              num_repeats: 1
+              args: ++use_client_parsing=False
+    - name: tau2_bench_telecom
+      env_vars:
+        USER_API_KEY: host:NVIDIA_API_KEY
+      nemo_evaluator_config:
+        config:
+          params:
+            parallelism: 1
+            extra:
+              skip_failed_samples: true
+              cache:
+                enabled: true
+                cache_dir: /results/native_cache
+              user:
+                model_id: qwen/qwen3.5-397b-a17b
+                url: https://integrate.api.nvidia.com/v1/chat/completions
+                api_key: USER_API_KEY

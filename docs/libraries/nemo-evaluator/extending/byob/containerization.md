@@ -23,6 +23,14 @@ nemo-evaluator-byob my_benchmark.py \
   --tag myrepo/byob_qa:latest
 ```
 
+The target platform is always appended to the tag (e.g. `myrepo/byob_qa:latest-linux-amd64`). To cross-build for a different platform, use `--platform`:
+
+```bash
+nemo-evaluator-byob my_benchmark.py \
+  --containerize \
+  --platform linux/amd64
+```
+
 ## Image Layout
 
 The generated Docker image uses the following directory structure:

@@ -107,7 +107,7 @@ api_endpoint = ApiEndpoint(
     url="https://integrate.api.nvidia.com/v1/chat/completions",
     type=EndpointType.CHAT,
     model_id="meta/llama-3.2-3b-instruct",
-    api_key="NGC_API_KEY"  # variable name storing the key
+    api_key_name="NGC_API_KEY"  # variable name storing the key
 )
 target = EvaluationTarget(api_endpoint=api_endpoint)
 

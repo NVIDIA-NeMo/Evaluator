@@ -1,0 +1,4 @@
+evaluation:
+  tasks:
+    - name: adlr_humaneval_greedy
+    - name: adlr_mbpp_sanitized_3_shot_greedy

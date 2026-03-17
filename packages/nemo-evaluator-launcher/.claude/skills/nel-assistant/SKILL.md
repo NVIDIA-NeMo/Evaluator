@@ -47,22 +47,26 @@ Prompt the user with "I'll ask you 5 questions to build the base config we'll ad
   - wandb
 4. Model type
   - Base
-  - Chat
-  - Reasoning
+  - Chat or Reasoning
 5. Benchmarks:
   Allow for multiple choices in this question.
-  1. Standard LLM Benchmarks (like MMLU, IFEval, GSM8K, ...)
-  2. Code Evaluation (like HumanEval, MBPP, and LiveCodeBench)
-  3. Math & Reasoning (like AIME, GPQA, MATH-500, ...)
-  4. Safety & Security (like Garak and Safety Harness)
-  5. Multilingual (like MMATH, Global MMLU, MMLU-Prox)
+  - If Model type = Base:
+    1. General Knowledge
+    2. Coding
+    3. Long Context
+    4. Multilingual
+  - If Model type = Chat or Reasoning:
+    1. Core Reasoning
+    2. Agentic
+    3. Long Context
+    4. Multilingual
 
 DON'T ALLOW FOR ANY OTHER OPTIONS, only the ones listed above under each category (Execution, Deployment, Auto-export, Model type, Benchmarks). YOU HAVE TO GATHER THE ANSWERS for the 5 questions before you can build the base config.
 
 When you have all the answers, run the script to build the base config:
 
 ```bash
-nel skills build-config --execution <local|slurm> --deployment <none|vllm|sglang|nim|trtllm> --model_type <base|chat|reasoning> --benchmarks <standard|code|math_reasoning|safety|multilingual> [--export <none|mlflow|wandb>] [--output <OUTPUT>]
+nel skills build-config --execution <local|slurm> --deployment <none|vllm|sglang|nim|trtllm> --model_type <base|chat_reasoning> --benchmarks <general_knowledge|coding|core_reasoning|agentic|long_context|multilingual> [--export <none|mlflow|wandb>] [--output <OUTPUT>]
 ```
 
 Where `--output` depends on what the user provides:
@@ -89,7 +93,9 @@ Use WebSearch to find model card (HuggingFace, build.nvidia.com). Read it carefu
   - reasoning on/off: use either:
     - `adapter_config.custom_system_prompt` (like `/think`, `/no_think`) and no `adapter_config.params_to_add` (leave `params_to_add` unrelated to reasoning untouched)
     - `adapter_config.params_to_add` for payload modifier (like `"chat_template_kwargs": {"enable_thinking": true/false}`) and no `adapter_config.custom_system_prompt` and `adapter_config.use_system_prompt: false` (leave `custom_system_prompt` and `use_system_prompt` unrelated to reasoning untouched).
-  - reasoning effort/budget (if it's configurable, AskUserQuestion what reasoning effort they want)
+  - If a task override contains `{"chat_template_kwargs": {"enable_thinking": false}, "skip_special_tokens": false}`, replace it with the model-specific payload from the model card that disables reasoning.
+  - For pure-chat models, remove `adapter_config.params_to_add` completely if the model card does not define a reasoning toggle.
+  - reasoning effort (if it's configurable, AskUserQuestion what reasoning effort they want)
   - higher `max_new_tokens`
   - etc.
 - Deployment-specific `extra_args` for vLLM/SGLang (look for the vLLM/SGLang deployment command)
@@ -97,12 +103,22 @@ Use WebSearch to find model card (HuggingFace, build.nvidia.com). Read it carefu
 - ARM64 / non-standard GPU compatibility: The default `vllm/vllm-openai` image only supports common GPU architectures. For ARM64 platforms or GPUs with non-standard compute capabilities (e.g., NVIDIA GB10 with sm_121), use NGC vLLM images instead:
   - Example: `deployment.image: nvcr.io/nvidia/vllm:26.01-py3`
   - AskUserQuestion about their GPU architecture if the model card doesn't specify deployment constraints
+- Tool-calling requirements:
+  - If the selected benchmarks include `agentic`, you MUST configure tool calling end-to-end.
+  - For self-deployment, extract the exact tool-calling flags/settings from the model card (for example vLLM/SGLang tool parser flags) and apply them.
+  - For external endpoints, confirm the endpoint already supports tool calling before proceeding.
 - Any preparation requirements (e.g., downloading reasoning parsers, custom plugins):
-  - If the model card mentions downloading files (like reasoning parsers, custom plugins) before deployment, add `deployment.pre_cmd` with the download command
-  - Use `curl` instead of `wget` as it's more widely available in Docker containers
-  - Example: `pre_cmd: curl -L -o reasoning_parser.py https://huggingface.co/.../reasoning_parser.py`
-  - When using `pip install` in `pre_cmd`, always use `--no-cache-dir` to avoid cross-device link errors in Docker containers (the pip cache and temp directories may be on different filesystems)
-  - Example: `pre_cmd: pip3 install --no-cache-dir flash-attn --no-build-isolation`
+  - If the model card requires downloading files or running setup steps before deployment or evaluation, use `deployment.pre_cmd` or `evaluation.pre_cmd` for non-local execution.
+  - In `pre_cmd` script:
+    - Use `curl` instead of `wget` as it's more widely available in Docker containers. Example: `pre_cmd: curl -L -o reasoning_parser.py https://huggingface.co/.../reasoning_parser.py`
+    - Always use `--no-cache-dir` when installing Python packages to avoid cross-device link errors in Docker containers (the pip cache and temp directories may be on different filesystems). Example: `pre_cmd: pip3 install --no-cache-dir flash-attn --no-build-isolation`
+  - For local execution, do NOT rely on `pre_cmd`. Run the preparation steps yourself on the host first, then mount the resulting files/directories into the container if needed.
+  - Short mount examples:
+    - deployment: `execution.mounts.deployment: {"/absolute/path/to/reasoning_parser.py": "/vllm-workspace/reasoning_parser.py"}`
+    - evaluation: `execution.mounts.evaluation: {"/absolute/path/to/hf_cache": "/root/.cache/huggingface"}`
+- Env vars:
+  - Use `deployment.env_vars` for deployment-side settings, `evaluation.env_vars` for evaluation-wide settings, and `evaluation.tasks[].env_vars` for task-specific overrides.
+  - Supported value types: `host:VAR_NAME` = read the value from the host env var `VAR_NAME`; `lit:value` = use the literal value directly; `runtime:VAR_NAME` = resolve `VAR_NAME` only at runtime inside the execution environment.
 - Any other model-specific requirements
 
 Remember to check `evaluation.nemo_evaluator_config` and `evaluation.tasks.*.nemo_evaluator_config` overrides too for parameters to adjust (e.g. disabling reasoning)!
@@ -134,16 +150,6 @@ Show tasks in the current config. Loop until the user confirms the task list is 
    ```
 3. Apply changes.
 4. Show updated list and ask: "Is the task list final, or do you want to make more changes?"
-
-**Known Issues**
-
-- NeMo-Skills workaround (self-deployment only): If using `nemo_skills.*` tasks with self-deployment (vLLM/SGLang/NIM), add at top level:
-  ```yaml
-  target:
-    api_endpoint:
-      api_key_name: DUMMY_API_KEY
-  ```
-  For the None (External) deployment the `api_key_name` should be already defined. The `DUMMY_API_KEY` export is handled in Step 8.
 
 **Step 6: Advanced - Multi-node**
 
@@ -214,14 +220,11 @@ deployment:
 
 Print the following commands to the user. Propose to execute them in order to confirm the config works as expected before the full run.
 
-**Important**: Export required environment variables based on your config. If any tokens or keys are missing (e.g. `HF_TOKEN`, `NGC_API_KEY`, `api_key_name` from the config), ask the user to put them in a `.env` file in the project root so you can run `set -a && source .env && set +a` (or equivalent) before executing `nel run` commands.
+**Important**: Export required environment variables based on your config. Ask the user to provide `HF_TOKEN`, even if they are not using a gated model (like Llama) or dataset (like GPQA), to reduce Hugging Face rate limiting errors. Remind the user to get access to GPQA, if it's in the config ("Please, click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa"), and ask them to put missing tokens or keys (e.g. `HF_TOKEN`, `NVIDIA_API_KEY`, `api_key_name` from the config) in a `.env` file in the project root so you can run `set -a && source .env && set +a` (or equivalent) before executing `nel run` commands.
 
 ```bash
 # If using pre_cmd or post_cmd:
 export NEMO_EVALUATOR_TRUST_PRE_CMD=1
-
-# If using nemo_skills.* tasks with self-deployment:
-export DUMMY_API_KEY=dummy
 ```
 
 1. **Dry-run** (validates config without running):

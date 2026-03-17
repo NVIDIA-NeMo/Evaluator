@@ -110,7 +110,7 @@ target_config = EvaluationTarget(
         url="https://integrate.api.NVIDIA.com/v1/chat/completions",
         model_id="meta/llama-3.2-3b-instruct",
         type="chat",
-        api_key="MY_API_KEY" # Name of the environment variable that stores api_key
+        api_key_name="MY_API_KEY" # Name of the environment variable that stores the API key
     )
 )
 
@@ -149,7 +149,7 @@ class ApiEndpoint:
     url: str                          # API endpoint URL
     model_id: str                     # Model name or identifier
     type: str                         # Endpoint type (chat, completions, vlm, or embedding)
-    api_key: str                      # Name of the env variable that stores API key
+    api_key_name: str                  # Name of the env variable that stores API key
     adapter_config: AdapterConfig     # Adapter configuration
 ```
 
