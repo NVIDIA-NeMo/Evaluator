@@ -18,7 +18,7 @@ image: ??? # e.g., nvcr.io/nim/meta/llama-3.1-8b-instruct:1.8.6
 served_model_name: ???
 port: 8000
 
-command: /opt/nim/start_server.sh
+command: /opt/nvidia/nvidia_entrypoint.sh /opt/nim/start_server.sh
 
 # NIM containers use default entrypoint - no custom command needed
 # Configuration is done via environment variables in lepton_config
