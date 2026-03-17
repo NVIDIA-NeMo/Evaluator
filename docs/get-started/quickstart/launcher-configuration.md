@@ -58,7 +58,7 @@ You: "Evaluate NVIDIA Nemotron-3-Nano-30B-A3B on standard benchmarks
       using vLLM locally. Export to Weights & Biases."
 
 Agent: I'll help you set that up. First, let me check your environment...
-       ✓ NeMo Evaluator 26.01 detected
+       ✓ NeMo Evaluator 26.01+ detected
        I'll need 5 quick answers to build your config:
        1. Execution: local (detected from your request)
        2. Deployment: vllm (confirmed)
