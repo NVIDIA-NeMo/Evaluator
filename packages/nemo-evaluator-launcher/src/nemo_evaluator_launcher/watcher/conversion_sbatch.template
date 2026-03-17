@@ -1,5 +1,4 @@
 #!/bin/bash
-
 {% for key, value in execution_params.items() %}
 #SBATCH --{{ key }} {{ value }}
 {% endfor %}

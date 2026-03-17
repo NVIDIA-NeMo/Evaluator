@@ -125,8 +125,8 @@ def _submit_conversion_job(
     """
     # 1. Resolve output path
 
-    remote_dir = output_dir / "conversion"
-    output_path = remote_dir / "converted_checkpoint"
+    output_path = output_dir / "conversion" / "converted_checkpoint"
+    logs_path = output_dir / "conversion" / "logs"
 
     # 2. Render the command
     command = (
@@ -152,8 +152,14 @@ def _submit_conversion_job(
     template_dir = Path(__file__).parent
     env = Environment(loader=FileSystemLoader(str(template_dir)))
     template = env.get_template("conversion_sbatch.template")
+    execution_params = {
+        "account": cluster_config.account,
+        "partition": cluster_config.partition,
+        "output": str(logs_path / "slurm-%A.log"),
+        **cluster_config.sbtch_flags,
+    }
     sbatch_script = template.render(
-        execution_params=cluster_config.sbtch_flags,
+        execution_params=execution_params,
         container=conversion_config.container,
         mounts=mounts_str,
         command=command,
@@ -170,7 +176,7 @@ def _submit_conversion_job(
     # 6. Submit via SSH
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        local_script_dir = Path(tmpdir) / input_path.name / "conversion"
+        local_script_dir = Path(tmpdir) / "conversion"
         local_script_dir.mkdir()
         (local_script_dir / "run.sub").write_text(sbatch_script)
 
@@ -179,19 +185,25 @@ def _submit_conversion_job(
             hostname=cluster_config.hostname,
         ) as socket:
             run_remote_command(
-                command=f"mkdir -p {remote_dir}",
+                command=f"mkdir -p {output_path}",
+                username=cluster_config.username,
+                hostname=cluster_config.hostname,
+                socket=socket,
+            )
+            run_remote_command(
+                command=f"mkdir -p {logs_path}",
                 username=cluster_config.username,
                 hostname=cluster_config.hostname,
                 socket=socket,
             )
             rsync_upload(
                 local_sources=[local_script_dir],
-                remote_target=str(remote_dir),
+                remote_target=str(output_dir),
                 username=cluster_config.username,
                 hostname=cluster_config.hostname,
             )
             stdout = run_remote_command(
-                command=f"sbatch --parsable {str(remote_dir / 'run.sub')}",
+                command=f"sbatch --parsable {str(output_dir / 'conversion' / 'run.sub')}",
                 username=cluster_config.username,
                 hostname=cluster_config.hostname,
                 socket=socket,
