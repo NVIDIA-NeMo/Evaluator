@@ -61,9 +61,8 @@ container = "nvcr.io/nvidia/eval-factory/profbench:26.03"
 # container-digest:sha256:0c98f86ba436fd28f85c3728060c97b5da5985608dcc825c08c959d5f4af349f
 
 [vlmevalkit]
-# TODO: update to 26.03 once the container is released
-container = "nvcr.io/nvidia/eval-factory/vlmevalkit:26.01"
-# container-digest:sha256:24c650c547cfd666bcc5ec822c996eb90e89e4964a1d4ec29e4d01d8bd3a22dc
+container = "nvcr.io/nvidia/eval-factory/vlmevalkit:26.03"
+# container-digest:sha256:6d2c141dd36c827f76e62557ed10d42749cafd8b79f1574708869abe55e9351f
 
 [garak]
 container = "nvcr.io/nvidia/eval-factory/garak:26.03"
