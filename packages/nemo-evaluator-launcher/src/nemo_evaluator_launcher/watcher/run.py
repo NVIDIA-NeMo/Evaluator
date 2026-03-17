@@ -15,7 +15,6 @@
 #
 """Watch mode: poll checkpoint directories and trigger evaluations for new checkpoints."""
 
-import copy
 import re
 import shlex
 import signal
@@ -380,7 +379,15 @@ def watch_and_evaluate(
                                     checkpoint=str(cp),
                                     invocation_id=invocation_id,
                                     timestamp=datetime.now(timezone.utc).isoformat(),
-                                    watch_config=copy.deepcopy(watch_config),
+                                    watch_config={
+                                        **watch_config.model_dump(
+                                            exclude={"evaluation_configs"}
+                                        ),
+                                        "evaluation_configs": [
+                                            OmegaConf.to_container(cfg, resolve=True)
+                                            for cfg in watch_config.evaluation_configs
+                                        ],
+                                    },
                                     eval_config=OmegaConf.to_container(
                                         resolved_eval_config, resolve=True
                                     ),
