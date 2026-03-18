@@ -868,10 +868,10 @@ def _create_slurm_sbatch_script(
             ip_list = '"127.0.0.1"'
         health_check_timeout = resolve_endpoint_readiness_timeout(cfg)
         s += _get_wait_for_server_handler(
-            ip_list,
-            cfg.deployment.port,
-            health_path,
-            health_check_timeout,
+            ip_list=ip_list,
+            port=cfg.deployment.port,
+            health_check_path=health_path,
+            timeout=health_check_timeout,
             service_name="server",
             check_pid=True,
         )
@@ -920,20 +920,20 @@ def _create_slurm_sbatch_script(
             ip_list = f'"${{{aux.env_prefix}_HEAD_NODE_IPS[@]}}"'
             pid_var = aux.pids_var
             s += _get_wait_for_server_handler(
-                ip_list,
-                aux.cfg.port,
-                aux_health_path,
-                aux_health_timeout,
+                ip_list=ip_list,
+                port=aux.cfg.port,
+                health_check_path=aux_health_path,
+                timeout=aux_health_timeout,
                 service_name=f"{aux.name} server",
                 check_pid=True,
                 pid_var=pid_var,
             )
         else:
             s += _get_wait_for_server_handler(
-                f'"${{{aux.primary_node_var}}}"',
-                aux.cfg.port,
-                aux_health_path,
-                aux_health_timeout,
+                ip_list=f'"${{{aux.primary_node_var}}}"',
+                port=aux.cfg.port,
+                health_check_path=aux_health_path,
+                timeout=aux_health_timeout,
                 service_name=f"{aux.name} server",
                 check_pid=True,
                 pid_var=aux.pid_var,
@@ -2189,8 +2189,14 @@ def _generate_aux_haproxy_srun_command(
     s += f'echo "{name} proxy started with PID: ${aux.proxy_pid_var}"\n\n'
 
     # Wait for proxy to be ready
+    health_check_timeout = resolve_endpoint_readiness_timeout(cfg)
     s += _get_wait_for_server_handler(
-        "127.0.0.1", aux.proxy_port, health_check_path, f"{name} Proxy", check_pid=False
+        ip_list="127.0.0.1",
+        port=aux.proxy_port,
+        health_check_path=health_check_path,
+        timeout=health_check_timeout,
+        service_name=f"{name} Proxy",
+        check_pid=False,
     )
     s += "\n"
 
@@ -2285,10 +2291,10 @@ def _generate_haproxy_srun_command(cfg, remote_task_subdir):
     health_path = proxy_config.get("health_check_path", "/health")
     health_check_timeout = resolve_endpoint_readiness_timeout(cfg)
     s += _get_wait_for_server_handler(
-        "127.0.0.1",
-        haproxy_port,
-        health_path,
-        health_check_timeout,
+        ip_list="127.0.0.1",
+        port=haproxy_port,
+        health_check_path=health_path,
+        timeout=health_check_timeout,
         service_name="Proxy",
         check_pid=False,
     )

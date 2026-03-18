@@ -299,10 +299,12 @@ def get_eval_factory_command(
     commands.append(create_post_script_cmd.cmd)
     debug.append(create_post_script_cmd.debug)
 
-    # Resolve auxiliary_deployments.NAME.FIELD references in the config.
+    # Resolve auxiliary_deployments.NAME.FIELD references in the config
+    # and collect shell variables that need runtime resolution.
     # model_id is resolved to a literal; endpoint URLs use shell vars
     # that envsubst resolves at runtime.
     config_yaml = yaml.safe_dump(merged_nemo_evaluator_config)
+    shell_vars = []
     for aux_name, aux_cfg_raw in cfg.get("auxiliary_deployments", {}).items():
         if not isinstance(aux_cfg_raw, (dict, DictConfig)):
             continue
@@ -324,26 +326,9 @@ def get_eval_factory_command(
             refs[f"auxiliary_deployments.{aux_name}.{ep_name}_url"] = (
                 f"${{{prefix}_{ep_name.upper()}_URL}}"
             )
+            shell_vars.append(f"{prefix}_{ep_name.upper()}_URL")
         for ref, value in refs.items():
             config_yaml = config_yaml.replace(ref, value)
-
-    # Collect shell variables that need runtime resolution in config_ef.yaml
-    shell_vars = []
-    for aux_name_v, aux_cfg_v in cfg.get("auxiliary_deployments", {}).items():
-        if not isinstance(aux_cfg_v, (dict, DictConfig)):
-            continue
-        raw = (
-            OmegaConf.to_container(aux_cfg_v, resolve=True)
-            if OmegaConf.is_dict(aux_cfg_v)
-            else aux_cfg_v
-        )
-        if raw.get("type", "none") == "none":
-            continue
-        pfx = raw.get("env_prefix") or aux_name_v.upper()
-        for ep_name in raw.get("endpoints") or {}:
-            if ep_name == "health":
-                continue
-            shell_vars.append(f"{pfx}_{ep_name.upper()}_URL")
 
     create_yaml_cmd = _str_to_echo_command(
         config_yaml,
