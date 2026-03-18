@@ -569,7 +569,6 @@ def main():
     if not args.dryrun:
         # Status check must happen after __exit__ which waits for Slurm jobs to finish
         status_dict = exp.status(return_dict=True) or {}
-        print(f"Experiment status dict: {status_dict}")
         failed = [
             f"{name}: {info['status']}"
             for name, info in status_dict.items()
