@@ -1,6 +1,6 @@
 # BYOB (Bring Your Own Benchmark)
 
-Create custom evaluation benchmarks for NeMo Evaluator with minimal Python.
+Create custom evaluation benchmarks for NeMo Evaluator with few lines of Python code.
 
 ## Prerequisites
 
