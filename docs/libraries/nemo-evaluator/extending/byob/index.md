@@ -107,7 +107,7 @@ nemo-evaluator run_eval \
 ```
 
 :::{tip}
-Use `nemo-evaluator-byob my_benchmark.py --dry-run` to validate your benchmark without installing it.
+Use `nemo-evaluator-byob benchmark.py --dry-run` to validate your benchmark without installing it.
 :::
 
 ## Reference Documentation
