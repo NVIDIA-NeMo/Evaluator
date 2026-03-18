@@ -3369,3 +3369,190 @@ class TestMultiNodeMultiInstance:
         cfg = OmegaConf.create(config)
         url = get_endpoint_url(cfg, {}, "openai")
         assert url == "http://127.0.0.1:5009/v1/chat/completions"
+
+
+class TestSbatchExtraFlags:
+    """Tests for sbatch_extra_flags support in _create_slurm_sbatch_script."""
+
+    @pytest.fixture
+    def base_config(self):
+        """Base configuration for testing."""
+        return {
+            "deployment": {
+                "type": "vllm",
+                "image": "test-image:latest",
+                "command": "test-command",
+                "served_model_name": "test-model",
+                "port": 8000,
+                "endpoints": {
+                    "health": "/health",
+                },
+            },
+            "execution": {
+                "type": "slurm",
+                "output_dir": "/test/output",
+                "walltime": "01:00:00",
+                "account": "test-account",
+                "partition": "test-partition",
+                "num_nodes": 1,
+                "num_instances": 1,
+                "ntasks_per_node": 1,
+                "subproject": "test-subproject",
+            },
+            "evaluation": {"env_vars": {}},
+            "target": {"api_endpoint": {"url": "http://localhost:8000/v1"}},
+        }
+
+    @pytest.fixture
+    def mock_task(self):
+        """Mock task configuration."""
+        return OmegaConf.create({"name": "test_task"})
+
+    @pytest.fixture
+    def mock_dependencies(self):
+        """Mock external dependencies used by _create_slurm_sbatch_script."""
+        with (
+            patch(
+                "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
+            ) as mock_load_tasks,
+            patch(
+                "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_eval_factory_command"
+            ) as mock_get_eval_command,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_served_model_name"
+            ) as mock_get_model_name,
+        ):
+            mock_load_tasks.return_value = {}
+            mock_get_task_def.return_value = {
+                "container": "test-eval-container:latest",
+                "endpoint_type": "openai",
+                "task": "test_task",
+            }
+            from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+            mock_get_eval_command.return_value = CmdAndReadableComment(
+                cmd="nemo-evaluator run_eval --test", debug="# Test command"
+            )
+            mock_get_model_name.return_value = "test-model"
+
+            yield {
+                "load_tasks_mapping": mock_load_tasks,
+                "get_task_definition_for_job": mock_get_task_def,
+                "get_eval_factory_command": mock_get_eval_command,
+                "get_served_model_name": mock_get_model_name,
+            }
+
+    def _generate_script(self, base_config, mock_task, mock_dependencies):
+        """Helper to generate sbatch script from config."""
+        cfg = OmegaConf.create(base_config)
+        return _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+    def test_empty_sbatch_extra_flags(self, base_config, mock_task, mock_dependencies):
+        """Empty sbatch_extra_flags dict should not add any extra #SBATCH lines."""
+        base_config["execution"]["sbatch_extra_flags"] = {}
+        script = self._generate_script(base_config, mock_task, mock_dependencies)
+        sbatch_lines = [
+            line for line in script.splitlines() if line.startswith("#SBATCH")
+        ]
+        assert not any("--switches" in line for line in sbatch_lines)
+        assert not any("--constraint" in line for line in sbatch_lines)
+
+    def test_no_sbatch_extra_flags_key(self, base_config, mock_task, mock_dependencies):
+        """Missing sbatch_extra_flags key should work (defaults to empty)."""
+        script = self._generate_script(base_config, mock_task, mock_dependencies)
+        assert "#SBATCH --time" in script  # Basic headers still present
+
+    @pytest.mark.parametrize(
+        "flag, value, expected_fragment",
+        [
+            ("switches", 1, "#SBATCH --switches 1\n"),
+            ("constraint", "h100", "#SBATCH --constraint h100\n"),
+            ("reservation", "my-reservation", "#SBATCH --reservation my-reservation\n"),
+            ("mem", "64G", "#SBATCH --mem 64G\n"),
+            ("switches", 0, "#SBATCH --switches 0\n"),
+        ],
+        ids=["integer", "string", "string-reservation", "string-mem", "integer-zero"],
+    )
+    def test_key_value_flag(
+        self, base_config, mock_task, mock_dependencies, flag, value, expected_fragment
+    ):
+        """Key-value pairs should emit #SBATCH --flag value lines."""
+        base_config["execution"]["sbatch_extra_flags"] = {flag: value}
+        script = self._generate_script(base_config, mock_task, mock_dependencies)
+        assert expected_fragment in script
+
+    @pytest.mark.parametrize(
+        "flag, value, should_appear",
+        [
+            ("overcommit", True, True),
+            ("exclusive", True, True),
+            ("requeue", False, False),
+            ("exclusive", False, False),
+            ("reservation", None, False),
+        ],
+        ids=[
+            "bool-true",
+            "exclusive-true",
+            "bool-false",
+            "exclusive-false",
+            "none-skipped",
+        ],
+    )
+    def test_boolean_and_none_flags(
+        self, base_config, mock_task, mock_dependencies, flag, value, should_appear
+    ):
+        """Boolean True emits the flag, False/None omit it."""
+        base_config["execution"]["sbatch_extra_flags"] = {flag: value}
+        script = self._generate_script(base_config, mock_task, mock_dependencies)
+        if should_appear:
+            assert f"#SBATCH --{flag}\n" in script
+        else:
+            assert f"#SBATCH --{flag}" not in script
+
+    def test_multiple_flags(self, base_config, mock_task, mock_dependencies):
+        """Multiple flags should all be emitted."""
+        base_config["execution"]["sbatch_extra_flags"] = {
+            "switches": 1,
+            "constraint": "h100",
+            "mem": "64G",
+        }
+        script = self._generate_script(base_config, mock_task, mock_dependencies)
+        assert "#SBATCH --switches 1\n" in script
+        assert "#SBATCH --constraint h100\n" in script
+        assert "#SBATCH --mem 64G\n" in script
+
+    def test_realistic_multi_node_vllm(self, base_config, mock_task, mock_dependencies):
+        """Realistic use case: multi-node deployment with switches and constraint."""
+        base_config["execution"]["sbatch_extra_flags"] = {
+            "switches": 1,
+            "constraint": "h100",
+        }
+        base_config["execution"]["num_nodes"] = 4
+        script = self._generate_script(base_config, mock_task, mock_dependencies)
+        assert "#SBATCH --switches 1\n" in script
+        assert "#SBATCH --constraint h100\n" in script
+        assert "#SBATCH --nodes 4\n" in script
+
+    def test_extra_flags_appear_before_job_name(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """Extra flags should appear after sbatch_comment and before job-name."""
+        base_config["execution"]["sbatch_extra_flags"] = {
+            "switches": 1,
+        }
+        base_config["execution"]["sbatch_comment"] = "test comment"
+        script = self._generate_script(base_config, mock_task, mock_dependencies)
+        comment_pos = script.index("#SBATCH --comment='test comment'")
+        switches_pos = script.index("#SBATCH --switches 1")
+        job_name_pos = script.index("#SBATCH --job-name")
+        assert comment_pos < switches_pos < job_name_pos
