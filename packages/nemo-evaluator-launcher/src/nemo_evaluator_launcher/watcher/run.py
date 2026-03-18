@@ -293,7 +293,6 @@ def watch_and_evaluate(
     watch_config: WatchConfig,
     resubmit_previous_sessions: bool = False,
     dry_run: bool = False,
-    state_file: Optional[Path] = None,
 ) -> list[SubmittedCheckpoint]:
     """Watch directories for new checkpoints and submit evaluations.
 
@@ -301,20 +300,18 @@ def watch_and_evaluate(
         watch_config: Full watch configuration.
         resubmit_previous_sessions: If True, resubmit checkpoints evaluated during previous sessions.
         dry_run: If True, show what would be submitted without actually submitting.
-        state_file: Path to the state file. If None, a unique per-session file is created under WATCH_STATE_DIR.
 
     Returns:
         List of all submitted checkpoints during this session.
     """
 
-    state = WatchStateDB(state_file)
+    state = WatchStateDB()
     session_id = generate_invocation_id()
     session_submissions: list[SubmittedCheckpoint] = []
     logger.debug(
         "Starting watch and evaluate",
         resubmit_previous_sessions=resubmit_previous_sessions,
         dry_run=dry_run,
-        state_file=state_file,
         session_id=session_id,
     )
 
