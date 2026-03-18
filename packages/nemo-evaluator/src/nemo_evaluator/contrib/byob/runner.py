@@ -641,9 +641,10 @@ def main():
     # Aggregate scores
     results = aggregate_scores(all_scores, args.benchmark_name)
 
-    # Write output
-    os.makedirs(args.output_dir, exist_ok=True)
-    output_path = Path(args.output_dir) / "byob_results.json"
+    # Write output — use a per-benchmark subdirectory to avoid collisions
+    benchmark_output_dir = Path(args.output_dir) / bench.normalized_name
+    os.makedirs(benchmark_output_dir, exist_ok=True)
+    output_path = benchmark_output_dir / "byob_results.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, sort_keys=True)
 
@@ -651,7 +652,7 @@ def main():
     if args.save_predictions and all_predictions:
         from dataclasses import asdict
 
-        predictions_path = Path(args.output_dir) / "byob_predictions.jsonl"
+        predictions_path = benchmark_output_dir / "byob_predictions.jsonl"
         with open(predictions_path, "w", encoding="utf-8") as f:
             for pred in all_predictions:
                 f.write(json.dumps(asdict(pred)) + "\n")
