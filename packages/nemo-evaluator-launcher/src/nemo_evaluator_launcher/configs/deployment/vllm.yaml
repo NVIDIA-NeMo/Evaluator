@@ -29,6 +29,8 @@ endpoints:
   chat: /v1/chat/completions
   completions: /v1/completions
   health: /health
+  embedding: /v1/embeddings
+  ranking: /v1/ranking
 
 base_command: >-
   vllm serve ${select_not_null:deployment.hf_model_handle,/checkpoint}

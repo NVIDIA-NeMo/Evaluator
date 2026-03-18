@@ -37,6 +37,7 @@ deployment:
 mounts:
   deployment: {}
   evaluation: {}
+  auxiliary: {}  # keyed by auxiliary deployment name, e.g. auxiliary.judge: {/host/path: /container/path}
   mount_home: true
 
 proxy:
