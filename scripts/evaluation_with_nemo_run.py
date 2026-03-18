@@ -244,6 +244,12 @@ def get_parser():
         default="",
     )
     parser.add_argument(
+        "--evaluation_result_dir",
+        type=str,
+        default="/results/",
+        help="Directory to store evaluation results.",
+    )
+    parser.add_argument(
         "--dryrun",
         action="store_true",
         help="Do a dryrun and exit",
@@ -488,7 +494,7 @@ def main():
         EvaluationConfig,
         type=args.eval_task,
         params=eval_params,
-        output_dir="/results/",
+        output_dir=args.evaluation_result_dir,
     )
 
     eval_fn = run.Partial(
