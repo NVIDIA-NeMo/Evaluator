@@ -39,6 +39,11 @@ from nemo_run.core.execution.slurm import SlurmJobDetails
 logger = logging.getLogger(__name__)
 
 
+def to_dict(arg: str) -> dict[str, str]:
+    """Split a comma-separated KEY=VALUE string into a dictionary."""
+    return dict(item.split("=", 1) for item in arg.split(",") if item)
+
+
 @dataclass(kw_only=True)
 class CustomJobDetailsRay(SlurmJobDetails):
     """Custom job details for Ray jobs.
@@ -289,10 +294,35 @@ def get_parser():
         help="Directory for job logs and artifacts on the cluster. Defaults to $NEMORUN_HOME env var.",
     )
     slurm_args.add_argument(
+        "--ssh_host",
+        type=str,
+        default=os.environ.get("SSH_HOST", ""),
+        help="SSH host for SSHTunnel (default executor). Defaults to $SSH_HOST env var.",
+    )
+    slurm_args.add_argument(
+        "--ssh_user",
+        type=str,
+        default=os.environ.get("SSH_USER", ""),
+        help="SSH user for SSHTunnel (default executor). Defaults to $SSH_USER env var.",
+    )
+    slurm_args.add_argument(
+        "--local_tunnel",
+        action="store_true",
+        default=False,
+        help="Use LocalTunnel instead of SSHTunnel. Useful when submitting from the cluster head node.",
+    )
+    slurm_args.add_argument(
         "--custom_mounts",
         type=str,
         default=os.environ.get("CUSTOM_MOUNTS", ""),
         help="Comma-separated list of mounts (src:dst). Defaults to $CUSTOM_MOUNTS env var.",
+    )
+    slurm_args.add_argument(
+        "--custom_env_vars",
+        type=to_dict,
+        default=to_dict(os.environ.get("CUSTOM_ENV_VARS", "")),
+        help="Comma-separated KEY=VALUE pairs of extra environment variables (e.g. 'FOO=bar,BAZ=1'). "
+        "Defaults to $CUSTOM_ENV_VARS env var.",
     )
     return parser
 
@@ -304,6 +334,9 @@ def slurm_executor(
     devices: int,
     container_image: str,
     job_dir: str,
+    ssh_host: str = "",
+    ssh_user: str = "",
+    local_tunnel: bool = False,
     time: str = "04:00:00",
     custom_mounts: Optional[list[str]] = None,
     custom_env_vars: Optional[dict[str, str]] = None,
@@ -312,6 +345,11 @@ def slurm_executor(
     if not (account and partition and nodes and devices):
         raise RuntimeError(
             "Please set account, partition, nodes and devices args for using this function."
+        )
+    if not local_tunnel and not (ssh_host and ssh_user):
+        raise RuntimeError(
+            "Please set --ssh_host and --ssh_user (or $SSH_HOST / $SSH_USER) for SSHTunnel, "
+            "or pass --local_tunnel to submit from the cluster head node."
         )
 
     mounts = []
@@ -330,15 +368,26 @@ def slurm_executor(
     # 'wait_and_evaluate' method from 'helpers'
     packager = run.Config(run.GitArchivePackager, subpath="scripts")
 
-    executor = run.SlurmExecutor(
-        account=account,
-        partition=partition,
+    if local_tunnel:
         # Do not pass job_dir to LocalTunnel: when job_dir is given, nemo_run sets
         # tunnel.job_dir = job_dir/title/exp_id but writes the sbatch script to
         # NEMORUN_HOME/experiments/title/exp_id, causing a path mismatch that
         # prevents sbatch from finding the script.  With no job_dir, both paths
         # resolve through NEMORUN_HOME/experiments/... and stay consistent.
-        tunnel=run.LocalTunnel(job_dir=os.path.join(get_nemorun_home(), "experiments")),
+        tunnel = run.LocalTunnel(
+            job_dir=os.path.join(get_nemorun_home(), "experiments")
+        )
+    else:
+        tunnel = run.SSHTunnel(
+            user=ssh_user,
+            host=ssh_host,
+            job_dir=job_dir,
+        )
+
+    executor = run.SlurmExecutor(
+        account=account,
+        partition=partition,
+        tunnel=tunnel,
         nodes=nodes,
         ntasks_per_node=devices,
         exclusive=True,
@@ -465,8 +514,12 @@ def main():
             devices=args.devices,
             container_image=args.container_image,
             job_dir=args.job_dir,
+            ssh_host=args.ssh_host,
+            ssh_user=args.ssh_user,
+            local_tunnel=args.local_tunnel,
             time=args.time_limit,
             custom_mounts=custom_mounts,
+            custom_env_vars=args.custom_env_vars or None,
         )
         executor.srun_args = ["--mpi=pmix", "--overlap"]
         executor_eval = executor.clone()
