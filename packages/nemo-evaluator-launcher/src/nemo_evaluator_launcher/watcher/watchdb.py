@@ -4,7 +4,6 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from nemo_evaluator_launcher.common.execdb import generate_invocation_id
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 WATCH_STATE_DIR = Path.home() / ".nemo-evaluator" / "watch-state"
@@ -16,6 +15,7 @@ class SubmittedCheckpoint(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     checkpoint: str = Field(description="Path to the checkpoint directory.")
+    session_id: str = Field(description="Watcher Session ID")
     invocation_id: str = Field(description="Invocation ID of the submitted evaluation.")
     timestamp: str = Field(description="Timestamp of the submission.")
     watch_config: dict[str, Any] = Field(description="Watch configuration used.")
@@ -32,8 +32,7 @@ class WatchStateDB:
 
     def __init__(self, path: Optional[Path] = None) -> None:
         if path is None:
-            session_id = generate_invocation_id()
-            path = WATCH_STATE_DIR / f"watch-state.{session_id}.v1.jsonl"
+            path = WATCH_STATE_DIR / "watch-state.v1.jsonl"
         self._path = path
         self._submitted: dict[str, SubmittedCheckpoint] = {}  # keyed by invocation_id
         self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -60,8 +59,17 @@ class WatchStateDB:
                 error=str(e),
             )
 
-    def submitted_paths(self) -> set[str]:
-        return {r.checkpoint for r in self._submitted.values()}
+    def submitted_paths(self, session_ids: Optional[list[str]] = None) -> set[str]:
+        # If session_ids is None, return all submitted paths
+        # Otherwise, return only the paths submitted during given sessions
+        if session_ids is None:
+            return {r.checkpoint for r in self._submitted.values()}
+        else:
+            return {
+                r.checkpoint
+                for r in self._submitted.values()
+                if r.session_id in session_ids
+            }
 
     def append(self, record: SubmittedCheckpoint) -> None:
         """Append a submitted checkpoint to the log and update in-memory state."""
