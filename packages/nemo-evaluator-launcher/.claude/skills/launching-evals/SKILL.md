@@ -25,11 +25,13 @@ uv run nemo-evaluator-launcher status <invocation_id> --json
 # Get evaluation run info (output paths, slurm job IDs, cluster hostname, etc.)
 uv run nemo-evaluator-launcher info <invocation_id>
 
-# Export artifacts (for failed runs or local debugging)
-# NOTE: Export can take 5+ minutes. For post-run analysis, always use export + local inspection (SSH is only for live progress checks).
-# TIP: Let it run in background, check progress via: ls ./evaluation-results/<invocation_id>/
-# FYI: "Missing results.yml" error is false alarm for running evals - logs are still downloaded!
-uv run nemo-evaluator-launcher export <invocation_id> --dest local --format json --copy-logs --only-required false --output-dir ./evaluation-results/
+# Copy just the logs (quick — good for debugging)
+uv run nemo-evaluator-launcher info <invocation_id> --copy-logs ./evaluation-results/
+
+# For artifacts: use `nel info` to discover paths. If remote, SSH to explore and rsync what you need.
+# If local, just read directly from the paths shown by `nel info`.
+# ssh <user>@<hostname> "ls <artifacts_path>/"
+# rsync -avzP <user>@<hostname>:<artifacts_path>/{results.yml,eval_factory_metrics.json,config.yml} ./evaluation-results/<invocation_id>.<job_index>/artifacts/
 
 # List past runs
 uv run nemo-evaluator-launcher ls runs --since 1d   
@@ -59,4 +61,5 @@ The complete evaluation workflow is divided into the following steps you should 
 - **`data_parallel_size` is per node**: `dp_size=1` with `num_nodes=8` means 8 model instances total (one per node), load-balanced by haproxy. Do NOT interpret `dp_size` as the global replica count.
 - **`payload_modifier` interceptor**: The `params_to_remove` list (e.g. `[max_tokens, max_completion_tokens]`) strips those fields from the outgoing payload, intentionally lifting output length limits so reasoning models can think as long as they need.
 - **Auto-export git workaround**: The export container (`python:3.12-slim`) lacks `git`. When installing the launcher from a git URL, set `auto_export.launcher_install_cmd` to install git first (e.g., `apt-get update -qq && apt-get install -qq -y git && pip install "nemo-evaluator-launcher[all] @ git+...#subdirectory=packages/nemo-evaluator-launcher"`).
+- **Do NOT use `nemo-evaluator-launcher export --dest local`** — it only writes a summary JSON (`processed_results.json`), it does NOT copy actual logs or artifacts despite accepting `--copy_logs` and `--copy-artifacts` flags. `nel info --copy-artifacts` works but copies everything (very slow for large benchmarks). Preferred approach: use `nel info` to discover paths — if local, read directly; if remote, SSH to explore and rsync only what you need. Note that `nel info` prints standard artifacts but benchmarks produce additional artifacts in subdirs — explore to find them.
 

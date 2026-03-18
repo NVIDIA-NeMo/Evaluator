@@ -32,7 +32,7 @@ Extract from output:
 
 ## Step 3: Copy and check logs
 
-Copy logs locally, then inspect them:
+**IMPORTANT**: Copy what you need (and only what you need) locally BEFORE analysis — each SSH command requires user approval, so remote one-by-one reads are disruptive, and copying too much is slow.
 
 ```bash
 uv run nemo-evaluator-launcher info <invocation_id> --copy-logs /tmp/debug-logs

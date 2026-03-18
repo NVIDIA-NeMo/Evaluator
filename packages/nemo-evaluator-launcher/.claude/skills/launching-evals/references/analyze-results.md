@@ -15,13 +15,18 @@ Steps 2-3 are executed for EACH run separately.
 ## Step 1: Gather information
 
 - Get one or more successful invocation IDs to analyze from the user. You might already have the invocation ID in your memory from the previous step.
-- Export results locally: `uv run nemo-evaluator-launcher export <invocation_id> --dest local --format json --copy-logs --only-required false --output-dir ./evaluation-results/`. For MLflow access, see the `accessing-mlflow` skill.
+- Get paths: `uv run nemo-evaluator-launcher info <invocation_id>`
+- If artifacts are local, read them directly from the paths shown by `nel info`.
+- If artifacts are remote:
+  - Copy logs: `uv run nemo-evaluator-launcher info <invocation_id> --copy-logs ./evaluation-results/`
+  - Rsync analysis-relevant artifacts: `rsync -avzP <user>@<host>:<artifacts_path>/{results.yml,eval_factory_metrics.json,config.yml} ./evaluation-results/<invocation_id>.<job_index>/artifacts/`
+- For MLflow access, see the `accessing-mlflow` skill.
 - Read benchmark-specific analysis notes from `references/benchmarks/` if available for the evaluated benchmarks.
   - For Terminal Bench agent trace analysis, follow the procedure in `references/terminal-bench-trace-analysis.md`.
 
 ## Step 2: Scan logs for runtime problems
 
-Access logs from locally exported files (`./evaluation-results/<invocation_id>/<task_name>/logs/`).
+Access logs from locally copied files (`./evaluation-results/<invocation_id>.<job_index>/logs/`).
 
 Check logs for silent errors that may invalidate results:
 
