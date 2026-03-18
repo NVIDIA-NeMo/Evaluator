@@ -253,6 +253,8 @@ def _convert_and_evaluate(
     else:
         OmegaConf.update(cfg_copy, CHECKPOINT_FIELD, str(checkpoint))
 
+    # TODO(martas): do we want to update served_model_name too?
+
     cfg_copy = OmegaConf.merge(
         cfg_copy,
         OmegaConf.create(
@@ -289,6 +291,7 @@ def _convert_and_evaluate(
 
 def watch_and_evaluate(
     watch_config: WatchConfig,
+    resubmit_previous_sessions: bool = False,
     dry_run: bool = False,
     state_file: Optional[Path] = None,
 ) -> list[SubmittedCheckpoint]:
@@ -296,15 +299,24 @@ def watch_and_evaluate(
 
     Args:
         watch_config: Full watch configuration.
+        resubmit_previous_sessions: If True, resubmit checkpoints evaluated during previous sessions.
         dry_run: If True, show what would be submitted without actually submitting.
         state_file: Path to the state file. If None, a unique per-session file is created under WATCH_STATE_DIR.
 
     Returns:
         List of all submitted checkpoints during this session.
     """
+
     state = WatchStateDB(state_file)
     session_id = generate_invocation_id()
     session_submissions: list[SubmittedCheckpoint] = []
+    logger.debug(
+        "Starting watch and evaluate",
+        resubmit_previous_sessions=resubmit_previous_sessions,
+        dry_run=dry_run,
+        state_file=state_file,
+        session_id=session_id,
+    )
 
     stop_requested = False
 
@@ -339,8 +351,22 @@ def watch_and_evaluate(
                     if watch_config.monitoring_config.order == "last":
                         checkpoints = list(reversed(checkpoints))
 
-                    # TODO add flag to resubmit previously submitted checkpoints
-                    already_submitted = state.submitted_paths()
+                    logger.debug(
+                        "Found checkpoints",
+                        num_checkpoints=len(checkpoints),
+                        watch_dir=str(wd),
+                    )
+
+                    session_ids = (
+                        [session_id] if not resubmit_previous_sessions else None
+                    )
+
+                    already_submitted = state.submitted_paths(session_ids=session_ids)
+                    logger.debug(
+                        "Already submitted checkpoints",
+                        num_already_submitted=len(already_submitted),
+                        this_session_only=not resubmit_previous_sessions,
+                    )
                     new_checkpoints = [
                         cp for cp in checkpoints if str(cp) not in already_submitted
                     ]
@@ -377,6 +403,7 @@ def watch_and_evaluate(
 
                                 record = SubmittedCheckpoint(
                                     checkpoint=str(cp),
+                                    session_id=session_id,
                                     invocation_id=invocation_id,
                                     timestamp=datetime.now(timezone.utc).isoformat(),
                                     watch_config={
