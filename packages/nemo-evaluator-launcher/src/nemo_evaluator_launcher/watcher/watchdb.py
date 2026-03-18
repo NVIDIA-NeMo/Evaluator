@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from typing import Any, Optional
 
@@ -6,7 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from nemo_evaluator_launcher.common.logging_utils import logger
 
-WATCH_STATE_DIR = Path.home() / ".nemo-evaluator" / "watch-state"
+WATCH_STATE_FILE = os.getenv(
+    "NEMO_EVALUATOR_WATCH_STATE_FILE",
+    Path.home() / ".nemo-evaluator" / "watch-state" / "watch-state.v1.jsonl",
+)
 
 
 class SubmittedCheckpoint(BaseModel):
@@ -30,10 +34,8 @@ class WatchStateDB:
     :class:`~nemo_evaluator_launcher.common.execdb.ExecutionDB`.
     """
 
-    def __init__(self, path: Optional[Path] = None) -> None:
-        if path is None:
-            path = WATCH_STATE_DIR / "watch-state.v1.jsonl"
-        self._path = path
+    def __init__(self) -> None:
+        self._path = WATCH_STATE_FILE
         self._submitted: dict[str, SubmittedCheckpoint] = {}  # keyed by invocation_id
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._load()
