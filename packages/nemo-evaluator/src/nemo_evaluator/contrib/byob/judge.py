@@ -309,7 +309,7 @@ def judge_score(
     score_mapping: Optional[Dict[str, float]] = None,
     judge_key: str = "judge",
     response_format: Optional[Dict[str, Any]] = None,
-    output_parser: Optional[Callable[[str], str]] = None,
+    judge_output_parser: Optional[Callable[[str], str]] = None,
     **template_kwargs: Any,
 ) -> dict:
     """Score a sample using an LLM judge.
@@ -336,7 +336,7 @@ def judge_score(
             decoding (e.g. ``{"type": "json_object"}``).  When set, it is
             passed to ``judge_call()`` and ``parse_grade()`` uses structured
             JSON parsing.
-        output_parser: Optional callable that receives the raw judge response
+        judge_output_parser: Optional callable that receives the raw judge response
             string and returns a grade string (e.g. ``"C"``, ``"3"``,
             ``"SAFE"``).  When provided, it replaces the default
             ``parse_grade()`` call.  The ``score_mapping`` step still runs
@@ -402,12 +402,18 @@ def judge_score(
         return {"judge_score": 0.0, "judge_grade": "CALL_ERROR"}
 
     # Parse grade — use custom parser or default regex/JSON parsing
-    if output_parser is not None:
+    if judge_output_parser is not None:
         try:
-            grade = output_parser(judge_response)
-        except Exception:
-            logger.warning("Custom output parser failed", judge_key=judge_key)
-            return {"judge_score": 0.0, "judge_grade": "PARSE_ERROR"}
+            grade = judge_output_parser(judge_response)
+        except Exception as e:
+            logger.warning(
+                "Custom output parser failed", judge_key=judge_key, error=str(e)
+            )
+            return {
+                "judge_score": 0.0,
+                "judge_grade": "PARSE_ERROR",
+                "judge_error": str(e),
+            }
     else:
         grade = parse_grade(
             judge_response,

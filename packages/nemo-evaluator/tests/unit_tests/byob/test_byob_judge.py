@@ -893,7 +893,7 @@ class TestStructuredJudgeOutput:
 
 
 class TestCustomOutputParser:
-    """Tests for the output_parser parameter of judge_score."""
+    """Tests for the judge_output_parser parameter of judge_score."""
 
     def _make_sample(self):
         return ScorerInput(
@@ -904,24 +904,33 @@ class TestCustomOutputParser:
         )
 
     @pytest.mark.parametrize(
-        "parser_return, mapping, expected_score, expected_grade",
+        "response, mapping, expected_score, expected_grade",
         [
-            ("C", {"C": 1.0, "I": 0.0}, 1.0, "C"),
-            ("I", {"C": 1.0, "I": 0.0}, 0.0, "I"),
-            ("3", {"1": 0.2, "2": 0.4, "3": 0.6, "4": 0.8, "5": 1.0}, 0.6, "3"),
-            ("0.75", {}, 0.75, "0.75"),
+            ("RESULT: c", {"C": 1.0, "I": 0.0}, 1.0, "C"),
+            ("MY ANSWER: I", {"C": 1.0, "I": 0.0}, 0.0, "I"),
+            (
+                "MY RATING: 3",
+                {"1": 0.2, "2": 0.4, "3": 0.6, "4": 0.8, "5": 1.0},
+                0.6,
+                "3",
+            ),
+            ("MY RATING: 5", {}, 5.0, "5"),
         ],
     )
     @patch("nemo_evaluator.contrib.byob.judge.judge_call")
-    def test_custom_output_parser_grade_mapped(
-        self, mock_call, parser_return, mapping, expected_score, expected_grade
+    def test_custom_judge_output_parser_grade_mapped(
+        self, mock_call, response, mapping, expected_score, expected_grade
     ):
-        mock_call.return_value = "raw judge response"
+        mock_call.return_value = response
+
+        def custom_parser(resp):
+            return resp[-1].upper()
+
         sample = self._make_sample()
         result = judge_score(
             sample,
             template="binary_qa",
-            output_parser=lambda resp: parser_return,
+            judge_output_parser=custom_parser,
             score_mapping=mapping,
         )
         assert result["judge_grade"] == expected_grade
@@ -936,7 +945,7 @@ class TestCustomOutputParser:
         ],
     )
     @patch("nemo_evaluator.contrib.byob.judge.judge_call")
-    def test_custom_output_parser_failure(self, mock_call, exc_type):
+    def test_custom_judge_output_parser_failure(self, mock_call, exc_type):
         mock_call.return_value = "raw judge response"
         sample = self._make_sample()
 
@@ -945,14 +954,16 @@ class TestCustomOutputParser:
                 raise exc_type("parser failed")
             return None
 
-        result = judge_score(sample, template="binary_qa", output_parser=bad_parser)
+        result = judge_score(
+            sample, template="binary_qa", judge_output_parser=bad_parser
+        )
         assert result["judge_score"] == 0.0
         assert result["judge_grade"] == "PARSE_ERROR"
 
     @patch("nemo_evaluator.contrib.byob.judge.judge_call")
-    def test_default_parsing_when_output_parser_none(self, mock_call):
+    def test_default_parsing_when_judge_output_parser_none(self, mock_call):
         mock_call.return_value = "The answer matches.\nGRADE: C"
         sample = self._make_sample()
-        result = judge_score(sample, template="binary_qa", output_parser=None)
+        result = judge_score(sample, template="binary_qa", judge_output_parser=None)
         assert result["judge_grade"] == "C"
         assert result["judge_score"] == 1.0
