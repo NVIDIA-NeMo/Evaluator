@@ -14,6 +14,8 @@ Steps 2-3 are executed for EACH run separately.
 
 ## Step 1: Gather information
 
+**IMPORTANT**: Copy what you need (and only what you need) locally BEFORE analysis — each SSH command requires user approval, so remote one-by-one reads are disruptive, and copying too much is slow.
+
 - Get one or more successful invocation IDs to analyze from the user. You might already have the invocation ID in your memory from the previous step.
 - Get paths: `uv run nemo-evaluator-launcher info <invocation_id>`
 - If artifacts are local, read them directly from the paths shown by `nel info`.
@@ -26,7 +28,7 @@ Steps 2-3 are executed for EACH run separately.
 
 ## Step 2: Scan logs for runtime problems
 
-Access logs from locally copied files (`./evaluation-results/<invocation_id>.<job_index>/logs/`).
+Access logs from locally copied files (`./evaluation-results/<invocation_id>.<job_index>/logs/`). Do NOT read logs via SSH — use the local copies from Step 1.
 
 Check logs for silent errors that may invalidate results:
 

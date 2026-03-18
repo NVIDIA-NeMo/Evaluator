@@ -1,6 +1,6 @@
 ---
 name: launching-evals
-description: Run, monitor, analyze, and debug LLM evaluations via nemo-evaluator-launcher. Covers running evaluations, checking status and live progress, debugging failed runs, exporting artifacts and logs, and analyzing results. ALWAYS triggers on mentions of running evaluations, checking progress, debugging failed evals, Slurm job issues, invocation IDs, or inspecting logs (client logs, server logs, SSH to cluster, tail logs, grep logs). Do NOT use for creating or modifying evaluation configs.
+description: Run, monitor, analyze, and debug LLM evaluations via nemo-evaluator-launcher. Covers running evaluations, checking status and live progress, debugging failed runs, exporting artifacts and logs, and analyzing results. ALWAYS triggers on mentions of running evaluations, checking progress, debugging failed evals, analyzing or analysing runs or results, run directories or artifact paths on clusters, Slurm job issues, invocation IDs, or inspecting logs (client logs, server logs, SSH to cluster, tail logs, grep logs). Do NOT use for creating or modifying evaluation configs.
 ---
 
 # NeMo Evaluator Skill
