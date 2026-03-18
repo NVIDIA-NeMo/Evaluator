@@ -564,18 +564,20 @@ def main():
             exp.dryrun()
         else:
             exp.run()
-            status_dict = exp.status(return_dict=True) or {}
-            print(f"Experiment status dict: {status_dict}")
-            failed = [
-                f"{name}: {info['status']}"
-                for name, info in status_dict.items()
-                if str(info.get("status")) != "SUCCEEDED"
-                and "deploy" not in name.lower()
-            ]
-            if failed:
-                logger.error(f"Experiment finished with failures: {failed}")
-                sys.exit(1)
     # [snippet-experiment-end]
+
+    if not args.dryrun:
+        # Status check must happen after __exit__ which waits for Slurm jobs to finish
+        status_dict = exp.status(return_dict=True) or {}
+        print(f"Experiment status dict: {status_dict}")
+        failed = [
+            f"{name}: {info['status']}"
+            for name, info in status_dict.items()
+            if str(info.get("status")) != "SUCCEEDED" and "deploy" not in name.lower()
+        ]
+        if failed:
+            logger.error(f"Experiment finished with failures: {failed}")
+            sys.exit(1)
 
 
 if __name__ == "__main__":
