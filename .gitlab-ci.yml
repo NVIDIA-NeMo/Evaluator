@@ -175,21 +175,6 @@ container-skills:
         docker push "${REGISTRY}:latest-skills"
       fi
 
-container-mteb:
-  extends: .container-build
-  needs: ["container-base"]
-  script:
-    - docker build
-      --cache-from "${REGISTRY}:latest-mteb"
-      --tag "${REGISTRY}:${TAG}-mteb"
-      -f docker/Dockerfile.mteb .
-    - docker push "${REGISTRY}:${TAG}-mteb"
-    - |
-      if [ -n "$CI_COMMIT_TAG" ]; then
-        docker tag "${REGISTRY}:${TAG}-mteb" "${REGISTRY}:latest-mteb"
-        docker push "${REGISTRY}:latest-mteb"
-      fi
-
 container-gym:
   extends: .container-build
   needs: ["container-base"]

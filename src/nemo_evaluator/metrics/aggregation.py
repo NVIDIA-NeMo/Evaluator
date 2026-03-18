@@ -96,6 +96,9 @@ def scoring_details_breakdown(
 
 def summary_stats(rewards: list[float]) -> dict[str, float]:
     """Compute basic summary statistics over a list of reward values."""
+    if not rewards:
+        return {"mean": 0.0, "std": 0.0, "min": 0.0, "max": 0.0, "median": 0.0, "n": 0}
+
     import numpy as np
 
     arr = np.array(rewards, dtype=np.float64)

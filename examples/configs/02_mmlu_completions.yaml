@@ -1,0 +1,16 @@
+# Flavor: completions solver (raw text completion, not chat)
+# Tests the CompletionSolver path for base models / non-chat endpoints.
+#
+# Prerequisites: NVIDIA_API_KEY set in environment
+# Run: nel eval run examples/configs/02_mmlu_completions.yaml
+
+model:
+  url: https://integrate.api.nvidia.com/v1
+  id: nvidia/llama-3.1-nemotron-ultra-253b-v1
+  api_key: ${NVIDIA_API_KEY}
+
+benchmarks:
+  - name: mmlu
+    max_problems: 5
+    endpoint_type: completions
+    max_tokens: 64

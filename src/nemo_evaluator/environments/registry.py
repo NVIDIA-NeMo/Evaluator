@@ -1,17 +1,4 @@
-"""Environment registry: discover and resolve by name or URI.
-
-All environments use ``scheme://task`` URI syntax:
-  - ``gym://host:port``   (connect to a running Gym server)
-  - ``gym://swebench``    (benchmark name -- lifecycle managed by services config)
-  - ``skills://mmlu-pro``
-  - ``lm-eval://aime2025``
-  - ``pi://simpleqa``
-  - ``mteb://STSBenchmark``
-  - ``harbor://swebench-verified``
-  - ``container://image#task``
-
-Built-in benchmarks use bare names: ``mmlu``, ``gsm8k``, etc.
-"""
+"""Environment registry: resolve benchmarks by name or URI scheme."""
 
 from __future__ import annotations
 
@@ -90,18 +77,6 @@ def load_benchmark_file(file_path: str) -> list[str]:
 # --- URI scheme factories (scheme://rest) ---
 
 def _make_gym(rest: str, **kwargs: Any) -> "EvalEnvironment":
-    """Resolve gym:// URIs.
-
-    URI variants:
-      gym://host:port                       → GymEnvironment (evaluator protocol)
-      gym://host:port?protocol=native&data=/path.jsonl
-                                            → GymEnvironment (native protocol + dataset)
-      gym://cmd:<shell_command>             → ManagedGymEnvironment (server_cmd)
-      gym://module:<mod.path>               → ManagedGymEnvironment (uvicorn module)
-      gym://module:<mod.path>?protocol=native&data=/path.jsonl
-                                            → ManagedGymEnvironment (native protocol + dataset)
-      gym://<benchmark_name>                → ManagedGymEnvironment (nel serve)
-    """
     from nemo_evaluator.environments.gym import GymDataset, GymEnvironment, ManagedGymEnvironment
 
     protocol = kwargs.get("protocol", "evaluator")
@@ -147,14 +122,10 @@ def _make_lm_eval(rest: str, **kwargs: Any) -> "EvalEnvironment":
     return LMEvalEnvironment(task_name=rest, num_fewshot=kwargs.get("num_fewshot"), limit=limit)
 
 
-def _make_pi(rest: str, **kwargs: Any) -> "EvalEnvironment":
-    from nemo_evaluator.environments.pi import PIEnvironment
-    return PIEnvironment(rest)
-
-
-def _make_mteb(rest: str, **kwargs: Any) -> "EvalEnvironment":
-    from nemo_evaluator.environments.mteb import MTEBEnvironment
-    return MTEBEnvironment(task_name=rest)
+def _make_vlmevalkit(rest: str, **kwargs: Any) -> "EvalEnvironment":
+    from nemo_evaluator.environments.vlmevalkit import VLMEvalKitEnvironment
+    limit = kwargs.get("limit") or kwargs.get("num_examples")
+    return VLMEvalKitEnvironment(dataset_name=rest, limit=limit)
 
 
 def _make_container(rest: str, **kwargs: Any) -> "EvalEnvironment":
@@ -183,8 +154,7 @@ _URI_FACTORIES: dict[str, Callable[..., "EvalEnvironment"]] = {
     "gym": _make_gym,
     "skills": _make_skills,
     "lm-eval": _make_lm_eval,
-    "pi": _make_pi,
-    "mteb": _make_mteb,
+    "vlmevalkit": _make_vlmevalkit,
     "container": _make_container,
     "harbor": _make_harbor,
 }
@@ -229,7 +199,6 @@ def _resolve_file_bench(name: str) -> str | None:
         raise KeyError(f"{file_path} registered {len(new_names)} benchmarks "
                        f"({', '.join(new_names)}). Specify one: {file_path}:<name>")
 
-    # File was already loaded on a previous call -- find what it registered
     after = set(_REGISTRY)
     if after == before:
         stem = Path(file_path).stem.lower().replace("-", "_")
@@ -241,13 +210,7 @@ def _resolve_file_bench(name: str) -> str | None:
 
 
 def get_environment(name: str, **kwargs: Any) -> "EvalEnvironment":
-    """Resolve an environment by name, URI, or .py file path.
-
-    Resolution order:
-      1. File path (``./my_bench.py`` or ``./my_bench.py:name``)
-      2. URI scheme (``lm-eval://``, ``skills://``, ``gym://``, etc.)
-      3. Built-in registry (``@benchmark`` / ``@register``)
-    """
+    """Resolve an environment by name, URI, or .py file path."""
     _ensure_builtins()
 
     file_name = _resolve_file_bench(name)

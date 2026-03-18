@@ -4,13 +4,15 @@ from __future__ import annotations
 import asyncio
 import atexit
 import logging
+import os
 import signal
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any, Literal
 
 from nemo_evaluator.environments.base import SeedResult
-from nemo_evaluator.sandbox.base import OutsideEndpoint, Sandbox, SandboxSpec, VolumeMount
+from nemo_evaluator.sandbox.base import ImageBuildRequest, OutsideEndpoint, Sandbox, SandboxSpec, VolumeMount
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +26,13 @@ class SandboxManager:
 
     def __init__(
         self,
-        backend: Literal["docker", "slurm", "local", "ecs_fargate"],
+        backend: Literal["docker", "slurm", "local", "ecs_fargate", "apptainer"],
         concurrency: int = 4,
         default_image: str | None = None,
         image_template: str | None = None,
         slurm_nodes: list[str] | None = None,
         slots_per_node: int = 4,
+        sif_cache_dir: str | None = None,
         **backend_kwargs: Any,
     ) -> None:
         self._backend = backend
@@ -46,6 +49,9 @@ class SandboxManager:
         self._slurm_nodes = slurm_nodes or []
         self._slots_per_node = slots_per_node
         self._slot_idx = 0
+
+        # Apptainer SIF cache
+        self._sif_cache_dir = sif_cache_dir
 
         atexit.register(self._sync_cleanup)
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -72,6 +78,131 @@ class SandboxManager:
                     logger.warning("Pre-pull failed for %s", img, exc_info=True)
 
         await asyncio.gather(*[_pull_one(img) for img in unique])
+
+    # ------------------------------------------------------------------
+    # Image provisioning (from @image_builder declarations)
+    # ------------------------------------------------------------------
+
+    async def provision(self, requests: list[ImageBuildRequest]) -> None:
+        """Ensure all declared images are available in the backend's format.
+
+        1. Filter to specs not yet available in the target format.
+        2. If Docker daemon is reachable, build Docker originals via
+           the benchmark-provided ``docker_build_fn``.
+        3. Convert to the backend's format (SIF, ECR push) with concurrency.
+        """
+        for req in requests:
+            missing = [
+                s for s in req.specs
+                if not await self._image_available(s.image)
+            ]
+            if not missing:
+                logger.info("All %d images already available for %s backend",
+                            len(req.specs), self._backend)
+                continue
+
+            logger.info("Provisioning %d images (%d cached) for %s backend",
+                        len(missing), len(req.specs) - len(missing), self._backend)
+
+            if req.docker_build_fn and self._backend != "ecs_fargate":
+                if await self._docker_daemon_available():
+                    docker_missing = [
+                        s for s in missing
+                        if not await self._docker_exists_async(s.image)
+                    ]
+                    if docker_missing:
+                        loop = asyncio.get_running_loop()
+                        await loop.run_in_executor(
+                            None, req.docker_build_fn, docker_missing,
+                        )
+                else:
+                    logger.info(
+                        "Docker daemon not available — skipping Docker build, "
+                        "backend will pull from registry directly"
+                    )
+
+            sem = asyncio.Semaphore(self._concurrency)
+
+            async def _convert(image: str) -> None:
+                async with sem:
+                    await self._ensure_backend_format(image)
+
+            await asyncio.gather(*[_convert(s.image) for s in missing])
+
+    # ------------------------------------------------------------------
+    # Image availability checks (async — safe for the event loop)
+    # ------------------------------------------------------------------
+
+    async def _image_available(self, image: str) -> bool:
+        """Check if *image* is ready in the target backend's format."""
+        if self._backend in ("docker", "slurm"):
+            return await self._docker_exists_async(image)
+        elif self._backend == "apptainer":
+            return self._sif_path(image).exists()
+        return True
+
+    @staticmethod
+    async def _docker_exists_async(image: str) -> bool:
+        proc = await asyncio.create_subprocess_exec(
+            "docker", "image", "inspect", image,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await proc.communicate()
+        return proc.returncode == 0
+
+    @staticmethod
+    async def _docker_daemon_available() -> bool:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "docker", "info",
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await proc.communicate()
+            return proc.returncode == 0
+        except FileNotFoundError:
+            return False
+
+    def _sif_path(self, image: str) -> Path:
+        cache_dir = Path(
+            self._sif_cache_dir
+            or os.environ.get("APPTAINER_CACHEDIR", "/tmp/nel_sif_cache")
+        )
+        safe = image.replace("/", "_").replace(":", "__")
+        return cache_dir / f"{safe}.sif"
+
+    async def _ensure_backend_format(self, image: str) -> None:
+        """Convert a Docker image to whatever the current backend needs."""
+        if self._backend in ("docker", "slurm"):
+            return
+        elif self._backend == "apptainer":
+            await self._docker_to_sif(image)
+        elif self._backend == "ecs_fargate":
+            logger.warning("ECR push not yet implemented for %s", image)
+
+    async def _docker_to_sif(self, image: str) -> None:
+        """Convert a Docker image to SIF, choosing the fastest source."""
+        sif = self._sif_path(image)
+        if sif.exists():
+            return
+        sif.parent.mkdir(parents=True, exist_ok=True)
+
+        if await self._docker_exists_async(image):
+            source = f"docker-daemon://{image}"
+        else:
+            source = f"docker://{image}"
+
+        logger.info("Building SIF: %s -> %s", source, sif)
+        proc = await asyncio.create_subprocess_exec(
+            "apptainer", "build", str(sif), source,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            sif.unlink(missing_ok=True)
+            raise RuntimeError(f"apptainer build failed for {image}: {stderr.decode()[:500]}")
 
     # ------------------------------------------------------------------
     # Spec resolution
@@ -149,6 +280,15 @@ class SandboxManager:
         """Pull a single image via the configured backend."""
         logger.info("Pulling image: %s", image)
         if self._backend == "docker":
+            inspect = await asyncio.create_subprocess_exec(
+                "docker", "image", "inspect", image,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await inspect.communicate()
+            if inspect.returncode == 0:
+                logger.debug("Image %s already local, skipping pull", image)
+                return
             proc = await asyncio.create_subprocess_exec(
                 "docker", "pull", image,
                 stdout=asyncio.subprocess.PIPE,
@@ -171,6 +311,10 @@ class SandboxManager:
                     raise RuntimeError(
                         f"enroot import {image} on {node} failed: {stderr.decode()[:500]}"
                     )
+        elif self._backend == "apptainer":
+            if image.endswith(".sif") and Path(image).exists():
+                return
+            await self._docker_to_sif(image)
 
     # ------------------------------------------------------------------
     # Acquire / Release
@@ -223,6 +367,17 @@ class SandboxManager:
         elif self._backend == "ecs_fargate":
             from nemo_evaluator.sandbox.ecs_fargate import EcsFargateSandbox
             return EcsFargateSandbox(spec, **self._backend_kwargs)
+        elif self._backend == "apptainer":
+            from nemo_evaluator.sandbox.apptainer import ApptainerSandbox
+            node = None
+            if self._slurm_nodes:
+                node, _ = self._allocate_slot()
+            return ApptainerSandbox(
+                spec,
+                node=node,
+                sif_cache_dir=self._sif_cache_dir,
+                **self._backend_kwargs,
+            )
         else:
             from nemo_evaluator.sandbox.local import LocalSandbox
             return LocalSandbox(spec)
@@ -262,6 +417,17 @@ class SandboxManager:
                         ["docker", "rm", "-f", sb._container_id],
                         capture_output=True, timeout=5,
                     )
+                elif hasattr(sb, "_instance_name") and hasattr(sb, "_running") and sb._running:
+                    # Apptainer persistent instance
+                    cmd = ["apptainer", "instance", "stop", sb._instance_name]
+                    if hasattr(sb, "_node") and sb._node:
+                        cmd = [
+                            "srun", "--overlap",
+                            f"--nodelist={sb._node}",
+                            "--ntasks=1",
+                            *cmd,
+                        ]
+                    subprocess.run(cmd, capture_output=True, timeout=10)
                 elif hasattr(sb, "_sync_stop"):
                     sb._sync_stop()
                 elif hasattr(sb, "_container_name") and hasattr(sb, "_running") and sb._running:

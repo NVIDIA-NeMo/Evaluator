@@ -1,0 +1,18 @@
+# Flavor: NeMo Skills integration (skills:// data source)
+# Routes through SkillsEnvironment which wraps nemo-skills datasets and
+# scoring logic.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - pip install nemo-evaluator[skills]
+# Run: nel eval run examples/configs/04_mmlu_pro_skills.yaml
+
+model:
+  url: https://integrate.api.nvidia.com/v1
+  id: nvidia/llama-3.1-nemotron-ultra-253b-v1
+  api_key: ${NVIDIA_API_KEY}
+
+benchmarks:
+  - name: skills://mmlu-pro
+    max_problems: 5
+    endpoint_type: chat

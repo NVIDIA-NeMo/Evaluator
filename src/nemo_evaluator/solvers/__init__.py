@@ -3,25 +3,24 @@
 from nemo_evaluator.solvers.base import Solver, SolveResult
 from nemo_evaluator.solvers.chat import ChatSolver
 from nemo_evaluator.solvers.completion import CompletionSolver
-from nemo_evaluator.solvers.cross_encoder import CrossEncoderSolver
-from nemo_evaluator.solvers.embedding import EmbeddingSolver
 from nemo_evaluator.solvers.nat import NatSolver
 from nemo_evaluator.solvers.openclaw import OpenClawSolver
-from nemo_evaluator.solvers.sandbox import SandboxSolver
 from nemo_evaluator.solvers.vlm import VLMSolver
 
-AgentSolver = SandboxSolver
-
 __all__ = [
-    "AgentSolver",
     "ChatSolver",
     "CompletionSolver",
-    "CrossEncoderSolver",
-    "EmbeddingSolver",
+    "HarborSolver",
     "NatSolver",
     "OpenClawSolver",
-    "SandboxSolver",
     "Solver",
     "SolveResult",
     "VLMSolver",
 ]
+
+
+def __getattr__(name: str):
+    if name == "HarborSolver":
+        from nemo_evaluator.solvers.harbor import HarborSolver
+        return HarborSolver
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

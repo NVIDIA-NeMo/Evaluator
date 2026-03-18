@@ -1,12 +1,4 @@
-"""Resolve container images for SLURM and Docker execution.
-
-Images are resolved from the bundled ``containers.toml`` which maps benchmark
-URI schemes to container variants (base, lm-eval, skills, mteb, full).
-
-Override: set ``cluster.container_image`` in config to a base image like
-``my-registry.io/nel:v2.0``. Variants are derived automatically by appending
-``-lm-eval``, ``-skills``, etc. to the tag.
-"""
+"""Resolve container images from ``containers.toml`` for SLURM and Docker execution."""
 from __future__ import annotations
 
 import tomllib
@@ -28,12 +20,7 @@ def _default_base() -> str:
 
 
 def _variant_image(base: str, variant: str) -> str:
-    """Derive a variant image from a base image.
-
-    ``my-registry.io/nel:v2`` + ``lm-eval`` → ``my-registry.io/nel:v2-lm-eval``
-
-    Skips appending if the base already ends with the variant suffix.
-    """
+    """Append variant suffix to base image tag (e.g. ``nel:v2`` → ``nel:v2-lm-eval``)."""
     if variant == "base" or not variant:
         return base
     if base.endswith(f"-{variant}"):
@@ -54,13 +41,7 @@ def scheme_to_variant(bench_name: str) -> str:
 
 
 def resolve_eval_image(bench_name: str, base_override: str | None = None) -> str:
-    """Return the container image for a benchmark.
-
-    Args:
-        bench_name: Benchmark URI, e.g. ``lm-eval://aime2025``.
-        base_override: ``cluster.container_image`` — if set, used as-is
-            (the user knows which image they want).
-    """
+    """Return the container image for a benchmark URI. ``base_override`` bypasses lookup."""
     if base_override:
         return base_override
     variant = scheme_to_variant(bench_name)

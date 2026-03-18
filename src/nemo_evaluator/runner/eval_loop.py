@@ -65,13 +65,16 @@ async def run_evaluation(
     else:
         start, end = 0, ds_size
 
-    # Pre-pull sandbox images if available
+    await env.prepare()
+
     if sandbox_manager:
+        build_reqs = await env.image_build_requests()
+        if build_reqs:
+            await sandbox_manager.provision(build_reqs)
         specs = await env.sandbox_specs()
         if specs:
             await sandbox_manager.pre_pull(specs)
 
-    # --- Step log setup ---
     inference_log: StepLog | None = None
     verified_log: StepLog | None = None
     inferred_cache: dict[tuple[int, int], dict[str, Any]] = {}
@@ -127,6 +130,18 @@ async def run_evaluation(
     logger.info("eval start: %s problems=%d [%d:%d] repeats=%d concurrency=%d",
                 name, n_problems, start, end, n_repeats, max_concurrent)
 
+    if n_problems == 0:
+        logger.warning("0 problems to evaluate — dataset may be missing or empty")
+        pg.on_done(0, 0, 0.0, 0)
+        return build_artifact_bundle(
+            benchmark_name=name, results=[], metrics={
+                "summary": summary_stats([]),
+                "runtime": ArtifactCollector().build(0.0).runtime.to_dict(),
+                "failures": ArtifactCollector().build(0.0).failures.to_dict(),
+            },
+            config=config, categories=None,
+        )
+
     results: list[dict[str, Any]] = []
     problem_correct: dict[int, list[float]] = {}
     lock = asyncio.Lock()
@@ -140,8 +155,6 @@ async def run_evaluation(
         nonlocal cum_correct, cum_total
         async with sem:
             key = (idx, rep)
-
-            # --- Fast path: fully verified in cache ---
             cached_verified = verified_cache.get(key)
             if cached_verified is not None:
                 reward = cached_verified.get("reward", 0.0)
@@ -199,8 +212,6 @@ async def run_evaluation(
 
             try:
                 await lifecycle.setup()
-
-                # --- Inference phase ---
                 cached_inferred = inferred_cache.get(key)
                 if cached_inferred is not None:
                     response_text = cached_inferred.get("response", "")
@@ -237,23 +248,26 @@ async def run_evaluation(
                             "trajectory": solve_result.trajectory if solve_result else None,
                         }
                         await inference_log.append(inf_record)
-
-                # --- Transition: capture agent output / write response ---
                 await lifecycle.transition_to_verify(
                     response_text, solver_modified=(sandbox is not None),
                 )
-
-                # --- Verify phase ---
                 tv = time.monotonic()
-                try:
-                    verify_sandbox = await lifecycle.get_verify_sandbox()
-                    vr = await env.verify(
-                        response_text, seed_result.expected_answer,
-                        sandbox=verify_sandbox, **seed_result.metadata,
+                if solve_result and solve_result.reward is not None:
+                    vr = VerifyResult(
+                        reward=solve_result.reward,
+                        scoring_details=solve_result.scoring_details,
                     )
-                except Exception as e:
-                    logger.warning("verify error p%d r%d: %s", idx, rep, e)
-                    vr = VerifyResult(reward=0.0, scoring_details={"error": str(e), "method": "verify_failed"})
+                    logger.debug("p%d r%d: using pre-computed reward=%.4f", idx, rep, vr.reward)
+                else:
+                    try:
+                        verify_sandbox = await lifecycle.get_verify_sandbox()
+                        vr = await env.verify(
+                            response_text, seed_result.expected_answer,
+                            sandbox=verify_sandbox, **seed_result.metadata,
+                        )
+                    except Exception as e:
+                        logger.warning("verify error p%d r%d: %s", idx, rep, e)
+                        vr = VerifyResult(reward=0.0, scoring_details={"error": str(e), "method": "verify_failed"})
                 step.verify_ms = (time.monotonic() - tv) * 1000
                 step.total_ms = (time.monotonic() - step_t0) * 1000
 
@@ -317,7 +331,6 @@ async def run_evaluation(
             finally:
                 await lifecycle.teardown()
 
-    # Pipeline: seed problems and fan out repeats with back-pressure
     max_buffered = max_concurrent * 2
     pending: set[asyncio.Task] = set()
 

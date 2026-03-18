@@ -19,8 +19,8 @@ pip install -e ".[scoring]"
 |-------|---------|-------------|
 | `scoring` | `pip install -e ".[scoring]"` | sympy for symbolic math comparison |
 | `stats` | `pip install -e ".[stats]"` | scipy for confidence intervals and Mann-Whitney U p-values in regression |
-| `pi` | `pip install -e ".[pi]"` | Prime Intellect `verifiers` integration |
 | `skills` | `pip install -e ".[skills]"` | NeMo Skills benchmark integration |
+| `harbor` | `pip install -e ".[harbor]"` | Harbor agent integration (OpenHands etc.) |
 | `harnesses` | `pip install -e ".[harnesses]"` | lm-evaluation-harness tasks |
 | `all` | `pip install -e ".[all]"` | Everything above |
 | `dev` | `pip install -e ".[dev]"` | pytest, ruff, all extras |
@@ -35,11 +35,12 @@ nel list
 Expected output:
 
 ```
-nemo-evaluator 0.5.0
+nemo-evaluator 0.9.0
 
 Available environments:
   drop, gpqa, gsm8k, healthbench, humaneval, math500,
-  mgsm, mmlu, mmlu_pro, simpleqa, triviaqa
+  mgsm, mmlu, mmlu_pro, pinchbench, simpleqa,
+  swebench_multilingual, swebench_verified, triviaqa, xstest
 ```
 
 ## Docker

@@ -111,7 +111,11 @@ class DockerExecutor:
         env_args: list[str] = []
         for k, v in config.cluster.container_env.items():
             env_args.extend(["-e", f"{k}={v}"])
-        for key in ("NEMO_API_KEY", "NEMO_MODEL_URL", "NEMO_MODEL_ID"):
+        _FORWARD_ENVS = (
+            "NEMO_API_KEY", "NEMO_MODEL_URL", "NEMO_MODEL_ID",
+            "HF_TOKEN", "MLFLOW_TRACKING_URI", "MLFLOW_TRACKING_TOKEN",
+        )
+        for key in _FORWARD_ENVS:
             val = os.environ.get(key)
             if val:
                 env_args.extend(["-e", f"{key}={val}"])
@@ -124,9 +128,19 @@ class DockerExecutor:
             json.dumps(config.model_dump(), default=str), encoding="utf-8",
         )
 
+        shm = config.cluster.shm_size
+        if not shm:
+            services = config.resolved_services() if hasattr(config, "resolved_services") else {}
+            if any(s.type == "gym" for s in services.values()):
+                shm = "2g"
+        extra_docker_args: list[str] = []
+        if shm:
+            extra_docker_args.extend([f"--shm-size={shm}"])
+
         cmd = [
             "docker", "run", "-d",
             "--name", f"nel-eval-{os.getpid()}",
+            *extra_docker_args,
             *mount_args,
             *env_args,
             image,

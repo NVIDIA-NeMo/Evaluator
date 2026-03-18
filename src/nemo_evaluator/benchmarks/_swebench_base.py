@@ -1,29 +1,20 @@
-"""SWE-bench shared logic for Verified and Multilingual variants.
-
-Provides ``swebench_seed_fn``, ``swebench_score``, and ``swebench_prepare_row``
-that both ``swebench_verified.py`` and ``swebench_multilingual.py`` import.
-
-Architecture:
-    - ``seed_fn`` returns a ``SeedResult`` with *both* ``sandbox_spec`` (agent
-      container) and ``verify_sandbox_spec`` (fresh verification container),
-      plus a ``capture_cmd`` / ``apply_cmd`` pair.  This triggers the
-      ``StatelessSandbox`` lifecycle in the eval loop.
-    - The scorer is **pure test execution** — the patch is already applied by
-      the lifecycle's ``apply_cmd`` before the scorer runs.
-"""
+"""SWE-bench shared logic for Verified and Multilingual variants."""
 from __future__ import annotations
 
 import logging
 import re
+import subprocess
 from typing import Any
 
 from nemo_evaluator.environments.base import SeedResult
-from nemo_evaluator.sandbox.base import SandboxSpec
+from nemo_evaluator.sandbox.base import ImageBuildRequest, ImageSpec, SandboxSpec
 from nemo_evaluator.scoring.types import ScorerInput
 
 logger = logging.getLogger(__name__)
 
 SWEBENCH_IMAGE_TEMPLATE = "swebench/sweb.eval.x86_64.{instance_id}:latest"
+
+_LOCAL_BUILD_TEMPLATE = "sweb.eval.x86_64.{instance_id}:latest"
 
 SWEBENCH_PROMPT = (
     "You are an expert software engineer. You will be given a GitHub issue "
@@ -51,6 +42,74 @@ def _instance_id_to_image(instance_id: str, template: str = SWEBENCH_IMAGE_TEMPL
     return template.format(instance_id=safe_id)
 
 
+def swebench_image_build_request(
+    rows: list[dict[str, Any]],
+    *,
+    dataset_name: str = "SWE-bench/SWE-bench",
+) -> ImageBuildRequest:
+    instance_ids = sorted({r["instance_id"] for r in rows if "instance_id" in r})
+    specs = [
+        ImageSpec(
+            image=_instance_id_to_image(iid),
+            source={"instance_id": iid},
+        )
+        for iid in instance_ids
+    ]
+
+    def _docker_build(specs: list[ImageSpec]) -> None:
+        _build_swebench_docker(specs, dataset_name=dataset_name)
+
+    return ImageBuildRequest(specs=specs, docker_build_fn=_docker_build)
+
+
+def _build_swebench_docker(
+    specs: list[ImageSpec],
+    *,
+    dataset_name: str = "SWE-bench/SWE-bench",
+) -> None:
+    import docker as docker_mod
+
+    client = docker_mod.from_env()
+    client.ping()
+
+    missing_ids = [s.source["instance_id"] for s in specs]
+    if not missing_ids:
+        return
+
+    logger.info("Building %d SWE-bench Docker images from %s", len(missing_ids), dataset_name)
+
+    try:
+        from swebench.harness.docker_build import build_env_images, build_instance_images
+        from swebench.harness.utils import load_swebench_dataset
+    except ImportError:
+        raise ImportError(
+            "SWE-bench image building requires the 'swebench' and 'docker' "
+            "packages.  Install with: pip install swebench docker"
+        )
+
+    dataset = load_swebench_dataset(name=dataset_name, instance_ids=missing_ids)
+    # Explicit "latest" tags work around a swebench positional-arg bug:
+    # get_test_specs_from_dataset passes instance_image_tag where
+    # make_test_spec expects base_image_tag; None triggers an assertion.
+    build_env_images(
+        client=client, dataset=dataset, max_workers=4,
+        instance_image_tag="latest", env_image_tag="latest",
+    )
+    build_instance_images(
+        client=client, dataset=dataset, max_workers=4,
+        tag="latest", env_image_tag="latest",
+    )
+
+    for iid in missing_ids:
+        local_name = _instance_id_to_image(iid, _LOCAL_BUILD_TEMPLATE)
+        hub_name = _instance_id_to_image(iid, SWEBENCH_IMAGE_TEMPLATE)
+        if local_name != hub_name:
+            subprocess.run(
+                ["docker", "tag", local_name, hub_name],
+                check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+
+
 def swebench_prepare_row(row: dict[str, Any], idx: int, rng: Any) -> dict[str, Any]:
     """Normalize HF dataset rows for SWE-bench."""
     return {
@@ -62,9 +121,17 @@ def swebench_prepare_row(row: dict[str, Any], idx: int, rng: Any) -> dict[str, A
         "hints_text": row.get("hints_text", ""),
         "test_patch": row.get("test_patch", ""),
         "test_cmd": row.get("test_cmd", _default_test_cmd(row)),
-        "FAIL_TO_PASS": row.get("FAIL_TO_PASS", ""),
-        "PASS_TO_PASS": row.get("PASS_TO_PASS", ""),
+        "FAIL_TO_PASS": _ensure_str(row.get("FAIL_TO_PASS", "")),
+        "PASS_TO_PASS": _ensure_str(row.get("PASS_TO_PASS", "")),
     }
+
+
+def _ensure_str(val: Any) -> str:
+    """Coerce list-typed fields (common in HF datasets) to JSON strings."""
+    if isinstance(val, list):
+        import json
+        return json.dumps(val)
+    return val if isinstance(val, str) else str(val)
 
 
 def _default_test_cmd(row: dict[str, Any]) -> str:
@@ -120,13 +187,7 @@ def swebench_seed_fn(
 
 
 async def swebench_score(sample: ScorerInput) -> dict[str, Any]:
-    """Score a SWE-bench problem.  Pure test execution — patch already applied.
-
-    Steps:
-        1. Apply the test_patch (adds/modifies test files).
-        2. Run the test command.
-        3. Check that FAIL_TO_PASS tests now pass.
-    """
+    """Apply test_patch, run tests, check FAIL_TO_PASS resolution."""
     sandbox = sample.sandbox
     if sandbox is None:
         return {"correct": 0.0, "error": "no_sandbox"}
@@ -139,9 +200,11 @@ async def swebench_score(sample: ScorerInput) -> dict[str, Any]:
     fail_to_pass = _parse_test_list(fail_to_pass_raw)
     pass_to_pass = _parse_test_list(pass_to_pass_raw)
 
+    activate = await _detect_activate(sandbox)
+
     if test_patch:
         apply_result = await sandbox.exec(
-            f"cd /testbed && echo {_shell_quote(test_patch)} | git apply --allow-empty -",
+            f"{activate}cd /testbed && echo {_shell_quote(test_patch)} | git apply -",
             timeout_sec=60,
         )
         if apply_result.return_code != 0:
@@ -150,7 +213,15 @@ async def swebench_score(sample: ScorerInput) -> dict[str, Any]:
     if not test_cmd:
         return {"correct": 0.0, "error": "no_test_cmd"}
 
-    result = await sandbox.exec(f"cd /testbed && {test_cmd}", timeout_sec=300)
+    test_files = sorted({
+        t.split("::")[0] for t in (*fail_to_pass, *pass_to_pass) if "::" in t
+    })
+    full_cmd = test_cmd + (" " + " ".join(test_files) if test_files else "")
+
+    result = await sandbox.exec(
+        f"{activate}cd /testbed && {full_cmd}",
+        timeout_sec=300,
+    )
 
     output = result.stdout + result.stderr
     passed_tests, failed_tests = _parse_pytest_output(output)
@@ -168,6 +239,14 @@ async def swebench_score(sample: ScorerInput) -> dict[str, Any]:
         "test_exit_code": result.return_code,
         "test_output_tail": output[-2000:] if output else "",
     }
+
+
+async def _detect_activate(sandbox: Any) -> str:
+    """Return a shell prefix that activates the testbed conda env, or empty string."""
+    probe = await sandbox.exec("source activate testbed 2>/dev/null && echo __OK__", timeout_sec=10)
+    if probe.return_code == 0 and "__OK__" in (probe.stdout or ""):
+        return "source activate testbed && "
+    return ""
 
 
 def _parse_test_list(raw: str) -> list[str]:

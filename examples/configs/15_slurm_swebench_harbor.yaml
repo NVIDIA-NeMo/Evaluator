@@ -1,0 +1,38 @@
+# Flavor: SLURM + vLLM + Harbor agent + SLURM sandbox
+# Full distributed SWE-bench: vLLM serves the model, Harbor/OpenHands
+# runs inside Pyxis/Enroot containers on sandbox nodes.
+#
+# Prerequisites:
+#   - Access to a SLURM cluster with GPU nodes
+#   - Pyxis/Enroot configured for container execution
+#   - Model weights accessible on shared filesystem
+# Run: nel eval run examples/configs/16_slurm_swebench_harbor.yaml
+
+services:
+  model:
+    type: vllm
+    model: nvidia/Llama-3.1-70B-Instruct
+    tensor_parallel_size: 4
+    port: 8000
+
+benchmarks:
+  - name: swebench-verified
+    max_problems: 10
+    endpoint_type: harbor
+    sandbox:
+      backend: slurm
+      harbor_agent: openhands
+      timeout: 1800.0
+      concurrency: 4
+      sandbox_nodes: 2
+      slots_per_node: 4
+
+cluster:
+  type: slurm
+  partition: batch
+  nodes: 3
+  ntasks_per_node: 1
+  gres: "gpu:4"
+  walltime: "04:00:00"
+  container_image: nvcr.io/nvidia/pytorch:24.03-py3
+  env_mode: separated

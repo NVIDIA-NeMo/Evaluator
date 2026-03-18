@@ -220,6 +220,15 @@ class GymEnvironment(EvalEnvironment):
             if k in ("responses_create_params", "expected_answer"):
                 continue
             body[k] = v
+
+        # When no dataset row provided verifier_metadata, synthesize it
+        # from the eval-loop metadata so gym servers can read their fields.
+        if "verifier_metadata" not in body:
+            _INTERNAL = {"source", "benchmark", "problem_idx", "prompt", "verifier_metadata"}
+            body["verifier_metadata"] = {
+                k: v for k, v in meta.items() if k not in _INTERNAL
+            }
+
         # Also forward any metadata the eval loop passed that isn't already set
         for k, v in meta.items():
             if k not in body and k != "problem_idx":
@@ -322,7 +331,7 @@ class ManagedGymEnvironment(EvalEnvironment):
 
     def _build_cmd(self) -> list[str] | str:
         if self._server_cmd:
-            return f"{self._server_cmd} --port {self._port}"
+            return self._server_cmd
         if self._server_module:
             return [sys.executable, "-m", "uvicorn", f"{self._server_module}:app",
                     "--host", self._host, "--port", str(self._port)]
@@ -341,7 +350,13 @@ class ManagedGymEnvironment(EvalEnvironment):
         deadline = time.monotonic() + self._startup_timeout
         while time.monotonic() < deadline:
             if self._process.poll() is not None:
-                raise RuntimeError(f"Server exited with code {self._process.returncode} during startup")
+                output = ""
+                if self._process.stdout:
+                    output = self._process.stdout.read().decode(errors="replace")
+                raise RuntimeError(
+                    f"Server exited with code {self._process.returncode} during startup.\n"
+                    f"Output:\n{output}"
+                )
             try:
                 r = httpx.get(f"{self.endpoint}/health", timeout=2.0)
                 if r.status_code == 200:

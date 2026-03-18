@@ -1,0 +1,17 @@
+# Flavor: Legacy container harness (container:// URI)
+# Runs the nemo-skills eval container as an opaque box. The container
+# owns the full eval loop; nel parses results and adds reporting.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - Docker running locally
+#   - Access to the container registry (docker login if needed)
+# Run: nel eval run examples/configs/14_container_nemo_skills.yaml
+
+model:
+  url: https://integrate.api.nvidia.com/v1
+  id: nvidia/llama-3.1-nemotron-ultra-253b-v1
+  api_key: ${NVIDIA_API_KEY}
+
+benchmarks:
+  - name: "container://gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/nemo-skills:26.03#gsm8k"

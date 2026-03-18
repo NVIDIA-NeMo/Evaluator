@@ -28,15 +28,16 @@ ARG GYM_REF=main
 RUN git clone --depth 1 -b ${GYM_REF} ${GYM_REPO} /opt/Gym
 
 WORKDIR /opt/Gym
-RUN ls -la && pip install --no-cache-dir .
+RUN pip install --no-cache-dir .
 
-RUN for req in resources_servers/*/requirements.txt; do \
-      grep -v '^-e ' "$req" \
-        | pip install --no-cache-dir -r /dev/stdin 2>/dev/null || true; \
-    done \
-    && pip cache purge
+# Only deps for resource servers we actually ship (spider2_lite, xstest, finance_sec_search).
+# spider2_lite and xstest need nothing beyond Gym itself.
+# TODO: Add more resource servers deps as needed.
+RUN pip install --no-cache-dir "beautifulsoup4>=4.12.0" "tavily==1.1.0"
 
 ENV GYM_PATH=/opt/Gym
+ENV PYTHONPATH=/opt/Gym
 ENV PYTHONUNBUFFERED=1
 
+WORKDIR /app
 CMD ["nel", "--help"]

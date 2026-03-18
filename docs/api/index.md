@@ -95,7 +95,7 @@ async def run_evaluation(
 | Parameter | Description |
 |-----------|-------------|
 | `env` | `EvalEnvironment` instance |
-| `solver` | `Solver` instance (e.g. `ChatSolver`, `CompletionSolver`, `AgentSolver`) |
+| `solver` | `Solver` instance (e.g. `ChatSolver`, `HarborSolver`, `GymSolver`) |
 | `n_repeats` | Number of times to evaluate each problem |
 | `max_problems` | Limit to first N problems |
 | `config` | Metadata included in the output bundle |
@@ -143,18 +143,6 @@ solver = ChatSolver(client)
 bundle = await run_evaluation(env, solver, n_repeats=4)
 ```
 
-### `PIEnvironment`
-
-Decomposes `verifiers.SingleTurnEnv` into seed/verify.
-
-```python
-from nemo_evaluator.environments.pi import PIEnvironment
-
-env = PIEnvironment("simpleqa")
-solver = ChatSolver(client)
-bundle = await run_evaluation(env, solver, n_repeats=2)
-```
-
 ### `SkillsEnvironment`
 
 Wraps any NeMo Skills benchmark as an `EvalEnvironment`.
@@ -174,6 +162,18 @@ bundle = await run_evaluation(env, solver, n_repeats=4)
 | `data_dir` | `str \| None` | `None` | Override data directory |
 | `prompt_template` | `str \| None` | `None` | Custom prompt template with `{problem}` placeholder |
 | `eval_type` | `str \| None` | `None` | Override scoring type (default from benchmark config) |
+
+### `VLMEvalKitEnvironment`
+
+Wraps VLMEvalKit datasets as an `EvalEnvironment`. Supports MCQ, VQA, and Y/N dataset types.
+
+```python
+from nemo_evaluator.environments.vlmevalkit import VLMEvalKitEnvironment
+
+env = VLMEvalKitEnvironment("MMBench_DEV_EN")
+solver = VLMSolver(client)
+bundle = await run_evaluation(env, solver, n_repeats=1)
+```
 
 ### `generate_app()`
 
@@ -244,7 +244,7 @@ nel eval run [CONFIG_FILE]
     --model-url TEXT         Model API base URL
     --model-id TEXT          Model identifier
     --system-prompt TEXT     System prompt
-    --adapter TEXT           Adapter URI (gym://host:port, pi://env, skills://benchmark)
+    --adapter TEXT           Adapter URI (gym://host:port, skills://benchmark)
     --output-dir, -o TEXT    Output directory [./eval_results]
     --no-progress            Disable progress bar
 ```

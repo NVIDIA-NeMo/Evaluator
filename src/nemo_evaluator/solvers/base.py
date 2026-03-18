@@ -19,6 +19,10 @@ class SolveResult:
     response: str
     model_response: ModelResponse | None = None
     trajectory: list[dict[str, Any]] = field(default_factory=list)
+    # Pre-computed reward from solvers that bundle verification (e.g. gym /run).
+    # When set, the eval loop skips the separate verify phase.
+    reward: float | None = None
+    scoring_details: dict[str, Any] = field(default_factory=dict)
 
 
 class Solver(Protocol):

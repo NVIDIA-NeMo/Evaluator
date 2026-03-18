@@ -871,10 +871,19 @@ class EcsFargateSandbox:
         await asyncio.to_thread(self._cleanup)
         self._unregister_from_cleanup()
 
-    async def exec(self, command: str, timeout_sec: float = 180) -> ExecResult:
+    async def exec(
+        self, command: str, timeout_sec: float = 180,
+        *, cwd: str | None = None, env: dict[str, str] | None = None,
+    ) -> ExecResult:
         self._require_exec_client()
+        shell_cmd = command
+        if env:
+            exports = " ".join(f"{k}={v}" for k, v in env.items())
+            shell_cmd = f"export {exports} && {shell_cmd}"
+        if cwd:
+            shell_cmd = f"cd {cwd} && {shell_cmd}"
         return await asyncio.to_thread(
-            self._exec_client.exec, command, timeout=int(timeout_sec))  # type: ignore[union-attr]
+            self._exec_client.exec, shell_cmd, timeout=int(timeout_sec))  # type: ignore[union-attr]
 
     async def upload(self, local_path: Path, remote_path: str) -> None:
         self._require_exec_client()

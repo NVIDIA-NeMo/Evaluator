@@ -1,0 +1,24 @@
+# Flavor: Agentic benchmark (PinchBench) + Harbor agent + grade()/LLM judge
+# Tasks with embedded grading code are scored automatically; the rest
+# fall through to LLM-as-judge.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - Docker running locally
+#   - pip install nemo-evaluator[harbor]
+# Run: nel eval run examples/configs/11_pinchbench_harbor.yaml
+
+model:
+  url: https://integrate.api.nvidia.com/v1
+  id: nvidia/llama-3.1-nemotron-ultra-253b-v1
+  api_key: ${NVIDIA_API_KEY}
+
+benchmarks:
+  - name: pinchbench
+    max_problems: 3
+    endpoint_type: harbor
+    sandbox:
+      backend: docker
+      harbor_agent: openhands
+      timeout: 300.0
+      concurrency: 2

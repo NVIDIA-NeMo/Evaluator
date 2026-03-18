@@ -1,0 +1,24 @@
+# Flavor: Harbor agent (OpenHands) + SWE-bench scorer + Docker sandbox
+# Full agentic SWE-bench evaluation: Harbor spawns OpenHands inside
+# a per-instance Docker container, nel verifies the patch.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - Docker running locally
+#   - pip install nemo-evaluator[harbor]
+# Run: nel eval run examples/configs/07_swebench_harbor.yaml
+
+model:
+  url: https://integrate.api.nvidia.com/v1
+  id: nvidia/llama-3.1-nemotron-ultra-253b-v1
+  api_key: ${NVIDIA_API_KEY}
+
+benchmarks:
+  - name: swebench-verified
+    max_problems: 3
+    endpoint_type: harbor
+    sandbox:
+      backend: docker
+      harbor_agent: openhands
+      timeout: 1800.0
+      concurrency: 2

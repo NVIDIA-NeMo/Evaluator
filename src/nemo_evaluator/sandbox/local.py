@@ -35,17 +35,23 @@ class LocalSandbox:
             shutil.rmtree(self._workdir, ignore_errors=True)
             self._workdir = None
 
-    async def exec(self, command: str, timeout_sec: float = 180) -> ExecResult:
+    async def exec(
+        self, command: str, timeout_sec: float = 180,
+        *, cwd: str | None = None, env: dict[str, str] | None = None,
+    ) -> ExecResult:
         if not self._workdir:
             raise RuntimeError("Sandbox not started")
 
-        env = dict(self._spec.env) if self._spec.env else None
+        merged_env = dict(self._spec.env) if self._spec.env else None
+        if env:
+            merged_env = {**(merged_env or {}), **env}
+        effective_cwd = Path(cwd) if cwd else self._workdir
         proc = await asyncio.create_subprocess_shell(
             command,
-            cwd=self._workdir,
+            cwd=effective_cwd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env=env,
+            env=merged_env,
         )
         try:
             stdout, stderr = await asyncio.wait_for(

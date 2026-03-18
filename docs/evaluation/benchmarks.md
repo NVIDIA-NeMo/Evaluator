@@ -1,6 +1,6 @@
 # Built-in Benchmarks
 
-All 12 built-in benchmarks are defined with `@benchmark` + `@scorer` in `src/nemo_evaluator/benchmarks/`.
+All 15 built-in benchmarks are defined with `@benchmark` + `@scorer` in `src/nemo_evaluator/benchmarks/`.
 
 ## Quick Reference
 
@@ -18,18 +18,22 @@ All 12 built-in benchmarks are defined with `@benchmark` + `@scorer` in `src/nem
 | SimpleQA | `nel eval run --bench simpleqa` | `needs_judge` | Factuality (LLM judge) |
 | HealthBench | `nel eval run --bench healthbench` | `needs_judge` | Health (LLM judge) |
 | PinchBench | `nel eval run --bench pinchbench` | `code_sandbox` / `needs_judge` | Agentic tasks (code/LLM judge) |
+| XSTest | `nel eval run --bench xstest` | `needs_judge` | Safety |
+| SWE-bench Verified | `nel eval run --bench swebench-verified` | `swebench_score` | Software engineering (Docker) |
+| SWE-bench Multilingual | `nel eval run --bench swebench-multilingual` | `swebench_score` | Software engineering, multi-lang (Docker) |
 
 ## Extended Environments
 
-Beyond the 12 built-in benchmarks, NEL resolves additional environment types via URI schemes and namespace prefixes:
+Beyond the 15 built-in benchmarks, NEL resolves additional environment types via URI schemes and namespace prefixes:
 
 | Syntax | Source | Example |
 |--------|--------|---------|
 | `nel eval run --bench <name>` | Built-in registry | `nel eval run --bench mmlu` |
 | `nel eval run --bench lm-eval://<task>` | lm-evaluation-harness | `nel eval run --bench lm-eval://aime25` |
 | `nel eval run --bench skills://<name>` | NeMo Skills | `nel eval run --bench skills://mmlu-pro` |
+| `nel eval run --bench vlmevalkit://<dataset>` | VLMEvalKit | `nel eval run --bench vlmevalkit://MMBench_DEV_EN` |
 | `nel eval run --bench gym://<host:port>` | Remote Gym server | `nel eval run --bench gym://localhost:9090` |
-| `nel eval run --bench pi://<name>` | Prime Intellect verifiers | `nel eval run --bench pi://simpleqa` |
+| `nel eval run --bench container://<image>#<task>` | Legacy container | `nel eval run --bench container://nvcr.io/image#task` |
 
 ## Benchmark Details
 

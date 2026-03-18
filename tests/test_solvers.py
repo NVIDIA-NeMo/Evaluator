@@ -8,7 +8,6 @@ import pytest
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.observability.types import ModelResponse
 from nemo_evaluator.solvers.base import SolveResult
-from tests.conftest import MockExecResult, MockSandbox
 
 
 def _make_seed(prompt: str = "What is 2+2?", expected: str = "4") -> SeedResult:
@@ -74,44 +73,6 @@ class TestChatSolver:
         solver = ChatSolver(client=mock_client)
         result = await solver.solve(_make_seed())
         assert result.response == ""
-
-
-# ---------------------------------------------------------------------------
-# SandboxSolver
-# ---------------------------------------------------------------------------
-
-class TestSandboxSolver:
-
-    @pytest.mark.asyncio
-    async def test_requires_sandbox(self):
-        """SandboxSolver.solve signature accepts sandbox param."""
-        from nemo_evaluator.solvers.sandbox import SandboxSolver
-        import inspect
-
-        sig = inspect.signature(SandboxSolver.solve)
-        assert "sandbox" in sig.parameters
-
-    @pytest.mark.asyncio
-    async def test_solve_with_mock_sandbox(self):
-        from nemo_evaluator.solvers.sandbox import SandboxSolver
-
-        sb = MockSandbox(exec_results={
-            "agent": MockExecResult(stdout='{"response": "patched code"}', return_code=0),
-        })
-        await sb.start()
-
-        solver = SandboxSolver(
-            agent_cmd="agent run",
-            model_url="http://localhost:8000/v1",
-            model_id="test-model",
-        )
-
-        seed = _make_seed("Fix the bug in main.py")
-        # SandboxSolver talks to an agent process inside sandbox --
-        try:
-            await solver.solve(seed, sandbox=sb)
-        except Exception:
-            pass  # Expected: agent process doesn't exist in mock
 
 
 # ---------------------------------------------------------------------------

@@ -108,15 +108,24 @@ class SlurmSandbox:
         self._running = False
         logger.debug("slurm sandbox stopped: %s", self._container_name)
 
-    async def exec(self, command: str, timeout_sec: float = 180) -> ExecResult:
+    async def exec(
+        self, command: str, timeout_sec: float = 180,
+        *, cwd: str | None = None, env: dict[str, str] | None = None,
+    ) -> ExecResult:
         if not self._running:
             raise RuntimeError("Sandbox not started")
+        shell_cmd = command
+        if env:
+            exports = " ".join(f"{k}={v}" for k, v in env.items())
+            shell_cmd = f"export {exports} && {shell_cmd}"
+        if cwd:
+            shell_cmd = f"cd {cwd} && {shell_cmd}"
         cmd = [
             "srun", "--overlap",
             f"--nodelist={self._node}",
             "--ntasks=1",
             f"--container-name={self._container_name}",
-            "/bin/bash", "-c", command,
+            "/bin/bash", "-c", shell_cmd,
         ]
         proc = await asyncio.create_subprocess_exec(
             *cmd,

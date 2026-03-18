@@ -1,0 +1,15 @@
+# Flavor: chat solver + numeric scorer + no sandbox
+# The simplest possible config -- text QA with regex answer extraction.
+#
+# Prerequisites: NVIDIA_API_KEY set in environment
+# Run: nel eval run examples/configs/01_gsm8k_chat.yaml
+
+model:
+  url: https://integrate.api.nvidia.com/v1
+  id: nvidia/llama-3.1-nemotron-ultra-253b-v1
+  api_key: ${NVIDIA_API_KEY}
+
+benchmarks:
+  - name: gsm8k
+    max_problems: 5
+    endpoint_type: chat

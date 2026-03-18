@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from nemo_evaluator.sandbox.base import Sandbox, SandboxSpec
+    from nemo_evaluator.sandbox.base import ImageBuildRequest, Sandbox, SandboxSpec
 
 
 @dataclass
@@ -74,8 +74,26 @@ class EvalEnvironment(ABC):
 
     async def run_batch(self, solver: Any = None, config: dict[str, Any] | None = None) -> dict[str, Any] | None:
         """Optional batch execution. Override for environments that own the full loop
-        (e.g. ContainerEnvironment, MTEBEnvironment). Return an artifact bundle dict,
+        (e.g. ContainerEnvironment). Return an artifact bundle dict,
         or None to fall through to the standard seed/solve/verify loop."""
+        return None
+
+    async def prepare(self) -> None:
+        """Lifecycle hook for non-image provisioning before evaluation starts.
+
+        Override for: downloading datasets, refreshing auth tokens, warming
+        caches, etc.  Image provisioning is handled separately via
+        :meth:`image_build_requests`.  Default is no-op.
+        """
+
+    async def image_build_requests(self) -> list[ImageBuildRequest] | None:
+        """Declare images that must be built before evaluation starts.
+
+        Returns a list of :class:`ImageBuildRequest` objects (each carrying
+        the image names and a Docker build function), or ``None`` when no
+        custom builds are needed.  The :class:`SandboxManager` consumes
+        these and handles backend-specific conversion (SIF, ECR push, etc.).
+        """
         return None
 
     async def close(self) -> None:

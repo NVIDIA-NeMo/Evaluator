@@ -9,7 +9,43 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol, Self
+from typing import Any, Callable, Protocol, Self
+
+
+@dataclass
+class ImageSpec:
+    """One image that may need building before evaluation.
+
+    ``image`` is the target Docker image name (e.g.
+    ``swebench/sweb.eval.x86_64.astropy__astropy-12907:latest``).
+
+    ``source`` carries benchmark-specific build context that the
+    ``docker_build_fn`` needs — the manager never inspects it.
+    Examples:
+      - SWE-bench: ``{"instance_id": "astropy__astropy-12907"}``
+      - Dockerfile: ``{"context_dir": "/path/to/ctx", "dockerfile": "Dockerfile.cuda"}``
+      - Archive:    ``{"archive": "/tmp/build-ctx.tar.gz"}``
+    """
+
+    image: str
+    source: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ImageBuildRequest:
+    """Batch of images a benchmark needs, plus how to build the Docker originals.
+
+    The benchmark says *what* it needs (``specs``) and *how* to build
+    Docker source images (``docker_build_fn``).  The :class:`SandboxManager`
+    decides the final format — Docker, SIF, ECR — based on the backend.
+
+    ``docker_build_fn`` receives the **missing** subset of specs so it has
+    full structured data (no reverse-engineering image names). It must raise
+    on failure; the manager gates the call on Docker daemon availability.
+    """
+
+    specs: list[ImageSpec]
+    docker_build_fn: Callable[[list[ImageSpec]], None] | None = None
 
 
 @dataclass
@@ -69,7 +105,10 @@ class Sandbox(Protocol):
 
     async def stop(self) -> None: ...
 
-    async def exec(self, command: str, timeout_sec: float = 180) -> ExecResult: ...
+    async def exec(
+        self, command: str, timeout_sec: float = 180,
+        *, cwd: str | None = None, env: dict[str, str] | None = None,
+    ) -> ExecResult: ...
 
     async def upload(self, local_path: Path, remote_path: str) -> None: ...
 

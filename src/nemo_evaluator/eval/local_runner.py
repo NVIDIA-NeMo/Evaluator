@@ -1,4 +1,4 @@
-"""Local suite runner: start services, run benchmarks, generate reports, cleanup."""
+"""Local suite runner."""
 from __future__ import annotations
 
 import asyncio
@@ -18,12 +18,10 @@ def _safe_name(s: str) -> str:
 
 def _make_solver(bench: BenchmarkConfig, client: Any, model_url: str,
                  model_id: str, api_key: str | None) -> Any:
-    """Select the correct solver based on benchmark endpoint_type."""
+    """Create solver for the given benchmark config."""
     from nemo_evaluator.solvers import (
         ChatSolver,
         CompletionSolver,
-        EmbeddingSolver,
-        SandboxSolver,
         VLMSolver,
     )
 
@@ -31,15 +29,26 @@ def _make_solver(bench: BenchmarkConfig, client: Any, model_url: str,
     sb = bench.sandbox
 
     match ep:
-        case EndpointType.sandbox:
-            return SandboxSolver(
-                agent_cmd=sb.agent_cmd if sb else "agent",
+        case EndpointType.gym:
+            from nemo_evaluator.solvers.gym import GymSolver
+            return GymSolver(
+                gym_url=bench.gym_url or "",
+                gym_agent=bench.gym_agent,
+                trust_reward=bench.gym_trust_reward,
+                model_id=model_id,
+                model_url=model_url,
+                api_key=api_key,
+                timeout=sb.timeout if sb else 3600.0,
+            )
+        case EndpointType.harbor:
+            from nemo_evaluator.solvers.harbor import HarborSolver
+            return HarborSolver(
+                harbor_agent=sb.harbor_agent if sb else "",
+                harbor_agent_kwargs=sb.harbor_agent_kwargs if sb else {},
                 model_url=model_url,
                 model_id=model_id,
-                api_key=api_key,
-                setup_cmd=sb.agent_setup_cmd if sb else None,
-                invocation_template=sb.agent_invocation_template if sb else None,
                 timeout=sb.timeout if sb else 1800.0,
+                api_key=api_key,
             )
         case EndpointType.nat:
             from nemo_evaluator.solvers import NatSolver
@@ -75,8 +84,6 @@ def _make_solver(bench: BenchmarkConfig, client: Any, model_url: str,
                 temperature=bench.temperature or 0.0,
                 max_tokens=bench.max_tokens or 2048,
             )
-        case EndpointType.embedding:
-            return EmbeddingSolver(client)
         case _:
             return ChatSolver(client, system_prompt=bench.system_prompt)
 
@@ -117,6 +124,7 @@ def _start_gym_service(svc: ServiceConfig):
         nel_benchmark=svc.benchmark,
         server_cmd=svc.server_cmd,
         port=svc.port,
+        startup_timeout=svc.startup_timeout,
     )
     gym.start()
     return gym
@@ -220,36 +228,41 @@ class _ServiceHandle:
             self._nat = None
 
 
+def _resolve_verifier_url(
+    verifier_name: str,
+    config: EvalConfig,
+    handles: dict[str, "_ServiceHandle"],
+) -> str:
+    """Resolve the URL for a verifier service, or raise on misconfiguration."""
+    handle = handles.get(verifier_name)
+    if handle and handle.url:
+        return handle.url
+
+    services = config.resolved_services()
+    svc = services.get(verifier_name)
+    if svc is None:
+        available = list(services) or list(handles)
+        raise ValueError(
+            f"Verifier service {verifier_name!r} not found. "
+            f"Available services: {available}"
+        )
+    return svc.base_url
+
+
 def _warn_incompatible(bench: BenchmarkConfig, env: Any) -> None:
     """Emit warnings for known-bad solver + environment combinations."""
     ep = bench.endpoint_type
     name = bench.name
 
     from nemo_evaluator.environments.harbor import HarborEnvironment
-    from nemo_evaluator.environments.mteb import MTEBEnvironment
 
     if isinstance(env, HarborEnvironment) and not ep.modifies_sandbox:
         logger.warning(
             "Benchmark %r uses Harbor (requires sandbox interaction) but "
             "endpoint_type=%r does not modify sandbox state. "
-            "Only 'sandbox' runs inside the container. "
+            "Only 'harbor' runs inside the container. "
             "Expect reward=0.0 for all problems.",
             name, ep,
-        )
-
-    if isinstance(env, MTEBEnvironment) and ep is not EndpointType.embedding:
-        logger.warning(
-            "Benchmark %r uses MTEB (embedding tasks) but endpoint_type=%r "
-            "-- only 'embedding' produces valid results.",
-            name, ep,
-        )
-
-    if ep is EndpointType.embedding and not isinstance(env, MTEBEnvironment):
-        logger.warning(
-            "Benchmark %r uses endpoint_type='embedding' but environment is "
-            "%s -- embedding solvers return vectors, not text. Results will "
-            "be meaningless for text-based scoring.",
-            name, type(env).__name__,
         )
 
 
@@ -279,6 +292,14 @@ async def _run_single_benchmark(
 
     env = get_environment(bench.name, num_examples=bench.max_problems,
                           num_fewshot=bench.fewshot)
+
+    if bench.verifier:
+        verifier_url = _resolve_verifier_url(bench.verifier, config, handles)
+        from nemo_evaluator.environments.composite import CompositeEnvironment
+        from nemo_evaluator.environments.gym import GymEnvironment
+
+        verify_env = GymEnvironment(verifier_url, protocol="native")
+        env = CompositeEnvironment(seed_env=env, verify_env=verify_env)
 
     _warn_incompatible(bench, env)
 
@@ -316,7 +337,8 @@ async def _run_single_benchmark(
     judge_client = _make_judge_client(config, bench.judge) if bench.judge else None
 
     sandbox_mgr = None
-    if bench.sandbox and bench.sandbox.backend != "none":
+    sb = bench.sandbox
+    if sb and sb.backend != "none":
         from nemo_evaluator.sandbox.manager import SandboxManager
 
         sb = bench.sandbox
@@ -411,13 +433,6 @@ def _load_prior_bundle(task_dir: str) -> dict[str, Any]:
 
 
 def run_local(config: EvalConfig, *, resume: bool = False) -> list[dict[str, Any]]:
-    """Execute the full evaluation suite locally.
-
-    1. Start all managed services
-    2. Run each benchmark (with checkpoint/resume and failure isolation)
-    3. Generate reports from completed benchmarks
-    4. Stop all services
-    """
     import click
 
     from nemo_evaluator.runner.checkpoint import CheckpointManager

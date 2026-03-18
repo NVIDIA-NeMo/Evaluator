@@ -1,0 +1,17 @@
+# Flavor: lm-evaluation-harness integration (lm-eval:// data source)
+# Uses lm-eval's task registry instead of our built-in BYOB benchmark.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - pip install nemo-evaluator[lm-eval]
+# Run: nel eval run examples/configs/03_mmlu_lmeval.yaml
+
+model:
+  url: https://integrate.api.nvidia.com/v1
+  id: nvidia/llama-3.1-nemotron-ultra-253b-v1
+  api_key: ${NVIDIA_API_KEY}
+
+benchmarks:
+  - name: lm-eval://mmlu
+    max_problems: 5
+    endpoint_type: chat

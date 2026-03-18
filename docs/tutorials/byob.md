@@ -229,7 +229,7 @@ def custom_scorer(sample: ScorerInput) -> dict:
 
 ## Real-World Examples
 
-All 12 built-in benchmarks use `@benchmark` + `@scorer`. See `src/nemo_evaluator/benchmarks/` for reference implementations:
+All 15 built-in benchmarks use `@benchmark` + `@scorer`. See `src/nemo_evaluator/benchmarks/` for reference implementations:
 
 | Benchmark | Scorer | Key technique |
 |-----------|--------|---------------|

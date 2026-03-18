@@ -1,4 +1,4 @@
-"""Bring-Your-Own-Benchmark API: @benchmark + @scorer.
+"""Bring-Your-Own-Benchmark API: @benchmark + @scorer + @image_builder.
 
 All benchmarks -- built-in and user-provided -- use this API.
 
@@ -14,6 +14,7 @@ All benchmarks -- built-in and user-provided -- use this API.
 Extension hooks:
   - prepare_row(row, idx, rng) -> row:  transform each dataset row after loading
   - seed_fn(row, idx) -> SeedResult:    fully custom seed (overrides prompt template)
+  - @image_builder(fn):                 declare images that need building (Docker)
 
 Dataset specs:
   - "hf://dataset?split=test&config=cfg"  (HuggingFace)
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
     from nemo_evaluator.sandbox.base import Sandbox
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
+from nemo_evaluator.sandbox.base import ImageBuildRequest, SandboxSpec
 from nemo_evaluator.environments.registry import register
 from nemo_evaluator.scoring.types import ScorerInput
 
@@ -55,6 +57,7 @@ class BenchmarkDefinition:
     scorer_fn: Callable[[ScorerInput], dict] | None = None
     prepare_row: Callable[[dict, int, random.Random], dict] | None = None
     seed_fn: Callable[[dict, int], SeedResult] | None = None
+    image_builder_fn: Callable[[list[dict]], ImageBuildRequest] | None = None
 
 
 _BYOB_REGISTRY: dict[str, BenchmarkDefinition] = {}
@@ -160,6 +163,29 @@ class ByobEnvironment(EvalEnvironment):
         self._dataset = raw
         logger.info("BYOB %s: %d samples", definition.name, len(raw))
 
+    async def image_build_requests(self) -> list[ImageBuildRequest] | None:
+        if not self._defn.image_builder_fn:
+            return None
+        result = self._defn.image_builder_fn(self._dataset)
+        if not isinstance(result, ImageBuildRequest):
+            raise TypeError(
+                f"@image_builder must return ImageBuildRequest, "
+                f"got {type(result).__name__}"
+            )
+        return [result]
+
+    async def sandbox_specs(self) -> list[SandboxSpec] | None:
+        if not self._defn.seed_fn:
+            return None
+        specs: list[SandboxSpec] = []
+        for i, row in enumerate(self._dataset):
+            seed = self._defn.seed_fn(row, i)
+            if seed.sandbox_spec:
+                specs.append(seed.sandbox_spec)
+            if seed.verify_sandbox_spec:
+                specs.append(seed.verify_sandbox_spec)
+        return specs or None
+
     async def seed(self, idx: int) -> SeedResult:
         row = self._dataset[idx]
 
@@ -171,8 +197,7 @@ class ByobEnvironment(EvalEnvironment):
 
         meta: dict[str, Any] = {"source": "byob", "benchmark": self._defn.name}
         for k, v in row.items():
-            if k != self._defn.target_field:
-                meta[k] = v
+            meta[k] = v
 
         messages = [{"role": "user", "content": prompt}]
         if self._defn.system_prompt:
@@ -232,6 +257,8 @@ def benchmark(
 
     def decorator(fn):
         defn.scorer_fn = fn
+        if hasattr(fn, "_image_builder_fn"):
+            defn.image_builder_fn = fn._image_builder_fn
         _BYOB_REGISTRY[name] = defn
 
         @register(name)
@@ -250,3 +277,23 @@ def scorer(fn: Callable[[ScorerInput], dict]) -> Callable[[ScorerInput], dict]:
     """Marks a function as a scorer."""
     fn._is_scorer = True  # type: ignore[attr-defined]
     return fn
+
+
+def image_builder(builder_fn: Callable[[list[dict]], ImageBuildRequest]):
+    """Declare images that need building, stacked with ``@benchmark``.
+
+    ``builder_fn`` receives the dataset rows and returns an
+    :class:`ImageBuildRequest` (image names + Docker build callable).
+    The :class:`SandboxManager` handles backend-specific conversion.
+
+    Stack in the decorator chain between ``@benchmark`` and ``@scorer``::
+
+        @benchmark(name="swebench-verified", ...)
+        @image_builder(swebench_image_build_request)
+        @scorer
+        async def score(sample): ...
+    """
+    def decorator(fn):
+        fn._image_builder_fn = builder_fn  # type: ignore[attr-defined]
+        return fn
+    return decorator

@@ -9,14 +9,10 @@ from nemo_evaluator.eval.config import EndpointType
 from nemo_evaluator.runner.eval_loop import run_evaluation
 from nemo_evaluator.runner.model_client import ModelClient
 from nemo_evaluator.solvers import (
-    AgentSolver,
     ChatSolver,
     CompletionSolver,
-    CrossEncoderSolver,
-    EmbeddingSolver,
     NatSolver,
     OpenClawSolver,
-    SandboxSolver,
     Solver,
     SolveResult,
     VLMSolver,
@@ -39,8 +35,8 @@ __all__ = [
     "register", "get_environment", "list_environments", "load_benchmark_file",
     "run_evaluation", "ModelClient", "EndpointType",
     # Solver
-    "Solver", "ChatSolver", "CompletionSolver", "SandboxSolver", "AgentSolver",
-    "NatSolver", "OpenClawSolver", "VLMSolver", "EmbeddingSolver", "CrossEncoderSolver",
+    "Solver", "ChatSolver", "CompletionSolver",
+    "NatSolver", "OpenClawSolver", "VLMSolver",
     "SolveResult",
     # Benchmark definition API
     "benchmark", "scorer", "ScorerInput",

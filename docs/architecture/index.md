@@ -18,7 +18,7 @@ flowchart TB
         GYM["GymEnvironment"]
         SKILLS["SkillsEnvironment"]
         LMEVAL["LMEvalEnvironment"]
-        PI["PIEnvironment"]
+        VLM["VLMEvalKitEnvironment"]
     end
 
     subgraph RUNNER["Runner"]
@@ -70,7 +70,7 @@ flowchart TB
     REG --> GYM
     REG --> SKILLS
     REG --> LMEVAL
-    REG --> PI
+    REG --> VLM
 
     LOOP --> JUDGE
 
@@ -88,8 +88,8 @@ flowchart TB
 | Package | Responsibility | Key types |
 |---------|---------------|-----------|
 | `environments/` | Base class, registry, `@benchmark` BYOB API, environment types | `EvalEnvironment`, `SeedResult`, `VerifyResult`, `BenchmarkDefinition` |
-| `benchmarks/` | 14 built-in benchmarks (all `@benchmark` + `@scorer`) | Scorer functions |
-| `solvers/` | Pluggable inference strategies | `Solver`, `ChatSolver`, `CompletionSolver`, `VLMSolver`, `EmbeddingSolver`, `AgentSolver`, `NatSolver`, `OpenClawSolver` |
+| `benchmarks/` | 15 built-in benchmarks (all `@benchmark` + `@scorer`) | Scorer functions |
+| `solvers/` | Pluggable inference strategies | `Solver`, `ChatSolver`, `CompletionSolver`, `VLMSolver`, `HarborSolver`, `GymSolver`, `NatSolver`, `OpenClawSolver` |
 | `runner/` | Eval loop, model client, checkpoint, regression | `run_evaluation()`, `ModelClient`, `CheckpointManager` |
 | `serving/` | HTTP server for environments (evaluator + Gym protocol) | `generate_app()` |
 | `executors/` | Executor protocol and backends (local, Docker, SLURM) | `Executor`, `get_executor()`, `detect_executor()`, `ProcessState` |
@@ -102,7 +102,7 @@ flowchart TB
 
 ## Environment Abstraction
 
-Everything is an `EvalEnvironment`. Built-in benchmarks, remote Gym servers, NeMo Skills tasks, lm-eval harness tasks, and Prime Intellect environments all implement the same contract:
+Everything is an `EvalEnvironment`. Built-in benchmarks, remote Gym servers, NeMo Skills tasks, lm-eval harness tasks, and VLMEvalKit benchmarks all implement the same contract:
 
 ```{mermaid}
 classDiagram
@@ -133,8 +133,8 @@ classDiagram
         +str task_name
     }
 
-    class PIEnvironment {
-        +str env_name
+    class VLMEvalKitEnvironment {
+        +str dataset_name
     }
 
     class ContainerEnvironment {
@@ -142,24 +142,19 @@ classDiagram
         +str task_name
     }
 
-    class MTEBEnvironment {
-        +str task_name
-    }
-
     EvalEnvironment <|-- ByobEnvironment
     EvalEnvironment <|-- GymEnvironment
     EvalEnvironment <|-- SkillsEnvironment
     EvalEnvironment <|-- LMEvalEnvironment
-    EvalEnvironment <|-- PIEnvironment
+    EvalEnvironment <|-- VLMEvalKitEnvironment
     EvalEnvironment <|-- ContainerEnvironment
-    EvalEnvironment <|-- MTEBEnvironment
 ```
 
 ### Resolution
 
 The registry resolves environment names in order:
 
-1. **URI scheme** -- `lm-eval://task`, `skills://name`, `gym://host:port`, `gym://name`, `pi://name`, `mteb://task`, `container://image#task`
+1. **URI scheme** -- `lm-eval://task`, `skills://name`, `gym://host:port`, `gym://name`, `vlmevalkit://dataset`, `container://image#task`
 2. **Built-in registry** -- names registered via `@benchmark` or `@register`
 
 ```python
@@ -169,7 +164,7 @@ env = get_environment("mmlu")                        # built-in
 env = get_environment("lm-eval://aime25")            # lm-eval task
 env = get_environment("skills://gpqa")               # NeMo Skills
 env = get_environment("gym://localhost:9090")         # remote Gym
-env = get_environment("pi://simpleqa")               # Prime Intellect
+env = get_environment("vlmevalkit://MMBench_DEV_EN") # VLMEvalKit
 ```
 
 ## Evaluation Flow
@@ -221,11 +216,10 @@ Solvers decouple inference strategy from benchmark logic. The eval loop calls `s
 | `ChatSolver` | Single `/chat/completions` call | Standard benchmarks (default) |
 | `CompletionSolver` | `/completions` endpoint | Legacy models, prompt-based eval |
 | `VLMSolver` | `/chat/completions` with images | Vision-language benchmarks |
-| `EmbeddingSolver` | `/v1/embeddings` | Embedding benchmarks (MTEB) |
-| `CrossEncoderSolver` | `/v1/rerank` | Reranking benchmarks |
-| `AgentSolver` | External agent subprocess | Multi-turn agents (OpenHands, SWE-agent) |
-| `SandboxedAgentSolver` | Agent in per-problem sandbox | SWE-bench, terminal-bench (exec or HTTP) |
+| `HarborSolver` | Harbor agent SDK | Agentic evaluation (OpenHands, SWE-agent) |
+| `GymSolver` | HTTP client to nemo-gym server | Delegate solve (and optionally verify) to gym |
 | `NatSolver` | NAT agent via SSE (`/generate/full`) | Any benchmark with NAT agent (PinchBench, GSM8K, etc.) |
+| `OpenClawSolver` | OpenClaw CLI agent | OpenClaw benchmarks |
 
 ```python
 class Solver(Protocol):

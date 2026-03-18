@@ -10,13 +10,14 @@ All external integrations are `EvalEnvironment` subclasses resolved through the 
 | `ManagedGymEnvironment` | `gym://name` | Auto-started Gym server (name auto-detected) |
 | `SkillsEnvironment` | `skills://name` | NeMo Skills benchmarks |
 | `LMEvalEnvironment` | `lm-eval://task` | lm-evaluation-harness tasks |
-| `PIEnvironment` | `pi://name` | Prime Intellect verifiers |
+| `VLMEvalKitEnvironment` | `vlmevalkit://dataset` | VLMEvalKit VLM benchmarks |
+| `ContainerEnvironment` | `container://image#task` | Legacy eval-factory containers |
 
 ```bash
 nel eval run --bench gym://host:port
 nel eval run --bench skills://gpqa
-nel eval run --bench pi://simpleqa
 nel eval run --bench lm-eval://aime2025
+nel eval run --bench vlmevalkit://MMBench_DEV_EN
 ```
 
 See the dedicated tutorials for each:

@@ -1,22 +1,31 @@
 """SWE-bench Verified -- software engineering benchmark with human-verified instances."""
+from functools import partial
+
 from nemo_evaluator.benchmarks._swebench_base import (
     SWEBENCH_PROMPT,
+    swebench_image_build_request,
     swebench_prepare_row,
     swebench_score,
     swebench_seed_fn,
 )
-from nemo_evaluator.environments.byob import benchmark, scorer
+from nemo_evaluator.environments.byob import benchmark, image_builder, scorer
 from nemo_evaluator.scoring.types import ScorerInput
+
+_verified_image_builder = partial(
+    swebench_image_build_request,
+    dataset_name="SWE-bench/SWE-bench_Verified",
+)
 
 
 @benchmark(
     name="swebench-verified",
-    dataset="hf://princeton-nlp/SWE-bench_Verified?split=test",
+    dataset="hf://SWE-bench/SWE-bench_Verified?split=test",
     prompt=SWEBENCH_PROMPT,
     target_field="instance_id",
     seed_fn=swebench_seed_fn,
     prepare_row=swebench_prepare_row,
 )
+@image_builder(_verified_image_builder)
 @scorer
 async def swebench_verified_scorer(sample: ScorerInput) -> dict:
     return await swebench_score(sample)

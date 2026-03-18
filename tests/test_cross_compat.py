@@ -42,11 +42,6 @@ def _load_solver_classes():
     except ImportError:
         pass
     try:
-        from nemo_evaluator.solvers.sandbox import SandboxSolver
-        pairs.append(("SandboxSolver", SandboxSolver))
-    except ImportError:
-        pass
-    try:
         from nemo_evaluator.solvers.nat import NatSolver
         pairs.append(("NatSolver", NatSolver))
     except ImportError:
@@ -72,7 +67,7 @@ class TestSolverProtocol:
     def test_sandbox_acceptance(self, name, cls):
         sig = inspect.signature(cls.solve)
         accepts_sandbox = "sandbox" in sig.parameters
-        if name in ("SandboxSolver", "OpenClawSolver"):
+        if name in ("OpenClawSolver",):
             assert accepts_sandbox, f"{name} should accept sandbox"
         elif name == "ChatSolver":
             assert not accepts_sandbox, "ChatSolver should not accept sandbox"
@@ -128,8 +123,8 @@ class TestSolverLifecycleCombos:
         await lc.teardown()
 
     @pytest.mark.asyncio
-    async def test_sandbox_solver_stateful(self):
-        """SandboxSolver + StatefulSandbox: shared container."""
+    async def test_harbor_solver_stateful(self):
+        """HarborSolver + StatefulSandbox: shared container."""
         mgr = MockSandboxManager()
         spec = SandboxSpec(image="python:3.12-slim")
         lc = StatefulSandbox(mgr, spec)
@@ -145,8 +140,8 @@ class TestSolverLifecycleCombos:
         await lc.teardown()
 
     @pytest.mark.asyncio
-    async def test_sandbox_solver_stateless(self):
-        """SandboxSolver + StatelessSandbox: two-container model."""
+    async def test_harbor_solver_stateless(self):
+        """HarborSolver + StatelessSandbox: two-container model."""
         mgr = MockSandboxManager()
         ctx = LifecycleContext(
             sandbox_mgr=mgr,

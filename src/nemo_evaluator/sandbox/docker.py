@@ -104,11 +104,21 @@ class DockerSandbox:
             logger.debug("sandbox stopped: %s", self._name)
             self._container_id = None
 
-    async def exec(self, command: str, timeout_sec: float = 180) -> ExecResult:
+    async def exec(
+        self, command: str, timeout_sec: float = 180,
+        *, cwd: str | None = None, env: dict[str, str] | None = None,
+    ) -> ExecResult:
         if not self._container_id:
             raise RuntimeError("Sandbox not started")
+        cmd: list[str] = ["docker", "exec"]
+        if cwd:
+            cmd.extend(["-w", cwd])
+        if env:
+            for k, v in env.items():
+                cmd.extend(["-e", f"{k}={v}"])
+        cmd.extend([self._container_id, "/bin/bash", "-c", command])
         proc = await asyncio.create_subprocess_exec(
-            "docker", "exec", self._container_id, "/bin/bash", "-c", command,
+            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

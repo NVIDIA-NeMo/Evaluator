@@ -19,8 +19,7 @@ flowchart TB
     subgraph Envs ["Environment Sources"]
         local["EvalEnvironment<br/>(GSM8K, TriviaQA, BYOB)"]
         gym_a["GymEnvironment<br/>remote seed/verify"]
-        pi_a["PIEnvironment<br/>verifiers SingleTurnEnv"]
-        pi_n["AgentSolver<br/>verifiers MultiTurnEnv"]
+        vlmkit["VLMEvalKitEnvironment<br/>VLM benchmarks"]
     end
 
     subgraph Out ["Outputs"]
@@ -42,7 +41,7 @@ flowchart TB
     validate --> loop
     loop --> obs --> Out
     loop --> metrics --> bundle
-    loop --- local & gym_a & pi_a
+    loop --- local & gym_a & vlmkit
 
     serve --> local
     local --> gymserve --> jsonl --> ng
@@ -195,70 +194,49 @@ sequenceDiagram
 
 ---
 
-## Pattern 4: Consume Prime Intellect Environments
+## Pattern 4: VLMEvalKit Benchmarks
 
-**Who:** Research team reusing PI's 500+ environments with Evaluator's decision-grade reporting.
+**Who:** Research team evaluating vision-language models against VLMEvalKit's 100+ benchmarks with Evaluator's full observability.
 
-**What:** `PIEnvironment` loads a `verifiers.SingleTurnEnv`, extracts the dataset and rubric. Evaluator owns the model call. PI's rubric handles scoring. Full trajectory capture.
+**What:** `VLMEvalKitEnvironment` wraps VLMEvalKit datasets, handling image loading and scoring (MCQ, VQA, Y/N). The `VLMSolver` sends images + text to the model.
 
 ```bash
-# Evaluate using PI's simpleqa environment
-nel eval run --bench pi://simpleqa --repeats 3 --max-problems 50
-
-# PI's math500
-nel eval run --bench pi://math500 --repeats 4
+nel eval run --bench vlmevalkit://MMBench_DEV_EN --repeats 1 --max-problems 50
 ```
 
 ```python
-# Or programmatically
-from nemo_evaluator.environments.pi import PIEnvironment
+from nemo_evaluator.environments.vlmevalkit import VLMEvalKitEnvironment
 from nemo_evaluator.runner import run_evaluation, ModelClient
-from nemo_evaluator.solvers import ChatSolver
+from nemo_evaluator.solvers import VLMSolver
 
-env = PIEnvironment("simpleqa")  # loads via vf.load_environment()
+env = VLMEvalKitEnvironment("MMBench_DEV_EN")
 client = ModelClient(base_url="...", model="...", api_key="...")
-solver = ChatSolver(client)
-bundle = await run_evaluation(env, solver, n_repeats=3)
+solver = VLMSolver(client)
+bundle = await run_evaluation(env, solver, n_repeats=1)
 ```
 
 ```{mermaid}
 sequenceDiagram
     participant Eval as nel eval run
-    participant PI as PIEnvironment
-    participant VF as verifiers.SingleTurnEnv
-    participant Model as Model API
+    participant VLM as VLMEvalKitEnvironment
+    participant VK as VLMEvalKit Dataset
+    participant Model as VLM API
 
-    PI->>VF: load_environment("simpleqa")
-    PI->>VF: get_eval_dataset()
+    VLM->>VK: build_dataset("MMBench_DEV_EN")
 
     loop each problem × n_repeats
-        Eval->>PI: seed(idx)
-        PI-->>Eval: SeedResult (from dataset row)
+        Eval->>VLM: seed(idx)
+        VLM->>VK: build_prompt(line)
+        VK-->>VLM: images + prompt text
+        VLM-->>Eval: SeedResult (prompt, images, choices)
 
-        Eval->>Model: chat(prompt)
+        Eval->>Model: chat(images + prompt)
         Note over Eval: trajectory captured
 
-        Eval->>PI: verify(response, expected)
-        PI->>VF: rubric.score_rollout(state)
-        VF-->>PI: reward, metrics
-        PI-->>Eval: VerifyResult
+        Eval->>VLM: verify(response, expected)
+        VLM-->>Eval: VerifyResult (MCQ/VQA/Y-N scoring)
     end
 ```
-
-**For MultiTurnEnv/SandboxEnv** (agent environments where decomposition isn't possible), use `AgentSolver`:
-
-```python
-from nemo_evaluator.solvers import AgentSolver
-
-solver = AgentSolver(
-    agent_cmd="python -m my_agent",
-    model_url="https://api.example.com/v1",
-    model_id="my-model",
-)
-bundle = await run_evaluation(env, solver, n_repeats=4)
-```
-
-The agent receives the task prompt and produces a solution through multi-turn interaction. NEL captures the trajectory from the agent's output.
 
 ---
 
@@ -352,8 +330,7 @@ Every evaluation run (all patterns) produces:
 |--------|--------------------------|-----------------|-----------|---------------|--------------|------------------|
 | Local EvalEnvironment | Yes | Yes | Yes | Yes | Yes | Yes |
 | Remote via GymEnvironment | Yes | Yes | Yes | Yes | Yes | Yes |
-| PI SingleTurnEnv | Yes | Yes | Yes | Yes | Yes | Yes |
-| PI MultiTurnEnv (AgentSolver) | Partially (agent owns inner loop) | From agent output | Yes | Yes | Yes | Yes |
+| VLMEvalKitEnvironment | Yes | Yes | Yes | Yes | Yes | Yes |
 | Gym ng_collect_rollouts | No (Gym does) | From output JSONL | Via num_repeats | From reward vectors | Gym's tqdm | Post-hoc |
 | Legacy harnesses | No (subprocess) | From output files | Via config | From parsed scores | Process output | Post-hoc |
 

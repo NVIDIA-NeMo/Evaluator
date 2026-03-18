@@ -1,9 +1,4 @@
-"""Unified evaluation config schema.
-
-Two config modes:
-  - Simple: `model:` + `benchmarks:` for single-model evaluation.
-  - Advanced: `services:` + `benchmarks:` for multi-model / managed infrastructure.
-"""
+"""Evaluation config schema (Pydantic)."""
 from __future__ import annotations
 
 import os
@@ -19,42 +14,27 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 # ---------------------------------------------------------------------------
 
 class EndpointType(StrEnum):
-    """Solver selection key.
+    """Maps to a concrete Solver implementation."""
 
-    Each value maps to a concrete ``Solver`` implementation.  The semantic
-    properties below let the runner make decisions without hard-coding
-    string tuples everywhere.
-    """
-
+    harbor = "harbor"
+    gym = "gym"
     chat = "chat"
     completions = "completions"
     vlm = "vlm"
-    embedding = "embedding"
-    sandbox = "sandbox"
     nat = "nat"
     openclaw = "openclaw"
 
     @property
     def manages_own_client(self) -> bool:
-        """Agentic solvers that bring their own model connection.
-
-        These solvers do NOT receive a shared ``ModelClient`` -- they either
-        spawn a subprocess, hit their own HTTP endpoint, or invoke an
-        external CLI.
-        """
         return self in _AGENTIC_TYPES
 
     @property
     def modifies_sandbox(self) -> bool:
-        """Whether this solver can modify Docker sandbox state.
-
-        Only ``sandbox`` runs commands *inside* the sandbox container.  NAT
-        and OpenClaw operate outside it.
-        """
-        return self is EndpointType.sandbox
+        return self in _SANDBOX_MODIFYING_TYPES
 
 
-_AGENTIC_TYPES = frozenset({EndpointType.sandbox, EndpointType.nat, EndpointType.openclaw})
+_AGENTIC_TYPES = frozenset({EndpointType.nat, EndpointType.openclaw, EndpointType.harbor, EndpointType.gym})
+_SANDBOX_MODIFYING_TYPES = frozenset({EndpointType.harbor})
 
 _ENV_RE = re.compile(r"\$\{(\w+)(?::-(.*?))?\}")
 
@@ -96,7 +76,7 @@ class EcsFargateConfig(BaseModel):
 class SandboxConfig(BaseModel):
     """Per-problem sandbox configuration for agent/code evaluations."""
 
-    backend: Literal["docker", "slurm", "local", "ecs_fargate", "none"] = "none"
+    backend: Literal["docker", "slurm", "local", "ecs_fargate", "apptainer", "none"] = "none"
     image: str | None = None
     image_template: str | None = None
     memory: str = "4g"
@@ -108,10 +88,13 @@ class SandboxConfig(BaseModel):
     slots_per_node: int = 4
 
     agent_cmd: str | None = None
-    agent_setup_cmd: str | None = None
-    agent_invocation_template: str | None = None
     capture_cmd: str | None = None
     verify_timeout: float = 600.0
+
+    harbor_agent: str | None = None
+    harbor_agent_kwargs: dict[str, Any] = Field(default_factory=dict)
+
+    sif_cache_dir: str | None = None
 
     ecs: EcsFargateConfig | None = None
 
@@ -129,21 +112,11 @@ class SandboxConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 class BenchmarkConfig(BaseModel):
-    """A single benchmark to evaluate.
-
-    The `name` field uses the unified naming convention:
-      - ``gsm8k``                 built-in BYOB benchmark
-      - ``skills://mmlu-pro``     NeMo Skills benchmark
-      - ``lm-eval://aime2025``    lm-eval-harness task
-      - ``gym://host:port``       remote Gym environment
-      - ``gym://swebench``        managed Gym benchmark (auto-detected)
-      - ``mteb://mteb-task``      MTEB embedding benchmark
-      - ``harbor://swebench``       Harbor agent benchmark
-      - ``container://image#task`` legacy container harness
-    """
+    """Single benchmark entry. Name follows ``scheme://task`` or bare built-in name."""
     name: str
     model: str = "default"
     judge: str | None = None
+    verifier: str | None = None
     repeats: int = 1
     max_problems: int | None = None
     max_concurrent: int = 32
@@ -158,11 +131,36 @@ class BenchmarkConfig(BaseModel):
     image_detail: str = "auto"
     sandbox: SandboxConfig | None = None
 
+    # Gym solver fields
+    gym_url: str | None = None
+    gym_agent: str | None = None
+    gym_trust_reward: bool = False
+
     @field_validator("endpoint_type", mode="before")
     @classmethod
     def _normalize_endpoint_type(cls, v: str) -> str:
-        _LEGACY = {"nat_agent": "nat", "agent": "sandbox"}
+        _LEGACY = {"nat_agent": "nat", "agent": "harbor", "sandbox": "harbor"}
         return _LEGACY.get(v, v)
+
+    @model_validator(mode="after")
+    def _check_harbor_requires_sandbox(self) -> "BenchmarkConfig":
+        if self.endpoint_type is EndpointType.harbor:
+            if not self.sandbox or self.sandbox.backend == "none":
+                raise ValueError(
+                    "endpoint_type='harbor' requires a sandbox with a real backend "
+                    "(docker, slurm, apptainer, ecs_fargate, local)"
+                )
+            if not self.sandbox.harbor_agent:
+                raise ValueError(
+                    "endpoint_type='harbor' requires sandbox.harbor_agent to be set"
+                )
+        return self
+
+    @model_validator(mode="after")
+    def _check_gym_requires_url(self) -> "BenchmarkConfig":
+        if self.endpoint_type is EndpointType.gym and not self.gym_url:
+            raise ValueError("endpoint_type='gym' requires gym_url to be set")
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -262,6 +260,7 @@ class ClusterConfig(BaseModel):
     container_image: str | None = None
     container_mounts: list[str] = Field(default_factory=list)
     container_env: dict[str, str] = Field(default_factory=dict)
+    shm_size: str | None = None
     mount_home: bool = True
     auto_resume: bool = False
     max_resume_attempts: int = 3
