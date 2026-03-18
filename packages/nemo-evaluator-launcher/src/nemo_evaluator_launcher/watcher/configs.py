@@ -182,12 +182,31 @@ class WatchConfig(BaseModel):
         Each path is loaded via :func:`RunConfig.from_hydra` before validation.
         """
         raw = yaml.safe_load(path.read_text()) or {}
-        raw_eval_configs = raw.pop("evaluation_configs", [])
         cfg = OmegaConf.create(raw)
+
         if overrides:
+            for override in overrides:
+                if override.startswith("evaluation_configs"):
+                    key, override = override.split("=", 1)
+                    if key != "evaluation_configs":
+                        raise ValueError(
+                            "Overrides to individual evaluation config parameters are not supported. "
+                            "Edit the evaluation configs directly."
+                        )
+
             cfg = OmegaConf.merge(cfg, OmegaConf.from_dotlist(overrides))
         cfg = OmegaConf.to_container(cfg, resolve=True)
+        raw_eval_configs = cfg.pop("evaluation_configs", [])
         loaded_eval_configs = [
             RunConfig.from_hydra(config=str(p)) for p in raw_eval_configs
         ]
-        return cls.model_validate({**cfg, "evaluation_configs": loaded_eval_configs})
+        cfg = cls.model_validate({**cfg, "evaluation_configs": loaded_eval_configs})
+        logger.debug(
+            "Loaded watch config",
+            cluster_config=cfg.cluster_config,
+            monitoring_config=cfg.monitoring_config,
+            conversion_config=cfg.conversion_config,
+            evaluation_configs=cfg.evaluation_configs,
+        )
+
+        return cfg
