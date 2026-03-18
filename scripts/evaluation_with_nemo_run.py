@@ -565,7 +565,7 @@ def main():
         else:
             exp.run()
             status_dict = exp.status(return_dict=True) or {}
-            logger.info(f"Experiment status dict: {status_dict}")
+            print(f"Experiment status dict: {status_dict}")
             failed = [
                 f"{name}: {info['status']}"
                 for name, info in status_dict.items()
