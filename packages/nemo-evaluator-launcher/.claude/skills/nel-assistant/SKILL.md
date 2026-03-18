@@ -1,6 +1,6 @@
 ---
 name: nel-assistant
-description: Interactive assistant for NeMo Evaluator Launcher (NEL). Use when the user wants to create an evaluation config, set up an evaluation from existing configs, modify a nel config, run evaluations, or monitor evaluation progress.
+description: Interactive config wizard for NeMo Evaluator Launcher (NEL). Use when the user wants to create a new evaluation config from scratch, set up an evaluation from existing configs, or modify a NEL config (deployment, tasks, multi-node, interceptors). ALWAYS triggers on mentions of creating configs, setting up evaluations, configuring models for evaluation, or modifying NEL YAML files. Do NOT use for monitoring, debugging, or analyzing already-running evaluations.
 license: Apache-2.0
 ---
 
@@ -299,6 +299,10 @@ After job submission, you can monitor progress using:
    ```bash
    ssh <username>@<hostname> "grep -i 'error\|warning\|failed' <log path from `nel info <invocation_id> --logs`>/*.log"
    ```
+
+---
+
+**Advanced workflow**: For more detailed run monitoring, debugging failed evaluations, and post-run analysis, see the `launching-evals` skill.
 
 ---
 
