@@ -173,13 +173,21 @@ class WatchConfig(BaseModel):
         return self
 
     @classmethod
-    def from_yaml(cls, path: Path) -> "WatchConfig":
-        """Load a WatchConfig from a YAML file.
+    def from_hydra(
+        cls, path: Path, overrides: list[str] | None = None
+    ) -> "WatchConfig":
+        """Load a WatchConfig from a YAML file with optional OmegaConf overrides.
 
-        The ``eval_configs`` field should contain paths to evaluation config YAML files.
+        The ``evaluation_configs`` field should contain paths to evaluation config YAML files.
         Each path is loaded via :func:`RunConfig.from_hydra` before validation.
         """
-        data = yaml.safe_load(path.read_text()) or {}
-        raw_eval_configs = data.pop("evaluation_configs", [])
-        loaded = [RunConfig.from_hydra(config=str(p)) for p in raw_eval_configs]
-        return cls.model_validate({**data, "evaluation_configs": loaded})
+        raw = yaml.safe_load(path.read_text()) or {}
+        raw_eval_configs = raw.pop("evaluation_configs", [])
+        cfg = OmegaConf.create(raw)
+        if overrides:
+            cfg = OmegaConf.merge(cfg, OmegaConf.from_dotlist(overrides))
+        cfg = OmegaConf.to_container(cfg, resolve=True)
+        loaded_eval_configs = [
+            RunConfig.from_hydra(config=str(p)) for p in raw_eval_configs
+        ]
+        return cls.model_validate({**cfg, "evaluation_configs": loaded_eval_configs})
