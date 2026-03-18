@@ -33,9 +33,9 @@ class ClusterConfig(BaseModel):
     output_dir: str = Field(
         description="Path to the output directory for storing results.",
     )
-    sbtch_flags: dict[str, Any] = Field(
+    sbatch_extra_flags: dict[str, Any] = Field(
         default_factory=dict,
-        description="Additional flags to pass to the sbatch command as '#SBATCH --<key> <value>'.",
+        description="Additional flags to pass to the sbatch command as '#SBATCH --<key> [\"value\"]'.",
     )
 
 

@@ -1,6 +1,10 @@
 #!/bin/bash
 {% for key, value in execution_params.items() %}
-#SBATCH --{{ key }} {{ value }}
+{%if value is true %}
+#SBATCH --{{ key }}
+{% else %}
+#SBATCH --{{ key }} "{{ value }}"
+{% endif %}
 {% endfor %}
 
 set -euo pipefail
