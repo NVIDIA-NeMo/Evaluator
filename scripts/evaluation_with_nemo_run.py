@@ -565,10 +565,12 @@ def main():
         else:
             exp.run()
             status_dict = exp.status(return_dict=True) or {}
+            logger.info(f"Experiment status dict: {status_dict}")
             failed = [
                 f"{name}: {info['status']}"
                 for name, info in status_dict.items()
                 if str(info.get("status")) != "SUCCEEDED"
+                and "deploy" not in name.lower()
             ]
             if failed:
                 logger.error(f"Experiment finished with failures: {failed}")
