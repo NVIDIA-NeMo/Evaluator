@@ -85,7 +85,8 @@ nemo-evaluator run_eval \
   --model_id my-model \
   --model_type chat \
   --output_dir ./results \
-  --api_key_name API_KEY
+  --api_key_name API_KEY \
+  --save-predictions
 ```
 
 The `--eval_type` follows the pattern `byob_<normalized_name>.<original_name>`,
@@ -96,6 +97,39 @@ name you passed to `@benchmark(name=...)`.
 Use `nemo-evaluator-byob --list` to see the exact `eval_type` for each installed
 benchmark. This avoids guessing the normalized name.
 :::
+
+### Runner Flags
+
+These flags control the evaluation runner behavior:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--save-predictions` | `false` | Save per-sample predictions — including per-question scores and full sample metadata — to `byob_predictions.jsonl` in the output directory (see below) |
+| `--timeout-per-sample` | `120` | Timeout in seconds for each model call |
+| `--max-retries` | `3` | Maximum number of HTTP retries per model call |
+| `--fail-on-skip` | `false` | Raise an error if any sample is skipped (missing field or model error) |
+| `--parallelism` | `1` | Number of concurrent evaluation threads. Values greater than 1 evaluate samples in parallel |
+| `--n-repeats` | `1` | Number of times to repeat the evaluation. When greater than 1, each prediction includes a `_repeat` key in `metadata` and `sample_id` values are offset per repeat |
+
+### Per-Sample Predictions
+
+When you pass `--save-predictions`, the runner writes a `byob_predictions.jsonl`
+file to the output directory alongside the standard `byob_results.json`.
+Each line is a JSON object with the following fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sample_id` | `int` | Zero-based index of the sample in the dataset |
+| `prompt` | `str` | Rendered prompt string sent to the model |
+| `response` | `str \| null` | Model response text, or `null` if the model call failed |
+| `target` | `any` | Ground-truth target value from the dataset |
+| `scores` | `dict \| null` | Score dict returned by the scorer function, or `null` if not scored |
+| `status` | `str` | One of `"scored"`, `"skipped_missing_field"`, `"skipped_model_error"`, `"skipped_scorer_error"` |
+| `error` | `str \| null` | Error message if the sample was skipped |
+| `metadata` | `dict` | The full sample row from the dataset. When using `--n-repeats`, also includes a `_repeat` index |
+
+This is useful for profiling results, debugging scorer behavior, or inspecting
+individual model responses and their per-question scores.
 
 ## See Also
 
