@@ -354,9 +354,7 @@ def watch_and_evaluate(
                         watch_dir=str(wd),
                     )
 
-                    session_ids = (
-                        [session_id] if not resubmit_previous_sessions else None
-                    )
+                    session_ids = [session_id] if resubmit_previous_sessions else None
 
                     already_submitted = state.submitted_paths(session_ids=session_ids)
                     logger.debug(
