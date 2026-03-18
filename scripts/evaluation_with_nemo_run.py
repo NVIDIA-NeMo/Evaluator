@@ -514,9 +514,10 @@ def main():
             else []
         )
         result_dir = args.evaluation_result_dir
-        result_dir_mount = f"{result_dir}:{result_dir}"
-        if result_dir_mount not in custom_mounts:
-            custom_mounts.append(result_dir_mount)
+        if result_dir != "/results/":
+            result_dir_mount = f"{result_dir}:{result_dir}"
+            if result_dir_mount not in custom_mounts:
+                custom_mounts.append(result_dir_mount)
         executor = slurm_executor(
             account=args.account,
             partition=args.partition,
