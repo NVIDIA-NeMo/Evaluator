@@ -155,7 +155,7 @@ def _submit_conversion_job(
         "account": cluster_config.account,
         "partition": cluster_config.partition,
         "output": str(logs_path / "slurm-%A.log"),
-        **cluster_config.sbtch_flags,
+        **cluster_config.sbatch_extra_flags,
     }
     sbatch_script = template.render(
         execution_params=execution_params,
