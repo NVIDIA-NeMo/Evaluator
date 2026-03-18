@@ -127,7 +127,7 @@ def _build_fdf(
         "defaults": defaults,
         "evaluations": [
             {
-                "name": normalized_name,
+                "name": bench.name,
                 "description": f"BYOB benchmark: {bench.name}",
                 "defaults": {
                     "config": {

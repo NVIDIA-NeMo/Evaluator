@@ -75,8 +75,8 @@ def check(sample):
             f"Expected 1 evaluation, got {len(fdf['evaluations'])}"
         )
         eval_entry = fdf["evaluations"][0]
-        assert eval_entry["name"] == "test_compile", (
-            f"Expected evaluation name 'test_compile', got {eval_entry['name']}"
+        assert eval_entry["name"] == "test-compile", (
+            f"Expected evaluation name 'test-compile', got {eval_entry['name']}"
         )
         assert "byob_test_compile" in eval_entry["defaults"]["config"]["type"], (
             f"Config type should contain 'byob_test_compile', got {eval_entry['defaults']['config']['type']}"
@@ -144,11 +144,11 @@ def scorer_two(sample):
         assert len(result) == 2, f"Expected 2 benchmarks, got {len(result)}"
         assert "bench_one" in result, "Missing 'bench_one' in compiled result"
         assert "bench_two" in result, "Missing 'bench_two' in compiled result"
-        assert result["bench_one"]["evaluations"][0]["name"] == "bench_one", (
-            f"Expected name 'bench_one', got {result['bench_one']['evaluations'][0]['name']}"
+        assert result["bench_one"]["evaluations"][0]["name"] == "bench-one", (
+            f"Expected name 'bench-one', got {result['bench_one']['evaluations'][0]['name']}"
         )
-        assert result["bench_two"]["evaluations"][0]["name"] == "bench_two", (
-            f"Expected name 'bench_two', got {result['bench_two']['evaluations'][0]['name']}"
+        assert result["bench_two"]["evaluations"][0]["name"] == "bench-two", (
+            f"Expected name 'bench-two', got {result['bench_two']['evaluations'][0]['name']}"
         )
 
 
@@ -177,8 +177,8 @@ def check(sample):
         result = compile_benchmark(str(benchmark_file))
         fdf = result["test_benchmark"]
 
-        eval_name = fdf["evaluations"][0]["name"]
-        registry_key = "test_benchmark"
+        eval_name = fdf["evaluations"][0]["defaults"]["config"]["type"]
+        registry_key = "byob_test_benchmark.test_benchmark"
 
         assert eval_name == registry_key, (
             f"Evaluation name '{eval_name}' does not match registry key "
