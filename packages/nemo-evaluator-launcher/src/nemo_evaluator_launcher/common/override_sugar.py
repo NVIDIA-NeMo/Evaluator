@@ -154,7 +154,6 @@ def _build_task_name_index(cfg: "DictConfig") -> dict[str, list[int]]:
 def _strip_hydra_prefix(override: str) -> tuple[str, str]:
     """Return ``(prefix, key_value)`` where *prefix* is ``''``, ``'++'``, ``'+'``, or ``'~'``."""
     m = _HYDRA_PREFIX_RE.match(override)
-    assert m is not None
     return (m.group(1) or ""), m.group(2)
 
 
