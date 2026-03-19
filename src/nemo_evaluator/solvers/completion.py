@@ -5,7 +5,7 @@ from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.observability.types import ModelResponse
 
 from .base import SolveResult
-from .trajectory_util import _single_turn_trajectory
+from .trajectory_util import build_single_turn_atif
 
 
 class CompletionSolver:
@@ -37,16 +37,23 @@ class CompletionSolver:
 
         text = data["choices"][0].get("text", "")
         usage = data.get("usage", {})
+        pt = usage.get("prompt_tokens", 0)
+        ct = usage.get("completion_tokens", 0)
         model_resp = ModelResponse(
             content=text, model=data.get("model", self._model),
             finish_reason=data["choices"][0].get("finish_reason", ""),
-            prompt_tokens=usage.get("prompt_tokens", 0),
-            completion_tokens=usage.get("completion_tokens", 0),
+            prompt_tokens=pt,
+            completion_tokens=ct,
             total_tokens=usage.get("total_tokens", 0),
             latency_ms=round(latency, 2),
             raw_response=data,
         )
-        trajectory = _single_turn_trajectory(task.prompt, text)
+        trajectory = build_single_turn_atif(
+            task.prompt, text,
+            model_name=self._model,
+            prompt_tokens=pt,
+            completion_tokens=ct,
+        )
         return SolveResult(response=text, model_response=model_resp, trajectory=trajectory)
 
     async def close(self) -> None:

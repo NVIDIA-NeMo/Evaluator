@@ -98,6 +98,36 @@ Per-problem container on SLURM nodes via Pyxis/Enroot.
 - Shared filesystem for fast file transfer when available
 - SLURM nodes share the job's network (no URL rewriting needed)
 
+### ECSFargateSandbox
+
+Per-problem container on AWS ECS Fargate. No local Docker required.
+
+- **SSH sidecar**: Each ECS task includes an SSH sidecar container for `exec()`, `upload()`, `download()` via SSH tunnels
+- **Bidirectional tunnels**: Forward tunnel (orchestrator → container exec server) and reverse tunnels (container → host proxy/model endpoint)
+- **CodeBuild image building**: Per-task Docker images built via AWS CodeBuild and pushed to ECR with content-hash tags for caching
+- **`OutsideEndpoint`**: Host-side services (LiteLLM proxy, model server) are made reachable inside the container via reverse SSH tunnels
+
+```yaml
+benchmarks:
+  - name: harbor://swebench-verified@1.0
+    sandbox:
+      backend: ecs_fargate
+      harbor_agent: openhands
+      ecs:
+        cluster: harbor-cluster
+        subnets: [subnet-abc123]
+        security_groups: [sg-def456]
+        ecr_repository: 123456789.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench
+        ssh_sidecar:
+          sshd_port: 2222
+          public_key_secret_arn: arn:aws:secretsmanager:...
+          private_key_secret_arn: arn:aws:secretsmanager:...
+```
+
+### ApptainerSandbox
+
+Per-problem Apptainer/Singularity container for HPC environments where Docker is unavailable. Supports SLURM integration via `salloc`/`srun`.
+
 ### LocalSandbox
 
 Async subprocess in a temp directory. No container isolation. For development and testing.

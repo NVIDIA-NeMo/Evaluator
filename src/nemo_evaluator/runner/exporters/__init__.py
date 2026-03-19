@@ -26,3 +26,6 @@ def _lazy_load() -> None:
 
     from nemo_evaluator.runner.exporters.mlflow_export import MLflowExporter
     register_exporter("mlflow", MLflowExporter)
+
+    from nemo_evaluator.runner.exporters.inspect_export import InspectExporter
+    register_exporter("inspect", InspectExporter)

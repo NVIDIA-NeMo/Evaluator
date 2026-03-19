@@ -47,6 +47,7 @@ async def run_evaluation(
     model_url: str | None = None,
     step_log_dir: Path | None = None,
     resume: bool = False,
+    skip_failed: bool = False,
 ) -> dict[str, Any]:
     config = config or {}
 
@@ -219,6 +220,7 @@ async def run_evaluation(
                     latency_ms = cached_inferred.get("latency_ms", 0)
                     logger.debug("resume p%d r%d: using cached inference", idx, rep)
                 else:
+                    pg.on_phase(idx - start, rep, n_problems, n_repeats, "solving")
                     try:
                         if _solver_accepts_sandbox(solver):
                             sandbox = await lifecycle.get_agent_sandbox()
@@ -229,8 +231,14 @@ async def run_evaluation(
                         if solve_result.model_response:
                             step.model_response = solve_result.model_response
                             step.model_ms = solve_result.model_response.latency_ms
+                        if solve_result.error and not skip_failed:
+                            raise RuntimeError(
+                                f"Solver failed on p{idx} r{rep}: {solve_result.error}"
+                            )
                     except Exception as e:
                         step.model_error = str(e)
+                        if not skip_failed:
+                            raise
                         logger.warning("solve error p%d r%d: %s", idx, rep, e)
 
                     response_text = solve_result.response if solve_result else ""
@@ -251,6 +259,7 @@ async def run_evaluation(
                 await lifecycle.transition_to_verify(
                     response_text, solver_modified=(sandbox is not None),
                 )
+                pg.on_phase(idx - start, rep, n_problems, n_repeats, "verifying")
                 tv = time.monotonic()
                 if solve_result and solve_result.reward is not None:
                     vr = VerifyResult(
@@ -266,6 +275,8 @@ async def run_evaluation(
                             sandbox=verify_sandbox, **seed_result.metadata,
                         )
                     except Exception as e:
+                        if not skip_failed:
+                            raise
                         logger.warning("verify error p%d r%d: %s", idx, rep, e)
                         vr = VerifyResult(reward=0.0, scoring_details={"error": str(e), "method": "verify_failed"})
                 step.verify_ms = (time.monotonic() - tv) * 1000
@@ -276,7 +287,26 @@ async def run_evaluation(
                 step.scoring_details = vr.scoring_details
                 step.scoring_method = vr.scoring_details.get("method", "")
 
+                extra_scorers = (config or {}).get("scorers", [])
+                if extra_scorers:
+                    from nemo_evaluator.scoring import get_scorer, ScorerInput
+                    for scorer_name in extra_scorers:
+                        try:
+                            sfn = get_scorer(scorer_name)
+                            sinput = ScorerInput(
+                                response=response_text,
+                                target=seed_result.expected_answer,
+                                metadata=seed_result.metadata,
+                            )
+                            sresult = sfn(sinput)
+                            sresult["reward"] = 1.0 if sresult.get("correct") else 0.0
+                            vr.scoring_details[f"scorer:{scorer_name}"] = sresult
+                        except Exception as e:
+                            logger.warning("scorer %s error p%d r%d: %s", scorer_name, idx, rep, e)
+                            vr.scoring_details[f"scorer:{scorer_name}"] = {"error": str(e), "reward": 0.0}
+
                 if judge_client and vr.scoring_details.get("needs_judge"):
+                    pg.on_phase(idx - start, rep, n_problems, n_repeats, "judging")
                     try:
                         from nemo_evaluator.scoring.judge import judge_score
                         judge_result = await judge_score(
@@ -304,9 +334,15 @@ async def run_evaluation(
                     }
                     await verified_log.append(ver_record)
 
+                scorer_rewards = {}
+                for sk, sv in vr.scoring_details.items():
+                    if sk.startswith("scorer:") and isinstance(sv, dict):
+                        scorer_rewards[sk] = sv.get("reward", 0.0)
+
                 result_dict = {
                     "problem_idx": idx, "repeat": rep,
                     "reward": vr.reward,
+                    "scorer_rewards": scorer_rewards,
                     "model_response": response_text,
                     "extracted_answer": vr.extracted_answer,
                     "expected_answer": seed_result.expected_answer,
@@ -317,6 +353,7 @@ async def run_evaluation(
                 }
                 if solve_result and solve_result.trajectory:
                     result_dict["trajectory"] = solve_result.trajectory
+                    step.trajectory = solve_result.trajectory
 
                 async with lock:
                     collector.record(step)
@@ -334,13 +371,32 @@ async def run_evaluation(
     max_buffered = max_concurrent * 2
     pending: set[asyncio.Task] = set()
 
+    first_error: BaseException | None = None
+
+    def _check_done(done_tasks: set[asyncio.Task]) -> None:
+        nonlocal first_error
+        for t in done_tasks:
+            exc = t.exception()
+            if exc is None:
+                continue
+            if skip_failed:
+                logger.error("Step failed (skip_failed=True, continuing): %s", exc)
+            elif first_error is None:
+                first_error = exc
+
     try:
         for idx in range(start, end):
+            if first_error is not None:
+                break
+
             while len(pending) >= max_buffered:
                 done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
-                for t in done:
-                    if t.exception():
-                        logger.error("Step failed: %s", t.exception())
+                _check_done(done)
+                if first_error is not None:
+                    break
+
+            if first_error is not None:
+                break
 
             ts = time.monotonic()
             seed_result = await env.seed(idx)
@@ -350,11 +406,14 @@ async def run_evaluation(
                 task = asyncio.create_task(_run_step(idx, rep, seed_result, seed_ms))
                 pending.add(task)
 
-        if pending:
+        if first_error is not None:
+            for t in pending:
+                t.cancel()
+            if pending:
+                await asyncio.wait(pending)
+        elif pending:
             done, _ = await asyncio.wait(pending)
-            for t in done:
-                if t.exception():
-                    logger.error("Step failed: %s", t.exception())
+            _check_done(done)
 
     finally:
         if inference_log is not None:
@@ -369,6 +428,12 @@ async def run_evaluation(
             await env.close()
 
     elapsed = time.monotonic() - t0
+
+    if first_error is not None:
+        raise RuntimeError(
+            f"Evaluation aborted (skip_failed=False): {first_error}"
+        ) from first_error
+
     all_rewards = [r["reward"] for r in results]
     per_problem_means = [
         sum(rewards) / len(rewards)
@@ -423,6 +488,31 @@ async def run_evaluation(
                      "ci_upper": round(c.ci.ci_upper, 4)}
                     for c in groups]
             for field, groups in sd_breakdowns.items()
+        }
+
+    scorer_agg: dict[str, dict[str, Any]] = {}
+    for r in results:
+        sd = r.get("scoring_details", {})
+        for key, val in sd.items():
+            if not key.startswith("scorer:"):
+                continue
+            if not isinstance(val, dict):
+                continue
+            bucket = scorer_agg.setdefault(key, {"correct": 0, "total": 0})
+            bucket["total"] += 1
+            if val.get("correct"):
+                bucket["correct"] += 1
+    for key, agg in scorer_agg.items():
+        n = agg["total"]
+        c = agg["correct"]
+        acc = c / n if n else 0.0
+        ci = bootstrap_ci([1.0] * c + [0.0] * (n - c)) if n else bootstrap_ci([])
+        metrics[key] = {
+            "value": round(acc, 4),
+            "ci_lower": round(ci.ci_lower, 4),
+            "ci_upper": round(ci.ci_upper, 4),
+            "correct": c,
+            "total": n,
         }
 
     artifacts = collector.build(elapsed)

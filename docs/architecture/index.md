@@ -39,7 +39,13 @@ flowchart TB
         SDOCK["DockerSandbox"]
         SSLURM["SlurmSandbox"]
         SLOCAL["LocalSandbox"]
+        SECS["ECSFargateSandbox"]
         SMGR["SandboxManager"]
+    end
+
+    subgraph PROXY["Proxy"]
+        LITELLM["LiteLLM Proxy"]
+        INTERCEPT["Interceptors"]
     end
 
     subgraph OBS["Observability"]
@@ -73,6 +79,8 @@ flowchart TB
     REG --> VLM
 
     LOOP --> JUDGE
+    Runner --> LITELLM
+    LITELLM --> INTERCEPT
 
     style CLI fill:#e8eaf6
     style ENVS fill:#e8f5e9
@@ -81,6 +89,7 @@ flowchart TB
     style OBS fill:#fce4ec
     style SAND fill:#e0f7fa
     style SCORE fill:#fff9c4
+    style PROXY fill:#e1f5fe
 ```
 
 ## Package Map
@@ -90,11 +99,12 @@ flowchart TB
 | `environments/` | Base class, registry, `@benchmark` BYOB API, environment types | `EvalEnvironment`, `SeedResult`, `VerifyResult`, `BenchmarkDefinition` |
 | `benchmarks/` | 15 built-in benchmarks (all `@benchmark` + `@scorer`) | Scorer functions |
 | `solvers/` | Pluggable inference strategies | `Solver`, `ChatSolver`, `CompletionSolver`, `VLMSolver`, `HarborSolver`, `GymSolver`, `NatSolver`, `OpenClawSolver` |
-| `runner/` | Eval loop, model client, checkpoint, regression | `run_evaluation()`, `ModelClient`, `CheckpointManager` |
+| `runner/` | Eval loop, model client, checkpoint, regression, export plugins | `run_evaluation()`, `ModelClient`, `CheckpointManager`, `InspectExporter`, `WandBExporter` |
 | `serving/` | HTTP server for environments (evaluator + Gym protocol) | `generate_app()` |
 | `executors/` | Executor protocol and backends (local, Docker, SLURM) | `Executor`, `get_executor()`, `detect_executor()`, `ProcessState` |
-| `sandbox/` | Per-problem isolated execution and lifecycle strategies | `Sandbox`, `SandboxSpec`, `SandboxManager`, `NoSandbox`, `StatefulSandbox`, `StatelessSandbox` |
-| `eval/` | Suite orchestration, config, deployment, SLURM generation | `run_local()`, `EvalConfig`, `DeployConfig`, `generate_sbatch()` |
+| `sandbox/` | Per-problem isolated execution and lifecycle strategies | `Sandbox`, `SandboxSpec`, `SandboxManager`, `ECSFargateSandbox`, `NoSandbox`, `StatefulSandbox`, `StatelessSandbox` |
+| `eval/` | Suite orchestration, config, deployment, SLURM generation, proxy lifecycle | `run_local()`, `EvalConfig`, `DeployConfig`, `generate_sbatch()`, `start_proxy()` |
+| `interceptors/` | LiteLLM proxy callback plugins for request/response interception | `resolve_interceptors()`, `BaseInterceptor` |
 | `scoring/` | Verification scorers, judge pipeline, JSON schema | `exact_match`, `code_sandbox`, `needs_judge` |
 | `observability/` | Rich telemetry capture | `StepRecord`, `ModelResponse`, `RuntimeStats`, `ArtifactCollector` |
 | `metrics/` | Statistical aggregation | `pass_at_k()`, `bootstrap_ci()`, `category_breakdown()` |
@@ -184,6 +194,10 @@ sequenceDiagram
     Exec->>Runner: run_local(config)
     Runner->>Deploy: start()
     Deploy-->>Runner: model_url
+    opt proxy configured
+        Runner->>Runner: start_proxy(model_url)
+        Note right of Runner: model_url rewritten to proxy URL
+    end
 
     Runner->>Loop: run_evaluation(env, solver, config, sandbox_manager)
 

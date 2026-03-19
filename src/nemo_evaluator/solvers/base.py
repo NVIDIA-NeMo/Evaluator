@@ -23,6 +23,10 @@ class SolveResult:
     # When set, the eval loop skips the separate verify phase.
     reward: float | None = None
     scoring_details: dict[str, Any] = field(default_factory=dict)
+    # Non-None when the solver caught an internal error and returned a
+    # degraded result instead of raising.  The eval loop uses this to
+    # decide whether to abort (skip_failed=False) or continue.
+    error: str | None = None
 
 
 class Solver(Protocol):

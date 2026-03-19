@@ -88,6 +88,9 @@ class SandboxSpec:
     files: dict[str, str] = field(default_factory=dict)
     entrypoint: str | None = None
     volumes: list[VolumeMount] = field(default_factory=list)
+    environment_dir: str | None = None
+    """Local directory containing a Dockerfile / build context.
+    Used by ECS Fargate to build and push images via CodeBuild."""
 
 
 class Sandbox(Protocol):

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nemo-evaluator"
-version = "0.9.0"
+version = "0.11.0"
 description = "NeMo Evaluator – benchmark environments, evaluation runner, and decision-grade scoring"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,9 +34,11 @@ ray = ["ray[default]>=2.9"]
 skills = ["nemo-skills @ git+https://github.com/NVIDIA-NeMo/Skills.git"]
 lm-eval = ["lm_eval>=0.4"]
 harbor = ["harbor"]
+proxy = ["litellm[proxy]"]
+inspect = ["inspect_ai"]
 export = ["wandb", "mlflow"]
 harnesses = ["nemo-evaluator[lm-eval]"]
-all = ["nemo-evaluator[scoring,stats,ray,skills,lm-eval,harbor]"]
+all = ["nemo-evaluator[scoring,stats,ray,skills,lm-eval,harbor,proxy]"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",

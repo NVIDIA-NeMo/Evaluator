@@ -9,6 +9,8 @@ pip install -e .                   # core
 pip install -e ".[scoring]"        # + sympy
 pip install -e ".[scoring,stats]"  # + sympy + scipy
 pip install -e ".[harbor]"         # + Harbor agents
+pip install -e ".[proxy]"          # + LiteLLM proxy
+pip install -e ".[inspect]"        # + Inspect AI log export
 pip install -e ".[all]"            # everything
 ```
 
@@ -41,6 +43,34 @@ nel eval report ./eval_results/ -f markdown -o report.md
 | swebench-verified, swebench-multilingual | SWE | Docker two-container |
 
 External environments via URI schemes: `lm-eval://`, `skills://`, `vlmevalkit://`, `gym://`, `harbor://`, `container://`.
+
+## LiteLLM Proxy
+
+Optional local proxy for LLM traffic observability. Intercepts all agent-to-model requests for logging, debugging, and custom transformations.
+
+```yaml
+model:
+  url: https://integrate.api.nvidia.com/v1
+  id: nvidia/nemotron-3-super-120b-a12b
+  api_key: ${NVIDIA_API_KEY}
+  proxy:
+    verbose: true
+    interceptors: [my_module.MyCallback]
+```
+
+Install with `pip install -e ".[proxy]"`. Works with both local and ECS Fargate sandboxes (reverse SSH tunnel established automatically).
+
+## Export
+
+Evaluation results can be exported to experiment trackers and compatible formats:
+
+```yaml
+output:
+  export: [inspect, wandb, mlflow]
+```
+
+- **`inspect`** -- Produces `inspect_ai`-compatible `EvalLog` JSON files. Install with `pip install -e ".[inspect]"`.
+- **`wandb`** / **`mlflow`** -- Push scores and artifacts to experiment trackers. Install with `pip install -e ".[export]"`.
 
 ## BYOB
 
@@ -112,7 +142,7 @@ Pyxis/Enroot-based execution with auto-selected container images per URI scheme.
 
 ## Examples
 
-See [`examples/configs/`](examples/configs/) for 16 end-to-end configs covering all solver types, verification methods, and execution backends.
+See [`examples/configs/`](examples/configs/) for 20 end-to-end configs covering all solver types, verification methods, and execution backends.
 
 ## License
 

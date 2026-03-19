@@ -34,6 +34,7 @@ from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.observability.types import ModelResponse
 
 from .base import SolveResult
+from .trajectory_util import build_atif_trajectory
 
 if TYPE_CHECKING:
     from nemo_evaluator.sandbox.base import Sandbox
@@ -240,43 +241,40 @@ def _parse_response(output: dict[str, Any]) -> tuple[str, ModelResponse, list[di
         latency_ms=float(duration_ms),
     )
 
-    trajectory: list[dict[str, Any]] = []
+    steps: list[dict[str, Any]] = []
     for p in payloads:
-        entry: dict[str, Any] = {
-            "type": "message",
-            "message": {"role": "assistant", "content": []},
+        msg_text = p.get("text", "")
+        step: dict[str, Any] = {
+            "source": "agent",
+            "message": msg_text,
         }
-        if p.get("text"):
-            entry["message"]["content"].append({"type": "text", "text": p["text"]})
+        extras: dict[str, Any] = {}
         if p.get("mediaUrl"):
-            entry["message"]["content"].append({"type": "media", "url": p["mediaUrl"]})
+            extras["media_urls"] = [p["mediaUrl"]]
         if p.get("mediaUrls"):
-            for url in p["mediaUrls"]:
-                entry["message"]["content"].append({"type": "media", "url": url})
+            extras.setdefault("media_urls", []).extend(p["mediaUrls"])
         if p.get("isError"):
-            entry["is_error"] = True
-        if entry["message"]["content"]:
-            trajectory.append(entry)
+            extras["is_error"] = True
+        if extras:
+            step["extra"] = extras
+        if msg_text or extras:
+            steps.append(step)
 
+    oc_extra: dict[str, Any] | None = None
     if agent_meta:
-        trajectory.append({
-            "type": "openclaw_meta",
+        oc_extra = {
             "provider": agent_meta.get("provider", ""),
             "model": agent_meta.get("model", ""),
             "duration_ms": duration_ms,
-            "session_id": agent_meta.get("sessionId", ""),
-        })
+            "openclaw_session_id": agent_meta.get("sessionId", ""),
+        }
 
-    return response_text, model_response, trajectory
+    return response_text, model_response, steps, oc_extra
 
 
 def _parse_session_jsonl(raw: str) -> list[dict[str, Any]]:
-    """Parse an OpenClaw session JSONL transcript into trajectory entries.
-
-    Extracts assistant messages (text + tool_use blocks) and tool results
-    to give evaluators full visibility into what the agent did.
-    """
-    entries: list[dict[str, Any]] = []
+    """Parse an OpenClaw session JSONL transcript into ATIF step dicts."""
+    steps: list[dict[str, Any]] = []
     for line in raw.splitlines():
         line = line.strip()
         if not line:
@@ -288,34 +286,45 @@ def _parse_session_jsonl(raw: str) -> list[dict[str, Any]]:
         role = record.get("role", "")
         if role == "assistant":
             content = record.get("content", [])
-            msg: dict[str, Any] = {
-                "type": "message",
-                "message": {"role": "assistant", "content": []},
-            }
+            text_parts: list[str] = []
+            tool_calls: list[dict[str, Any]] = []
             for block in (content if isinstance(content, list) else []):
                 btype = block.get("type", "")
                 if btype == "text" and block.get("text"):
-                    msg["message"]["content"].append({"type": "text", "text": block["text"]})
+                    text_parts.append(block["text"])
                 elif btype == "tool_use":
-                    msg["message"]["content"].append({
-                        "type": "tool_use",
-                        "name": block.get("name", ""),
-                        "input": block.get("input", {}),
+                    tool_calls.append({
+                        "tool_call_id": block.get("id", f"call_{len(steps)}"),
+                        "function_name": block.get("name", ""),
+                        "arguments": block.get("input", {}),
                     })
-            if msg["message"]["content"]:
-                entries.append(msg)
+            step: dict[str, Any] = {
+                "source": "agent",
+                "message": "\n".join(text_parts),
+            }
+            if tool_calls:
+                step["tool_calls"] = tool_calls
+            if text_parts or tool_calls:
+                steps.append(step)
         elif role == "tool":
             content = record.get("content", "")
             if isinstance(content, list):
                 content = "\n".join(
                     b.get("text", "") for b in content if isinstance(b, dict)
                 )
-            entries.append({
-                "type": "tool_result",
-                "tool_use_id": record.get("tool_use_id", ""),
-                "content": str(content)[:2000],
-            })
-    return entries
+            if steps and steps[-1].get("source") == "agent":
+                steps[-1].setdefault("observation", {"results": []})
+                steps[-1]["observation"]["results"].append({
+                    "content": str(content)[:2000],
+                    "source_call_id": record.get("tool_use_id"),
+                })
+            else:
+                steps.append({
+                    "source": "system",
+                    "message": str(content)[:2000],
+                    "extra": {"tool_use_id": record.get("tool_use_id", "")},
+                })
+    return steps
 
 
 class OpenClawSolver:
@@ -424,41 +433,56 @@ class OpenClawSolver:
             await self._download_workspace(sandbox, Path(workspace_path))
 
         if result.return_code != 0:
+            err_msg = f"exit code {result.return_code}: {result.stderr[:500]}"
             logger.warning(
-                "OpenClawSolver[sandbox]: exit code %d for %s: %s",
-                result.return_code, task_id, result.stderr[:500],
+                "OpenClawSolver[sandbox]: %s for %s", err_msg, task_id,
             )
             return SolveResult(
                 response="",
-                trajectory=[{
-                    "error": "openclaw_exit",
-                    "code": result.return_code,
-                    "stderr": result.stderr[:2000],
-                }],
+                trajectory=build_atif_trajectory(
+                    [{"source": "system", "message": result.stderr[:2000]}],
+                    agent_name="openclaw", status="error",
+                    extra={"exit_code": result.return_code},
+                ),
+                error=err_msg,
             )
 
         output = _extract_json(result.stdout)
         if not output:
-            logger.warning("OpenClawSolver[sandbox]: no JSON in stdout for %s", task_id)
+            err_msg = f"no JSON output for {task_id}"
+            logger.warning("OpenClawSolver[sandbox]: %s", err_msg)
             return SolveResult(
                 response=result.stdout[:5000],
-                trajectory=[{"warning": "no_json_output", "stderr": result.stderr[:2000]}],
+                trajectory=build_atif_trajectory(
+                    [{"source": "system", "message": result.stderr[:2000] or "no JSON output"}],
+                    agent_name="openclaw", status="error",
+                ),
+                error=err_msg,
             )
 
-        response_text, model_response, trajectory = _parse_response(output)
+        response_text, model_response, steps, oc_extra = _parse_response(output)
 
         if workspace_path:
             file_addendum = _read_workspace_files(Path(workspace_path), pre_existing_files)
             if file_addendum:
                 response_text = f"{response_text}\n\n{file_addendum}" if response_text else file_addendum
 
-        transcript = await self._read_session_transcript(sandbox, session_id)
-        if transcript:
-            trajectory = transcript + trajectory
+        transcript_steps = await self._read_session_transcript(sandbox, session_id)
+        if transcript_steps:
+            steps = transcript_steps + steps
+
+        trajectory = build_atif_trajectory(
+            steps,
+            agent_name="openclaw",
+            model_name=model_response.model or None,
+            prompt_tokens=model_response.prompt_tokens or 0,
+            completion_tokens=model_response.completion_tokens or 0,
+            extra=oc_extra,
+        )
 
         logger.info(
-            "OpenClawSolver[sandbox]: %s completed in %dms, %d tok, %d trajectory entries",
-            task_id, model_response.latency_ms, model_response.total_tokens, len(trajectory),
+            "OpenClawSolver[sandbox]: %s completed in %dms, %d tok, %d steps",
+            task_id, model_response.latency_ms, model_response.total_tokens, len(steps),
         )
         return SolveResult(
             response=response_text,
@@ -669,38 +693,49 @@ class OpenClawSolver:
         except asyncio.TimeoutError:
             process.kill()
             await process.wait()
-            logger.warning("OpenClawSolver[local]: timeout after %.0fs for %s", self._timeout, task_id)
+            err_msg = f"Timeout after {self._timeout}s"
+            logger.warning("OpenClawSolver[local]: %s for %s", err_msg, task_id)
             return SolveResult(
                 response="",
-                trajectory=[{"error": "openclaw_timeout", "timeout": self._timeout}],
+                trajectory=build_atif_trajectory(
+                    [{"source": "system", "message": err_msg}],
+                    agent_name="openclaw", status="error",
+                ),
+                error=err_msg,
             )
 
         stdout = stdout_bytes.decode("utf-8", errors="replace")
         stderr = stderr_bytes.decode("utf-8", errors="replace")
 
         if process.returncode != 0:
+            err_msg = f"exit code {process.returncode}: {stderr[:500]}"
             logger.warning(
-                "OpenClawSolver[local]: exit code %d for %s: %s",
-                process.returncode, task_id, stderr[:500],
+                "OpenClawSolver[local]: %s for %s", err_msg, task_id,
             )
             return SolveResult(
                 response="",
-                trajectory=[{
-                    "error": "openclaw_exit",
-                    "code": process.returncode,
-                    "stderr": stderr[:2000],
-                }],
+                trajectory=build_atif_trajectory(
+                    [{"source": "system", "message": stderr[:2000]}],
+                    agent_name="openclaw", status="error",
+                    extra={"exit_code": process.returncode},
+                ),
+                error=err_msg,
             )
 
         output = _extract_json(stdout)
         if not output:
-            logger.warning("OpenClawSolver[local]: no JSON in stdout for %s", task_id)
+            err_msg = f"no JSON output for {task_id}"
+            logger.warning("OpenClawSolver[local]: %s", err_msg)
             return SolveResult(
                 response=stdout[:5000],
-                trajectory=[{"warning": "no_json_output", "stderr": stderr[:2000]}],
+                trajectory=build_atif_trajectory(
+                    [{"source": "system", "message": stderr[:2000] or "no JSON output"}],
+                    agent_name="openclaw", status="error",
+                ),
+                error=err_msg,
             )
 
-        response_text, model_response, trajectory = _parse_response(output)
+        response_text, model_response, steps, oc_extra = _parse_response(output)
 
         if workspace_path:
             file_addendum = _read_workspace_files(Path(workspace_path), pre_existing_files)
@@ -708,13 +743,22 @@ class OpenClawSolver:
                 response_text = f"{response_text}\n\n{file_addendum}" if response_text else file_addendum
 
         home = env.get("HOME", str(Path.home()))
-        transcript = self._read_local_session_transcript(home, session_id)
-        if transcript:
-            trajectory = transcript + trajectory
+        transcript_steps = self._read_local_session_transcript(home, session_id)
+        if transcript_steps:
+            steps = transcript_steps + steps
+
+        trajectory = build_atif_trajectory(
+            steps,
+            agent_name="openclaw",
+            model_name=model_response.model or None,
+            prompt_tokens=model_response.prompt_tokens or 0,
+            completion_tokens=model_response.completion_tokens or 0,
+            extra=oc_extra,
+        )
 
         logger.info(
-            "OpenClawSolver[local]: %s completed in %dms, %d tok, %d trajectory entries",
-            task_id, model_response.latency_ms, model_response.total_tokens, len(trajectory),
+            "OpenClawSolver[local]: %s completed in %dms, %d tok, %d steps",
+            task_id, model_response.latency_ms, model_response.total_tokens, len(steps),
         )
         return SolveResult(
             response=response_text,

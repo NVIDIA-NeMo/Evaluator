@@ -1,12 +1,14 @@
 # Flavor: completions solver (raw text completion, not chat)
-# Tests the CompletionSolver path for base models / non-chat endpoints.
+# Requires a /v1/completions endpoint (vLLM, sglang, or base-model API).
+# NVIDIA API Catalog only exposes /chat/completions — use a self-hosted
+# vLLM server or change endpoint_type to chat for API-based testing.
 #
-# Prerequisites: NVIDIA_API_KEY set in environment
+# Prerequisites: NVIDIA_API_KEY or a local vLLM server
 # Run: nel eval run examples/configs/02_mmlu_completions.yaml
 
 model:
   url: https://integrate.api.nvidia.com/v1
-  id: nvidia/llama-3.1-nemotron-ultra-253b-v1
+  id: nvidia/nemotron-3-super-120b-a12b
   api_key: ${NVIDIA_API_KEY}
 
 benchmarks:
@@ -14,3 +16,5 @@ benchmarks:
     max_problems: 5
     endpoint_type: completions
     max_tokens: 64
+    scorers:
+      - mcq_extract

@@ -9,10 +9,12 @@
 
 model:
   url: https://integrate.api.nvidia.com/v1
-  id: nvidia/llama-3.1-nemotron-ultra-253b-v1
+  id: nvidia/nemotron-3-super-120b-a12b
   api_key: ${NVIDIA_API_KEY}
 
 benchmarks:
   - name: skills://mmlu-pro
     max_problems: 5
     endpoint_type: chat
+    scorers:
+      - mcq_extract

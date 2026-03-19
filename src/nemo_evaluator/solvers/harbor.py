@@ -1,7 +1,7 @@
 """HarborSolver: runs Harbor-compatible agents inside a nel Sandbox."""
 from __future__ import annotations
 
-import contextlib
+import json
 import logging
 import os
 import tempfile
@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from nemo_evaluator.observability.types import ModelResponse
 from nemo_evaluator.solvers.base import SolveResult
+from nemo_evaluator.solvers.trajectory_util import build_atif_trajectory
 
 if TYPE_CHECKING:
     from nemo_evaluator.environments.base import SeedResult
@@ -20,16 +21,227 @@ logger = logging.getLogger(__name__)
 
 
 def _extract_response(context: Any) -> str:
-    """Extract text response from agent context (metadata > last rollout > empty)."""
+    """Extract text response from AgentContext (metadata > last rollout)."""
     if context.metadata and isinstance(context.metadata.get("response"), str):
         return context.metadata["response"]
     if context.rollout_details:
         last = context.rollout_details[-1]
-        content = last.get("content") if isinstance(last, dict) else getattr(last, "content", None)
-        if isinstance(content, str):
-            return content
+        c = last.get("content") if isinstance(last, dict) else getattr(last, "content", None)
+        if isinstance(c, str):
+            return c
     return ""
 
+
+# ---------------------------------------------------------------------------
+# API key resolution
+# ---------------------------------------------------------------------------
+
+def _resolve_api_key(explicit: str | None) -> str | None:
+    """Return *explicit* if non-empty, else probe common env vars."""
+    if explicit:
+        return explicit
+    for var in ("LLM_API_KEY", "NVIDIA_API_KEY", "OPENAI_API_KEY",
+                "ANTHROPIC_API_KEY"):
+        val = os.environ.get(var)
+        if val:
+            return val
+    return None
+
+
+def _ensure_env(api_key: str | None, model_url: str | None, model_id: str | None) -> None:
+    """Set ``LLM_*`` env vars that Harbor agents expect.
+
+    Called once — these are process-wide settings that must stay set for the
+    lifetime of concurrent solve() calls. A save/restore context manager is
+    unsafe here because ``os.environ`` is process-global and concurrent
+    tasks would clobber each other's cleanup.
+
+    Harbor uses litellm as its LLM layer, so ``LLM_MODEL`` gets the
+    ``openai/`` prefix when a custom ``model_url`` is set (litellm needs
+    the provider hint for OpenAI-compatible endpoints).
+    """
+    key = _resolve_api_key(api_key)
+    if key:
+        os.environ["LLM_API_KEY"] = key
+    else:
+        logger.warning("No API key available for Harbor agent")
+    if model_url:
+        os.environ["LLM_BASE_URL"] = model_url
+    if model_id:
+        mid = model_id
+        if model_url and not mid.startswith("openai/"):
+            mid = f"openai/{mid}"
+        os.environ["LLM_MODEL"] = mid
+    os.environ.setdefault("LITELLM_LOG", "ERROR")
+    os.environ.setdefault("LITELLM_TELEMETRY", "false")
+    os.environ.setdefault("SECURITY_CONFIRMATION_MODE", "false")
+    os.environ.setdefault("SECURITY_ENABLE_SECURITY_ANALYZER", "false")
+
+
+# ---------------------------------------------------------------------------
+# Agent log download
+# ---------------------------------------------------------------------------
+
+async def _download_agent_logs(sandbox: "Sandbox", dest: Path) -> None:
+    """Download ``/logs/agent/`` from the container into *dest*."""
+    ls = await sandbox.exec(
+        "find /logs/agent -type f 2>/dev/null | head -80", timeout_sec=15,
+    )
+    if not ls.stdout:
+        logger.warning("No files in /logs/agent/ inside container")
+        return
+    logger.info("Container /logs/agent/:\n%s", ls.stdout.strip())
+
+    remote_tar = "/tmp/_nel_agent_logs.tar.gz"
+    rc = await sandbox.exec(
+        f"tar czf {remote_tar} -C /logs/agent .", timeout_sec=120,
+    )
+    if rc.return_code != 0:
+        logger.error("tar failed (rc=%d): %s", rc.return_code,
+                      rc.stderr or rc.stdout)
+        return
+
+    import tarfile
+    local_tar = Path(tempfile.mktemp(suffix=".tar.gz"))
+    try:
+        await sandbox.download(remote_tar, local_tar)
+        dest.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(local_tar, "r:gz") as tar:
+            tar.extractall(dest)
+        logger.info("Downloaded %d files to %s",
+                     len(list(dest.rglob("*"))), dest)
+    except Exception:
+        logger.error("Agent log download failed", exc_info=True)
+    finally:
+        local_tar.unlink(missing_ok=True)
+        try:
+            await sandbox.exec(f"rm -f {remote_tar}", timeout_sec=10)
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Trajectory / token / response recovery  (agent-agnostic)
+# ---------------------------------------------------------------------------
+#
+# Each Harbor agent writes its own logs and converts them to ATIF via
+# ``populate_context_post_run()``.  NEL's job here is simple:
+#   1. Read the ATIF trajectory.json the agent produced.
+#   2. If nothing structured exists, grab the largest .txt as an error log.
+#
+# Agent-specific parsing (OpenHands completions/, sessions/events/, etc.)
+# is deliberately NOT done here — that is the agent's responsibility.
+# ---------------------------------------------------------------------------
+
+def _recover_from_logs(agent_logs_dir: Path) -> dict[str, Any]:
+    """Read trajectory + token counts from *agent_logs_dir*.
+
+    Returns ``{"trajectory": [...], "prompt_tokens": int,
+    "completion_tokens": int, "response": str}``.
+    """
+    out: dict[str, Any] = {
+        "trajectory": [],
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "response": "",
+    }
+
+    # -- 1. ATIF trajectory JSON (canonical agent output) -------------------
+    traj_files = sorted(
+        (f for f in agent_logs_dir.glob("*.json")
+         if "traj" in f.stem.lower()),
+        key=lambda p: (p.name != "trajectory.json", p.name),
+    )
+    canonical = agent_logs_dir / "trajectory.json"
+    if canonical.is_file() and canonical not in traj_files:
+        traj_files.insert(0, canonical)
+
+    for tf in traj_files:
+        try:
+            raw = json.loads(tf.read_text())
+        except Exception:
+            logger.warning("Unreadable trajectory file: %s", tf)
+            continue
+
+        parsed = _parse_atif(raw)
+        if parsed:
+            logger.info("Trajectory loaded from %s", tf.name)
+            out["trajectory"] = [parsed["doc"]]
+            out["prompt_tokens"] = parsed["prompt_tokens"]
+            out["completion_tokens"] = parsed["completion_tokens"]
+            out["response"] = parsed["response"]
+            return out
+
+        logger.warning(
+            "%s is not ATIF — skipping (agent should convert in "
+            "populate_context_post_run)", tf.name,
+        )
+
+    # -- 2. Largest .txt log as generic fallback ----------------------------
+    txt_files = sorted(
+        agent_logs_dir.rglob("*.txt"),
+        key=lambda p: p.stat().st_size,
+        reverse=True,
+    )
+    for txt in txt_files:
+        try:
+            text = txt.read_text(errors="replace")
+        except Exception:
+            continue
+        if text.strip():
+            rel = txt.relative_to(agent_logs_dir)
+            logger.info("Using %s as error log trajectory", rel)
+            lines = text.strip().splitlines()
+            if len(lines) > 200:
+                summary = (
+                    "\n".join(lines[:50])
+                    + "\n\n... [truncated middle] ...\n\n"
+                    + "\n".join(lines[-100:])
+                )
+            else:
+                summary = text.strip()
+            out["trajectory"] = build_atif_trajectory(
+                steps=[{
+                    "source": "system",
+                    "message": summary,
+                    "extra": {"source_file": str(rel)},
+                }],
+                status="error",
+            )
+            return out
+
+    return out
+
+
+def _parse_atif(raw: Any) -> dict[str, Any] | None:
+    """Return parsed ATIF document or ``None`` if *raw* is not ATIF."""
+    if not isinstance(raw, dict):
+        return None
+    if not (
+        str(raw.get("schema_version", "")).startswith("ATIF")
+        or ("steps" in raw and "agent" in raw)
+    ):
+        return None
+
+    fm = raw.get("final_metrics") or {}
+    response = ""
+    for step in reversed(raw.get("steps", [])):
+        msg = step.get("message") or step.get("content") or ""
+        if isinstance(msg, str) and msg.strip():
+            response = msg
+            break
+
+    return {
+        "doc": raw,
+        "prompt_tokens": fm.get("total_prompt_tokens", 0),
+        "completion_tokens": fm.get("total_completion_tokens", 0),
+        "response": response,
+    }
+
+
+# ---------------------------------------------------------------------------
+# HarborSolver
+# ---------------------------------------------------------------------------
 
 def _check_harbor_installed() -> None:
     try:
@@ -41,36 +253,13 @@ def _check_harbor_installed() -> None:
         ) from None
 
 
-@contextlib.contextmanager
-def _inject_env(api_key: str | None, model_url: str | None, model_id: str | None):
-    """Temporarily set LLM_* env vars that Harbor built-in agents expect."""
-    overrides: dict[str, str] = {}
-    if api_key and "LLM_API_KEY" not in os.environ:
-        overrides["LLM_API_KEY"] = api_key
-    if model_url and "LLM_BASE_URL" not in os.environ:
-        overrides["LLM_BASE_URL"] = model_url
-    if model_id and "LLM_MODEL" not in os.environ:
-        overrides["LLM_MODEL"] = model_id
-
-    prev = {k: os.environ.get(k) for k in overrides}
-    os.environ.update(overrides)
-    try:
-        yield
-    finally:
-        for k, v in prev.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
-
-
 class HarborSolver:
     """Runs any Harbor agent inside a nel Sandbox.
 
     Agent resolution (``harbor_agent`` parameter):
-      - Built-in name (e.g. ``"openhands"``) -> ``AgentFactory.create_agent_from_name()``
-      - Import path  (e.g. ``"my_pkg:MyAgent"``) -> ``AgentFactory.create_agent_from_import_path()``
-      - Directory path (e.g. ``"./agents/my-agent/"``) -> ``ByobInstalledAgent``
+      - Built-in name (e.g. ``"openhands"``)
+      - Import path  (e.g. ``"my_pkg:MyAgent"``)
+      - Directory path (e.g. ``"./agents/my-agent/"``)
     """
 
     def __init__(
@@ -82,113 +271,174 @@ class HarborSolver:
         model_id: str = "",
         timeout: float = 1800.0,
         api_key: str | None = None,
+        container_env: dict[str, str] | None = None,
     ) -> None:
         _check_harbor_installed()
-
         self._harbor_agent = harbor_agent
         self._harbor_agent_kwargs = harbor_agent_kwargs or {}
         self._model_url = model_url
         self._model_id = model_id
         self._timeout = timeout
-        self._api_key = api_key
+        self._container_env = dict(container_env or {})
+        self._container_env.setdefault("LITELLM_LOG", "ERROR")
+        self._container_env.setdefault("LITELLM_TELEMETRY", "false")
+        if harbor_agent.lower() in ("openhands", "openhands-sdk"):
+            self._container_env.setdefault("OH_PRELOAD_TOOLS", "false")
+            self._container_env.setdefault("SECURITY_CONFIRMATION_MODE", "false")
+            self._container_env.setdefault("SECURITY_ENABLE_SECURITY_ANALYZER", "false")
+        self._api_key = _resolve_api_key(api_key)
+        _ensure_env(self._api_key, self._model_url, self._model_id)
 
     def _create_agent(self, logs_dir: Path) -> Any:
         from harbor.agents.factory import AgentFactory
 
         kwargs = dict(self._harbor_agent_kwargs)
-        if "model_name" not in kwargs and self._model_id:
-            kwargs["model_name"] = self._model_id
-        if "model_url" not in kwargs and self._model_url:
-            kwargs["model_url"] = self._model_url
+        model_id = self._model_id
+        if (self._model_url
+                and "model_name" not in kwargs
+                and model_id
+                and not model_id.startswith("openai/")):
+            model_id = f"openai/{model_id}"
+        if "model_name" not in kwargs and model_id:
+            kwargs["model_name"] = model_id
+        if "api_base" not in kwargs and self._model_url:
+            kwargs["api_base"] = self._model_url
         if "api_key" not in kwargs and self._api_key:
             kwargs["api_key"] = self._api_key
+        if self._api_key:
+            llm_kw = kwargs.get("llm_kwargs")
+            if llm_kw is None:
+                kwargs["llm_kwargs"] = {"api_key": self._api_key}
+            elif isinstance(llm_kw, dict):
+                llm_kw.setdefault("api_key", self._api_key)
 
         name = self._harbor_agent
-
         if ":" in name:
             return AgentFactory.create_agent_from_import_path(
-                name, logs_dir=logs_dir, **kwargs,
-            )
-
+                name, logs_dir=logs_dir, **kwargs)
         agent_path = Path(name)
         if agent_path.is_dir():
             from nemo_evaluator.solvers.byob_agent import ByobInstalledAgent
             return ByobInstalledAgent(
-                agent_dir=agent_path, logs_dir=logs_dir, **kwargs,
-            )
-
+                agent_dir=agent_path, logs_dir=logs_dir, **kwargs)
         return AgentFactory.create_agent_from_name(
-            name, logs_dir=logs_dir, **kwargs,
-        )
+            name, logs_dir=logs_dir, **kwargs)
 
     async def solve(
         self, task: SeedResult, sandbox: Sandbox | None = None,
     ) -> SolveResult:
         if sandbox is None:
-            raise RuntimeError(
-                "HarborSolver requires a sandbox. Make sure the benchmark "
-                "provides a sandbox_spec and a SandboxManager is configured."
-            )
+            raise RuntimeError("HarborSolver requires a sandbox.")
 
         from harbor.models.agent.context import AgentContext
-
         from nemo_evaluator.solvers.harbor_adapter import SandboxEnvironmentAdapter
 
         t0 = time.monotonic()
         logs_dir = Path(tempfile.mkdtemp(prefix="nel_harbor_"))
+        agent_logs_dir = logs_dir / "agent"
+        agent_logs_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            adapter = SandboxEnvironmentAdapter(sandbox, logs_dir=logs_dir)
+            adapter = SandboxEnvironmentAdapter(
+                sandbox, logs_dir=logs_dir, default_timeout=self._timeout,
+                persistent_env=self._container_env,
+            )
 
-            with _inject_env(self._api_key, self._model_url, self._model_id):
-                agent = self._create_agent(logs_dir)
+            agent = self._create_agent(agent_logs_dir)
+            await sandbox.exec(
+                "mkdir -p /logs/agent /logs/verifier /logs/artifacts",
+                timeout_sec=10,
+            )
+            await agent.setup(adapter)
+            context = AgentContext()
+            await agent.run(task.prompt, adapter, context)
 
-                await sandbox.exec(
-                    "mkdir -p /logs/agent /logs/verifier /logs/artifacts",
-                    timeout_sec=10,
-                )
-
-                await agent.setup(adapter)
-
-                context = AgentContext()
-                await agent.run(task.prompt, adapter, context)
-
+            # Download container-side logs (no-op when host-mounted)
             if not adapter.is_mounted:
-                try:
-                    await adapter.download_dir("/logs/agent", logs_dir / "agent")
-                except Exception:
-                    logger.debug("Failed to download agent logs", exc_info=True)
+                await _download_agent_logs(sandbox, agent_logs_dir)
 
+            # Let agent parse its own logs into context
             if context.is_empty() and hasattr(agent, "populate_context_post_run"):
                 try:
                     agent.populate_context_post_run(context)
                 except Exception:
-                    logger.debug("populate_context_post_run failed", exc_info=True)
+                    logger.warning("populate_context_post_run failed",
+                                   exc_info=True)
 
-            trajectory = []
-            if context.rollout_details:
-                trajectory = [d.model_dump() for d in context.rollout_details]
-            elif context.metadata:
-                trajectory = [context.metadata]
+            # Recover trajectory / tokens / response from files (single pass)
+            recovered = _recover_from_logs(agent_logs_dir)
 
-            response = _extract_response(context)
+            # Prefer file-based trajectory (already ATIF) over
+            # context.rollout_details (raw token IDs for SFT).
+            trajectory = recovered["trajectory"]
+            if not trajectory and context.rollout_details:
+                raw_details = [
+                    dict(d) if isinstance(d, dict) else d
+                    for d in context.rollout_details
+                ]
+                trajectory = build_atif_trajectory(
+                    raw_details,
+                    agent_name=self._harbor_agent,
+                    prompt_tokens=context.n_input_tokens or 0,
+                    completion_tokens=context.n_output_tokens or 0,
+                )
+            if not trajectory and context.metadata:
+                trajectory = build_atif_trajectory(
+                    [{"source": "agent", "message": str(context.metadata)}],
+                    agent_name=self._harbor_agent,
+                )
+
+            # Response: context first, file fallback
+            response = _extract_response(context) or recovered["response"]
+
+            # Tokens: context first, file fallback
+            prompt_tokens = context.n_input_tokens or recovered["prompt_tokens"]
+            completion_tokens = context.n_output_tokens or recovered["completion_tokens"]
 
             latency_ms = (time.monotonic() - t0) * 1000
+
+            # Detect silent agent failure: no response and no tokens produced.
+            error = None
+            if not response and prompt_tokens + completion_tokens == 0:
+                error = (
+                    "Agent produced no output (0 tokens, empty response). "
+                    "Check agent logs for details."
+                )
+                logger.warning("HarborSolver: %s", error)
+
             return SolveResult(
                 response=response,
                 model_response=ModelResponse(
                     content=response,
                     model=self._model_id,
-                    total_tokens=(context.n_input_tokens or 0) + (context.n_output_tokens or 0),
-                    completion_tokens=context.n_output_tokens or 0,
+                    total_tokens=prompt_tokens + completion_tokens,
+                    completion_tokens=completion_tokens,
                     latency_ms=round(latency_ms, 2),
                 ),
                 trajectory=trajectory,
+                error=error,
             )
 
-        except Exception:
+        except Exception as exc:
             logger.exception("HarborSolver.solve() failed")
             latency_ms = (time.monotonic() - t0) * 1000
+
+            try:
+                if sandbox.is_running:
+                    await _download_agent_logs(sandbox, agent_logs_dir)
+            except Exception:
+                logger.debug("Post-failure log download failed", exc_info=True)
+
+            recovered = _recover_from_logs(agent_logs_dir)
+            trajectory = recovered["trajectory"] or build_atif_trajectory(
+                steps=[{
+                    "source": "system",
+                    "message": str(exc),
+                }],
+                agent_name=self._harbor_agent,
+                status="error",
+            )
+
             return SolveResult(
                 response="",
                 model_response=ModelResponse(
@@ -196,7 +446,8 @@ class HarborSolver:
                     total_tokens=0, completion_tokens=0,
                     latency_ms=round(latency_ms, 2),
                 ),
-                trajectory=[{"error": "harbor_solver_error"}],
+                trajectory=trajectory,
+                error=str(exc),
             )
 
     async def close(self) -> None:

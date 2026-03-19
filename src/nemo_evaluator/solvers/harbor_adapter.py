@@ -27,15 +27,23 @@ class SandboxEnvironmentAdapter:
     container lifecycle.
     """
 
-    def __init__(self, sandbox: Sandbox, *, logs_dir: Path) -> None:
+    def __init__(
+        self,
+        sandbox: Sandbox,
+        *,
+        logs_dir: Path,
+        default_timeout: float = 600.0,
+        persistent_env: dict[str, str] | None = None,
+    ) -> None:
         from harbor.models.task.config import EnvironmentConfig as TaskEnvConfig
         from harbor.models.trial.paths import TrialPaths
 
         self._sandbox = sandbox
+        self._default_timeout = default_timeout
         self.trial_paths = TrialPaths(trial_dir=logs_dir)
         self.trial_paths.mkdir()
         self.logger = logger
-        self._persistent_env: dict[str, str] = {}
+        self._persistent_env: dict[str, str] = dict(persistent_env or {})
         self.task_env_config = TaskEnvConfig()
 
     # -- Properties Harbor agents inspect ------------------------------------
@@ -66,7 +74,7 @@ class SandboxEnvironmentAdapter:
         merged_env = {**self._persistent_env, **(env or {})}
         nel_result = await self._sandbox.exec(
             command,
-            timeout_sec=float(timeout_sec) if timeout_sec else 180.0,
+            timeout_sec=float(timeout_sec) if timeout_sec else self._default_timeout,
             cwd=cwd,
             env=merged_env or None,
         )

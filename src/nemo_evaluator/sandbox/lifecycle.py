@@ -261,6 +261,7 @@ def _attach_volume(
         files=dict(spec.files),
         entrypoint=spec.entrypoint,
         volumes=list(spec.volumes) + [vol],
+        environment_dir=spec.environment_dir,
     )
 
 
@@ -281,10 +282,14 @@ def pick_lifecycle(
     eps = outside_endpoints or []
 
     if seed.verify_sandbox_spec is not None and sandbox_mgr is not None:
+        agent_spec = sandbox_mgr.resolve_spec(seed) or seed.sandbox_spec
+        verify_spec = sandbox_mgr.resolve_spec(
+            seed, base_override=seed.verify_sandbox_spec,
+        ) or seed.verify_sandbox_spec
         return StatelessSandbox(LifecycleContext(
             sandbox_mgr=sandbox_mgr,
-            agent_spec=seed.sandbox_spec,
-            verify_spec=seed.verify_sandbox_spec,
+            agent_spec=agent_spec,
+            verify_spec=verify_spec,
             capture_cmd=config_capture_cmd or seed.capture_cmd,
             apply_cmd=seed.apply_cmd,
             verify_timeout=verify_timeout,

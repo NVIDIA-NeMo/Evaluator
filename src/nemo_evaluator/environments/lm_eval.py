@@ -1,4 +1,10 @@
-"""lm-eval generate_until tasks as EvalEnvironments."""
+"""lm-eval generate_until tasks as EvalEnvironments.
+
+Supports both single tasks (e.g. ``lm-eval://gsm8k``) and task groups
+(e.g. ``lm-eval://mmlu``).  Groups are recursively flattened into their
+leaf subtasks, and each item tracks its originating subtask for correct
+scoring dispatch.
+"""
 from __future__ import annotations
 
 import logging
@@ -28,8 +34,18 @@ def _ensure_importable() -> None:
         raise ImportError("lm-evaluation-harness not found. Install: pip install lm_eval")
 
 
+def _collect_leaf_tasks(obj: Any) -> list[Any]:
+    """Recursively extract leaf task objects from a possibly nested dict."""
+    if isinstance(obj, dict):
+        leaves: list[Any] = []
+        for v in obj.values():
+            leaves.extend(_collect_leaf_tasks(v))
+        return leaves
+    return [obj]
+
+
 class LMEvalEnvironment(EvalEnvironment):
-    """Wraps an lm-eval generate_until task."""
+    """Wraps one or more lm-eval generate_until tasks (including groups)."""
 
     def __init__(self, task_name: str, num_fewshot: int | None = None, limit: int | None = None) -> None:
         super().__init__()
@@ -41,57 +57,73 @@ class LMEvalEnvironment(EvalEnvironment):
 
         tm = TaskManager()
         task_dict = get_task_dict([task_name], tm)
-        self._task = list(task_dict.values())[0]
+        self._tasks = _collect_leaf_tasks(task_dict)
+        if not self._tasks:
+            raise ValueError(f"No leaf tasks found for {task_name!r}")
 
-        output_type = getattr(self._task, "OUTPUT_TYPE",
-                              getattr(self._task, "output_type", None))
-        if output_type and output_type != "generate_until":
+        kept: list[Any] = []
+        for t in self._tasks:
+            ot = getattr(t, "OUTPUT_TYPE", getattr(t, "output_type", None))
+            if ot and ot != "generate_until":
+                tname = getattr(t, "task_name", getattr(getattr(t, "config", None), "task", "?"))
+                logger.warning("Skipping subtask %s (output_type=%s)", tname, ot)
+                continue
+            if num_fewshot is not None and hasattr(t, "config"):
+                t.config.num_fewshot = num_fewshot
+            if hasattr(t, "download"):
+                t.download()
+            kept.append(t)
+        if not kept:
             raise UnsupportedTaskTypeError(
-                f"Task {task_name!r} requires {output_type!r}. Only generate_until supported."
+                f"All subtasks of {task_name!r} require loglikelihood. Only generate_until supported."
             )
-
-        if num_fewshot is not None and hasattr(self._task, "config"):
-            self._task.config.num_fewshot = num_fewshot
-        if hasattr(self._task, "download"):
-            self._task.download()
+        self._tasks = kept
 
         self._docs: list[dict] = []
         self._prompts: list[str] = []
         self._gen_kwargs: list[dict] = []
         self._expected: list[str] = []
+        self._task_idx: list[int] = []
         self._build_items(limit)
         self._dataset = self._docs
-        logger.info("Loaded lm-eval://%s: %d items", task_name, len(self._docs))
+        logger.info("Loaded lm-eval://%s: %d items across %d subtask(s)",
+                     task_name, len(self._docs), len(self._tasks))
 
     def _build_items(self, limit: int | None) -> None:
-        fewshot = 0
-        if hasattr(self._task, "config") and self._task.config.num_fewshot is not None:
-            fewshot = self._task.config.num_fewshot
+        per_task_limit = limit
+        for ti, task in enumerate(self._tasks):
+            fewshot = 0
+            if hasattr(task, "config") and task.config.num_fewshot is not None:
+                fewshot = task.config.num_fewshot
 
-        for doc_id, doc in self._task.doc_iterator(rank=0, limit=limit, world_size=1):
-            try:
-                ctx = self._task.fewshot_context(doc, num_fewshot=fewshot)
-            except (TypeError, ValueError, KeyError):
-                ctx = ""
-            try:
-                inst = self._task.construct_requests(doc=doc, ctx=ctx,
-                                                     metadata=(self.task_name, doc_id, 1))
-                if isinstance(inst, list):
-                    inst = inst[0]
-                prompt = inst.args[0] if hasattr(inst, "args") else str(ctx)
-                gen_kwargs = inst.args[1] if hasattr(inst, "args") and len(inst.args) > 1 else {}
-            except (TypeError, ValueError, KeyError, IndexError, AttributeError):
-                prompt = str(ctx)
-                gen_kwargs = {}
-            target = ""
-            try:
-                target = str(self._task.doc_to_target(doc))
-            except (TypeError, ValueError, KeyError):
-                pass
-            self._docs.append(doc)
-            self._prompts.append(prompt)
-            self._gen_kwargs.append(gen_kwargs)
-            self._expected.append(target.strip())
+            task_name = getattr(task, "task_name",
+                                getattr(getattr(task, "config", None), "task", self.task_name))
+
+            for doc_id, doc in task.doc_iterator(rank=0, limit=per_task_limit, world_size=1):
+                try:
+                    ctx = task.fewshot_context(doc, num_fewshot=fewshot)
+                except (TypeError, ValueError, KeyError):
+                    ctx = ""
+                try:
+                    inst = task.construct_requests(
+                        doc=doc, ctx=ctx, metadata=(task_name, doc_id, 1))
+                    if isinstance(inst, list):
+                        inst = inst[0]
+                    prompt = inst.args[0] if hasattr(inst, "args") else str(ctx)
+                    gen_kwargs = inst.args[1] if hasattr(inst, "args") and len(inst.args) > 1 else {}
+                except (TypeError, ValueError, KeyError, IndexError, AttributeError):
+                    prompt = str(ctx)
+                    gen_kwargs = {}
+                target = ""
+                try:
+                    target = str(task.doc_to_target(doc))
+                except (TypeError, ValueError, KeyError):
+                    pass
+                self._docs.append(doc)
+                self._prompts.append(prompt)
+                self._gen_kwargs.append(gen_kwargs)
+                self._expected.append(target.strip())
+                self._task_idx.append(ti)
 
     def __len__(self) -> int:
         return len(self._docs)
@@ -109,6 +141,7 @@ class LMEvalEnvironment(EvalEnvironment):
         idx = meta.get("_idx", 0)
         doc = self._docs[idx] if idx < len(self._docs) else {}
         gen_kwargs = meta.get("_gen_kwargs", {})
+        task = self._tasks[self._task_idx[idx]] if idx < len(self._task_idx) else self._tasks[0]
 
         text = response
         for stop in gen_kwargs.get("until", []):
@@ -116,7 +149,7 @@ class LMEvalEnvironment(EvalEnvironment):
                 text = text[:text.index(stop)]
 
         try:
-            metrics = self._task.process_results(doc, [text])
+            metrics = task.process_results(doc, [text])
         except (TypeError, ValueError, KeyError) as exc:
             logger.warning("process_results failed for %s doc %d: %s", self.task_name, idx, exc)
             metrics = {}
@@ -133,5 +166,5 @@ class LMEvalEnvironment(EvalEnvironment):
 
         return VerifyResult(
             reward=reward, extracted_answer=text[:500],
-            scoring_details={"method": f"lm-eval://{self.task_name}", "metrics": metrics},
+            scoring_details={"method": f"lm-eval://{self.task_name}", "lm_eval_metrics": metrics},
         )
