@@ -865,3 +865,181 @@ class TestLocalExecutorEndpointReadinessTimeout:
 
         finally:
             os.environ.pop("TEST_API_KEY", None)
+
+
+class TestDuplicateTaskNamesPipeline:
+    """End-to-end tests verifying the full pipeline with duplicate task names.
+
+    Tests the connection between:
+    1. Executor creating directories with get_unique_task_name()
+    2. Exporter resolving those directories back to task indices
+    """
+
+    @pytest.fixture
+    def mock_tasks_mapping(self):
+        return {
+            ("lm-eval", "mmlu"): {
+                "task": "mmlu",
+                "endpoint_type": "openai",
+                "harness": "lm-eval",
+                "container": "eval:v1",
+            },
+        }
+
+    @pytest.fixture
+    def duplicate_tasks_config(self, tmpdir):
+        """Config with the same task name appearing twice (different params)."""
+        return OmegaConf.create(
+            {
+                "deployment": {"type": "none"},
+                "execution": {
+                    "type": "local",
+                    "output_dir": str(tmpdir / "output"),
+                },
+                "target": {
+                    "api_endpoint": {
+                        "api_key_name": "TEST_API_KEY",
+                        "model_id": "test-model",
+                        "url": "https://test.api.com/v1/chat/completions",
+                    }
+                },
+                "evaluation": {
+                    "tasks": [
+                        {
+                            "name": "mmlu",
+                            "nemo_evaluator_config": {
+                                "config": {"params": {"temperature": 0.0}}
+                            },
+                        },
+                        {
+                            "name": "mmlu",
+                            "nemo_evaluator_config": {
+                                "config": {"params": {"temperature": 0.7}}
+                            },
+                        },
+                    ],
+                },
+            }
+        )
+
+    def _run_dry_run(self, config, mock_tasks_mapping):
+        """Run executor dry run and return (invocation_id, output_dir)."""
+        os.environ["TEST_API_KEY"] = "test_key_value"
+        try:
+            with (
+                patch(
+                    "nemo_evaluator_launcher.executors.local.executor.load_tasks_mapping"
+                ) as mock_load,
+                patch(
+                    "nemo_evaluator_launcher.executors.local.executor.get_task_definition_for_job"
+                ) as mock_task_def,
+                patch(
+                    "nemo_evaluator_launcher.executors.local.executor.get_eval_factory_command"
+                ) as mock_cmd,
+                patch("builtins.print"),
+            ):
+                from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+                mock_load.return_value = mock_tasks_mapping
+                mock_task_def.side_effect = lambda *_a, **kw: next(
+                    d
+                    for (_, n), d in mock_tasks_mapping.items()
+                    if n == kw["task_query"]
+                )
+                mock_cmd.return_value = CmdAndReadableComment(
+                    cmd="nemo-evaluator run_eval --test", debug="# test"
+                )
+
+                invocation_id = LocalExecutor.execute_eval(config, dry_run=True)
+
+                output_base = pathlib.Path(config.execution.output_dir)
+                output_dir = next(
+                    item
+                    for item in output_base.iterdir()
+                    if item.name.endswith(f"-{invocation_id}")
+                )
+                return invocation_id, output_dir
+        finally:
+            os.environ.pop("TEST_API_KEY", None)
+
+    def test_duplicate_tasks_create_unique_directories(
+        self, mock_execdb, duplicate_tasks_config, mock_tasks_mapping
+    ):
+        """Duplicate task names produce distinct directories: mmlu.0 and mmlu.1."""
+        _, output_dir = self._run_dry_run(duplicate_tasks_config, mock_tasks_mapping)
+
+        assert (output_dir / "mmlu.0").exists()
+        assert (output_dir / "mmlu.1").exists()
+        assert (output_dir / "mmlu.0" / "run.sh").exists()
+        assert (output_dir / "mmlu.1" / "run.sh").exists()
+
+    def test_exporter_resolves_new_format_directories(
+        self, mock_execdb, duplicate_tasks_config, mock_tasks_mapping
+    ):
+        """Exporter correctly maps new-format directories back to task indices."""
+        from unittest.mock import patch as _patch
+
+        from nemo_evaluator_launcher.exporters.base import BaseExporter
+
+        invocation_id, output_dir = self._run_dry_run(
+            duplicate_tasks_config, mock_tasks_mapping
+        )
+
+        # Add metadata.yaml to artifacts dirs (as the real pipeline would)
+        for task_dir in ("mmlu.0", "mmlu.1"):
+            artifacts = output_dir / task_dir / "artifacts"
+            artifacts.mkdir(parents=True, exist_ok=True)
+            (artifacts / "metadata.yaml").write_text("")
+
+        config = OmegaConf.to_container(duplicate_tasks_config, resolve=True)
+
+        class _Exporter(BaseExporter):
+            def export_jobs(self, data_for_export):
+                return [], [], []
+
+        exporter = _Exporter()
+        with _patch(
+            "nemo_evaluator_launcher.exporters.base.load_config_from_metadata",
+            return_value=config,
+        ):
+            jobs = exporter._get_jobs_in_dir(output_dir)
+
+        assert len(jobs) == 2
+        assert f"{invocation_id}.0" in jobs
+        assert f"{invocation_id}.1" in jobs
+
+    def test_exporter_resolves_old_format_directories(self, mock_execdb, tmp_path):
+        """Exporter handles legacy directories that use plain task names."""
+        from unittest.mock import patch as _patch
+
+        from nemo_evaluator_launcher.exporters.base import BaseExporter
+
+        invocation_id = "abc123"
+        invocation_dir = tmp_path / f"20250101_120000-{invocation_id}"
+        invocation_dir.mkdir()
+
+        # Old format: plain task names as directory names
+        for task_name in ("mmlu", "gsm8k"):
+            artifacts = invocation_dir / task_name / "artifacts"
+            artifacts.mkdir(parents=True)
+            (artifacts / "metadata.yaml").write_text("")
+
+        config = {
+            "evaluation": {"tasks": [{"name": "mmlu"}, {"name": "gsm8k"}]},
+            "execution": {"type": "local"},
+        }
+
+        class _Exporter(BaseExporter):
+            def export_jobs(self, data_for_export):
+                return [], [], []
+
+        exporter = _Exporter()
+        with _patch(
+            "nemo_evaluator_launcher.exporters.base.load_config_from_metadata",
+            return_value=config,
+        ):
+            jobs = exporter._get_jobs_in_dir(invocation_dir)
+
+        assert len(jobs) == 2
+        assert f"{invocation_id}.0" in jobs
+        assert f"{invocation_id}.1" in jobs
