@@ -700,13 +700,17 @@ def _create_slurm_sbatch_script(
         s += "#SBATCH --gres {}\n".format(cfg.execution.gres)
     if cfg.execution.get("sbatch_comment"):
         s += "#SBATCH --comment='{}'\n".format(cfg.execution.sbatch_comment)
+    for flag_name, flag_value in cfg.execution.get("sbatch_extra_flags", {}).items():
+        if isinstance(flag_value, bool) and flag_value:
+            s += "#SBATCH --{}\n".format(flag_name)
+        elif not isinstance(flag_value, bool) and flag_value is not None:
+            s += "#SBATCH --{} {}\n".format(flag_name, shlex.quote(str(flag_value)))
     job_name = "{account}-{subproject}.{details}".format(
         account=cfg.execution.account,
         subproject=cfg.execution.subproject,
         details=remote_task_subdir.name,
     )
     s += "#SBATCH --job-name {}\n".format(job_name)
-    s += "#SBATCH --exclusive\n"
     s += "#SBATCH --no-requeue\n"  # We have our own auto-resume logic
     s += "#SBATCH --output {}\n".format(remote_task_subdir / "logs" / "slurm-%A.log")
     s += "\n"

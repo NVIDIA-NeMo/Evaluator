@@ -29,6 +29,8 @@ max_walltime: "120:00:00" # Maximum total runtime across all resumes. Set to nul
 endpoint_readiness_timeout: null
 subproject: nemo-evaluator-launcher
 sbatch_comment: null # Optional comment for SLURM job (translates to #SBATCH --comment='...')
+sbatch_extra_flags: # Extra #SBATCH flags as key-value pairs (e.g. {switches: 1, constraint: h100}). String values with spaces are automatically quoted. Use true/false for boolean flags, null to omit a flag.
+  exclusive: true  # Request exclusive node access; set to false to allow node sharing
 
 # Deployment-specific SLURM configuration
 deployment:

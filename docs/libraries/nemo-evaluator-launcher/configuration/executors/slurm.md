@@ -224,6 +224,34 @@ execution:
 
 If the server does not become ready within the timeout, the job fails with a clear error instead of waiting until the Slurm walltime expires.
 
+## Arbitrary sbatch Flags
+
+For advanced cluster configurations that require sbatch options not natively exposed by the Slurm executor (such as `--switches`, `--constraint`, `--mem`, `--reservation`, etc.), use the `sbatch_extra_flags` dict:
+
+```yaml
+execution:
+  sbatch_extra_flags:
+    switches: 1           # Emits: #SBATCH --switches 1
+    constraint: "h100"    # Emits: #SBATCH --constraint h100
+    exclusive: true       # Emits: #SBATCH --exclusive  (boolean true → flag only, no value)
+    mem: "0"              # Emits: #SBATCH --mem 0
+```
+
+Each key-value pair in `sbatch_extra_flags` generates a corresponding `#SBATCH --<key> <value>` header in the batch script. Boolean `true` values emit the flag without a value (useful for bare flags like `--exclusive`). Values of `false` or `null` are silently skipped.
+
+The default config includes `exclusive: true`, which requests exclusive node access. To allow node sharing (useful on clusters that charge by resource usage rather than by node), override it:
+
+```yaml
+execution:
+  sbatch_extra_flags:
+    exclusive: false   # Allow node sharing
+    switches: 1        # Add any other flags you need
+```
+
+:::{tip}
+`--switches=1` is useful for multi-node deployments. It instructs Slurm to allocate all nodes on the same network switch, which can reduce inter-node communication latency.
+:::
+
 ## Monitoring and Job Management
 
 For monitoring jobs, checking status, and managing evaluations, see the [Executors Overview](overview.md#job-management) section.
