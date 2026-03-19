@@ -53,6 +53,7 @@ from nemo_evaluator_launcher.common.helpers import (
     get_eval_factory_dataset_size_from_run_config,
     get_health_url,
     get_timestamp_string,
+    get_unique_task_name,
     is_local_image_path,
 )
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -187,6 +188,7 @@ class LocalExecutor(BaseExecutor):
                 }
 
             # Create job ID as <invocation_id>.<n>
+            uname = get_unique_task_name(task.name, idx)
             job_id = generate_job_id(invocation_id, idx)
             job_ids.append(job_id)
             client_container_name = f"client-{task.name}-{timestamp}"
@@ -211,7 +213,7 @@ class LocalExecutor(BaseExecutor):
             # Build env_groups for secrets file generation
             env_groups = {}
             if eval_env_parsed:
-                env_groups[task.name] = eval_env_parsed
+                env_groups[uname] = eval_env_parsed
             if deployment and deployment_env_parsed:
                 env_groups["deployment"] = deployment_env_parsed
             if exporters_env_parsed:
@@ -223,7 +225,7 @@ class LocalExecutor(BaseExecutor):
             eval_env_var_names = list(eval_env_parsed.keys())
             if env_groups:
                 secrets_result = generate_secrets_env(env_groups)
-                eval_reexport_cmd = build_reexport_commands(task.name, secrets_result)
+                eval_reexport_cmd = build_reexport_commands(uname, secrets_result)
                 deployment_reexport_cmd = build_reexport_commands(
                     "deployment", secrets_result
                 )
@@ -233,7 +235,7 @@ class LocalExecutor(BaseExecutor):
             if "container" in task:
                 eval_image = task["container"]
 
-            task_output_dir = output_dir / task.name
+            task_output_dir = output_dir / uname
             task_output_dir.mkdir(parents=True, exist_ok=True)
             eval_factory_command_struct = get_eval_factory_command(
                 cfg, task, task_definition
@@ -335,10 +337,11 @@ class LocalExecutor(BaseExecutor):
                     print(grey(f.read()))
             else:
                 for idx, task in enumerate(cfg.evaluation.tasks):
-                    task_output_dir = output_dir / task.name
+                    uname = get_unique_task_name(task.name, idx)
+                    task_output_dir = output_dir / uname
                     print(
                         cyan(
-                            f"\n\n=========== Task script | {task.name}/run.sh =====================\n\n"
+                            f"\n\n=========== Task script | {uname}/run.sh =====================\n\n"
                         )
                     )
                     with open(task_output_dir / "run.sh", "r") as f:
@@ -442,20 +445,21 @@ class LocalExecutor(BaseExecutor):
                 )
             processes.append(("run_all.sequential.sh", proc, output_dir))
         else:
-            for task in cfg.evaluation.tasks:
+            for idx, task in enumerate(cfg.evaluation.tasks):
+                cwd = output_dir / get_unique_task_name(task.name, idx)
                 if os_name == "Windows":
                     proc = subprocess.Popen(
                         shlex.split("bash run.sh"),
-                        cwd=output_dir / task.name,
+                        cwd=cwd,
                         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
                     )
                 else:
                     proc = subprocess.Popen(
                         shlex.split("bash run.sh"),
-                        cwd=output_dir / task.name,
+                        cwd=cwd,
                         start_new_session=True,
                     )
-                processes.append((task.name, proc, output_dir / task.name))
+                processes.append((task.name, proc, cwd))
 
         # Wait briefly and check if bash scripts exited immediately (which means error)
         time.sleep(0.3)

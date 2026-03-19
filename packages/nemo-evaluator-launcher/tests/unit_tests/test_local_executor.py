@@ -156,8 +156,8 @@ class TestLocalExecutorDryRun:
                 assert output_dir is not None
 
                 # Verify task directories were created
-                task1_dir = output_dir / "test_task_1"
-                task2_dir = output_dir / "test_task_2"
+                task1_dir = output_dir / "test_task_1.0"
+                task2_dir = output_dir / "test_task_2.1"
                 assert task1_dir.exists()
                 assert task2_dir.exists()
 

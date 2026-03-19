@@ -23,6 +23,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Tuple
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData, generate_job_id
+from nemo_evaluator_launcher.common.helpers import get_unique_task_name
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.exporters.utils import (
     DataForExport,
@@ -206,6 +207,25 @@ class BaseExporter(ABC):
 
         return list(jobs_data.values()), failed_jobs
 
+    @staticmethod
+    def _build_task_dir_index(tasks: list) -> dict[str, int]:
+        """Map task directory names to their positional index in the config.
+
+        Supports both the new unique-name format (``name.idx``) and the legacy
+        plain-name format.  For legacy runs with duplicate task names, only the
+        first occurrence is recoverable — duplicates were already broken in
+        that format.
+        """
+        task_names = [
+            task.get("name") if isinstance(task, dict) else task for task in tasks
+        ]
+        index: dict[str, int] = {}
+        for idx, name in enumerate(task_names):
+            index[get_unique_task_name(name, idx)] = idx
+            if name not in index:
+                index[name] = idx
+        return index
+
     def _get_jobs_in_dir(self, invocation_dir: Path) -> Dict[str, JobData]:
         """Extract job data from an invocation directory.
 
@@ -244,25 +264,22 @@ class BaseExporter(ABC):
             logger.warning(f"Failed to load config from {first_metadata}: {e}")
             return jobs_data
 
-        # Get task names from config to determine job indices
         tasks = config.get("evaluation", {}).get("tasks", [])
-        task_names = [
-            task.get("name") if isinstance(task, dict) else task for task in tasks
-        ]
+        dir_name_to_index = self._build_task_dir_index(tasks)
 
         # Get executor type
         executor_type = config.get("execution", {}).get("type", "unknown")
 
         # Create JobData for each job subdirectory
         for job_subdir, metadata_file in job_subdirs:
-            task_name = job_subdir.name
+            dir_name = job_subdir.name
 
-            # Find task index in config
-            try:
-                task_index = task_names.index(task_name)
-            except ValueError:
-                # Task not found in config, skip or use fallback
-                logger.warning(f"Task {task_name} not found in config tasks list")
+            if dir_name in dir_name_to_index:
+                task_index = dir_name_to_index[dir_name]
+            else:
+                logger.warning(
+                    f"Directory '{dir_name}' does not match any task in the config"
+                )
                 continue
 
             job_id = generate_job_id(invocation_id, task_index)

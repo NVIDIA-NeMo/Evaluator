@@ -59,6 +59,7 @@ from nemo_evaluator_launcher.common.helpers import (
     get_api_key_name,
     get_eval_factory_command,
     get_timestamp_string,
+    get_unique_task_name,
     is_local_image_path,
     resolve_endpoint_readiness_timeout,
 )
@@ -118,10 +119,11 @@ class SlurmExecutor(BaseExecutor):
                 # calculate job_id
                 job_id = f"{invocation_id}.{idx}"
 
-                # preapre locally
-                remote_task_subdir = remote_rundir / task.name
-                local_task_subdir = local_rundir / task.name
-                local_task_subdir.mkdir()  # this ensures the task.name hasn't been used
+                # prepare locally
+                uname = get_unique_task_name(task.name, idx)
+                remote_task_subdir = remote_rundir / uname
+                local_task_subdir = local_rundir / uname
+                local_task_subdir.mkdir()  # this ensures the task dir name is unique
                 (local_task_subdir / "logs").mkdir()
                 (local_task_subdir / "artifacts").mkdir()
 
@@ -154,6 +156,7 @@ class SlurmExecutor(BaseExecutor):
                     remote_task_subdir=remote_task_subdir,
                     invocation_id=invocation_id,
                     job_id=job_id,
+                    task_idx=idx,
                 )
 
                 # Create proxy config file with placeholder IPs for multi-instance deployments
@@ -641,6 +644,7 @@ def _create_slurm_sbatch_script(
     remote_task_subdir: Path,
     invocation_id: str,
     job_id: str,
+    task_idx: int,
 ) -> CmdAndReadableComment:
     """Generate the contents of a SLURM sbatch script for a given evaluation task.
 
@@ -650,10 +654,13 @@ def _create_slurm_sbatch_script(
         remote_task_subdir: The remote directory path for the `run.sub` file.
         invocation_id: The invocation ID for this evaluation run.
         job_id: The complete job ID string.
+        task_idx: The task's positional index (used for ``get_unique_task_name``).
 
     Returns:
-        str: The contents of the sbatch script.
+        CmdAndReadableComment: The sbatch script content.
     """
+    uname = get_unique_task_name(task.name, task_idx)
+
     # deployment.multiple_instances is deprecated — use execution.num_instances and execution.num_nodes
     if cfg.deployment.get("multiple_instances") is not None:
         raise ValueError(
@@ -723,7 +730,7 @@ def _create_slurm_sbatch_script(
     env_groups = {}
     # Evaluation vars for this task (merged: top-level -> eval -> task -> exec eval -> api_key)
     if eval_env_vars:
-        env_groups[task.name] = eval_env_vars
+        env_groups[uname] = eval_env_vars
     # Deployment vars (merged: top-level -> exec deployment -> deployment.env_vars)
     if deployment_env_vars:
         env_groups["deployment"] = deployment_env_vars
@@ -749,7 +756,7 @@ def _create_slurm_sbatch_script(
         s += f'source "{secrets_env_path}"\n'
         s += "\n"
 
-        eval_reexport_cmd = build_reexport_commands(task.name, secrets_result)
+        eval_reexport_cmd = build_reexport_commands(uname, secrets_result)
         deploy_reexport_cmd = build_reexport_commands("deployment", secrets_result)
         for aux in aux_deployments:
             aux.reexport_cmd = (
