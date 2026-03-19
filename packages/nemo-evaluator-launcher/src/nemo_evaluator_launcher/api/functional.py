@@ -20,6 +20,7 @@ This module provides the main functional entry points for running evaluations, q
 
 import copy
 import os
+from collections import defaultdict
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 from nemo_evaluator.core.utils import validate_params_in_command
@@ -34,7 +35,10 @@ from nemo_evaluator_launcher.common.config_models import (
     TaskModel,
 )
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
-from nemo_evaluator_launcher.common.helpers import get_eval_factory_config
+from nemo_evaluator_launcher.common.helpers import (
+    get_eval_factory_config,
+    get_unique_task_name,
+)
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.mapping import (
     get_task_definition_for_job,
@@ -192,12 +196,47 @@ def _validate_no_missing_values(cfg: Any, path: str = "") -> None:
             _validate_no_missing_values(value, current_path)
 
 
-def filter_tasks(cfg: RunConfig, task_names: list[str]) -> RunConfig:
+def _find_matching_task_indices(
+    tasks: list, task_name_filters: list[str]
+) -> tuple[list[int], list[str]]:
+    """Match each filter against the task list by plain name or unique name.
+
+    A filter like ``"mmlu"`` matches every task with that plain name.
+    A filter like ``"mmlu.0"`` matches a single task by its unique name,
+    but only if no task is literally named ``"mmlu.0"`` (plain name takes
+    priority to avoid shadowing real task names).
+
+    Returns ``(found_indices_sorted, unmatched_filters)``.
+    """
+    by_name: defaultdict[str, list[int]] = defaultdict(list)
+    for i, t in enumerate(tasks):
+        by_name[t.name].append(i)
+
+    by_unique_name = {get_unique_task_name(t.name, i): i for i, t in enumerate(tasks)}
+
+    found: set[int] = set()
+    unmatched_filters: list[str] = []
+    for f in task_name_filters:
+        if f in by_name:
+            found.update(by_name[f])
+        elif f in by_unique_name:
+            found.add(by_unique_name[f])
+        else:
+            unmatched_filters.append(f)
+
+    return sorted(found), unmatched_filters
+
+
+def filter_tasks(cfg: RunConfig, task_name_filters: list[str]) -> RunConfig:
     """Filter evaluation tasks to only include specified task names.
+
+    Accepts both plain names (``"mmlu"`` — all instances) and positional
+    unique names (``"mmlu.0"`` — one specific instance).  Plain names
+    take priority so that unique names never shadow a real task name.
 
     Args:
         cfg: The configuration object for the evaluation run.
-        task_names: List of task names to include (e.g., ["ifeval", "gsm8k"]).
+        task_name_filters: List of task names or unique task names to include.
 
     Returns:
         RunConfig: A new configuration with filtered tasks (input is not mutated).
@@ -205,29 +244,27 @@ def filter_tasks(cfg: RunConfig, task_names: list[str]) -> RunConfig:
     Raises:
         ValueError: If any requested task is not found in config or no tasks defined.
     """
-    if not task_names:
+    if not task_name_filters:
         return cfg
 
     if not cfg.evaluation.tasks:
         raise ValueError("No tasks defined in config. Cannot filter tasks.")
 
-    requested_tasks = set(task_names)
-    original_tasks = cfg.evaluation.tasks
-    filtered_tasks = [task for task in original_tasks if task.name in requested_tasks]
+    found, unmatched_filters = _find_matching_task_indices(
+        cfg.evaluation.tasks, task_name_filters
+    )
 
-    # Fail if ANY requested tasks are not found
-    found_names = {task.name for task in filtered_tasks}
-    not_found = requested_tasks - found_names
-    if not_found:
-        available = [task.name for task in original_tasks]
+    if unmatched_filters:
+        available = [
+            get_unique_task_name(t.name, i) for i, t in enumerate(cfg.evaluation.tasks)
+        ]
         raise ValueError(
-            f"Requested task(s) not found in config: {sorted(not_found)}. "
+            f"Requested task(s) not found in config: {sorted(unmatched_filters)}. "
             f"Available tasks: {available}"
         )
 
-    # Create a deep copy to preserve input immutability
     result = copy.deepcopy(cfg)
-    result.evaluation.tasks = filtered_tasks
+    result.evaluation.tasks = [result.evaluation.tasks[i] for i in found]
     return result
 
 

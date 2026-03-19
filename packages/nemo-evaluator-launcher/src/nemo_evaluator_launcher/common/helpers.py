@@ -602,3 +602,12 @@ def resolve_endpoint_readiness_timeout(cfg: DictConfig) -> int:
     if wt is not None:
         return walltime_to_seconds(str(wt))
     return walltime_to_seconds("01:00:00")
+
+
+def get_unique_task_name(task_name: str, idx: int) -> str:
+    """Return a positional directory name for a task.
+
+    Every task gets ``"{name}.{idx}"`` to avoid collisions when the same
+    task appears more than once in a config.
+    """
+    return f"{task_name}.{idx}"

@@ -433,22 +433,20 @@ class TestLocalExecutorTelemetryPropagation:
 
                 assert output_dir is not None
 
-                secrets_file = output_dir / "test_task" / ".secrets.env"
+                secrets_file = output_dir / "test_task.0" / ".secrets.env"
                 assert secrets_file.exists()
 
                 script_content = secrets_file.read_text()
                 print(script_content)
                 import re
 
-                regex = r"export NEMO_EVALUATOR_TELEMETRY_SESSION_ID_[a-z0-9]{4}_TEST_TASK=\"test-session-12345\""
+                regex = r"export NEMO_EVALUATOR_TELEMETRY_SESSION_ID_[a-z0-9]{4}_TEST_TASK_0=\"test-session-12345\""
                 matches = re.findall(regex, script_content)
                 assert len(matches) == 1
-                regex = (
-                    r"export NEMO_EVALUATOR_TELEMETRY_LEVEL_[a-z0-9]{4}_TEST_TASK=\"2\""
-                )
+                regex = r"export NEMO_EVALUATOR_TELEMETRY_LEVEL_[a-z0-9]{4}_TEST_TASK_0=\"2\""
                 matches = re.findall(regex, script_content)
                 assert len(matches) == 1
-                regex = r"export NEMO_EVALUATOR_TELEMETRY_ENDPOINT_[a-z0-9]{4}_TEST_TASK=\"https://staging.example.com/v1.1/events/json\""
+                regex = r"export NEMO_EVALUATOR_TELEMETRY_ENDPOINT_[a-z0-9]{4}_TEST_TASK_0=\"https://staging.example.com/v1.1/events/json\""
                 matches = re.findall(regex, script_content)
                 assert len(matches) == 1
 
@@ -513,7 +511,7 @@ class TestLocalExecutorTelemetryPropagation:
                         break
 
                 assert output_dir is not None
-                run_script = output_dir / "test_task" / "run.sh"
+                run_script = output_dir / "test_task.0" / "run.sh"
                 assert run_script.exists()
 
                 script_content = run_script.read_text()
@@ -626,6 +624,7 @@ class TestSlurmExecutorTelemetryPropagation:
                     remote_task_subdir=Path("/tmp/test/test_task"),
                     invocation_id="test123",
                     job_id="test123.0",
+                    task_idx=0,
                 )
 
                 script = result.cmd
@@ -705,6 +704,7 @@ class TestSlurmExecutorTelemetryPropagation:
                 remote_task_subdir=Path("/tmp/test/test_task"),
                 invocation_id="test123",
                 job_id="test123.0",
+                task_idx=0,
             )
 
             script = result.cmd

@@ -462,32 +462,89 @@ class TestBaseExporter:
                 job_data.job_id in input_ids
             )
 
-    def test_get_jobs_in_dir(self, tmp_path):
+    @pytest.mark.parametrize(
+        "tasks, expected_index",
+        [
+            pytest.param(
+                [{"name": "mmlu"}, {"name": "gsm8k"}],
+                {"mmlu.0": 0, "mmlu": 0, "gsm8k.1": 1, "gsm8k": 1},
+                id="new_format_dict_tasks",
+            ),
+            pytest.param(
+                ["task1", "task2"],
+                {"task1.0": 0, "task1": 0, "task2.1": 1, "task2": 1},
+                id="old_format_string_tasks",
+            ),
+            pytest.param(
+                [{"name": "mmlu"}, {"name": "mmlu"}],
+                {"mmlu.0": 0, "mmlu": 0, "mmlu.1": 1},
+                id="duplicate_names_first_wins_plain",
+            ),
+        ],
+    )
+    def test_build_task_dir_index(self, tasks, expected_index):
+        """Test _build_task_dir_index maps directory names to task indices."""
+        result = ConcreteExporter._build_task_dir_index(tasks)
+        assert result == expected_index
+
+    @pytest.mark.parametrize(
+        "dir_names, config, expected_job_ids",
+        [
+            pytest.param(
+                ["task1", "task2"],
+                {
+                    "evaluation": {"tasks": ["task1", "task2"]},
+                    "execution": {"type": "local"},
+                },
+                ["test123abc.0", "test123abc.1"],
+                id="old_format_plain_names",
+            ),
+            pytest.param(
+                ["mmlu.0", "gsm8k.1"],
+                {
+                    "evaluation": {
+                        "tasks": [{"name": "mmlu"}, {"name": "gsm8k"}],
+                    },
+                    "execution": {"type": "local"},
+                },
+                ["test123abc.0", "test123abc.1"],
+                id="new_format",
+            ),
+            pytest.param(
+                ["mmlu.0", "mmlu.1"],
+                {
+                    "evaluation": {
+                        "tasks": [{"name": "mmlu"}, {"name": "mmlu"}],
+                    },
+                    "execution": {"type": "local"},
+                },
+                ["test123abc.0", "test123abc.1"],
+                id="new_format_duplicate_names",
+            ),
+            pytest.param(
+                ["mmlu.0", "unknown_task"],
+                {
+                    "evaluation": {
+                        "tasks": [{"name": "mmlu"}],
+                    },
+                    "execution": {"type": "local"},
+                },
+                ["test123abc.0"],
+                id="unknown_directory_skipped",
+            ),
+        ],
+    )
+    def test_get_jobs_in_dir(self, tmp_path, dir_names, config, expected_job_ids):
         """Test _get_jobs_in_dir extracts job data from directory."""
         # Create invocation directory structure
         invocation_dir = tmp_path / "20251219_112732-test123abc"
         invocation_dir.mkdir()
 
-        # Create task subdirectories
-        task1_dir = invocation_dir / "task1"
-        task1_artifacts = task1_dir / "artifacts"
-        task1_artifacts.mkdir(parents=True)
-
-        task2_dir = invocation_dir / "task2"
-        task2_artifacts = task2_dir / "artifacts"
-        task2_artifacts.mkdir(parents=True)
-
-        # Create metadata files
-        config = {
-            "evaluation": {"tasks": ["task1", "task2"]},
-            "execution": {"type": "local"},
-        }
-        (task1_artifacts / "metadata.yaml").write_text(
-            "config:\n  evaluation:\n    tasks:\n      - task1\n      - task2\n  execution:\n    type: local\n"
-        )
-        (task2_artifacts / "metadata.yaml").write_text(
-            "config:\n  evaluation:\n    tasks:\n      - task1\n      - task2\n  execution:\n    type: local\n"
-        )
+        # Create task subdirectories with metadata files
+        for name in dir_names:
+            artifacts = invocation_dir / name / "artifacts"
+            artifacts.mkdir(parents=True)
+            (artifacts / "metadata.yaml").write_text("")
 
         exporter = ConcreteExporter()
 
@@ -497,11 +554,9 @@ class TestBaseExporter:
         ):
             jobs_data = exporter._get_jobs_in_dir(invocation_dir)
 
-            assert len(jobs_data) == 2
-            assert "test123abc.0" in jobs_data  # task1
-            assert "test123abc.1" in jobs_data  # task2
-            assert jobs_data["test123abc.0"].invocation_id == "test123abc"
-            assert jobs_data["test123abc.1"].invocation_id == "test123abc"
+            assert sorted(jobs_data.keys()) == sorted(expected_job_ids)
+            for job_id in expected_job_ids:
+                assert jobs_data[job_id].invocation_id == "test123abc"
 
 
 class TestExportResult:
