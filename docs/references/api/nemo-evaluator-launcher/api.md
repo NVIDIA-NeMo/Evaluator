@@ -178,56 +178,52 @@ print(f"Output directory: {status['data']['output_dir']}")
 
 ## Watching Checkpoints
 
-The watch module provides continuous checkpoint discovery and evaluation submission:
+The watcher module provides continuous checkpoint discovery and evaluation submission.
+See {ref}`how-to-continuous-checkpoint-evaluation` for a full walkthrough.
+
+### Running the Watcher
 
 ```python
 from pathlib import Path
 
-from nemo_evaluator_launcher.api.functional import RunConfig
-from nemo_evaluator_launcher.api.watch import (
-    WatchDirConfig,
-    discover_checkpoints,
-    watch_checkpoints,
+from nemo_evaluator_launcher.watcher.configs import WatchConfig
+from nemo_evaluator_launcher.watcher.run import watch_and_evaluate
+
+# Load the watch config (supports Hydra config groups and overrides)
+watch_config = WatchConfig.from_hydra(
+    path=Path("my-watch-config.yaml"),
+    overrides=["monitoring_config.interval=60"],
 )
 
-# Simple: watch a single directory
-config = RunConfig.from_hydra(config="my-eval-config.yaml")
-submissions = watch_checkpoints(
-    config=config,
-    watch_dir=Path("/checkpoints/my-training-run"),
-    interval=300,
-    order="newest",
-    once=True,  # scan once and return
+# Run until all directories are exhausted or Ctrl+C
+submissions = watch_and_evaluate(
+    watch_config=watch_config,
+    resubmit_previous_sessions=False,
+    dry_run=False,
 )
 
 for s in submissions:
     print(f"{s.checkpoint} -> {s.invocation_id}")
 ```
 
-### Watch Multiple Directories
-
-```python
-submissions = watch_checkpoints(
-    config=config,
-    watch_dirs=[
-        WatchDirConfig(
-            checkpoint_dir=Path("/training/run-A/checkpoints"),
-            output_dir=Path("/results/run-A"),
-        ),
-        WatchDirConfig(
-            checkpoint_dir=Path("/training/run-B/checkpoints"),
-            output_dir=Path("/results/run-B"),
-        ),
-    ],
-    interval=300,
-)
-```
-
 ### Discover Checkpoints Without Submitting
 
 ```python
+from pathlib import Path
+
+from nemo_evaluator_launcher.watcher.configs import ClusterConfig
+from nemo_evaluator_launcher.watcher.run import discover_checkpoints
+
+cluster_config = ClusterConfig(
+    username="myuser",
+    hostname="my-cluster-login.example.com",
+    account="my-account",
+    output_dir="/shared/results",
+)
+
 checkpoints = discover_checkpoints(
     watch_dir=Path("/checkpoints/my-training-run"),
+    cluster_config=cluster_config,
     ready_markers=["metadata.json", "config.yaml"],
     checkpoint_patterns=["step_*", "iter_*"],
 )

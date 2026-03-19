@@ -404,85 +404,96 @@ nemo-evaluator-launcher --version
 
 ## nel-watch - Continuous Checkpoint Evaluation
 
-`nel-watch` is a standalone command that polls a checkpoint directory and automatically submits evaluation jobs for each new checkpoint. It is installed as a separate entrypoint alongside `nel`.
+`nel-watch` is a standalone command that polls checkpoint directories on a SLURM cluster and automatically submits evaluation jobs for each new checkpoint. It is installed as a separate entrypoint alongside `nel`.
 
 ### nel-watch Basic Usage
 
 ```bash
-# Watch a single directory
-nel-watch --config my-eval-config.yaml --watch-dir /path/to/checkpoints
+# Watch directories defined in a watch config file
+nel-watch --config my-watch-config.yaml
 
 # Dry run — preview what would be submitted
-nel-watch --config my-eval-config.yaml --watch-dir /path/to/checkpoints --dry-run --once
+nel-watch --config my-watch-config.yaml --dry-run
 
-# Watch multiple directories via config file
-nel-watch --config my-eval-config.yaml --watch-config watch-dirs.yaml
+# Override polling interval at the command line
+nel-watch --config my-watch-config.yaml --interval 60
+
+# Scan once and exit (no polling loop)
+nel-watch --config my-watch-config.yaml --interval 0
 ```
 
 ### nel-watch Options
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 15 55
+:widths: 35 15 50
 
 * - Option
   - Default
   - Description
 * - `--config`
   - *(required)*
-  - Path to eval config file (same as `nel run`).
-* - `--watch-dir`
-  - —
-  - Directory to watch for checkpoint subdirectories.
-* - `--watch-config`
-  - —
-  - YAML file defining multiple watch directories (mutually exclusive with `--watch-dir`).
+  - Path to the watch config YAML file (see format below).
 * - `--interval`
-  - `300`
-  - Polling interval in seconds.
-* - `--ready-markers`
-  - `metadata.json,config.yaml`
-  - Comma-separated marker files. Checkpoint is ready if ANY exist.
-* - `--checkpoint-patterns`
-  - `iter_*,step_*`
-  - Comma-separated glob patterns for checkpoint directory names.
-* - `--checkpoint-field`
-  - `deployment.hf_model_handle`
-  - Dot-separated config field to override with checkpoint path.
+  - *(from config)*
+  - Override polling interval in seconds. Pass `0` to scan once and exit.
 * - `--order`
-  - `newest`
-  - Processing order: `newest` or `oldest`.
-* - `--state-file`
-  - *(auto)*
-  - Path to state file for tracking submissions.
+  - *(from config)*
+  - Override processing order: `last` (highest step first) or `first` (lowest step first).
+* - `--resubmit-previous-sessions`
+  - `false`
+  - Re-evaluate checkpoints submitted in earlier watcher sessions.
 * - `-n`, `--dry-run`
   - `false`
   - Preview without submitting.
-* - `--once`
-  - `false`
-  - Scan once and exit.
-* - `-o`
+* - `-o`, `--override`
   - —
-  - Hydra overrides (repeatable).
+  - Hydra-style override for the watch config (e.g. `-o cluster_config.account=x`). Repeatable. Overrides to individual `evaluation_configs` entries are not supported.
 ```
 
 ### Watch Config File Format
 
-For watching multiple directories simultaneously:
+`nel-watch` is driven by a watch config YAML that defines cluster access, monitoring behaviour, an optional conversion step, and the evaluation configs to run:
 
 ```yaml
-# watch-config.yaml
-checkpoint_field: deployment.hf_model_handle  # global default
+# my-watch-config.yaml
+cluster_config:
+  hostname: my-cluster-login.example.com  # 'localhost' when running on the login node
+  username: ${oc.env:USER}
+  account: my-slurm-account
+  partition: batch
+  output_dir: /shared/results/watch-run
+  sbatch_extra_flags:          # additional #SBATCH flags applied to every job
+    gres: "gpu:8"
+    time: "04:00:00"
 
-watch_dirs:
-  - checkpoint_dir: /training/run-A/checkpoints
-    output_dir: /results/run-A
-  - checkpoint_dir: /training/run-B/checkpoints
-    output_dir: /results/run-B
-    checkpoint_field: target.model_path  # per-directory override
+monitoring_config:
+  directories:
+    - /path/to/training/checkpoints
+  interval: 300                # seconds; null = scan once and exit
+  ready_markers: [metadata.json, config.yaml, config.json]
+  checkpoint_patterns: ["iter_*", "step_*"]
+  order: last                  # 'last' = highest step first
+
+# conversion_config is optional — omit to use raw checkpoint paths
+conversion_config:
+  container: /path/to/conversion.sqsh
+  command_params:
+    hf_model: /path/to/reference-hf-model
+    tp: 8
+    pp: 1
+    ep: 1
+    etp: 1
+  command_pattern: >-
+    bash -lc 'python /opt/converter/convert.py
+    --input {{ input_path }} --output {{ output_path }}
+    --hf-model {{ hf_model }} --tp {{ tp }}'
+
+evaluation_configs:
+  - /path/to/eval-config.yaml
 ```
 
-See the {ref}`how-to-continuous-checkpoint-evaluation` guide for a full walkthrough.
+See the {ref}`how-to-continuous-checkpoint-evaluation` guide for a full walkthrough, including Hydra config group templates and conversion presets.
 
 ## Environment Variables
 
