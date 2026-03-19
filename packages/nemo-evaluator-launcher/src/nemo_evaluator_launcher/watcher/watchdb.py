@@ -62,8 +62,11 @@ class WatchStateDB:
             )
 
     def submitted_paths(self, session_ids: Optional[list[str]] = None) -> set[str]:
-        # If session_ids is None, return all submitted paths
-        # Otherwise, return only the paths submitted during given sessions
+        """Return the paths of all submitted checkpoints.
+
+        If session_ids is None, return all submitted paths.
+        Otherwise, return only the paths submitted during given sessions.
+        """
         if session_ids is None:
             return {r.checkpoint for r in self._submitted.values()}
         else:
