@@ -268,6 +268,8 @@ class TestWandBExporter:
             job_id="i1.0",
             timestamp=0.0,
             job_data={},
+            launcher_command="nel run i1",
+            results_dir="/tmp/results/i1",
         )
         successful, failed, skipped = WandBExporter(
             {

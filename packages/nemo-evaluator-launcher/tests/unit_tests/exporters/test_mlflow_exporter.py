@@ -140,7 +140,7 @@ class TestMLflowExporter:
         assert result.successful_jobs == [jd.job_id]
 
     def test_log_config_params_flattens_config(
-        self, monkeypatch, mlflow_fake, make_mlflow_job
+        self, monkeypatch, mlflow_fake, make_mlflow_job, tmp_path
     ):
         """Test that log_config_params=True flattens the config into MLflow params."""
         _ML, _RunCtx = mlflow_fake
@@ -154,6 +154,9 @@ class TestMLflowExporter:
             },
         }
         jd = make_mlflow_job("test004", config=config)
+        (tmp_path / "test004" / "test004.0" / "artifacts" / "metadata.yaml").write_text(
+            "launcher_command: nel run test004\n"
+        )
 
         logged_params = {}
         monkeypatch.setattr(
@@ -170,6 +173,8 @@ class TestMLflowExporter:
         assert logged_params["config.deployment.tensor_parallel_size"] == "8"
         assert "config.deployment.model" in logged_params
         assert logged_params["config.deployment.model"] == "test-model"
+        assert logged_params.get("launcher_command") == "nel run test004"
+        assert "results_dir" in logged_params
 
     def test_log_config_params_with_max_depth(
         self, monkeypatch, mlflow_fake, make_mlflow_job

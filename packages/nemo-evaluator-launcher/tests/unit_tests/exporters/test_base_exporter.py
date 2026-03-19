@@ -590,3 +590,5 @@ class TestDataForExport:
         assert data.logs_dir is None
         assert data.harness is None
         assert data.job_data is None
+        assert data.launcher_command is None
+        assert data.results_dir is None

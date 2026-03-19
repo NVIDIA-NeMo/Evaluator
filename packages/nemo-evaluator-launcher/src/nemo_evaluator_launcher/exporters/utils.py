@@ -76,6 +76,8 @@ class DataForExport:
     timestamp: float
 
     job_data: Optional[Dict[str, Any]] = None
+    launcher_command: Optional[str] = None
+    results_dir: Optional[str] = None
 
 
 def get_relevant_artifacts() -> List[str]:
@@ -132,6 +134,7 @@ class MetricConflictError(Exception):
 RESULTS_FILE = "results.yml"
 METADATA_FILE = "metadata.yaml"
 METADATA_CONFIG_KEY = "launcher_resolved_config"
+METADATA_LAUNCHER_COMMAND_KEY = "launcher_command"
 NE_CONFIG_FILE = "run_config.yml"
 
 
@@ -189,6 +192,36 @@ def load_config_from_metadata(artifacts_dir: Path) -> Dict[str, Any]:
             f"Failed to parse {METADATA_FILE} - no {METADATA_CONFIG_KEY} section found"
         )
     return metadata[METADATA_CONFIG_KEY]
+
+
+def get_results_dir_from_job_data(job_data_dict: Dict[str, Any]) -> Optional[str]:
+    """Return the output directory string from job data.
+
+    For Slurm jobs returns ``hostname:remote_rundir_path`` (scp-ready).
+    For local jobs returns the local ``output_dir`` path.
+    """
+    remote_path = job_data_dict.get("remote_rundir_path")
+    if remote_path:
+        hostname = job_data_dict.get("hostname")
+        if hostname:
+            return f"{hostname}:{remote_path}"
+        return str(remote_path)
+    local_path = job_data_dict.get("output_dir")
+    if local_path:
+        return str(local_path)
+    return None
+
+
+def load_launcher_command_from_metadata(artifacts_dir: Path) -> Optional[str]:
+    """Load the launcher CLI command from artifacts/metadata.yaml if present."""
+    try:
+        with open(artifacts_dir / METADATA_FILE, "r", encoding="utf-8") as f:
+            metadata = yaml.safe_load(f)
+        if not isinstance(metadata, dict):
+            return None
+        return metadata.get(METADATA_LAUNCHER_COMMAND_KEY)
+    except Exception:
+        return None
 
 
 def load_benchmark_info(artifacts_dir: Path) -> Tuple[str, str]:

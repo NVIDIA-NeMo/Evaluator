@@ -15,6 +15,7 @@
 #
 """Tests for local functionality."""
 
+import json
 from pathlib import Path
 from typing import List, Tuple
 from unittest.mock import patch
@@ -77,6 +78,13 @@ def test_export_with_format_json(tmp_path: Path, mock_execdb, prepare_local_job)
     # Check that output directory was created with artifacts
     job_export_dir = output_dir / inv / j1.job_id
     assert job_export_dir.exists()
+
+    # results_dir is present in output even when None (no data dict keys set)
+    out = json.loads(
+        (output_dir / inv / j1.job_id / "processed_results.json").read_text()
+    )
+    entry = out["benchmarks"]["simple_evals.mmlu"]["models"]["test-model"][0]
+    assert "results_dir" in entry
 
 
 def test_export_with_format_csv(tmp_path: Path, mock_execdb, prepare_local_job):

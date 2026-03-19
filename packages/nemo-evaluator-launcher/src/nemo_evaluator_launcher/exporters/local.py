@@ -125,6 +125,7 @@ class LocalExporter(BaseExporter):
                 "scores": data.metrics,
                 "timestamp": data.timestamp,
                 "executor": data.executor,
+                "results_dir": data.results_dir,
             }
             if benchmark_name not in merged_data["benchmarks"]:
                 # new benchmark
@@ -174,6 +175,7 @@ class LocalExporter(BaseExporter):
             "Container",
             "Invocation ID",
             "Job ID",
+            "Results Dir",
         ]
 
         skipped_jobs = []
@@ -214,6 +216,7 @@ class LocalExporter(BaseExporter):
                 "Container": data.container,
                 "Invocation ID": data.invocation_id,
                 "Job ID": data.job_id,
+                "Results Dir": data.results_dir,
             }
             # Add metrics (as columns)
             for k, v in (data.metrics or {}).items():

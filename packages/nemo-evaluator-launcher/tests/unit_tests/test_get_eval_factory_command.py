@@ -81,9 +81,10 @@ def test_get_eval_factory_command_basic(monkeypatch):
     assert merged["config"]["type"] == "my_task"
     assert merged["config"]["output_dir"] == "/results"
 
-    # Metadata is populated, including resolved launcher config and versioning
+    # Metadata is populated, including resolved launcher config, versioning, and launcher_command
     assert "metadata" in merged and isinstance(merged["metadata"], dict)
     assert merged["metadata"]["versioning"] == "TEST_VER"
+    assert "launcher_command" in merged["metadata"]
     # Validate a few salient fields from the resolved config got embedded
     resolved = merged["metadata"]["launcher_resolved_config"]
     assert resolved["deployment"]["type"] == "none"
