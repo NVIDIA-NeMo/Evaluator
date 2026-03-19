@@ -152,6 +152,41 @@ def scorer_two(sample):
         )
 
 
+class TestEvalTypeName:
+    """Tests that the evaluation name in FDF matches what import_benchmark expects."""
+
+    def test_eval_name_matches_registry_key(self, tmp_path):
+        """The evaluation name in FDF must use the normalized name so that
+        the run command (--eval_type pkg.NAME) resolves at runtime.
+
+        Regression test: hyphenated names like 'test-benchmark' were stored
+        as-is in fdf['evaluations'][0]['name'], but the registry keyed them as
+        'test_benchmark', causing ValueError at runtime.
+        """
+        benchmark_code = """
+from nemo_evaluator.contrib.byob import benchmark, scorer
+
+@benchmark(name="test-benchmark", dataset="data.jsonl", prompt="Q: {q}")
+@scorer
+def check(sample):
+    return {"correct": sample.target.lower() in sample.response.lower()}
+"""
+        benchmark_file = tmp_path / "bench.py"
+        benchmark_file.write_text(benchmark_code)
+
+        result = compile_benchmark(str(benchmark_file))
+        fdf = result["test_benchmark"]
+
+        eval_name = fdf["evaluations"][0]["defaults"]["config"]["type"]
+        registry_key = "byob_test_benchmark.test_benchmark"
+
+        assert eval_name == registry_key, (
+            f"Evaluation name '{eval_name}' does not match registry key "
+            f"'{registry_key}'. The run command will fail with "
+            f"'Benchmark not found' at runtime."
+        )
+
+
 class TestInstallBenchmark:
     """Tests for install_benchmark function."""
 

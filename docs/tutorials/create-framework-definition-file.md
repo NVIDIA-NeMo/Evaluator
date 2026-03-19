@@ -109,7 +109,7 @@ Add the `defaults` section with your command template:
 ```yaml
 defaults:
   command: >-
-    {% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}} && {% endif %}
+    {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %}
     domain-eval 
       --model-name {{target.api_endpoint.model_id}}
       --api-url {{target.api_endpoint.url}}
@@ -285,7 +285,7 @@ framework:
 
 defaults:
   command: >-
-    {% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}} && {% endif %}
+    {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %}
     domain-eval 
       --model-name {{target.api_endpoint.model_id}}
       --api-url {{target.api_endpoint.url}}
@@ -367,7 +367,7 @@ Organize outputs in subdirectories using `output_dir`.
 
 ```yaml
 command: >-
-  export HF_TOKEN=${{target.api_endpoint.api_key}} && 
+  export HF_TOKEN=${{target.api_endpoint.api_key_name}} && 
   export TOKENIZERS_PARALLELISM=false && 
   my-eval ...
 ```

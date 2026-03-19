@@ -31,6 +31,12 @@ import yaml
 from jinja2 import Environment, FileSystemLoader
 from omegaconf import DictConfig, OmegaConf
 
+from nemo_evaluator_launcher.common.auxiliary_deployments import (
+    AuxDeploymentState,
+    build_aux_deployment_states,
+    resolve_deployment_command,
+    validate_auxiliary_deployments,
+)
 from nemo_evaluator_launcher.common.env_vars import (
     SecretsEnvResult,
     build_reexport_commands,
@@ -53,6 +59,7 @@ from nemo_evaluator_launcher.common.helpers import (
     get_api_key_name,
     get_eval_factory_command,
     get_timestamp_string,
+    is_local_image_path,
     resolve_endpoint_readiness_timeout,
 )
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -132,7 +139,11 @@ class SlurmExecutor(BaseExecutor):
                 eval_images.append(eval_image)
 
                 # Track unlisted tasks for safeguard check
-                if task_definition.get("is_unlisted", False):
+                # Skip the safeguard for local image paths (e.g. .sqsh files) since
+                # the user has explicitly provided the container to run.
+                if task_definition.get(
+                    "is_unlisted", False
+                ) and not is_local_image_path(eval_image):
                     unlisted_task_names.append(task.name)
 
                 # generate and write down sbatch script
@@ -668,14 +679,20 @@ def _create_slurm_sbatch_script(
         endpoint_type=task.get("endpoint_type"),
     )
 
-    # TODO(public release): convert to template
+    aux_deployments = build_aux_deployment_states(cfg)
+    validate_auxiliary_deployments(aux_deployments)
+
+    has_aux_deployments = len(aux_deployments) > 0
+    total_aux_nodes = sum(a.num_nodes for a in aux_deployments)
+    total_num_nodes = cfg.execution.num_nodes + total_aux_nodes
+
     s = "#!/bin/bash\n"
 
     # SBATCH headers
     s += "#SBATCH --time {}\n".format(cfg.execution.walltime)
     s += "#SBATCH --account {}\n".format(cfg.execution.account)
     s += "#SBATCH --partition {}\n".format(cfg.execution.partition)
-    s += "#SBATCH --nodes {}\n".format(cfg.execution.num_nodes)
+    s += "#SBATCH --nodes {}\n".format(total_num_nodes)
     s += "#SBATCH --ntasks-per-node {}\n".format(cfg.execution.ntasks_per_node)
     if cfg.execution.get("gpus_per_node", None) is not None:
         s += "#SBATCH --gpus-per-node {}\n".format(cfg.execution.gpus_per_node)
@@ -704,13 +721,17 @@ def _create_slurm_sbatch_script(
 
     # Merge all into groups for secrets file generation
     env_groups = {}
-    # Evaluation vars for this task (merged: top-level → eval → task → exec eval → api_key)
+    # Evaluation vars for this task (merged: top-level -> eval -> task -> exec eval -> api_key)
     if eval_env_vars:
         env_groups[task.name] = eval_env_vars
-    # Deployment vars (merged: top-level → exec deployment → deployment.env_vars)
+    # Deployment vars (merged: top-level -> exec deployment -> deployment.env_vars)
     if deployment_env_vars:
         env_groups["deployment"] = deployment_env_vars
-    # Export vars (merged: top-level → export.env_vars)
+    # Auxiliary deployment vars (each aux collects its own env vars)
+    for aux in aux_deployments:
+        if aux.env_vars:
+            env_groups[aux.name] = aux.env_vars
+    # Export vars (merged: top-level -> export.env_vars)
     if export_env_vars:
         env_groups["export"] = export_env_vars
 
@@ -730,6 +751,12 @@ def _create_slurm_sbatch_script(
 
         eval_reexport_cmd = build_reexport_commands(task.name, secrets_result)
         deploy_reexport_cmd = build_reexport_commands("deployment", secrets_result)
+        for aux in aux_deployments:
+            aux.reexport_cmd = (
+                build_reexport_commands(aux.name, secrets_result)
+                if secrets_result
+                else ""
+            )
 
     # auto resume after timeout (with optional max_walltime enforcement)
     max_walltime = cfg.execution.get("max_walltime", "120:00:00")
@@ -748,23 +775,60 @@ def _create_slurm_sbatch_script(
     s += "set -x  # print commands and their arguments as they are executed\n"
     s += "\n"
 
-    # Resolve a primary node for single-node sruns (client/proxy/export).
-    # This must be safe under `set -u` and work for deployment.type == "none".
-    # Prefer SLURM_JOB_NODELIST but fall back to SLURM_NODELIST; if neither exists,
-    # fall back to the local hostname.
-    s += "# Resolve PRIMARY_NODE for single-node sruns\n"
-    s += 'NODELIST="${SLURM_JOB_NODELIST:-${SLURM_NODELIST:-}}"\n'
-    s += 'if command -v scontrol >/dev/null 2>&1 && [[ -n "${NODELIST}" ]]; then\n'
-    s += '  nodes=( $(scontrol show hostnames "${NODELIST}") )\n'
-    s += "else\n"
-    s += '  nodes=( "$(hostname)" )\n'
-    s += "fi\n"
-    s += 'nodes_array=("${nodes[@]}")\n'
-    s += "if [[ ${#nodes_array[@]} -eq 0 ]]; then\n"
-    s += '  nodes_array=( "$(hostname)" )\n'
-    s += "fi\n"
-    s += 'export PRIMARY_NODE="${nodes_array[0]}"\n'
-    s += 'echo "PRIMARY_NODE: ${PRIMARY_NODE}"\n'
+    if has_aux_deployments:
+        # Resolve all allocated nodes and split between model and auxiliary deployments
+        s += "# Resolve all allocated nodes\n"
+        s += 'NODELIST="${SLURM_JOB_NODELIST:-${SLURM_NODELIST:-}}"\n'
+        s += 'if command -v scontrol >/dev/null 2>&1 && [[ -n "${NODELIST}" ]]; then\n'
+        s += '  ALL_NODES=( $(scontrol show hostnames "${NODELIST}") )\n'
+        s += "else\n"
+        s += '  ALL_NODES=( "$(hostname)" )\n'
+        s += "fi\n"
+        s += "if [[ ${#ALL_NODES[@]} -eq 0 ]]; then\n"
+        s += '  ALL_NODES=( "$(hostname)" )\n'
+        s += "fi\n"
+        s += 'echo "ALL_NODES (${#ALL_NODES[@]}): ${ALL_NODES[*]}"\n'
+        s += "\n"
+        # Split nodes: model first, then each auxiliary deployment
+        s += "# Split nodes between model deployment and auxiliary deployments\n"
+        s += f"MODEL_NUM_NODES={cfg.execution.num_nodes}\n"
+        for aux in aux_deployments:
+            s += f"{aux.env_prefix}_NUM_NODES={aux.num_nodes}\n"
+        s += 'MODEL_NODES=("${ALL_NODES[@]:0:$((MODEL_NUM_NODES))}")\n'
+        offset_expr = "MODEL_NUM_NODES"
+        for aux in aux_deployments:
+            s += f'{aux.nodes_var}=("${{ALL_NODES[@]:$(({offset_expr})):$(({aux.env_prefix}_NUM_NODES))}}")\n'
+            offset_expr = f"{offset_expr}+{aux.env_prefix}_NUM_NODES"
+        s += 'MODEL_NODELIST=$(IFS=,; echo "${MODEL_NODES[*]}")\n'
+        for aux in aux_deployments:
+            s += f'{aux.nodelist_var}=$(IFS=,; echo "${{{aux.nodes_var}[*]}}")\n'
+        s += 'export PRIMARY_NODE="${MODEL_NODES[0]}"\n'
+        for aux in aux_deployments:
+            s += f'export {aux.primary_node_var}="${{{aux.nodes_var}[0]}}"\n'
+        s += 'echo "MODEL_NODES ($MODEL_NUM_NODES): ${MODEL_NODES[*]}"\n'
+        for aux in aux_deployments:
+            s += f'echo "{aux.nodes_var} (${aux.env_prefix}_NUM_NODES): ${{{aux.nodes_var}[*]}}"\n'
+        s += 'echo "PRIMARY_NODE: ${PRIMARY_NODE}"\n'
+        for aux in aux_deployments:
+            s += f'echo "{aux.primary_node_var}: ${{{aux.primary_node_var}}}"\n'
+    else:
+        # Resolve a primary node for single-node sruns (client/proxy/export).
+        # This must be safe under `set -u` and work for deployment.type == "none".
+        # Prefer SLURM_JOB_NODELIST but fall back to SLURM_NODELIST; if neither exists,
+        # fall back to the local hostname.
+        s += "# Resolve PRIMARY_NODE for single-node sruns\n"
+        s += 'NODELIST="${SLURM_JOB_NODELIST:-${SLURM_NODELIST:-}}"\n'
+        s += 'if command -v scontrol >/dev/null 2>&1 && [[ -n "${NODELIST}" ]]; then\n'
+        s += '  nodes=( $(scontrol show hostnames "${NODELIST}") )\n'
+        s += "else\n"
+        s += '  nodes=( "$(hostname)" )\n'
+        s += "fi\n"
+        s += 'nodes_array=("${nodes[@]}")\n'
+        s += "if [[ ${#nodes_array[@]} -eq 0 ]]; then\n"
+        s += '  nodes_array=( "$(hostname)" )\n'
+        s += "fi\n"
+        s += 'export PRIMARY_NODE="${nodes_array[0]}"\n'
+        s += 'echo "PRIMARY_NODE: ${PRIMARY_NODE}"\n'
     s += "\n"
 
     # prepare deployment mounts
@@ -791,6 +855,7 @@ def _create_slurm_sbatch_script(
                 deployment_mounts_list,
                 remote_task_subdir,
                 deployment_env_var_names=list(deployment_env_vars.keys()),
+                nodelist_var="MODEL_NODES" if has_aux_deployments else None,
             )
         )
 
@@ -808,10 +873,10 @@ def _create_slurm_sbatch_script(
             ip_list = '"127.0.0.1"'
         health_check_timeout = resolve_endpoint_readiness_timeout(cfg)
         s += _get_wait_for_server_handler(
-            ip_list,
-            cfg.deployment.port,
-            health_path,
-            health_check_timeout,
+            ip_list=ip_list,
+            port=cfg.deployment.port,
+            health_check_path=health_path,
+            timeout=health_check_timeout,
             service_name="server",
             check_pid=True,
         )
@@ -820,6 +885,70 @@ def _create_slurm_sbatch_script(
         # add proxy load balancer for multi-instance deployments
         if cfg.execution.get("num_instances", 1) > 1:
             s += _get_proxy_server_srun_command(cfg, remote_task_subdir)
+
+    # --- Auxiliary deployments (judge, user, or any custom) ---
+    aux_is_unsafe = {}
+    for aux in aux_deployments:
+        aux_mounts_list = []
+        if checkpoint_path := aux.cfg.get("checkpoint_path"):
+            aux_mounts_list.append(f"{checkpoint_path}:/checkpoint:ro")
+        if cache_path := aux.cfg.get("cache_path"):
+            aux_mounts_list.append(f"{cache_path}:/cache")
+        for source_mnt, target_mnt in (
+            cfg.execution.get("mounts", {})
+            .get("auxiliary", {})
+            .get(aux.name, {})
+            .items()
+        ):
+            aux_mounts_list.append(f"{source_mnt}:{target_mnt}")
+
+        # Re-export aux deployment vars right before aux deployment srun
+        if aux.reexport_cmd:
+            s += f"{aux.reexport_cmd}\n"
+
+        # Add auxiliary deployment srun command
+        aux_srun_cmd, aux_unsafe, aux_debug = (
+            _generate_auxiliary_deployment_srun_command(
+                aux,
+                aux_mounts_list,
+                remote_task_subdir,
+                cfg,
+            )
+        )
+        s += aux_srun_cmd
+        aux_is_unsafe[aux.name] = aux_unsafe
+
+        # Wait for auxiliary server to initialize
+        aux_health_path = aux.cfg.endpoints.get("health", "/health")
+        aux_health_timeout = resolve_endpoint_readiness_timeout(cfg)
+        if aux.num_instances > 1:
+            ip_list = f'"${{{aux.env_prefix}_HEAD_NODE_IPS[@]}}"'
+            pid_var = aux.pids_var
+            s += _get_wait_for_server_handler(
+                ip_list=ip_list,
+                port=aux.cfg.port,
+                health_check_path=aux_health_path,
+                timeout=aux_health_timeout,
+                service_name=f"{aux.name} server",
+                check_pid=True,
+                pid_var=pid_var,
+            )
+        else:
+            s += _get_wait_for_server_handler(
+                ip_list=f'"${{{aux.primary_node_var}}}"',
+                port=aux.cfg.port,
+                health_check_path=aux_health_path,
+                timeout=aux_health_timeout,
+                service_name=f"{aux.name} server",
+                check_pid=True,
+                pid_var=aux.pid_var,
+            )
+        s += "\n\n"
+
+        # Add proxy load balancer for multi-instance auxiliary deployments
+        if aux.num_instances > 1:
+            s += _generate_aux_haproxy_srun_command(aux, remote_task_subdir, cfg)
+            s += "\n"
 
     # prepare evaluation mounts
     evaluation_mounts_list = [
@@ -863,12 +992,41 @@ def _create_slurm_sbatch_script(
     if eval_reexport_cmd:
         s += f"{eval_reexport_cmd}\n"
 
+    # Export auxiliary endpoint information for evaluation containers
+    aux_extra_env_names = []
+    for aux in aux_deployments:
+        endpoint_vars = []
+        if aux.num_instances > 1:
+            host_expr = "${PRIMARY_NODE}"
+            port = aux.proxy_port
+        else:
+            host_expr = f"${{{aux.primary_node_var}}}"
+            port = aux.cfg.port
+
+        s += f"# {aux.name} endpoints for evaluation tasks\n"
+        for ep_name, ep_path in aux.cfg.endpoints.items():
+            if ep_name == "health":
+                continue
+            var_name = f"{aux.env_prefix}_{ep_name.upper()}_URL"
+            s += f'export {var_name}="http://{host_expr}:{port}{ep_path}"\n'
+            s += f'echo "{var_name}: ${{{var_name}}}"\n'
+            endpoint_vars.append(var_name)
+
+        model_id_var = f"{aux.env_prefix}_MODEL_ID"
+        s += f'export {model_id_var}="{aux.cfg.served_model_name}"\n'
+        s += f'echo "{model_id_var}: ${{{model_id_var}}}"\n'
+        s += "\n"
+        endpoint_vars.append(model_id_var)
+        aux_extra_env_names.extend(endpoint_vars)
+
     s += "# evaluation client\n"
     s += "srun --mpi pmix --overlap "
     s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
     s += "--container-image {} ".format(eval_image)
-    if eval_env_vars:
-        s += "--container-env {} ".format(",".join(sorted(eval_env_vars.keys())))
+    # Combine eval env vars with auxiliary endpoint env vars
+    all_eval_env_names = sorted(set(list(eval_env_vars.keys()) + aux_extra_env_names))
+    if all_eval_env_names:
+        s += "--container-env {} ".format(",".join(all_eval_env_names))
     if not cfg.execution.get("mounts", {}).get("mount_home", True):
         s += "--no-container-mount-home "
 
@@ -883,6 +1041,15 @@ def _create_slurm_sbatch_script(
         s += 'for _pid in "${SERVER_PIDS[@]}"; do kill "$_pid" 2>/dev/null || true; done  # terminate servers\n'
         if cfg.execution.get("num_instances", 1) > 1:
             s += "kill $PROXY_PID  # terminate proxy to finish gracefully\n"
+        s += "\n"
+
+    # terminate auxiliary servers if deployed
+    for aux in aux_deployments:
+        if aux.num_instances > 1:
+            s += f'for _pid in "${{{aux.pids_var}[@]}}"; do kill "$_pid" 2>/dev/null || true; done  # terminate {aux.name} servers\n'
+            s += f"kill ${aux.proxy_pid_var} 2>/dev/null || true  # terminate {aux.name} proxy\n"
+        else:
+            s += f"kill ${aux.pid_var}  # terminate the {aux.name} server to finish gracefully\n"
         s += "\n"
 
     # auto-export
@@ -905,9 +1072,11 @@ def _create_slurm_sbatch_script(
 
     debug_str = "\n".join(["# " + line for line in s.splitlines()])
 
-    # Combine unsafe flags from both deployment and evaluation
+    # Combine unsafe flags from deployment, auxiliary deployments, and evaluation
     is_potentially_unsafe = (
-        eval_factory_command_struct.is_potentially_unsafe or deployment_is_unsafe
+        eval_factory_command_struct.is_potentially_unsafe
+        or deployment_is_unsafe
+        or any(aux_is_unsafe.values())
     )
 
     return CmdAndReadableComment(
@@ -1669,6 +1838,7 @@ def _generate_deployment_srun_command(
     deployment_mounts_list,
     remote_task_subdir,
     deployment_env_var_names: list[str] | None = None,
+    nodelist_var: str | None = None,
 ):
     """Generate per-instance deployment srun commands.
 
@@ -1676,6 +1846,16 @@ def _generate_deployment_srun_command(
     its own node subset.  Multi-instance partitioning lives here; the deployment
     command receives PROC_ID (rank within the instance) and MASTER_IP (head of
     the instance) and only needs to handle single-instance setup.
+
+    Args:
+        cfg: The configuration object.
+        deployment_mounts_list: List of mount strings for the deployment container.
+        remote_task_subdir: Remote directory for this task.
+        deployment_env_var_names: Names of env vars to pass to the container.
+        nodelist_var: Shell variable name containing the comma-separated nodelist
+            to use for this deployment. When set, the srun uses --nodelist to
+            restrict to specific nodes (e.g. when judge deployment occupies other
+            nodes in the same allocation). If None, uses all allocated nodes.
 
     Returns:
         tuple: (script_string, is_potentially_unsafe, debug_comment)
@@ -1695,16 +1875,23 @@ def _generate_deployment_srun_command(
         )
         debug_comment += create_pre_script_cmd.debug + "\n\n"
 
-    s += "# Get node IPs\n"
-    s += 'NODELIST="${SLURM_JOB_NODELIST:-${SLURM_NODELIST:-}}"\n'
-    s += 'if command -v scontrol >/dev/null 2>&1 && [[ -n "${NODELIST}" ]]; then\n'
-    s += '  nodes=( $(scontrol show hostnames "${NODELIST}") )\n'
-    s += "else\n"
-    s += '  nodes=( "$(hostname)" )\n'
-    s += "fi\n"
-    s += 'nodes_array=("${nodes[@]}")  # Ensure nodes are stored properly\n'
-    s += 'if [[ ${#nodes_array[@]} -eq 0 ]]; then nodes_array=( "$(hostname)" ); fi\n'
-    s += 'export NODES_IPS_ARRAY=($(for node in "${nodes_array[@]}"; do srun --nodelist="$node" --ntasks=1 --nodes=1 hostname --ip-address; done))\n'
+    # Get node IPs — use explicit node list if provided (when judge deployment
+    # occupies other nodes in the same SLURM allocation).
+    if nodelist_var:
+        s += "# Get model deployment node IPs (restricted to model nodes)\n"
+        s += f'DEPLOY_NODES_ARRAY=("${{{nodelist_var}[@]}}")\n'
+    else:
+        s += "# Get node IPs\n"
+        s += 'NODELIST="${SLURM_JOB_NODELIST:-${SLURM_NODELIST:-}}"\n'
+        s += 'if command -v scontrol >/dev/null 2>&1 && [[ -n "${NODELIST}" ]]; then\n'
+        s += '  nodes=( $(scontrol show hostnames "${NODELIST}") )\n'
+        s += "else\n"
+        s += '  nodes=( "$(hostname)" )\n'
+        s += "fi\n"
+        s += 'DEPLOY_NODES_ARRAY=("${nodes[@]}")\n'
+        s += 'if [[ ${#DEPLOY_NODES_ARRAY[@]} -eq 0 ]]; then DEPLOY_NODES_ARRAY=( "$(hostname)" ); fi\n'
+
+    s += 'export NODES_IPS_ARRAY=($(for node in "${DEPLOY_NODES_ARRAY[@]}"; do srun --nodelist="$node" --ntasks=1 --nodes=1 hostname --ip-address; done))\n'
     s += 'echo "Node IPs: ${NODES_IPS_ARRAY[@]}"\n'
     s += 'export ALL_NODE_IPS=$(IFS=,; echo "${NODES_IPS_ARRAY[*]}")\n'
 
@@ -1766,7 +1953,7 @@ def _generate_deployment_srun_command(
     # correct per-instance head IP via --container-env.
     s += f"for ((g=0; g<{num_instances}; g++)); do\n"
     s += f"    START_IDX=$((g * {nodes_per_instance}))\n"
-    s += f'    INSTANCE_NODES_ARR=("${{nodes_array[@]:$START_IDX:{nodes_per_instance}}}")\n'
+    s += f'    INSTANCE_NODES_ARR=("${{DEPLOY_NODES_ARRAY[@]:$START_IDX:{nodes_per_instance}}}")\n'
     s += '    INSTANCE_NODELIST=$(IFS=,; echo "${INSTANCE_NODES_ARR[*]}")\n'
     s += '    MASTER_IP="${NODES_IPS_ARRAY[$START_IDX]}"\n'
     s += '    HEAD_NODE_IPS+=("$MASTER_IP")\n'
@@ -1792,6 +1979,235 @@ def _generate_deployment_srun_command(
     return s, is_potentially_unsafe, debug_comment
 
 
+def _generate_auxiliary_deployment_srun_command(
+    aux: AuxDeploymentState,
+    aux_mounts_list: list[str],
+    remote_task_subdir: Path,
+    cfg: DictConfig,
+):
+    """Generate the srun command for an auxiliary deployment.
+
+    Supports both single-instance (one srun, single PID) and multi-instance
+    (loop of sruns, PID array, haproxy) modes.
+
+    Args:
+        aux: The auxiliary deployment state.
+        aux_mounts_list: List of mount strings for the deployment container.
+        remote_task_subdir: Remote directory for this task.
+        cfg: The full configuration object (for execution-level settings).
+
+    Returns:
+        tuple: (script_string, is_potentially_unsafe, debug_comment)
+    """
+    s = ""
+    debug_comment = ""
+    is_potentially_unsafe = False
+
+    prefix = aux.env_prefix
+    name = aux.name
+
+    s += f"# {name} deployment server\n"
+
+    # Extract pre_cmd for later use inside container
+    pre_cmd: str = aux.cfg.get("pre_cmd") or ""
+    if pre_cmd:
+        is_potentially_unsafe = True
+        create_pre_script_cmd = _str_to_echo_command(
+            pre_cmd, filename=f"{name}_deployment_pre_cmd.sh"
+        )
+        debug_comment += create_pre_script_cmd.debug + "\n\n"
+
+    # Resolve deployment command
+    deploy_command = resolve_deployment_command(aux.cfg)
+
+    # Resolve node IPs
+    s += f"# Get {name} deployment node IPs\n"
+    s += f'export {prefix}_NODES_IPS_ARRAY=($(for node in "${{{aux.nodes_var}[@]}}"; do srun --nodelist="$node" --ntasks=1 --nodes=1 hostname --ip-address; done))\n'
+    s += f'echo "{name} Node IPs: ${{{prefix}_NODES_IPS_ARRAY[@]}}"\n'
+    s += f"export {prefix}_MASTER_IP=${{{prefix}_NODES_IPS_ARRAY[0]}}\n"
+    s += f'echo "{prefix}_MASTER_IP: ${prefix}_MASTER_IP"\n'
+
+    # Add debug comment for pre_cmd before srun command
+    if debug_comment:
+        s += f"# Debug contents of {name} deployment pre_cmd\n"
+        s += debug_comment
+        s += "\n"
+
+    env_var_names = list(aux.env_vars.keys()) if aux.env_vars else []
+    # Always add MASTER_IP to the environment variables
+    master_ip_var = f"{prefix}_MASTER_IP"
+    if master_ip_var not in env_var_names:
+        env_var_names.append(master_ip_var)
+
+    if aux.num_instances > 1:
+        # Multi-instance mode: loop over instances, collect PIDs
+        nodes_per_instance = aux.num_nodes // aux.num_instances
+        n_tasks = aux.cfg.get("n_tasks", aux.num_nodes)
+        per_instance_ntasks = n_tasks // aux.num_instances
+
+        s += f"{prefix}_HEAD_NODE_IPS=()\n"
+        s += f"{aux.pids_var}=()\n"
+
+        # Build the command that runs inside each instance container
+        create_script_cmd = _str_to_echo_command(
+            deploy_command, filename=f"{name}_deployment_cmd.sh"
+        )
+        debug_comment += create_script_cmd.debug + "\n\n"
+
+        all_node_ips_var = f"{prefix}_ALL_NODE_IPS"
+        s += f'export {all_node_ips_var}=$(IFS=,; echo "${{{prefix}_NODES_IPS_ARRAY[*]}}")\n'
+        if all_node_ips_var not in env_var_names:
+            env_var_names.append(all_node_ips_var)
+
+        env_setup = f"export PROC_ID=${{SLURM_PROCID:-0}} NODES_PER_INSTANCE={nodes_per_instance}"
+        script = (
+            f"{env_setup} && {create_script_cmd.cmd} && bash {name}_deployment_cmd.sh"
+        )
+
+        if pre_cmd:
+            script = (
+                f"{env_setup} && "
+                f"{create_pre_script_cmd.cmd} && "
+                f"source {name}_deployment_pre_cmd.sh && "
+                f"{create_script_cmd.cmd} && bash {name}_deployment_cmd.sh"
+            )
+
+        s += f"for ((g=0; g<{aux.num_instances}; g++)); do\n"
+        s += f"    START_IDX=$((g * {nodes_per_instance}))\n"
+        s += f'    INSTANCE_NODES_ARR=("${{{aux.nodes_var}[@]:$START_IDX:{nodes_per_instance}}}")\n'
+        s += '    INSTANCE_NODELIST=$(IFS=,; echo "${INSTANCE_NODES_ARR[*]}")\n'
+        s += f'    {prefix}_MASTER_IP="${{{prefix}_NODES_IPS_ARRAY[$START_IDX]}}"\n'
+        s += f'    {prefix}_HEAD_NODE_IPS+=("${prefix}_MASTER_IP")\n'
+        s += f"    export {prefix}_MASTER_IP\n"
+        s += f'    echo "{name} Instance $g: {prefix}_MASTER_IP=${prefix}_MASTER_IP, nodes: ${{INSTANCE_NODES_ARR[*]}}"\n'
+        s += "    srun --mpi pmix --overlap "
+        s += f'--nodelist "$INSTANCE_NODELIST" --nodes {nodes_per_instance} --ntasks {per_instance_ntasks} '
+        s += f"--container-image {aux.cfg.image} "
+        if aux_mounts_list:
+            s += "--container-mounts {} ".format(",".join(aux_mounts_list))
+        if not cfg.execution.get("mounts", {}).get("mount_home", True):
+            s += "--no-container-mount-home "
+        s += "--output {} ".format(
+            remote_task_subdir / "logs" / f"{name}-server-${{g}}-%A-%t.log"
+        )
+        if env_var_names:
+            s += f"--container-env {','.join(sorted(env_var_names))} "
+        s += "bash -c '{}' &\n".format(script)
+        s += f"    {aux.pids_var}+=($!)\n"
+        s += "done\n\n"
+
+        s += f'echo "{prefix}_HEAD_NODE_IPS: ${{{prefix}_HEAD_NODE_IPS[@]}}"\n'
+        s += f"{aux.pid_var}=${{{aux.pids_var}[0]}}  # reference to first instance PID for health check\n\n"
+
+    else:
+        # Single instance mode: one srun, single PID
+        n_tasks = aux.cfg.get("n_tasks", 1)
+
+        s += "srun --mpi pmix --overlap "
+        s += f'--nodelist "${{{aux.nodelist_var}}}" '
+        s += f"--nodes {aux.num_nodes} --ntasks {n_tasks} "
+        s += f"--container-image {aux.cfg.image} "
+        if aux_mounts_list:
+            s += "--container-mounts {} ".format(",".join(aux_mounts_list))
+        if not cfg.execution.get("mounts", {}).get("mount_home", True):
+            s += "--no-container-mount-home "
+        s += "--output {} ".format(
+            remote_task_subdir / "logs" / f"{name}-server-%A-%t.log"
+        )
+
+        if env_var_names:
+            s += f"--container-env {','.join(sorted(env_var_names))} "
+
+        # Wrap deployment command to execute pre_cmd inside container if needed
+        if pre_cmd:
+            create_pre_script_cmd = _str_to_echo_command(
+                pre_cmd, filename=f"{name}_deployment_pre_cmd.sh"
+            )
+            escaped_cmd = deploy_command.replace("'", "'\"'\"'")
+            wrapped_command = (
+                f"bash -c '{create_pre_script_cmd.cmd} && "
+                f"source {name}_deployment_pre_cmd.sh && "
+                f"{escaped_cmd}'"
+            )
+            s += "{} &\n\n".format(wrapped_command)
+        else:
+            s += "{} &\n\n".format(deploy_command)
+
+        s += f"{aux.pid_var}=$!  # capture the PID of the {name} server background srun process\n\n"
+
+    return s, is_potentially_unsafe, debug_comment
+
+
+def _generate_aux_haproxy_srun_command(
+    aux: AuxDeploymentState,
+    remote_task_subdir: Path,
+    cfg: DictConfig,
+) -> str:
+    """Generate HAProxy srun command for a multi-instance auxiliary deployment."""
+    prefix = aux.env_prefix
+    name = aux.name
+
+    s = ""
+    s += f"# {name} proxy load balancer\n"
+
+    # Generate haproxy config with placeholders for this auxiliary
+    template_dir = Path(__file__).parent
+    env = Environment(loader=FileSystemLoader(template_dir))
+    template = env.get_template("proxy.cfg.template")
+
+    nodes_per_instance = aux.num_nodes // aux.num_instances
+    nodes = []
+    for i in range(aux.num_instances):
+        head_idx = i * nodes_per_instance
+        nodes.append({"ip": f"{{{prefix}_IP_{head_idx}}}", "port": int(aux.cfg.port)})
+
+    health_check_path = aux.cfg.endpoints.get("health", "/health")
+    proxy_config = template.render(
+        haproxy_port=aux.proxy_port,
+        health_check_path=health_check_path,
+        health_check_status=200,
+        nodes=nodes,
+    )
+
+    # Write template inline via heredoc
+    proxy_cfg_path = f"{remote_task_subdir}/{name}_proxy.cfg"
+    s += f"cat > {proxy_cfg_path} << 'PROXY_EOF'\n"
+    s += proxy_config
+    s += "\nPROXY_EOF\n"
+
+    # Replace placeholder IPs with actual node IPs
+    s += f"proxy_config_file={proxy_cfg_path}\n"
+    s += f'for i in "${{!{prefix}_NODES_IPS_ARRAY[@]}}"; do\n'
+    s += f'    ip="${{{prefix}_NODES_IPS_ARRAY[$i]}}"\n'
+    s += f'    sed -i "s/{{{prefix}_IP_$i}}/$ip/g" "$proxy_config_file"\n'
+    s += "done\n"
+    s += "\n"
+
+    proxy_image = cfg.execution.get("proxy", {}).get("image", "haproxy:latest")
+    s += "srun --mpi pmix --overlap "
+    s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
+    s += f"--container-image {proxy_image} "
+    s += f"--container-mounts {proxy_cfg_path}:/usr/local/etc/haproxy/haproxy.cfg:ro "
+    s += f"--output {remote_task_subdir}/logs/{name}-proxy-%A.log "
+    s += "haproxy -f /usr/local/etc/haproxy/haproxy.cfg &\n"
+    s += f"{aux.proxy_pid_var}=$!  # capture the PID of the {name} proxy background srun process\n"
+    s += f'echo "{name} proxy started with PID: ${aux.proxy_pid_var}"\n\n'
+
+    # Wait for proxy to be ready
+    health_check_timeout = resolve_endpoint_readiness_timeout(cfg)
+    s += _get_wait_for_server_handler(
+        ip_list="127.0.0.1",
+        port=aux.proxy_port,
+        health_check_path=health_check_path,
+        timeout=health_check_timeout,
+        service_name=f"{name} Proxy",
+        check_pid=False,
+    )
+    s += "\n"
+
+    return s
+
+
 def _get_wait_for_server_handler(
     ip_list: str,
     port: int,
@@ -1799,11 +2215,26 @@ def _get_wait_for_server_handler(
     timeout: int,
     service_name: str = "server",
     check_pid: bool = False,
+    pid_var: str = "SERVER_PID",
 ):
     """Generate wait for server handler that takes a list of IPs."""
     pid_check = ""
     if check_pid:
-        pid_check = 'for _check_pid in "${SERVER_PIDS[@]}"; do kill -0 "$_check_pid" 2>/dev/null || { echo "Server process $_check_pid died"; exit 1; }; done'
+        if pid_var.endswith("_PIDS") or pid_var == "SERVER_PID":
+            # For array-style PID vars (SERVER_PIDS, *_SERVER_PIDS), check all PIDs
+            pids_array_var = pid_var if pid_var.endswith("_PIDS") else "SERVER_PIDS"
+            pid_check = f'for _check_pid in "${{{pids_array_var}[@]}}"; do kill -0 "$_check_pid" 2>/dev/null || {{ echo "{service_name} process $_check_pid died"; exit 1; }}; done'
+        else:
+            # For single PID variables, check the single PID
+            pid_check = (
+                'kill -0 "$'
+                + pid_var
+                + '" 2>/dev/null || { echo "'
+                + service_name
+                + " process $"
+                + pid_var
+                + ' died"; exit 1; }'
+            )
 
     handler = f"""date
 # wait for the {service_name} to initialize
@@ -1865,10 +2296,10 @@ def _generate_haproxy_srun_command(cfg, remote_task_subdir):
     health_path = proxy_config.get("health_check_path", "/health")
     health_check_timeout = resolve_endpoint_readiness_timeout(cfg)
     s += _get_wait_for_server_handler(
-        "127.0.0.1",
-        haproxy_port,
-        health_path,
-        health_check_timeout,
+        ip_list="127.0.0.1",
+        port=haproxy_port,
+        health_check_path=health_path,
+        timeout=health_check_timeout,
         service_name="Proxy",
         check_pid=False,
     )
@@ -1896,6 +2327,24 @@ def _collect_mount_paths(cfg: DictConfig) -> List[str]:
             mount_paths.append(cache_path)
         for source_mnt in cfg.execution.get("mounts", {}).get("deployment", {}).keys():
             mount_paths.append(source_mnt)
+
+    # Auxiliary deployment mounts
+    aux_deployments_cfg = cfg.get("auxiliary_deployments", {})
+    if aux_deployments_cfg:
+        for aux_name, aux_cfg in aux_deployments_cfg.items():
+            if aux_cfg.get("type", "none") == "none":
+                continue
+            if checkpoint_path := aux_cfg.get("checkpoint_path"):
+                mount_paths.append(checkpoint_path)
+            if cache_path := aux_cfg.get("cache_path"):
+                mount_paths.append(cache_path)
+            for source_mnt in (
+                cfg.execution.get("mounts", {})
+                .get("auxiliary", {})
+                .get(aux_name, {})
+                .keys()
+            ):
+                mount_paths.append(source_mnt)
 
     # Evaluation mounts
     for source_mnt in cfg.execution.get("mounts", {}).get("evaluation", {}).keys():

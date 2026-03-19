@@ -131,7 +131,7 @@ def _build_fdf(
                 "description": f"BYOB benchmark: {bench.name}",
                 "defaults": {
                     "config": {
-                        "type": f"byob_{normalized_name}.{bench.name}",
+                        "type": f"byob_{normalized_name}.{normalized_name}",
                         "supported_endpoint_types": [bench.endpoint_type],
                     }
                 },

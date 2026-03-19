@@ -226,7 +226,7 @@ def byob_compile(args=None):
         print(f"  Package:   {pkg_name}")
 
         pkg_dir = install_benchmark(name, fdf, install_dir=parsed.install_dir)
-        eval_type = f"{pkg_name}.{fdf['evaluations'][0]['name']}"
+        eval_type = fdf["evaluations"][0]["defaults"]["config"]["type"]
 
         print(f"  Location:  {pkg_dir}")
 

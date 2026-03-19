@@ -252,7 +252,7 @@ class TestStructuralValidation:
 # ---------------------------------------------------------------------------
 # nemo_evaluator_config param validation — real packaged IRs.
 #
-# lm-evaluation-harness.ifeval  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.01
+# lm-evaluation-harness.ifeval  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
 #   params: parallelism, request_timeout, limit_samples, max_retries
 #   extras: num_fewshot, tokenizer, tokenizer_backend, ...
 # ---------------------------------------------------------------------------
@@ -317,8 +317,8 @@ INVALID_PARAM_CONFIGS = [
 ]
 
 
-_IFEVAL_CONTAINER = "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.01"
-SIMPLE_EVALS_CONTAINER = "nvcr.io/nvidia/eval-factory/simple-evals:26.01"
+_IFEVAL_CONTAINER = "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03"
+SIMPLE_EVALS_CONTAINER = "nvcr.io/nvidia/eval-factory/simple-evals:26.03"
 
 
 class TestNemoEvaluatorParamValidation:
