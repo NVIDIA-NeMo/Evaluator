@@ -169,7 +169,9 @@ NeMo Evaluator provides [Agent Skills](https://agentskills.io/) for interactive 
 
 | Skill | Description |
 |-------|-------------|
-| `nel-assistant` | Interactive assistant for configuring, running, and monitoring evaluations |
+| `nel-assistant` | Interactive config wizard for creating and modifying evaluation configs |
+| `launching-evals` | Run, monitor, debug, and analyze evaluations |
+| `accessing-mlflow` | Query and browse evaluation results stored in MLflow |
 | `nemo-evaluator-byob` | Create custom LLM evaluation benchmarks using the BYOB decorator framework |
 
 We recommend using the skills with Claude Sonnet or better for the best experience.
