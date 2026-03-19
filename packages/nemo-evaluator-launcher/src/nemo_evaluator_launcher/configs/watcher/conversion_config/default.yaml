@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
+# Docker image (.sqsh or registry URI) used to run the conversion job on the cluster.
+container: ???
+
+# Directories to bind-mount into the container in addition to the automatically
+# added input (read-only) and output checkpoint paths.
+# Each entry must have both 'source' (host path) and 'target' (container path).
+mounts: []
+# mounts:
+#   - source: /host/path/to/weights
+#     target: /container/path/to/weights
+
+# Extra key-value pairs exposed as Jinja2 variables inside command_pattern.
+# These supplement the built-in {{ input_path }} and {{ output_path }} variables.
+command_params: {}
+# command_params:
+#   tp: 1       # tensor parallelism
+#   pp: 1       # pipeline parallelism
+#   ep: 1       # expert parallelism
+#   etp: 1      # expert tensor parallelism
+#   hf_model: ???  # path to reference HF model weights / config
+
+# Jinja2 template for the command executed inside the container.
+# Required placeholders: {{ input_path }} (source checkpoint), {{ output_path }} (converted output).
+# All keys from command_params are available as additional Jinja2 variables.
+command_pattern: ???
+# Example:
+# command_pattern: >-
+#   bash -lc '
+#   python /opt/converter/convert.py
+#   --input {{ input_path }}
+#   --output {{ output_path }}'

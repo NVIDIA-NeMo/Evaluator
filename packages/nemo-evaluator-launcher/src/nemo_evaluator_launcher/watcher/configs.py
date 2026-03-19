@@ -141,6 +141,8 @@ class ConversionConfig(BaseModel):
     @field_validator("command_pattern")
     @classmethod
     def command_pattern_must_have_placeholders(cls, v: str) -> str:
+        # FIXME verify if all the command_params are used in the command_pattern
+        # and if there are no {{ xxx }} that are not in command_params
         missing = [p for p in ("{{ input_path }}", "{{ output_path }}") if p not in v]
         if missing:
             raise ValueError(
@@ -222,6 +224,9 @@ class WatchConfig(BaseModel):
         hydra.initialize_config_dir(
             config_dir=str(config_path.parent), version_base=None
         )
+        overrides = overrides + [
+            "hydra.searchpath=[pkg://nemo_evaluator_launcher.configs/watcher,pkg://nemo_evaluator_launcher_internal.configs/watcher]"
+        ]
         cfg = hydra.compose(config_name=config_path.stem, overrides=overrides)
 
         cfg = OmegaConf.to_container(cfg, resolve=True)
