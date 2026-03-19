@@ -128,13 +128,9 @@ def _submit_conversion_job(
     logs_path = output_dir / "conversion" / "logs"
 
     # 2. Render the command
-    command = (
-        Environment()
-        .from_string(conversion_config.command_pattern)
-        .render(
-            input_path=str(input_path),
-            output_path=str(output_path),
-        )
+    command = conversion_config.render_command(
+        input_path=str(input_path),
+        output_path=str(output_path),
     )
 
     # 3. Build mounts: start from configured mounts, auto-add input and output paths

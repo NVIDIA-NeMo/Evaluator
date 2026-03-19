@@ -3,6 +3,7 @@ from typing import Any, Literal, Optional
 
 import hydra
 from hydra.core.global_hydra import GlobalHydra
+from jinja2 import Environment
 from omegaconf import OmegaConf
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -124,6 +125,18 @@ class ConversionConfig(BaseModel):
             "Must contain '{{ input_path }}' and '{{ output_path }}' placeholders. "
         )
     )
+
+    def render_command(self, input_path: str, output_path: str) -> str:
+        """Render the command_pattern template with input/output paths and command_params."""
+        return (
+            Environment()
+            .from_string(self.command_pattern)
+            .render(
+                input_path=input_path,
+                output_path=output_path,
+                **self.command_params,
+            )
+        )
 
     @field_validator("command_pattern")
     @classmethod
