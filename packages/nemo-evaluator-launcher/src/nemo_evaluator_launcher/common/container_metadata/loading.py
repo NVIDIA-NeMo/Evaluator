@@ -758,6 +758,11 @@ def extract_framework_yml(
         Tuple of (framework_yml_content, container_digest) or (None, None) if failed
     """
     container_digest = None
+    if container.endswith(".sqsh"):
+        logger.warning(
+            "Counld not extract framework.yml from squash image", container=container
+        )
+        return None, None
     try:
         registry_type, registry_url, repository, tag = parse_container_image(container)
 
@@ -1017,6 +1022,11 @@ def load_tasks_from_container(
         ValueError: If container filtering results in no tasks
     """
     logger.debug("Loading tasks from container", container=container)
+    if container.endswith(".sqsh"):
+        logger.warning(
+            "Loading tasks from squash image is not supported", container=container
+        )
+        return []
 
     def _normalize_platform_arch(arch: object) -> Optional[str]:
         if not arch:
