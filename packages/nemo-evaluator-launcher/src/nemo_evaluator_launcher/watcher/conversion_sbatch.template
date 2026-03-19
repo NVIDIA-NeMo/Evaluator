@@ -1,0 +1,42 @@
+#!/bin/bash
+{% for key, value in execution_params.items() %}
+{%if value is true %}
+#SBATCH --{{ key }}
+{% else %}
+#SBATCH --{{ key }} "{{ value }}"
+{% endif %}
+{% endfor %}
+
+set -euo pipefail
+
+echo "Job started at: $(date)"
+echo "Running on node: $SLURM_NODELIST"
+echo "Job ID: $SLURM_JOB_ID"
+echo "Input path:  {{ input_path }}"
+echo "Output path: {{ output_path }}"
+
+
+mkdir -p "{{ output_path }}"
+
+echo "Starting conversion..."
+SRUN_ARGS=(
+    --container-image="{{ container }}"
+    --no-container-mount-home
+{% if mounts %}
+    --container-mounts="{{ mounts }}"
+{% endif %}
+)
+
+srun "${SRUN_ARGS[@]}" {{ command }}
+
+CONVERSION_STATUS=$?
+
+if [ $CONVERSION_STATUS -eq 0 ]; then
+    echo "Conversion completed successfully"
+    echo "Output saved to: {{ output_path }}"
+else
+    echo "Conversion failed with exit code: $CONVERSION_STATUS"
+    exit $CONVERSION_STATUS
+fi
+
+echo "Job completed at: $(date)"
