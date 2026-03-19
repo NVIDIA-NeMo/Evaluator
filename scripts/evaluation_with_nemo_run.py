@@ -571,8 +571,8 @@ def main():
         status_dict = exp.status(return_dict=True) or {}
         failed = [
             f"{name}: {info.get('status', 'UNKNOWN')}"
-        ]
-        ]
+            for name, info in status_dict.items()
+            if str(info.get("status")) != "SUCCEEDED" and "deploy" not in name.lower()
         ]
         if failed:
             logger.error(f"Experiment finished with failures: {failed}")
