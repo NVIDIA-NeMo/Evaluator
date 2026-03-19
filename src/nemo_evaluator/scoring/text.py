@@ -1,4 +1,4 @@
-"""Text-based scorers: exact and fuzzy string matching."""
+"""Text-based scorers: exact and fuzzy string matching, MCQ extraction."""
 from __future__ import annotations
 
 import re
@@ -6,6 +6,33 @@ import string
 import unicodedata
 
 from nemo_evaluator.scoring.types import ScorerInput
+
+
+_MCQ_LETTER = re.compile(
+    r"(?:"
+    r"\\boxed\{([A-Za-z])\}"
+    r"|(?:answer|ans)[\s:]*([A-Za-z])\b"
+    r"|\(([A-Za-z])\)"
+    r"|^([A-Za-z])[\.\)\s]*$"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def extract_mcq_letter(text: str) -> str:
+    """Extract a single option letter from common chat-model MCQ formats.
+
+    Handles ``\\boxed{B}``, ``Answer: B``, ``(B)``, and bare ``B``.
+    Prefers the last match so that explanations preceding the final
+    answer don't interfere.  Returns the uppercase letter if found,
+    otherwise the stripped input.
+    """
+    text = text.strip()
+    matches = list(_MCQ_LETTER.finditer(text))
+    if matches:
+        m = matches[-1]
+        return next(g for g in m.groups() if g is not None).upper()
+    return text
 
 
 def exact_match(sample: ScorerInput) -> dict:

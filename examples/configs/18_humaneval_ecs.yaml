@@ -1,33 +1,27 @@
-# Flavor: Full Harbor -- tasks downloaded from Harbor registry via sparse git checkout,
-# agent solves in ECS Fargate sandbox, verification via per-task test.sh.
-#
-# Uses harbor://swebench-verified@1.0 (500 tasks) from the Harbor registry.
-# Tasks are auto-downloaded on first run.
+# Flavor: code execution in AWS ECS Fargate sandbox
+# Same as 06 (HumanEval + Docker) but runs sandboxes on ECS Fargate
+# instead of a local Docker daemon — suitable for CI or remote runners.
 #
 # Prerequisites:
 #   - NVIDIA_API_KEY set in environment
 #   - AWS credentials configured (IAM role or env vars)
 #   - ECS cluster, subnets, security groups, and SSH key pair in Secrets Manager
-#   - git (for sparse checkout)
-#   - pip install nemo-evaluator[harbor]
-# Run: nel eval run examples/configs/07_swebench_harbor.yaml
+# Run: nel eval run examples/configs/18_humaneval_ecs.yaml
 
 model:
   url: https://integrate.api.nvidia.com/v1
   id: nvidia/nemotron-3-super-120b-a12b
   api_key: ${NVIDIA_API_KEY}
-  proxy:
-    verbose: true
 
 benchmarks:
-  - name: harbor://swebench-verified@1.0
-    max_problems: 3
-    endpoint_type: harbor
+  - name: humaneval
+    max_problems: 5
+    endpoint_type: chat
     sandbox:
       backend: ecs_fargate
-      harbor_agent: openhands
-      timeout: 1800.0
-      concurrency: 3
+      image: python:3.12-slim
+      timeout: 120.0
+      concurrency: 4
       ecs:
         region: us-west-2
         cluster: harbor-cluster
@@ -40,16 +34,10 @@ benchmarks:
         execution_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-execution"
         task_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-task"
         log_group: "/ecs/harbor/us-west-2"
-        log_stream_prefix: swebench
-        cpu: "4096"
-        memory: "8192"
-        ephemeral_storage_gib: 50
-        max_task_lifetime_sec: 14400
+        log_stream_prefix: humaneval
+        cpu: "2048"
+        memory: "4096"
         s3_bucket: "harbor-staging-20260210135420899800000003"
-        # CodeBuild builds per-task Docker images (from Harbor env Dockerfiles)
-        # and pushes to ECR.  Images are content-hash-tagged for caching.
-        ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
-        codebuild_service_role: "arn:aws:iam::463701203462:role/harbor-codebuild"
         ssh_sidecar:
           sshd_port: 2222
           ssh_ready_timeout_sec: 120

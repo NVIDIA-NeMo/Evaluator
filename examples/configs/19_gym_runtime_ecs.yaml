@@ -1,33 +1,30 @@
-# Flavor: Full Harbor -- tasks downloaded from Harbor registry via sparse git checkout,
-# agent solves in ECS Fargate sandbox, verification via per-task test.sh.
-#
-# Uses harbor://swebench-verified@1.0 (500 tasks) from the Harbor registry.
-# Tasks are auto-downloaded on first run.
+# Flavor: Gym as agent runtime + ECS Fargate sandbox (Mode A)
+# Same as 09 but verification sandboxes run on ECS Fargate instead of
+# local Docker. The gym server still runs the agent; nel verifies on ECS.
 #
 # Prerequisites:
 #   - NVIDIA_API_KEY set in environment
-#   - AWS credentials configured (IAM role or env vars)
+#   - AWS credentials configured
 #   - ECS cluster, subnets, security groups, and SSH key pair in Secrets Manager
-#   - git (for sparse checkout)
-#   - pip install nemo-evaluator[harbor]
-# Run: nel eval run examples/configs/07_swebench_harbor.yaml
+#   - nemo-gym server running: ng_run --agent openhands --port 8000
+# Run: nel eval run examples/configs/19_gym_runtime_ecs.yaml
 
 model:
   url: https://integrate.api.nvidia.com/v1
   id: nvidia/nemotron-3-super-120b-a12b
   api_key: ${NVIDIA_API_KEY}
-  proxy:
-    verbose: true
 
 benchmarks:
-  - name: harbor://swebench-verified@1.0
+  - name: swebench-multilingual
     max_problems: 3
-    endpoint_type: harbor
+    endpoint_type: gym
+    gym_url: http://localhost:8000
+    gym_agent: openhands
+    gym_trust_reward: false
     sandbox:
       backend: ecs_fargate
-      harbor_agent: openhands
       timeout: 1800.0
-      concurrency: 3
+      concurrency: 2
       ecs:
         region: us-west-2
         cluster: harbor-cluster
@@ -40,16 +37,11 @@ benchmarks:
         execution_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-execution"
         task_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-task"
         log_group: "/ecs/harbor/us-west-2"
-        log_stream_prefix: swebench
+        log_stream_prefix: gym-swebench
         cpu: "4096"
         memory: "8192"
-        ephemeral_storage_gib: 50
-        max_task_lifetime_sec: 14400
+        ephemeral_storage_gib: 40
         s3_bucket: "harbor-staging-20260210135420899800000003"
-        # CodeBuild builds per-task Docker images (from Harbor env Dockerfiles)
-        # and pushes to ECR.  Images are content-hash-tagged for caching.
-        ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
-        codebuild_service_role: "arn:aws:iam::463701203462:role/harbor-codebuild"
         ssh_sidecar:
           sshd_port: 2222
           ssh_ready_timeout_sec: 120

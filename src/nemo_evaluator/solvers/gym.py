@@ -15,6 +15,7 @@ from nemo_evaluator.environments.gym_protocol import (
 from nemo_evaluator.observability.types import ModelResponse
 
 from .base import SolveResult
+from .trajectory_util import build_atif_trajectory
 
 if TYPE_CHECKING:
     from nemo_evaluator.sandbox.base import Sandbox
@@ -144,11 +145,23 @@ class GymSolver:
 
     def _extract_trajectory(self, result: dict[str, Any]) -> list[dict[str, Any]]:
         gym_resp = result.get("response", {})
+        raw_items: list[dict[str, Any]] = []
         if isinstance(gym_resp, dict):
             output = gym_resp.get("output", [])
             if isinstance(output, list):
-                return [item for item in output if isinstance(item, dict)]
-        return []
+                raw_items = [item for item in output if isinstance(item, dict)]
+        if not raw_items:
+            return []
+        steps = [
+            {"source": "agent", "message": item.get("content", str(item)),
+             "extra": {k: v for k, v in item.items() if k != "content"}}
+            for item in raw_items
+        ]
+        return build_atif_trajectory(
+            steps,
+            agent_name=self._gym_agent or "gym-agent",
+            model_name=self._model_id or None,
+        )
 
     async def close(self) -> None:
         pass

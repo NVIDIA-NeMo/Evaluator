@@ -1,15 +1,25 @@
-# Flavor: LLM-as-judge verification (needs_judge scoring)
-# The model serves as both solver and judge. Tests the judge scoring path.
+# Flavor: LLM-as-judge with separate solver and judge models
+# Tests the needs_judge scoring path with a dedicated judge service.
 #
 # Prerequisites: NVIDIA_API_KEY set in environment
 # Run: nel eval run examples/configs/05_simpleqa_judge.yaml
 
-model:
-  url: https://integrate.api.nvidia.com/v1
-  id: nvidia/llama-3.1-nemotron-ultra-253b-v1
-  api_key: ${NVIDIA_API_KEY}
+services:
+  solver:
+    type: api
+    url: https://integrate.api.nvidia.com/v1
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+
+  judge:
+    type: api
+    url: https://integrate.api.nvidia.com/v1
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
 
 benchmarks:
   - name: simpleqa
+    model: solver
+    judge: judge
     max_problems: 5
     endpoint_type: chat

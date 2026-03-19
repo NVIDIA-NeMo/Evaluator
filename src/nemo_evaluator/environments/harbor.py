@@ -1,26 +1,43 @@
 """Harbor environment integration -- agent benchmarks from Harbor task directories.
 
+Uses Harbor's native registry to discover and download benchmark tasks via
+sparse git checkout.  Supports all datasets in the Harbor registry (60+
+benchmarks including terminal-bench, swebench, usaco, bird-bench, etc.).
+
 Harbor tasks follow a directory layout::
 
     task_dir/
     ├── instruction.md          # Agent prompt
     ├── task.toml               # Config (timeouts, resources, docker_image)
     ├── environment/
-    │   └── Dockerfile          # Container definition (FROM per-problem-image)
+    │   └── Dockerfile          # Container definition
     ├── tests/
     │   └── test.sh             # Verification script (writes reward.txt)
     └── solution/               # Optional reference solution
-        └── solve.sh
 
-The environment loads a directory of such tasks and maps them into NEL's
-seed/verify contract.  Each task gets its own sandbox with the per-problem
-Docker image specified in ``task.toml`` (field ``environment.docker_image``)
-or parsed from the Dockerfile's ``FROM`` line as a fallback.
+Auto-download
+~~~~~~~~~~~~~
+When ``harbor://<name>`` (or ``harbor://<name>@<version>``) is used and the
+local dataset directory doesn't exist, :func:`auto_prepare` looks up the
+Harbor registry and downloads the task directories via sparse git checkout.
+
+Registry resolution order:
+
+1. ``HARBOR_REGISTRY`` env-var (path to a local ``registry.json``)
+2. Sibling ``harbor/`` repo relative to the workspace root
+3. Download from GitHub (``laude-institute/harbor/main/registry.json``)
 """
 from __future__ import annotations
 
+import json
 import logging
+import os
+import shutil
+import subprocess
+import tempfile
 import tomllib
+from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -31,9 +48,292 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+REGISTRY_URL = (
+    "https://raw.githubusercontent.com/laude-institute/harbor/main/registry.json"
+)
+
+# ---------------------------------------------------------------------------
+# Registry data model
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class RegistryTask:
+    name: str
+    git_url: str
+    git_commit_id: str | None
+    path: str
+
+
+@dataclass
+class DatasetSpec:
+    name: str
+    version: str
+    description: str
+    tasks: list[RegistryTask]
+
+
+# ---------------------------------------------------------------------------
+# Registry loading + caching
+# ---------------------------------------------------------------------------
+
+_registry_cache: list[DatasetSpec] | None = None
+
+
+def _locate_registry_json() -> Path | None:
+    """Search common locations for a local ``registry.json``."""
+    env = os.environ.get("HARBOR_REGISTRY")
+    if env:
+        p = Path(env)
+        if p.is_file():
+            return p
+
+    src_root = Path(__file__).resolve().parents[4]  # …/agentic-party
+    candidate = src_root / "harbor" / "registry.json"
+    if candidate.is_file():
+        return candidate
+
+    cwd_candidate = Path.cwd()
+    for _ in range(5):
+        c = cwd_candidate / "harbor" / "registry.json"
+        if c.is_file():
+            return c
+        cwd_candidate = cwd_candidate.parent
+
+    return None
+
+
+def _parse_raw(raw: list[dict]) -> list[DatasetSpec]:
+    return [
+        DatasetSpec(
+            name=d["name"],
+            version=d["version"],
+            description=d.get("description", ""),
+            tasks=[
+                RegistryTask(
+                    name=t["name"],
+                    git_url=t["git_url"],
+                    git_commit_id=t.get("git_commit_id"),
+                    path=t["path"],
+                )
+                for t in d.get("tasks", [])
+            ],
+        )
+        for d in raw
+    ]
+
+
+def _load_registry() -> list[DatasetSpec]:
+    local = _locate_registry_json()
+    if local:
+        logger.info("Loading Harbor registry from %s", local)
+        return _parse_raw(json.loads(local.read_text()))
+
+    logger.info("Downloading Harbor registry from %s", REGISTRY_URL)
+    import httpx
+
+    resp = httpx.get(REGISTRY_URL, timeout=60)
+    resp.raise_for_status()
+    return _parse_raw(resp.json())
+
+
+def get_registry() -> list[DatasetSpec]:
+    global _registry_cache
+    if _registry_cache is None:
+        _registry_cache = _load_registry()
+        logger.info("Harbor registry: %d datasets loaded", len(_registry_cache))
+    return _registry_cache
+
+
+def find_dataset(name: str, version: str | None = None) -> DatasetSpec:
+    """Find a dataset by name and optional version.
+
+    Raises :class:`KeyError` when not found.
+    """
+    registry = get_registry()
+    matches = [d for d in registry if d.name == name]
+    if not matches:
+        available = sorted({d.name for d in registry})
+        raise KeyError(
+            f"Harbor dataset {name!r} not found. "
+            f"Available ({len(available)}): {', '.join(available[:20])} …"
+        )
+
+    if version:
+        for m in matches:
+            if m.version == version:
+                return m
+        versions = [m.version for m in matches]
+        raise KeyError(
+            f"Harbor dataset {name!r} version {version!r} not found. "
+            f"Available versions: {versions}"
+        )
+
+    # Auto-resolve best version
+    try:
+        from packaging.version import InvalidVersion, Version
+
+        semver = []
+        for m in matches:
+            if m.version == "head":
+                return m
+            try:
+                semver.append((Version(m.version), m))
+            except InvalidVersion:
+                pass
+        if semver:
+            semver.sort(key=lambda x: x[0], reverse=True)
+            return semver[0][1]
+    except ImportError:
+        pass
+
+    return matches[-1]
+
+
+# ---------------------------------------------------------------------------
+# Task downloader (sparse git checkout)
+# ---------------------------------------------------------------------------
+
+
+def download_harbor_tasks(
+    dataset: DatasetSpec,
+    output_dir: Path,
+    limit: int | None = None,
+) -> Path:
+    """Download Harbor tasks via sparse git checkout.
+
+    Tasks that already exist on disk are skipped.
+    """
+    if output_dir.exists() and any(output_dir.iterdir()):
+        n = sum(
+            1 for d in output_dir.iterdir()
+            if d.is_dir() and (d / "instruction.md").exists()
+        )
+        if n > 0:
+            logger.info("Harbor tasks already present: %d in %s", n, output_dir)
+            return output_dir
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    tasks = dataset.tasks
+    if limit:
+        tasks = tasks[:limit]
+
+    groups: dict[tuple[str, str | None], list[RegistryTask]] = defaultdict(list)
+    for task in tasks:
+        groups[(task.git_url, task.git_commit_id)].append(task)
+
+    logger.info(
+        "Downloading %d tasks from %d git source(s) for %s@%s",
+        len(tasks), len(groups), dataset.name, dataset.version,
+    )
+
+    for (git_url, commit_id), group_tasks in groups.items():
+        _download_task_group(git_url, commit_id, group_tasks, output_dir)
+
+    n = sum(
+        1 for d in output_dir.iterdir()
+        if d.is_dir() and (d / "instruction.md").exists()
+    )
+    logger.info("Harbor download complete: %d tasks in %s", n, output_dir)
+    return output_dir
+
+
+def _git(
+    cmd: list[str],
+    *,
+    input: str | None = None,
+    cwd: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run a git command with logging on failure."""
+    try:
+        return subprocess.run(
+            cmd,
+            input=input,
+            text=True,
+            encoding="utf-8",
+            check=True,
+            capture_output=True,
+            cwd=cwd,
+        )
+    except subprocess.CalledProcessError as exc:
+        logger.error(
+            "git command failed: %s\nstdout: %s\nstderr: %s",
+            " ".join(cmd), exc.stdout, exc.stderr,
+        )
+        raise
+
+
+def _download_task_group(
+    git_url: str,
+    commit_id: str | None,
+    tasks: list[RegistryTask],
+    output_dir: Path,
+) -> None:
+    """Sparse-checkout a batch of tasks from the same git repo + commit."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_dir = Path(tmp)
+
+        logger.info("Cloning %s (sparse, depth=1)…", git_url)
+        _git(
+            ["git", "clone", "--filter=blob:none", "--depth", "1",
+             "--no-checkout", git_url, str(tmp_dir)],
+        )
+
+        sparse_paths = [t.path for t in tasks]
+        _git(
+            ["git", "sparse-checkout", "set", "--no-cone", "--stdin"],
+            input="\n".join(sparse_paths),
+            cwd=tmp_dir,
+        )
+
+        if commit_id and commit_id.upper() != "HEAD":
+            _git(
+                ["git", "fetch", "--depth", "1", "origin", commit_id],
+                cwd=tmp_dir,
+            )
+            _git(["git", "checkout", commit_id], cwd=tmp_dir)
+        else:
+            _git(["git", "checkout"], cwd=tmp_dir)
+
+        for task in tasks:
+            src = tmp_dir / task.path
+            if not src.is_dir():
+                logger.warning("Task path not found after checkout: %s (skipped)", src)
+                continue
+            dst = output_dir / task.name
+            if dst.exists():
+                shutil.rmtree(dst)
+            shutil.copytree(src, dst)
+
+
+# ---------------------------------------------------------------------------
+# auto_prepare  (called from registry.py)
+# ---------------------------------------------------------------------------
+
+
+def auto_prepare(name: str, output_dir: Path, limit: int | None = None) -> bool:
+    """If *name* is in the Harbor registry, download tasks.  Returns True on success."""
+    version: str | None = None
+    if "@" in name:
+        name, version = name.rsplit("@", 1)
+
+    try:
+        dataset = find_dataset(name, version)
+    except KeyError as exc:
+        logger.debug("Harbor auto_prepare: %s", exc)
+        return False
+
+    download_harbor_tasks(dataset, output_dir, limit=limit)
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Helpers for HarborEnvironment
+# ---------------------------------------------------------------------------
+
 
 def _parse_docker_image_from_toml(task_toml: Path) -> str | None:
-    """Read ``environment.docker_image`` from task.toml."""
     try:
         config = tomllib.loads(task_toml.read_text(encoding="utf-8"))
         return config.get("environment", {}).get("docker_image")
@@ -41,8 +341,8 @@ def _parse_docker_image_from_toml(task_toml: Path) -> str | None:
         return None
 
 
-def _parse_docker_image_from_dockerfile(dockerfile: Path) -> str | None:
-    """Extract image from the first ``FROM`` line of a Dockerfile."""
+def _parse_from_image(dockerfile: Path) -> str | None:
+    """Extract the base image from the first ``FROM`` line of a Dockerfile."""
     try:
         for line in dockerfile.read_text(encoding="utf-8").splitlines():
             stripped = line.strip()
@@ -58,12 +358,81 @@ def _parse_docker_image_from_dockerfile(dockerfile: Path) -> str | None:
     return None
 
 
+def _dockerfile_has_extra_layers(dockerfile: Path) -> bool:
+    """True when the Dockerfile has ``RUN``/``COPY``/``ADD`` beyond the FROM."""
+    try:
+        for line in dockerfile.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip().upper()
+            if stripped.startswith(("RUN ", "COPY ", "ADD ")):
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _content_hash_env(env_dir: Path) -> str:
+    """SHA-256 of all files in an environment directory (Dockerfile, scripts, etc.).
+
+    Sorted by relative path for determinism.  Returns first 12 hex chars.
+    """
+    import hashlib as _hl
+
+    h = _hl.sha256()
+    for p in sorted(env_dir.rglob("*")):
+        if p.is_file():
+            h.update(p.relative_to(env_dir).as_posix().encode())
+            h.update(p.read_bytes())
+    return h.hexdigest()[:12]
+
+
+def _built_image_tag(dataset_name: str, task_name: str, env_dir: Path | None = None) -> str:
+    safe_ds = dataset_name.replace("/", "__").replace("@", "_")
+    safe_task = task_name.replace("/", "__").replace(":", "_")
+    tag = _content_hash_env(env_dir) if env_dir and env_dir.is_dir() else "latest"
+    return f"nel-harbor/{safe_ds}/{safe_task}:{tag}"
+
+
 def _parse_task_config(task_toml: Path) -> dict[str, Any]:
-    """Parse task.toml and return the full config dict."""
     try:
         return tomllib.loads(task_toml.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+
+def _build_harbor_dockerfiles(
+    specs: list[Any],
+    build_contexts: dict[str, Path],
+) -> None:
+    """Build Docker images from Harbor task Dockerfiles."""
+    import subprocess as _sp
+
+    for spec in specs:
+        ctx = build_contexts.get(spec.image)
+        if ctx is None:
+            logger.warning("No build context for %s — skipping", spec.image)
+            continue
+        dockerfile = ctx / "Dockerfile"
+        if not dockerfile.exists():
+            logger.warning("Dockerfile missing: %s — skipping", dockerfile)
+            continue
+
+        logger.info("Building Harbor image: %s", spec.image)
+        result = _sp.run(
+            ["docker", "build", "-t", spec.image, "-f", str(dockerfile), str(ctx)],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            logger.error(
+                "Docker build failed for %s:\n%s",
+                spec.image, result.stderr[-2000:],
+            )
+            raise RuntimeError(f"Docker build failed for {spec.image}")
+
+
+# ---------------------------------------------------------------------------
+# HarborEnvironment
+# ---------------------------------------------------------------------------
 
 
 class HarborEnvironment(EvalEnvironment):
@@ -83,7 +452,9 @@ class HarborEnvironment(EvalEnvironment):
         self.name = self._dataset_path.name
 
         if not self._dataset_path.is_dir():
-            raise FileNotFoundError(f"Harbor dataset directory not found: {self._dataset_path}")
+            raise FileNotFoundError(
+                f"Harbor dataset directory not found: {self._dataset_path}"
+            )
 
         for task_dir in sorted(self._dataset_path.iterdir()):
             if task_dir.is_dir() and (task_dir / "instruction.md").exists():
@@ -92,23 +463,57 @@ class HarborEnvironment(EvalEnvironment):
         if num_examples is not None:
             self._tasks = self._tasks[:num_examples]
 
-        logger.info("Harbor %s: %d tasks loaded from %s",
-                     self.name, len(self._tasks), self._dataset_path)
+        logger.info(
+            "Harbor %s: %d tasks loaded from %s",
+            self.name, len(self._tasks), self._dataset_path,
+        )
 
     async def dataset_size(self) -> int:
         return len(self._tasks)
 
+    async def image_build_requests(self) -> list[Any] | None:
+        from nemo_evaluator.sandbox.base import ImageBuildRequest, ImageSpec
+
+        specs: list[ImageSpec] = []
+        build_contexts: dict[str, Path] = {}
+
+        for task_dir in self._tasks:
+            env_dir = task_dir / "environment"
+            dockerfile = env_dir / "Dockerfile"
+            if dockerfile.exists() and _dockerfile_has_extra_layers(dockerfile):
+                tag = _built_image_tag(self.name, task_dir.name, env_dir)
+                specs.append(ImageSpec(image=tag, source={"task_dir": str(task_dir)}))
+                build_contexts[tag] = env_dir
+
+        if not specs:
+            return None
+
+        def _docker_build(missing: list[ImageSpec]) -> None:
+            _build_harbor_dockerfiles(missing, build_contexts)
+
+        logger.info("Harbor %s: %d tasks need Dockerfile builds", self.name, len(specs))
+        return [ImageBuildRequest(specs=specs, docker_build_fn=_docker_build)]
+
     def _resolve_image(self, task_dir: Path) -> str | None:
-        """Resolve Docker image for a task: task.toml first, Dockerfile fallback."""
+        """Resolve Docker image for a task.
+
+        Priority:
+        1. ``task.toml [environment] docker_image``
+        2. Dockerfile with extra layers → built image tag
+        3. Dockerfile FROM-only → base image directly
+        """
         task_toml = task_dir / "task.toml"
         if task_toml.exists():
             image = _parse_docker_image_from_toml(task_toml)
             if image:
                 return image
 
-        dockerfile = task_dir / "environment" / "Dockerfile"
+        env_dir = task_dir / "environment"
+        dockerfile = env_dir / "Dockerfile"
         if dockerfile.exists():
-            return _parse_docker_image_from_dockerfile(dockerfile)
+            if _dockerfile_has_extra_layers(dockerfile):
+                return _built_image_tag(self.name, task_dir.name, env_dir)
+            return _parse_from_image(dockerfile)
 
         return None
 
@@ -128,16 +533,21 @@ class HarborEnvironment(EvalEnvironment):
         capture_cmd = None
         apply_cmd = None
         if image:
+            env_dir = task_dir / "environment"
             sandbox_spec = SandboxSpec(
                 image=image,
                 workdir="/testbed",
                 env={"HARBOR_TASK_DIR": str(task_dir)},
+                environment_dir=str(env_dir) if env_dir.is_dir() else None,
             )
             verify_sandbox_spec = SandboxSpec(
                 image=image,
                 workdir="/testbed",
+                environment_dir=str(env_dir) if env_dir.is_dir() else None,
             )
-            capture_cmd = "cd /testbed && tar cf /output/workspace.tar --exclude=.git ."
+            capture_cmd = (
+                "cd /testbed && tar cf /output/workspace.tar --exclude=.git ."
+            )
             apply_cmd = (
                 "if [ -f /input/workspace.tar ]; then "
                 "tar xf /input/workspace.tar -C /testbed; fi"
@@ -163,15 +573,13 @@ class HarborEnvironment(EvalEnvironment):
         )
 
     async def verify(
-        self, response: str, expected: str,
-        sandbox: Sandbox | None = None, **metadata: Any,
+        self,
+        response: str,
+        expected: str,
+        sandbox: Sandbox | None = None,
+        **metadata: Any,
     ) -> VerifyResult:
-        """Run test scripts in the verification sandbox.
-
-        With the StatelessSandbox lifecycle the workspace has already been
-        restored from ``/input/workspace.tar`` by ``apply_cmd``.  This
-        method only uploads test scripts and executes them.
-        """
+        """Run test scripts in the verification sandbox."""
         if sandbox is None:
             logger.warning("Harbor verify called without sandbox -- cannot run tests")
             return VerifyResult(
@@ -195,12 +603,17 @@ class HarborEnvironment(EvalEnvironment):
                 scoring_details={"method": "harbor", "error": "no_tests_dir"},
             )
 
+        await sandbox.exec("mkdir -p /tests /logs/verifier", timeout_sec=10)
+
         for test_file in sorted(tests_dir.rglob("*")):
             if test_file.is_file():
                 rel = test_file.relative_to(tests_dir)
+                parent = str(Path(f"/tests/{rel}").parent)
+                if parent != "/tests":
+                    await sandbox.exec(f"mkdir -p {parent}", timeout_sec=10)
                 await sandbox.upload(test_file, f"/tests/{rel}")
 
-        await sandbox.exec("chmod +x /tests/test.sh", timeout_sec=10)
+        await sandbox.exec("chmod -R +x /tests/", timeout_sec=10)
         result = await sandbox.exec("bash /tests/test.sh", timeout_sec=600)
 
         reward = 0.0
@@ -211,10 +624,10 @@ class HarborEnvironment(EvalEnvironment):
             "test_stderr": result.stderr[:2000] if result.stderr else "",
         }
 
-        import tempfile
+        import tempfile as _tempfile
 
         try:
-            with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+            with _tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
                 reward_path = Path(f.name)
             await sandbox.download("/logs/verifier/reward.txt", reward_path)
             reward_text = reward_path.read_text(encoding="utf-8").strip()
@@ -222,7 +635,7 @@ class HarborEnvironment(EvalEnvironment):
             reward_details["reward_raw"] = reward_text
         except (FileNotFoundError, OSError):
             try:
-                with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
+                with _tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
                     reward_path = Path(f.name)
                 await sandbox.download("/reward.txt", reward_path)
                 reward_text = reward_path.read_text(encoding="utf-8").strip()

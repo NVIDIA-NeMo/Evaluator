@@ -25,4 +25,3 @@ cluster:
   ntasks_per_node: 1
   gres: "gpu:4"
   walltime: "02:00:00"
-  container_image: nvcr.io/nvidia/pytorch:24.03-py3

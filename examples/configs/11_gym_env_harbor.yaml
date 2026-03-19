@@ -7,11 +7,11 @@
 #   - Docker running locally
 #   - nemo-gym server running on port 8000 with native protocol
 #   - pip install nemo-evaluator[harbor]
-# Run: nel eval run examples/configs/10_gym_env_harbor.yaml
+# Run: nel eval run examples/configs/11_gym_env_harbor.yaml
 
 model:
   url: https://integrate.api.nvidia.com/v1
-  id: nvidia/llama-3.1-nemotron-ultra-253b-v1
+  id: nvidia/nemotron-3-super-120b-a12b
   api_key: ${NVIDIA_API_KEY}
 
 benchmarks:

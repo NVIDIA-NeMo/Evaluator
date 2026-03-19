@@ -26,6 +26,7 @@ from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.observability.types import ModelResponse
 
 from .base import SolveResult
+from .trajectory_util import build_atif_trajectory
 
 if TYPE_CHECKING:
     from nemo_evaluator.sandbox.base import Sandbox
@@ -74,15 +75,14 @@ def _parse_sse_lines(raw: str) -> list[_SSEEvent]:
 
 
 def _convert_trajectory(events: list[_SSEEvent]) -> list[dict[str, Any]]:
-    """Convert NAT IntermediateStep events into the OpenClaw-style transcript
-    format that PinchBench grade() functions expect.
+    """Convert NAT IntermediateStep events into ATIF step dicts.
 
     Mapping:
-      LLM_END   -> assistant message with text content
-      TOOL_START -> toolCall content appended to preceding assistant message
-      TOOL_END   -> toolResult message
+      LLM_END    -> source: "agent", message with text
+      TOOL_START -> tool_calls on the preceding agent step
+      TOOL_END   -> observation on the preceding agent step
     """
-    transcript: list[dict[str, Any]] = []
+    steps: list[dict[str, Any]] = []
 
     for ev in events:
         if ev.kind != "intermediate_data":
@@ -105,31 +105,26 @@ def _convert_trajectory(events: list[_SSEEvent]) -> list[dict[str, Any]]:
                 output_text = str(data.get("output", data.get("chunk", "")))
             elif isinstance(data, str):
                 output_text = data
-            transcript.append({
-                "type": "message",
-                "message": {
-                    "role": "assistant",
-                    "content": [{"type": "text", "text": output_text}],
-                },
+            steps.append({
+                "source": "agent",
+                "message": output_text,
             })
 
         elif step_type == "TOOL_START":
             tool_name = p.get("name", "unknown_tool")
             tool_input = data.get("input", "") if isinstance(data, dict) else str(data)
             tool_call = {
-                "type": "toolCall",
-                "name": tool_name,
+                "tool_call_id": f"call_{len(steps)}",
+                "function_name": tool_name,
                 "arguments": tool_input if isinstance(tool_input, dict) else {"raw": str(tool_input)},
             }
-            if transcript and transcript[-1].get("message", {}).get("role") == "assistant":
-                transcript[-1]["message"]["content"].append(tool_call)
+            if steps and steps[-1].get("source") == "agent":
+                steps[-1].setdefault("tool_calls", []).append(tool_call)
             else:
-                transcript.append({
-                    "type": "message",
-                    "message": {
-                        "role": "assistant",
-                        "content": [tool_call],
-                    },
+                steps.append({
+                    "source": "agent",
+                    "message": "",
+                    "tool_calls": [tool_call],
                 })
 
         elif step_type == "TOOL_END":
@@ -138,15 +133,15 @@ def _convert_trajectory(events: list[_SSEEvent]) -> list[dict[str, Any]]:
                 tool_output = str(data.get("output", ""))
             elif isinstance(data, str):
                 tool_output = data
-            transcript.append({
-                "type": "message",
-                "message": {
-                    "role": "toolResult",
-                    "content": [tool_output],
-                },
-            })
+            if steps and steps[-1].get("source") == "agent":
+                steps[-1]["observation"] = {"results": [{"content": tool_output}]}
+            else:
+                steps.append({
+                    "source": "system",
+                    "message": tool_output,
+                })
 
-    return transcript
+    return steps
 
 
 class NatSolver:
@@ -219,7 +214,7 @@ class NatSolver:
                             final_text = str(data.get("output", ""))
                         break
 
-        trajectory = _convert_trajectory(events)
+        atif_steps = _convert_trajectory(events)
 
         workspace_path = task.metadata.get("workspace_path")
         if workspace_path:
@@ -227,9 +222,9 @@ class NatSolver:
             try:
                 transcript_file.parent.mkdir(parents=True, exist_ok=True)
                 with open(transcript_file, "w", encoding="utf-8") as f:
-                    for entry in trajectory:
+                    for entry in atif_steps:
                         f.write(json.dumps(entry) + "\n")
-                logger.debug("Wrote %d transcript entries to %s", len(trajectory), transcript_file)
+                logger.debug("Wrote %d transcript entries to %s", len(atif_steps), transcript_file)
             except OSError as exc:
                 logger.warning("Failed to write transcript: %s", exc)
 
@@ -240,6 +235,12 @@ class NatSolver:
             total_tokens=total_tokens,
             completion_tokens=total_tokens,
             latency_ms=round(latency, 2),
+        )
+
+        trajectory = build_atif_trajectory(
+            atif_steps,
+            agent_name="nat-agent",
+            completion_tokens=total_tokens,
         )
 
         logger.info("NatSolver: %.0fms, %d events, %d chars response",

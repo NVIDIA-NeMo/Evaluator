@@ -41,7 +41,7 @@ import threading
 import time
 import uuid
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as _dc_replace
 from pathlib import Path
 from typing import Any, Callable, Self, TypeVar
 from urllib.parse import ParseResult, urlparse
@@ -805,6 +805,7 @@ class EcsFargateSandbox:
         self._ssh_tunnel_port: int | None = None
         self._agent_forward_port: int | None = None
         self._outside_endpoints: list[OutsideEndpoint] = []
+        self._reverse_port_map: dict[str, tuple[int, str]] = {}
         self._run_id = uuid.uuid4().hex[:12]
 
     # ── Protocol properties ──────────────────────────────────────────
@@ -907,10 +908,14 @@ class EcsFargateSandbox:
         dest.write_bytes(data)
 
     def resolve_outside_endpoint(self, url: str) -> str:
-        if self._ssh_tunnel_port is None:
-            raise RuntimeError("resolve_outside_endpoint() requires agent-server SSH sidecar")
-        parsed = urlparse(url)
-        return parsed._replace(netloc=f"127.0.0.1:{self._ssh_tunnel_port}").geturl()
+        for ep in self._outside_endpoints:
+            if ep.url == url and ep.env_var in self._reverse_port_map:
+                remote_port, scheme = self._reverse_port_map[ep.env_var]
+                return f"{scheme}://127.0.0.1:{remote_port}"
+        if self._ssh_tunnel_port is not None:
+            parsed = urlparse(url)
+            return parsed._replace(netloc=f"127.0.0.1:{self._ssh_tunnel_port}").geturl()
+        raise RuntimeError("resolve_outside_endpoint() requires SSH reverse tunnel")
 
     async def __aenter__(self) -> Self:
         await self.start()
@@ -942,9 +947,11 @@ class EcsFargateSandbox:
         self._init_aws_clients()
 
         built_image: str | None = None
-        if cfg.ecr_repository and cfg.environment_dir:
+        env_dir = cfg.environment_dir or self._spec.environment_dir
+        if cfg.ecr_repository and env_dir:
+            per_task_cfg = _dc_replace(cfg, environment_dir=env_dir)
             built_image = ImageBuilder.ensure_image_built(
-                cfg=cfg, environment_name=_sanitize_id(self._spec.image or "sandbox"))
+                cfg=per_task_cfg, environment_name=_sanitize_id(self._spec.image or "sandbox"))
         image = self._resolve_image(built_image)
 
         if not sidecar.private_key_secret_arn or not sidecar.public_key_secret_arn:
@@ -995,7 +1002,21 @@ class EcsFargateSandbox:
         cfg = self._cfg
         if cfg.image_template:
             sanitized = _sanitize_id(self._spec.image or "sandbox")
-            return cfg.image_template.format(task_id=self._spec.image, task_id_sanitized=sanitized)
+            fmt_keys = {
+                "task_id": self._spec.image or "",
+                "task_id_sanitized": sanitized,
+                **(self._spec.env or {}),
+            }
+            try:
+                return cfg.image_template.format_map(fmt_keys)
+            except KeyError as exc:
+                raise ValueError(
+                    f"ecs.image_template placeholder {exc} not found in "
+                    f"available keys: {sorted(fmt_keys)}. "
+                    f"Hint: use sandbox.image_template (resolved via seed "
+                    f"metadata) instead of ecs.image_template for task-specific "
+                    f"placeholders like {{task_id}}."
+                ) from exc
         if self._spec.image:
             return self._spec.image
         if not cfg.task_definition:
@@ -1074,6 +1095,10 @@ class EcsFargateSandbox:
             ep = self._outside_endpoints[0]
             scheme = urlparse(ep.url).scheme or "http"
             env[ep.env_var] = f"{scheme}://127.0.0.1:{self._ssh_tunnel_port}"
+        for ep in self._outside_endpoints:
+            if ep.env_var in self._reverse_port_map:
+                remote_port, scheme = self._reverse_port_map[ep.env_var]
+                env[ep.env_var] = f"{scheme}://127.0.0.1:{remote_port}"
         return env
 
     def _render_env_value(self, value: str) -> str:
@@ -1344,12 +1369,34 @@ class EcsFargateSandbox:
             time.sleep(2.0)
         raise TimeoutError(f"SSH not ready at {host}:{port} after {timeout:.0f}s")
 
+    def _build_reverse_specs(self) -> list[str]:
+        """Build ``-R`` specs for outside endpoints (proxy, model, etc.).
+
+        Uses the original URL port on the container side so that the agent's
+        ``LLM_BASE_URL`` (same host:port as the orchestrator proxy) works
+        unchanged through the reverse tunnel.
+        """
+        reverses: list[str] = []
+        for ep in self._outside_endpoints:
+            parsed = urlparse(ep.url)
+            host = parsed.hostname or "127.0.0.1"
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            self._reverse_port_map[ep.env_var] = (port, parsed.scheme or "http")
+            reverses.append(f"{port}:{host}:{port}")
+            logger.info(
+                "Reverse tunnel: container :%d → host %s:%d (%s)",
+                port, host, port, ep.env_var,
+            )
+        return reverses
+
     def _open_tunnel(self, sidecar: SshSidecarConfig) -> None:
         assert self._task_ip is not None and self._ssh_key_file is not None
+        reverse_specs = self._build_reverse_specs()
         if sidecar.exec_server_port is not None:
             self._ssh_tunnel = SshTunnel(
                 host=self._task_ip, port=sidecar.sshd_port, user="root",
-                key_file=self._ssh_key_file, forward_port=sidecar.exec_server_port)
+                key_file=self._ssh_key_file, forward_port=sidecar.exec_server_port,
+                reverses=reverse_specs)
             self._ssh_tunnel.open()
         else:
             remote_host, remote_port = self._resolve_tunnel_target()

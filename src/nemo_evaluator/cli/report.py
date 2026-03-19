@@ -67,21 +67,36 @@ def _primary_metric(row: dict[str, Any]) -> tuple[str, dict[str, Any]]:
 def _render_markdown(table: dict[str, Any]) -> str:
     lines = [f"# Evaluation Report: {table['model']}\n"]
 
-    header = "| Benchmark | Samples | Score | Metric | CI (95%) |"
-    sep = "|-----------|---------|-------|--------|----------|"
+    header = "| Benchmark | Scorer | Samples | Score | CI (95%) |"
+    sep = "|-----------|--------|---------|-------|----------|"
     lines.extend([header, sep])
 
     for name, row in sorted(table["benchmarks"].items()):
+        samples = row.get("samples", "-")
+        scorer_metrics = {k: v for k, v in row.items()
+                         if k.startswith("scorer:") and isinstance(v, dict) and "value" in v}
+
         metric_name, metric = _primary_metric(row)
         if metric:
             val = f"{metric['value']:.4f}"
             lo = metric.get("ci_lower", "")
             hi = metric.get("ci_upper", "")
             ci = f"[{lo:.4f}, {hi:.4f}]" if lo and hi else ""
-        else:
-            val = "-"
-            ci = ""
-        lines.append(f"| {name} | {row.get('samples', '-')} | {val} | {metric_name} | {ci} |")
+            label = f"{metric_name} (native)" if scorer_metrics else metric_name
+            lines.append(f"| {name} | {label} | {samples} | {val} | {ci} |")
+        elif not scorer_metrics:
+            lines.append(f"| {name} | - | {samples} | - | |")
+
+        for sname, sval in sorted(scorer_metrics.items()):
+            label = sname.removeprefix("scorer:")
+            val = f"{sval['value']:.4f}"
+            lo = sval.get("ci_lower", "")
+            hi = sval.get("ci_upper", "")
+            ci = f"[{lo:.4f}, {hi:.4f}]" if lo != "" and hi != "" else ""
+            correct = sval.get("correct", "")
+            total = sval.get("total", "")
+            detail = f" ({correct}/{total})" if correct != "" and total != "" else ""
+            lines.append(f"| {name} | {label} | {samples} | {val}{detail} | {ci} |")
 
     lines.append("")
 
@@ -146,44 +161,62 @@ def _render_html(table: dict[str, Any]) -> str:
 
     rows_html = []
     for name, row in sorted(table["benchmarks"].items()):
-        metric_name, metric = _primary_metric(row)
-        if metric:
-            val = f"{metric['value']:.4f}"
-            lo = metric.get("ci_lower", "")
-            hi = metric.get("ci_upper", "")
-            ci = f"[{lo:.4f}, {hi:.4f}]" if lo and hi else "&mdash;"
-        else:
-            val = "&mdash;"
-            ci = "&mdash;"
-            metric_name = "&mdash;"
+        scorer_metrics = {k: v for k, v in row.items()
+                         if k.startswith("scorer:") and isinstance(v, dict) and "value" in v}
 
+        metric_name, metric = _primary_metric(row)
         tokens = row.get("total_tokens", "")
         latency = row.get("latency_p50_ms", "")
         if latency:
             latency = f"{latency:.0f}"
 
-        rows_html.append(
-            f"<tr><td>{name}</td><td>{row.get('samples', '')}</td>"
-            f"<td>{row.get('repeats', '')}</td><td>{metric_name}</td>"
-            f"<td><strong>{val}</strong></td>"
-            f"<td>{ci}</td><td>{tokens}</td><td>{latency}</td></tr>"
-        )
+        if metric:
+            val = f"{metric['value']:.4f}"
+            lo = metric.get("ci_lower", "")
+            hi = metric.get("ci_upper", "")
+            ci = f"[{lo:.4f}, {hi:.4f}]" if lo and hi else "&mdash;"
+            label = f"{metric_name} (native)" if scorer_metrics else metric_name
+        else:
+            val = "&mdash;"
+            ci = "&mdash;"
+            label = "&mdash;"
 
-    cat_sections = []
+        if metric or not scorer_metrics:
+            rows_html.append(
+                f"<tr><td>{name}</td><td>{label}</td><td>{row.get('samples', '')}</td>"
+                f"<td><strong>{val}</strong></td>"
+                f"<td>{ci}</td><td>{tokens}</td><td>{latency}</td></tr>"
+            )
+
+        for sname, sval in sorted(scorer_metrics.items()):
+            slabel = sname.removeprefix("scorer:")
+            sval_str = f"{sval['value']:.4f}"
+            c = sval.get("correct", "")
+            t = sval.get("total", "")
+            detail = f" ({c}/{t})" if c != "" and t != "" else ""
+            lo = sval.get("ci_lower", "")
+            hi = sval.get("ci_upper", "")
+            sci = f"[{lo:.4f}, {hi:.4f}]" if lo != "" and hi != "" else "&mdash;"
+            rows_html.append(
+                f"<tr><td>{name}</td><td>{slabel}</td><td>{row.get('samples', '')}</td>"
+                f"<td><strong>{sval_str}{detail}</strong></td>"
+                f"<td>{sci}</td><td></td><td></td></tr>"
+            )
+
+    extra_sections = []
     for name, row in sorted(table["benchmarks"].items()):
         cats = row.get("categories", {})
-        if not cats:
-            continue
-        cat_rows = []
-        for cat, info in sorted(cats.items()):
-            score = info.get("mean_reward", info.get("pass@1", "&mdash;"))
-            n_samples = info.get("n", info.get("n_samples", "&mdash;"))
-            cat_rows.append(f"<tr><td>{cat}</td><td>{score}</td><td>{n_samples}</td></tr>")
-        cat_sections.append(
-            f'<h2>{name} &mdash; Category Breakdown</h2>'
-            f'<table><thead><tr><th>Category</th><th>Score</th><th>N</th></tr></thead>'
-            f'<tbody>{"".join(cat_rows)}</tbody></table>'
-        )
+        if cats:
+            cat_rows = []
+            for cat, info in sorted(cats.items()):
+                score = info.get("mean_reward", info.get("pass@1", "&mdash;"))
+                n_samples = info.get("n", info.get("n_samples", "&mdash;"))
+                cat_rows.append(f"<tr><td>{cat}</td><td>{score}</td><td>{n_samples}</td></tr>")
+            extra_sections.append(
+                f'<h2>{name} &mdash; Category Breakdown</h2>'
+                f'<table><thead><tr><th>Category</th><th>Score</th><th>N</th></tr></thead>'
+                f'<tbody>{"".join(cat_rows)}</tbody></table>'
+            )
 
     return f"""\
 <!DOCTYPE html>
@@ -221,13 +254,13 @@ def _render_html(table: dict[str, Any]) -> str:
 <p class="meta">{n} benchmark(s) &middot; {ts}</p>
 <table>
 <thead>
-<tr><th>Benchmark</th><th>Samples</th><th>Repeats</th><th>Metric</th><th>Score</th><th>95% CI</th><th>Tokens</th><th>P50 ms</th></tr>
+<tr><th>Benchmark</th><th>Scorer</th><th>Samples</th><th>Score</th><th>95% CI</th><th>Tokens</th><th>P50 ms</th></tr>
 </thead>
 <tbody>
 {"".join(rows_html)}
 </tbody>
 </table>
-{"".join(cat_sections)}
+{"".join(extra_sections)}
 <footer>Generated by NeMo Evaluator</footer>
 </body>
 </html>"""

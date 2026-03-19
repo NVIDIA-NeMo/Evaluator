@@ -12,27 +12,39 @@ class ProgressTracker(Protocol):
     def on_start(self, benchmark: str, total_problems: int, total_repeats: int) -> None: ...
     def on_step(self, problem: int, repeat: int, total_problems: int, total_repeats: int,
                 reward: float, tokens: int, latency_ms: float) -> None: ...
+    def on_phase(self, problem: int, repeat: int, total_problems: int, total_repeats: int,
+                 phase: str) -> None: ...
     def on_done(self, correct: int, total: int, elapsed: float, total_tokens: int,
                 mean_reward: float | None = None) -> None: ...
 
 
 class ConsoleProgress:
-    """TTY-aware progress tracker: live bar on terminal, periodic logs otherwise."""
+    """TTY-aware progress tracker with 4-state bar.
+
+    Per-step phases (dark→light as progress advances):
+      ░ not started   ▒ solving   ▓ verifying/judging   █ done
+
+    Text summary:  {done}D {judging}J {solving}S {waiting}W
+    """
+
+    _PHASE_ORDER = {"solving": 1, "verifying": 2, "judging": 2}
 
     def __init__(self, log_interval: float = 30.0) -> None:
         self._t0 = 0.0
         self._tokens = 0
         self._steps = 0
+        self._total = 0
         self._line_len = 0
         self._is_tty = hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
         self._log_interval = log_interval
         self._last_log = 0.0
+        self._phases: dict[tuple[int, int], int] = {}
 
     def on_start(self, benchmark: str, total_problems: int, total_repeats: int) -> None:
         self._t0 = time.monotonic()
         self._last_log = self._t0
-        total = total_problems * total_repeats
-        msg = f"{benchmark} | {total_problems} problems x {total_repeats} repeats = {total} steps"
+        self._total = total_problems * total_repeats
+        msg = f"{benchmark} | {total_problems} problems x {total_repeats} repeats = {self._total} steps"
         if self._is_tty:
             sys.stderr.write(f"\n{'='*60}\n  {msg}\n{'='*60}\n\n")
             sys.stderr.flush()
@@ -43,13 +55,14 @@ class ConsoleProgress:
                 reward: float, tokens: int, latency_ms: float) -> None:
         self._tokens += tokens
         self._steps += 1
+        self._phases.pop((problem, repeat), None)
         elapsed = time.monotonic() - self._t0
-        total = total_problems * total_repeats
-        pct = 100 * self._steps / total if total else 0
 
         if self._is_tty:
-            self._write_bar(pct, total, problem, repeat, reward, elapsed)
+            self._redraw(elapsed)
         else:
+            total = total_problems * total_repeats
+            pct = 100 * self._steps / total if total else 0
             now = time.monotonic()
             if now - self._last_log >= self._log_interval or self._steps == total:
                 rate = self._steps / elapsed if elapsed > 0 else 0
@@ -59,18 +72,47 @@ class ConsoleProgress:
                 )
                 self._last_log = now
 
-    def _write_bar(self, pct: float, total: int, problem: int, repeat: int,
-                   reward: float, elapsed: float) -> None:
-        rate = self._steps / elapsed if elapsed > 0 else 0
-        tok_rate = self._tokens / elapsed if elapsed > 0 else 0
+    def on_phase(self, problem: int, repeat: int, total_problems: int, total_repeats: int,
+                 phase: str) -> None:
+        self._phases[(problem, repeat)] = self._PHASE_ORDER.get(phase, 1)
+        if not self._is_tty:
+            return
+        elapsed = time.monotonic() - self._t0
+        self._redraw(elapsed)
+
+    def _redraw(self, elapsed: float) -> None:
+        total = self._total
+        if total == 0:
+            return
+
+        n_done = self._steps
+        n_solving = sum(1 for v in self._phases.values() if v == 1)
+        n_judging = sum(1 for v in self._phases.values() if v == 2)
+        n_wait = total - n_done - n_solving - n_judging
+
         w = 30
-        filled = int(w * self._steps / total) if total else 0
-        bar = "█" * filled + "░" * (w - filled)
+        w_done = round(w * n_done / total)
+        w_judge = round(w * (n_done + n_judging) / total) - w_done
+        w_solve = round(w * (n_done + n_judging + n_solving) / total) - w_done - w_judge
+        w_wait = w - w_done - w_judge - w_solve
+        bar = "█" * w_done + "▓" * w_judge + "▒" * w_solve + "░" * w_wait
+
+        pct = 100 * n_done / total
+        rate = n_done / elapsed if elapsed > 0 else 0
+        tok_rate = self._tokens / elapsed if elapsed > 0 else 0
+
+        parts = [f"{n_done} done"]
+        if n_judging:
+            parts.append(f"{n_judging} judge")
+        if n_solving:
+            parts.append(f"{n_solving} solve")
+        if n_wait:
+            parts.append(f"{n_wait} wait")
+        counts = ", ".join(parts)
+
         line = (
             f"\r  [{bar}] {pct:5.1f}% | "
-            f"{self._steps}/{total} | "
-            f"p{problem+1} r{repeat+1} | "
-            f"rw={reward:.1f} | "
+            f"{counts} | "
             f"{rate:.1f}/s | "
             f"{self._tokens:,} tok ({tok_rate:.0f}/s)"
         )
@@ -95,5 +137,7 @@ class NoOpProgress:
     def on_start(self, benchmark: str, total_problems: int, total_repeats: int) -> None: pass
     def on_step(self, problem: int, repeat: int, total_problems: int, total_repeats: int,
                 reward: float, tokens: int, latency_ms: float) -> None: pass
+    def on_phase(self, problem: int, repeat: int, total_problems: int, total_repeats: int,
+                 phase: str) -> None: pass
     def on_done(self, correct: int, total: int, elapsed: float, total_tokens: int,
                 mean_reward: float | None = None) -> None: pass

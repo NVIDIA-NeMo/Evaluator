@@ -56,21 +56,50 @@ def _expand_env(value: Any) -> Any:
 # Sandbox config
 # ---------------------------------------------------------------------------
 
-class EcsFargateConfig(BaseModel):
-    """AWS ECS Fargate sandbox backend configuration."""
+class SshSidecarConfig(BaseModel):
+    """SSH sidecar for ECS tasks — enables exec/upload/download into containers."""
 
-    cluster: str
-    subnets: list[str]
-    security_groups: list[str]
-    task_role_arn: str | None = None
-    execution_role_arn: str | None = None
-    ssh_key_name: str | None = None
-    codebuild_project: str | None = None
-    ecr_repo: str | None = None
-    vcpus: float = 2.0
-    memory_mb: int = 4096
-    ephemeral_storage_gb: int = 21
+    sshd_port: int = 2222
+    ssh_ready_timeout_sec: float = 120.0
+    public_key_secret_arn: str = ""
+    private_key_secret_arn: str = ""
+    image: str | None = None
+    exec_server_port: int | None = 5000
+
+
+class EcsFargateConfig(BaseModel):
+    """AWS ECS Fargate sandbox backend configuration.
+
+    Mirrors the sandbox-level EcsFargateConfig; the translation layer in
+    local_runner converts this Pydantic model to the frozen dataclass.
+    """
+
+    region: str | None = None
+    cluster: str = ""
+    subnets: list[str] = Field(default_factory=list)
+    security_groups: list[str] = Field(default_factory=list)
     assign_public_ip: bool = True
+
+    image_template: str | None = None
+    container_port: int | None = None
+    cpu: str = "4096"
+    memory: str = "8192"
+    ephemeral_storage_gib: int | None = None
+
+    execution_role_arn: str | None = None
+    task_role_arn: str | None = None
+
+    log_group: str | None = None
+    log_stream_prefix: str | None = None
+    max_task_lifetime_sec: int = 14400
+
+    ssh_sidecar: SshSidecarConfig | None = None
+
+    s3_bucket: str | None = None
+    s3_prefix: str | None = None
+    ecr_repository: str | None = None
+    codebuild_project: str | None = None
+    codebuild_service_role: str | None = None
 
 
 class SandboxConfig(BaseModel):
@@ -93,6 +122,7 @@ class SandboxConfig(BaseModel):
 
     harbor_agent: str | None = None
     harbor_agent_kwargs: dict[str, Any] = Field(default_factory=dict)
+    container_env: dict[str, str] = Field(default_factory=dict)
 
     sif_cache_dir: str | None = None
 
@@ -131,6 +161,21 @@ class BenchmarkConfig(BaseModel):
     image_detail: str = "auto"
     sandbox: SandboxConfig | None = None
 
+    scorers: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Additional scorers to run alongside the environment's default verify. "
+            "Each entry is a scorer name from the registry (e.g. 'exact_match', "
+            "'mcq_extract', 'numeric_match', 'fuzzy_match'). All scorers run and "
+            "results appear in scoring_details; the first scorer's reward is used "
+            "as the primary reward if it disagrees with the environment's default."
+        ),
+    )
+
+    skip_failed: bool = False
+    """When False (default), any step failure aborts the entire evaluation run.
+    When True, failed steps score 0 and the run continues."""
+
     # Gym solver fields
     gym_url: str | None = None
     gym_agent: str | None = None
@@ -164,6 +209,24 @@ class BenchmarkConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Proxy config (optional LiteLLM interceptor proxy)
+# ---------------------------------------------------------------------------
+
+class ProxyConfig(BaseModel):
+    """Optional LiteLLM proxy for intercepting LLM traffic.
+
+    When present, a local LiteLLM proxy is started that forwards requests
+    to the original model endpoint.  Interceptors (both built-in LiteLLM
+    callbacks and custom ones from ``nemo_evaluator.interceptors``) can
+    observe and modify the traffic.
+    """
+    interceptors: list[str] = Field(default_factory=list)
+    port: int = 4000
+    verbose: bool = False
+    """Enable LiteLLM's built-in verbose logging (logs all requests/responses)."""
+
+
+# ---------------------------------------------------------------------------
 # Model config (simple mode)
 # ---------------------------------------------------------------------------
 
@@ -182,6 +245,7 @@ class ModelConfig(BaseModel):
     extra_env: dict[str, str] = Field(default_factory=dict)
     extra_args: list[str] = Field(default_factory=list)
     reasoning_pattern: str | None = None
+    proxy: ProxyConfig | None = None
 
     @model_validator(mode="after")
     def _check_endpoint_or_deploy(self) -> "ModelConfig":
@@ -215,6 +279,7 @@ class ServiceConfig(BaseModel):
     extra_env: dict[str, str] = Field(default_factory=dict)
     extra_args: list[str] = Field(default_factory=list)
     reasoning_pattern: str | None = None
+    proxy: ProxyConfig | None = None
 
     # Gym server fields
     benchmark: str | None = None
@@ -337,6 +402,12 @@ class EvalConfig(BaseModel):
             return self.model.api_key
         svc = self.services.get(service_name)
         return svc.api_key if svc else None
+
+    def resolve_proxy(self, service_name: str = "default") -> ProxyConfig | None:
+        if self.is_simple:
+            return self.model.proxy
+        svc = self.services.get(service_name)
+        return svc.proxy if svc else None
 
     def managed_services(self) -> dict[str, ServiceConfig]:
         """Return services that need lifecycle management (start/stop)."""

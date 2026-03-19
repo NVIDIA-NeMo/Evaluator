@@ -1,5 +1,85 @@
 # Changelog
 
+## 0.11.0 (2026-03-19)
+
+### LiteLLM Proxy
+
+- **Optional local proxy**: New `model.proxy` config section starts a LiteLLM proxy subprocess in front of the upstream LLM endpoint. All agent traffic is routed through the proxy, giving full observability into request/response payloads without modifying agent code. Verbose mode (`verbose: true`) streams proxy logs to stderr in real time.
+- **Interceptor framework**: Custom `litellm.integrations.custom_logger.CustomLogger` subclasses can be loaded via `proxy.interceptors`. Built-in `log_tokens` interceptor included. Interceptors live in `nemo_evaluator/interceptors/` and are resolved by dotted path.
+- **ECS reverse tunnel**: When a proxy is active and the sandbox backend is ECS Fargate, a reverse SSH tunnel (`-R 4000:127.0.0.1:4000`) is automatically established so the container's `localhost:4000` reaches the host-side proxy.
+
+### Inspect AI Exporter
+
+- **`inspect` export plugin**: Converts NEL evaluation results to `inspect_ai`-compatible `EvalLog` format. ATIF trajectory steps are mapped to `ChatMessage` sequences; rewards become `Score` objects. Output as `*_inspect.json` or `*_inspect.eval`.
+- **In-memory bundle forwarding**: `_generate_reports` now receives in-memory bundles (with full `_results` including trajectories) instead of reloading from disk, ensuring exporters have access to complete per-sample data.
+
+### Harbor Solver
+
+- **API key via `llm_kwargs`**: Agents that call litellm directly (e.g. Terminus-2) now receive the API key through `llm_kwargs`, which flows through `LiteLLM.__init__(**kwargs)` → `_build_base_kwargs()` → `litellm.acompletion(api_key=...)`. Previously the key was silently dropped by agents that don't have an explicit `api_key` parameter.
+- **`openai/` prefix for custom endpoints**: When `model_url` is set, the model ID is automatically prefixed with `openai/` to give litellm the provider hint it needs for OpenAI-compatible endpoints. Applied uniformly to all Harbor agents.
+- **`api_base` parameter alignment**: Harbor agents receive `api_base` (not `model_url`) matching their expected parameter name.
+- **OpenHands security analyzer disabled**: `SECURITY_CONFIRMATION_MODE=false` and `SECURITY_ENABLE_SECURITY_ANALYZER=false` are injected by default for OpenHands agents, preventing `security_risk` parameter validation failures with models that don't emit it.
+- **LiteLLM noise silenced**: `LITELLM_LOG=ERROR` and `LITELLM_TELEMETRY=false` set by default in both container and host environments.
+
+### New Configs
+
+- **`07a_swebench_harbor_docker.yaml`**: SWE-bench via local Docker sandbox (OpenHands agent).
+- **`08_terminalbench_harbor.yaml`**: Terminal-Bench 2.0 via ECS Fargate (Terminus-2 agent) with Inspect AI export.
+- **`08a_terminalbench_harbor_docker.yaml`**: Terminal-Bench via local Docker sandbox.
+- **`12_pinchbench_openclaw.yaml`**: PinchBench via OpenClaw solver with ECS.
+- **`18_humaneval_ecs.yaml`**: HumanEval code execution on ECS Fargate.
+- **`19_gym_runtime_ecs.yaml`**: Gym runtime evaluation on ECS.
+- **`20_slurm_gym_runtime.yaml`**: Gym runtime on SLURM.
+- Config renumbering: 08–16 shifted to 09–17 for consistent ordering.
+
+### Dependencies
+
+- New optional extras: `proxy` (`litellm[proxy]`), `inspect` (`inspect_ai`).
+
+### Fixes
+
+- Fixed Harbor agent API key not reaching litellm for non-InstalledAgent agents (Terminus-2).
+- Fixed `OPENAI_API_KEY` environment variable leaking globally and misrouting requests to api.openai.com.
+- Fixed ECS image resolution when `image_template` was in the wrong config section.
+- Fixed proxy subprocess logs not appearing in terminal (now redirected to stderr when verbose).
+
+## 0.10.0 (2026-03-17)
+
+### Harbor Agent Framework
+
+- **`HarborSolver`**: New solver that runs Harbor agents (OpenHands, Terminus-2, mini-swe-agent, etc.) inside NEL sandboxes via `SandboxEnvironmentAdapter`. Supports any agent registered with Harbor's `AgentFactory`.
+- **`SandboxEnvironmentAdapter`**: Wraps NEL's `Sandbox` protocol to satisfy Harbor's `BaseEnvironment` interface. Merges `persistent_env` into every `exec()` call, enabling transparent environment variable injection.
+- **`ByobInstalledAgent`**: Adapter for running custom agent directories as Harbor agents.
+- **Agent log download**: Automatic retrieval of `/logs/agent/` from containers after agent execution.
+
+### New Sandbox Backends
+
+- **Apptainer sandbox**: `ApptainerSandbox` for HPC environments where Docker is unavailable. Supports SLURM integration via `salloc`/`srun`.
+- **ECS Fargate enhancements**: CodeBuild-based image building with ECR content-hash tagging for per-task Docker images. `OutsideEndpoint` mechanism for making host services reachable from containers via SSH tunnels.
+
+### New Environments
+
+- **VLMEvalKit**: `VLMEvalKitEnvironment` for vision-language model evaluation using the VLMEvalKit framework. Usage: `vlmevalkit://MMBench_DEV_EN`.
+- **Composite environment**: `CompositeEnvironment` for combining multiple benchmarks into a single evaluation run.
+- **XSTest**: Built-in safety evaluation benchmark.
+
+### Solver Refactor
+
+- **`GymSolver`**: Dedicated solver for Gym protocol interactions, extracted from the generic solver.
+- **Removed `SandboxedAgentSolver`**: Replaced by the more flexible `HarborSolver` + `SandboxEnvironmentAdapter` pattern.
+
+### Config Overhaul
+
+- Numbered config examples (01–16) with README catalog replacing ad-hoc config files.
+- Removed legacy example configs (`multi_benchmark.yaml`, `quick_eval.yaml`, `swebench_*.yaml`, etc.).
+- Removed `examples/getting_started.md`, `gym_integration.py`, and other legacy examples.
+
+### Fixes
+
+- Fixed in-container runtime detection for Docker-in-Docker scenarios.
+- Fixed Docker image building CI with proper naming and tagging.
+- Performance improvements in eval loop and sandbox lifecycle.
+
 ## 0.9.0 (2026-03-16)
 
 ### Native Gym Servers on SLURM

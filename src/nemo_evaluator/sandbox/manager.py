@@ -90,8 +90,23 @@ class SandboxManager:
         2. If Docker daemon is reachable, build Docker originals via
            the benchmark-provided ``docker_build_fn``.
         3. Convert to the backend's format (SIF, ECR push) with concurrency.
+
+        For ECS Fargate with ``ecr_repository``, images are built and pushed
+        via AWS CodeBuild (content-hash tagged for caching).
         """
         for req in requests:
+            if self._backend == "ecs_fargate":
+                ecs_cfg = self._backend_kwargs.get("ecs_config")
+                if ecs_cfg and getattr(ecs_cfg, "ecr_repository", None):
+                    await self._provision_ecs_codebuild(req, ecs_cfg)
+                    continue
+                logger.info(
+                    "All %d images assumed available for ecs_fargate backend "
+                    "(no ecr_repository configured — images must already exist in registry)",
+                    len(req.specs),
+                )
+                continue
+
             missing = [
                 s for s in req.specs
                 if not await self._image_available(s.image)
@@ -104,7 +119,7 @@ class SandboxManager:
             logger.info("Provisioning %d images (%d cached) for %s backend",
                         len(missing), len(req.specs) - len(missing), self._backend)
 
-            if req.docker_build_fn and self._backend != "ecs_fargate":
+            if req.docker_build_fn:
                 if await self._docker_daemon_available():
                     docker_missing = [
                         s for s in missing
@@ -128,6 +143,58 @@ class SandboxManager:
                     await self._ensure_backend_format(image)
 
             await asyncio.gather(*[_convert(s.image) for s in missing])
+
+    async def _provision_ecs_codebuild(
+        self, req: ImageBuildRequest, ecs_cfg: Any,
+    ) -> None:
+        """Build missing images via CodeBuild and push to ECR."""
+        from dataclasses import replace as _dc_replace
+
+        from nemo_evaluator.sandbox.ecs_fargate import ImageBuilder, _sanitize_id
+
+        ecr_repo: str = ecs_cfg.ecr_repository
+        to_build: list[tuple[Any, str]] = []
+
+        for spec in req.specs:
+            task_dir = spec.source.get("task_dir")
+            if not task_dir:
+                logger.warning("ImageSpec %s has no task_dir in source — skipping ECR build", spec.image)
+                continue
+            env_dir = str(Path(task_dir) / "environment")
+            if not Path(env_dir).is_dir():
+                logger.warning("Environment dir %s does not exist — skipping ECR build for %s", env_dir, spec.image)
+                continue
+
+            env_name = _sanitize_id(spec.image)
+            tag = ImageBuilder.get_ecr_image_tag(env_dir, env_name)
+            if ImageBuilder.image_exists_in_ecr(ecr_repo, tag, ecs_cfg.region):
+                logger.info("ECR cache hit: %s:%s (%s)", ecr_repo, tag, spec.image)
+                continue
+            to_build.append((spec, env_dir))
+
+        if not to_build:
+            logger.info("All %d images cached in ECR for ecs_fargate backend", len(req.specs))
+            return
+
+        logger.info(
+            "Building %d/%d images via CodeBuild → ECR for ecs_fargate backend",
+            len(to_build), len(req.specs),
+        )
+        loop = asyncio.get_running_loop()
+        parallelism = min(self._concurrency, getattr(ecs_cfg, "build_parallelism", 50))
+        sem = asyncio.Semaphore(parallelism)
+
+        async def _build_one(spec: Any, env_dir: str) -> None:
+            async with sem:
+                per_task_cfg = _dc_replace(ecs_cfg, environment_dir=env_dir)
+                await loop.run_in_executor(
+                    None,
+                    lambda cfg=per_task_cfg, name=_sanitize_id(spec.image): (
+                        ImageBuilder.ensure_image_built(cfg=cfg, environment_name=name)
+                    ),
+                )
+
+        await asyncio.gather(*[_build_one(s, d) for s, d in to_build])
 
     # ------------------------------------------------------------------
     # Image availability checks (async — safe for the event loop)
@@ -212,20 +279,30 @@ class SandboxManager:
         self,
         seed: SeedResult,
         extra_volumes: list[VolumeMount] | None = None,
+        base_override: SandboxSpec | None = None,
     ) -> SandboxSpec | None:
         """Resolve sandbox spec: merge seed spec with config overrides.
 
         Priority: image_template overrides the image, but per-problem fields
-        (workdir, env, files, entrypoint) from seed.sandbox_spec are preserved.
+        (workdir, env, files, entrypoint) from the base spec are preserved.
         Extra volumes (e.g. shared volume for stateless verification) are appended.
+
+        Args:
+            base_override: Use this spec instead of ``seed.sandbox_spec``
+                (e.g. for verify specs that need the same image resolution).
         """
-        base = seed.sandbox_spec
+        base = base_override or seed.sandbox_spec
         vols = extra_volumes or []
 
         if self._image_template:
             try:
                 image = self._image_template.format_map(seed.metadata)
-            except KeyError:
+            except KeyError as exc:
+                logger.warning(
+                    "image_template placeholder %s not in seed metadata keys %s; "
+                    "falling back to spec image",
+                    exc, sorted(seed.metadata),
+                )
                 image = base.image if base else None
             if image:
                 return SandboxSpec(
@@ -235,6 +312,7 @@ class SandboxManager:
                     files=dict(base.files) if base else {},
                     entrypoint=base.entrypoint if base else None,
                     volumes=(list(base.volumes) if base else []) + vols,
+                    environment_dir=base.environment_dir if base else None,
                 )
 
         if base:
@@ -246,6 +324,7 @@ class SandboxManager:
                     files=dict(base.files),
                     entrypoint=base.entrypoint,
                     volumes=list(base.volumes) + vols,
+                    environment_dir=base.environment_dir,
                 )
             return base
 

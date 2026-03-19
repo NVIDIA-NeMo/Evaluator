@@ -1,0 +1,40 @@
+# Flavor: SLURM + vLLM + Gym as agent runtime + SLURM sandbox (Mode A)
+# vLLM serves the model on the cluster. The gym server runs the agent.
+# nel verifies patches inside Pyxis/Enroot containers on sandbox nodes.
+#
+# Prerequisites:
+#   - Access to a SLURM cluster with GPU nodes
+#   - Pyxis/Enroot configured for container execution
+#   - Model weights accessible on shared filesystem
+#   - nemo-gym server reachable from cluster nodes
+# Run: nel eval run examples/configs/20_slurm_gym_runtime.yaml
+
+services:
+  model:
+    type: vllm
+    model: nvidia/Llama-3.1-70B-Instruct
+    tensor_parallel_size: 4
+    port: 8000
+
+benchmarks:
+  - name: swebench-multilingual
+    max_problems: 10
+    endpoint_type: gym
+    gym_url: http://gym-server:8000
+    gym_agent: openhands
+    gym_trust_reward: false
+    sandbox:
+      backend: slurm
+      timeout: 1800.0
+      concurrency: 4
+      sandbox_nodes: 2
+      slots_per_node: 4
+
+cluster:
+  type: slurm
+  partition: batch
+  nodes: 3
+  ntasks_per_node: 1
+  gres: "gpu:4"
+  walltime: "04:00:00"
+  env_mode: separated

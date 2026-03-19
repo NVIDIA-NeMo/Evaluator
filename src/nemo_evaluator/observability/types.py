@@ -63,6 +63,7 @@ class StepRecord:
     total_ms: float = 0.0
 
     failure_category: str | None = None
+    trajectory: list[dict[str, Any]] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -105,6 +106,8 @@ class StepRecord:
             d["model_error"] = self.model_error
         if self.system_prompt:
             d["system_prompt"] = self.system_prompt
+        if self.trajectory:
+            d["trajectory"] = self.trajectory
         return d
 
 

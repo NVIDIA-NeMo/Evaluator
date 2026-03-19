@@ -6,7 +6,7 @@ from typing import Any
 from nemo_evaluator.environments.base import SeedResult
 
 from .base import SolveResult
-from .trajectory_util import _single_turn_trajectory
+from .trajectory_util import build_single_turn_atif
 
 
 class VLMSolver:
@@ -30,7 +30,12 @@ class VLMSolver:
             resp = await self._client.chat(messages=task.messages)
         else:
             resp = await self._client.chat(task.prompt, system=effective_system)
-        trajectory = _single_turn_trajectory(task.prompt, resp.content, effective_system)
+        trajectory = build_single_turn_atif(
+            task.prompt, resp.content, system=effective_system,
+            model_name=getattr(resp, "model", None),
+            prompt_tokens=getattr(resp, "prompt_tokens", 0) or 0,
+            completion_tokens=getattr(resp, "completion_tokens", 0) or 0,
+        )
         return SolveResult(response=resp.content, model_response=resp, trajectory=trajectory)
 
     async def close(self) -> None:
