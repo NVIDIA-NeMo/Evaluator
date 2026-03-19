@@ -96,7 +96,7 @@ def _github_list_dir(path: str, ref: str) -> list[dict]:
             f"This usually means you are running a pre-release or test-PyPI version of NEL\n"
             f"whose tag does not exist on GitHub.\n"
             f"Use --ref to specify an existing branch, tag, or commit SHA, e.g.:\n"
-            f"  nel skills install --ref main --claude"
+            f"  nel skills add --ref main --claude"
         )
     if resp.status_code != 200:
         raise RuntimeError(f"GitHub API error ({resp.status_code}): {resp.text}")
@@ -152,14 +152,14 @@ def _download_skill(skill_name: str, ref: str, dest: Path, base_path: str) -> No
 
 
 @dataclass
-class InstallCmd:
-    """Install NEL agent skills for AI coding assistants.
+class AddCmd:
+    """Add NEL agent skills for AI coding assistants.
 
     Examples:
-      nel skills install --claude
-      nel skills install --claude --codex --cursor --opencode
-      nel skills install --cursor --project
-      nel skills install --ref main --claude
+      nel skills add --claude
+      nel skills add --claude --codex --cursor --opencode
+      nel skills add --cursor --project
+      nel skills add --ref main --claude
     """
 
     claude: bool = field(

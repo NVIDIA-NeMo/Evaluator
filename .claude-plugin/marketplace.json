@@ -19,6 +19,18 @@
       "source": "./packages/nemo-evaluator/.claude/skills/byob",
       "skills": "./",
       "description": "Create custom LLM evaluation benchmarks using the BYOB decorator framework. Guides you through dataset preparation, scorer selection, compilation, and containerization."
+    },
+    {
+      "name": "launching-evals",
+      "source": "./packages/nemo-evaluator-launcher/.claude/skills/launching-evals",
+      "skills": "./",
+      "description": "Run, monitor, analyze, and debug LLM evaluations via nemo-evaluator-launcher. Covers running evaluations, checking status and live progress, debugging failed runs, exporting artifacts and logs, and analyzing results."
+    },
+    {
+      "name": "accessing-mlflow",
+      "source": "./packages/nemo-evaluator-launcher/.claude/skills/accessing-mlflow",
+      "skills": "./",
+      "description": "Query and browse evaluation results stored in MLflow. Look up runs by invocation ID, compare metrics across models, fetch artifacts (configs, logs, results), or set up the MLflow MCP server."
     }
   ]
 }

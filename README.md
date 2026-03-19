@@ -174,15 +174,15 @@ NeMo Evaluator provides [Agent Skills](https://agentskills.io/) for interactive 
 | `accessing-mlflow` | Query and browse evaluation results stored in MLflow |
 | `nemo-evaluator-byob` | Create custom LLM evaluation benchmarks using the BYOB decorator framework |
 
-We recommend using the skills with Claude Sonnet or better for the best experience.
+We recommend using the skills with **Claude Sonnet or better** for the best experience.
 
 ### Install via `nel` CLI
 
 ```bash
-nel skills install [--claude] [--cursor] [--codex] [--opencode]
+nel skills add [--claude] [--cursor] [--codex] [--opencode]
 ```
 
-Use `--project` to install into the current project directory instead of your home directory. See `nel skills install --help` for all options.
+Use `--project` to install into the current project directory instead of your home directory. See `nel skills add --help` for all options.
 
 ### Claude Code Marketplace
 

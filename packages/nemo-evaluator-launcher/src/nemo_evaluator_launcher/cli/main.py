@@ -180,12 +180,19 @@ def create_parser() -> ArgumentParser:
         description="Manage NEL agent skills for AI coding assistants",
     )
     skills_sub = skills_parser.add_subparsers(dest="skills_command", required=False)
+    skills_add_parser = skills_sub.add_parser(
+        "add",
+        help="Add NEL agent skills",
+        description="Add NEL agent skills for AI coding assistants",
+    )
+    skills_add_parser.add_arguments(skills.AddCmd, dest="skills_add")
+    # Keep "install" as an alias for backwards compatibility
     skills_install_parser = skills_sub.add_parser(
         "install",
-        help="Install NEL agent skills",
-        description="Install NEL agent skills for AI coding assistants",
+        help="Add NEL agent skills (alias for 'add')",
+        description="Add NEL agent skills for AI coding assistants",
     )
-    skills_install_parser.add_arguments(skills.InstallCmd, dest="skills_install")
+    skills_install_parser.add_arguments(skills.AddCmd, dest="skills_add")
     skills_build_config_parser = skills_sub.add_parser(
         "build-config",
         help="Build evaluation config from templates",
@@ -307,8 +314,8 @@ def main() -> None:
         elif args.ls_command == "runs":
             args.runs.execute()
     elif args.command == "skills":
-        if args.skills_command == "install":
-            args.skills_install.execute()
+        if args.skills_command in ("add", "install"):
+            args.skills_add.execute()
         elif args.skills_command == "build-config":
             args.skills_build_config.execute()
         else:
