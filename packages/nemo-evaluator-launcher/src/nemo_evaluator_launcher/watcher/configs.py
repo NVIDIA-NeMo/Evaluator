@@ -22,13 +22,17 @@ class ClusterConfig(BaseModel):
     """Configuration for a cluster."""
 
     model_config = ConfigDict(extra="forbid")
-    username: str = Field(description="Username of the cluster.")
+    username: str = Field(
+        description="Username to use for SSH connections and sbatch submission."
+    )
     hostname: str = Field(
         default="localhost",
         description="Hostname of the cluster. Defaults to localhost "
         "(script launched from the cluster login node).",
     )
-    account: str = Field(description="Account of the cluster.")
+    account: str = Field(
+        description="SLURM account allocation to charge for conversion, deployment and evaluation jobs"
+    )
     partition: str = Field(
         default="batch", description="Partition of the cluster. Defaults to batch."
     )
@@ -37,7 +41,7 @@ class ClusterConfig(BaseModel):
     )
     sbatch_extra_flags: dict[str, Any] = Field(
         default_factory=dict,
-        description="Additional flags to pass to the sbatch command as '#SBATCH --<key> [\"value\"]'.",
+        description="Additional flags to pass to the sbatch command as '#SBATCH --<key> [\"<value>\"]'.",
     )
 
 
@@ -48,13 +52,13 @@ class MonitoringConfig(BaseModel):
 
     directories: list[str] = Field(
         description="Checkpoint directories to watch for new subdirectories. "
-        "Use absolute local paths or '[user@]hostname:/path' for remote directories.",
+        "Use absolute paths accessible from the cluster login node.",
     )
     interval: Optional[int] = Field(
         default=DEFAULT_INTERVAL,
         description=(
             "Polling interval in seconds between directory scans. "
-            "Set to null to scan once and exit."
+            "Set to None to scan once and exit."
         ),
     )
     ready_markers: list[str] = Field(
@@ -83,7 +87,7 @@ class MonitoringConfig(BaseModel):
     @classmethod
     def interval_must_be_positive(cls, v: Optional[int]) -> Optional[int]:
         if v is not None and v <= 0:
-            raise ValueError(f"interval must be a positive integer or null, got {v}")
+            raise ValueError(f"interval must be a positive integer or None, got {v}")
         return v
 
     @field_validator("ready_markers", "checkpoint_patterns", "directories")
@@ -99,7 +103,7 @@ class MountConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     target: str = Field(description="Target directory to mount (inside the container).")
-    source: str = Field(description="Source directory to mount (on the host).")
+    source: str = Field(description="Source directory to mount (on the login node).")
 
 
 class ConversionConfig(BaseModel):
@@ -112,18 +116,18 @@ class ConversionConfig(BaseModel):
         default_factory=list,
         description="Mount directories to pass to the conversion job.",
     )
-    command_params: dict[str, Any] = Field(
-        default_factory=dict,
-        description=(
-            "Extra parameters passed as Jinja2 variables when rendering command_pattern. "
-            "Available alongside the built-in '{{ input_path }}' and '{{ output_path }}' variables."
-        ),
-    )
     command_pattern: str = Field(
         description=(
             "Jinja2 command template to run inside the container. "
             "Must contain '{{ input_path }}' and '{{ output_path }}' placeholders. "
         )
+    )
+    command_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Extra parameters passed as Jinja2 variables when rendering command_pattern. "
+            "Available alongside the required '{{ input_path }}' and '{{ output_path }}' variables."
+        ),
     )
 
     def render_command(self, input_path: str, output_path: str) -> str:
@@ -168,13 +172,12 @@ class WatchConfig(BaseModel):
         "If not provided the original checkpoint is used for evaluation.",
     )
     evaluation_configs: list[RunConfig] = Field(
-        description="Evaluation configs to run for each discovered checkpoint.",
+        description="NeMo Evaluator Launcher configs to run for each discovered checkpoint.",
     )
 
     @model_validator(mode="after")
     def validate_eval_config_structure(self) -> "WatchConfig":
         for i, cfg in enumerate(self.evaluation_configs):
-            # TODO add validation for checking if execution type is slurm - other executors are not supported
             if "deployment" not in cfg or cfg.get("deployment") is None:
                 raise ValueError(
                     f"evaluation_configs[{i}] must have a 'deployment' section"
@@ -193,6 +196,10 @@ class WatchConfig(BaseModel):
                     f"Ignoring evaluation_configs[{i}] pre-define 'execution.output_dir' "
                     f"as watch mode sets it per checkpoint"
                 )
+            if cfg.get("execution", {}).get("type") != "slurm":
+                raise ValueError(
+                    f"Only SLURM execution is supported, but found {cfg.get('execution', {}).get('type')} for evaluation_configs[{i}]"
+                )
         return self
 
     @classmethod
@@ -206,13 +213,17 @@ class WatchConfig(BaseModel):
         """
         overrides = list(overrides or [])
 
+        eval_overrides = []
         for override in overrides:
             key = override.lstrip("+~").split("=", 1)[0]
             if key.startswith("evaluation_configs") and key != "evaluation_configs":
-                raise ValueError(
-                    "Overrides to individual evaluation config parameters are not supported. "
-                    "Edit the evaluation configs directly."
-                )
+                eval_overrides.append(override)
+        if eval_overrides:
+            raise ValueError(
+                "Overrides to individual evaluation configs parameters are not supported but found: "
+                f"{', '.join(eval_overrides)}. "
+                "Edit the evaluation configs directly."
+            )
 
         if GlobalHydra.instance().is_initialized():
             GlobalHydra.instance().clear()
@@ -225,7 +236,7 @@ class WatchConfig(BaseModel):
             config_dir=str(config_path.parent), version_base=None
         )
         overrides = overrides + [
-            "hydra.searchpath=[pkg://nemo_evaluator_launcher.configs/watcher,pkg://nemo_evaluator_launcher_internal.configs/watcher]"
+            "hydra.searchpath=[pkg://nemo_evaluator_launcher.configs/watcher]"
         ]
         cfg = hydra.compose(config_name=config_path.stem, overrides=overrides)
 

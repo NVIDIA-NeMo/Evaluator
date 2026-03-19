@@ -68,10 +68,10 @@ def discover_checkpoints(
 
     Args:
         watch_dir: Directory to scan for checkpoint subdirectories.
+        cluster_config: Provides SSH connection details for remote discovery.
         ready_markers: A checkpoint is ready if ANY of these files exist in it.
         checkpoint_patterns: Glob patterns for checkpoint directory names.
             Only subdirectories matching ANY pattern are considered.
-        cluster_config: Discovery runs on the remote host via SSH.
         socket: Optional path to a multiplexing socket for connection reuse.
 
     Returns:
@@ -141,9 +141,7 @@ def _submit_conversion_job(
         mounts_str += f"{src}:{dst},"
     mounts_str += f"{input_path}:{input_path}:ro,{output_path}:{output_path}"
 
-    # 4. Extract SSH connection params; remaining keys become #SBATCH directives
-
-    # 5. Render sbatch script from Jinja template
+    # 4. Render sbatch script from Jinja template
     template_dir = Path(__file__).parent
     env = Environment(loader=FileSystemLoader(str(template_dir)))
     template = env.get_template("conversion_sbatch.template")
@@ -151,8 +149,12 @@ def _submit_conversion_job(
         "account": cluster_config.account,
         "partition": cluster_config.partition,
         "output": str(logs_path / "slurm-%A.log"),
-        **cluster_config.sbatch_extra_flags,
     }
+    for flag, value in cluster_config.sbatch_extra_flags.items():
+        # skip flags that are False - we just should not set them
+        if isinstance(value, bool) and value is False:
+            continue
+        execution_params[flag] = value
     sbatch_script = template.render(
         execution_params=execution_params,
         container=conversion_config.container,
@@ -168,7 +170,7 @@ def _submit_conversion_job(
         )
         return None, str(output_path)
 
-    # 6. Submit via SSH
+    # 5. Submit via SSH
 
     with tempfile.TemporaryDirectory() as tmpdir:
         local_script_dir = Path(tmpdir) / "conversion"
@@ -254,6 +256,10 @@ def _convert_and_evaluate(
     cfg_copy = OmegaConf.merge(
         cfg_copy,
         OmegaConf.create(
+            # TODO(martas): we need to decide if the cluster config should be shared or not
+            # if yes, pass other flags to execution section; check for supported ones and pass
+            # the rest as sbatch_extra_flags.
+            # if no, move all but basic params to conversion_config.
             {
                 "execution": {
                     "hostname": cluster_config.hostname,
