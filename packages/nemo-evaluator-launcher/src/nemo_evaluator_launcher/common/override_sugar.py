@@ -25,13 +25,8 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from typing import TYPE_CHECKING
-
 import yaml
-from omegaconf import OmegaConf
-
-if TYPE_CHECKING:
-    from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 # Regex to strip Hydra prefixes (++, +, ~) from the beginning of an override key.
 _HYDRA_PREFIX_RE = re.compile(r"^(\+\+|\+|~)?(.*)$")
