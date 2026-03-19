@@ -147,8 +147,7 @@ def _build_task_name_index(cfg: "DictConfig") -> dict[str, list[int]]:
     mapping: dict[str, list[int]] = defaultdict(list)
     tasks = cfg.evaluation.tasks
     for idx, task in enumerate(tasks):
-        name = task.name if hasattr(task, "name") else str(task)
-        mapping[name].append(idx)
+        mapping[task.name].append(idx)
     return dict(mapping)
 
 
