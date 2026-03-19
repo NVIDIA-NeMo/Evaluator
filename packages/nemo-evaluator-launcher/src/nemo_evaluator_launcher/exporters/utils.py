@@ -197,11 +197,14 @@ def load_config_from_metadata(artifacts_dir: Path) -> Dict[str, Any]:
 def get_results_dir_from_job_data(job_data_dict: Dict[str, Any]) -> Optional[str]:
     """Return the output directory string from job data.
 
-    For Slurm jobs returns ``remote_rundir_path``.
+    For Slurm jobs returns ``hostname:remote_rundir_path`` (scp-ready).
     For local jobs returns the local ``output_dir`` path.
     """
     remote_path = job_data_dict.get("remote_rundir_path")
     if remote_path:
+        hostname = job_data_dict.get("hostname")
+        if hostname:
+            return f"{hostname}:{remote_path}"
         return str(remote_path)
     local_path = job_data_dict.get("output_dir")
     if local_path:

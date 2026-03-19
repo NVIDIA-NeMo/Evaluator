@@ -126,7 +126,8 @@ def _get_launcher_command() -> str:
     sys.argv already starts at the entrypoint (e.g. ``nemo-evaluator-launcher run ...``),
     so shell-level ``export KEY=VALUE`` prefixes are never included.
     """
-    return shlex.join(sys.argv)
+    argv = [os.path.basename(sys.argv[0])] + sys.argv[1:]
+    return shlex.join(argv)
 
 
 def get_eval_factory_config(
