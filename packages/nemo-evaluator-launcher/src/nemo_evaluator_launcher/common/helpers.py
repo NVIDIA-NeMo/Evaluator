@@ -48,7 +48,12 @@ class CmdAndReadableComment:
     secrets_env_result: SecretsEnvResult | None = None
 
 
-def _str_to_echo_command(str_to_save: str, filename: str) -> CmdAndReadableComment:
+def _str_to_echo_command(
+    str_to_save: str,
+    filename: str,
+    *,
+    shell_vars_to_resolve: list[str] | None = None,
+) -> CmdAndReadableComment:
     """Create a safe (see below) echo command saving a string to file.
 
     Safety in this context means the ability to pass such echo command through the
@@ -56,14 +61,25 @@ def _str_to_echo_command(str_to_save: str, filename: str) -> CmdAndReadableComme
 
     Naturally, enconding with base64 creates debuggability issues. For that, the second
     output of the function is the string with bash comment signs prepended.
+
+    If *shell_vars_to_resolve* is provided, a ``sed`` pipeline is appended
+    to replace ``${VAR_NAME}`` placeholders with their runtime shell values.
+    This is a portable alternative to ``envsubst``.
     """
     str_to_save_b64 = base64.b64encode(str_to_save.encode("utf-8")).decode("utf-8")
     debug_str = "\n".join(
         [f"# Contents of {filename}"] + ["# " + s for s in str_to_save.splitlines()]
     )
-    return CmdAndReadableComment(
-        cmd=f'echo "{str_to_save_b64}" | base64 -d > {filename}', debug=debug_str
-    )
+    cmd = f'echo "{str_to_save_b64}" | base64 -d > {filename}'
+    if shell_vars_to_resolve:
+        # Build sed expressions to resolve specific shell variables in-place.
+        # The pattern side escapes the $ so sed matches the literal "${VAR}"
+        # string in the file, while the replacement side uses the shell-expanded value.
+        sed_exprs = " ".join(
+            f'-e "s|\\${{{v}}}|${{{v}}}|g"' for v in shell_vars_to_resolve
+        )
+        cmd += f" && sed -i {sed_exprs} {filename}"
+    return CmdAndReadableComment(cmd=cmd, debug=debug_str)
 
 
 def _set_nested_optionally_overriding(
@@ -283,8 +299,41 @@ def get_eval_factory_command(
     commands.append(create_post_script_cmd.cmd)
     debug.append(create_post_script_cmd.debug)
 
+    # Resolve auxiliary_deployments.NAME.FIELD references in the config
+    # and collect shell variables that need runtime resolution.
+    # model_id is resolved to a literal; endpoint URLs use shell vars
+    # that envsubst resolves at runtime.
+    config_yaml = yaml.safe_dump(merged_nemo_evaluator_config)
+    shell_vars = []
+    for aux_name, aux_cfg_raw in cfg.get("auxiliary_deployments", {}).items():
+        if not isinstance(aux_cfg_raw, (dict, DictConfig)):
+            continue
+        if OmegaConf.is_dict(aux_cfg_raw):
+            aux_cfg_raw = OmegaConf.to_container(aux_cfg_raw, resolve=True)
+        if aux_cfg_raw.get("type", "none") == "none":
+            continue
+        prefix = aux_cfg_raw.get("env_prefix") or aux_name.upper()
+        refs = {
+            f"auxiliary_deployments.{aux_name}.model_id": str(
+                aux_cfg_raw.get("served_model_name", "")
+            ),
+        }
+        # Per-endpoint URL references (e.g. chat_url, embedding_url, ranking_url)
+        endpoints = aux_cfg_raw.get("endpoints", {})
+        for ep_name in endpoints:
+            if ep_name == "health":
+                continue
+            refs[f"auxiliary_deployments.{aux_name}.{ep_name}_url"] = (
+                f"${{{prefix}_{ep_name.upper()}_URL}}"
+            )
+            shell_vars.append(f"{prefix}_{ep_name.upper()}_URL")
+        for ref, value in refs.items():
+            config_yaml = config_yaml.replace(ref, value)
+
     create_yaml_cmd = _str_to_echo_command(
-        yaml.safe_dump(merged_nemo_evaluator_config), "config_ef.yaml"
+        config_yaml,
+        "config_ef.yaml",
+        shell_vars_to_resolve=shell_vars or None,
     )
     commands.append(create_yaml_cmd.cmd)
     debug.append(create_yaml_cmd.debug)

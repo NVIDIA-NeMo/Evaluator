@@ -80,7 +80,7 @@ After compiling a benchmark, run it with the standard `nemo-evaluator` CLI:
 
 ```bash
 nemo-evaluator run_eval \
-  --eval_type byob_<name>.<benchmark_name> \
+  --eval_type byob_<normalized_name>.<normalized_name> \
   --model_url http://localhost:8000 \
   --model_id my-model \
   --model_type chat \
@@ -88,9 +88,9 @@ nemo-evaluator run_eval \
   --api_key_name API_KEY
 ```
 
-The `--eval_type` follows the pattern `byob_<normalized_name>.<original_name>`,
+The `--eval_type` follows the pattern `byob_<normalized_name>.<normalized_name>`,
 where `<normalized_name>` is the lowercased, underscore-separated form of the
-name you passed to `@benchmark(name=...)`.
+name you passed to `@benchmark(name=...)` (e.g. `my-benchmark` becomes `my_benchmark`).
 
 :::{tip}
 Use `nemo-evaluator-byob --list` to see the exact `eval_type` for each installed
