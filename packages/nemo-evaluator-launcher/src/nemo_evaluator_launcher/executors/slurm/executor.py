@@ -21,6 +21,7 @@ Handles submitting evaluation jobs to a SLURM cluster via SSH and sbatch scripts
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import tempfile
 import time
@@ -185,6 +186,15 @@ class SlurmExecutor(BaseExecutor):
                 remote_runsub_path = remote_task_subdir / "run.sub"
                 with open(local_runsub_path, "w") as f:
                     f.write(sbatch_script_content_str.rstrip("\n") + "\n")
+
+                # Copy mlflow_live.py alongside run.sub for MLflow export
+                if _has_mlflow_export(cfg):
+                    shutil.copy2(
+                        Path(__file__).resolve().parent.parent.parent
+                        / "exporters"
+                        / "mlflow_live.py",
+                        local_task_subdir / "mlflow_live.py",
+                    )
 
                 # Write .secrets.env alongside run.sub (will be rsynced together)
                 if sbatch_script_content_struct.secrets_env_result:
@@ -712,6 +722,8 @@ def _create_slurm_sbatch_script(
     )
     s += "#SBATCH --job-name {}\n".format(job_name)
     s += "#SBATCH --no-requeue\n"  # We have our own auto-resume logic
+    if _has_mlflow_live_export(cfg):
+        s += "#SBATCH --signal=B:USR1@60\n"  # Send USR1 60s before time limit
     s += "#SBATCH --output {}\n".format(remote_task_subdir / "logs" / "slurm-%A.log")
     s += "\n"
     s += f'TASK_DIR="{str(remote_task_subdir)}"\n'
@@ -835,6 +847,29 @@ def _create_slurm_sbatch_script(
         s += 'echo "PRIMARY_NODE: ${PRIMARY_NODE}"\n'
     s += "\n"
 
+    # MLflow live export: enabled when auto_export includes "mlflow"
+    # MLflow export: write config and tracking URI whenever mlflow is configured
+    mlflow_live_hooks = None
+    if _has_mlflow_export(cfg):
+        mlflow_cfg = _build_mlflow_export_config(cfg, task.name, invocation_id, job_id)
+        s += f"cat > {remote_task_subdir}/export_config.yml << 'EXPORT_CFG_EOF'\n"
+        s += yaml.safe_dump(mlflow_cfg, sort_keys=False)
+        s += "EXPORT_CFG_EOF\n"
+        tracking_uri = mlflow_cfg.get("tracking_uri", "")
+        if tracking_uri:
+            s += f'export MLFLOW_TRACKING_URI="{tracking_uri}"\n'
+
+    # MLflow live export: add lifecycle hooks (init, heartbeat, traps)
+    if _has_mlflow_live_export(cfg):
+        mlflow_live_hooks = _generate_mlflow_live_export_section(remote_task_subdir)
+        s += mlflow_live_hooks["signal_traps"]
+        s += "trap '_mlflow_export_trap_usr1' USR1\n"
+        s += "trap '_mlflow_export_trap_term' TERM\n"
+        s += "trap '_mlflow_export_trap_exit' EXIT\n\n"
+        s += mlflow_live_hooks["init"]
+        s += mlflow_live_hooks["heartbeat_start"]
+        s += "\n"
+
     # prepare deployment mounts
     deployment_mounts_list = []
     deployment_is_unsafe = False
@@ -889,6 +924,10 @@ def _create_slurm_sbatch_script(
         # add proxy load balancer for multi-instance deployments
         if cfg.execution.get("num_instances", 1) > 1:
             s += _get_proxy_server_srun_command(cfg, remote_task_subdir)
+
+        # MLflow live export: server(s) are healthy
+        if _has_mlflow_live_export(cfg):
+            s += mlflow_live_hooks["update_server_healthy"]
 
     # --- Auxiliary deployments (judge, user, or any custom) ---
     aux_is_unsafe = {}
@@ -1023,6 +1062,10 @@ def _create_slurm_sbatch_script(
         endpoint_vars.append(model_id_var)
         aux_extra_env_names.extend(endpoint_vars)
 
+    # MLflow live export: status=evaluating
+    if _has_mlflow_live_export(cfg):
+        s += mlflow_live_hooks["update_evaluating"]
+
     s += "# evaluation client\n"
     s += "srun --mpi pmix --overlap "
     s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
@@ -1040,6 +1083,15 @@ def _create_slurm_sbatch_script(
     s += eval_factory_command
     s += "'\n\n"
 
+    # MLflow export: finalize BEFORE killing servers (only needs results.yml)
+    if _has_mlflow_live_export(cfg):
+        s += mlflow_live_hooks["heartbeat_stop"]
+        s += mlflow_live_hooks["finalize"]
+    elif _has_mlflow_export(cfg):
+        # live=False: just run finalize once (same container, no lifecycle)
+        hooks = _generate_mlflow_live_export_section(remote_task_subdir)
+        s += hooks["finalize"]
+
     # terminate the server after all evaluation clients finish
     if cfg.deployment.type != "none":
         s += 'for _pid in "${SERVER_PIDS[@]}"; do kill "$_pid" 2>/dev/null || true; done  # terminate servers\n'
@@ -1056,13 +1108,16 @@ def _create_slurm_sbatch_script(
             s += f"kill ${aux.pid_var}  # terminate the {aux.name} server to finish gracefully\n"
         s += "\n"
 
-    # auto-export
+    # auto-export — mlflow uses container-based export instead of pip-install NEL
     ae_cfg = cfg.execution.get("auto_export")
     destinations: list = []
     if isinstance(ae_cfg, list):
         destinations = list(ae_cfg)
     elif isinstance(ae_cfg, dict) or isinstance(ae_cfg, DictConfig):
         destinations = list(ae_cfg.get("destinations", []) or [])
+
+    if _has_mlflow_export(cfg):
+        destinations = [d for d in destinations if d != "mlflow"]
 
     if destinations:
         s += _generate_auto_export_section(
@@ -2435,3 +2490,153 @@ def _validate_remote_paths_exist(
         )
         logger.error("Mount validation failed", missing_paths=missing_paths)
         raise ValueError(error_message)
+
+
+def _has_mlflow_export(cfg: DictConfig) -> bool:
+    """Check if mlflow is in auto_export destinations."""
+    ae_cfg = cfg.execution.get("auto_export")
+    if ae_cfg is None:
+        return False
+    if OmegaConf.is_list(ae_cfg) or isinstance(ae_cfg, list):
+        return "mlflow" in ae_cfg
+    if OmegaConf.is_dict(ae_cfg) or isinstance(ae_cfg, dict):
+        destinations = ae_cfg.get("destinations", []) or []
+        return "mlflow" in destinations
+    return False
+
+
+def _has_mlflow_live_export(cfg: DictConfig) -> bool:
+    """Check if live MLflow export is enabled (auto_export has mlflow + live=True)."""
+    if not _has_mlflow_export(cfg):
+        return False
+    return cfg.get("export", {}).get("mlflow", {}).get("live", True)
+
+
+def _build_mlflow_export_config(
+    cfg: DictConfig, task_name: str, invocation_id: str, job_id: str
+) -> dict:
+    """Build the flat export config dict with runtime tags injected."""
+    mlflow_cfg = OmegaConf.to_container(
+        cfg.get("export", {}).get("mlflow", {}), resolve=True
+    )
+    harness = task_name.split(".")[0] if "." in task_name else ""
+    mlflow_cfg.setdefault("tags", {})
+    mlflow_cfg["tags"]["invocation_id"] = invocation_id
+    mlflow_cfg["tags"]["job_id"] = job_id
+    mlflow_cfg["tags"]["task_name"] = task_name
+    mlflow_cfg["tags"]["benchmark"] = task_name
+    mlflow_cfg["tags"]["harness"] = harness
+    mlflow_cfg["tags"]["executor"] = "slurm"
+    mlflow_cfg["tags"]["cluster"] = cfg.execution.hostname
+    mlflow_cfg.setdefault("enabled", True)
+    return mlflow_cfg
+
+
+def _generate_mlflow_live_export_section(
+    remote_task_subdir: Path,
+    export_image: str = "ghcr.io#mlflow/mlflow:v3.10.0",
+    heartbeat_interval: int = 300,
+) -> dict:
+    """Generate sbatch script fragments for MLflow live export lifecycle.
+
+    Returns a dict with keys: init, heartbeat_start, heartbeat_stop,
+    update_server_healthy, update_evaluating, finalize, signal_traps.
+    """
+    log_dir = remote_task_subdir / "logs"
+    export_script = f"{remote_task_subdir}/mlflow_live.py"
+    srun_base = (
+        f"srun --mpi pmix --overlap "
+        f'--nodelist "${{PRIMARY_NODE}}" --nodes 1 --ntasks 1 '
+        f"--container-image {export_image} "
+        f"--container-env MLFLOW_TRACKING_URI "
+        f"--no-container-mount-home "
+        f"--container-mounts {remote_task_subdir}:{remote_task_subdir} "
+        f"--output {log_dir}/export-%A.log "
+    )
+
+    def _export_srun(args: str) -> str:
+        return f"{srun_base}python3 {export_script} {args}".rstrip()
+
+    init = (
+        f"\n# MLflow live export: init (status=deploying)\n"
+        f"{_export_srun('--init')} || echo '[export:init] FAILED (non-fatal)'\n"
+    )
+    heartbeat_start = (
+        f"\n# MLflow live export: background heartbeat (every {heartbeat_interval}s)\n"
+        f"_mlflow_export_heartbeat_pid=0\n"
+        f"(\n"
+        f"  while kill -0 $$ 2>/dev/null; do\n"
+        f"    sleep {heartbeat_interval}\n"
+        f"    {_export_srun('--update')} 2>/dev/null || true\n"
+        f"  done\n"
+        f") &\n"
+        f"_mlflow_export_heartbeat_pid=$!\n"
+    )
+    heartbeat_stop = (
+        "\n# MLflow live export: stop heartbeat\n"
+        'kill "$_mlflow_export_heartbeat_pid" 2>/dev/null || true\n'
+        'wait "$_mlflow_export_heartbeat_pid" 2>/dev/null || true\n'
+    )
+    update_server_healthy = (
+        f"\n# MLflow live export: status=server_healthy\n"
+        f"{_export_srun('--update server_healthy')} || true\n"
+    )
+    update_evaluating = (
+        f"\n# MLflow live export: status=evaluating\n"
+        f"{_export_srun('--update evaluating')} || true\n"
+    )
+    finalize = (
+        f"\n# MLflow live export: finalize (status=completed + metrics)\n"
+        f"{_export_srun('')} || echo '[export:finalize] FAILED (non-fatal)'\n"
+    )
+    signal_traps = f"""
+# MLflow live export: signal traps
+_mlflow_export_heartbeat_pid=0
+_mlflow_export_is_timeout=false
+_mlflow_export_is_signal=false
+_mlflow_export_cleanup() {{
+  kill "$_mlflow_export_heartbeat_pid" 2>/dev/null || true
+  wait "$_mlflow_export_heartbeat_pid" 2>/dev/null || true
+}}
+_mlflow_export_cancel_srun() {{
+  {_export_srun('--cancel "$1"')} 2>/dev/null || true
+}}
+_mlflow_export_set_tag() {{
+  local run_id_file="{remote_task_subdir}/mlflow_run_id.txt"
+  local config_file="{remote_task_subdir}/export_config.yml"
+  [ -f "$run_id_file" ] && [ -f "$config_file" ] || return 0
+  local run_id; run_id=$(cat "$run_id_file")
+  local tracking_uri; tracking_uri=$(grep '^tracking_uri:' "$config_file" | head -1 | sed 's/^tracking_uri:[[:space:]]*//')
+  [ -n "$tracking_uri" ] || return 0
+  curl -sf -X POST "$tracking_uri/api/2.0/mlflow/runs/set-tag" \\
+    -H "Content-Type: application/json" \\
+    -d "{{\\"run_id\\":\\"$run_id\\",\\"key\\":\\"$1\\",\\"value\\":\\"$2\\"}}" >/dev/null 2>&1 || true
+}}
+_mlflow_export_cancel() {{
+  _mlflow_export_cancel_srun "$1" || {{ _mlflow_export_set_tag "status" "$1"; _mlflow_export_set_tag "ended_at" "$(date -u '+%Y-%m-%d %H:%M:%S')"; }}
+}}
+_mlflow_export_trap_usr1() {{
+  _mlflow_export_is_timeout=true
+  _mlflow_export_is_signal=true
+  _mlflow_export_cleanup
+  _mlflow_export_cancel timeout
+}}
+_mlflow_export_trap_term() {{
+  _mlflow_export_is_signal=true
+  _mlflow_export_cleanup
+  _mlflow_export_cancel failed
+}}
+_mlflow_export_trap_exit() {{
+  local _exit_code=$?
+  $_mlflow_export_is_signal || {{ [ "$_exit_code" -ne 0 ] && {{ _mlflow_export_cleanup; _mlflow_export_cancel failed; }}; }}
+}}
+"""
+    return {
+        "init": init,
+        "heartbeat_start": heartbeat_start,
+        "heartbeat_stop": heartbeat_stop,
+        "update_server_healthy": update_server_healthy,
+        "update_evaluating": update_evaluating,
+        "finalize": finalize,
+        "signal_traps": signal_traps,
+    }

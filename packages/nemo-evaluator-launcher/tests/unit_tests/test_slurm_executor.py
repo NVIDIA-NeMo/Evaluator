@@ -28,8 +28,12 @@ from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.executors.base import ExecutionState, ExecutionStatus
 from nemo_evaluator_launcher.executors.slurm.executor import (
     SlurmExecutor,
+    _build_mlflow_export_config,
     _create_slurm_sbatch_script,
     _generate_autoresume_handler,
+    _generate_mlflow_live_export_section,
+    _has_mlflow_export,
+    _has_mlflow_live_export,
 )
 
 
@@ -3921,3 +3925,228 @@ class TestSbatchExtraFlags:
         switches_pos = script.index("#SBATCH --switches 1")
         job_name_pos = script.index("#SBATCH --job-name")
         assert comment_pos < switches_pos < job_name_pos
+
+
+# --- MLflow live export hooks ---
+
+
+class TestHasMlflowLiveExport:
+    def test_list_with_mlflow(self):
+        cfg = OmegaConf.create({"execution": {"auto_export": ["mlflow"]}})
+        assert _has_mlflow_live_export(cfg) is True
+
+    def test_list_without_mlflow(self):
+        cfg = OmegaConf.create({"execution": {"auto_export": ["wandb"]}})
+        assert _has_mlflow_live_export(cfg) is False
+
+    def test_dict_with_mlflow(self):
+        cfg = OmegaConf.create(
+            {"execution": {"auto_export": {"destinations": ["mlflow", "wandb"]}}}
+        )
+        assert _has_mlflow_live_export(cfg) is True
+
+    def test_dict_without_mlflow(self):
+        cfg = OmegaConf.create(
+            {"execution": {"auto_export": {"destinations": ["wandb"]}}}
+        )
+        assert _has_mlflow_live_export(cfg) is False
+
+    def test_no_auto_export(self):
+        cfg = OmegaConf.create({"execution": {}})
+        assert _has_mlflow_live_export(cfg) is False
+
+    def test_none_auto_export(self):
+        cfg = OmegaConf.create({"execution": {"auto_export": None}})
+        assert _has_mlflow_live_export(cfg) is False
+
+    def test_empty_list(self):
+        cfg = OmegaConf.create({"execution": {"auto_export": []}})
+        assert _has_mlflow_live_export(cfg) is False
+
+    def test_empty_destinations(self):
+        cfg = OmegaConf.create({"execution": {"auto_export": {"destinations": []}}})
+        assert _has_mlflow_live_export(cfg) is False
+
+    def test_live_true_by_default(self):
+        cfg = OmegaConf.create({"execution": {"auto_export": ["mlflow"]}})
+        assert _has_mlflow_live_export(cfg) is True
+
+    def test_live_false_disables(self):
+        cfg = OmegaConf.create(
+            {
+                "execution": {"auto_export": ["mlflow"]},
+                "export": {"mlflow": {"live": False}},
+            }
+        )
+        assert _has_mlflow_live_export(cfg) is False
+
+    def test_live_true_explicit(self):
+        cfg = OmegaConf.create(
+            {
+                "execution": {"auto_export": ["mlflow"]},
+                "export": {"mlflow": {"live": True}},
+            }
+        )
+        assert _has_mlflow_live_export(cfg) is True
+
+
+class TestGenerateMlflowExportSection:
+    def test_returns_all_hooks(self):
+        hooks = _generate_mlflow_live_export_section(Path("/tmp/task"))
+        assert "init" in hooks
+        assert "heartbeat_start" in hooks
+        assert "heartbeat_stop" in hooks
+        assert "update_server_healthy" in hooks
+        assert "update_evaluating" in hooks
+        assert "finalize" in hooks
+        assert "signal_traps" in hooks
+
+    def test_init_contains_srun(self):
+        hooks = _generate_mlflow_live_export_section(Path("/tmp/task"))
+        assert "srun" in hooks["init"]
+        assert "--init" in hooks["init"]
+
+    def test_finalize_contains_srun(self):
+        hooks = _generate_mlflow_live_export_section(Path("/tmp/task"))
+        assert "srun" in hooks["finalize"]
+        assert "mlflow_live.py" in hooks["finalize"]
+
+    def test_heartbeat_interval(self):
+        hooks = _generate_mlflow_live_export_section(
+            Path("/tmp/task"), heartbeat_interval=60
+        )
+        assert "sleep 60" in hooks["heartbeat_start"]
+
+    def test_heartbeat_default_interval(self):
+        hooks = _generate_mlflow_live_export_section(Path("/tmp/task"))
+        assert "sleep 300" in hooks["heartbeat_start"]
+
+    def test_signal_traps_contain_handlers(self):
+        hooks = _generate_mlflow_live_export_section(Path("/tmp/task"))
+        traps = hooks["signal_traps"]
+        assert "_mlflow_export_trap_usr1" in traps
+        assert "_mlflow_export_trap_term" in traps
+        assert "_mlflow_export_trap_exit" in traps
+        assert "_mlflow_export_cleanup" in traps
+
+    def test_signal_traps_curl_fallback(self):
+        hooks = _generate_mlflow_live_export_section(Path("/tmp/task"))
+        traps = hooks["signal_traps"]
+        assert "curl" in traps
+        assert "export_config.yml" in traps
+        assert "mlflow_run_id.txt" in traps
+
+    def test_update_server_healthy(self):
+        hooks = _generate_mlflow_live_export_section(Path("/tmp/task"))
+        assert "server_healthy" in hooks["update_server_healthy"]
+
+    def test_update_evaluating(self):
+        hooks = _generate_mlflow_live_export_section(Path("/tmp/task"))
+        assert "evaluating" in hooks["update_evaluating"]
+
+    def test_container_image(self):
+        hooks = _generate_mlflow_live_export_section(Path("/tmp/task"))
+        assert "ghcr.io#mlflow/mlflow" in hooks["init"]
+
+    def test_custom_image(self):
+        hooks = _generate_mlflow_live_export_section(
+            Path("/tmp/task"), export_image="custom:latest"
+        )
+        assert "custom:latest" in hooks["init"]
+
+    def test_container_env(self):
+        hooks = _generate_mlflow_live_export_section(Path("/tmp/task"))
+        assert "MLFLOW_TRACKING_URI" in hooks["init"]
+
+    def test_container_mounts(self):
+        hooks = _generate_mlflow_live_export_section(Path("/tmp/task"))
+        assert "/tmp/task:/tmp/task" in hooks["init"]
+
+    def test_exit_trap_catches_nonzero(self):
+        hooks = _generate_mlflow_live_export_section(Path("/tmp/task"))
+        traps = hooks["signal_traps"]
+        assert "_exit_code" in traps
+        assert "-ne 0" in traps
+
+
+class TestHasMlflowExport:
+    def test_list_with_mlflow(self):
+        cfg = OmegaConf.create({"execution": {"auto_export": ["mlflow"]}})
+        assert _has_mlflow_export(cfg) is True
+
+    def test_list_without_mlflow(self):
+        cfg = OmegaConf.create({"execution": {"auto_export": ["wandb"]}})
+        assert _has_mlflow_export(cfg) is False
+
+    def test_dict_with_mlflow(self):
+        cfg = OmegaConf.create(
+            {"execution": {"auto_export": {"destinations": ["mlflow"]}}}
+        )
+        assert _has_mlflow_export(cfg) is True
+
+    def test_no_auto_export(self):
+        cfg = OmegaConf.create({"execution": {}})
+        assert _has_mlflow_export(cfg) is False
+
+    def test_none(self):
+        cfg = OmegaConf.create({"execution": {"auto_export": None}})
+        assert _has_mlflow_export(cfg) is False
+
+
+class TestBuildMlflowExportConfig:
+    def test_basic(self):
+        cfg = OmegaConf.create(
+            {
+                "export": {
+                    "mlflow": {
+                        "tracking_uri": "http://mlflow:5000",
+                        "experiment_name": "test",
+                    }
+                },
+                "execution": {"hostname": "cluster-01"},
+            }
+        )
+        result = _build_mlflow_export_config(cfg, "mteb.FiQA2018", "inv123", "inv123.0")
+        assert result["tracking_uri"] == "http://mlflow:5000"
+        assert result["tags"]["invocation_id"] == "inv123"
+        assert result["tags"]["job_id"] == "inv123.0"
+        assert result["tags"]["task_name"] == "mteb.FiQA2018"
+        assert result["tags"]["benchmark"] == "mteb.FiQA2018"
+        assert result["tags"]["harness"] == "mteb"
+        assert result["tags"]["executor"] == "slurm"
+        assert result["tags"]["cluster"] == "cluster-01"
+        assert result["enabled"] is True
+
+    def test_preserves_user_tags(self):
+        cfg = OmegaConf.create(
+            {
+                "export": {"mlflow": {"tags": {"model": "llama", "custom": "value"}}},
+                "execution": {"hostname": "c1"},
+            }
+        )
+        result = _build_mlflow_export_config(cfg, "task", "inv", "inv.0")
+        assert result["tags"]["model"] == "llama"
+        assert result["tags"]["custom"] == "value"
+        assert result["tags"]["invocation_id"] == "inv"
+
+    def test_no_harness(self):
+        cfg = OmegaConf.create(
+            {
+                "export": {"mlflow": {}},
+                "execution": {"hostname": "c1"},
+            }
+        )
+        result = _build_mlflow_export_config(cfg, "simple_task", "inv", "inv.0")
+        assert result["tags"]["harness"] == ""
+        assert result["tags"]["task_name"] == "simple_task"
+
+    def test_empty_mlflow_config(self):
+        cfg = OmegaConf.create(
+            {
+                "export": {"mlflow": {}},
+                "execution": {"hostname": "c1"},
+            }
+        )
+        result = _build_mlflow_export_config(cfg, "t", "i", "i.0")
+        assert result["enabled"] is True
+        assert result["tags"]["invocation_id"] == "i"
