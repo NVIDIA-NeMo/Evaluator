@@ -1,0 +1,138 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# ==============================================================================
+# Auxiliary Deployment: LLM-as-a-Judge for AIME evaluation
+# ==============================================================================
+# This configuration demonstrates how to deploy an auxiliary "judge" model
+# alongside the primary model under test. The judge model scores the primary
+# model's responses during evaluation.
+#
+# Architecture:
+#   - Primary deployment: the model being evaluated (e.g., a reasoning model)
+#   - Auxiliary deployment "judge": a second model that grades responses
+#   - Evaluation container: runs the benchmark, sends requests to both models
+#
+# The launcher automatically:
+#   1. Allocates Slurm nodes for both deployments (primary + auxiliary)
+#   2. Starts both model servers in parallel
+#   3. Exports auxiliary endpoint URLs as environment variables
+#   4. Resolves `auxiliary_deployments.<name>.<field>` references in the
+#      evaluation config so the harness knows where to reach the judge
+#
+# How to use:
+#
+# 1. Copy this file locally or clone the repository.
+# 2. Set the required values below (or pass them via CLI overrides):
+#    -o execution.hostname=my-cluster.com
+#    -o execution.output_dir=/absolute/path/on/cluster
+#    -o execution.account=my-account
+# 3. (Optional) Run with 10 samples for quick testing:
+#    -o ++evaluation.nemo_evaluator_config.config.params.limit_samples=10
+# 4. Run the evaluation:
+#    nemo-evaluator-launcher run --config path/to/slurm_vllm_judge.yaml
+#
+# ⚠️  WARNING:
+#     Always run full evaluations (without limit_samples) for actual benchmark
+#     results. Using a subset of samples is solely for testing configuration
+#     and setup. Results from such test runs should NEVER be used to compare
+#     models or report benchmark performance.
+# ==============================================================================
+
+defaults:
+  - execution: slurm/default
+  - deployment: vllm
+  - deployment/vllm@auxiliary_deployments.judge
+  - _self_
+
+# -- Execution -----------------------------------------------------------------
+execution:
+  hostname: ???  # Slurm login node hostname (required)
+  account: ???   # Slurm account / allocation (required)
+  output_dir: ??? # Absolute path on shared filesystem (required)
+
+  partition: batch
+  walltime: "04:00:00"
+  num_nodes: 1  # Nodes for the PRIMARY model deployment
+
+  mounts:
+    mount_home: false
+
+# -- Primary model deployment --------------------------------------------------
+# The model under test. This example deploys a reasoning model via vLLM.
+# Fields not listed here (pipeline_parallel_size, data_parallel_size,
+# gpu_memory_utilization, extra_args, endpoints) are inherited from the
+# deployment/vllm default config.
+deployment:
+  checkpoint_path: null  # Set to a local checkpoint path, or leave null to use hf_model_handle
+  hf_model_handle: meta-llama/Llama-3.1-8B-Instruct  # Replace with your model
+  served_model_name: meta-llama/Llama-3.1-8B-Instruct
+  tensor_parallel_size: 8
+  port: 8000
+  env_vars:
+    HF_TOKEN: host:HF_TOKEN
+
+# -- Auxiliary deployment: judge -----------------------------------------------
+# A capable judge model deployed alongside the primary, used by the evaluation
+# harness to grade the primary model's outputs.
+#
+# Use a large, high-quality model as the judge — it should be significantly
+# stronger than the model under test to provide reliable scores.
+#
+# Each auxiliary deployment gets its own dedicated Slurm node(s), separate from
+# the primary deployment. The total node count for the Slurm job equals
+# execution.num_nodes (primary) + sum of all auxiliary num_nodes.
+#
+# Fields inherited from deployment/vllm default (via `deployment/vllm@auxiliary_deployments.judge`):
+#   type, image, tensor_parallel_size, pipeline_parallel_size, data_parallel_size,
+#   gpu_memory_utilization, extra_args, endpoints, base_command, command
+#
+# Only override fields that differ from the vllm default.
+auxiliary_deployments:
+  judge:
+    hf_model_handle: Qwen/Qwen2.5-72B-Instruct  # Large judge; replace if needed
+    served_model_name: Qwen/Qwen2.5-72B-Instruct
+    port: 8001  # Different port to avoid collision with primary
+    num_nodes: 1  # Dedicated node(s) for the judge model
+    env_vars:
+      HF_TOKEN: host:HF_TOKEN  # Token for gated model access (reads from host env)
+
+# -- Evaluation ----------------------------------------------------------------
+# The AIME benchmark uses LLM-as-a-judge scoring. The judge URL and model ID
+# are injected via `auxiliary_deployments.judge.*` references, which the launcher
+# resolves to the actual runtime endpoints.
+evaluation:
+  env_vars:
+    HF_TOKEN: host:HF_TOKEN
+  nemo_evaluator_config:
+    config:
+      params:
+        parallelism: 64
+        temperature: 0.6
+        top_p: 0.95
+        max_new_tokens: 16384
+        request_timeout: 600
+        extra:
+          judge:
+            url: auxiliary_deployments.judge.chat_url
+            model_id: auxiliary_deployments.judge.model_id
+            backend: openai
+            temperature: 0.0
+            request_timeout: 120
+            max_retries: 16
+
+  tasks:
+    - name: AIME_2025
+    - name: AIME_2024

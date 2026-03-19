@@ -97,6 +97,20 @@ Deploy models using a fully custom setup.
 
 ::::
 
+## Auxiliary Deployments
+
+::::{grid} 1 1 1 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Auxiliary Deployments
+:link: auxiliary-deployments
+:link-type: doc
+
+Deploy additional model servers (e.g., a judge model) alongside the primary deployment for LLM-as-a-judge and multi-endpoint evaluations. Currently supported on the Slurm executor only.
+:::
+
+::::
+
 ## Execution Platforms
 
 Choose where to run your evaluations:
@@ -161,6 +175,7 @@ nemo-evaluator-launcher run --config your_config.yaml \
 :hidden:
 
 Deployment <deployment/index>
+Auxiliary Deployments <auxiliary-deployments>
 Executors <executors/index>
 Evaluation <evaluation/index>
 ```
