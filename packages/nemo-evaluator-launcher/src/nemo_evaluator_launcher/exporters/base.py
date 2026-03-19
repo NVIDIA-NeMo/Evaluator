@@ -270,10 +270,14 @@ class BaseExporter(ABC):
             job_id = generate_job_id(invocation_id, task_index)
 
             # Build job data dict
+            hostname = config.get("execution", {}).get("hostname")
             job_data_dict = {
                 "output_dir": str(job_subdir),
                 "in_database": False,
             }
+            if hostname:
+                job_data_dict["hostname"] = hostname
+                job_data_dict["remote_rundir_path"] = str(job_subdir)
 
             # Create JobData object
             job_data = JobData(

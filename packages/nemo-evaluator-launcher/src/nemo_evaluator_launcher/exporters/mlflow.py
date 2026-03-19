@@ -154,15 +154,10 @@ class MLflowExporter(BaseExporter):
             "executor": job_data.executor,
             "timestamp": str(job_data.timestamp),
         }
-        try:
-            if job_data.launcher_command is not None:
-                all_params["launcher_command"] = job_data.launcher_command
-            if job_data.results_dir is not None:
-                all_params["results_dir"] = job_data.results_dir
-        except Exception as e:
-            logger.warning(
-                f"Could not attach launcher_command/results_dir to MLflow params: {e}"
-            )
+        if job_data.launcher_command is not None:
+            all_params["launcher_command"] = job_data.launcher_command
+        if job_data.results_dir is not None:
+            all_params["results_dir"] = job_data.results_dir
 
         # Add extra metadata if provided
         if self.config.extra_metadata:

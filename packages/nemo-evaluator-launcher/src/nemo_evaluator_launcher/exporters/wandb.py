@@ -363,15 +363,10 @@ class WandBExporter(BaseExporter):
             run_config["harness"] = data[0].harness
             run_config["benchmark"] = data[0].task
 
-        try:
-            if data[0].launcher_command is not None:
-                run_config["launcher_command"] = data[0].launcher_command
-            if data[0].results_dir is not None:
-                run_config["results_dir"] = data[0].results_dir
-        except Exception as e:
-            logger.warning(
-                f"Could not attach launcher_command/results_dir to W&B run config: {e}"
-            )
+        if data[0].launcher_command is not None:
+            run_config["launcher_command"] = data[0].launcher_command
+        if data[0].results_dir is not None:
+            run_config["results_dir"] = data[0].results_dir
 
         run_config.update(self.config.extra_metadata)
         run_args["config"] = run_config
