@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import httpx
+import aiohttp
 
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.observability.types import ModelResponse
@@ -170,11 +170,13 @@ class NatSolver:
         if self._health_checked:
             return
         try:
-            async with httpx.AsyncClient(timeout=10.0) as c:
-                r = await c.get(f"{self._nat_url}/health")
-                r.raise_for_status()
-                logger.info("NAT server healthy at %s", self._nat_url)
-        except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError) as exc:
+            async with aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=10.0),
+            ) as c:
+                async with c.get(f"{self._nat_url}/health") as r:
+                    r.raise_for_status()
+                    logger.info("NAT server healthy at %s", self._nat_url)
+        except (aiohttp.ClientError, TimeoutError) as exc:
             logger.warning("NAT health check failed (%s) -- will attempt solve anyway", exc)
         self._health_checked = True
 
@@ -187,10 +189,12 @@ class NatSolver:
         payload = {"input_message": task.prompt}
 
         t0 = time.monotonic()
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            resp = await client.post(url, json=payload)
-            resp.raise_for_status()
-            raw_text = resp.text
+        async with aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=self._timeout),
+        ) as client:
+            async with client.post(url, json=payload) as resp:
+                resp.raise_for_status()
+                raw_text = await resp.text()
         latency = (time.monotonic() - t0) * 1000
 
         events = _parse_sse_lines(raw_text)

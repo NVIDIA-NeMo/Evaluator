@@ -18,6 +18,9 @@ model:
   api_key: ${NVIDIA_API_KEY}
   proxy:
     verbose: true
+    interceptors:
+      - turn_counter:
+          max_turns: 100
 
 benchmarks:
   - name: harbor://swebench-verified@1.0
@@ -25,8 +28,11 @@ benchmarks:
     endpoint_type: harbor
     sandbox:
       backend: ecs_fargate
-      harbor_agent: openhands
-      timeout: 1800.0
+      harbor_agent: openhands-sdk
+      harbor_agent_kwargs:
+        max_iterations: 100
+        temperature: 1.0
+      timeout: 3600.0
       concurrency: 3
       ecs:
         region: us-west-2

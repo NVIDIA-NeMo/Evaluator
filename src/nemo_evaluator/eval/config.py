@@ -219,8 +219,16 @@ class ProxyConfig(BaseModel):
     to the original model endpoint.  Interceptors (both built-in LiteLLM
     callbacks and custom ones from ``nemo_evaluator.interceptors``) can
     observe and modify the traffic.
+
+    Interceptors can be plain strings (no config) or single-key dicts
+    whose value is the interceptor config::
+
+        interceptors:
+          - log_tokens                       # plain name, no config
+          - modify_tools:                    # name with config
+              strip_properties: [security_risk]
     """
-    interceptors: list[str] = Field(default_factory=list)
+    interceptors: list[str | dict[str, Any]] = Field(default_factory=list)
     port: int = 4000
     verbose: bool = False
     """Enable LiteLLM's built-in verbose logging (logs all requests/responses)."""

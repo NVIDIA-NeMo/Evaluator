@@ -1,11 +1,12 @@
 """GymSolver: delegate agent execution to a running nemo-gym server."""
 from __future__ import annotations
 
+import json
 import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-import httpx
+import aiohttp
 
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.environments.gym_protocol import (
@@ -64,6 +65,7 @@ class GymSolver:
             "base_commit": meta.get("base_commit", ""),
             "dataset_name": meta.get("dataset_name", ""),
             "split": meta.get("split", "test"),
+            "instance_dict": meta.get("instance_dict", json.dumps(meta)),
         }
         if self._api_key:
             rcp["metadata"]["api_key"] = self._api_key
@@ -92,13 +94,15 @@ class GymSolver:
         body = self._build_request(task)
 
         t0 = time.monotonic()
-        async with httpx.AsyncClient(timeout=httpx.Timeout(self._timeout)) as client:
+        async with aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=self._timeout),
+        ) as client:
             url = f"{self._gym_url}/run"
             logger.info("GymSolver: POST %s (agent=%s, trust_reward=%s)",
                         url, self._gym_agent or "auto", self._trust_reward)
-            resp = await client.post(url, json=body)
-            resp.raise_for_status()
-            result = resp.json()
+            async with client.post(url, json=body) as resp:
+                resp.raise_for_status()
+                result = await resp.json()
         latency_ms = (time.monotonic() - t0) * 1000
 
         response_text = self._extract_response(result)

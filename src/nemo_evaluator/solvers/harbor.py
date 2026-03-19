@@ -288,25 +288,27 @@ class HarborSolver:
             self._container_env.setdefault("OH_PRELOAD_TOOLS", "false")
             self._container_env.setdefault("SECURITY_CONFIRMATION_MODE", "false")
             self._container_env.setdefault("SECURITY_ENABLE_SECURITY_ANALYZER", "false")
+            self._container_env.setdefault("LLM_NATIVE_TOOL_CALLING", "true")
         self._max_input_tokens = max_input_tokens
         self._max_output_tokens = max_output_tokens
         self._api_key = _resolve_api_key(api_key)
         _ensure_env(self._api_key, self._model_url, self._model_id)
 
-    def _create_agent(self, logs_dir: Path) -> Any:
+    def _create_agent(self, logs_dir: Path, *, model_url: str = "") -> Any:
         from harbor.agents.factory import AgentFactory
 
         kwargs = dict(self._harbor_agent_kwargs)
         model_id = self._model_id
-        if (self._model_url
+        url = model_url or self._model_url
+        if (url
                 and "model_name" not in kwargs
                 and model_id
                 and not model_id.startswith("openai/")):
             model_id = f"openai/{model_id}"
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
-        if "api_base" not in kwargs and self._model_url:
-            kwargs["api_base"] = self._model_url
+        if "api_base" not in kwargs and url:
+            kwargs["api_base"] = url
         if "api_key" not in kwargs and self._api_key:
             kwargs["api_key"] = self._api_key
         if self._api_key:
@@ -351,16 +353,51 @@ class HarborSolver:
         agent_logs_dir.mkdir(parents=True, exist_ok=True)
 
         try:
+            # Rewrite the proxy/model URL for the sandbox's network topology
+            # (e.g. 127.0.0.1 → host.docker.internal for Docker bridge).
+            resolved_url = (
+                sandbox.resolve_outside_endpoint(self._model_url)
+                if self._model_url else self._model_url
+            )
+            # Harbor agents read LLM_BASE_URL from os.environ directly
+            # (not from kwargs), so we must update the process env.
+            if resolved_url:
+                os.environ["LLM_BASE_URL"] = resolved_url
+
             adapter = SandboxEnvironmentAdapter(
                 sandbox, logs_dir=logs_dir, default_timeout=self._timeout,
                 persistent_env=self._container_env,
             )
 
-            agent = self._create_agent(agent_logs_dir)
+            agent = self._create_agent(agent_logs_dir, model_url=resolved_url)
             await sandbox.exec(
                 "mkdir -p /logs/agent /logs/verifier /logs/artifacts",
                 timeout_sec=10,
             )
+
+            # HACK: Pre-install openhands-sdk with uv + Python 3.13 so the
+            # harbor install script's "already installed" check passes and it
+            # skips its own venv creation (which uses the system python3 that
+            # may be too old for openhands-sdk's >3.12 requirement).
+            # Remove once the harbor install script is updated to use uv.
+            if self._harbor_agent.lower() == "openhands-sdk":
+                await sandbox.exec(
+                    "if [ -f /opt/openhands-sdk-venv/bin/python ] "
+                    "&& /opt/openhands-sdk-venv/bin/python -c 'import openhands.sdk' 2>/dev/null; then "
+                    "  echo 'openhands-sdk venv already present'; "
+                    "else "
+                    "  apt-get update -qq && apt-get install -y -qq curl && "
+                    "  curl -LsSf https://astral.sh/uv/install.sh | sh && "
+                    "  export PATH=\"$HOME/.local/bin:$PATH\" && "
+                    "  uv python install 3.13 && "
+                    "  uv venv /opt/openhands-sdk-venv --python 3.13 && "
+                    "  . /opt/openhands-sdk-venv/bin/activate && "
+                    "  uv pip install openhands-sdk openhands-tools && "
+                    "  echo 'openhands-sdk pre-installed with uv + Python 3.13'; "
+                    "fi",
+                    timeout_sec=300,
+                )
+
             await agent.setup(adapter)
             context = AgentContext()
             await agent.run(task.prompt, adapter, context)

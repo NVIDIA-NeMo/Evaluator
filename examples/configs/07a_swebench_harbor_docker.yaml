@@ -15,6 +15,11 @@ model:
   url: https://integrate.api.nvidia.com/v1
   id: nvidia/nemotron-3-super-120b-a12b
   api_key: ${NVIDIA_API_KEY}
+  proxy:
+    verbose: true
+    interceptors:
+      - turn_counter:
+          max_turns: 100
 
 benchmarks:
   - name: harbor://swebench-verified@1.0
@@ -22,6 +27,8 @@ benchmarks:
     endpoint_type: harbor
     sandbox:
       backend: docker
-      harbor_agent: openhands
+      harbor_agent: openhands-sdk
+      harbor_agent_kwargs:
+        max_iterations: 100
       timeout: 1800.0
       concurrency: 3

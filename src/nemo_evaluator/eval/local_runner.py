@@ -205,7 +205,8 @@ class _NatServiceHandle:
         import subprocess
         import time
 
-        import httpx
+        import urllib.error
+        import urllib.request
 
         cmd = f"nat serve --config_file {self._config_file} --port {self.port} --host 0.0.0.0"
         logger.info("Starting NAT agent: %s", cmd)
@@ -219,11 +220,11 @@ class _NatServiceHandle:
             if self._process.poll() is not None:
                 raise RuntimeError(f"NAT server exited with code {self._process.returncode} during startup")
             try:
-                r = httpx.get(f"{self.endpoint}/health", timeout=2.0)
-                if r.status_code == 200:
-                    logger.info("NAT agent ready at %s (pid=%d)", self.endpoint, self._process.pid)
-                    return
-            except (httpx.ConnectError, httpx.TimeoutException):
+                with urllib.request.urlopen(f"{self.endpoint}/health", timeout=2.0) as r:
+                    if r.status == 200:
+                        logger.info("NAT agent ready at %s (pid=%d)", self.endpoint, self._process.pid)
+                        return
+            except (urllib.error.URLError, OSError):
                 pass
             time.sleep(1.0)
         self.stop()

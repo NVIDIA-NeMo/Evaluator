@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-import httpx
+import aiohttp
 
 from nemo_evaluator.models import RetryConfig
 from nemo_evaluator.observability.types import ModelResponse
@@ -52,7 +52,7 @@ class ModelClient:
     retry: RetryConfig = field(default_factory=RetryConfig)
     reasoning_pattern: str | None = None
     _sem: asyncio.Semaphore = field(init=False, repr=False)
-    _http: httpx.AsyncClient | None = field(init=False, repr=False, default=None)
+    _http: aiohttp.ClientSession | None = field(init=False, repr=False, default=None)
     _cache: Any = field(init=False, repr=False, default=None)
 
     def __post_init__(self) -> None:
@@ -70,21 +70,21 @@ class ModelClient:
             h["Authorization"] = f"Bearer {self.api_key}"
         return h
 
-    def _get_client(self) -> httpx.AsyncClient:
-        if self._http is None or self._http.is_closed:
-            self._http = httpx.AsyncClient(
-                timeout=self.timeout,
-                limits=httpx.Limits(
-                    max_connections=self.max_concurrent * 2,
-                    max_keepalive_connections=self.max_concurrent,
+    def _get_client(self) -> aiohttp.ClientSession:
+        if self._http is None or self._http.closed:
+            self._http = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=self.timeout),
+                connector=aiohttp.TCPConnector(
+                    limit=self.max_concurrent * 2,
+                    limit_per_host=self.max_concurrent,
                 ),
                 headers=self._headers(),
             )
         return self._http
 
     async def close(self) -> None:
-        if self._http and not self._http.is_closed:
-            await self._http.aclose()
+        if self._http and not self._http.closed:
+            await self._http.close()
             self._http = None
 
     async def chat(self, prompt: str | None = None, system: str | None = None,
@@ -185,25 +185,25 @@ class ModelClient:
             async with self._sem:
                 try:
                     client = self._get_client()
-                    resp = await client.post(url, json=payload)
+                    async with client.post(url, json=payload) as resp:
+                        if resp.status in self.retry.retry_on_status and attempt < self.retry.max_retries:
+                            delay = self._backoff_delay(attempt)
+                            body = await resp.text()
+                            logger.warning("Retryable status %d on attempt %d/%d, sleeping %.1fs | body: %.500s",
+                                           resp.status, attempt + 1, self.retry.max_retries + 1, delay, body)
+                            await asyncio.sleep(delay)
+                            continue
 
-                    if resp.status_code in self.retry.retry_on_status and attempt < self.retry.max_retries:
-                        delay = self._backoff_delay(attempt)
-                        logger.warning("Retryable status %d on attempt %d/%d, sleeping %.1fs | body: %.500s",
-                                       resp.status_code, attempt + 1, self.retry.max_retries + 1, delay, resp.text)
-                        await asyncio.sleep(delay)
-                        continue
+                        resp.raise_for_status()
+                        return await resp.json()
 
-                    resp.raise_for_status()
-                    return resp.json()
-
-                except httpx.TimeoutException as e:
+                except asyncio.TimeoutError as e:
                     last_exc = e
                     if attempt < self.retry.max_retries:
                         await asyncio.sleep(self._backoff_delay(attempt))
                         continue
                     raise
-                except httpx.HTTPStatusError:
+                except aiohttp.ClientResponseError:
                     raise
                 except Exception as e:
                     last_exc = e

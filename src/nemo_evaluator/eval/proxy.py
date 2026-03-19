@@ -151,17 +151,18 @@ def _find_free_port(preferred: int) -> int:
 
 def _wait_for_healthy(port: int, timeout: float = _HEALTH_TIMEOUT) -> None:
     """Poll the proxy health endpoint until it responds or times out."""
-    import httpx
+    import urllib.error
+    import urllib.request
 
     url = f"http://127.0.0.1:{port}/health/liveliness"
     deadline = time.monotonic() + timeout
     last_err: Exception | None = None
     while time.monotonic() < deadline:
         try:
-            r = httpx.get(url, timeout=2.0)
-            if r.status_code == 200:
-                return
-        except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException) as exc:
+            with urllib.request.urlopen(url, timeout=2.0) as r:
+                if r.status == 200:
+                    return
+        except (urllib.error.URLError, OSError) as exc:
             last_err = exc
         time.sleep(_HEALTH_POLL_INTERVAL)
     raise TimeoutError(
@@ -176,7 +177,7 @@ def start_proxy(
     api_key: str | None,
     *,
     port: int = 4000,
-    interceptors: list[str] | None = None,
+    interceptors: list[str | dict[str, Any]] | None = None,
     verbose: bool = False,
 ) -> ProxyHandle:
     """Start a local LiteLLM proxy and return a handle.

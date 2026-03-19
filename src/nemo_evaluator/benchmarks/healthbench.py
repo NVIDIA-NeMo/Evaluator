@@ -6,8 +6,8 @@ from nemo_evaluator.scoring import ScorerInput, needs_judge
 
 def _load_healthbench():
     import json as _json
+    import urllib.request
 
-    import httpx
     from datasets import load_dataset
 
     try:
@@ -17,9 +17,9 @@ def _load_healthbench():
         pass
 
     url = "https://huggingface.co/datasets/openai/HealthBench/resolve/main/data/test.jsonl"
-    resp = httpx.get(url, follow_redirects=True, timeout=60)
-    resp.raise_for_status()
-    rows = [_json.loads(line) for line in resp.text.strip().splitlines() if line.strip()]
+    with urllib.request.urlopen(url, timeout=60) as resp:
+        text = resp.read().decode()
+    rows = [_json.loads(line) for line in text.strip().splitlines() if line.strip()]
     return rows
 
 

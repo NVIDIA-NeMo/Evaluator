@@ -130,11 +130,11 @@ def _load_registry() -> list[DatasetSpec]:
         return _parse_raw(json.loads(local.read_text()))
 
     logger.info("Downloading Harbor registry from %s", REGISTRY_URL)
-    import httpx
+    import json as _json
+    import urllib.request
 
-    resp = httpx.get(REGISTRY_URL, timeout=60)
-    resp.raise_for_status()
-    return _parse_raw(resp.json())
+    with urllib.request.urlopen(REGISTRY_URL, timeout=60) as resp:
+        return _parse_raw(_json.loads(resp.read()))
 
 
 def get_registry() -> list[DatasetSpec]:

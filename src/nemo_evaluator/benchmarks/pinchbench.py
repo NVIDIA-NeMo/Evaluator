@@ -25,7 +25,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-import httpx
+import urllib.request
 
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.environments.byob import benchmark, scorer
@@ -56,11 +56,11 @@ def _ensure_cache() -> Path:
         return _CACHE_DIR
 
     logger.info("Downloading PinchBench tasks from GitHub...")
-    resp = httpx.get(_GITHUB_ZIP, follow_redirects=True, timeout=120.0)
-    resp.raise_for_status()
+    with urllib.request.urlopen(_GITHUB_ZIP, timeout=120) as resp:
+        data = resp.read()
 
     cache = Path(tempfile.mkdtemp(prefix="pinchbench_cache_"))
-    with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
         zf.extractall(cache)
 
     extracted = list(cache.iterdir())

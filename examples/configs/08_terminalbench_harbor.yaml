@@ -18,6 +18,8 @@ model:
   api_key: ${NVIDIA_API_KEY}
   proxy:
     verbose: true
+    interceptors:
+      - turn_counter
 
 output:
   export: [inspect]
@@ -44,8 +46,8 @@ benchmarks:
         task_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-task"
         log_group: "/ecs/harbor/us-west-2"
         log_stream_prefix: terminalbench
-        cpu: "2048"
-        memory: "4096"
+        cpu: "4096"
+        memory: "8192"
         max_task_lifetime_sec: 7200
         s3_bucket: "harbor-staging-20260210135420899800000003"
         ssh_sidecar:

@@ -24,10 +24,12 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-import httpx
+import aiohttp
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.environments.gym_protocol import (
@@ -117,14 +119,16 @@ class GymEnvironment(EvalEnvironment):
         self.protocol = protocol
         self._dataset = dataset
         self.timeout = timeout
-        self._client: httpx.AsyncClient | None = None
+        self._client: aiohttp.ClientSession | None = None
 
         ds_label = dataset.name if dataset else self.endpoint
         self.name = f"gym@{ds_label}" if protocol == "evaluator" else f"gym-native@{ds_label}"
 
-    async def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=self.timeout)
+    async def _get_client(self) -> aiohttp.ClientSession:
+        if self._client is None or self._client.closed:
+            self._client = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=self.timeout),
+            )
         return self._client
 
     # -- seed ---------------------------------------------------------------
@@ -156,9 +160,9 @@ class GymEnvironment(EvalEnvironment):
 
     async def _seed_from_server(self, idx: int) -> SeedResult:
         c = await self._get_client()
-        r = await c.post(f"{self.endpoint}/seed_session", json={"idx": idx})
-        r.raise_for_status()
-        d = r.json()
+        async with c.post(f"{self.endpoint}/seed_session", json={"idx": idx}) as r:
+            r.raise_for_status()
+            d = await r.json()
         sandbox_spec = None
         if d.get("sandbox_spec"):
             from nemo_evaluator.sandbox.base import SandboxSpec
@@ -180,12 +184,12 @@ class GymEnvironment(EvalEnvironment):
 
     async def _verify_evaluator(self, response: str, expected: str, **meta: Any) -> VerifyResult:
         c = await self._get_client()
-        r = await c.post(
+        async with c.post(
             f"{self.endpoint}/verify",
             json={"response": response, "expected": expected, "metadata": meta},
-        )
-        r.raise_for_status()
-        d = r.json()
+        ) as r:
+            r.raise_for_status()
+            d = await r.json()
         return VerifyResult(
             reward=float(d.get("reward", 0.0)),
             extracted_answer=d.get("extracted_answer"),
@@ -234,9 +238,9 @@ class GymEnvironment(EvalEnvironment):
             if k not in body and k != "problem_idx":
                 body[k] = v
 
-        r = await c.post(f"{self.endpoint}/verify", json=body)
-        r.raise_for_status()
-        d = r.json()
+        async with c.post(f"{self.endpoint}/verify", json=body) as r:
+            r.raise_for_status()
+            d = await r.json()
         return VerifyResult(
             reward=float(d.get("reward", 0.0)),
             extracted_answer=d.get("extracted_sql") or d.get("extracted_answer"),
@@ -252,15 +256,16 @@ class GymEnvironment(EvalEnvironment):
             return len(self._dataset)
         try:
             c = await self._get_client()
-            r = await c.get(f"{self.endpoint}/dataset_size")
-            r.raise_for_status()
-            return r.json().get("size", -1)
+            async with c.get(f"{self.endpoint}/dataset_size") as r:
+                r.raise_for_status()
+                d = await r.json()
+            return d.get("size", -1)
         except Exception:
             return -1
 
     async def close(self) -> None:
-        if self._client and not self._client.is_closed:
-            await self._client.aclose()
+        if self._client and not self._client.closed:
+            await self._client.close()
             self._client = None
 
 
@@ -358,18 +363,21 @@ class ManagedGymEnvironment(EvalEnvironment):
                     f"Output:\n{output}"
                 )
             try:
-                r = httpx.get(f"{self.endpoint}/health", timeout=2.0)
-                if r.status_code == 200:
-                    return
-            except (httpx.ConnectError, httpx.TimeoutException):
+                with urllib.request.urlopen(
+                    f"{self.endpoint}/health", timeout=2.0,
+                ) as r:
+                    if r.status == 200:
+                        return
+            except (urllib.error.URLError, OSError):
                 pass
             else:
-                # /health returned non-200 (e.g. 404) -- try FastAPI default
                 try:
-                    r2 = httpx.get(f"{self.endpoint}/openapi.json", timeout=2.0)
-                    if r2.status_code == 200:
-                        return
-                except (httpx.ConnectError, httpx.TimeoutException):
+                    with urllib.request.urlopen(
+                        f"{self.endpoint}/openapi.json", timeout=2.0,
+                    ) as r2:
+                        if r2.status == 200:
+                            return
+                except (urllib.error.URLError, OSError):
                     pass
             time.sleep(0.5)
         self.stop()

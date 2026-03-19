@@ -10,7 +10,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Protocol
 
-import httpx
+import urllib.error
+import urllib.request
 
 logger = logging.getLogger(__name__)
 
@@ -104,11 +105,11 @@ class DockerModelDeployment:
 
         while time.monotonic() < deadline:
             try:
-                r = httpx.get(url, timeout=5.0)
-                if r.status_code == 200:
-                    logger.info("Model server healthy")
-                    return
-            except (httpx.ConnectError, httpx.TimeoutException):
+                with urllib.request.urlopen(url, timeout=5.0) as r:
+                    if r.status == 200:
+                        logger.info("Model server healthy")
+                        return
+            except (urllib.error.URLError, OSError):
                 pass
             time.sleep(5.0)
 
@@ -167,11 +168,11 @@ class ProcessModelDeployment:
             if self._process and self._process.poll() is not None:
                 raise RuntimeError(f"Model process exited with code {self._process.returncode}")
             try:
-                r = httpx.get(url, timeout=5.0)
-                if r.status_code == 200:
-                    logger.info("Model server healthy at %s", url)
-                    return
-            except (httpx.ConnectError, httpx.TimeoutException):
+                with urllib.request.urlopen(url, timeout=5.0) as r:
+                    if r.status == 200:
+                        logger.info("Model server healthy at %s", url)
+                        return
+            except (urllib.error.URLError, OSError):
                 pass
             time.sleep(5.0)
 
@@ -261,11 +262,11 @@ class RayMultiNodeDeployment:
             if self._vllm_process and self._vllm_process.poll() is not None:
                 raise RuntimeError(f"vLLM process exited with code {self._vllm_process.returncode}")
             try:
-                r = httpx.get(url, timeout=5.0)
-                if r.status_code == 200:
-                    logger.info("Multi-node vLLM healthy at %s", url)
-                    return
-            except (httpx.ConnectError, httpx.TimeoutException):
+                with urllib.request.urlopen(url, timeout=5.0) as r:
+                    if r.status == 200:
+                        logger.info("Multi-node vLLM healthy at %s", url)
+                        return
+            except (urllib.error.URLError, OSError):
                 pass
             time.sleep(5.0)
 
