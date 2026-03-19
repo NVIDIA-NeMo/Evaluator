@@ -1,7 +1,8 @@
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-import yaml
+import hydra
+from hydra.core.global_hydra import GlobalHydra
 from omegaconf import OmegaConf
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -110,6 +111,13 @@ class ConversionConfig(BaseModel):
         default_factory=list,
         description="Mount directories to pass to the conversion job.",
     )
+    command_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Extra parameters passed as Jinja2 variables when rendering command_pattern. "
+            "Available alongside the built-in '{{ input_path }}' and '{{ output_path }}' variables."
+        ),
+    )
     command_pattern: str = Field(
         description=(
             "Jinja2 command template to run inside the container. "
@@ -176,25 +184,33 @@ class WatchConfig(BaseModel):
     def from_hydra(
         cls, path: Path, overrides: list[str] | None = None
     ) -> "WatchConfig":
-        """Load a WatchConfig from a YAML file with optional OmegaConf overrides.
+        """Load a WatchConfig from a YAML file with optional Hydra overrides.
 
         The ``evaluation_configs`` field should contain paths to evaluation config YAML files.
         Each path is loaded via :func:`RunConfig.from_hydra` before validation.
         """
-        raw = yaml.safe_load(path.read_text()) or {}
-        cfg = OmegaConf.create(raw)
+        overrides = list(overrides or [])
 
-        if overrides:
-            for override in overrides:
-                if override.startswith("evaluation_configs"):
-                    key, override = override.split("=", 1)
-                    if key != "evaluation_configs":
-                        raise ValueError(
-                            "Overrides to individual evaluation config parameters are not supported. "
-                            "Edit the evaluation configs directly."
-                        )
+        for override in overrides:
+            key = override.lstrip("+~").split("=", 1)[0]
+            if key.startswith("evaluation_configs") and key != "evaluation_configs":
+                raise ValueError(
+                    "Overrides to individual evaluation config parameters are not supported. "
+                    "Edit the evaluation configs directly."
+                )
 
-            cfg = OmegaConf.merge(cfg, OmegaConf.from_dotlist(overrides))
+        if GlobalHydra.instance().is_initialized():
+            GlobalHydra.instance().clear()
+
+        config_path = path.expanduser()
+        if not config_path.is_absolute():
+            config_path = (Path.cwd() / config_path).resolve()
+
+        hydra.initialize_config_dir(
+            config_dir=str(config_path.parent), version_base=None
+        )
+        cfg = hydra.compose(config_name=config_path.stem, overrides=overrides)
+
         cfg = OmegaConf.to_container(cfg, resolve=True)
         raw_eval_configs = cfg.pop("evaluation_configs", [])
         loaded_eval_configs = [
