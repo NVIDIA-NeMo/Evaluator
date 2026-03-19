@@ -34,7 +34,7 @@ def eval_cmd():
 @click.option("--system-prompt", type=str, default=None)
 @click.option("--temperature", type=float, default=0.0)
 @click.option("--max-tokens", type=int, default=2048)
-@click.option("--output-dir", "-o", default="./eval_results")
+@click.option("--output-dir", "-o", default=None, help="Output directory (default: ./eval_results)")
 @click.option("--dry-run", is_flag=True, help="Generate SLURM/Docker scripts without running")
 @click.option("--submit", is_flag=True, help="Submit to cluster via SSH")
 @click.option("--background", is_flag=True, help="Run locally in background, write PID file")
@@ -52,10 +52,13 @@ def eval_run(config_file, bench, model_url, model_id, api_key,
 
     if config_file:
         config = _load_config(config_file, overrides=override)
+        if output_dir is not None:
+            config.output.dir = output_dir
     elif bench:
         config = _build_quick_config(
             bench, model_url, model_id, api_key, repeats,
-            max_problems, system_prompt, temperature, max_tokens, output_dir,
+            max_problems, system_prompt, temperature, max_tokens,
+            output_dir or "./eval_results",
         )
     else:
         raise click.ClickException("Specify a config file or --bench <name>.")
