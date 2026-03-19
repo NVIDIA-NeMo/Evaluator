@@ -1,0 +1,28 @@
+evaluation:
+  tasks:
+    - name: ns_mmlu_pro
+      nemo_evaluator_config:
+        config:
+          params:
+            extra:
+              num_repeats: 1
+              args: "++prompt_config=eval/aai/mcq-10choices-boxed"
+    - name: ns_gpqa
+      nemo_evaluator_config:
+        config:
+          params:
+            extra:
+              num_repeats: 5
+              args: "++prompt_config=eval/aai/mcq-4choices"
+    - name: ns_livecodebench
+      nemo_evaluator_config:
+        config:
+          params:
+            extra:
+              dataset_split: test_v6_2408_2505
+    - name: ns_ifbench
+      nemo_evaluator_config:
+        config:
+          params:
+            extra:
+              num_repeats: 5

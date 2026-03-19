@@ -1,0 +1,50 @@
+evaluation:
+  tasks:
+    - name: ruler-128k-chat
+      nemo_evaluator_config:
+        config:
+          params:
+            limit_samples: 100
+            parallelism: 1
+            temperature: 0.00001
+            top_p: 0.99
+            extra:
+              tokenizer: ???
+              tokenizer_backend: hf
+        target:
+          api_endpoint:
+            adapter_config:
+              process_reasoning_traces: false
+              params_to_add: {"chat_template_kwargs": {"enable_thinking": false}, "skip_special_tokens": false}
+    - name: ruler-256k-chat
+      nemo_evaluator_config:
+        config:
+          params:
+            limit_samples: 100
+            parallelism: 1
+            temperature: 0.00001
+            top_p: 0.99
+            extra:
+              tokenizer: ???
+              tokenizer_backend: hf
+        target:
+          api_endpoint:
+            adapter_config:
+              process_reasoning_traces: false
+              params_to_add: {"chat_template_kwargs": {"enable_thinking": false}, "skip_special_tokens": false}
+    - name: ruler-512k-chat
+      nemo_evaluator_config:
+        config:
+          params:
+            limit_samples: 100
+            parallelism: 1
+            temperature: 0.00001
+            top_p: 0.99
+            extra:
+              tokenizer: ???
+              tokenizer_backend: hf
+        target:
+          api_endpoint:
+            adapter_config:
+              process_reasoning_traces: false
+              params_to_add: {"chat_template_kwargs": {"enable_thinking": false}, "skip_special_tokens": false}

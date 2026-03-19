@@ -50,7 +50,12 @@ class CmdAndReadableComment:
     secrets_env_result: SecretsEnvResult | None = None
 
 
-def _str_to_echo_command(str_to_save: str, filename: str) -> CmdAndReadableComment:
+def _str_to_echo_command(
+    str_to_save: str,
+    filename: str,
+    *,
+    shell_vars_to_resolve: list[str] | None = None,
+) -> CmdAndReadableComment:
     """Create a safe (see below) echo command saving a string to file.
 
     Safety in this context means the ability to pass such echo command through the
@@ -58,14 +63,25 @@ def _str_to_echo_command(str_to_save: str, filename: str) -> CmdAndReadableComme
 
     Naturally, enconding with base64 creates debuggability issues. For that, the second
     output of the function is the string with bash comment signs prepended.
+
+    If *shell_vars_to_resolve* is provided, a ``sed`` pipeline is appended
+    to replace ``${VAR_NAME}`` placeholders with their runtime shell values.
+    This is a portable alternative to ``envsubst``.
     """
     str_to_save_b64 = base64.b64encode(str_to_save.encode("utf-8")).decode("utf-8")
     debug_str = "\n".join(
         [f"# Contents of {filename}"] + ["# " + s for s in str_to_save.splitlines()]
     )
-    return CmdAndReadableComment(
-        cmd=f'echo "{str_to_save_b64}" | base64 -d > {filename}', debug=debug_str
-    )
+    cmd = f'echo "{str_to_save_b64}" | base64 -d > {filename}'
+    if shell_vars_to_resolve:
+        # Build sed expressions to resolve specific shell variables in-place.
+        # The pattern side escapes the $ so sed matches the literal "${VAR}"
+        # string in the file, while the replacement side uses the shell-expanded value.
+        sed_exprs = " ".join(
+            f'-e "s|\\${{{v}}}|${{{v}}}|g"' for v in shell_vars_to_resolve
+        )
+        cmd += f" && sed -i {sed_exprs} {filename}"
+    return CmdAndReadableComment(cmd=cmd, debug=debug_str)
 
 
 def _set_nested_optionally_overriding(
@@ -300,8 +316,41 @@ def get_eval_factory_command(
     commands.append(create_post_script_cmd.cmd)
     debug.append(create_post_script_cmd.debug)
 
+    # Resolve auxiliary_deployments.NAME.FIELD references in the config
+    # and collect shell variables that need runtime resolution.
+    # model_id is resolved to a literal; endpoint URLs use shell vars
+    # that envsubst resolves at runtime.
+    config_yaml = yaml.safe_dump(merged_nemo_evaluator_config)
+    shell_vars = []
+    for aux_name, aux_cfg_raw in cfg.get("auxiliary_deployments", {}).items():
+        if not isinstance(aux_cfg_raw, (dict, DictConfig)):
+            continue
+        if OmegaConf.is_dict(aux_cfg_raw):
+            aux_cfg_raw = OmegaConf.to_container(aux_cfg_raw, resolve=True)
+        if aux_cfg_raw.get("type", "none") == "none":
+            continue
+        prefix = aux_cfg_raw.get("env_prefix") or aux_name.upper()
+        refs = {
+            f"auxiliary_deployments.{aux_name}.model_id": str(
+                aux_cfg_raw.get("served_model_name", "")
+            ),
+        }
+        # Per-endpoint URL references (e.g. chat_url, embedding_url, ranking_url)
+        endpoints = aux_cfg_raw.get("endpoints", {})
+        for ep_name in endpoints:
+            if ep_name == "health":
+                continue
+            refs[f"auxiliary_deployments.{aux_name}.{ep_name}_url"] = (
+                f"${{{prefix}_{ep_name.upper()}_URL}}"
+            )
+            shell_vars.append(f"{prefix}_{ep_name.upper()}_URL")
+        for ref, value in refs.items():
+            config_yaml = config_yaml.replace(ref, value)
+
     create_yaml_cmd = _str_to_echo_command(
-        yaml.safe_dump(merged_nemo_evaluator_config), "config_ef.yaml"
+        config_yaml,
+        "config_ef.yaml",
+        shell_vars_to_resolve=shell_vars or None,
     )
     commands.append(create_yaml_cmd.cmd)
     debug.append(create_yaml_cmd.debug)
@@ -465,6 +514,30 @@ def get_eval_factory_dataset_size_from_run_config(run_config: dict) -> Optional[
     return dataset_size
 
 
+def is_local_image_path(container: str | None) -> bool:
+    """Check if a container reference is a local image path (e.g. a squash .sqsh file).
+
+    Local image paths are explicitly user-provided and should bypass the
+    unlisted-task safeguard since the user has already made an explicit choice
+    about which container to run.
+
+    Args:
+        container: The container image string (e.g. "nvcr.io/foo:latest" or "/path/to/image.sqsh").
+
+    Returns:
+        True if the container looks like a local file path rather than a registry image reference.
+    """
+    if not container:
+        return False
+    # Squash images (.sqsh) are the primary local image format on Slurm clusters
+    if container.endswith(".sqsh"):
+        return True
+    # Also treat absolute paths as local images (e.g. /mnt/containers/my-image)
+    if container.startswith("/"):
+        return True
+    return False
+
+
 def check_unlisted_tasks_safeguard(
     unlisted_task_names: list[str],
     dry_run: bool,
@@ -516,3 +589,33 @@ def check_unlisted_tasks_safeguard(
             f"Unlisted tasks found: {', '.join(unlisted_task_names)}. "
             "Set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1 to proceed."
         )
+
+
+def walltime_to_seconds(walltime: str) -> int:
+    """Convert a walltime string (HH:MM:SS or D-HH:MM:SS) to total seconds.
+
+    Raises:
+        ValueError: If the walltime string does not match HH:MM:SS or D-HH:MM:SS format.
+    """
+    import re
+
+    match = re.fullmatch(r"(?:(\d+)-)?(\d+):(\d+):(\d+)", walltime)
+    if not match:
+        raise ValueError(
+            f"Invalid walltime format: '{walltime}'. Expected HH:MM:SS or D-HH:MM:SS."
+        )
+    days = int(match.group(1) or 0)
+    h, m, s = int(match.group(2)), int(match.group(3)), int(match.group(4))
+    td = datetime.timedelta(days=days, hours=h, minutes=m, seconds=s)
+    return int(td.total_seconds())
+
+
+def resolve_endpoint_readiness_timeout(cfg: DictConfig) -> int:
+    """Resolve endpoint readiness timeout: explicit config value, or walltime in seconds."""
+    explicit = cfg.execution.get("endpoint_readiness_timeout")
+    if explicit is not None:
+        return int(explicit)
+    wt = cfg.execution.get("walltime")
+    if wt is not None:
+        return walltime_to_seconds(str(wt))
+    return walltime_to_seconds("01:00:00")

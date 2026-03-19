@@ -19,6 +19,10 @@
 # (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
 
 import argparse
+import logging
+import os
+import sys
+from dataclasses import dataclass
 from typing import Optional
 
 import nemo_run as run
@@ -29,6 +33,37 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationConfig,
     EvaluationTarget,
 )
+from nemo_run.config import get_nemorun_home
+from nemo_run.core.execution.slurm import SlurmJobDetails
+
+logger = logging.getLogger(__name__)
+
+
+def to_dict(arg: str) -> dict[str, str]:
+    """Split a comma-separated KEY=VALUE string into a dictionary."""
+    return dict(item.split("=", 1) for item in arg.split(",") if item)
+
+
+@dataclass(kw_only=True)
+class CustomJobDetailsRay(SlurmJobDetails):
+    """Custom job details for Ray jobs.
+
+    Overrides ls_term so TunnelLogIterator can discover srun log files by job ID.
+    Must be set on the *main* SlurmExecutor so that _save_job_dir records it;
+    setting it only on executor_eval has no effect on log tailing.
+    """
+
+    @property
+    def ls_term(self) -> str:
+        """This term will be used to fetch the logs.
+
+        The command used to list the files is ls -1 {ls_term} 2> /dev/null
+        %j is replaced with the Slurm job ID by TunnelLogIterator._check_finished.
+        """
+        assert self.folder
+        # Matches srun output files: log-{job_name}_{job_id}_0.out
+        return os.path.join(self.folder, "ray-job.log")
+
 
 ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
 # [snippet-deploy-start]
@@ -209,6 +244,12 @@ def get_parser():
         default="",
     )
     parser.add_argument(
+        "--evaluation_result_dir",
+        type=str,
+        default="/results/",
+        help="Directory to store evaluation results.",
+    )
+    parser.add_argument(
         "--dryrun",
         action="store_true",
         help="Do a dryrun and exit",
@@ -233,29 +274,88 @@ def get_parser():
         help="Container image for the run, only used in case of slurm runs."
         "Can be a path as well in case of .sqsh file.",
     )
+    slurm_args = parser.add_argument_group("Slurm arguments")
+    slurm_args.add_argument(
+        "--account",
+        type=str,
+        default=os.environ.get("ACCOUNT", ""),
+        help="Slurm account to use for experiment. Defaults to $ACCOUNT env var.",
+    )
+    slurm_args.add_argument(
+        "--partition",
+        type=str,
+        default=os.environ.get("PARTITION", ""),
+        help="Slurm partition to use for experiment. Defaults to $PARTITION env var.",
+    )
+    slurm_args.add_argument(
+        "--time_limit",
+        type=str,
+        default="04:00:00",
+        help="Maximum time limit for the job (format: HH:MM:SS). Default: 04:00:00",
+    )
+    slurm_args.add_argument(
+        "--job_dir",
+        type=str,
+        default=os.environ.get("NEMORUN_HOME", ""),
+        help="Directory for job logs and artifacts on the cluster. Defaults to $NEMORUN_HOME env var.",
+    )
+    slurm_args.add_argument(
+        "--ssh_host",
+        type=str,
+        default=os.environ.get("SSH_HOST", ""),
+        help="SSH host for SSHTunnel (default executor). Defaults to $SSH_HOST env var.",
+    )
+    slurm_args.add_argument(
+        "--ssh_user",
+        type=str,
+        default=os.environ.get("SSH_USER", ""),
+        help="SSH user for SSHTunnel (default executor). Defaults to $SSH_USER env var.",
+    )
+    slurm_args.add_argument(
+        "--local_tunnel",
+        action="store_true",
+        default=False,
+        help="Use LocalTunnel instead of SSHTunnel. Useful when submitting from the cluster head node.",
+    )
+    slurm_args.add_argument(
+        "--custom_mounts",
+        type=str,
+        default=os.environ.get("CUSTOM_MOUNTS", ""),
+        help="Comma-separated list of mounts (src:dst). Defaults to $CUSTOM_MOUNTS env var.",
+    )
+    slurm_args.add_argument(
+        "--custom_env_vars",
+        type=to_dict,
+        default=to_dict(os.environ.get("CUSTOM_ENV_VARS", "")),
+        help="Comma-separated KEY=VALUE pairs of extra environment variables (e.g. 'FOO=bar,BAZ=1'). "
+        "Defaults to $CUSTOM_ENV_VARS env var.",
+    )
     return parser
 
 
 def slurm_executor(
-    user: str,
-    host: str,
-    remote_job_dir: str,
     account: str,
     partition: str,
     nodes: int,
     devices: int,
     container_image: str,
+    job_dir: str,
+    ssh_host: str = "",
+    ssh_user: str = "",
+    local_tunnel: bool = False,
     time: str = "04:00:00",
     custom_mounts: Optional[list[str]] = None,
     custom_env_vars: Optional[dict[str, str]] = None,
     retries: int = 0,
 ) -> run.SlurmExecutor:
-    if not (
-        user and host and remote_job_dir and account and partition and nodes and devices
-    ):
+    if not (account and partition and nodes and devices):
         raise RuntimeError(
-            "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this ",
-            "function.",
+            "Please set account, partition, nodes and devices args for using this function."
+        )
+    if not local_tunnel and not (ssh_host and ssh_user):
+        raise RuntimeError(
+            "Please set --ssh_host and --ssh_user (or $SSH_HOST / $SSH_USER) for SSHTunnel, "
+            "or pass --local_tunnel to submit from the cluster head node."
         )
 
     mounts = []
@@ -266,7 +366,6 @@ def slurm_executor(
     env_vars = {
         # required for some eval benchmarks from lm-eval-harness
         "HF_DATASETS_TRUST_REMOTE_CODE": "1",
-        "HF_TOKEN": "xxxxxx",  # [hf-token-slurm]
     }
     if custom_env_vars:
         env_vars |= custom_env_vars
@@ -275,14 +374,26 @@ def slurm_executor(
     # 'wait_and_evaluate' method from 'helpers'
     packager = run.Config(run.GitArchivePackager, subpath="scripts")
 
+    if local_tunnel:
+        # Do not pass job_dir to LocalTunnel: when job_dir is given, nemo_run sets
+        # tunnel.job_dir = job_dir/title/exp_id but writes the sbatch script to
+        # NEMORUN_HOME/experiments/title/exp_id, causing a path mismatch that
+        # prevents sbatch from finding the script.  With no job_dir, both paths
+        # resolve through NEMORUN_HOME/experiments/... and stay consistent.
+        tunnel = run.LocalTunnel(
+            job_dir=os.path.join(get_nemorun_home(), "experiments")
+        )
+    else:
+        tunnel = run.SSHTunnel(
+            user=ssh_user,
+            host=ssh_host,
+            job_dir=job_dir,
+        )
+
     executor = run.SlurmExecutor(
         account=account,
         partition=partition,
-        tunnel=run.SSHTunnel(
-            user=user,
-            host=host,
-            job_dir=remote_job_dir,
-        ),
+        tunnel=tunnel,
         nodes=nodes,
         ntasks_per_node=devices,
         exclusive=True,
@@ -383,7 +494,7 @@ def main():
         EvaluationConfig,
         type=args.eval_task,
         params=eval_params,
-        output_dir="/results/",
+        output_dir=args.evaluation_result_dir,
     )
 
     eval_fn = run.Partial(
@@ -397,17 +508,24 @@ def main():
     executor: run.Executor
     executor_eval: run.Executor
     if args.slurm:
-        # TODO: Set your custom parameters for the Slurm Executor.
+        custom_mounts = (
+            [m for m in args.custom_mounts.split(",") if m]
+            if args.custom_mounts
+            else []
+        )
         executor = slurm_executor(
-            user="",
-            host="",
-            remote_job_dir="",
-            account="",
-            partition="",
+            account=args.account,
+            partition=args.partition,
             nodes=args.nodes,
             devices=args.devices,
             container_image=args.container_image,
-            custom_mounts=[],
+            job_dir=args.job_dir,
+            ssh_host=args.ssh_host,
+            ssh_user=args.ssh_user,
+            local_tunnel=args.local_tunnel,
+            time=args.time_limit,
+            custom_mounts=custom_mounts,
+            custom_env_vars=args.custom_env_vars or None,
         )
         executor.srun_args = ["--mpi=pmix", "--overlap"]
         executor_eval = executor.clone()
@@ -416,6 +534,9 @@ def main():
             "--nodes=1",
         ]  ## so that eval is laucnhed only on main node
         # or node with index 0
+        # Set on main executor so _save_job_dir records the correct ls_term for log tailing.
+        # executor_eval is a ResourceRequest after merge and its ls_term is not used.
+        executor.job_details = CustomJobDetailsRay()
     else:
         executor = local_executor_torchrun()
         executor_eval = None
@@ -426,7 +547,7 @@ def main():
                 [deploy_run_script, eval_fn],
                 executor=[executor, executor_eval],
                 name=exp_name,
-                tail_logs=False,
+                tail_logs=True,
             )
         else:
             exp.add(
@@ -444,6 +565,18 @@ def main():
         else:
             exp.run()
     # [snippet-experiment-end]
+
+    if not args.dryrun:
+        # Status check must happen after __exit__ which waits for Slurm jobs to finish
+        status_dict = exp.status(return_dict=True) or {}
+        failed = [
+            f"{name}: {info.get('status', 'UNKNOWN')}"
+            for name, info in status_dict.items()
+            if str(info.get("status")) != "SUCCEEDED" and "deploy" not in name.lower()
+        ]
+        if failed:
+            logger.error(f"Experiment finished with failures: {failed}")
+            sys.exit(1)
 
 
 if __name__ == "__main__":

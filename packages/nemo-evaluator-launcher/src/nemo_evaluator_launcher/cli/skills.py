@@ -32,7 +32,10 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.package_info import __version__
 
 _REPO = "NVIDIA-NeMo/Evaluator"
-_SKILLS_REPO_PATH = "packages/nemo-evaluator-launcher/.claude/skills"
+_SKILLS_REPO_PATHS = [
+    "packages/nemo-evaluator-launcher/.claude/skills",
+    "packages/nemo-evaluator/.claude/skills",
+]
 
 _AGENT_PATHS: dict[str, tuple[Path, Path]] = {
     # (user-level, project-level)
@@ -93,7 +96,7 @@ def _github_list_dir(path: str, ref: str) -> list[dict]:
             f"This usually means you are running a pre-release or test-PyPI version of NEL\n"
             f"whose tag does not exist on GitHub.\n"
             f"Use --ref to specify an existing branch, tag, or commit SHA, e.g.:\n"
-            f"  nel skills install --ref main --claude"
+            f"  nel skills add --ref main --claude"
         )
     if resp.status_code != 200:
         raise RuntimeError(f"GitHub API error ({resp.status_code}): {resp.text}")
@@ -112,15 +115,24 @@ def _collect_files(path: str, ref: str) -> list[dict]:
     return files
 
 
-def _discover_skills(ref: str) -> list[str]:
-    """Return skill directory names found under the skills repo path."""
-    items = _github_list_dir(_SKILLS_REPO_PATH, ref)
-    return [item["name"] for item in items if item["type"] == "dir"]
+def _discover_skills(ref: str) -> list[tuple[str, str]]:
+    """Return (skill_name, repo_path) pairs found under all skills repo paths."""
+    skills: list[tuple[str, str]] = []
+    for base_path in _SKILLS_REPO_PATHS:
+        try:
+            items = _github_list_dir(base_path, ref)
+        except RuntimeError:
+            logger.debug("Skills path not found, skipping", path=base_path)
+            continue
+        for item in items:
+            if item["type"] == "dir":
+                skills.append((item["name"], base_path))
+    return skills
 
 
-def _download_skill(skill_name: str, ref: str, dest: Path) -> None:
+def _download_skill(skill_name: str, ref: str, dest: Path, base_path: str) -> None:
     """Download a single skill tree from GitHub into *dest*."""
-    skill_repo_path = f"{_SKILLS_REPO_PATH}/{skill_name}"
+    skill_repo_path = f"{base_path}/{skill_name}"
     files = _collect_files(skill_repo_path, ref)
     total = len(files)
 
@@ -140,14 +152,14 @@ def _download_skill(skill_name: str, ref: str, dest: Path) -> None:
 
 
 @dataclass
-class InstallCmd:
-    """Install NEL agent skills for AI coding assistants.
+class AddCmd:
+    """Add NEL agent skills for AI coding assistants.
 
     Examples:
-      nel skills install --claude
-      nel skills install --claude --codex --cursor --opencode
-      nel skills install --cursor --project
-      nel skills install --ref main --claude
+      nel skills add --claude
+      nel skills add --claude --codex --cursor --opencode
+      nel skills add --cursor --project
+      nel skills add --ref main --claude
     """
 
     claude: bool = field(
@@ -178,11 +190,11 @@ class InstallCmd:
         agents = [a for a in _ALL_AGENTS if getattr(self, a)] or _ALL_AGENTS
 
         print(f"Fetching skill list from {_REPO} (ref: {ref}) ...")
-        skill_names = _discover_skills(ref)
-        if not skill_names:
-            raise RuntimeError(f"No skills found at {_SKILLS_REPO_PATH} (ref: {ref})")
+        skills = _discover_skills(ref)
+        if not skills:
+            raise RuntimeError(f"No skills found in {_REPO} (ref: {ref})")
 
-        for skill_name in skill_names:
+        for skill_name, base_path in skills:
             for agent in agents:
                 user_dir, project_dir = _AGENT_PATHS[agent]
                 root = project_dir if self.project else user_dir
@@ -196,7 +208,7 @@ class InstallCmd:
                     shutil.rmtree(dest)
 
                 dest.mkdir(parents=True, exist_ok=True)
-                _download_skill(skill_name, ref, dest)
+                _download_skill(skill_name, ref, dest, base_path)
                 print(f"Installed {skill_name} -> {dest} (ref: {ref})")
 
 
@@ -205,9 +217,9 @@ class BuildConfigCmd:
     """Build evaluation config from templates.
 
     Examples:
-      nel skills build-config -e local -d vllm -m chat -b standard
-      nel skills build-config -e slurm -d nim -m reasoning -b standard code -x mlflow
-      nel skills build-config -e local -d vllm -m chat -b standard -o my_config.yaml
+      nel skills build-config -e local -d vllm -m chat_reasoning -b core_reasoning long_context
+      nel skills build-config -e slurm -d nim -m chat_reasoning -b agentic multilingual -x mlflow
+      nel skills build-config -e local -d vllm -m base -b general_knowledge coding -o my_config.yaml
     """
 
     execution: str = field(
@@ -222,14 +234,21 @@ class BuildConfigCmd:
     )
     model_type: str = field(
         alias=["-m"],
-        choices=["base", "chat", "reasoning"],
+        choices=["base", "chat_reasoning"],
         help="Model type",
     )
     benchmarks: List[str] = field(
         alias=["-b"],
         nargs="+",
-        choices=["standard", "code", "math_reasoning", "safety", "multilingual"],
-        help="Benchmark types to include",
+        choices=[
+            "general_knowledge",
+            "coding",
+            "core_reasoning",
+            "agentic",
+            "long_context",
+            "multilingual",
+        ],
+        help="Benchmark bundles to include",
     )
     export: str = field(
         alias=["-x"],

@@ -984,6 +984,7 @@ class TestSlurmExecutorHelperFunctions:
             ip_list=ip_list,
             port=port,
             health_check_path=health_path,
+            timeout=600,
             service_name=service_name,
             check_pid=check_pid,
         )
@@ -2924,6 +2925,37 @@ class TestMultiNodeMultiInstance:
         # The wait-for-server handler should use 127.0.0.1
         assert '"127.0.0.1"' in script
 
+    @pytest.mark.parametrize(
+        "config_override, expected_timeout",
+        [
+            ({}, 3600),  # walltime 01:00:00 in base_config -> 3600s
+            ({"endpoint_readiness_timeout": 1200}, 1200),  # explicit override
+            ({"walltime": "02:00:00"}, 7200),  # walltime override -> 7200s
+        ],
+        ids=["default-from-walltime", "explicit-override", "custom-walltime"],
+    )
+    def test_endpoint_readiness_timeout_in_sbatch_script(
+        self,
+        base_config,
+        mock_task,
+        mock_dependencies,
+        config_override,
+        expected_timeout,
+    ):
+        """Health check timeout should appear in the generated sbatch script."""
+        base_config["execution"].update(config_override)
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert f"TIMEOUT={expected_timeout}" in script
+
     def test_health_check_uses_head_node_ips_for_multi_instance(
         self, base_config, mock_task, mock_dependencies
     ):
@@ -3337,3 +3369,555 @@ class TestMultiNodeMultiInstance:
         cfg = OmegaConf.create(config)
         url = get_endpoint_url(cfg, {}, "openai")
         assert url == "http://127.0.0.1:5009/v1/chat/completions"
+
+
+class TestJudgeDeploymentFeature:
+    """Test judge deployment support in SLURM executor."""
+
+    @pytest.fixture
+    def base_config_with_judge(self):
+        """Configuration with judge deployment enabled."""
+        return {
+            "deployment": {
+                "type": "vllm",
+                "image": "vllm/vllm-openai:v0.16.0",
+                "command": "vllm serve /checkpoint --port 8000",
+                "served_model_name": "model-under-test",
+                "port": 8000,
+                "endpoints": {
+                    "health": "/health",
+                    "chat": "/v1/chat/completions",
+                },
+            },
+            "auxiliary_deployments": {
+                "judge": {
+                    "type": "vllm",
+                    "image": "vllm/vllm-openai:v0.16.0",
+                    "command": "vllm serve /checkpoint --port 8001",
+                    "served_model_name": "judge-model",
+                    "port": 8001,
+                    "num_nodes": 1,
+                    "endpoints": {
+                        "health": "/health",
+                        "chat": "/v1/chat/completions",
+                    },
+                    "env_vars": {
+                        "HF_TOKEN": "lit:judge-hf-token",
+                    },
+                },
+            },
+            "execution": {
+                "type": "slurm",
+                "output_dir": "/test/output",
+                "walltime": "04:00:00",
+                "account": "test-account",
+                "partition": "batch",
+                "num_nodes": 2,
+                "ntasks_per_node": 1,
+                "subproject": "test-subproject",
+                "mounts": {
+                    "deployment": {},
+                    "auxiliary": {
+                        "judge": {
+                            "/cache/huggingface": "/root/.cache/huggingface",
+                        },
+                    },
+                    "evaluation": {},
+                    "mount_home": False,
+                },
+            },
+            "evaluation": {"env_vars": {}},
+            "target": {"api_endpoint": {"url": "http://localhost:8000/v1"}},
+        }
+
+    @pytest.fixture
+    def base_config_no_judge(self):
+        """Configuration without judge deployment (type: none)."""
+        return {
+            "deployment": {
+                "type": "vllm",
+                "image": "vllm/vllm-openai:v0.16.0",
+                "command": "vllm serve /checkpoint --port 8000",
+                "served_model_name": "model-under-test",
+                "port": 8000,
+                "endpoints": {
+                    "health": "/health",
+                    "chat": "/v1/chat/completions",
+                },
+            },
+            "auxiliary_deployments": {
+                "judge": {
+                    "type": "none",
+                },
+            },
+            "execution": {
+                "type": "slurm",
+                "output_dir": "/test/output",
+                "walltime": "01:00:00",
+                "account": "test-account",
+                "partition": "batch",
+                "num_nodes": 1,
+                "ntasks_per_node": 1,
+                "subproject": "test-subproject",
+            },
+            "evaluation": {"env_vars": {}},
+            "target": {"api_endpoint": {"url": "http://localhost:8000/v1"}},
+        }
+
+    @pytest.fixture
+    def mock_task(self):
+        return OmegaConf.create({"name": "test_task"})
+
+    @pytest.fixture
+    def mock_dependencies(self):
+        with (
+            patch(
+                "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
+            ) as mock_load_tasks,
+            patch(
+                "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_eval_factory_command"
+            ) as mock_get_eval_command,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_served_model_name"
+            ) as mock_get_model_name,
+        ):
+            mock_load_tasks.return_value = {}
+            mock_get_task_def.return_value = {
+                "container": "test-eval-container:latest",
+                "endpoint_type": "openai",
+                "task": "test_task",
+            }
+            from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+            mock_get_eval_command.return_value = CmdAndReadableComment(
+                cmd="nemo-evaluator run_eval --test", debug="# Test command"
+            )
+            mock_get_model_name.return_value = "model-under-test"
+            yield
+
+    def test_judge_deployment_total_node_count(
+        self, base_config_with_judge, mock_task, mock_dependencies
+    ):
+        """Total SBATCH node count = model nodes + judge nodes."""
+        cfg = OmegaConf.create(base_config_with_judge)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        # 2 model nodes + 1 judge node = 3 total
+        assert "#SBATCH --nodes 3" in script
+
+    def test_judge_deployment_node_splitting(
+        self, base_config_with_judge, mock_task, mock_dependencies
+    ):
+        """Nodes are split between model and judge deployment."""
+        cfg = OmegaConf.create(base_config_with_judge)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert "MODEL_NUM_NODES=2" in script
+        assert "JUDGE_NUM_NODES=1" in script
+        assert "MODEL_NODES" in script
+        assert "JUDGE_NODES" in script
+        assert "MODEL_NODELIST" in script
+        assert "JUDGE_NODELIST" in script
+        assert "JUDGE_PRIMARY_NODE" in script
+
+    def test_judge_deployment_srun_command(
+        self, base_config_with_judge, mock_task, mock_dependencies
+    ):
+        """Judge deployment srun is generated with correct image and nodelist."""
+        cfg = OmegaConf.create(base_config_with_judge)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert "# judge deployment server" in script
+        assert "JUDGE_SERVER_PID" in script
+        assert '--nodelist "${JUDGE_NODELIST}"' in script
+        # Judge deployment uses the judge image
+        assert "vllm serve /checkpoint --port 8001" in script
+
+    def test_judge_deployment_health_check(
+        self, base_config_with_judge, mock_task, mock_dependencies
+    ):
+        """Judge server health check waits for judge endpoint."""
+        cfg = OmegaConf.create(base_config_with_judge)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        # Health check waits on the judge port/path
+        assert "8001/health" in script
+        assert "JUDGE_SERVER_PID" in script
+
+    def test_judge_deployment_env_vars(
+        self, base_config_with_judge, mock_task, mock_dependencies
+    ):
+        """Judge deployment env vars are collected and passed to judge container."""
+        cfg = OmegaConf.create(base_config_with_judge)
+        result = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        )
+
+        # Judge env vars should be in secrets
+        assert result.secrets_env_result is not None
+        assert "judge-hf-token" in result.secrets_env_result.secrets_content
+
+    def test_judge_endpoint_exported_to_eval(
+        self, base_config_with_judge, mock_task, mock_dependencies
+    ):
+        """JUDGE_CHAT_URL and JUDGE_MODEL_ID are exported for eval containers."""
+        cfg = OmegaConf.create(base_config_with_judge)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert (
+            'export JUDGE_CHAT_URL="http://${JUDGE_PRIMARY_NODE}:8001/v1/chat/completions"'
+            in script
+        )
+        assert 'export JUDGE_MODEL_ID="judge-model"' in script
+        # Both should be passed to eval container
+        assert "JUDGE_CHAT_URL" in script
+        assert "JUDGE_MODEL_ID" in script
+
+    def test_judge_server_killed_after_eval(
+        self, base_config_with_judge, mock_task, mock_dependencies
+    ):
+        """Judge server is killed after evaluation completes."""
+        cfg = OmegaConf.create(base_config_with_judge)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert "kill $JUDGE_SERVER_PID" in script
+
+    def test_judge_deployment_mounts(
+        self, base_config_with_judge, mock_task, mock_dependencies
+    ):
+        """Judge deployment mounts are passed to judge container srun."""
+        cfg = OmegaConf.create(base_config_with_judge)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert "/cache/huggingface:/root/.cache/huggingface" in script
+
+    def test_model_deployment_uses_model_nodelist_with_judge(
+        self, base_config_with_judge, mock_task, mock_dependencies
+    ):
+        """Model deployment srun restricts to model nodes when aux deployments exist."""
+        cfg = OmegaConf.create(base_config_with_judge)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        # Model deployment copies MODEL_NODES into DEPLOY_NODES_ARRAY, then
+        # derives INSTANCE_NODELIST per instance for the srun --nodelist flag.
+        assert 'DEPLOY_NODES_ARRAY=("${MODEL_NODES[@]}")' in script
+
+    def test_no_judge_deployment_type_none(
+        self, base_config_no_judge, mock_task, mock_dependencies
+    ):
+        """When judge_deployment.type is none, no judge infrastructure is generated."""
+        cfg = OmegaConf.create(base_config_no_judge)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        # Should not contain judge-specific elements
+        assert "JUDGE_SERVER_PID" not in script
+        assert "JUDGE_PRIMARY_NODE" not in script
+        assert "JUDGE_CHAT_URL" not in script
+        assert "judge deployment server" not in script
+        # Node count should be just the model nodes
+        assert "#SBATCH --nodes 1" in script
+
+    def test_no_judge_deployment_absent(self, mock_task, mock_dependencies):
+        """When judge_deployment is completely absent from config, no judge infra."""
+        config = {
+            "deployment": {
+                "type": "vllm",
+                "image": "test-image:latest",
+                "command": "test-command",
+                "served_model_name": "test-model",
+                "port": 8000,
+                "endpoints": {"health": "/health"},
+            },
+            "execution": {
+                "type": "slurm",
+                "output_dir": "/test/output",
+                "walltime": "01:00:00",
+                "account": "test-account",
+                "partition": "batch",
+                "num_nodes": 1,
+                "ntasks_per_node": 1,
+                "subproject": "test-subproject",
+            },
+            "evaluation": {"env_vars": {}},
+            "target": {"api_endpoint": {"url": "http://localhost:8000/v1"}},
+        }
+        cfg = OmegaConf.create(config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert "JUDGE_SERVER_PID" not in script
+        assert "#SBATCH --nodes 1" in script
+
+
+class TestSbatchExtraFlags:
+    """Tests for sbatch_extra_flags support in _create_slurm_sbatch_script."""
+
+    @pytest.fixture
+    def base_config(self):
+        """Base configuration for testing."""
+        return {
+            "deployment": {
+                "type": "vllm",
+                "image": "test-image:latest",
+                "command": "test-command",
+                "served_model_name": "test-model",
+                "port": 8000,
+                "endpoints": {
+                    "health": "/health",
+                },
+            },
+            "execution": {
+                "type": "slurm",
+                "output_dir": "/test/output",
+                "walltime": "01:00:00",
+                "account": "test-account",
+                "partition": "test-partition",
+                "num_nodes": 1,
+                "num_instances": 1,
+                "ntasks_per_node": 1,
+                "subproject": "test-subproject",
+            },
+            "evaluation": {"env_vars": {}},
+            "target": {"api_endpoint": {"url": "http://localhost:8000/v1"}},
+        }
+
+    @pytest.fixture
+    def mock_task(self):
+        """Mock task configuration."""
+        return OmegaConf.create({"name": "test_task"})
+
+    @pytest.fixture
+    def mock_dependencies(self):
+        """Mock external dependencies used by _create_slurm_sbatch_script."""
+        with (
+            patch(
+                "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
+            ) as mock_load_tasks,
+            patch(
+                "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_eval_factory_command"
+            ) as mock_get_eval_command,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_served_model_name"
+            ) as mock_get_model_name,
+        ):
+            mock_load_tasks.return_value = {}
+            mock_get_task_def.return_value = {
+                "container": "test-eval-container:latest",
+                "endpoint_type": "openai",
+                "task": "test_task",
+            }
+            from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+            mock_get_eval_command.return_value = CmdAndReadableComment(
+                cmd="nemo-evaluator run_eval --test", debug="# Test command"
+            )
+            mock_get_model_name.return_value = "test-model"
+
+            yield {
+                "load_tasks_mapping": mock_load_tasks,
+                "get_task_definition_for_job": mock_get_task_def,
+                "get_eval_factory_command": mock_get_eval_command,
+                "get_served_model_name": mock_get_model_name,
+            }
+
+    def _generate_script(self, base_config, mock_task, mock_dependencies):
+        """Helper to generate sbatch script from config."""
+        cfg = OmegaConf.create(base_config)
+        return _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+    def test_empty_sbatch_extra_flags(self, base_config, mock_task, mock_dependencies):
+        """Empty sbatch_extra_flags dict should not add any extra #SBATCH lines."""
+        base_config["execution"]["sbatch_extra_flags"] = {}
+        script = self._generate_script(base_config, mock_task, mock_dependencies)
+        sbatch_lines = [
+            line for line in script.splitlines() if line.startswith("#SBATCH")
+        ]
+        assert not any("--switches" in line for line in sbatch_lines)
+        assert not any("--constraint" in line for line in sbatch_lines)
+
+    def test_no_sbatch_extra_flags_key(self, base_config, mock_task, mock_dependencies):
+        """Missing sbatch_extra_flags key should work (defaults to empty)."""
+        script = self._generate_script(base_config, mock_task, mock_dependencies)
+        assert "#SBATCH --time" in script  # Basic headers still present
+
+    @pytest.mark.parametrize(
+        "flag, value, expected_fragment",
+        [
+            ("switches", 1, "#SBATCH --switches 1\n"),
+            ("constraint", "h100", "#SBATCH --constraint h100\n"),
+            ("reservation", "my-reservation", "#SBATCH --reservation my-reservation\n"),
+            ("mem", "64G", "#SBATCH --mem 64G\n"),
+            ("switches", 0, "#SBATCH --switches 0\n"),
+            ("constraint", "h100 ampere", "#SBATCH --constraint 'h100 ampere'\n"),
+            ("comment", "", "#SBATCH --comment ''\n"),
+        ],
+        ids=[
+            "integer",
+            "string",
+            "string-reservation",
+            "string-mem",
+            "integer-zero",
+            "string-with-spaces",
+            "empty-string",
+        ],
+    )
+    def test_key_value_flag(
+        self, base_config, mock_task, mock_dependencies, flag, value, expected_fragment
+    ):
+        """Key-value pairs should emit #SBATCH --flag value lines."""
+        base_config["execution"]["sbatch_extra_flags"] = {flag: value}
+        script = self._generate_script(base_config, mock_task, mock_dependencies)
+        assert expected_fragment in script
+
+    @pytest.mark.parametrize(
+        "flag, value, should_appear",
+        [
+            ("overcommit", True, True),
+            ("exclusive", True, True),
+            ("requeue", False, False),
+            ("exclusive", False, False),
+            ("reservation", None, False),
+        ],
+        ids=[
+            "bool-true",
+            "exclusive-true",
+            "bool-false",
+            "exclusive-false",
+            "none-skipped",
+        ],
+    )
+    def test_boolean_and_none_flags(
+        self, base_config, mock_task, mock_dependencies, flag, value, should_appear
+    ):
+        """Boolean True emits the flag, False/None omit it."""
+        base_config["execution"]["sbatch_extra_flags"] = {flag: value}
+        script = self._generate_script(base_config, mock_task, mock_dependencies)
+        if should_appear:
+            assert f"#SBATCH --{flag}\n" in script
+        else:
+            assert f"#SBATCH --{flag}" not in script
+
+    def test_multiple_flags(self, base_config, mock_task, mock_dependencies):
+        """Multiple flags should all be emitted."""
+        base_config["execution"]["sbatch_extra_flags"] = {
+            "switches": 1,
+            "constraint": "h100",
+            "mem": "64G",
+        }
+        script = self._generate_script(base_config, mock_task, mock_dependencies)
+        assert "#SBATCH --switches 1\n" in script
+        assert "#SBATCH --constraint h100\n" in script
+        assert "#SBATCH --mem 64G\n" in script
+
+    def test_realistic_multi_node_vllm(self, base_config, mock_task, mock_dependencies):
+        """Realistic use case: multi-node deployment with switches and constraint."""
+        base_config["execution"]["sbatch_extra_flags"] = {
+            "switches": 1,
+            "constraint": "h100",
+        }
+        base_config["execution"]["num_nodes"] = 4
+        script = self._generate_script(base_config, mock_task, mock_dependencies)
+        assert "#SBATCH --switches 1\n" in script
+        assert "#SBATCH --constraint h100\n" in script
+        assert "#SBATCH --nodes 4\n" in script
+
+    def test_extra_flags_appear_before_job_name(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """Extra flags should appear after sbatch_comment and before job-name."""
+        base_config["execution"]["sbatch_extra_flags"] = {
+            "switches": 1,
+        }
+        base_config["execution"]["sbatch_comment"] = "test comment"
+        script = self._generate_script(base_config, mock_task, mock_dependencies)
+        comment_pos = script.index("#SBATCH --comment='test comment'")
+        switches_pos = script.index("#SBATCH --switches 1")
+        job_name_pos = script.index("#SBATCH --job-name")
+        assert comment_pos < switches_pos < job_name_pos

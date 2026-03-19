@@ -583,3 +583,103 @@ class TestCheckUnlistedTasksSafeguard:
 
         # Should log warning
         assert "NEMO_EVALUATOR_TRUST_UNLISTED_TASKS is set" in caplog.text
+
+
+class TestWalltimeToSeconds:
+    """Tests for walltime_to_seconds."""
+
+    @pytest.mark.parametrize(
+        "walltime, expected",
+        [
+            ("01:00:00", 3600),
+            ("00:10:00", 600),
+            ("00:00:30", 30),
+            ("120:00:00", 432000),
+            ("1-00:00:00", 86400),
+            ("2-12:30:45", 2 * 86400 + 12 * 3600 + 30 * 60 + 45),
+        ],
+        ids=["1h", "10m", "30s", "120h", "1day", "2d-12h30m45s"],
+    )
+    def test_walltime_to_seconds(self, walltime, expected):
+        from nemo_evaluator_launcher.common.helpers import walltime_to_seconds
+
+        assert walltime_to_seconds(walltime) == expected
+
+    @pytest.mark.parametrize(
+        "walltime",
+        ["invalid", "1h30m", "01:00", "abc:de:fg", ""],
+        ids=["word", "hm-format", "missing-seconds", "non-numeric", "empty"],
+    )
+    def test_walltime_to_seconds_invalid_format(self, walltime):
+        from nemo_evaluator_launcher.common.helpers import walltime_to_seconds
+
+        with pytest.raises(ValueError, match="Invalid walltime format"):
+            walltime_to_seconds(walltime)
+
+
+class TestResolveEndpointReadinessTimeout:
+    """Tests for resolve_endpoint_readiness_timeout."""
+
+    def test_explicit_value(self):
+        from nemo_evaluator_launcher.common.helpers import (
+            resolve_endpoint_readiness_timeout,
+        )
+
+        cfg = OmegaConf.create({"execution": {"endpoint_readiness_timeout": 1200}})
+        assert resolve_endpoint_readiness_timeout(cfg) == 1200
+
+    def test_falls_back_to_walltime(self):
+        from nemo_evaluator_launcher.common.helpers import (
+            resolve_endpoint_readiness_timeout,
+        )
+
+        cfg = OmegaConf.create({"execution": {"walltime": "02:00:00"}})
+        assert resolve_endpoint_readiness_timeout(cfg) == 7200
+
+    def test_null_walltime_uses_default(self):
+        from nemo_evaluator_launcher.common.helpers import (
+            resolve_endpoint_readiness_timeout,
+        )
+
+        cfg = OmegaConf.create({"execution": {"walltime": None}})
+        assert resolve_endpoint_readiness_timeout(cfg) == 3600
+
+    def test_no_config_uses_default(self):
+        from nemo_evaluator_launcher.common.helpers import (
+            resolve_endpoint_readiness_timeout,
+        )
+
+        cfg = OmegaConf.create({"execution": {}})
+        assert resolve_endpoint_readiness_timeout(cfg) == 3600
+
+
+class TestIsLocalImagePath:
+    """Tests for is_local_image_path function."""
+
+    @pytest.mark.parametrize(
+        "image_path, expected",
+        [
+            pytest.param(None, False, id="none"),
+            pytest.param("", False, id="empty_string"),
+            pytest.param(
+                "nvcr.io/nvidia/nemo-evaluator:latest", False, id="registry_image"
+            ),
+            pytest.param(
+                "registry.example.com/org/image:v1.2.3",
+                False,
+                id="registry_image_with_tag",
+            ),
+            pytest.param("/mnt/containers/eval-harness.sqsh", True, id="sqsh_file"),
+            pytest.param("containers/eval-harness.sqsh", True, id="sqsh_relative_path"),
+            pytest.param("/mnt/containers/my-image", True, id="absolute_path"),
+            pytest.param(
+                "/shared/nfs/images/lm-eval-harness-v2.1.sqsh",
+                True,
+                id="sqsh_nested_path",
+            ),
+        ],
+    )
+    def test_is_local_image_path(self, image_path, expected):
+        from nemo_evaluator_launcher.common.helpers import is_local_image_path
+
+        assert is_local_image_path(image_path) is expected

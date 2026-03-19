@@ -63,7 +63,7 @@ import json
 import re
 import threading
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -309,6 +309,7 @@ def judge_score(
     score_mapping: Optional[Dict[str, float]] = None,
     judge_key: str = "judge",
     response_format: Optional[Dict[str, Any]] = None,
+    judge_output_parser: Optional[Callable[[str], str]] = None,
     **template_kwargs: Any,
 ) -> dict:
     """Score a sample using an LLM judge.
@@ -335,6 +336,11 @@ def judge_score(
             decoding (e.g. ``{"type": "json_object"}``).  When set, it is
             passed to ``judge_call()`` and ``parse_grade()`` uses structured
             JSON parsing.
+        judge_output_parser: Optional callable that receives the raw judge response
+            string and returns a grade string (e.g. ``"C"``, ``"3"``,
+            ``"SAFE"``).  When provided, it replaces the default
+            ``parse_grade()`` call.  The ``score_mapping`` step still runs
+            afterward to convert the grade to a numeric score.
         **template_kwargs: Extra template variables passed through to
             ``render_judge_prompt()``.  These override the default variables
             (``question``, ``response``, ``reference``, ``criteria``),
@@ -395,12 +401,25 @@ def judge_score(
         logger.warning("Judge call failed", judge_key=judge_key, url=config.url)
         return {"judge_score": 0.0, "judge_grade": "CALL_ERROR"}
 
-    # Parse grade
-    grade = parse_grade(
-        judge_response,
-        resolved_pattern,
-        structured=response_format is not None,
-    )
+    # Parse grade — use custom parser or default regex/JSON parsing
+    if judge_output_parser is not None:
+        try:
+            grade = judge_output_parser(judge_response)
+        except Exception as e:
+            logger.warning(
+                "Custom output parser failed", judge_key=judge_key, error=str(e)
+            )
+            return {
+                "judge_score": 0.0,
+                "judge_grade": "PARSE_ERROR",
+                "judge_error": str(e),
+            }
+    else:
+        grade = parse_grade(
+            judge_response,
+            resolved_pattern,
+            structured=response_format is not None,
+        )
     if grade is None:
         logger.warning(
             "Could not parse grade from judge response",

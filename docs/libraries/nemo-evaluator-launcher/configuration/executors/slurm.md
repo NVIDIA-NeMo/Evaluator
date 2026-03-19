@@ -147,6 +147,7 @@ execution:
   output_dir: /shared/scratch/your_username/eval_results
   partition: gpu
   walltime: "04:00:00"
+  endpoint_readiness_timeout: 1200  # wait up to 20 minutes for model server
   gpus_per_node: 8
 
 deployment:
@@ -210,6 +211,45 @@ execution:
 
 :::{note}
 The `max_walltime` tracks **actual job execution time only**, excluding time spent waiting in the queue. This ensures accurate runtime accounting even when jobs are repeatedly preempted or must wait for resources.
+:::
+
+### Endpoint Readiness Timeout
+
+When deploying a model server on Slurm, the executor waits for the server's health endpoint to return HTTP 200 before starting the evaluation. By default it waits up to the configured `walltime`. You can override this with `endpoint_readiness_timeout` (in seconds):
+
+```yaml
+execution:
+  endpoint_readiness_timeout: 1200  # wait up to 20 minutes
+```
+
+If the server does not become ready within the timeout, the job fails with a clear error instead of waiting until the Slurm walltime expires.
+
+## Arbitrary sbatch Flags
+
+For advanced cluster configurations that require sbatch options not natively exposed by the Slurm executor (such as `--switches`, `--constraint`, `--mem`, `--reservation`, etc.), use the `sbatch_extra_flags` dict:
+
+```yaml
+execution:
+  sbatch_extra_flags:
+    switches: 1           # Emits: #SBATCH --switches 1
+    constraint: "h100"    # Emits: #SBATCH --constraint h100
+    exclusive: true       # Emits: #SBATCH --exclusive  (boolean true → flag only, no value)
+    mem: "0"              # Emits: #SBATCH --mem 0
+```
+
+Each key-value pair in `sbatch_extra_flags` generates a corresponding `#SBATCH --<key> <value>` header in the batch script. Boolean `true` values emit the flag without a value (useful for bare flags like `--exclusive`). Values of `false` or `null` are silently skipped.
+
+The default config includes `exclusive: true`, which requests exclusive node access. To allow node sharing (useful on clusters that charge by resource usage rather than by node), override it:
+
+```yaml
+execution:
+  sbatch_extra_flags:
+    exclusive: false   # Allow node sharing
+    switches: 1        # Add any other flags you need
+```
+
+:::{tip}
+`--switches=1` is useful for multi-node deployments. It instructs Slurm to allocate all nodes on the same network switch, which can reduce inter-node communication latency.
 :::
 
 ## Monitoring and Job Management
