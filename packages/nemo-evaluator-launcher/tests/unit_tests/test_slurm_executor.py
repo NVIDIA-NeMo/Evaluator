@@ -3480,8 +3480,10 @@ class TestSbatchExtraFlags:
             ("reservation", "my-reservation", "#SBATCH --reservation my-reservation\n"),
             ("mem", "64G", "#SBATCH --mem 64G\n"),
             ("switches", 0, "#SBATCH --switches 0\n"),
+            ("constraint", "h100 ampere", "#SBATCH --constraint 'h100 ampere'\n"),
+            ("comment", "", "#SBATCH --comment ''\n"),
         ],
-        ids=["integer", "string", "string-reservation", "string-mem", "integer-zero"],
+        ids=["integer", "string", "string-reservation", "string-mem", "integer-zero", "string-with-spaces", "empty-string"],
     )
     def test_key_value_flag(
         self, base_config, mock_task, mock_dependencies, flag, value, expected_fragment

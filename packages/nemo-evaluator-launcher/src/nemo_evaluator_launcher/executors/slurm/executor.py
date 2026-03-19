@@ -692,7 +692,7 @@ def _create_slurm_sbatch_script(
         if isinstance(flag_value, bool) and flag_value:
             s += "#SBATCH --{}\n".format(flag_name)
         elif not isinstance(flag_value, bool) and flag_value is not None:
-            s += "#SBATCH --{} {}\n".format(flag_name, flag_value)
+            s += "#SBATCH --{} {}\n".format(flag_name, shlex.quote(str(flag_value)))
     job_name = "{account}-{subproject}.{details}".format(
         account=cfg.execution.account,
         subproject=cfg.execution.subproject,
