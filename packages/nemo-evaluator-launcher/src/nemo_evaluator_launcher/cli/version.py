@@ -16,15 +16,22 @@
 """Version command for nemo-evaluator-launcher."""
 
 import importlib
+import importlib.metadata
 from dataclasses import dataclass
 
-from nemo_evaluator_launcher import __package_name__, __version__
+from nemo_evaluator_launcher import __package_name__
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 
 def get_versions() -> dict:
     internal_module_name = "nemo_evaluator_launcher_internal"
-    res = {__package_name__: __version__}
+    try:
+        installed_version = importlib.metadata.version(__package_name__)
+    except importlib.metadata.PackageNotFoundError:
+        from nemo_evaluator_launcher import __version__
+
+        installed_version = __version__
+    res = {__package_name__: installed_version}
     # Check for internal package
     try:
         internal_module = importlib.import_module(internal_module_name)
