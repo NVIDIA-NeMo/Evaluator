@@ -3483,7 +3483,15 @@ class TestSbatchExtraFlags:
             ("constraint", "h100 ampere", "#SBATCH --constraint 'h100 ampere'\n"),
             ("comment", "", "#SBATCH --comment ''\n"),
         ],
-        ids=["integer", "string", "string-reservation", "string-mem", "integer-zero", "string-with-spaces", "empty-string"],
+        ids=[
+            "integer",
+            "string",
+            "string-reservation",
+            "string-mem",
+            "integer-zero",
+            "string-with-spaces",
+            "empty-string",
+        ],
     )
     def test_key_value_flag(
         self, base_config, mock_task, mock_dependencies, flag, value, expected_fragment
