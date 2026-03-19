@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ConversionConfig for Megatron-Bridge (Megatron -> HuggingFace checkpoint export).
+#
+# Usage in your watch config:
+#   defaults:
+#     - conversion_config: mbridge
+#     - _self_
+#
+#   conversion_config:             # override only what differs from these defaults
+#     command_params:
+#       hf_model: /path/to/reference/hf/model
+#       tp: 8
+#       pp: 1
+#       ep: 4
+#       etp: 1
+
+# Squash image containing Megatron-Bridge and its dependencies.
+container: ???
+
+# Mount the reference HF model weights so the conversion script can read them.
+mounts:
+  - source: ${conversion_config.command_params.hf_model}  # absolute host path to reference HF model weights
+    target: ${conversion_config.command_params.hf_model}  # same path inside the container for convenience
+
+# Parameters forwarded as Jinja2 variables to command_pattern.
+# Override any of these in _self_ to match your model topology.
+command_params:
+  hf_model: ???  # path to reference HF model weights inside the container
+  tp: 1          # tensor parallelism degree
+  pp: 1          # pipeline parallelism degree
+  ep: 1          # expert parallelism degree
+  etp: 1         # expert tensor parallelism degree
+
+command_pattern: >-
+  bash -lc '
+  export TRANSFORMERS_CACHE="/tmp/${oc.env:USER}/hf_cache";
+  export HF_HOME="/tmp/${oc.env:USER}/hf_cache";
+  python /opt/Megatron-Bridge/examples/conversion/convert_checkpoints.py export
+  --megatron-path {{ input_path }}
+  --hf-path {{ output_path }}
+  --hf-model {{ hf_model }}
+  --tp {{ tp }} --pp {{ pp }} --ep {{ ep }} --etp {{ etp }}'

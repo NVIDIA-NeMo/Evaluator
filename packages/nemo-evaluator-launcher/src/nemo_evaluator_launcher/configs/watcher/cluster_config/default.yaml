@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ClusterConfig template — shared cluster settings used by nel-watch for
+# checkpoint monitoring, conversion jobs, and evaluation submissions.
+#
+# Usage in your watch config:
+#   defaults:
+#     - cluster_config: default
+#     - _self_
+
+# SSH login node hostname. Use 'localhost' when running nel-watch directly
+# on the cluster login node
+hostname: localhost
+
+# Cluster username
+username: ${oc.env:USER}
+
+# SLURM account allocation to charge for conversion, deployment and evaluation jobs.
+account: ???
+
+# SLURM partition for conversion, deployment and evaluation jobs.
+partition: batch
+
+# Absolute path on the cluster where per-checkpoint output directories
+# (conversion artefacts, evaluation results) will be created.
+output_dir: ???
+
+# Additional #SBATCH directives applied to every job submitted by nel-watch.
+# Keys map to --<key> flags; values are quoted automatically.
+# Common overrides: nodes, ntasks-per-node, gpus-per-node, gres, time, mem.
+sbatch_extra_flags:
+  gres: "gpu:8"
+  time: "04:00:00"
