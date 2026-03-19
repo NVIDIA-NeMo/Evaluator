@@ -79,34 +79,61 @@ If you need the quickest failure triage:
 
 During a running evaluation, the official result files (`output.report.json`, `swebench_summary.json`, `results.yml`) do not exist yet. Use `tasks.jsonl` for live progress — it is written incrementally as each instance finishes its agent conversation.
 
+### Restart-safe progress tracking
+
+`tasks.jsonl` is **append-only**. When a run is restarted (e.g. after SLURM wall-time kill), errored instances are retried and new entries are appended. The same `task_id` can appear multiple times. Raw line counts will exceed 500 for a 500-task benchmark.
+
+**Always deduplicate by `task_id`** (last entry wins) to get accurate progress. Use the script below for both single-run and multi-restart scenarios.
+
+There are two sources of truth for progress, each useful for different things:
+
+| File | Best for | Notes |
+|------|----------|-------|
+| `tasks.jsonl` | Live progress with rich detail (status, duration, termination reason) | Append-only, needs dedup by `task_id` |
+| `output.critic_attempt_1.jsonl` | What the harness considers "done" for resume | Instance with non-error row = skipped on next restart; error row = retried |
+
 **Quick status count** (run from the cluster where the job is running):
 
 ```bash
 # Replace TASKS_JSONL with the actual path:
 # artifacts/.../agent_logs/.../tasks.jsonl
+#
+# Deduplicates by task_id (last entry wins), so this works correctly
+# even after multiple restarts where tasks.jsonl has >500 lines.
 python3 -c "
 import json, collections, sys
-counts = collections.Counter()
+latest = {}
 for line in open(sys.argv[1]):
-    counts[json.loads(line).get('status', 'unknown')] += 1
-total = sum(counts.values())
+    line = line.strip()
+    if not line: continue
+    rec = json.loads(line)
+    tid = rec.get('task_id', 'unknown')
+    latest[tid] = rec.get('status', 'unknown')
+counts = collections.Counter(latest.values())
+total = len(latest)
 for s, c in sorted(counts.items()): print(f'  {s}: {c}')
-print(f'  TOTAL: {total}/500')
+print(f'  TOTAL unique: {total}/500')
+remaining = 500 - total
+print(f'  REMAINING: {remaining}')
 " TASKS_JSONL
 ```
 
-Expected output while running:
+Expected output while running (even after restarts):
 ```
   error: 3
-  success: 50
-  TOTAL: 53/500
+  success: 120
+  TOTAL unique: 123/500
+  REMAINING: 377
 ```
 
 Note: `success` here means the instance was resolved; `error` means a hard runtime failure (context window exceeded, timeout, etc.); `failure` means an evaluable patch was produced but did not resolve the instance. During a run, `failure` counts only appear after the official SWE-bench eval step rewrites `tasks.jsonl`, so mid-run you mostly see `success` and `error`.
 
+After a restart, previously-errored instances that now succeed will show as `success` (the latest entry overwrites the old `error` entry in the deduplication).
+
 **What NOT to use:**
 - `Progress: N/T evaluated` in client logs — only emitted at the very end, not useful for in-flight monitoring.
-- `output.critic_attempt_1.jsonl` — also written incrementally but has less detail (no `status`/`termination`/`duration`). Rows marked `running` are still in-flight.
+- Raw line count of `tasks.jsonl` — will exceed 500 after restarts due to append-only behavior.
+- `output.critic_attempt_1.jsonl` for progress display — also append-only with duplicates, and has less detail (no `status`/`termination`/`duration`). However, it is the file the harness reads to decide what to skip vs retry on restart.
 
 ## Instance IDs
 
