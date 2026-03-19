@@ -16,6 +16,7 @@
 """Execution database module for tracking job executions."""
 
 import json
+import os
 import pathlib
 import secrets
 from dataclasses import asdict, dataclass
@@ -24,8 +25,13 @@ from typing import Any, Dict, List, Optional
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 # Configuration constants
-EXEC_DB_DIR = pathlib.Path.home() / ".nemo-evaluator" / "exec-db"
-EXEC_DB_FILE = EXEC_DB_DIR / "exec.v1.jsonl"
+EXEC_DB_FILE = os.getenv("NEMO_EVALUATOR_EXEC_DB_FILE", None)
+if EXEC_DB_FILE is not None:
+    EXEC_DB_FILE = pathlib.Path(EXEC_DB_FILE)
+    EXEC_DB_DIR = EXEC_DB_FILE.parent
+else:
+    EXEC_DB_DIR = pathlib.Path.home() / ".nemo-evaluator" / "exec-db"
+    EXEC_DB_FILE = EXEC_DB_DIR / "exec.v1.jsonl"
 
 
 def generate_invocation_id() -> str:
