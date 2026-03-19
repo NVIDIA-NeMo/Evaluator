@@ -245,6 +245,11 @@ class ModelConfig(BaseModel):
     extra_env: dict[str, str] = Field(default_factory=dict)
     extra_args: list[str] = Field(default_factory=list)
     reasoning_pattern: str | None = None
+    max_input_tokens: int | None = None
+    """Context window size. Passed to Harbor agents as model_info so litellm
+    knows the model's limits without an online lookup."""
+    max_output_tokens: int | None = None
+    """Max generation length. Passed to Harbor agents as model_info."""
     proxy: ProxyConfig | None = None
 
     @model_validator(mode="after")
@@ -402,6 +407,12 @@ class EvalConfig(BaseModel):
             return self.model.api_key
         svc = self.services.get(service_name)
         return svc.api_key if svc else None
+
+    def resolve_model_config(self, service_name: str = "default") -> "ModelConfig | None":
+        """Return the ModelConfig for simple mode, or None."""
+        if self.is_simple:
+            return self.model
+        return None
 
     def resolve_proxy(self, service_name: str = "default") -> ProxyConfig | None:
         if self.is_simple:

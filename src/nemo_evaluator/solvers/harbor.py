@@ -272,6 +272,8 @@ class HarborSolver:
         timeout: float = 1800.0,
         api_key: str | None = None,
         container_env: dict[str, str] | None = None,
+        max_input_tokens: int | None = None,
+        max_output_tokens: int | None = None,
     ) -> None:
         _check_harbor_installed()
         self._harbor_agent = harbor_agent
@@ -286,6 +288,8 @@ class HarborSolver:
             self._container_env.setdefault("OH_PRELOAD_TOOLS", "false")
             self._container_env.setdefault("SECURITY_CONFIRMATION_MODE", "false")
             self._container_env.setdefault("SECURITY_ENABLE_SECURITY_ANALYZER", "false")
+        self._max_input_tokens = max_input_tokens
+        self._max_output_tokens = max_output_tokens
         self._api_key = _resolve_api_key(api_key)
         _ensure_env(self._api_key, self._model_url, self._model_id)
 
@@ -311,6 +315,14 @@ class HarborSolver:
                 kwargs["llm_kwargs"] = {"api_key": self._api_key}
             elif isinstance(llm_kw, dict):
                 llm_kw.setdefault("api_key", self._api_key)
+
+        if "model_info" not in kwargs:
+            kwargs["model_info"] = {
+                "max_input_tokens": self._max_input_tokens or 131072,
+                "max_output_tokens": self._max_output_tokens or 16384,
+                "input_cost_per_token": 0.0,
+                "output_cost_per_token": 0.0,
+            }
 
         name = self._harbor_agent
         if ":" in name:

@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -130,6 +131,24 @@ def _write_temp_config(cfg: dict[str, Any]) -> Path:
     return Path(path)
 
 
+def _port_is_free(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(("127.0.0.1", port))
+            return True
+        except OSError:
+            return False
+
+
+def _find_free_port(preferred: int) -> int:
+    """Return *preferred* if available, otherwise pick a random free port."""
+    if _port_is_free(preferred):
+        return preferred
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
 def _wait_for_healthy(port: int, timeout: float = _HEALTH_TIMEOUT) -> None:
     """Poll the proxy health endpoint until it responds or times out."""
     import httpx
@@ -166,6 +185,11 @@ def start_proxy(
     running any configured interceptors on each request/response.
     """
     _require_litellm()
+
+    actual_port = _find_free_port(port)
+    if actual_port != port:
+        logger.info("Port %d in use — using %d instead", port, actual_port)
+    port = actual_port
 
     from nemo_evaluator.interceptors import resolve_interceptors
 

@@ -72,7 +72,8 @@ def _safe_name(s: str) -> str:
 
 
 def _make_solver(bench: BenchmarkConfig, client: Any, model_url: str,
-                 model_id: str, api_key: str | None) -> Any:
+                 model_id: str, api_key: str | None,
+                 *, model_config: Any | None = None) -> Any:
     """Create solver for the given benchmark config."""
     from nemo_evaluator.solvers import (
         ChatSolver,
@@ -105,6 +106,8 @@ def _make_solver(bench: BenchmarkConfig, client: Any, model_url: str,
                 timeout=sb.timeout if sb else 1800.0,
                 api_key=api_key,
                 container_env=sb.container_env if sb else {},
+                max_input_tokens=getattr(model_config, "max_input_tokens", None),
+                max_output_tokens=getattr(model_config, "max_output_tokens", None),
             )
         case EndpointType.nat:
             from nemo_evaluator.solvers import NatSolver
@@ -345,6 +348,7 @@ async def _run_single_benchmark(
         model_url = config.resolve_model_url(bench.model)
     model_id = config.resolve_model_id(bench.model)
     api_key = config.resolve_api_key(bench.model)
+    mcfg = config.resolve_model_config(bench.model)
 
     proxy_handle = None
     proxy_cfg = config.resolve_proxy(bench.model)
@@ -377,7 +381,8 @@ async def _run_single_benchmark(
         concurrency = bench.max_concurrent
         if bench.endpoint_type.manages_own_client:
             client = None
-            solver = _make_solver(bench, client, model_url, model_id, api_key)
+            solver = _make_solver(bench, client, model_url, model_id, api_key,
+                                  model_config=mcfg)
         else:
             client = ModelClient(
                 base_url=model_url,
@@ -388,7 +393,8 @@ async def _run_single_benchmark(
                 max_concurrent=concurrency,
                 reasoning_pattern=reasoning_pat,
             )
-            solver = _make_solver(bench, client, model_url, model_id, api_key)
+            solver = _make_solver(bench, client, model_url, model_id, api_key,
+                                  model_config=mcfg)
 
         # run_batch() environments own the full loop — step logging not applicable
         batch_config = {"base_url": model_url, "model": model_id, "api_key": api_key}
