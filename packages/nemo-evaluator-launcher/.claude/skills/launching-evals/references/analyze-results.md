@@ -24,7 +24,7 @@ Steps 2-3 are executed for EACH run separately.
   - Rsync analysis-relevant artifacts: `rsync -avzP <user>@<host>:<artifacts_path>/{results.yml,eval_factory_metrics.json,config.yml} ./evaluation-results/<invocation_id>.<job_index>/artifacts/`
 - For MLflow access, see the `accessing-mlflow` skill.
 - Read benchmark-specific analysis notes from `references/benchmarks/` if available for the evaluated benchmarks.
-  - For Terminal Bench agent trace analysis, follow the procedure in `references/terminal-bench-trace-analysis.md`.
+  - For Terminal Bench agent trace analysis, follow the procedure in `references/benchmarks/terminal-bench-trace-analysis.md`.
 
 ## Step 2: Scan logs for runtime problems
 

@@ -22,5 +22,5 @@ Gather requirements from the user:
 
 ## 3. ACT
 
-1. Source the credentials from the `.env` file: `source .env`
-2. Submit the evaluation: `uv run nemo-evaluator-launcher run --config <path.yaml> ...`
+1. Submit the evaluation: `uv run nemo-evaluator-launcher run --config <path.yaml> ...`
+   - NEL automatically reads `.env` from the workspace root — no need to source it manually.

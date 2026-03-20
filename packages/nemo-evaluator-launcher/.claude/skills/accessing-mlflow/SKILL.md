@@ -5,39 +5,9 @@ description: Query and browse evaluation results stored in MLflow. Use when the 
 
 # Accessing MLflow
 
-## MCP Server Setup
+## MCP Server
 
 [mlflow-mcp](https://github.com/kkruglik/mlflow-mcp) gives agents direct access to MLflow — query runs, compare metrics, browse artifacts, all through natural language.
-
-**For Claude Code** — add to `.claude/settings.json` (project or user level), under `"mcpServers"`:
-
-```json
-"MLflow": {
-  "command": "uvx",
-  "args": ["mlflow-mcp"],
-  "env": {
-    "MLFLOW_TRACKING_URI": "https://<your-mlflow-server>/"
-  }
-}
-```
-
-**For Cursor** — edit `~/.cursor/mcp.json` (Settings > Tools & MCP > New MCP Server):
-
-```json
-{
-  "mcpServers": {
-    "MLflow": {
-      "command": "uvx",
-      "args": ["mlflow-mcp"],
-      "env": {
-        "MLFLOW_TRACKING_URI": "https://<your-mlflow-server>/"
-      }
-    }
-  }
-}
-```
-
-Restart your agent after adding the config.
 
 ## ID Convention
 
@@ -90,3 +60,39 @@ EOF
     ├── slurm-*.log               # Slurm job
     └── proxy-*.log               # Request proxy
 ```
+
+## Troubleshooting
+
+If the MLflow MCP server fails to load or its tools are unavailable:
+
+1. **`uvx` not found** — install [uv](https://docs.astral.sh/uv/getting-started/installation/):
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+2. **MCP server not configured** — add the config and restart the agent:
+
+   **For Claude Code** — add to `.claude/settings.json` (project or user level), under `"mcpServers"`:
+   ```json
+   "MLflow": {
+     "command": "uvx",
+     "args": ["mlflow-mcp"],
+     "env": {
+       "MLFLOW_TRACKING_URI": "https://<your-mlflow-server>/"
+     }
+   }
+   ```
+
+   **For Cursor** — edit `~/.cursor/mcp.json` (Settings > Tools & MCP > New MCP Server):
+   ```json
+   {
+     "mcpServers": {
+       "MLflow": {
+         "command": "uvx",
+         "args": ["mlflow-mcp"],
+         "env": {
+           "MLFLOW_TRACKING_URI": "https://<your-mlflow-server>/"
+         }
+       }
+     }
+   }
+   ```
