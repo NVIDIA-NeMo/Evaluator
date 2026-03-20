@@ -1343,3 +1343,67 @@ class TestLeptonExecutorKillJob:
             # Verify all are within 36 character limit
             for ep_name in endpoint_names:
                 assert len(ep_name) <= 36, f"Endpoint name exceeds 36 chars: {ep_name}"
+
+
+class TestHeartbeatInLeptonScript:
+    def test_heartbeat_in_generated_script(self):
+        """Lepton launch script includes heartbeat when configured."""
+        from omegaconf import OmegaConf
+
+        from nemo_evaluator_launcher.executors.lepton.executor import (
+            _create_evaluation_launch_script,
+        )
+
+        cfg = OmegaConf.create(
+            {
+                "execution": {
+                    "output_dir": "/tmp/out",
+                    "heartbeat": {"script": "curl http://webhook/ping", "interval": 15},
+                },
+            }
+        )
+        task = OmegaConf.create({"name": "test_task"})
+        task_def = {"container": "test:latest", "supported_endpoint_types": ["chat"]}
+
+        script = _create_evaluation_launch_script(
+            cfg=cfg,
+            task=task,
+            task_definition=task_def,
+            endpoint_url="http://localhost:8000/v1/chat/completions",
+            task_name="test_task",
+            invocation_id="inv123",
+            eval_command="echo eval",
+            eval_command_debug_comment="#",
+        )
+        assert "curl http://webhook/ping" in script
+        assert "sleep 15" in script
+        assert "_heartbeat_pid" in script
+
+    def test_no_heartbeat_when_not_configured(self):
+        """No heartbeat in script when not configured."""
+        from omegaconf import OmegaConf
+
+        from nemo_evaluator_launcher.executors.lepton.executor import (
+            _create_evaluation_launch_script,
+        )
+
+        cfg = OmegaConf.create(
+            {
+                "execution": {"output_dir": "/tmp/out"},
+            }
+        )
+        task = OmegaConf.create({"name": "test_task"})
+        task_def = {"container": "test:latest", "supported_endpoint_types": ["chat"]}
+
+        script = _create_evaluation_launch_script(
+            cfg=cfg,
+            task=task,
+            task_definition=task_def,
+            endpoint_url="http://localhost:8000/v1/chat/completions",
+            task_name="test_task",
+            invocation_id="inv123",
+            eval_command="echo eval",
+            eval_command_debug_comment="#",
+        )
+        assert "_heartbeat_pid=0" in script
+        assert "while kill" not in script
