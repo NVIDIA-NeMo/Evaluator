@@ -38,7 +38,7 @@ proxy = ["litellm[proxy]"]
 inspect = ["inspect_ai"]
 export = ["wandb", "mlflow"]
 harnesses = ["nemo-evaluator[lm-eval]"]
-all = ["nemo-evaluator[scoring,stats,ray,skills,lm-eval,harbor,proxy]"]
+all = ["nemo-evaluator[scoring,stats,ray,lm-eval,harbor,proxy]"]
 docs = [
     "sphinx",
     "sphinx-autobuild",
