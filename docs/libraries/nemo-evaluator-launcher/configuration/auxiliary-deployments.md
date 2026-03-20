@@ -35,6 +35,8 @@ Each auxiliary deployment requires **its own dedicated Slurm node(s)**, separate
 
 ### Fields
 
+Auxiliary deployments currently support **vLLM** and **NIM** deployment types only. SGLang and other deployment types are not yet supported for auxiliaries.
+
 Auxiliary deployments use the same core fields as the primary {ref}`deployment configuration <configuration-overview>` (`type`, `image`, `port`, `served_model_name`, `endpoints`, `env_vars`, `checkpoint_path`, `cache_path`, `extra_args`, `pre_cmd`, `command`, `command_template`, and the vLLM-specific parallelism/memory fields). See the {ref}`deployment docs <deployment-vllm>` for detailed descriptions of these shared fields.
 
 The **required** fields for each auxiliary are: `type`, `image`, `port`, `served_model_name`, and `endpoints` (must include `health`).
@@ -109,7 +111,7 @@ When auxiliary deployments are configured, the launcher:
 
 3. **Starts auxiliary servers** — each auxiliary gets its own `srun` command with the specified container image, mounts, and environment variables.
 
-4. **Waits for readiness** — the launcher polls each auxiliary's health endpoint before starting the evaluation.
+4. **Waits for readiness** — the launcher polls each auxiliary's health endpoint before starting the evaluation. The readiness timeout is shared with the primary deployment and can be configured via `execution.endpoint_readiness_timeout`; if not set, it defaults to the job walltime. There is currently no per-auxiliary timeout override.
 
 5. **Exports endpoint URLs** — for each non-health endpoint, the launcher exports environment variables following the pattern:
 
@@ -216,11 +218,11 @@ The following `env_prefix` values are reserved and cannot be used for auxiliary 
 (aux-working-example)=
 ## Complete Working Example
 
-See [`examples/auxiliary-endpoint/slurm_vllm_judge.yaml`](../../../../packages/nemo-evaluator-launcher/examples/auxiliary-endpoint/slurm_vllm_judge.yaml) for a complete configuration that deploys a vLLM judge model for AIME LLM-as-a-judge evaluation.
+See [`examples/slurm_vllm_auxiliary_judge.yaml`](../../../../packages/nemo-evaluator-launcher/examples/slurm_vllm_auxiliary_judge.yaml) for a complete configuration that deploys a vLLM judge model for AIME LLM-as-a-judge evaluation.
 
 ```bash
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/auxiliary-endpoint/slurm_vllm_judge.yaml \
+    --config packages/nemo-evaluator-launcher/examples/slurm_vllm_auxiliary_judge.yaml \
     -o execution.hostname=my-cluster.com \
     -o execution.account=my-account \
     -o execution.output_dir=/shared/results \
