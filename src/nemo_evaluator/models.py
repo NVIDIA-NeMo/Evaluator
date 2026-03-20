@@ -42,8 +42,8 @@ class RunSnapshot(BaseModel):
     adapter: str | None = None
     harness: str | None = None
     system_prompt: str | None = None
-    temperature: float = 0.0
-    max_tokens: int = 2048
+    temperature: float | None = None
+    max_tokens: int | None = None
     top_p: float | None = None
     seed: int | None = None
     shard: dict[str, Any] | None = None

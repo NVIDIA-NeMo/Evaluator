@@ -98,7 +98,7 @@ flowchart TB
 |---------|---------------|-----------|
 | `environments/` | Base class, registry, `@benchmark` BYOB API, environment types | `EvalEnvironment`, `SeedResult`, `VerifyResult`, `BenchmarkDefinition` |
 | `benchmarks/` | 15 built-in benchmarks (all `@benchmark` + `@scorer`) | Scorer functions |
-| `solvers/` | Pluggable inference strategies | `Solver`, `ChatSolver`, `VLMSolver`, `HarborSolver`, `GymSolver`, `NatSolver`, `OpenClawSolver` (config `type`: `simple` → ChatSolver/VLMSolver, `harbor`, `gym_delegation`, etc.) |
+| `solvers/` | Pluggable inference strategies | `Solver`, `ChatSolver`, `VLMSolver`, `HarborSolver`, `GymSolver`, `ReActSolver`, `NatSolver`, `OpenClawSolver` (config `type`: `simple` → ChatSolver/VLMSolver, `harbor`, `tool_calling` → ReActSolver, `gym_delegation`, etc.) |
 | `runner/` | Eval loop, model client, checkpoint, regression, export plugins | `run_evaluation()`, `ModelClient`, `CheckpointManager`, `InspectExporter`, `WandBExporter` |
 | `serving/` | HTTP server for environments (evaluator + Gym protocol) | `generate_app()` |
 | `executors/` | Executor protocol and backends (local, Docker, SLURM) | `Executor`, `get_executor()`, `detect_executor()`, `ProcessState` |
@@ -230,7 +230,7 @@ Solvers decouple inference strategy from benchmark logic. The eval loop calls `s
 | `ChatSolver` | `simple` | `/chat/completions` | Standard benchmarks (default) |
 | `VLMSolver` | `simple` (images) | `/chat/completions` + images | Vision-language benchmarks |
 | `HarborSolver` | `harbor` | Harbor agent SDK | Agentic evaluation (OpenHands, SWE-agent) |
-| `ToolCallingSolver` | `tool_calling` | Gym resource server tools | Tool-use benchmarks |
+| `ReActSolver` | `tool_calling` | NEL-driven ReAct loop | Full-observability tool use (Gym HTTP tools, sandbox tools, or both) |
 | `GymSolver` | `gym_delegation` | HTTP to nemo-gym | Delegate solve to gym server |
 | `NatSolver` | (via service) | SSE `/generate/full` | NAT agent benchmarks |
 | `OpenClawSolver` | `openclaw` | OpenClaw CLI | OpenClaw benchmarks |

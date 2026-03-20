@@ -1,6 +1,8 @@
 """CompletionSolver: uses the /completions endpoint instead of /chat/completions."""
 from __future__ import annotations
 
+from typing import Any
+
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.observability.types import ModelResponse
 
@@ -12,7 +14,7 @@ class CompletionSolver:
     """Uses the /completions endpoint instead of /chat/completions."""
 
     def __init__(self, base_url: str, model: str, api_key: str | None = None,
-                 temperature: float = 0.0, max_tokens: int = 2048) -> None:
+                 temperature: float | None = None, max_tokens: int | None = None) -> None:
         from nemo_evaluator.runner.model_client import ModelClient
         self._model_client = ModelClient(
             base_url=base_url.rstrip("/"), model=model, api_key=api_key,
@@ -25,12 +27,14 @@ class CompletionSolver:
 
     async def solve(self, task: SeedResult) -> SolveResult:
         import time
-        payload = {
+        payload: dict[str, Any] = {
             "model": self._model,
             "prompt": task.prompt,
-            "temperature": self._temperature,
-            "max_tokens": self._max_tokens,
         }
+        if self._temperature is not None:
+            payload["temperature"] = self._temperature
+        if self._max_tokens is not None:
+            payload["max_tokens"] = self._max_tokens
         t0 = time.monotonic()
         data = await self._model_client._post_with_retry(self._url, payload)
         latency = (time.monotonic() - t0) * 1000

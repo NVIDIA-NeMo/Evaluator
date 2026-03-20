@@ -305,7 +305,109 @@ Key fields:
 
 ---
 
-## 8. Vision-Language Models
+## 8. NEL-Driven Tool Calling (ReActSolver)
+
+**Configs:** `21_tool_calling_gym.yaml`, `22_tool_calling_sandbox.yaml`, `23_tool_calling_combined.yaml`
+
+The `gym_delegation` and `harbor` solvers delegate the agentic loop to an external framework (Gym Agent Server, Harbor agent). This is convenient but **opaque** — NEL only sees the final response, not the individual model calls, tool calls, and conversation turns.
+
+The `tool_calling` solver changes this: **NEL drives the loop itself**. It calls the model, parses tool calls, dispatches them, and records every turn — giving full observability.
+
+### Gym HTTP Tools
+
+```yaml
+services:
+  model:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/llama-3.3-nemotron-super-49b-v1
+    api_key: ${NVIDIA_API_KEY}
+  tools:
+    type: gym
+    url: http://localhost:8000
+
+benchmarks:
+  - name: swebench-multilingual
+    solver:
+      type: tool_calling
+      service: model
+      resource_service: tools
+      max_turns: 50
+```
+
+Here, `resource_service: tools` points to a Gym Resource Server. NEL discovers available tools via `/openapi.json` and dispatches tool calls via `POST /{tool_name}`. Every model call, tool result, and conversation turn is captured in the ATIF trajectory.
+
+### Sandbox Tools (NEL as the Agent)
+
+```yaml
+benchmarks:
+  - name: swebench-verified
+    solver:
+      type: tool_calling
+      service: model
+      sandbox_tools: true
+      max_turns: 100
+      response_mode: sandbox_artifact
+      system_prompt: |
+        You are a software engineer fixing a bug in a Python repository.
+        You have these tools: bash, str_replace_editor, file_read, file_write.
+        Use bash to explore the repo and run tests. Use str_replace_editor to
+        make targeted edits. When done, the sandbox state is captured automatically.
+    sandbox:
+      type: docker
+      timeout: 1800.0
+```
+
+With `sandbox_tools: true`, NEL provides a canonical set of tools that execute inside the Docker sandbox:
+
+| Tool | What it does |
+|------|-------------|
+| `bash` | Execute shell commands (`sandbox.exec()`) |
+| `file_read` | Read file contents (`sandbox.download()`) |
+| `file_write` | Write file contents (`sandbox.upload()`) |
+| `str_replace_editor` | View, create, or make targeted replacements in files |
+
+File operations use `sandbox.upload()` / `sandbox.download()` internally — no content is ever embedded in shell commands.
+
+Key fields:
+
+- **`sandbox_tools: true`** — enables the four sandbox tools listed above. Requires a sandbox config.
+- **`response_mode: sandbox_artifact`** — the "answer" is the sandbox state (e.g. a git patch), not the last model message. Use for SWE-bench.
+- **`max_turns`** — maximum model call rounds before stopping. The solver sets `error: "max_turns_exhausted"` if hit.
+- **`tool_timeout`** — per-tool-call timeout in seconds (default: 180).
+- **`max_output_chars`** — truncation limit for tool output fed back to the model (default: 16384). Large outputs are truncated with head+tail preservation.
+
+### Combined (HTTP + Sandbox)
+
+```yaml
+benchmarks:
+  - name: research-bench
+    solver:
+      type: tool_calling
+      service: model
+      resource_service: tools       # web_search, find_in_page from Gym
+      sandbox_tools: true            # bash, file_read, file_write
+      max_turns: 30
+    sandbox:
+      type: docker
+```
+
+Both tool sources can be combined: the model sees tools from the Gym Resource Server *and* sandbox tools. Tool calls are routed to the correct backend by name.
+
+### Observability Gains
+
+| Aspect | Delegated (`harbor`/`gym_delegation`) | NEL-driven (`tool_calling`) |
+|--------|---------------------------------------|---------------------------|
+| Model calls | Opaque (inside agent framework) | Every call: tokens, latency, content |
+| Tool calls | Opaque | Every tool: name, args, result, latency |
+| Conversation | Final response only | Full multi-turn transcript |
+| Trajectory | Reconstructed post-hoc | Native ATIF per-turn |
+| Failure attribution | "Agent failed" | "bash() failed on turn 3 with exit code 1" |
+
+---
+
+## 9. Vision-Language Models
 
 **Config:** `13_vlmevalkit_mmbench.yaml`
 
@@ -331,7 +433,7 @@ The `simple` solver handles VLM benchmarks automatically when the dataset includ
 
 ---
 
-## 9. Multi-Benchmark Suites
+## 10. Multi-Benchmark Suites
 
 **Config:** `17_suite_release.yaml`
 
@@ -389,7 +491,7 @@ nel eval run examples/configs/17_suite_release.yaml --resume
 
 ---
 
-## 10. Auto-Deployed vLLM on SLURM
+## 11. Auto-Deployed vLLM on SLURM
 
 **Config:** `15_slurm_gsm8k_vllm.yaml`
 
@@ -439,7 +541,7 @@ This generates `eval.sbatch`, submits it, and monitors progress.
 
 ---
 
-## 11. Heterogeneous SLURM Jobs
+## 12. Heterogeneous SLURM Jobs
 
 **Config:** `16_slurm_swebench_harbor.yaml`
 
@@ -490,7 +592,7 @@ The `swebench` sandbox uses `type: slurm` — containers run via Pyxis/Enroot on
 
 ---
 
-## 12. Sharded Evaluation
+## 13. Sharded Evaluation
 
 **Config:** `15a_slurm_gsm8k_vllm_sharded.yaml`
 
@@ -531,7 +633,7 @@ nel eval merge ./results
 
 ---
 
-## 13. Legacy Container Harnesses
+## 14. Legacy Container Harnesses
 
 **Config:** `14_container_nemo_skills.yaml`
 

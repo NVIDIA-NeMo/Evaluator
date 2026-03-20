@@ -436,13 +436,30 @@ class AgentSolverConfig(BaseModel):
 
 
 class ToolCallingSolverConfig(BaseModel):
-    """NEL-native ReAct loop: model call -> parse tool_calls -> dispatch."""
+    """NEL-native ReAct loop: model call -> parse tool_calls -> dispatch.
+
+    At least one of ``resource_service`` (Gym HTTP tools) or ``sandbox_tools``
+    (bash/file tools in sandbox) must be configured.
+    """
     type: Literal["tool_calling"] = "tool_calling"
     service: str
-    resource_service: str
+    resource_service: str | None = None
+    sandbox_tools: bool = False
     max_turns: int = 50
     system_prompt: str | None = None
     generation: GenerationConfig | None = None
+    tool_timeout: float = 180.0
+    max_output_chars: int = 16384
+    response_mode: Literal["last_message", "sandbox_artifact"] = "last_message"
+
+    @model_validator(mode="after")
+    def _check_has_tools(self) -> ToolCallingSolverConfig:
+        if not self.resource_service and not self.sandbox_tools:
+            raise ValueError(
+                "tool_calling solver requires at least one tool source: "
+                "set resource_service (Gym HTTP tools) and/or sandbox_tools: true"
+            )
+        return self
 
 
 class GymDelegationSolverConfig(BaseModel):
@@ -710,6 +727,15 @@ class BenchmarkConfig(BaseModel):
                     f"solver type '{self.solver.type}' requires a sandbox "
                     f"(docker, apptainer, slurm, or ecs_fargate)"
                 )
+        if (
+            isinstance(self.solver, ToolCallingSolverConfig)
+            and self.solver.sandbox_tools
+            and isinstance(self.sandbox, NoSandbox)
+        ):
+            raise ValueError(
+                "tool_calling solver with sandbox_tools: true requires a sandbox "
+                "(docker, apptainer, slurm, or ecs_fargate)"
+            )
         return self
 
 
@@ -893,16 +919,17 @@ class EvalConfig(BaseModel):
                         )
 
             if isinstance(solver, ToolCallingSolverConfig):
-                if solver.resource_service not in available:
-                    errors.append(
-                        f"{prefix}.solver.resource_service="
-                        f"{solver.resource_service!r} not in services"
-                    )
-                elif not isinstance(self.services[solver.resource_service], GymResourceService):
-                    errors.append(
-                        f"{prefix}.solver.resource_service="
-                        f"{solver.resource_service!r} must be a 'gym' service"
-                    )
+                if solver.resource_service is not None:
+                    if solver.resource_service not in available:
+                        errors.append(
+                            f"{prefix}.solver.resource_service="
+                            f"{solver.resource_service!r} not in services"
+                        )
+                    elif not isinstance(self.services[solver.resource_service], GymResourceService):
+                        errors.append(
+                            f"{prefix}.solver.resource_service="
+                            f"{solver.resource_service!r} must be a 'gym' service"
+                        )
             elif isinstance(solver, GymDelegationSolverConfig):
                 if solver.gym_service not in available:
                     errors.append(

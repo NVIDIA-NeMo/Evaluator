@@ -35,12 +35,16 @@ All configs expect `NVIDIA_API_KEY` (or `OPENAI_API_KEY`) set as an environment 
 | 19 | `19_gym_runtime_ecs.yaml` | SWE-bench Multilingual | gym_delegation | Gym + ECS | Gym agent runtime, nel verifies on ECS |
 | 20 | `20_slurm_gym_runtime.yaml` | SWE-bench Multilingual | gym_delegation | SLURM + vLLM | Gym agent runtime, nel verifies on SLURM |
 | 20a | `20a_slurm_gym_runtime_apptainer.yaml` | SWE-bench Multilingual | gym_delegation | SLURM + Apptainer | Apptainer variant of 20 |
+| 21 | `21_tool_calling_gym.yaml` | SWE-bench Multilingual | tool_calling | Gym HTTP tools | NEL-driven ReAct loop with Gym Resource Server |
+| 22 | `22_tool_calling_sandbox.yaml` | SWE-bench Verified | tool_calling | Docker sandbox | NEL as the coding agent (bash, file tools) |
+| 23 | `23_tool_calling_combined.yaml` | Research bench | tool_calling | Gym + Docker | Combined HTTP + sandbox tools |
 
 ## Scenarios Covered
 
 ### By Solver Type
 - **simple** (01, 02, 03, 04, 05, 06, 13, 15, 17): Standard chat/completions/VLM
 - **harbor** (07, 07a, 08, 08a, 11, 16): Agentic evaluation via Harbor agents
+- **tool_calling** (21, 22, 23): NEL-driven ReAct loop — full observability over model calls and tool dispatch
 - **openclaw** (12): Agentic evaluation via OpenClaw
 - **gym_delegation** (09, 10, 19, 20): Delegated to nemo-gym server
 - **container** (14): Legacy container harness
@@ -64,6 +68,7 @@ All configs expect `NVIDIA_API_KEY` (or `OPENAI_API_KEY`) set as an environment 
 - **Mode A** — Gym as agent runtime (09): GymSolver delegates agent execution; nel verifies
 - **Mode B** — Gym as full environment (10): GymSolver trusts gym reward end-to-end
 - **Mode C** — Gym as environment, nel as agent runtime (11): GymEnvironment for seed/verify; HarborSolver runs the agent
+- **Mode D** — NEL-driven tool calling (21, 23): ReActSolver drives the model loop; Gym Resource Server provides HTTP tools — full per-turn observability
 
 ## Running
 

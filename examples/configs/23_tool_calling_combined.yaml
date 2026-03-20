@@ -1,0 +1,35 @@
+# NEL-driven tool-calling with BOTH Gym HTTP tools and sandbox tools.
+#
+# The CompositeToolBackend merges tools from both sources:
+#   - Gym Resource Server: HTTP tools (e.g. web_search, find_in_page)
+#   - Sandbox: bash, file_read, file_write, str_replace_editor
+#
+# This enables research-style tasks where the model can both search the
+# web and write code in a sandbox.
+#
+# Prerequisites:
+#   - A running Gym Resource Server at localhost:8000
+#   - Docker running locally
+#   - NVIDIA_API_KEY set in environment
+
+services:
+  model:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/llama-3.3-nemotron-super-49b-v1
+    api_key: ${NVIDIA_API_KEY}
+  tools:
+    type: gym
+    url: http://localhost:8000
+
+benchmarks:
+  - name: research-bench
+    solver:
+      type: tool_calling
+      service: model
+      resource_service: tools
+      sandbox_tools: true
+      max_turns: 30
+    sandbox:
+      type: docker

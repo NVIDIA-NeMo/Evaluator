@@ -125,8 +125,8 @@ def _make_solver(
             gen = _resolve_generation(config, solver_cfg)
             return CompletionSolver(
                 base_url=model_url, model=model_id, api_key=api_key,
-                temperature=gen.temperature or 0.0,
-                max_tokens=gen.max_tokens or 2048,
+                temperature=gen.temperature,
+                max_tokens=gen.max_tokens,
             )
 
         if solver_cfg.image_detail != "auto":
@@ -171,17 +171,39 @@ def _make_solver(
         )
 
     if isinstance(solver_cfg, ToolCallingSolverConfig):
-        from nemo_evaluator.solvers.gym import GymSolver
+        from nemo_evaluator.runner.model_client import ModelClient
+        from nemo_evaluator.solvers.react import ReActSolver
+        from nemo_evaluator.solvers.tool_backend import HttpToolBackend
 
-        gym_svc = config.get_service(solver_cfg.resource_service)
-        return GymSolver(
-            gym_url=gym_svc.base_url,
-            gym_agent=None,
-            trust_reward=False,
-            model_id=model_id,
-            model_url=model_url,
+        gen = _resolve_generation(config, solver_cfg)
+        reasoning_pat = None
+        svc = config.get_service(solver_cfg.service)
+        reasoning_pat = getattr(svc, "reasoning_pattern", None)
+        tc_client = ModelClient(
+            base_url=model_url,
+            model=model_id,
             api_key=api_key,
-            timeout=bench.timeout,
+            temperature=gen.temperature or 0.0,
+            max_tokens=gen.max_tokens or 4096,
+            max_concurrent=bench.max_concurrent,
+            reasoning_pattern=reasoning_pat,
+        )
+
+        http_backend = None
+        if solver_cfg.resource_service:
+            gym_svc = config.get_service(solver_cfg.resource_service)
+            http_backend = HttpToolBackend(gym_svc.base_url)
+
+        return ReActSolver(
+            client=tc_client,
+            http_backend=http_backend,
+            use_sandbox_tools=solver_cfg.sandbox_tools,
+            max_turns=solver_cfg.max_turns,
+            system_prompt=solver_cfg.system_prompt,
+            generation=solver_cfg.generation,
+            tool_timeout=solver_cfg.tool_timeout,
+            max_output_chars=solver_cfg.max_output_chars,
+            response_mode=solver_cfg.response_mode,
         )
 
     if isinstance(solver_cfg, NatSolverConfig):
@@ -555,8 +577,8 @@ async def _run_single_benchmark(
                 base_url=model_url,
                 model=model_id,
                 api_key=api_key,
-                temperature=gen.temperature or 0.0,
-                max_tokens=gen.max_tokens or 2048,
+                temperature=gen.temperature,
+                max_tokens=gen.max_tokens,
                 max_concurrent=concurrency,
                 reasoning_pattern=reasoning_pat,
             )
@@ -637,6 +659,8 @@ async def _run_single_benchmark(
         write_all(bundle, task_dir)
         return bundle
     finally:
+        if judge_client is not None and hasattr(judge_client, "close"):
+            await judge_client.close()
         if proxy_handle is not None:
             proxy_handle.stop()
 

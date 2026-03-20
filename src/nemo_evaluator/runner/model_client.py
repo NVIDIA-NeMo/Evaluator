@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import random
 import time
@@ -13,6 +14,25 @@ from nemo_evaluator.models import RetryConfig
 from nemo_evaluator.observability.types import ModelResponse
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ToolCallInfo:
+    """A single parsed tool call from a model response."""
+
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass
+class ToolCallingResponse:
+    """Typed return from ``ModelClient.chat_with_tools()``."""
+
+    content: str
+    tool_calls: list[ToolCallInfo]
+    finish_reason: str
+    model_response: ModelResponse
 
 
 def _resolve_image(image: str) -> str:
@@ -42,8 +62,8 @@ class ModelClient:
     base_url: str
     model: str
     api_key: str | None = None
-    temperature: float = 0.0
-    max_tokens: int = 2048
+    temperature: float | None = None
+    max_tokens: int | None = None
     top_p: float | None = None
     seed: int | None = None
     timeout: float = 120.0
@@ -112,9 +132,11 @@ class ModelClient:
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": msgs,
-            "temperature": self.temperature,
-            "max_tokens": self.max_tokens,
         }
+        if self.temperature is not None:
+            payload["temperature"] = self.temperature
+        if self.max_tokens is not None:
+            payload["max_tokens"] = self.max_tokens
         if self.top_p is not None:
             payload["top_p"] = self.top_p
         if self.seed is not None:
@@ -158,9 +180,11 @@ class ModelClient:
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": msgs,
-            "temperature": self.temperature,
-            "max_tokens": self.max_tokens,
         }
+        if self.temperature is not None:
+            payload["temperature"] = self.temperature
+        if self.max_tokens is not None:
+            payload["max_tokens"] = self.max_tokens
         if self.top_p is not None:
             payload["top_p"] = self.top_p
         if self.seed is not None:
@@ -176,6 +200,82 @@ class ModelClient:
                             self.temperature, self.max_tokens, data,
                             top_p=self.top_p, seed=self.seed)
         return self._parse_response(data, latency, prompt, system)
+
+    async def chat_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        **overrides: Any,
+    ) -> ToolCallingResponse:
+        """Tool-augmented chat call.  Returns typed ``ToolCallingResponse``
+        with parsed tool calls.  ``overrides`` can set ``temperature``,
+        ``max_tokens``, etc."""
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "tools": tools,
+            "temperature": overrides.get("temperature", self.temperature),
+            "max_tokens": overrides.get("max_tokens", self.max_tokens),
+        }
+        if self.top_p is not None:
+            payload["top_p"] = self.top_p
+        if self.seed is not None:
+            payload["seed"] = self.seed
+        for k, v in overrides.items():
+            if k not in ("temperature", "max_tokens"):
+                payload[k] = v
+
+        url = f"{self.base_url}/chat/completions"
+        t0 = time.monotonic()
+        data = await self._post_with_retry(url, payload)
+        latency = (time.monotonic() - t0) * 1000
+
+        choices = data.get("choices", [])
+        if not choices:
+            raise ValueError(f"No choices in tool-calling response: {data}")
+
+        choice = choices[0]
+        message = choice.get("message", {})
+        usage = data.get("usage", {})
+
+        content = message.get("content") or ""
+        finish_reason = choice.get("finish_reason", "")
+
+        tool_calls: list[ToolCallInfo] = []
+        for raw_tc in message.get("tool_calls") or []:
+            fn = raw_tc.get("function", {})
+            raw_args = fn.get("arguments", "{}")
+            try:
+                parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+            except json.JSONDecodeError:
+                parsed_args = {"raw": raw_args}
+            tool_calls.append(ToolCallInfo(
+                id=raw_tc.get("id", ""),
+                name=fn.get("name", ""),
+                arguments=parsed_args,
+            ))
+
+        ct = usage.get("completion_tokens_details") or {}
+        model_response = ModelResponse(
+            content=content,
+            model=data.get("model", self.model),
+            finish_reason=finish_reason,
+            prompt_tokens=usage.get("prompt_tokens", 0),
+            completion_tokens=usage.get("completion_tokens", 0),
+            total_tokens=usage.get("total_tokens", 0),
+            reasoning_tokens=ct.get("reasoning_tokens", 0),
+            latency_ms=round(latency, 2),
+            raw_response=data,
+            request_prompt=None,
+            request_system=None,
+        )
+
+        return ToolCallingResponse(
+            content=content,
+            tool_calls=tool_calls,
+            finish_reason=finish_reason,
+            model_response=model_response,
+        )
 
     async def _post_with_retry(self, url: str, payload: dict[str, Any]) -> dict:
         """Shared retry logic for all HTTP endpoints."""
