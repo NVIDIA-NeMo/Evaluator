@@ -22,7 +22,7 @@ services:
 benchmarks:
   - name: pinchbench
     max_problems: 3
-    timeout: 300.0
+    timeout: 900.0
     max_concurrent: 3
     solver:
       type: openclaw
@@ -30,7 +30,7 @@ benchmarks:
     sandbox:
       type: ecs_fargate
       image: ghcr.io/openclaw/openclaw
-      timeout: 300.0
+      timeout: 900.0
       concurrency: 3
       region: us-west-2
       cluster: harbor-cluster

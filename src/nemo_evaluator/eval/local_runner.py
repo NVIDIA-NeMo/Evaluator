@@ -589,9 +589,19 @@ async def _run_single_benchmark(
         from nemo_evaluator.runner.sharding import shard_from_env
         shard_info = shard_from_env()
 
-        batch_config = {
+        batch_config: dict[str, Any] = {
             "base_url": model_url, "model": model_id, "api_key": api_key,
         }
+        if isinstance(solver_cfg, ContainerSolverConfig):
+            from nemo_evaluator.environments.container import _NEL_PROTOCOL_TO_LEGACY_TYPE
+            protocol = getattr(svc, "protocol", "chat_completions") if svc else "chat_completions"
+            batch_config["endpoint_type"] = (
+                solver_cfg.endpoint_type
+                or _NEL_PROTOCOL_TO_LEGACY_TYPE.get(protocol, "chat")
+            )
+            if solver_cfg.params:
+                batch_config["params"] = solver_cfg.params
+
         batch_result = await env.run_batch(solver=solver, config=batch_config)
         if batch_result is not None:
             if shard_info:

@@ -1,12 +1,28 @@
 """ContainerEnvironment: run legacy eval-factory containers as opaque environments.
 
-Wraps any legacy evaluation container image, runs it via `docker run`,
-and parses the output into the NEL artifact bundle format. The container
-owns the full eval loop (dataset, model call, scoring).
+Wraps any legacy evaluation container image, runs it via ``docker run``,
+and injects a **legacy-format** ``run_config.yaml`` so the container's
+``nemo-evaluator run_eval`` entrypoint can consume it directly.
 
-Usage in config:
+The generated run-config follows the canonical Evaluator schema::
+
+    config:
+      type: <task>
+      output_dir: /results
+      params: { ... }          # optional pass-through
+    target:
+      api_endpoint:
+        url: <model_url>
+        model_id: <model_id>
+        api_key_name: NEMO_API_KEY
+        type: chat              # or completions
+
+Usage in NEL config:
     benchmarks:
-      - name: container://nvcr.io/eval-factory/mmlu:latest#mmlu_pro
+      - name: "container://registry/image:tag#eval_type"
+        solver:
+          type: container
+          service: nemotron
 """
 from __future__ import annotations
 
@@ -25,11 +41,23 @@ from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, Verify
 
 logger = logging.getLogger(__name__)
 
+_CONTAINER_RESULTS_DIR = "/results"
+_CONTAINER_CONFIG_PATH = "/config/run_config.yaml"
+_API_KEY_ENV = "NEMO_API_KEY"
+
+_NEL_PROTOCOL_TO_LEGACY_TYPE = {
+    "chat_completions": "chat",
+    "completions": "completions",
+    "responses": "chat",
+}
+
+
 class ContainerEnvironment(EvalEnvironment):
     """Runs a legacy eval-factory container and parses its results.
 
-    The container is expected to produce results at /results/results.yml
-    inside the container. The host mounts a temp directory for output.
+    The container is launched with a mounted ``run_config.yaml`` in the
+    canonical legacy Evaluator format.  Results are read from
+    ``/results/results.yml`` (legacy) or ``/results/results.json``.
     """
 
     def __init__(
@@ -39,6 +67,8 @@ class ContainerEnvironment(EvalEnvironment):
         model_url: str | None = None,
         model_id: str | None = None,
         api_key: str | None = None,
+        endpoint_type: str = "chat",
+        legacy_params: dict[str, Any] | None = None,
         extra_env: dict[str, str] | None = None,
         extra_mounts: list[str] | None = None,
         pre_cmd: str | None = None,
@@ -51,6 +81,8 @@ class ContainerEnvironment(EvalEnvironment):
         self._model_url = model_url
         self._model_id = model_id
         self._api_key = api_key
+        self._endpoint_type = endpoint_type
+        self._legacy_params = legacy_params or {}
         self._extra_env = extra_env or {}
         self._extra_mounts = extra_mounts or []
         self._pre_cmd = pre_cmd
@@ -66,29 +98,34 @@ class ContainerEnvironment(EvalEnvironment):
                      sandbox: Sandbox | None = None, **metadata: Any) -> VerifyResult:
         raise NotImplementedError("ContainerEnvironment uses run_batch()")
 
+    # ------------------------------------------------------------------
+    # Main entry point
+    # ------------------------------------------------------------------
+
     async def run_batch(self, solver: Any = None, config: dict[str, Any] | None = None) -> dict[str, Any]:
         """Run the container and parse results."""
         config = config or {}
         model_url = self._model_url or config.get("base_url", "")
         model_id = self._model_id or config.get("model", "")
         api_key = self._api_key or config.get("api_key", "")
+        endpoint_type = config.get("endpoint_type", self._endpoint_type)
+        extra_params = {**self._legacy_params, **config.get("params", {})}
 
         with tempfile.TemporaryDirectory(prefix="nel_container_") as tmpdir:
             results_dir = Path(tmpdir) / "results"
             results_dir.mkdir()
 
-            container_config = self._build_container_config(model_url, model_id)
-            config_path = Path(tmpdir) / "config.yaml"
-            config_path.write_text(yaml.dump(container_config), encoding="utf-8")
+            run_config = self._build_legacy_run_config(
+                model_url, model_id, endpoint_type, extra_params,
+            )
+            config_path = Path(tmpdir) / "run_config.yaml"
+            config_path.write_text(yaml.dump(run_config, sort_keys=False), encoding="utf-8")
 
-            cmd = self._build_docker_cmd(tmpdir, results_dir, config_path)
+            cmd = self._build_docker_cmd(results_dir, config_path)
 
-            env_vars = {
-                "NEMO_MODEL_URL": model_url,
-                "NEMO_MODEL_ID": model_id,
-            }
+            env_vars: dict[str, str] = {}
             if api_key:
-                env_vars["NEMO_API_KEY"] = api_key
+                env_vars[_API_KEY_ENV] = api_key
             env_vars.update(self._extra_env)
 
             for k, v in env_vars.items():
@@ -98,8 +135,14 @@ class ContainerEnvironment(EvalEnvironment):
 
             if self._pre_cmd:
                 cmd.extend(["bash", "-c", self._pre_cmd])
+            else:
+                cmd.extend([
+                    "run_eval",
+                    "--run_config", _CONTAINER_CONFIG_PATH,
+                    "--output_dir", _CONTAINER_RESULTS_DIR,
+                ])
 
-            logger.info("Running container: %s", " ".join(cmd[:10]) + "...")
+            logger.info("Running container: %s", " ".join(cmd[:12]) + " ...")
 
             import asyncio as _aio
             proc = await _aio.create_subprocess_exec(
@@ -112,32 +155,77 @@ class ContainerEnvironment(EvalEnvironment):
             except _aio.TimeoutError:
                 proc.kill()
                 await proc.wait()
-                stderr = b"timeout"
+                stdout, stderr = b"", b"timeout"
 
             if proc.returncode != 0:
                 logger.error("Container failed (exit %d): %s",
-                             proc.returncode, (stderr or b"").decode()[:1000])
+                             proc.returncode, (stderr or b"").decode()[:2000])
 
             return self._parse_results(results_dir, proc.returncode or 0)
 
-    def _build_container_config(self, model_url: str, model_id: str) -> dict:
-        return {
-            "task": self._task,
-            "model": {"url": model_url, "id": model_id},
-        }
+    # ------------------------------------------------------------------
+    # Legacy run_config generation
+    # ------------------------------------------------------------------
 
-    def _build_docker_cmd(self, tmpdir: str, results_dir: Path, config_path: Path) -> list[str]:
+    def _build_legacy_run_config(
+        self,
+        model_url: str,
+        model_id: str,
+        endpoint_type: str,
+        extra_params: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Build a legacy Evaluator ``run_config.yaml``.
+
+        The generated YAML is consumed by the container's
+        ``nemo-evaluator run_eval --run_config <path>`` entrypoint, which
+        merges it with the baked-in ``framework.yml`` defaults.
+        """
+        run_config: dict[str, Any] = {
+            "config": {
+                "type": self._task,
+                "output_dir": _CONTAINER_RESULTS_DIR,
+            },
+            "target": {
+                "api_endpoint": {
+                    "url": model_url,
+                    "model_id": model_id,
+                    "api_key_name": _API_KEY_ENV,
+                    "type": endpoint_type,
+                },
+            },
+        }
+        if extra_params:
+            run_config["config"]["params"] = extra_params
+        return run_config
+
+    # ------------------------------------------------------------------
+    # Docker plumbing
+    # ------------------------------------------------------------------
+
+    def _build_docker_cmd(self, results_dir: Path, config_path: Path) -> list[str]:
         cmd = [
             "docker", "run", "--rm",
-            "-v", f"{results_dir}:/results",
-            "-v", f"{config_path}:/config/config.yaml",
+            "-v", f"{results_dir}:{_CONTAINER_RESULTS_DIR}",
+            "-v", f"{config_path}:{_CONTAINER_CONFIG_PATH}:ro",
         ]
         for mount in self._extra_mounts:
             cmd.extend(["-v", mount])
         return cmd
 
+    # ------------------------------------------------------------------
+    # Results parsing (handles both legacy and simple formats)
+    # ------------------------------------------------------------------
+
     def _parse_results(self, results_dir: Path, exit_code: int) -> dict[str, Any]:
-        """Parse container output into NEL bundle format."""
+        """Parse container output into NEL bundle format.
+
+        Supports two result layouts:
+
+        1. **Legacy Evaluator** — ``results.yml`` with nested
+           ``results.tasks.<task>.metrics.<group>.scores.<metric>.value``
+        2. **Simple** — flat ``metrics:`` or ``scores:`` dict at the top
+           level of ``results.yml`` / ``results.json``.
+        """
         results_file = results_dir / "results.yml"
         results_json = results_dir / "results.json"
 
@@ -147,13 +235,7 @@ class ContainerEnvironment(EvalEnvironment):
         elif results_json.exists():
             raw = json.loads(results_json.read_text())
 
-        scores: dict[str, Any] = {}
-        source = raw.get("metrics") or raw.get("scores") or {}
-        for key, value in source.items():
-            if isinstance(value, (int, float)):
-                scores[key] = {"value": round(float(value), 4)}
-            elif isinstance(value, dict) and "value" in value:
-                scores[key] = value
+        scores = self._extract_scores(raw)
 
         return {
             "benchmark": {
@@ -169,3 +251,69 @@ class ContainerEnvironment(EvalEnvironment):
             },
             "_container_exit_code": exit_code,
         }
+
+    @staticmethod
+    def _extract_scores(raw: dict[str, Any]) -> dict[str, Any]:
+        """Extract scores from either legacy or simple format."""
+
+        # Legacy Evaluator format:
+        #   results:
+        #     tasks:
+        #       <task>:
+        #         metrics:
+        #           <group>:
+        #             scores:
+        #               <metric>:
+        #                 value: 0.85
+        #                 stats: { ... }
+        results_block = raw.get("results")
+        if isinstance(results_block, dict):
+            tasks = results_block.get("tasks") or {}
+            scores: dict[str, Any] = {}
+            for task_name, task_data in tasks.items():
+                if not isinstance(task_data, dict):
+                    continue
+                for group_name, group_data in (task_data.get("metrics") or {}).items():
+                    if not isinstance(group_data, dict):
+                        continue
+                    for metric_name, metric_data in (group_data.get("scores") or {}).items():
+                        if not isinstance(metric_data, dict) or "value" not in metric_data:
+                            continue
+                        key = f"{task_name}/{group_name}/{metric_name}"
+                        scores[key] = {
+                            "value": round(float(metric_data["value"]), 4),
+                        }
+                        if "stats" in metric_data:
+                            scores[key]["stats"] = metric_data["stats"]
+            if scores:
+                return scores
+
+            # Legacy format may also have groups
+            groups = results_block.get("groups") or {}
+            for group_name, group_data in groups.items():
+                if not isinstance(group_data, dict):
+                    continue
+                for mg_name, mg_data in (group_data.get("metrics") or {}).items():
+                    if not isinstance(mg_data, dict):
+                        continue
+                    for metric_name, metric_data in (mg_data.get("scores") or {}).items():
+                        if not isinstance(metric_data, dict) or "value" not in metric_data:
+                            continue
+                        key = f"{group_name}/{mg_name}/{metric_name}"
+                        scores[key] = {
+                            "value": round(float(metric_data["value"]), 4),
+                        }
+                        if "stats" in metric_data:
+                            scores[key]["stats"] = metric_data["stats"]
+            if scores:
+                return scores
+
+        # Simple flat format: metrics: {acc: 0.85} or scores: {acc: {value: 0.85}}
+        source = raw.get("metrics") or raw.get("scores") or {}
+        scores = {}
+        for key, value in source.items():
+            if isinstance(value, (int, float)):
+                scores[key] = {"value": round(float(value), 4)}
+            elif isinstance(value, dict) and "value" in value:
+                scores[key] = value
+        return scores

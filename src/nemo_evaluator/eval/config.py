@@ -490,10 +490,17 @@ class OpenClawSolverConfig(BaseModel):
 
 
 class ContainerSolverConfig(BaseModel):
-    """Container URI solver (NeMo Skills, etc.)."""
+    """Container URI solver (NeMo Skills, etc.).
+
+    The container receives a **legacy Evaluator** ``run_config.yaml`` with
+    ``config.type``, ``target.api_endpoint``, and any extra ``params``
+    defined here merged into ``config.params``.
+    """
     type: Literal["container"] = "container"
     service: str
     uri: str
+    endpoint_type: str | None = None
+    params: dict[str, Any] | None = None
 
     @field_validator("uri")
     @classmethod

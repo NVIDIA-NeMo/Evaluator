@@ -1,6 +1,12 @@
 # Flavor: Container harness (container:// URI)
-# Runs the nemo-skills eval container as an opaque box. The container
-# owns the full eval loop; nel parses results and adds reporting.
+# Runs a legacy eval-factory container as an opaque box.  NEL generates a
+# legacy-format run_config.yaml and mounts it at /config/run_config.yaml so
+# the container's `nemo-evaluator run_eval` entrypoint can consume it as-is.
+#
+# The container receives:
+#   - /config/run_config.yaml  (legacy Evaluator format with endpoint + params)
+#   - /results                 (bind-mount for output)
+#   - NEMO_API_KEY env var     (api_key_name in the config points here)
 #
 # Prerequisites:
 #   - NVIDIA_API_KEY set in environment
@@ -22,3 +28,8 @@ benchmarks:
       type: container
       service: nemotron
       uri: "container://gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/nemo-skills:26.03#gsm8k"
+      # Optional: pass legacy params into config.params (merged with framework.yml defaults)
+      # params:
+      #   temperature: 0.0
+      #   parallelism: 8
+      #   limit_samples: 100

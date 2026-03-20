@@ -1224,8 +1224,9 @@ class EcsFargateSandbox:
         return arn
 
     def _make_family_name(self) -> str:
+        nonce = uuid.uuid4().hex[:12]
         raw = (f"{self._cfg.task_definition_family_prefix}"
-               f"-{_sanitize_id(self._spec.image or 'sandbox')}-{int(time.time())}")
+               f"-{_sanitize_id(self._spec.image or 'sandbox')}-{nonce}")
         family = re.sub(r"[^A-Za-z0-9_-]", "_", raw)[:255]
         if not family or not re.match(r"^[A-Za-z0-9]", family):
             family = f"ecs_{family}"
