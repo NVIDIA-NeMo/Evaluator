@@ -6,7 +6,7 @@ services:
     ports:
       - "9090:9090"
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:9090/health').raise_for_status()"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9090/health')"]
       interval: 10s
       timeout: 5s
       retries: 3

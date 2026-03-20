@@ -513,6 +513,7 @@ async def _run_single_benchmark(
         proxy_handle = start_proxy(
             model_url, model_id, api_key,
             interceptors=_serialize_interceptors(svc.interceptors),
+            verbose=getattr(svc, "proxy_verbose", False),
         )
         model_url = proxy_handle.url
 

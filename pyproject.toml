@@ -39,6 +39,15 @@ inspect = ["inspect_ai"]
 export = ["wandb", "mlflow"]
 harnesses = ["nemo-evaluator[lm-eval]"]
 all = ["nemo-evaluator[scoring,stats,ray,skills,lm-eval,harbor,proxy]"]
+docs = [
+    "sphinx",
+    "sphinx-autobuild",
+    "sphinx-copybutton",
+    "nvidia-sphinx-theme",
+    "sphinxcontrib-mermaid",
+    "sphinx-design",
+    "myst-parser",
+]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",

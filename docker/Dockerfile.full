@@ -1,6 +1,6 @@
 # nemo-evaluator with all harnesses
 # For: any benchmark scheme. Larger image but zero additional pulls needed.
-FROM python:3.11-slim AS base
+FROM python:3.12-slim AS base
 
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 

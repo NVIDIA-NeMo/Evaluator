@@ -18,8 +18,8 @@ pip install -e ".[all]"            # everything
 
 ```bash
 nel eval run --bench mmlu \
-  --model-url https://api.example.com/v1 \
-  --model-id my-model \
+  --model-url https://integrate.api.nvidia.com/v1 \
+  --model-id nvidia/nemotron-3-super-120b-a12b \
   --repeats 3 --max-problems 100
 
 nel eval run config.yaml
@@ -57,9 +57,8 @@ services:
     model: nvidia/nemotron-3-super-120b-a12b
     api_key: ${NVIDIA_API_KEY}
     interceptors:
-      - my_module.MyCallback
-    proxy:
-      verbose: true
+      - name: my_module.MyCallback
+    proxy_verbose: true   # stream proxy logs to stderr
 ```
 
 Install with `pip install -e ".[proxy]"`. Works with both local and ECS Fargate sandboxes (reverse SSH tunnel established automatically).
@@ -121,7 +120,7 @@ Per-problem Docker/SLURM sandboxes for code execution and agentic evaluation. Tw
 
 ## SLURM
 
-Pyxis/Enroot-based execution with auto-selected container images per URI scheme. Supports colocated and separated (`nel serve`) environment modes.
+Pyxis/Enroot-based execution with auto-selected container images per URI scheme. Uses `node_pools` topology for flexible resource allocation across model, agent, and sandbox nodes.
 
 | Tag suffix | Contents |
 |------------|----------|

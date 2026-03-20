@@ -39,10 +39,10 @@ class MyBenchmark(EvalEnvironment):
     def __len__(self) -> int:
         return len(self._dataset)
 
-    def seed(self, idx: int) -> SeedResult:
+    async def seed(self, idx: int) -> SeedResult:
         ...
 
-    def verify(self, response: str, expected: str, **metadata) -> VerifyResult:
+    async def verify(self, response: str, expected: str, **metadata) -> VerifyResult:
         ...
 ```
 
@@ -89,6 +89,7 @@ async def run_evaluation(
     problem_range: tuple[int, int] | None = None,
     max_concurrent: int = 32,
     judge_client: Any = None,
+    shard_info: tuple[int, int] | None = None,
 ) -> dict[str, Any]:
 ```
 
@@ -103,6 +104,7 @@ async def run_evaluation(
 | `problem_range` | `(start, end)` for sharded execution |
 | `max_concurrent` | Max parallel solve tasks (default: 32) |
 | `judge_client` | Optional `ModelClient` for LLM-as-judge post-processing |
+| `shard_info` | `(shard_idx, total_shards)` — auto-computes `problem_range` if not set |
 
 Returns a bundle dict containing metrics, results, config, and artifacts.
 
@@ -229,10 +231,13 @@ Complete record for one seed → model → verify cycle.
 |---------|-------------|
 | `nel eval run` | Run evaluation (benchmark name or YAML config) |
 | `nel eval report` | Generate evaluation report |
+| `nel eval merge` | Merge sharded evaluation results |
 | `nel serve` | Start HTTP server for an environment |
 | `nel validate` | Quick validation of a benchmark |
 | `nel list` | Show available benchmarks and environments |
 | `nel regression` | Compare two evaluation bundles |
+| `nel config` | Persistent user config |
+| `nel package` | Containerize BYOB benchmark |
 
 ### `nel eval run`
 
@@ -246,6 +251,8 @@ nel eval run [CONFIG_FILE]
     --system-prompt TEXT     System prompt
     --adapter TEXT           Adapter URI (gym://host:port, skills://benchmark)
     --output-dir, -o TEXT    Output directory [./eval_results]
+    --resume                 Resume partially completed suite
+    -O, --override TEXT      Dot-path config overrides (e.g. services.model.model=foo)
     --no-progress            Disable progress bar
 ```
 
@@ -278,9 +285,17 @@ nel list
 ### `nel eval report`
 
 ```
-nel eval report
-    --input-dir TEXT         Directory with evaluation results
-    --output TEXT            Output report path
+nel eval report RESULTS_DIR
+    --format, -f TEXT        Output format (markdown, html, csv, json, latex)
+    --output, -o TEXT        Output report path
+    --all-formats            Generate all formats
+```
+
+### `nel eval merge`
+
+```
+nel eval merge OUTPUT_DIR
+    --repeats, -n INT        Override n_repeats (auto-detected if omitted)
 ```
 
 ### `nel regression`

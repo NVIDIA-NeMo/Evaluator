@@ -80,6 +80,7 @@ class _ModelServerBase(BaseModel):
     max_output_tokens: int | None = None
     generation: GenerationConfig = Field(default_factory=GenerationConfig)
     interceptors: list[InterceptorConfig] = Field(default_factory=list)
+    proxy_verbose: bool = False
     depends_on: list[str] = Field(default_factory=list)
     node_pool: str | None = None
 
@@ -128,6 +129,7 @@ class ExternalApiService(BaseModel):
     max_output_tokens: int | None = None
     generation: GenerationConfig = Field(default_factory=GenerationConfig)
     interceptors: list[InterceptorConfig] = Field(default_factory=list)
+    proxy_verbose: bool = False
 
     @property
     def is_model_server(self) -> bool:

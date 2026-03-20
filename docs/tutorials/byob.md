@@ -116,7 +116,7 @@ Gym training connects at `http://hostname:9090`.
 | `dataset` | `str \| Callable` | Yes | HuggingFace URI (`hf://...`), local JSONL path, or callable returning `list[dict]` |
 | `prompt` | `str` | Yes | Python format string using dataset field names |
 | `target_field` | `str` | No | Dataset field containing the expected answer (default: `"target"`) |
-| `endpoint_type` | `str` | No | `"chat"` or `"completion"` (default: `"chat"`) |
+| `endpoint_type` | `str` | No | `"chat"` or `"completion"` (default: `"chat"`). In YAML configs, protocol is set on the service instead. |
 | `system_prompt` | `str` | No | System message prepended to the conversation |
 | `field_mapping` | `dict` | No | Rename dataset fields before prompt formatting |
 | `prepare_row` | `Callable` | No | `(row, idx, rng) -> row` -- transform each dataset row after loading |

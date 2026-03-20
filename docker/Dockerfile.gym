@@ -1,8 +1,6 @@
 # nemo-evaluator + NeMo Gym resource servers
 # For: gym:// benchmarks running native Gym servers (spider2_lite, xstest, finance, etc.)
 #
-# Gym requires Python >=3.12.
-#
 # Build:
 #   docker build -f docker/Dockerfile.gym -t nemo-evaluator:gym .
 #

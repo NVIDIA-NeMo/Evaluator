@@ -148,12 +148,8 @@ nel list  # shows built-in + skills if installed
 
 Combine with sharding for large benchmarks:
 
-```bash
-nel eval run --bench skills://mmlu --executor slurm \
-    --slurm-partition batch --repeats 4
-```
+Use SLURM sharding via a config file (see {doc}`distributed-eval`), or use environment variables directly:
 
-Or via environment variables:
 
 ```bash
 NEL_SHARD_IDX=0 NEL_TOTAL_SHARDS=8 nel eval run --bench skills://mmlu --repeats 4

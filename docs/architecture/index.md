@@ -79,7 +79,7 @@ flowchart TB
     REG --> VLM
 
     LOOP --> JUDGE
-    Runner --> LITELLM
+    LOOP --> LITELLM
     LITELLM --> INTERCEPT
 
     style CLI fill:#e8eaf6
@@ -98,7 +98,7 @@ flowchart TB
 |---------|---------------|-----------|
 | `environments/` | Base class, registry, `@benchmark` BYOB API, environment types | `EvalEnvironment`, `SeedResult`, `VerifyResult`, `BenchmarkDefinition` |
 | `benchmarks/` | 15 built-in benchmarks (all `@benchmark` + `@scorer`) | Scorer functions |
-| `solvers/` | Pluggable inference strategies | `Solver`, `ChatSolver`, `CompletionSolver`, `VLMSolver`, `HarborSolver`, `GymSolver`, `NatSolver`, `OpenClawSolver` |
+| `solvers/` | Pluggable inference strategies | `Solver`, `ChatSolver`, `VLMSolver`, `HarborSolver`, `GymSolver`, `NatSolver`, `OpenClawSolver` (config `type`: `simple` → ChatSolver/VLMSolver, `harbor`, `gym_delegation`, etc.) |
 | `runner/` | Eval loop, model client, checkpoint, regression, export plugins | `run_evaluation()`, `ModelClient`, `CheckpointManager`, `InspectExporter`, `WandBExporter` |
 | `serving/` | HTTP server for environments (evaluator + Gym protocol) | `generate_app()` |
 | `executors/` | Executor protocol and backends (local, Docker, SLURM) | `Executor`, `get_executor()`, `detect_executor()`, `ProcessState` |
@@ -108,7 +108,7 @@ flowchart TB
 | `scoring/` | Verification scorers, judge pipeline, JSON schema | `exact_match`, `code_sandbox`, `needs_judge` |
 | `observability/` | Rich telemetry capture | `StepRecord`, `ModelResponse`, `RuntimeStats`, `ArtifactCollector` |
 | `metrics/` | Statistical aggregation | `pass_at_k()`, `bootstrap_ci()`, `category_breakdown()` |
-| `cli/` | CLI commands | `nel eval run`, `nel serve`, `nel validate`, `nel report`, `nel regression` |
+| `cli/` | CLI commands | `nel eval run`, `nel eval report`, `nel eval merge`, `nel serve`, `nel validate`, `nel list`, `nel regression`, `nel config`, `nel package` |
 
 ## Environment Abstraction
 
@@ -282,13 +282,12 @@ nel eval run config.yaml    # with cluster.type: slurm
 
 The `eval/deployment.py` module manages model server lifecycle:
 
-| Type | Class | Description |
-|------|-------|-------------|
+| Config `type` | Internal class | Description |
+|---------------|---------------|-------------|
 | `api` | `APIDeployment` | External API, no server management |
-| `nim` | `NIMDeployment` | NIM container with standard NIM env vars |
-| `docker` | `DockerModelDeployment` | Generic Docker container |
 | `vllm` | `ProcessModelDeployment` | Local vLLM process |
 | `sglang` | `ProcessModelDeployment` | Local SGLang process |
+| `trt_llm` | `ProcessModelDeployment` | Local TensorRT-LLM process |
 
 All deployments implement `start() -> url`, `health_wait()`, and `stop()`.
 

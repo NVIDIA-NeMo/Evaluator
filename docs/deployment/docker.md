@@ -48,7 +48,7 @@ for i in 0 1 2 3; do
 done
 
 # Merge after all complete
-docker compose run eval-local nel eval report --input-dir /app/eval_results
+docker compose run eval-local nel eval merge /app/eval_results
 ```
 
 ## Health checks

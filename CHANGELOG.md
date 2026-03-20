@@ -18,7 +18,7 @@
 - **`GenerationConfig`**: Per-service generation parameters (temperature, top_p, max_tokens) with range validation and `merge_onto()` for field-by-field overrides.
 - **`InterceptorConfig`**: Per-service LiteLLM interceptor configuration.
 - **Extensibility**: `CustomService`, `CustomSandbox`, `CustomSolverConfig`, `CustomMetric` with `class_path` + `config` for plugin support.
-- All 24 example configs rewritten to the new format.
+- All 25 example configs rewritten to the new format.
 
 ### Eval Sharding
 

@@ -110,18 +110,20 @@ Per-problem container on AWS ECS Fargate. No local Docker required.
 ```yaml
 benchmarks:
   - name: harbor://swebench-verified@1.0
+    solver:
+      type: harbor
+      service: model
+      agent: openhands
     sandbox:
-      backend: ecs_fargate
-      harbor_agent: openhands
-      ecs:
-        cluster: harbor-cluster
-        subnets: [subnet-abc123]
-        security_groups: [sg-def456]
-        ecr_repository: 123456789.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench
-        ssh_sidecar:
-          sshd_port: 2222
-          public_key_secret_arn: arn:aws:secretsmanager:...
-          private_key_secret_arn: arn:aws:secretsmanager:...
+      type: ecs_fargate
+      cluster: harbor-cluster
+      subnets: [subnet-abc123]
+      security_groups: [sg-def456]
+      ecr_repository: 123456789.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench
+      ssh_sidecar:
+        sshd_port: 2222
+        public_key_secret_arn: arn:aws:secretsmanager:...
+        private_key_secret_arn: arn:aws:secretsmanager:...
 ```
 
 ### ApptainerSandbox
@@ -138,7 +140,7 @@ Async subprocess in a temp directory. No container isolation. For development an
 benchmarks:
   - name: gym://swebench-server
     sandbox:
-      backend: docker
+      type: docker
       image_template: "swebench/sweb.eval.x86_64.{instance_id}:latest"
       concurrency: 8
       memory: 4g
@@ -151,11 +153,18 @@ benchmarks:
 benchmarks:
   - name: gym://swebench-server
     sandbox:
-      backend: slurm
+      type: slurm
       image_template: "swebench/sweb.eval.x86_64.{instance_id}:latest"
       concurrency: 16
-      sandbox_nodes: 4
+      node_pool: sandbox
       slots_per_node: 4
+
+cluster:
+  type: slurm
+  node_pools:
+    sandbox:
+      partition: batch
+      nodes: 4
 ```
 
 4 sandbox nodes × 4 slots/node = 16 concurrent sandboxes on 4 nodes.
@@ -166,7 +175,7 @@ benchmarks:
 benchmarks:
   - name: humaneval
     sandbox:
-      backend: docker
+      type: docker
       image: python:3.12-slim
       network: none
       memory: 256m
@@ -256,5 +265,5 @@ class SWEBenchEnvironment(EvalEnvironment):
 
 1. Create `sandbox/my_backend.py` implementing the `Sandbox` protocol.
 2. Add a branch in `SandboxManager._create()`.
-3. Add the backend name to `SandboxConfig.backend` literal.
+3. Add a `CustomSandbox` variant or extend the `SandboxConfig` union.
 4. Handle emergency cleanup in `SandboxManager._sync_cleanup()`.

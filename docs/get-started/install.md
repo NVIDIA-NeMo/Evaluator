@@ -23,8 +23,10 @@ pip install -e ".[scoring]"
 | `harbor` | `pip install -e ".[harbor]"` | Harbor agent integration (OpenHands, Terminus-2, etc.) |
 | `proxy` | `pip install -e ".[proxy]"` | LiteLLM proxy for LLM traffic observability and interception |
 | `inspect` | `pip install -e ".[inspect]"` | Inspect AI log export (`inspect_ai`-compatible `EvalLog` files) |
+| `ray` | `pip install -e ".[ray]"` | Ray distributed launcher |
 | `harnesses` | `pip install -e ".[harnesses]"` | lm-evaluation-harness tasks |
 | `export` | `pip install -e ".[export]"` | WandB and MLflow experiment tracker export |
+| `docs` | `pip install -e ".[docs]"` | Sphinx, NVIDIA theme, mermaid for building docs |
 | `all` | `pip install -e ".[all]"` | Everything above |
 | `dev` | `pip install -e ".[dev]"` | pytest, ruff, all extras |
 
@@ -38,12 +40,12 @@ nel list
 Expected output:
 
 ```
-nemo-evaluator 0.11.0
+nemo-evaluator 0.12.0
 
 Available environments:
   drop, gpqa, gsm8k, healthbench, humaneval, math500,
   mgsm, mmlu, mmlu_pro, pinchbench, simpleqa,
-  swebench_multilingual, swebench_verified, triviaqa, xstest
+  swebench-multilingual, swebench-verified, triviaqa, xstest
 ```
 
 ## Docker

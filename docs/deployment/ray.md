@@ -71,4 +71,4 @@ def run_shard(...):
     ...
 ```
 
-Adjust based on dataset size and concurrency. The `ModelClient` default is 16 concurrent requests.
+Adjust based on dataset size and concurrency. The `ModelClient` default is 8 concurrent requests.
