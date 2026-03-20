@@ -719,7 +719,7 @@ class BenchmarkConfig(BaseModel):
     def _solver_requires_sandbox(self) -> BenchmarkConfig:
         _NEEDS_SANDBOX = (
             HarborSolverConfig, AgentSolverConfig,
-            OpenClawSolverConfig, ContainerSolverConfig,
+            OpenClawSolverConfig,
         )
         if isinstance(self.solver, _NEEDS_SANDBOX):
             if isinstance(self.sandbox, NoSandbox):

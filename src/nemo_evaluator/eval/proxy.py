@@ -87,6 +87,14 @@ class ProxyHandle:
         )
 
 
+def _strip_chat_completions(url: str) -> str:
+    """Strip trailing ``/chat/completions`` so LiteLLM doesn't double it."""
+    for suffix in ("/chat/completions", "/chat/completions/"):
+        if url.endswith(suffix):
+            return url[: -len(suffix)]
+    return url
+
+
 def _build_config(
     model_url: str,
     model_id: str,
@@ -98,7 +106,7 @@ def _build_config(
     """Build a LiteLLM proxy config dict."""
     litellm_params: dict[str, Any] = {
         "model": f"openai/{model_id}",
-        "api_base": model_url,
+        "api_base": _strip_chat_completions(model_url),
     }
     if api_key:
         litellm_params["api_key"] = api_key

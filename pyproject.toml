@@ -34,11 +34,12 @@ ray = ["ray[default]>=2.9"]
 skills = ["nemo-skills @ git+https://github.com/NVIDIA-NeMo/Skills.git"]
 lm-eval = ["lm_eval>=0.4"]
 harbor = ["harbor"]
-proxy = ["litellm[proxy]"]
+proxy = ["litellm"]
+proxy-full = ["litellm[proxy]"]
 inspect = ["inspect_ai"]
 export = ["wandb", "mlflow"]
 harnesses = ["nemo-evaluator[lm-eval]"]
-all = ["nemo-evaluator[scoring,stats,ray,lm-eval,harbor]"]
+all = ["nemo-evaluator[scoring,stats,ray,lm-eval,harbor,proxy]"]
 docs = [
     "sphinx",
     "sphinx-autobuild",

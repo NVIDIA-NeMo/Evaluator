@@ -15,20 +15,23 @@ services:
     protocol: chat_completions
     model: nvidia/nemotron-3-super-120b-a12b
     api_key: ${NVIDIA_API_KEY}
+    proxy_verbose: true
+    interceptors:
+      - name: turn_counter
 
 benchmarks:
   - name: pinchbench
     max_problems: 3
     timeout: 300.0
-    max_concurrent: 2
+    max_concurrent: 3
     solver:
       type: openclaw
       service: nemotron
-      max_concurrent: 2
     sandbox:
       type: ecs_fargate
+      image: ghcr.io/openclaw/openclaw
       timeout: 300.0
-      concurrency: 2
+      concurrency: 3
       region: us-west-2
       cluster: harbor-cluster
       subnets:

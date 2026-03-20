@@ -22,7 +22,3 @@ benchmarks:
       type: container
       service: nemotron
       uri: "container://gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/nemo-skills:26.03#gsm8k"
-    sandbox:
-      type: docker
-      timeout: 3600.0
-      concurrency: 2
