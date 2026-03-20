@@ -102,6 +102,7 @@ deployment:
 # Only override fields that differ from the vllm default.
 auxiliary_deployments:
   judge:
+    checkpoint_path: null  # Uses hf_model_handle; set to a path for local checkpoints
     hf_model_handle: Qwen/Qwen2.5-72B-Instruct  # Large judge; replace if needed
     served_model_name: Qwen/Qwen2.5-72B-Instruct
     port: 8001  # Different port to avoid collision with primary
