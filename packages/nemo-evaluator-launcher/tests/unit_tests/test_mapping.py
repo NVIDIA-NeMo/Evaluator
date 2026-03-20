@@ -297,6 +297,97 @@ def test_get_task_definition_for_job_default_container_from_harness(monkeypatch)
     assert td["endpoint_type"] == "completions"
 
 
+def test_get_task_from_mapping_dotted_task_name():
+    """Test that task names with multiple dots are handled correctly.
+
+    The first dot separates harness from task name; additional dots are
+    part of the task name (e.g. mteb.Touche2020Retrieval.v3).
+    """
+    tasks_mapping = {
+        ("mteb", "Touche2020Retrieval.v3"): {
+            "task": "Touche2020Retrieval.v3",
+            "harness": "mteb",
+            "container": "test-container:latest",
+            "endpoint_type": "embedding",
+        },
+        ("mteb", "MIRACLRetrievalHardNegatives.en"): {
+            "task": "MIRACLRetrievalHardNegatives.en",
+            "harness": "mteb",
+            "container": "test-container:latest",
+            "endpoint_type": "embedding",
+        },
+        ("mteb", "ArguAna"): {
+            "task": "ArguAna",
+            "harness": "mteb",
+            "container": "test-container:latest",
+            "endpoint_type": "embedding",
+        },
+    }
+
+    # Multi-dot query: harness.task.version
+    result = get_task_from_mapping("mteb.Touche2020Retrieval.v3", tasks_mapping)
+    assert result["task"] == "Touche2020Retrieval.v3"
+    assert result["harness"] == "mteb"
+
+    # Multi-dot query: harness.task.language
+    result = get_task_from_mapping(
+        "mteb.MIRACLRetrievalHardNegatives.en", tasks_mapping
+    )
+    assert result["task"] == "MIRACLRetrievalHardNegatives.en"
+    assert result["harness"] == "mteb"
+
+    # Single-dot query still works
+    result = get_task_from_mapping("mteb.ArguAna", tasks_mapping)
+    assert result["task"] == "ArguAna"
+    assert result["harness"] == "mteb"
+
+    # No-dot query still works
+    result = get_task_from_mapping("ArguAna", tasks_mapping)
+    assert result["task"] == "ArguAna"
+
+    # Non-existent multi-dot task raises
+    with pytest.raises(ValueError, match="does not exist in the mapping"):
+        get_task_from_mapping("mteb.NonExistent.v1", tasks_mapping)
+
+
+def test_minimal_task_definition_dotted_task_name(monkeypatch):
+    """Test that _minimal_task_definition handles multi-dot task names."""
+    from nemo_evaluator_launcher.common.mapping import _minimal_task_definition
+
+    td = _minimal_task_definition(
+        "mteb.Touche2020Retrieval.v3",
+        container="test:latest",
+        endpoint_type="embedding",
+    )
+    assert td["harness"] == "mteb"
+    assert td["task"] == "Touche2020Retrieval.v3"
+    assert td["endpoint_type"] == "embedding"
+    assert td["is_unlisted"] is True
+
+
+def test_get_task_definition_for_job_dotted_task_name(monkeypatch):
+    """Test that get_task_definition_for_job handles multi-dot task names."""
+    container = "example.com/my-image:latest"
+    base_mapping = {}
+
+    monkeypatch.setattr(
+        "nemo_evaluator_launcher.common.mapping.load_tasks_mapping",
+        lambda *args, **kwargs: {},
+    )
+
+    td = get_task_definition_for_job(
+        task_query="mteb.Touche2020Retrieval.v3",
+        base_mapping=base_mapping,
+        container=container,
+        endpoint_type="embedding",
+    )
+
+    assert td["harness"] == "mteb"
+    assert td["task"] == "Touche2020Retrieval.v3"
+    assert td["is_unlisted"] is True
+    assert td["endpoint_type"] == "embedding"
+
+
 def test_get_task_definition_for_job_unknown_harness_raises(monkeypatch):
     """When harness not found in supported harnesses, raise error."""
 

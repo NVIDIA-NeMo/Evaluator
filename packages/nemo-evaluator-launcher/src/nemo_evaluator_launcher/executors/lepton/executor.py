@@ -213,9 +213,9 @@ class LeptonExecutor(BaseExecutor):
 
                 for idx, task in enumerate(cfg.evaluation.tasks):
                     # Create shorter endpoint names: e.g., "nim-gpqa-0-abc123"
-                    sanitized_task_name = task.name.replace("_", "-").lower()
-                    if sanitized_task_name.count(".") > 0:
-                        sanitized_task_name = sanitized_task_name.split(".")[-1]
+                    sanitized_task_name = (
+                        task.name.replace("_", "-").replace(".", "-").lower()
+                    )
                     # Take only first 6 chars of task name to keep it short (leaving room for index)
                     short_task_name = sanitized_task_name[:6]
                     short_invocation = invocation_id[:6]
@@ -416,9 +416,9 @@ class LeptonExecutor(BaseExecutor):
                 # Create job ID and Lepton job name (max 36 chars)
                 job_id = generate_job_id(invocation_id, idx)
                 # Sanitized task name for RFC 1123 compliance (no underscores, lowercase)
-                sanitized_task_name = task.name.replace("_", "-").lower()
-                if sanitized_task_name.count(".") > 0:
-                    sanitized_task_name = sanitized_task_name.split(".")[-1]
+                sanitized_task_name = (
+                    task.name.replace("_", "-").replace(".", "-").lower()
+                )
                 base_job_name = f"eval-{invocation_id[:6]}-{sanitized_task_name}"
                 suffix = str(idx)
 
