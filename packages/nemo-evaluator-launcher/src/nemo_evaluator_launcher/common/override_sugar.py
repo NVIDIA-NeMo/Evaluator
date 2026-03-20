@@ -81,7 +81,7 @@ def _is_task_name_override(override: str) -> bool:
     # sugar (it would be an error later, but it's not a valid Hydra index override either).
     first_segment = rest.split(".", 1)[0].split("=", 1)[0]
     if not first_segment:
-        return False
+        raise ValueError("invalid override={override!r}")
 
     try:
         int(first_segment)
