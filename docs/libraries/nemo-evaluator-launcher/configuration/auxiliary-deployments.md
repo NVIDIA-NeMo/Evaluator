@@ -50,6 +50,15 @@ Additionally, auxiliary deployments support these **auxiliary-specific** fields:
 | `env_prefix` | `<NAME>.upper()` | Prefix for generated environment variables (e.g., `JUDGE` for a `judge` deployment) |
 
 :::{tip}
+The health check timeout for all deployments (primary and auxiliary) is controlled by `execution.endpoint_readiness_timeout` (in seconds). If not set, it defaults to the job walltime. Example:
+
+```yaml
+execution:
+  endpoint_readiness_timeout: 7200  # 2 hours
+```
+:::
+
+:::{tip}
 Auxiliary deployments **support Hydra `defaults:` composition**. Use the `@` package directive to apply deployment defaults to an auxiliary:
 
 ```yaml
