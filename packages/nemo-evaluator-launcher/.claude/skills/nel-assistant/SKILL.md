@@ -220,7 +220,7 @@ deployment:
 
 Print the following commands to the user. Propose to execute them in order to confirm the config works as expected before the full run.
 
-**Important**: Export required environment variables based on your config. Ask the user to provide `HF_TOKEN`, even if they are not using a gated model (like Llama) or dataset (like GPQA), to reduce Hugging Face rate limiting errors. Remind the user to get access to GPQA, if it's in the config ("Please, click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa"), and ask them to put missing tokens or keys (e.g. `HF_TOKEN`, `NVIDIA_API_KEY`, `api_key_name` from the config) in a `.env` file in the project root so you can run `set -a && source .env && set +a` (or equivalent) before executing `nel run` commands.
+**Important**: Ensure required environment variables are available. Ask the user to provide `HF_TOKEN`, even if they are not using a gated model (like Llama) or dataset (like GPQA), to reduce Hugging Face rate limiting errors. Remind the user to get access to GPQA, if it's in the config ("Please, click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa"), and ask them to put missing tokens or keys (e.g. `HF_TOKEN`, `NVIDIA_API_KEY`, `api_key_name` from the config) in a `.env` file in the project root. NEL automatically reads `.env` — no need to source it manually.
 
 ```bash
 # If using pre_cmd or post_cmd:
