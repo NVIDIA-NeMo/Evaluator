@@ -83,8 +83,8 @@ class MockSandboxManager:
         self._acquired: list[MockSandbox] = []
         self._pulled: set[str] = set()
 
-    def resolve_spec(self, seed, extra_volumes=None):
-        return seed.sandbox_spec
+    def resolve_spec(self, seed, extra_volumes=None, base_override=None):
+        return base_override or seed.sandbox_spec
 
     async def acquire(self, spec, outside_endpoints=None) -> MockSandbox:
         sb = MockSandbox(image=spec.image, exec_results=self._exec_results)
@@ -127,6 +127,12 @@ class FixturedEnvironment:
 
     def __len__(self) -> int:
         return len(self._data)
+
+    async def prepare(self) -> None:
+        pass
+
+    async def image_build_requests(self) -> list:
+        return []
 
     async def seed(self, idx: int):
         from nemo_evaluator.environments.base import SeedResult

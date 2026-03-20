@@ -1,10 +1,13 @@
-# Flavor: SLURM cluster + vLLM auto-deploy
-# Submits a SLURM job that auto-deploys vLLM, then runs the benchmark.
+# Flavor: SLURM array job — sharded evaluation
+# Splits the benchmark across 4 SLURM array tasks for parallel execution.
+# Each task evaluates a disjoint slice of the dataset.
 #
 # Prerequisites:
 #   - Access to a SLURM cluster with GPU nodes
 #   - Model weights accessible on shared filesystem
-# Run: nel eval run examples/configs/15_slurm_gsm8k_vllm.yaml
+# Run: nel eval run examples/configs/15a_slurm_gsm8k_vllm_sharded.yaml --submit
+# After all tasks complete:
+#   nel eval merge ./eval_results
 
 services:
   model:
@@ -17,7 +20,6 @@ services:
 
 benchmarks:
   - name: gsm8k
-    max_problems: 50
     solver:
       type: simple
       service: model
@@ -25,6 +27,7 @@ benchmarks:
 cluster:
   type: slurm
   walltime: "02:00:00"
+  shards: 4
   node_pools:
     compute:
       partition: batch

@@ -8,37 +8,44 @@
 #   - ECS cluster, subnets, security groups, and SSH key pair in Secrets Manager
 # Run: nel eval run examples/configs/12_pinchbench_openclaw.yaml
 
-model:
-  url: https://integrate.api.nvidia.com/v1
-  id: nvidia/nemotron-3-super-120b-a12b
-  api_key: ${NVIDIA_API_KEY}
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
 
 benchmarks:
   - name: pinchbench
     max_problems: 3
-    endpoint_type: openclaw
+    timeout: 300.0
+    max_concurrent: 2
+    solver:
+      type: openclaw
+      service: nemotron
+      max_concurrent: 2
     sandbox:
-      backend: ecs_fargate
+      type: ecs_fargate
       timeout: 300.0
       concurrency: 2
-      ecs:
-        region: us-west-2
-        cluster: harbor-cluster
-        subnets:
-          - subnet-0ac852ca0a783a332
-          - subnet-0500dcb4c191d93a8
-        security_groups:
-          - sg-035f677c8d037013c
-        assign_public_ip: true
-        execution_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-execution"
-        task_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-task"
-        log_group: "/ecs/harbor/us-west-2"
-        log_stream_prefix: pinchbench
-        cpu: "2048"
-        memory: "4096"
-        s3_bucket: "harbor-staging-20260210135420899800000003"
-        ssh_sidecar:
-          sshd_port: 2222
-          ssh_ready_timeout_sec: 120
-          public_key_secret_arn: "arn:aws:secretsmanager:us-west-2:463701203462:secret:harbor-ssh-tunnel-pubkey-us-west-2-pcm7ZZ"
-          private_key_secret_arn: "arn:aws:secretsmanager:us-west-2:463701203462:secret:harbor-ssh-tunnel-privkey-us-west-2-d3G7CV"
+      region: us-west-2
+      cluster: harbor-cluster
+      subnets:
+        - subnet-0ac852ca0a783a332
+        - subnet-0500dcb4c191d93a8
+      security_groups:
+        - sg-035f677c8d037013c
+      assign_public_ip: true
+      execution_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-execution"
+      task_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-task"
+      log_group: "/ecs/harbor/us-west-2"
+      log_stream_prefix: pinchbench
+      cpu: "2048"
+      memory: "4096"
+      s3_bucket: "harbor-staging-20260210135420899800000003"
+      ssh_sidecar:
+        sshd_port: 2222
+        ssh_ready_timeout_sec: 120
+        public_key_secret_arn: "arn:aws:secretsmanager:us-west-2:463701203462:secret:harbor-ssh-tunnel-pubkey-us-west-2-pcm7ZZ"
+        private_key_secret_arn: "arn:aws:secretsmanager:us-west-2:463701203462:secret:harbor-ssh-tunnel-privkey-us-west-2-d3G7CV"

@@ -6,25 +6,30 @@
 #   - NVIDIA_API_KEY set in environment
 #   - Docker running locally
 #   - nemo-gym server running: ng_run --agent openhands --port 8000
-# .venv/bin/ng_run \
-# "+config_paths=[responses_api_agents/swe_agents/configs/swe_multilingual_openhands.yaml]" \
-# "swe_multilingual_openhands.responses_api_agents.swe_agents.container_formatter=docker://swebench/sweb.eval.x86_64.\{instance_id\}" \
-# "swe_multilingual_openhands.responses_api_agents.swe_agents.dataset_path=responses_api_agents/swe_agents/data/swe_multilingual_example.jsonl"
 # Run: nel eval run examples/configs/09_gym_runtime.yaml
 
-model:
-  url: https://integrate.api.nvidia.com/v1
-  id: nvidia/nemotron-3-super-120b-a12b
-  api_key: ${NVIDIA_API_KEY}
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+  swe_gym:
+    type: gym
+    url: http://localhost:11413
 
 benchmarks:
   - name: swebench-multilingual
     max_problems: 3
-    endpoint_type: gym
-    gym_url: http://localhost:11413
-    gym_agent: openhands
-    gym_trust_reward: false
+    max_concurrent: 2
+    solver:
+      type: gym_delegation
+      service: nemotron
+      gym_service: swe_gym
+      gym_agent: openhands
+      trust_reward: false
     sandbox:
-      backend: docker
+      type: docker
       timeout: 1800.0
       concurrency: 2

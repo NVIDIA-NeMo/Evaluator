@@ -8,18 +8,41 @@ import pytest
 
 from nemo_evaluator.eval.config import (
     BenchmarkConfig,
-    ClusterConfig,
+    DockerCluster,
     EvalConfig,
-    ModelConfig,
+    ExternalApiService,
+    LocalCluster,
     OutputConfig,
+    SimpleSolver,
+    SlurmCluster,
+    NodePool,
 )
 
 
 def _make_config(cluster_type: str = "docker", bench: str = "gsm8k") -> EvalConfig:
+    svc = ExternalApiService(
+        type="api",
+        url="http://localhost:8000/v1/chat/completions",
+        protocol="chat_completions",
+        model="test-model",
+    )
+    solver = SimpleSolver(type="simple", service="model")
+    benchmark = BenchmarkConfig(name=bench, solver=solver)
+
+    if cluster_type == "docker":
+        cluster = DockerCluster(type="docker")
+    elif cluster_type == "slurm":
+        cluster = SlurmCluster(
+            type="slurm",
+            node_pools={"compute": NodePool(partition="batch")},
+        )
+    else:
+        cluster = LocalCluster(type="local")
+
     return EvalConfig(
-        model=ModelConfig(url="http://localhost:8000/v1", id="test-model"),
-        benchmarks=[BenchmarkConfig(name=bench)],
-        cluster=ClusterConfig(type=cluster_type),
+        services={"model": svc},
+        benchmarks=[benchmark],
+        cluster=cluster,
         output=OutputConfig(dir="/tmp/nel-test"),
     )
 
@@ -28,7 +51,6 @@ class TestDispatchOverride:
     """CLI dispatch should force local executor when NEL_INNER_EXECUTION=1."""
 
     def test_forces_local_when_inner(self):
-        """With NEL_INNER_EXECUTION=1, get_executor receives 'local' even if config says 'docker'."""
         executor_mock = MagicMock()
 
         with patch.dict(os.environ, {"NEL_INNER_EXECUTION": "1"}):
@@ -42,7 +64,6 @@ class TestDispatchOverride:
                 get.assert_called_once_with("local")
 
     def test_respects_config_without_env(self):
-        """Without the env var, executor type matches config."""
         executor_mock = MagicMock()
         env = os.environ.copy()
         env.pop("NEL_INNER_EXECUTION", None)
@@ -58,7 +79,6 @@ class TestDispatchOverride:
                 get.assert_called_once_with("docker")
 
     def test_ignores_zero_value(self):
-        """NEL_INNER_EXECUTION=0 must NOT trigger the override (strict '1' check)."""
         executor_mock = MagicMock()
 
         with patch.dict(os.environ, {"NEL_INNER_EXECUTION": "0"}):
@@ -72,7 +92,6 @@ class TestDispatchOverride:
                 get.assert_called_once_with("docker")
 
     def test_ignores_false_string(self):
-        """NEL_INNER_EXECUTION=false must NOT trigger the override."""
         with patch.dict(os.environ, {"NEL_INNER_EXECUTION": "false"}):
             config = _make_config("slurm")
             executor_type = config.cluster.type
@@ -98,7 +117,6 @@ class TestDockerEnvFlag:
         assert "NEL_INNER_EXECUTION=1" in captured.out
 
     def test_config_not_mutated(self, tmp_path):
-        """Serialized config must preserve the original cluster.type (no mutation)."""
         import json
         from nemo_evaluator.executors.docker import DockerExecutor
 
@@ -122,7 +140,6 @@ class TestSlurmHeaderFlag:
         from nemo_evaluator.eval.slurm_gen import generate_sbatch
 
         config = _make_config("slurm", bench="gsm8k")
-        config.cluster.type = "slurm"
 
         script = generate_sbatch(config)
         assert "export NEL_INNER_EXECUTION=1" in script
@@ -131,7 +148,6 @@ class TestSlurmHeaderFlag:
         from nemo_evaluator.eval.slurm_gen import generate_sbatch
 
         config = _make_config("slurm", bench="gsm8k")
-        config.cluster.type = "slurm"
 
         script = generate_sbatch(config)
         lines = script.splitlines()

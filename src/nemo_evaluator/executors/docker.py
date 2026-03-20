@@ -79,7 +79,7 @@ class DockerExecutor:
 
         from nemo_evaluator.eval.containers import resolve_eval_image, scheme_to_variant
 
-        base = config.cluster.container_image
+        base = getattr(config.cluster, "image", None) or getattr(config.cluster, "container_image", None)
         local_build = not base or base == "local"
 
         if local_build:
@@ -101,15 +101,15 @@ class DockerExecutor:
         output_dir = str(Path(config.output.dir).resolve())
 
         mount_args = ["-v", f"{output_dir}:{output_dir}"]
-        for m in config.cluster.container_mounts:
+        for m in getattr(config.cluster, "container_mounts", []):
             mount_args.extend(["-v", m])
-        if config.cluster.mount_home:
+        if getattr(config.cluster, "mount_home", True):
             home = os.environ.get("HOME", "")
             if home:
                 mount_args.extend(["-v", f"{home}:{home}"])
 
         env_args: list[str] = []
-        for k, v in config.cluster.container_env.items():
+        for k, v in getattr(config.cluster, "container_env", {}).items():
             env_args.extend(["-e", f"{k}={v}"])
         _FORWARD_ENVS = (
             "NEMO_API_KEY", "NEMO_MODEL_URL", "NEMO_MODEL_ID",
@@ -128,10 +128,9 @@ class DockerExecutor:
             json.dumps(config.model_dump(), default=str), encoding="utf-8",
         )
 
-        shm = config.cluster.shm_size
+        shm = getattr(config.cluster, "shm_size", None)
         if not shm:
-            services = config.resolved_services() if hasattr(config, "resolved_services") else {}
-            if any(s.type == "gym" for s in services.values()):
+            if any(s.type == "gym" for s in config.services.values()):
                 shm = "2g"
         extra_docker_args: list[str] = []
         if shm:

@@ -14,10 +14,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import platform
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Self
+from urllib.parse import urlparse, urlunparse
 from uuid import uuid4
 
 from nemo_evaluator.sandbox.base import ExecResult, OutsideEndpoint, SandboxSpec
@@ -67,6 +69,7 @@ class ApptainerSandbox:
         node: str | None = None,
         sif_cache_dir: str | None = None,
         memory_mb: int | None = None,
+        het_group: int | None = None,
     ) -> None:
         _check_apptainer_version()
         self._spec = spec
@@ -75,6 +78,7 @@ class ApptainerSandbox:
             "APPTAINER_CACHEDIR", "/tmp/nel_sif_cache"
         )
         self._memory_mb = memory_mb
+        self._het_group = het_group
         self._instance_name = f"nel-{uuid4().hex[:12]}"
         self._staging_dir: Path | None = None
         self._running = False
@@ -94,11 +98,14 @@ class ApptainerSandbox:
     def _srun_prefix(self) -> list[str]:
         """When running on a SLURM node, prefix commands with srun."""
         if self._node:
-            return [
+            prefix = [
                 "srun", "--overlap",
                 f"--nodelist={self._node}",
                 "--ntasks=1",
             ]
+            if self._het_group is not None:
+                prefix.append(f"--het-group={self._het_group}")
+            return prefix
         return []
 
     async def start(
@@ -106,7 +113,8 @@ class ApptainerSandbox:
     ) -> None:
         import tempfile
 
-        staging = tempfile.mkdtemp(prefix="nel_apptainer_staging_")
+        staging_base = self._sif_cache_dir if self._node else None
+        staging = tempfile.mkdtemp(prefix="nel_apptainer_staging_", dir=staging_base)
         self._staging_dir = Path(staging)
 
         sif = self._sif_path()
@@ -117,6 +125,7 @@ class ApptainerSandbox:
             "apptainer", "instance", "start",
             "--writable-tmpfs",
             "--cleanenv",
+            "--no-home",
             "--bind", f"{staging}:/_staging",
         ])
 
@@ -241,6 +250,14 @@ class ApptainerSandbox:
         shutil.copy2(str(self._staging_dir / fname), str(local_path))
 
     def resolve_outside_endpoint(self, url: str) -> str:
+        if not self._node:
+            return url
+        parsed = urlparse(url)
+        if parsed.hostname in ("localhost", "127.0.0.1", "::1"):
+            evaluator_host = platform.node()
+            port = parsed.port
+            new_netloc = f"{evaluator_host}:{port}" if port else evaluator_host
+            return urlunparse(parsed._replace(netloc=new_netloc))
         return url
 
     @property

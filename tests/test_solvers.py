@@ -1,7 +1,7 @@
 """Tests for solver implementations with mocked dependencies."""
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -83,17 +83,31 @@ class TestNatSolver:
 
     @pytest.mark.asyncio
     async def test_solve_calls_nat_endpoint(self):
+        from contextlib import asynccontextmanager
         from nemo_evaluator.solvers.nat import NatSolver
 
         solver = NatSolver(nat_url="http://fake-nat:8000")
 
-        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_resp.json.return_value = {"response": "Fixed the bug", "trajectory": []}
-            mock_resp.raise_for_status = MagicMock()
-            mock_post.return_value = mock_resp
+        class _FakeResp:
+            def raise_for_status(self): pass
+            async def text(self):
+                return 'data: {"output": "Fixed the bug"}\n\n'
 
+        class _FakeSession:
+            async def __aenter__(self): return self
+            async def __aexit__(self, *a): pass
+
+            @asynccontextmanager
+            async def post(self, url, **kw):
+                yield _FakeResp()
+
+            @asynccontextmanager
+            async def get(self, url, **kw):
+                class _Health:
+                    def raise_for_status(self): pass
+                yield _Health()
+
+        with patch("aiohttp.ClientSession", return_value=_FakeSession()):
             result = await solver.solve(_make_seed("Fix the bug"))
             assert isinstance(result, SolveResult)
 

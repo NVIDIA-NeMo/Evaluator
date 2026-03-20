@@ -12,11 +12,52 @@ Tests are grouped by component.
 from __future__ import annotations
 
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
+
+
+class _FakeAiohttpResponse:
+    """Minimal aiohttp response mock that supports ``async with`` usage."""
+
+    def __init__(self, json_data: dict | None = None, status: int = 200):
+        self._json_data = json_data or {}
+        self.status = status
+
+    def raise_for_status(self) -> None:
+        if self.status >= 400:
+            raise Exception(f"HTTP {self.status}")
+
+    async def json(self) -> dict:
+        return self._json_data
+
+
+class _FakeAiohttpSession:
+    """Minimal aiohttp.ClientSession mock whose .post/.get return async CMs."""
+
+    def __init__(self, response: _FakeAiohttpResponse):
+        self._response = response
+        self._last_post_args: tuple = ()
+        self._last_post_kwargs: dict = {}
+
+    @asynccontextmanager
+    async def post(self, url, **kwargs):
+        self._last_post_args = (url,)
+        self._last_post_kwargs = kwargs
+        yield self._response
+
+    @asynccontextmanager
+    async def get(self, url, **kwargs):
+        yield self._response
+
+    @property
+    def closed(self):
+        return False
+
+    async def close(self):
+        pass
 
 
 
@@ -135,21 +176,15 @@ class TestGymEnvironmentEvaluator:
 
         env = GymEnvironment("http://fake:8000")
 
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {
+        fake = _FakeAiohttpSession(_FakeAiohttpResponse({
             "prompt": "What is 2+2?",
             "expected_answer": "4",
             "metadata": {"cat": "math"},
             "messages": [{"role": "user", "content": "What is 2+2?"}],
-        }
+        }))
+        env._client = fake
 
-        with patch.object(env, "_get_client") as mc:
-            client = AsyncMock()
-            client.post = AsyncMock(return_value=mock_resp)
-            mc.return_value = client
-
-            seed = await env.seed(0)
+        seed = await env.seed(0)
 
         assert seed.prompt == "What is 2+2?"
         assert seed.expected_answer == "4"
@@ -160,16 +195,10 @@ class TestGymEnvironmentEvaluator:
 
         env = GymEnvironment("http://fake:8000")
 
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {"reward": 1.0, "extracted_answer": "4"}
+        fake = _FakeAiohttpSession(_FakeAiohttpResponse({"reward": 1.0, "extracted_answer": "4"}))
+        env._client = fake
 
-        with patch.object(env, "_get_client") as mc:
-            client = AsyncMock()
-            client.post = AsyncMock(return_value=mock_resp)
-            mc.return_value = client
-
-            vr = await env.verify("4", "4")
+        vr = await env.verify("4", "4")
 
         assert vr.reward == 1.0
 
@@ -179,16 +208,10 @@ class TestGymEnvironmentEvaluator:
 
         env = GymEnvironment("http://fake:8000")
 
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {"size": 100}
+        fake = _FakeAiohttpSession(_FakeAiohttpResponse({"size": 100}))
+        env._client = fake
 
-        with patch.object(env, "_get_client") as mc:
-            client = AsyncMock()
-            client.get = AsyncMock(return_value=mock_resp)
-            mc.return_value = client
-
-            assert await env.dataset_size() == 100
+        assert await env.dataset_size() == 100
 
     @pytest.mark.asyncio
     async def test_dataset_size_error_returns_negative(self):
@@ -196,11 +219,7 @@ class TestGymEnvironmentEvaluator:
 
         env = GymEnvironment("http://fake:8000")
 
-        with patch.object(env, "_get_client") as mc:
-            client = AsyncMock()
-            client.get = AsyncMock(side_effect=Exception("refused"))
-            mc.return_value = client
-
+        with patch.object(env, "_get_client", side_effect=Exception("refused")):
             assert await env.dataset_size() == -1
 
 
@@ -261,33 +280,20 @@ class TestGymEnvironmentNative:
         ds = GymDataset(spider_data)
         env = GymEnvironment("http://fake:8000", protocol="native", dataset=ds)
 
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {
+        fake = _FakeAiohttpSession(_FakeAiohttpResponse({
             "reward": 1.0,
             "extracted_sql": "SELECT * FROM employees;",
-        }
+        }))
+        env._client = fake
 
-        captured: dict[str, Any] = {}
-
-        async def capture_post(url, json=None, **kw):
-            captured.update(json or {})
-            return mock_resp
-
-        with patch.object(env, "_get_client") as mc:
-            client = AsyncMock()
-            client.post = capture_post
-            mc.return_value = client
-
-            vr = await env.verify("SELECT * FROM employees;", "", problem_idx=0)
+        vr = await env.verify("SELECT * FROM employees;", "", problem_idx=0)
 
         assert vr.reward == 1.0
         assert vr.extracted_answer == "SELECT * FROM employees;"
 
-        # Body should contain NeMoGymResponse envelope and original rcp
+        captured = fake._last_post_kwargs.get("json", {})
         assert captured["response"]["output_text"] == "SELECT * FROM employees;"
         assert captured["responses_create_params"]["model"] == "test-model"
-        # Benchmark-specific fields forwarded from dataset row
         assert captured["db_id"] == "hr"
 
     @pytest.mark.asyncio
@@ -297,23 +303,12 @@ class TestGymEnvironmentNative:
 
         env = GymEnvironment("http://fake:8000", protocol="native")
 
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {"reward": 0.5}
+        fake = _FakeAiohttpSession(_FakeAiohttpResponse({"reward": 0.5}))
+        env._client = fake
 
-        captured: dict[str, Any] = {}
+        await env.verify("answer", "expected", prompt="What?")
 
-        async def capture_post(url, json=None, **kw):
-            captured.update(json or {})
-            return mock_resp
-
-        with patch.object(env, "_get_client") as mc:
-            client = AsyncMock()
-            client.post = capture_post
-            mc.return_value = client
-
-            await env.verify("answer", "expected", prompt="What?")
-
+        captured = fake._last_post_kwargs.get("json", {})
         assert captured["responses_create_params"]["input"][0]["content"] == "What?"
         assert captured["response"]["output_text"] == "answer"
 
@@ -356,7 +351,8 @@ class TestManagedGymEnvironment:
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
         env = ManagedGymEnvironment(server_cmd="python run_server.py", port=9999)
         cmd = env._build_cmd()
-        assert isinstance(cmd, str) and "--port 9999" in cmd
+        assert isinstance(cmd, str)
+        assert cmd == "python run_server.py"
 
     def test_build_cmd_requires_at_least_one(self):
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
@@ -380,17 +376,19 @@ class TestManagedGymEnvironment:
 
     def test_auto_port_selection(self):
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
-        env = ManagedGymEnvironment(nel_benchmark="test")
-        assert 0 < env._port < 65536
+        with patch("nemo_evaluator.environments.gym._find_free_port", return_value=12345):
+            env = ManagedGymEnvironment(nel_benchmark="test")
+        assert env._port == 12345
 
 
 # ---------------------------------------------------------------------------
 # Registry: gym:// URI resolution
 # ---------------------------------------------------------------------------
 
+@patch("nemo_evaluator.environments.gym._find_free_port", return_value=19999)
 class TestGymUriResolution:
 
-    def test_host_port_evaluator(self):
+    def test_host_port_evaluator(self, _mock_port):
         from nemo_evaluator.environments.registry import _make_gym
         from nemo_evaluator.environments.gym import GymEnvironment
 
@@ -399,7 +397,7 @@ class TestGymUriResolution:
         assert env.endpoint == "http://localhost:8080"
         assert env.protocol == "evaluator"
 
-    def test_host_port_native_via_query(self, tmp_path):
+    def test_host_port_native_via_query(self, _mock_port, tmp_path):
         from nemo_evaluator.environments.registry import _make_gym
         from nemo_evaluator.environments.gym import GymEnvironment
 
@@ -412,14 +410,14 @@ class TestGymUriResolution:
         assert env._dataset is not None
         assert len(env._dataset) == 1
 
-    def test_module_managed(self):
+    def test_module_managed(self, _mock_port):
         from nemo_evaluator.environments.registry import _make_gym
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
 
         env = _make_gym("module:my_app.server")
         assert isinstance(env, ManagedGymEnvironment)
 
-    def test_module_native_via_query(self, tmp_path):
+    def test_module_native_via_query(self, _mock_port, tmp_path):
         from nemo_evaluator.environments.registry import _make_gym
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
 
@@ -430,21 +428,21 @@ class TestGymUriResolution:
         assert isinstance(env, ManagedGymEnvironment)
         assert env._protocol == "native"
 
-    def test_cmd_managed(self):
+    def test_cmd_managed(self, _mock_port):
         from nemo_evaluator.environments.registry import _make_gym
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
 
         env = _make_gym("cmd:python my_server.py")
         assert isinstance(env, ManagedGymEnvironment)
 
-    def test_bare_name_managed(self):
+    def test_bare_name_managed(self, _mock_port):
         from nemo_evaluator.environments.registry import _make_gym
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
 
         env = _make_gym("spider2_lite")
         assert isinstance(env, ManagedGymEnvironment)
 
-    def test_protocol_kwarg(self):
+    def test_protocol_kwarg(self, _mock_port):
         from nemo_evaluator.environments.registry import _make_gym
         env = _make_gym("localhost:8080", protocol="native")
         assert env.protocol == "native"

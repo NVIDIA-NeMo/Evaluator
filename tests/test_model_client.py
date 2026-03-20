@@ -13,9 +13,13 @@ class TestModelClient:
         c = ModelClient(base_url="https://api.example.com/v1/", model="test")
         assert c.base_url == "https://api.example.com/v1"
 
-    def test_connection_pooling_reuses_client(self):
+    @pytest.mark.asyncio
+    async def test_connection_pooling_reuses_client(self):
         c = ModelClient(base_url="https://api.example.com/v1", model="test")
-        assert c._get_client() is c._get_client()
+        client1 = c._get_client()
+        client2 = c._get_client()
+        assert client1 is client2
+        await c.close()
 
     @pytest.mark.asyncio
     async def test_close_releases_client(self):

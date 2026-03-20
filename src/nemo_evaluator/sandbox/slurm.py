@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import platform
 import shutil
 from pathlib import Path
 from typing import Self
+from urllib.parse import urlparse, urlunparse
 
 from nemo_evaluator.sandbox.base import ExecResult, OutsideEndpoint, SandboxSpec
 
@@ -27,17 +29,30 @@ class SlurmSandbox:
         node: str,
         slot: int,
         shared_fs_root: str | None = None,
+        het_group: int | None = None,
     ) -> None:
         self._spec = spec
         self._node = node
         self._slot = slot
         self._shared_fs = shared_fs_root
+        self._het_group = het_group
         self._container_name = f"nel-sandbox-{node}-{slot}"
         self._running = False
 
     @property
     def spec(self) -> SandboxSpec:
         return self._spec
+
+    def _srun_base(self) -> list[str]:
+        """Base srun arguments including node and optional het-group."""
+        args = [
+            "srun", "--overlap",
+            f"--nodelist={self._node}",
+            "--ntasks=1",
+        ]
+        if self._het_group is not None:
+            args.append(f"--het-group={self._het_group}")
+        return args
 
     async def start(self, *, outside_endpoints: list[OutsideEndpoint] | None = None) -> None:
         env_args: list[str] = []
@@ -58,9 +73,7 @@ class SlurmSandbox:
             mount_args.append(f"--container-mounts={mount}")
 
         cmd = [
-            "srun", "--overlap",
-            f"--nodelist={self._node}",
-            "--ntasks=1",
+            *self._srun_base(),
             f"--container-image={self._spec.image}",
             f"--container-workdir={self._spec.workdir}",
             f"--container-name={self._container_name}",
@@ -93,9 +106,7 @@ class SlurmSandbox:
         if not self._running:
             return
         cmd = [
-            "srun", "--overlap",
-            f"--nodelist={self._node}",
-            "--ntasks=1",
+            *self._srun_base(),
             f"--container-name={self._container_name}",
             "kill", "1",
         ]
@@ -121,9 +132,7 @@ class SlurmSandbox:
         if cwd:
             shell_cmd = f"cd {cwd} && {shell_cmd}"
         cmd = [
-            "srun", "--overlap",
-            f"--nodelist={self._node}",
-            "--ntasks=1",
+            *self._srun_base(),
             f"--container-name={self._container_name}",
             "/bin/bash", "-c", shell_cmd,
         ]
@@ -164,7 +173,12 @@ class SlurmSandbox:
             local_path.write_text(result.stdout)
 
     def resolve_outside_endpoint(self, url: str) -> str:
-        # SLURM nodes share the job's network — URL unchanged
+        parsed = urlparse(url)
+        if parsed.hostname in ("localhost", "127.0.0.1", "::1"):
+            evaluator_host = platform.node()
+            port = parsed.port
+            new_netloc = f"{evaluator_host}:{port}" if port else evaluator_host
+            return urlunparse(parsed._replace(netloc=new_netloc))
         return url
 
     @property

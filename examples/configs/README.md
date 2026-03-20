@@ -27,6 +27,7 @@ All configs expect `NVIDIA_API_KEY` (or `OPENAI_API_KEY`) set as an environment 
 | 13 | `13_vlmevalkit_mmbench.yaml` | vlmevalkit://MMBench_DEV_EN | VLMSolver | Local + API | VLMEvalKit VLM benchmark |
 | 14 | `14_container_nemo_skills.yaml` | container://...#gsm8k | (container) | Docker | Legacy container harness |
 | 15 | `15_slurm_gsm8k_vllm.yaml` | GSM8K | ChatSolver | SLURM + vLLM | Auto-deployed vLLM on cluster |
+| 15a | `15a_slurm_gsm8k_vllm_sharded.yaml` | GSM8K | ChatSolver | SLURM + vLLM | Sharded eval via SLURM array jobs |
 | 16 | `16_slurm_swebench_harbor.yaml` | SWE-bench Verified | HarborSolver | SLURM + vLLM | Distributed agentic SWE on SLURM |
 | 17 | `17_suite_release.yaml` | GSM8K + MMLU + HumanEval + SimpleQA | ChatSolver | Mixed | Multi-benchmark release suite |
 | 18 | `18_humaneval_ecs.yaml` | HumanEval | ChatSolver | ECS Fargate | Sandboxed code execution on AWS ECS |

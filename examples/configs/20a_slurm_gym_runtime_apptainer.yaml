@@ -1,13 +1,14 @@
-# Flavor: SLURM + vLLM + Gym as agent runtime + SLURM sandbox (Mode A)
-# vLLM serves the model on the cluster. The gym server runs the agent.
-# nel verifies patches inside Pyxis/Enroot containers on sandbox nodes.
+# Flavor: SLURM + vLLM + Gym agent runtime + Apptainer sandbox (het-group)
+# vLLM serves the model on GPU nodes. The gym server runs agents.
+# nel verifies patches inside Apptainer containers on separate CPU nodes.
 #
 # Prerequisites:
-#   - Access to a SLURM cluster with GPU nodes
-#   - Pyxis/Enroot configured for container execution
+#   - Access to a SLURM cluster with GPU and CPU partitions
+#   - Apptainer >= 1.1 on all nodes
+#   - Shared filesystem (e.g. /lustre, /nfs) for SIF cache + staging
 #   - Model weights accessible on shared filesystem
 #   - nemo-gym server reachable from cluster nodes
-# Run: nel eval run examples/configs/20_slurm_gym_runtime.yaml
+# Run: nel eval run examples/configs/20a_slurm_gym_runtime_apptainer.yaml
 
 services:
   model:
@@ -24,9 +25,10 @@ services:
 
 sandboxes:
   verify:
-    type: slurm
-    node_pool: sandbox
-    concurrency: 4
+    type: apptainer
+    node_pool: sandbox_cpu
+    sif_cache_dir: /shared/nel_sif_cache
+    concurrency: 8
     slots_per_node: 4
     timeout: 1800.0
 
@@ -46,10 +48,9 @@ cluster:
   walltime: "04:00:00"
   node_pools:
     gpu:
-      partition: batch
+      partition: gpu
       nodes: 1
-      ntasks_per_node: 1
       gres: "gpu:4"
-    sandbox:
-      partition: batch
+    sandbox_cpu:
+      partition: cpu
       nodes: 2

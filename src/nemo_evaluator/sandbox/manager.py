@@ -377,10 +377,16 @@ class SandboxManager:
             if proc.returncode != 0:
                 raise RuntimeError(f"docker pull {image} failed: {stderr.decode()[:500]}")
         elif self._backend == "slurm":
+            het_group = self._backend_kwargs.get("het_group")
             for node in self._slurm_nodes:
-                proc = await asyncio.create_subprocess_exec(
+                srun_args = [
                     "srun", "--overlap", f"--nodelist={node}",
                     "--ntasks=1",
+                ]
+                if het_group is not None:
+                    srun_args.append(f"--het-group={het_group}")
+                proc = await asyncio.create_subprocess_exec(
+                    *srun_args,
                     "enroot", "import", f"docker://{image}",
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
@@ -442,7 +448,9 @@ class SandboxManager:
         elif self._backend == "slurm":
             from nemo_evaluator.sandbox.slurm import SlurmSandbox
             node, slot = self._allocate_slot()
-            return SlurmSandbox(spec, node=node, slot=slot, **self._backend_kwargs)
+            het_group = self._backend_kwargs.get("het_group")
+            filtered = {k: v for k, v in self._backend_kwargs.items() if k != "het_group"}
+            return SlurmSandbox(spec, node=node, slot=slot, het_group=het_group, **filtered)
         elif self._backend == "ecs_fargate":
             from nemo_evaluator.sandbox.ecs_fargate import EcsFargateSandbox
             return EcsFargateSandbox(spec, **self._backend_kwargs)
@@ -451,11 +459,14 @@ class SandboxManager:
             node = None
             if self._slurm_nodes:
                 node, _ = self._allocate_slot()
+            het_group = self._backend_kwargs.get("het_group")
+            filtered = {k: v for k, v in self._backend_kwargs.items() if k != "het_group"}
             return ApptainerSandbox(
                 spec,
                 node=node,
                 sif_cache_dir=self._sif_cache_dir,
-                **self._backend_kwargs,
+                het_group=het_group,
+                **filtered,
             )
         else:
             from nemo_evaluator.sandbox.local import LocalSandbox
@@ -497,24 +508,30 @@ class SandboxManager:
                         capture_output=True, timeout=5,
                     )
                 elif hasattr(sb, "_instance_name") and hasattr(sb, "_running") and sb._running:
-                    # Apptainer persistent instance
                     cmd = ["apptainer", "instance", "stop", sb._instance_name]
                     if hasattr(sb, "_node") and sb._node:
-                        cmd = [
+                        srun_cmd = [
                             "srun", "--overlap",
                             f"--nodelist={sb._node}",
                             "--ntasks=1",
-                            *cmd,
                         ]
+                        if hasattr(sb, "_het_group") and sb._het_group is not None:
+                            srun_cmd.append(f"--het-group={sb._het_group}")
+                        cmd = [*srun_cmd, *cmd]
                     subprocess.run(cmd, capture_output=True, timeout=10)
                 elif hasattr(sb, "_sync_stop"):
                     sb._sync_stop()
                 elif hasattr(sb, "_container_name") and hasattr(sb, "_running") and sb._running:
+                    srun_cmd = [
+                        "srun", "--overlap",
+                        f"--nodelist={sb._node}",
+                        "--ntasks=1",
+                    ]
+                    if hasattr(sb, "_het_group") and sb._het_group is not None:
+                        srun_cmd.append(f"--het-group={sb._het_group}")
                     subprocess.run(
                         [
-                            "srun", "--overlap",
-                            f"--nodelist={sb._node}",
-                            "--ntasks=1",
+                            *srun_cmd,
                             f"--container-name={sb._container_name}",
                             "kill", "1",
                         ],

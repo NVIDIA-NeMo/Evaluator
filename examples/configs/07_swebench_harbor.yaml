@@ -12,52 +12,56 @@
 #   - pip install nemo-evaluator[harbor]
 # Run: nel eval run examples/configs/07_swebench_harbor.yaml
 
-model:
-  url: https://integrate.api.nvidia.com/v1
-  id: nvidia/nemotron-3-super-120b-a12b
-  api_key: ${NVIDIA_API_KEY}
-  proxy:
-    verbose: true
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
     interceptors:
-      - turn_counter:
+      - name: turn_counter
+        config:
           max_turns: 100
 
 benchmarks:
   - name: harbor://swebench-verified@1.0
     max_problems: 3
-    endpoint_type: harbor
-    sandbox:
-      backend: ecs_fargate
-      harbor_agent: openhands-sdk
-      harbor_agent_kwargs:
+    timeout: 3600.0
+    solver:
+      type: harbor
+      service: nemotron
+      agent: openhands-sdk
+      agent_kwargs:
         max_iterations: 100
         temperature: 1.0
+    sandbox:
+      type: ecs_fargate
+      region: us-west-2
+      cluster: harbor-cluster
+      subnets:
+        - subnet-0ac852ca0a783a332
+        - subnet-0500dcb4c191d93a8
+      security_groups:
+        - sg-035f677c8d037013c
+      assign_public_ip: true
+      execution_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-execution"
+      task_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-task"
+      log_group: "/ecs/harbor/us-west-2"
+      log_stream_prefix: swebench
+      cpu: "4096"
+      memory: "8192"
+      ephemeral_storage_gib: 50
+      max_task_lifetime_sec: 14400
+      s3_bucket: "harbor-staging-20260210135420899800000003"
+      # CodeBuild builds per-task Docker images (from Harbor env Dockerfiles)
+      # and pushes to ECR.  Images are content-hash-tagged for caching.
+      ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
+      codebuild_service_role: "arn:aws:iam::463701203462:role/harbor-codebuild"
+      ssh_sidecar:
+        sshd_port: 2222
+        ssh_ready_timeout_sec: 120
+        public_key_secret_arn: "arn:aws:secretsmanager:us-west-2:463701203462:secret:harbor-ssh-tunnel-pubkey-us-west-2-pcm7ZZ"
+        private_key_secret_arn: "arn:aws:secretsmanager:us-west-2:463701203462:secret:harbor-ssh-tunnel-privkey-us-west-2-d3G7CV"
       timeout: 3600.0
       concurrency: 3
-      ecs:
-        region: us-west-2
-        cluster: harbor-cluster
-        subnets:
-          - subnet-0ac852ca0a783a332
-          - subnet-0500dcb4c191d93a8
-        security_groups:
-          - sg-035f677c8d037013c
-        assign_public_ip: true
-        execution_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-execution"
-        task_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-task"
-        log_group: "/ecs/harbor/us-west-2"
-        log_stream_prefix: swebench
-        cpu: "4096"
-        memory: "8192"
-        ephemeral_storage_gib: 50
-        max_task_lifetime_sec: 14400
-        s3_bucket: "harbor-staging-20260210135420899800000003"
-        # CodeBuild builds per-task Docker images (from Harbor env Dockerfiles)
-        # and pushes to ECR.  Images are content-hash-tagged for caching.
-        ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
-        codebuild_service_role: "arn:aws:iam::463701203462:role/harbor-codebuild"
-        ssh_sidecar:
-          sshd_port: 2222
-          ssh_ready_timeout_sec: 120
-          public_key_secret_arn: "arn:aws:secretsmanager:us-west-2:463701203462:secret:harbor-ssh-tunnel-pubkey-us-west-2-pcm7ZZ"
-          private_key_secret_arn: "arn:aws:secretsmanager:us-west-2:463701203462:secret:harbor-ssh-tunnel-privkey-us-west-2-d3G7CV"

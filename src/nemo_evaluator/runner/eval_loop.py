@@ -48,6 +48,7 @@ async def run_evaluation(
     step_log_dir: Path | None = None,
     resume: bool = False,
     skip_failed: bool = False,
+    shard_info: tuple[int, int] | None = None,
 ) -> dict[str, Any]:
     config = config or {}
 
@@ -58,6 +59,15 @@ async def run_evaluation(
                          "Ensure the environment is reachable and has a valid dataset.")
     if max_problems is not None:
         ds_size = min(ds_size, max_problems)
+
+    if shard_info and not problem_range:
+        from nemo_evaluator.runner.sharding import get_shard_range
+        shard_idx, total_shards = shard_info
+        problem_range = get_shard_range(ds_size, shard_idx, total_shards)
+        config["shard"] = {
+            "idx": shard_idx, "total": total_shards,
+            "range": list(problem_range),
+        }
 
     if problem_range:
         start, end = problem_range

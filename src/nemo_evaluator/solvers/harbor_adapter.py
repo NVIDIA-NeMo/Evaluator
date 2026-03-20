@@ -7,7 +7,6 @@ a HarborSolver is actually instantiated.
 from __future__ import annotations
 
 import logging
-import shutil
 import tarfile
 import tempfile
 from pathlib import Path

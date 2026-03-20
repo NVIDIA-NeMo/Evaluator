@@ -17,7 +17,7 @@ flowchart TB
     S2 --> W2["..."]
     S7 --> W7["Worker 7<br/>nel eval run"]
 
-    W0 --> M["Auto-Merge"]
+    W0 --> M["nel eval merge"]
     W1 --> M
     W2 --> M
     W7 --> M
@@ -38,30 +38,57 @@ Each worker runs the same `nel eval run` command. Two environment variables cont
 
 ### SLURM config file
 
-Create a YAML config with `cluster.type: slurm`:
+Use `cluster.type: slurm` with `shards:` to enable array job sharding:
 
 ```yaml
-# slurm_gsm8k.yaml
-benchmark: gsm8k
-repeats: 8
-output_dir: ./eval_results/gsm8k_distributed
+# slurm_gsm8k_sharded.yaml
+services:
+  model:
+    type: vllm
+    model: nvidia/Llama-3.1-70B-Instruct
+    protocol: chat_completions
+    tensor_parallel_size: 4
+    port: 8000
+    node_pool: compute
+
+benchmarks:
+  - name: gsm8k
+    solver:
+      type: simple
+      service: model
+
 cluster:
   type: slurm
+  walltime: "02:00:00"
   shards: 16
-  partition: batch
-  conda_env: gym
+  node_pools:
+    compute:
+      partition: batch
+      nodes: 1
+      ntasks_per_node: 1
+      gres: "gpu:4"
 ```
 
 ### Run
 
 ```bash
-nel eval run slurm_gsm8k.yaml
+nel eval run slurm_gsm8k_sharded.yaml
 ```
 
 This:
-1. Generates `eval.sbatch` with `--array=0-15`
-2. Submits the job array
-3. Automatically merges results after all shards complete
+1. Generates `eval.sbatch` with `#SBATCH --array=0-15`
+2. Each array task exports `NEL_SHARD_IDX` and `NEL_TOTAL_SHARDS`
+3. Each task writes results to `shard_N/` subdirectories
+
+### Merge results
+
+After all array tasks complete:
+
+```bash
+nel eval merge ./eval_results
+```
+
+This discovers all `shard_N/` directories, deduplicates any overlapping results, and produces merged bundles with combined scores.
 
 ## Kubernetes
 
@@ -83,7 +110,7 @@ env:
     value: "8"
 ```
 
-Results are automatically merged after all pods complete.
+After all pods complete, merge with `nel eval merge`.
 
 ## Ray
 
@@ -126,10 +153,13 @@ Works anywhere you can set environment variables:
 
 ```bash
 # Terminal 1
-NEL_SHARD_IDX=0 NEL_TOTAL_SHARDS=4 nel eval run --bench gsm8k -o ./results/shard_0 --no-progress
+NEL_SHARD_IDX=0 NEL_TOTAL_SHARDS=4 nel eval run config.yaml -o ./results/shard_0
 
 # Terminal 2
-NEL_SHARD_IDX=1 NEL_TOTAL_SHARDS=4 nel eval run --bench gsm8k -o ./results/shard_1 --no-progress
+NEL_SHARD_IDX=1 NEL_TOTAL_SHARDS=4 nel eval run config.yaml -o ./results/shard_1
+
+# ... after all shards complete:
+nel eval merge ./results
 ```
 
 ## Shard Size Distribution
@@ -140,4 +170,10 @@ Problems are distributed evenly. For 14,000 problems across 16 shards:
 |------------|-------------|
 | 875 problems each | 875 problems each |
 
-When the total doesn't divide evenly, early shards get one extra problem (e.g., 14,001 problems / 16 shards = shards 0 get 876, shards 1-15 get 875).
+When the total doesn't divide evenly, early shards get one extra problem (e.g., 14,001 problems / 16 shards = shard 0 gets 876, shards 1-15 get 875).
+
+## Limitations
+
+- `shards` is incompatible with heterogeneous SLURM jobs (multiple node pools). Use a single pool when sharding.
+- `shards` and `auto_resume` cannot be used together. Use SLURM `--requeue` for per-task retries in array mode.
+- `run_batch()` environments (e.g., legacy containers) are not shardable — a warning is emitted if shard env vars are detected.

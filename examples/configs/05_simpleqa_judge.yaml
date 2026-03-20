@@ -7,19 +7,27 @@
 services:
   solver:
     type: api
-    url: https://integrate.api.nvidia.com/v1
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
     model: nvidia/nemotron-3-super-120b-a12b
     api_key: ${NVIDIA_API_KEY}
 
   judge:
     type: api
-    url: https://integrate.api.nvidia.com/v1
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
     model: nvidia/nemotron-3-super-120b-a12b
     api_key: ${NVIDIA_API_KEY}
 
 benchmarks:
   - name: simpleqa
-    model: solver
-    judge: judge
     max_problems: 5
-    endpoint_type: chat
+    solver:
+      type: simple
+      service: solver
+    scoring:
+      include_defaults: false
+      metrics:
+        - type: judge
+          name: correctness
+          service: judge

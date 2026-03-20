@@ -12,26 +12,37 @@ services:
   model:
     type: vllm
     model: nvidia/Llama-3.1-70B-Instruct
+    protocol: chat_completions
     tensor_parallel_size: 4
     port: 8000
+    node_pool: gpu
+
+sandboxes:
+  swebench:
+    type: slurm
+    node_pool: sandbox
+    concurrency: 4
+    slots_per_node: 4
+    timeout: 1800.0
 
 benchmarks:
   - name: swebench-verified
     max_problems: 10
-    endpoint_type: harbor
-    sandbox:
-      backend: slurm
-      harbor_agent: openhands
-      timeout: 1800.0
-      concurrency: 4
-      sandbox_nodes: 2
-      slots_per_node: 4
+    solver:
+      type: harbor
+      service: model
+      agent: openhands
+    sandbox: swebench
 
 cluster:
   type: slurm
-  partition: batch
-  nodes: 3
-  ntasks_per_node: 1
-  gres: "gpu:4"
   walltime: "04:00:00"
-  env_mode: separated
+  node_pools:
+    gpu:
+      partition: batch
+      nodes: 1
+      ntasks_per_node: 1
+      gres: "gpu:4"
+    sandbox:
+      partition: batch
+      nodes: 2

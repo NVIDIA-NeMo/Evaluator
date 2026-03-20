@@ -5,8 +5,20 @@ import re
 import shlex
 from pathlib import Path
 
-from nemo_evaluator.eval.config import EvalConfig, ServiceConfig
-from nemo_evaluator.eval.containers import default_base_image, resolve_deployment_image, resolve_eval_image
+from nemo_evaluator.eval.config import (
+    ApptainerSandbox,
+    EvalConfig,
+    ExternalApiService,
+    GymResourceService,
+    NatAgentService,
+    SlurmCluster,
+    SlurmSandbox,
+)
+from nemo_evaluator.eval.containers import (
+    default_base_image,
+    resolve_deployment_image,
+    resolve_eval_image,
+)
 
 _HEADER = """\
 #!/bin/bash
@@ -19,6 +31,7 @@ _HEADER = """\
 {gres_line}
 {partition_line}
 {account_line}
+{array_line}
 
 set -uo pipefail
 # Prevent nel from re-submitting to SLURM/Docker from inside the job.
@@ -31,6 +44,60 @@ mkdir -p "$OUTPUT_DIR"
 echo "=== NeMo Evaluator ==="
 echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $(hostname)"
+echo "Start: $(date -Iseconds)"
+"""
+
+_SHARD_SETUP = """\
+# Sharded execution (array task $SLURM_ARRAY_TASK_ID of $SLURM_ARRAY_TASK_COUNT)
+export NEL_SHARD_IDX=$SLURM_ARRAY_TASK_ID
+export NEL_TOTAL_SHARDS=$SLURM_ARRAY_TASK_COUNT
+OUTPUT_DIR="$OUTPUT_DIR/shard_$SLURM_ARRAY_TASK_ID"
+mkdir -p "$OUTPUT_DIR"
+echo "Shard: $NEL_SHARD_IDX / $NEL_TOTAL_SHARDS  (output: $OUTPUT_DIR)"
+"""
+
+_SHARD_MERGE_HINT = """\
+# All array tasks write to separate shard_N/ directories.
+# After all tasks complete, merge results:
+#   nel eval merge "{parent_output_dir}"
+echo ""
+echo "Shard $SLURM_ARRAY_TASK_ID complete. Merge after all tasks finish:"
+echo "  nel eval merge {parent_output_dir}"
+"""
+
+_HEADER_HETJOB_PREAMBLE = """\
+#!/bin/bash
+"""
+
+_HEADER_HETJOB_POOL = """\
+# ── Het Group {het_idx}: {pool_name} ──
+#SBATCH --nodes={nodes}
+#SBATCH --ntasks-per-node={ntasks_per_node}
+{gres_line}
+{partition_line}
+"""
+
+_HEADER_HETJOB_SEPARATOR = """\
+#SBATCH hetjob
+"""
+
+_HEADER_HETJOB_FOOTER = """\
+#SBATCH --job-name=nel-eval-{job_name}
+#SBATCH --output={output_dir}/slurm-%j.out
+#SBATCH --error={output_dir}/slurm-%j.err
+#SBATCH --time={walltime}
+{account_line}
+
+set -uo pipefail
+export NEL_INNER_EXECUTION=1
+
+OUTPUT_DIR="{output_dir}"
+NEL_EXIT_CODE=0
+mkdir -p "$OUTPUT_DIR"
+
+echo "=== NeMo Evaluator (het-job) ==="
+echo "Job ID: $SLURM_JOB_ID"
+{het_echo_lines}
 echo "Start: $(date -Iseconds)"
 """
 
@@ -139,19 +206,6 @@ echo "============================================================"
     -o "$OUTPUT_DIR/{safe_name}" || {{ echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; }}
 """
 
-_TASK_SEPARATED = """\
-# Benchmark {idx}/{total}: {bench_name} (separated mode)
-echo ""
-echo "============================================================"
-echo "  Benchmark {idx}/{total}: {bench_name} (repeats={repeats})"
-echo "  Env container: {env_image} -> port {env_port}"
-echo "============================================================"
-srun --overlap --nodes 1 --ntasks 1 \\
-    --container-image {env_image} $CONTAINER_MOUNTS $CONTAINER_ENV \\
-    nel serve -b "{bench_name}" --host 0.0.0.0 -p {env_port} &
-BENCH_{safe_name}_PID=$!
-"""
-
 _REPORT = """\
 # Generate reports
 echo ""
@@ -170,7 +224,15 @@ echo "Results: $OUTPUT_DIR"
 exit $NEL_EXIT_CODE
 """
 
-_SANDBOX_NODES = """\
+_SANDBOX_NODES_HETJOB = """\
+# Sandbox node allocation (het-group {het_group})
+SANDBOX_NODES=$(scontrol show hostname $SLURM_JOB_NODELIST_HET_GROUP_{het_group})
+export NEL_SANDBOX_NODES=$(echo $SANDBOX_NODES | tr ' ' ',')
+export NEL_SANDBOX_HET_GROUP={het_group}
+echo "Sandbox nodes (${{NEL_SANDBOX_NODES}}): {sandbox_node_count} nodes x {slots_per_node} slots = {total_slots} max concurrent"
+"""
+
+_SANDBOX_NODES_INLINE = """\
 # Sandbox node allocation
 SANDBOX_NODES=$(scontrol show hostname $SLURM_JOB_NODELIST | tail -n +{sandbox_start_node} | head -n {sandbox_node_count})
 export NEL_SANDBOX_NODES=$(echo $SANDBOX_NODES | tr ' ' ',')
@@ -189,6 +251,41 @@ wait
 echo "Pre-pull complete."
 """
 
+_APPTAINER_PRE_PROVISION = """\
+# Pre-provision Apptainer SIF on shared filesystem
+SIF_CACHE="{sif_cache_dir}"
+mkdir -p "$SIF_CACHE"
+echo "Building SIF images in $SIF_CACHE ..."
+for img in {images}; do
+    SAFE=$(echo "$img" | sed 's|/|_|g; s|:|__|g')
+    SIF_PATH="$SIF_CACHE/${{SAFE}}.sif"
+    if [ ! -f "$SIF_PATH" ]; then
+        echo "  Building $SIF_PATH from docker://$img ..."
+        apptainer build "$SIF_PATH" "docker://$img"
+    else
+        echo "  $SIF_PATH already exists."
+    fi
+done
+# Verify SIF accessible from all sandbox nodes
+echo "Verifying SIF accessibility on sandbox nodes..."
+for node in $SANDBOX_NODES; do
+    srun --overlap --nodelist=$node --ntasks=1{het_group_flag} test -d "$SIF_CACHE" || {{
+        echo "ERROR: $SIF_CACHE not accessible on $node"; exit 1;
+    }}
+done
+echo "SIF pre-provision complete."
+"""
+
+_APPTAINER_CLEANUP = """\
+# Cleanup Apptainer instances on sandbox nodes
+echo "Cleaning up Apptainer instances on sandbox nodes..."
+for node in $SANDBOX_NODES; do
+    srun --overlap --nodelist=$node --ntasks=1{het_group_flag} \\
+        bash -c 'for inst in $(apptainer instance list -j 2>/dev/null | python3 -c "import sys,json; [print(i[\\"instance\\"]) for i in json.load(sys.stdin).get(\\"instances\\",[]) if i[\\"instance\\"].startswith(\\"nel-\\")]" 2>/dev/null); do apptainer instance stop "$inst" 2>/dev/null; done' &
+done
+wait
+"""
+
 _AUTO_RESUME = """\
 # Auto-resume on walltime expiry
 ATTEMPT_FILE="$OUTPUT_DIR/.nel_attempt"
@@ -203,12 +300,11 @@ echo $ATTEMPT > "$ATTEMPT_FILE"
 if [ $ATTEMPT -ge {max_attempts} ]; then
     echo "Max resume attempts ({max_attempts}) reached."
 else
-    # Check if all benchmarks completed successfully via checkpoint
     if python3 -c "
 import json, sys, os
 cp_path = '$OUTPUT_DIR/checkpoint.json'
 if not os.path.exists(cp_path):
-    sys.exit(0)  # no checkpoint = nothing completed, resubmit
+    sys.exit(0)
 cp = json.load(open(cp_path))
 failed = len(cp.get('failed_benchmarks', {{}}))
 completed = len(cp.get('completed_benchmarks', {{}}))
@@ -234,15 +330,43 @@ _MODEL_CMD = {
 }
 
 
-def _resolve_service_image(svc: ServiceConfig) -> str:
-    """Return the container image for a service, checking per-service override first."""
-    if svc.image:
+def _collect_used_pools(config: EvalConfig) -> list[str]:
+    """Collect node pool names actually referenced by services and sandboxes,
+    preserving declaration order from node_pools dict."""
+    if not isinstance(config.cluster, SlurmCluster):
+        return []
+    all_pools = list(config.cluster.node_pools.keys())
+    used: set[str] = set()
+    for svc in config.services.values():
+        pool = getattr(svc, "node_pool", None)
+        if pool:
+            used.add(pool)
+    for sb in config.sandboxes.values():
+        pool = getattr(sb, "node_pool", None)
+        if pool:
+            used.add(pool)
+    for bench in config.benchmarks:
+        pool = getattr(bench.sandbox, "node_pool", None)
+        if pool:
+            used.add(pool)
+    if not used:
+        return all_pools[:1]
+    return [p for p in all_pools if p in used]
+
+
+def _resolve_service_image(svc) -> str:
+    if getattr(svc, "image", None):
         return svc.image
     return resolve_deployment_image(svc.type)
 
 
-def _service_block(name: str, svc: ServiceConfig, use_containers: bool = False) -> str:
+def _service_block(name: str, svc, *, use_containers: bool = False,
+                   pool_to_het: dict[str, int] | None = None) -> str:
     upper = _safe(name).upper()
+    pool = getattr(svc, "node_pool", None)
+    het_flag = ""
+    if pool and pool_to_het and pool in pool_to_het:
+        het_flag = f" --het-group={pool_to_het[pool]}"
 
     if svc.type in _MODEL_CMD:
         cmd, model_flag, tp_flag_name = _MODEL_CMD[svc.type]
@@ -250,10 +374,13 @@ def _service_block(name: str, svc: ServiceConfig, use_containers: bool = False) 
         srun_prefix = ""
         if use_containers and deploy_image:
             srun_prefix = (
-                f"srun --overlap --nodes {svc.num_nodes} --ntasks 1 "
+                f"srun --overlap --nodes {svc.num_nodes} --ntasks 1{het_flag} "
                 f"--container-image {deploy_image} $CONTAINER_MOUNTS $CONTAINER_ENV "
             )
-        tp_flag = f"{tp_flag_name} {svc.tensor_parallel_size} " if svc.tensor_parallel_size else ""
+        tp_flag = (
+            f"{tp_flag_name} {svc.tensor_parallel_size} "
+            if svc.tensor_parallel_size else ""
+        )
         extra = " ".join(svc.extra_args)
         cuda = ""
         if svc.gpus and isinstance(svc.gpus, list):
@@ -265,12 +392,12 @@ def _service_block(name: str, svc: ServiceConfig, use_containers: bool = False) 
             cuda_prefix=cuda, srun_prefix=srun_prefix,
         )
 
-    if svc.type == "nat":
+    if isinstance(svc, NatAgentService):
         deploy_image = _resolve_service_image(svc)
         srun_prefix = ""
         if use_containers and deploy_image:
             srun_prefix = (
-                f"srun --overlap --nodes 1 --ntasks 1 "
+                f"srun --overlap --nodes 1 --ntasks 1{het_flag} "
                 f"--container-image {deploy_image} $CONTAINER_MOUNTS $CONTAINER_ENV "
             )
         config_file = svc.nat_config_file or "config.yml"
@@ -279,7 +406,7 @@ def _service_block(name: str, svc: ServiceConfig, use_containers: bool = False) 
             config_file=config_file, srun_prefix=srun_prefix,
         )
 
-    if svc.type == "gym":
+    if isinstance(svc, GymResourceService):
         if svc.server_cmd:
             return _GYM_CMD_SERVICE.format(
                 name=name, name_upper=upper,
@@ -290,7 +417,7 @@ def _service_block(name: str, svc: ServiceConfig, use_containers: bool = False) 
             benchmark=svc.benchmark or "", port=svc.port,
         )
 
-    if svc.type == "api":
+    if isinstance(svc, ExternalApiService):
         return (
             f'# Service: {name} (external API)\n'
             f'{upper}_URL="{svc.url or ""}"\n'
@@ -300,78 +427,113 @@ def _service_block(name: str, svc: ServiceConfig, use_containers: bool = False) 
 
     return (
         f'# Service: {name} ({svc.type})\n'
-        f'{upper}_URL="http://localhost:{svc.port}/v1"\n'
-        f'{upper}_MODEL="{svc.model or ""}"\n'
+        f'{upper}_URL="http://localhost:{getattr(svc, "port", 8000)}/v1"\n'
+        f'{upper}_MODEL="{getattr(svc, "model", "") or ""}"\n'
         f'{upper}_PID=""\n'
     )
 
 
-def _health_block(name: str, svc: ServiceConfig) -> str:
-    if svc.type == "api":
+def _health_block(name: str, svc) -> str:
+    if isinstance(svc, ExternalApiService):
         return ""
     upper = _safe(name).upper()
-    url = f"http://localhost:{svc.port}"
-    max_attempts = int(svc.startup_timeout / 5) or 120
+    port = getattr(svc, "port", 8000)
+    url = f"http://localhost:{port}"
+    timeout = getattr(svc, "startup_timeout", 600.0)
+    max_attempts = int(timeout / 5) or 120
 
-    if svc.type == "gym" and svc.server_cmd:
+    if isinstance(svc, GymResourceService) and svc.server_cmd:
         return _HEALTH_WAIT_MULTI.format(
             name=name, name_upper=upper, url=url,
             max_attempts=max_attempts,
         )
 
-    health = svc.health_path if svc.is_model_server else "/health"
+    health = getattr(svc, "health_path", "/health") or "/health"
     return _HEALTH_WAIT.format(
         name=name, name_upper=upper, url=url,
         health_path=health, max_attempts=max_attempts,
     )
 
 
-def _resolve_eval_image_for_bench(
-    bench_name: str,
-    base_override: str | None,
-    use_containers: bool,
-) -> str:
-    """Return the eval container image for a benchmark, or empty string if not containerized."""
-    if not use_containers:
-        return ""
-    return resolve_eval_image(bench_name, base_override=base_override) or default_base_image(base_override)
+def _get_solver_service(bench) -> str | None:
+    return getattr(bench.solver, "service", None)
 
 
-def _sandbox_node_count(config: EvalConfig) -> int:
-    """Total extra nodes needed for sandbox across all benchmarks."""
-    return max(
-        (b.sandbox.sandbox_nodes for b in config.benchmarks
-         if b.sandbox and b.sandbox.backend == "slurm" and b.sandbox.sandbox_nodes > 0),
-        default=0,
-    )
+def _find_sandbox_bench(config: EvalConfig):
+    """Return the first benchmark with a SLURM/Apptainer sandbox that has a node_pool."""
+    for b in config.benchmarks:
+        if isinstance(b.sandbox, (SlurmSandbox, ApptainerSandbox)):
+            if getattr(b.sandbox, "node_pool", None):
+                return b
+    for b in config.benchmarks:
+        if isinstance(b.sandbox, (SlurmSandbox, ApptainerSandbox)):
+            return b
+    return None
 
 
 def generate_sbatch(config: EvalConfig) -> str:
-    """Generate a complete sbatch script from an EvalConfig."""
     cluster = config.cluster
+    if not isinstance(cluster, SlurmCluster):
+        raise ValueError(f"generate_sbatch requires a SlurmCluster, got {type(cluster).__name__}")
+
     output_dir = config.output.dir
-
-    extra_sandbox_nodes = _sandbox_node_count(config)
-    total_nodes = cluster.nodes + extra_sandbox_nodes
-
-    job_name = _safe(config.benchmarks[0].name) if len(config.benchmarks) == 1 else "multi"
-
-    gres_line = f"#SBATCH --gres={cluster.gres}" if cluster.gres else ""
-    partition_line = f"#SBATCH --partition={cluster.partition}" if cluster.partition else ""
+    job_name = (
+        _safe(config.benchmarks[0].name) if len(config.benchmarks) == 1
+        else "multi"
+    )
     account_line = f"#SBATCH --account={cluster.account}" if cluster.account else ""
+
+    used_pools = _collect_used_pools(config)
+    use_het = len(used_pools) > 1
+    pool_to_het = {name: i for i, name in enumerate(used_pools)} if use_het else {}
 
     parts: list[str] = []
 
-    # Header
-    parts.append(_HEADER.format(
-        job_name=job_name, output_dir=output_dir,
-        walltime=cluster.walltime, nodes=total_nodes,
-        ntasks_per_node=cluster.ntasks_per_node,
-        gres_line=gres_line, partition_line=partition_line,
-        account_line=account_line,
-    ))
+    if use_het:
+        parts.append(_HEADER_HETJOB_PREAMBLE)
+        for i, pool_name in enumerate(used_pools):
+            pool = cluster.node_pools[pool_name]
+            gres_line = f"#SBATCH --gres={pool.gres}" if pool.gres else ""
+            partition_line = f"#SBATCH --partition={pool.partition}" if pool.partition else ""
+            parts.append(_HEADER_HETJOB_POOL.format(
+                het_idx=i, pool_name=pool_name,
+                nodes=pool.nodes, ntasks_per_node=pool.ntasks_per_node,
+                gres_line=gres_line, partition_line=partition_line,
+            ))
+            if i < len(used_pools) - 1:
+                parts.append(_HEADER_HETJOB_SEPARATOR)
 
-    use_containers = cluster.container_image is not None or cluster.type == "slurm"
+        het_echo_lines = "\n".join(
+            f'echo "Het-group {i} ({name}): $SLURM_JOB_NODELIST_HET_GROUP_{i}"'
+            for i, name in enumerate(used_pools)
+        )
+        parts.append(_HEADER_HETJOB_FOOTER.format(
+            job_name=job_name, output_dir=output_dir,
+            walltime=cluster.walltime, account_line=account_line,
+            het_echo_lines=het_echo_lines,
+        ))
+    else:
+        pool = cluster.node_pools[used_pools[0]]
+        gres_line = f"#SBATCH --gres={pool.gres}" if pool.gres else ""
+        partition_line = f"#SBATCH --partition={pool.partition}" if pool.partition else ""
+        array_line = (
+            f"#SBATCH --array=0-{cluster.shards - 1}"
+            if cluster.shards else ""
+        )
+        parts.append(_HEADER.format(
+            job_name=job_name, output_dir=output_dir,
+            walltime=cluster.walltime, nodes=pool.nodes,
+            ntasks_per_node=pool.ntasks_per_node,
+            gres_line=gres_line, partition_line=partition_line,
+            account_line=account_line, array_line=array_line,
+        ))
+
+    is_sharded = cluster.shards is not None
+
+    if is_sharded:
+        parts.append(_SHARD_SETUP)
+
+    use_containers = cluster.container_image is not None
     if use_containers:
         mount_parts = []
         for m in cluster.container_mounts:
@@ -396,63 +558,88 @@ def generate_sbatch(config: EvalConfig) -> str:
     if cluster.conda_env:
         parts.append(_CONDA_ACTIVATE.format(conda_env=cluster.conda_env))
 
-    # Services
-    services = config.resolved_services()
-    for name, svc in services.items():
-        parts.append(_service_block(name, svc, use_containers=use_containers))
+    for name, svc in config.services.items():
+        parts.append(_service_block(
+            name, svc,
+            use_containers=use_containers,
+            pool_to_het=pool_to_het if use_het else None,
+        ))
 
     parts.append("")
 
-    # Health waits
-    for name, svc in services.items():
+    for name, svc in config.services.items():
         block = _health_block(name, svc)
         if block:
             parts.append(block)
 
-    # Sandbox node allocation and pre-pull
-    if extra_sandbox_nodes > 0:
-        sandbox_start_node = cluster.nodes + 1
-        sandbox_bench = next(
-            (b for b in config.benchmarks
-             if b.sandbox and b.sandbox.backend == "slurm" and b.sandbox.sandbox_nodes > 0),
-            None,
-        )
-        slots = sandbox_bench.sandbox.slots_per_node if sandbox_bench and sandbox_bench.sandbox else 4
-        total_slots = extra_sandbox_nodes * slots
-        parts.append(_SANDBOX_NODES.format(
-            sandbox_start_node=sandbox_start_node,
-            sandbox_node_count=extra_sandbox_nodes,
-            slots_per_node=slots,
-            total_slots=total_slots,
-        ))
+    sb_bench = _find_sandbox_bench(config)
+    sandbox_pool_name = getattr(sb_bench.sandbox, "node_pool", None) if sb_bench else None
 
-        if sandbox_bench and sandbox_bench.sandbox and sandbox_bench.sandbox.image:
-            parts.append(_SANDBOX_PRE_PULL.format(
-                images=shlex.quote(sandbox_bench.sandbox.image),
+    if sb_bench and isinstance(sb_bench.sandbox, (SlurmSandbox, ApptainerSandbox)):
+        sb = sb_bench.sandbox
+        slots = sb.slots_per_node
+
+        if sandbox_pool_name and sandbox_pool_name in pool_to_het:
+            het_idx = pool_to_het[sandbox_pool_name]
+            pool = cluster.node_pools[sandbox_pool_name]
+            total_slots = pool.nodes * slots
+            parts.append(_SANDBOX_NODES_HETJOB.format(
+                het_group=het_idx,
+                sandbox_node_count=pool.nodes,
+                slots_per_node=slots,
+                total_slots=total_slots,
+            ))
+        elif sandbox_pool_name and sandbox_pool_name in cluster.node_pools:
+            pool = cluster.node_pools[sandbox_pool_name]
+            total_slots = pool.nodes * slots
+            sandbox_start = sum(
+                cluster.node_pools[p].nodes for p in used_pools
+                if p != sandbox_pool_name
+            ) + 1
+            parts.append(_SANDBOX_NODES_INLINE.format(
+                sandbox_start_node=sandbox_start,
+                sandbox_node_count=pool.nodes,
+                slots_per_node=slots,
+                total_slots=total_slots,
             ))
 
-    # Tasks
+        het_group_flag = (
+            f" --het-group={pool_to_het[sandbox_pool_name]}"
+            if sandbox_pool_name and sandbox_pool_name in pool_to_het
+            else ""
+        )
+        sb_image = sb.image
+
+        if isinstance(sb, ApptainerSandbox) and sb_image:
+            sif_cache = sb.sif_cache_dir or "/tmp/nel_sif_cache"
+            parts.append(_APPTAINER_PRE_PROVISION.format(
+                sif_cache_dir=sif_cache,
+                images=shlex.quote(sb_image),
+                het_group_flag=het_group_flag,
+            ))
+        elif isinstance(sb, SlurmSandbox) and sb_image:
+            parts.append(_SANDBOX_PRE_PULL.format(
+                images=shlex.quote(sb_image),
+            ))
+
     base_override = cluster.container_image
-
-    separated = cluster.env_mode == "separated" and use_containers
-    base_env_port = 9100
-
     total = len(config.benchmarks)
-    env_kill_cmds: list[str] = []
 
     for i, bench in enumerate(config.benchmarks, 1):
-        svc_name = bench.model
-        upper = _safe(svc_name).upper()
+        svc_name = _get_solver_service(bench) or ""
+        upper = _safe(svc_name).upper() if svc_name else "MODEL"
         model_url_var = f"{upper}_URL"
         model_id_var = f"{upper}_MODEL"
 
         extra_flags = ""
-        if bench.system_prompt:
-            extra_flags += f"--system-prompt {shlex.quote(bench.system_prompt)} "
-        if bench.temperature is not None:
-            extra_flags += f"--temperature {bench.temperature} "
-        if bench.max_tokens is not None:
-            extra_flags += f"--max-tokens {bench.max_tokens} "
+        gen = getattr(bench.solver, "generation", None)
+        system_prompt = getattr(bench.solver, "system_prompt", None)
+        if system_prompt:
+            extra_flags += f"--system-prompt {shlex.quote(system_prompt)} "
+        if gen and gen.temperature is not None:
+            extra_flags += f"--temperature {gen.temperature} "
+        if gen and gen.max_tokens is not None:
+            extra_flags += f"--max-tokens {gen.max_tokens} "
         if bench.max_problems is not None:
             extra_flags += f"--max-problems {bench.max_problems} "
         if cluster.auto_resume:
@@ -460,85 +647,75 @@ def generate_sbatch(config: EvalConfig) -> str:
 
         safe_name = _safe(bench.name)
 
-        eval_image = _resolve_eval_image_for_bench(
-            bench.name, base_override, use_containers,
-        )
-
-        if separated:
-            env_port = base_env_port + i - 1
-
-            parts.append(_TASK_SEPARATED.format(
-                idx=i, total=total, bench_name=bench.name,
-                repeats=bench.repeats, env_image=eval_image,
-                env_port=env_port, safe_name=safe_name,
-            ))
-
-            parts.append(_HEALTH_WAIT.format(
-                name=f"env-{safe_name}", name_upper=f"BENCH_{safe_name}",
-                url=f"http://localhost:{env_port}",
-                health_path="/health", max_attempts=60,
-            ))
-
-            base_image = default_base_image(base_override)
-            orch_prefix = (
-                f"srun --overlap --nodes 1 --ntasks 1 "
-                f"--container-image {base_image} $CONTAINER_MOUNTS $CONTAINER_ENV \\\n    "
+        eval_image = ""
+        if use_containers:
+            eval_image = (
+                resolve_eval_image(bench.name, base_override=base_override)
+                or default_base_image(base_override)
             )
-            parts.append(_TASK.format(
-                idx=i, total=total, bench_name=f"gym://localhost:{env_port}",
-                model_url_var=model_url_var, model_id_var=model_id_var,
-                repeats=bench.repeats, extra_flags=extra_flags,
-                safe_name=safe_name, run_prefix=orch_prefix,
-            ))
-            env_kill_cmds.append(f'kill $BENCH_{safe_name}_PID 2>/dev/null || true')
-        else:
-            run_prefix = ""
-            if use_containers and eval_image:
-                run_prefix = (
-                    f"srun --overlap --nodes 1 --ntasks 1 "
-                    f"--container-image {eval_image} $CONTAINER_MOUNTS $CONTAINER_ENV \\\n    "
-                )
-            parts.append(_TASK.format(
-                idx=i, total=total, bench_name=bench.name,
-                model_url_var=model_url_var, model_id_var=model_id_var,
-                repeats=bench.repeats, extra_flags=extra_flags,
-                safe_name=safe_name, run_prefix=run_prefix,
-            ))
 
-    # Reports
-    report_cmds = []
-    ext_map = {"markdown": "md", "html": "html", "csv": "csv", "json": "json", "latex": "tex"}
-    for fmt in config.output.report:
-        ext = ext_map.get(fmt, fmt)
-        report_cmds.append(f'nel eval report "$OUTPUT_DIR" -f {fmt} -o "$OUTPUT_DIR/report.{ext}"')
-    if report_cmds:
-        parts.append(_REPORT.format(report_commands="\n".join(report_cmds)))
+        run_prefix = ""
+        if use_containers and eval_image:
+            run_prefix = (
+                f"srun --overlap --nodes 1 --ntasks 1 "
+                f"--container-image {eval_image} $CONTAINER_MOUNTS $CONTAINER_ENV \\\n    "
+            )
 
-    # Auto-resume
-    if cluster.auto_resume:
-        parts.append(_AUTO_RESUME.format(
-            max_attempts=cluster.max_resume_attempts,
-            script_path="$OUTPUT_DIR/nel_eval.sbatch",
+        parts.append(_TASK.format(
+            idx=i, total=total, bench_name=bench.name,
+            model_url_var=model_url_var, model_id_var=model_id_var,
+            repeats=bench.repeats, extra_flags=extra_flags,
+            safe_name=safe_name, run_prefix=run_prefix,
         ))
 
-    # Cleanup
-    kill_cmds = list(env_kill_cmds)
-    for name, svc in services.items():
-        if svc.type != "api":
+    if is_sharded:
+        parts.append(_SHARD_MERGE_HINT.format(parent_output_dir=output_dir))
+    else:
+        report_cmds = []
+        ext_map = {
+            "markdown": "md", "html": "html", "csv": "csv",
+            "json": "json", "latex": "tex",
+        }
+        for fmt in config.output.report:
+            ext = ext_map.get(fmt, fmt)
+            report_cmds.append(
+                f'nel eval report "$OUTPUT_DIR" -f {fmt} -o "$OUTPUT_DIR/report.{ext}"'
+            )
+        if report_cmds:
+            parts.append(_REPORT.format(report_commands="\n".join(report_cmds)))
+
+        if cluster.auto_resume:
+            parts.append(_AUTO_RESUME.format(
+                max_attempts=cluster.max_resume_attempts,
+                script_path="$OUTPUT_DIR/nel_eval.sbatch",
+            ))
+
+    if sb_bench and isinstance(sb_bench.sandbox, ApptainerSandbox):
+        het_group_flag = (
+            f" --het-group={pool_to_het[sandbox_pool_name]}"
+            if sandbox_pool_name and sandbox_pool_name in pool_to_het
+            else ""
+        )
+        parts.append(_APPTAINER_CLEANUP.format(het_group_flag=het_group_flag))
+
+    kill_cmds = []
+    for name, svc in config.services.items():
+        if not isinstance(svc, ExternalApiService):
             upper = _safe(name).upper()
             kill_cmds.append(f'kill ${upper}_PID 2>/dev/null || true')
-    for name, svc in services.items():
-        if svc.type != "api":
+    for name, svc in config.services.items():
+        if not isinstance(svc, ExternalApiService):
             upper = _safe(name).upper()
             kill_cmds.append(f'wait ${upper}_PID 2>/dev/null || true')
 
-    parts.append(_CLEANUP.format(kill_commands="\n".join(kill_cmds) if kill_cmds else "echo 'No managed services.'"))
+    parts.append(_CLEANUP.format(
+        kill_commands="\n".join(kill_cmds) if kill_cmds else "echo 'No managed services.'"
+    ))
 
     return "\n".join(parts)
 
 
 def write_sbatch(config: EvalConfig, output_dir: str | Path | None = None) -> Path:
-    """Generate and write the sbatch script to disk."""
     out = Path(output_dir or config.output.dir)
     out.mkdir(parents=True, exist_ok=True)
 

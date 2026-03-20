@@ -11,24 +11,28 @@
 #   - pip install nemo-evaluator[harbor]
 # Run: nel eval run examples/configs/07a_swebench_harbor_docker.yaml
 
-model:
-  url: https://integrate.api.nvidia.com/v1
-  id: nvidia/nemotron-3-super-120b-a12b
-  api_key: ${NVIDIA_API_KEY}
-  proxy:
-    verbose: true
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
     interceptors:
-      - turn_counter:
+      - name: turn_counter
+        config:
           max_turns: 100
 
 benchmarks:
   - name: harbor://swebench-verified@1.0
     max_problems: 3
-    endpoint_type: harbor
-    sandbox:
-      backend: docker
-      harbor_agent: openhands-sdk
-      harbor_agent_kwargs:
+    solver:
+      type: harbor
+      service: nemotron
+      agent: openhands-sdk
+      agent_kwargs:
         max_iterations: 100
+    sandbox:
+      type: docker
       timeout: 1800.0
       concurrency: 3

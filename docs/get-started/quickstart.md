@@ -5,15 +5,15 @@ Run a complete evaluation in under 5 minutes.
 ## Step 1: Set your model endpoint
 
 ```bash
-export NEMO_API_KEY="your-api-key-here"
+export NVIDIA_API_KEY="your-api-key-here"
 ```
 
 ## Step 2: Run an evaluation
 
 ```bash
 nel eval run --bench gsm8k \
-  --model-url https://api.example.com/v1 \
-  --model-id my-model \
+  --model-url https://integrate.api.nvidia.com/v1/chat/completions \
+  --model-id nvidia/nemotron-3-super-120b-a12b \
   --repeats 2 --max-problems 20
 ```
 
@@ -80,18 +80,28 @@ For reproducible multi-benchmark evaluations:
 
 ```yaml
 # eval_config.yaml
-model:
-  url: https://inference-api.nvidia.com/v1
-  id: azure/openai/gpt-5.2
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
 
 benchmarks:
   - name: gsm8k
     repeats: 4
-    system_prompt: "Solve step by step. Put your final answer in \\boxed{}."
+    solver:
+      type: simple
+      service: nemotron
+      system_prompt: "Solve step by step. Put your final answer in \\boxed{}."
 
   - name: triviaqa
     repeats: 1
     max_problems: 100
+    solver:
+      type: simple
+      service: nemotron
 ```
 
 ```bash

@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.12.0 (2026-03-20)
+
+### Config Schema v2 (Breaking)
+
+- **Fully explicit configuration**: Replaced the two-tier simple/advanced config mode with a single explicit format. All architectural choices (services, solvers, sandboxes, metrics) must be spelled out — no sugar, no defaults, no shorthand.
+- **`services:` dict**: Named service definitions with discriminated `type` field (`api`, `vllm`, `sglang`, `trt_llm`, `gym_resource`, `nat_agent`, `custom`). Each service declares its full endpoint URL, wire protocol, generation config, and interceptors.
+- **`ExternalApiService`**: `url` is the full endpoint path (e.g., `https://api.example.com/v1/chat/completions`), `protocol` declares the wire format independently (supports experimental endpoints with decoupled URL and protocol).
+- **`SolverConfig` discriminated union**: `simple`, `harbor`, `tool_calling`, `gym_delegation`, `openclaw`, `container`, `custom` — each with explicit `service` reference.
+- **`SandboxConfig` discriminated union**: `docker`, `apptainer`, `ecs_fargate`, `slurm`, `local`, `none`, `custom` — referenceable by name from top-level `sandboxes:` dict or inline in benchmarks.
+- **`MetricConfig` discriminated union**: `default`, `judge`, `reward_model`, `pairwise_judge`, `ensemble_judge`, `custom`. Supports multi-judge and multi-service evaluation.
+- **`ClusterConfig`**: `local`, `slurm`, `docker` types. SLURM clusters use `node_pools:` dict for multi-topology resource placement. Services and sandboxes reference pools by name.
+- **Self-judge prevention**: `JudgeMetric` validates that judge service differs from solver service unless `allow_self_judge: true`.
+- **Dependency graph**: Services declare `depends_on:` for startup ordering with cycle detection.
+- **Cross-reference validation**: All service, sandbox, and node pool references validated at parse time.
+- **Timeout hierarchy validation**: Warns if combined service startup + benchmark timeouts exceed SLURM walltime.
+- **`GenerationConfig`**: Per-service generation parameters (temperature, top_p, max_tokens) with range validation and `merge_onto()` for field-by-field overrides.
+- **`InterceptorConfig`**: Per-service LiteLLM interceptor configuration.
+- **Extensibility**: `CustomService`, `CustomSandbox`, `CustomSolverConfig`, `CustomMetric` with `class_path` + `config` for plugin support.
+- All 24 example configs rewritten to the new format.
+
+### Eval Sharding
+
+- **SLURM array jobs**: `SlurmCluster.shards` field generates `#SBATCH --array` directives. Each array task evaluates a disjoint slice of the dataset via `NEL_SHARD_IDX` / `NEL_TOTAL_SHARDS` env vars.
+- **`nel eval merge`**: New CLI command to merge results from sharded evaluation runs. Auto-discovers benchmarks across `shard_N/` directories, detects `n_repeats` from bundles, deduplicates overlapping results.
+- **Local runner sharding**: `local_runner.py` reads shard env vars automatically and passes `problem_range` to the eval loop.
+- **Validation**: `shards` is mutually exclusive with heterogeneous SLURM jobs (multiple node pools) and `auto_resume`.
+- New example: `15a_slurm_gsm8k_vllm_sharded.yaml`.
+
+### Test Fixes
+
+- Fixed `MockSandboxManager.resolve_spec()` missing `base_override` keyword argument.
+- Fixed `FixturedEnvironment` missing `prepare()` and `image_build_requests()` methods.
+- Fixed aiohttp mock patterns in `test_gym_integration.py` (context manager protocol).
+- Fixed `test_model_client.py` event loop requirement for `_get_client()`.
+- Fixed `test_solvers.py` NatSolver test still patching `httpx` instead of `aiohttp`.
+- Removed unused imports flagged by ruff across test and source files.
+
+### Dependencies
+
+- Replaced `httpx` with `aiohttp` across all HTTP client code (model client, gym environment, NAT solver).
+
 ## 0.11.0 (2026-03-19)
 
 ### LiteLLM Proxy
@@ -304,12 +345,13 @@ benchmarks:
 - **`nel serve`**: Flat command for serving benchmarks as HTTP endpoints.
 - Removed all legacy commands: `nel run`, `nel slurm`, `nel harness`, `nel container-eval`, `nel list-environments`, `nel list-harnesses`, `nel list-skills`.
 
-### Unified Config Schema
+### Config Schema (v1)
 
-- **Two-tier `EvalConfig`**: Simple mode (`model:` + `benchmarks:`) for quick evaluations, advanced mode (`services:` + `benchmarks:`) for multi-model setups with managed infrastructure.
+- **`EvalConfig`**: `services:` + `benchmarks:` config with managed infrastructure.
 - **`ClusterConfig`**: SLURM, Docker, and local execution from a single config file.
 - **`OutputConfig`**: Multi-format report generation (HTML, Markdown, CSV, JSON, LaTeX).
 - Removed old `evaluation: { tasks: [] }` config format and `config_schema.py`.
+- Note: Superseded by Config Schema v2 in 0.12.0.
 
 ### Evaluation Orchestration
 

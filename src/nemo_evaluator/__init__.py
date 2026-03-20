@@ -1,11 +1,10 @@
 """NeMo Evaluator -- environments, solvers, evaluation orchestration."""
 
-__version__ = "0.9.0"
+__version__ = "0.12.0"
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.environments.byob import benchmark, scorer
 from nemo_evaluator.environments.registry import get_environment, list_environments, load_benchmark_file, register
-from nemo_evaluator.eval.config import EndpointType
 from nemo_evaluator.runner.eval_loop import run_evaluation
 from nemo_evaluator.runner.model_client import ModelClient
 from nemo_evaluator.solvers import (
@@ -33,7 +32,7 @@ __all__ = [
     # Core
     "EvalEnvironment", "SeedResult", "VerifyResult",
     "register", "get_environment", "list_environments", "load_benchmark_file",
-    "run_evaluation", "ModelClient", "EndpointType",
+    "run_evaluation", "ModelClient",
     # Solver
     "Solver", "ChatSolver", "CompletionSolver",
     "NatSolver", "OpenClawSolver", "VLMSolver",

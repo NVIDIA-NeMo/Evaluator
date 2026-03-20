@@ -3,44 +3,77 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any
 
-from nemo_evaluator.eval.config import BenchmarkConfig, EndpointType, EvalConfig, EcsFargateConfig, ServiceConfig
+from nemo_evaluator.eval.config import (
+    AgentSolverConfig,
+    ApptainerSandbox,
+    ContainerSolverConfig,
+    DockerSandbox,
+    EcsFargateSandbox,
+    EvalConfig,
+    GenerationConfig,
+    GymDelegationSolverConfig,
+    GymResourceService,
+    HarborSolverConfig,
+    InterceptorConfig,
+    NatAgentService,
+    NatSolverConfig,
+    NoSandbox,
+    OpenClawSolverConfig,
+    SimpleSolver,
+    SlurmSandbox,
+    ToolCallingSolverConfig,
+    _MODEL_SERVICE_TYPES,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def _build_ecs_sandbox_config(cfg: EcsFargateConfig) -> Any:
-    """Translate config-level EcsFargateConfig to sandbox-level dataclass."""
+def _serialize_interceptors(interceptors: list[InterceptorConfig]) -> list:
+    result: list[str | dict] = []
+    for ic in interceptors:
+        if ic.config:
+            result.append({ic.name: ic.config})
+        else:
+            result.append(ic.name)
+    return result
+
+
+def _resolve_generation(config: EvalConfig, solver_cfg: Any) -> GenerationConfig:
+    svc = config.get_service(solver_cfg.service)
+    svc_gen = getattr(svc, "generation", GenerationConfig())
+    solver_gen = getattr(solver_cfg, "generation", None)
+    if solver_gen is not None:
+        return solver_gen.merge_onto(svc_gen)
+    return svc_gen
+
+
+def _build_ecs_sandbox_config(cfg: EcsFargateSandbox) -> Any:
     from nemo_evaluator.sandbox.ecs_fargate import (
         EcsFargateConfig as SandboxEcsConfig,
         SshSidecarConfig as SandboxSshConfig,
     )
 
-    if not cfg.ssh_sidecar:
-        raise ValueError(
-            "ECS Fargate backend requires an ssh_sidecar block with "
-            "public_key_secret_arn and private_key_secret_arn (AWS Secrets "
-            "Manager ARNs for the SSH key pair used to reach the container)."
+    ssh_sidecar = None
+    if cfg.ssh_sidecar:
+        sc = cfg.ssh_sidecar
+        if not sc.private_key_secret_arn or not sc.public_key_secret_arn:
+            raise ValueError(
+                "ssh_sidecar.private_key_secret_arn and "
+                "ssh_sidecar.public_key_secret_arn are required."
+            )
+        ssh_sidecar = SandboxSshConfig(
+            sshd_port=sc.sshd_port,
+            ssh_ready_timeout_sec=sc.ssh_ready_timeout_sec,
+            public_key_secret_arn=sc.public_key_secret_arn,
+            private_key_secret_arn=sc.private_key_secret_arn,
+            image=sc.image,
+            exec_server_port=sc.exec_server_port,
         )
-
-    sc = cfg.ssh_sidecar
-    if not sc.private_key_secret_arn or not sc.public_key_secret_arn:
-        raise ValueError(
-            "ssh_sidecar.private_key_secret_arn and "
-            "ssh_sidecar.public_key_secret_arn are required."
-        )
-
-    ssh_sidecar = SandboxSshConfig(
-        sshd_port=sc.sshd_port,
-        ssh_ready_timeout_sec=sc.ssh_ready_timeout_sec,
-        public_key_secret_arn=sc.public_key_secret_arn,
-        private_key_secret_arn=sc.private_key_secret_arn,
-        image=sc.image,
-        exec_server_port=sc.exec_server_port,
-    )
 
     return SandboxEcsConfig(
         region=cfg.region,
@@ -71,90 +104,129 @@ def _safe_name(s: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_.-]", "_", s)
 
 
-def _make_solver(bench: BenchmarkConfig, client: Any, model_url: str,
-                 model_id: str, api_key: str | None,
-                 *, model_config: Any | None = None) -> Any:
-    """Create solver for the given benchmark config."""
-    from nemo_evaluator.solvers import (
-        ChatSolver,
-        CompletionSolver,
-        VLMSolver,
-    )
-
-    ep = bench.endpoint_type
+def _make_solver(
+    bench: Any,
+    config: EvalConfig,
+    client: Any,
+    model_url: str,
+    model_id: str,
+    api_key: str | None,
+) -> Any:
+    solver_cfg = bench.solver
     sb = bench.sandbox
 
-    match ep:
-        case EndpointType.gym:
-            from nemo_evaluator.solvers.gym import GymSolver
-            return GymSolver(
-                gym_url=bench.gym_url or "",
-                gym_agent=bench.gym_agent,
-                trust_reward=bench.gym_trust_reward,
-                model_id=model_id,
-                model_url=model_url,
-                api_key=api_key,
-                timeout=sb.timeout if sb else 3600.0,
-            )
-        case EndpointType.harbor:
-            from nemo_evaluator.solvers.harbor import HarborSolver
-            return HarborSolver(
-                harbor_agent=sb.harbor_agent if sb else "",
-                harbor_agent_kwargs=sb.harbor_agent_kwargs if sb else {},
-                model_url=model_url,
-                model_id=model_id,
-                timeout=sb.timeout if sb else 1800.0,
-                api_key=api_key,
-                container_env=sb.container_env if sb else {},
-                max_input_tokens=getattr(model_config, "max_input_tokens", None),
-                max_output_tokens=getattr(model_config, "max_output_tokens", None),
-            )
-        case EndpointType.nat:
-            from nemo_evaluator.solvers import NatSolver
-            nat_url = model_url.rsplit("/v1", 1)[0] if "/v1" in model_url else model_url
-            return NatSolver(
-                nat_url=nat_url,
-                timeout=sb.timeout if sb else 600.0,
-            )
-        case EndpointType.openclaw:
-            from nemo_evaluator.solvers import OpenClawSolver
-            uses_sandbox = sb is not None and sb.backend != "none"
-            return OpenClawSolver(
-                openclaw_bin=sb.agent_cmd if sb and sb.agent_cmd else "openclaw",
-                thinking="high",
-                timeout=sb.timeout if sb else 600.0,
-                model_url=model_url,
-                model_id=model_id,
-                api_key=api_key,
-                context_window=bench.context_window or 131_072,
-                max_tokens=bench.max_tokens,
-                max_concurrent=bench.max_concurrent,
-                config_path=bench.openclaw_config,
-                temperature=bench.temperature,
-                top_p=bench.top_p,
-                skip_preflight=uses_sandbox,
-            )
-        case EndpointType.vlm:
-            return VLMSolver(client, system_prompt=bench.system_prompt,
-                             image_detail=bench.image_detail)
-        case EndpointType.completions:
+    if isinstance(solver_cfg, SimpleSolver):
+        svc = config.get_service(solver_cfg.service)
+        protocol = svc.protocol
+
+        if protocol == "completions":
+            from nemo_evaluator.solvers import CompletionSolver
+
+            gen = _resolve_generation(config, solver_cfg)
             return CompletionSolver(
                 base_url=model_url, model=model_id, api_key=api_key,
-                temperature=bench.temperature or 0.0,
-                max_tokens=bench.max_tokens or 2048,
+                temperature=gen.temperature or 0.0,
+                max_tokens=gen.max_tokens or 2048,
             )
-        case _:
-            return ChatSolver(client, system_prompt=bench.system_prompt)
+
+        if solver_cfg.image_detail != "auto":
+            from nemo_evaluator.solvers import VLMSolver
+
+            return VLMSolver(client, system_prompt=solver_cfg.system_prompt,
+                             image_detail=solver_cfg.image_detail)
+
+        from nemo_evaluator.solvers import ChatSolver
+
+        return ChatSolver(client, system_prompt=solver_cfg.system_prompt)
+
+    if isinstance(solver_cfg, (HarborSolverConfig, AgentSolverConfig)):
+        from nemo_evaluator.solvers.harbor import HarborSolver
+
+        svc = config.get_service(solver_cfg.service)
+        container_env = getattr(solver_cfg, "container_env", {})
+        return HarborSolver(
+            harbor_agent=solver_cfg.agent,
+            harbor_agent_kwargs=solver_cfg.agent_kwargs,
+            model_url=model_url,
+            model_id=model_id,
+            timeout=getattr(sb, "timeout", 1800.0),
+            api_key=api_key,
+            container_env=container_env,
+            max_input_tokens=getattr(svc, "max_input_tokens", None),
+            max_output_tokens=getattr(svc, "max_output_tokens", None),
+        )
+
+    if isinstance(solver_cfg, GymDelegationSolverConfig):
+        from nemo_evaluator.solvers.gym import GymSolver
+
+        gym_svc = config.get_service(solver_cfg.gym_service)
+        return GymSolver(
+            gym_url=gym_svc.base_url,
+            gym_agent=solver_cfg.gym_agent,
+            trust_reward=solver_cfg.trust_reward,
+            model_id=model_id,
+            model_url=model_url,
+            api_key=api_key,
+            timeout=bench.timeout,
+        )
+
+    if isinstance(solver_cfg, ToolCallingSolverConfig):
+        from nemo_evaluator.solvers.gym import GymSolver
+
+        gym_svc = config.get_service(solver_cfg.resource_service)
+        return GymSolver(
+            gym_url=gym_svc.base_url,
+            gym_agent=None,
+            trust_reward=False,
+            model_id=model_id,
+            model_url=model_url,
+            api_key=api_key,
+            timeout=bench.timeout,
+        )
+
+    if isinstance(solver_cfg, NatSolverConfig):
+        from nemo_evaluator.solvers import NatSolver
+
+        return NatSolver(
+            nat_url=model_url,
+            timeout=bench.timeout,
+        )
+
+    if isinstance(solver_cfg, OpenClawSolverConfig):
+        from nemo_evaluator.solvers import OpenClawSolver
+
+        uses_sandbox = not isinstance(sb, NoSandbox)
+        gen = _resolve_generation(config, solver_cfg)
+        return OpenClawSolver(
+            openclaw_bin=solver_cfg.openclaw_bin,
+            thinking=solver_cfg.thinking,
+            timeout=bench.timeout,
+            model_url=model_url,
+            model_id=model_id,
+            api_key=api_key,
+            context_window=solver_cfg.context_window,
+            max_tokens=gen.max_tokens if gen else None,
+            max_concurrent=solver_cfg.max_concurrent,
+            config_path=solver_cfg.config_path,
+            temperature=gen.temperature if gen else None,
+            top_p=gen.top_p if gen else None,
+            skip_preflight=solver_cfg.skip_preflight or uses_sandbox,
+        )
+
+    from nemo_evaluator.solvers import ChatSolver
+
+    return ChatSolver(client, system_prompt=None)
 
 
-def _start_model_service(svc: ServiceConfig):
-    """Start a model server process and return the deployment handle."""
+def _start_model_service(svc: Any):
     from nemo_evaluator.eval.deployment import DeployConfig, get_deployment
+
+    gpu_count = svc.gpus if isinstance(svc.gpus, int) else len(svc.gpus) if svc.gpus else 1
 
     deploy_cfg = DeployConfig(
         type=svc.type,
         model=svc.model,
-        gpus=svc.gpus if isinstance(svc.gpus, int) else len(svc.gpus) if svc.gpus else 1,
+        gpus=gpu_count,
         port=svc.port,
         health_path=svc.health_path,
         startup_timeout=svc.startup_timeout,
@@ -166,17 +238,20 @@ def _start_model_service(svc: ServiceConfig):
 
     if svc.tensor_parallel_size:
         if svc.type == "vllm":
-            deploy_cfg.extra_args.extend(["--tensor-parallel-size", str(svc.tensor_parallel_size)])
+            deploy_cfg.extra_args.extend(
+                ["--tensor-parallel-size", str(svc.tensor_parallel_size)]
+            )
         elif svc.type == "sglang":
-            deploy_cfg.extra_args.extend(["--tp-size", str(svc.tensor_parallel_size)])
+            deploy_cfg.extra_args.extend(
+                ["--tp-size", str(svc.tensor_parallel_size)]
+            )
 
     deployment = get_deployment(deploy_cfg)
     url = deployment.start()
     return deployment, url
 
 
-def _start_gym_service(svc: ServiceConfig):
-    """Start a managed Gym environment server."""
+def _start_gym_service(svc: GymResourceService):
     from nemo_evaluator.environments.gym import ManagedGymEnvironment
 
     gym = ManagedGymEnvironment(
@@ -190,8 +265,6 @@ def _start_gym_service(svc: ServiceConfig):
 
 
 class _NatServiceHandle:
-    """Manages a NAT agent server subprocess."""
-
     def __init__(self, port: int, config_file: str | None) -> None:
         import subprocess
 
@@ -218,11 +291,18 @@ class _NatServiceHandle:
         deadline = time.monotonic() + startup_timeout
         while time.monotonic() < deadline:
             if self._process.poll() is not None:
-                raise RuntimeError(f"NAT server exited with code {self._process.returncode} during startup")
+                raise RuntimeError(
+                    f"NAT server exited with code {self._process.returncode} during startup"
+                )
             try:
-                with urllib.request.urlopen(f"{self.endpoint}/health", timeout=2.0) as r:
+                with urllib.request.urlopen(
+                    f"{self.endpoint}/health", timeout=2.0,
+                ) as r:
                     if r.status == 200:
-                        logger.info("NAT agent ready at %s (pid=%d)", self.endpoint, self._process.pid)
+                        logger.info(
+                            "NAT agent ready at %s (pid=%d)",
+                            self.endpoint, self._process.pid,
+                        )
                         return
             except (urllib.error.URLError, OSError):
                 pass
@@ -247,9 +327,7 @@ class _NatServiceHandle:
 
 
 class _ServiceHandle:
-    """Wraps a running service for uniform lifecycle management."""
-
-    def __init__(self, name: str, svc: ServiceConfig) -> None:
+    def __init__(self, name: str, svc: Any) -> None:
         self.name = name
         self.svc = svc
         self._deployment = None
@@ -258,22 +336,28 @@ class _ServiceHandle:
         self.url: str = ""
 
     def start(self) -> str:
-        if self.svc.type == "api":
-            self.url = self.svc.url or ""
+        if not self.svc.is_managed:
+            self.url = self.svc.base_url
             return self.url
 
-        if self.svc.type == "gym":
+        if isinstance(self.svc, GymResourceService):
             self._gym = _start_gym_service(self.svc)
             self.url = self._gym.endpoint
             return self.url
 
-        if self.svc.type == "nat":
-            self._nat = _NatServiceHandle(self.svc.port, self.svc.nat_config_file)
+        if isinstance(self.svc, NatAgentService):
+            self._nat = _NatServiceHandle(
+                self.svc.port, self.svc.nat_config_file,
+            )
             self._nat.start(startup_timeout=self.svc.startup_timeout)
             self.url = self._nat.endpoint
             return self.url
 
-        self._deployment, self.url = _start_model_service(self.svc)
+        if isinstance(self.svc, _MODEL_SERVICE_TYPES) and self.svc.is_managed:
+            self._deployment, self.url = _start_model_service(self.svc)
+            return self.url
+
+        self.url = self.svc.base_url
         return self.url
 
     def stop(self) -> None:
@@ -291,81 +375,152 @@ class _ServiceHandle:
 def _resolve_verifier_url(
     verifier_name: str,
     config: EvalConfig,
-    handles: dict[str, "_ServiceHandle"],
+    handles: dict[str, _ServiceHandle],
 ) -> str:
-    """Resolve the URL for a verifier service, or raise on misconfiguration."""
     handle = handles.get(verifier_name)
     if handle and handle.url:
         return handle.url
+    return config.get_model_url(verifier_name)
 
-    services = config.resolved_services()
-    svc = services.get(verifier_name)
-    if svc is None:
-        available = list(services) or list(handles)
-        raise ValueError(
-            f"Verifier service {verifier_name!r} not found. "
-            f"Available services: {available}"
+
+def _resolve_reasoning_pattern(
+    config: EvalConfig, service_name: str | None,
+) -> str | None:
+    if service_name is None:
+        return None
+    svc = config.services.get(service_name)
+    return getattr(svc, "reasoning_pattern", None) if svc else None
+
+
+def _make_sandbox_manager(sb: Any) -> Any:
+    if isinstance(sb, NoSandbox):
+        return None
+
+    from nemo_evaluator.sandbox.manager import SandboxManager
+
+    if isinstance(sb, DockerSandbox):
+        return SandboxManager(
+            backend="docker",
+            concurrency=sb.concurrency,
+            default_image=sb.image,
+            image_template=sb.image_template,
+            network=sb.network,
+            memory=sb.memory,
+            cpus=sb.cpus,
         )
-    return svc.base_url
 
+    if isinstance(sb, (SlurmSandbox, ApptainerSandbox)):
+        het_group_raw = os.environ.get("NEL_SANDBOX_HET_GROUP")
+        het_group = int(het_group_raw) if het_group_raw else None
+        backend_kwargs: dict[str, Any] = {}
 
-def _warn_incompatible(bench: BenchmarkConfig, env: Any) -> None:
-    """Emit warnings for known-bad solver + environment combinations."""
-    ep = bench.endpoint_type
-    name = bench.name
+        if isinstance(sb, SlurmSandbox):
+            backend_kwargs = {"shared_fs_root": None, "het_group": het_group}
+        else:
+            mem_mb = None
+            if sb.memory:
+                mem_str = sb.memory.strip().lower()
+                if mem_str.endswith("g"):
+                    mem_mb = int(float(mem_str[:-1]) * 1024)
+                elif mem_str.endswith("m"):
+                    mem_mb = int(float(mem_str[:-1]))
+            backend_kwargs = {"memory_mb": mem_mb, "het_group": het_group}
 
-    from nemo_evaluator.environments.harbor import HarborEnvironment
+        slurm_nodes: list[str] | None = None
+        raw = os.environ.get("NEL_SANDBOX_NODES", "")
+        if raw:
+            slurm_nodes = raw.split(",")
 
-    if isinstance(env, HarborEnvironment) and not ep.modifies_sandbox:
-        logger.warning(
-            "Benchmark %r uses Harbor (requires sandbox interaction) but "
-            "endpoint_type=%r does not modify sandbox state. "
-            "Only 'harbor' runs inside the container. "
-            "Expect reward=0.0 for all problems.",
-            name, ep,
+        return SandboxManager(
+            backend=sb.type,
+            concurrency=sb.concurrency,
+            default_image=sb.image,
+            image_template=sb.image_template,
+            slurm_nodes=slurm_nodes,
+            slots_per_node=sb.slots_per_node,
+            sif_cache_dir=getattr(sb, "sif_cache_dir", None),
+            **backend_kwargs,
         )
+
+    if isinstance(sb, EcsFargateSandbox):
+        return SandboxManager(
+            backend="ecs_fargate",
+            concurrency=sb.concurrency,
+            default_image=sb.image,
+            image_template=sb.image_template,
+            ecs_config=_build_ecs_sandbox_config(sb),
+        )
+
+    return None
+
+
+def _make_judge_client(
+    config: EvalConfig,
+    judge_name: str,
+    handles: dict[str, _ServiceHandle],
+) -> Any:
+    from nemo_evaluator.runner.model_client import ModelClient
+
+    handle = handles.get(judge_name)
+    if handle and handle.url:
+        url = handle.url
+    else:
+        url = config.get_model_url(judge_name)
+    mid = config.get_model_id(judge_name)
+    api_key = config.get_api_key(judge_name)
+    return ModelClient(
+        base_url=url, model=mid, api_key=api_key,
+        temperature=0.0, max_tokens=2048,
+    )
 
 
 async def _run_single_benchmark(
-    bench: BenchmarkConfig,
+    bench: Any,
     config: EvalConfig,
     handles: dict[str, _ServiceHandle],
     output_dir: Path,
-    judge_clients: dict[str, Any],
     *,
     resume: bool = False,
 ) -> dict[str, Any]:
-    """Run a single benchmark and return the bundle."""
     from nemo_evaluator.environments.registry import get_environment
     from nemo_evaluator.observability.progress import ConsoleProgress
     from nemo_evaluator.runner.artifacts import write_all
     from nemo_evaluator.runner.eval_loop import run_evaluation
     from nemo_evaluator.runner.model_client import ModelClient
 
-    handle = handles.get(bench.model)
-    if handle and handle.url:
-        model_url = handle.url
-    else:
-        model_url = config.resolve_model_url(bench.model)
-    model_id = config.resolve_model_id(bench.model)
-    api_key = config.resolve_api_key(bench.model)
-    mcfg = config.resolve_model_config(bench.model)
+    solver_cfg = bench.solver
+    service_name: str | None = getattr(solver_cfg, "service", None)
+
+    model_url = ""
+    model_id = ""
+    api_key: str | None = None
+    svc: Any = None
+
+    if service_name:
+        handle = handles.get(service_name)
+        if handle and handle.url:
+            model_url = handle.url
+        else:
+            model_url = config.get_model_url(service_name)
+        model_id = config.get_model_id(service_name)
+        api_key = config.get_api_key(service_name)
+        svc = config.get_service(service_name)
 
     proxy_handle = None
-    proxy_cfg = config.resolve_proxy(bench.model)
-    if proxy_cfg is not None:
+    if svc and hasattr(svc, "interceptors") and svc.interceptors:
         from nemo_evaluator.eval.proxy import start_proxy
+
         proxy_handle = start_proxy(
             model_url, model_id, api_key,
-            port=proxy_cfg.port,
-            interceptors=proxy_cfg.interceptors,
-            verbose=proxy_cfg.verbose,
+            interceptors=_serialize_interceptors(svc.interceptors),
         )
         model_url = proxy_handle.url
 
     try:
-        env = get_environment(bench.name, num_examples=bench.max_problems,
-                              num_fewshot=bench.fewshot)
+        env = get_environment(
+            bench.name, num_examples=bench.max_problems,
+            num_fewshot=bench.fewshot,
+        )
 
         if bench.verifier:
             verifier_url = _resolve_verifier_url(bench.verifier, config, handles)
@@ -375,32 +530,53 @@ async def _run_single_benchmark(
             verify_env = GymEnvironment(verifier_url, protocol="native")
             env = CompositeEnvironment(seed_env=env, verify_env=verify_env)
 
-        _warn_incompatible(bench, env)
-
-        reasoning_pat = _resolve_reasoning_pattern(config, bench.model)
-
+        reasoning_pat = _resolve_reasoning_pattern(config, service_name)
         concurrency = bench.max_concurrent
-        if bench.endpoint_type.manages_own_client:
+
+        _MANAGES_OWN_CLIENT = (
+            GymDelegationSolverConfig, ToolCallingSolverConfig,
+            HarborSolverConfig, AgentSolverConfig,
+            NatSolverConfig, OpenClawSolverConfig,
+            ContainerSolverConfig,
+        )
+
+        if isinstance(solver_cfg, _MANAGES_OWN_CLIENT):
             client = None
-            solver = _make_solver(bench, client, model_url, model_id, api_key,
-                                  model_config=mcfg)
+            solver = _make_solver(
+                bench, config, client, model_url, model_id, api_key,
+            )
         else:
+            gen = (
+                _resolve_generation(config, solver_cfg)
+                if service_name else GenerationConfig()
+            )
             client = ModelClient(
                 base_url=model_url,
                 model=model_id,
                 api_key=api_key,
-                temperature=bench.temperature or 0.0,
-                max_tokens=bench.max_tokens or 2048,
+                temperature=gen.temperature or 0.0,
+                max_tokens=gen.max_tokens or 2048,
                 max_concurrent=concurrency,
                 reasoning_pattern=reasoning_pat,
             )
-            solver = _make_solver(bench, client, model_url, model_id, api_key,
-                                  model_config=mcfg)
+            solver = _make_solver(
+                bench, config, client, model_url, model_id, api_key,
+            )
 
-        # run_batch() environments own the full loop — step logging not applicable
-        batch_config = {"base_url": model_url, "model": model_id, "api_key": api_key}
+        from nemo_evaluator.runner.sharding import shard_from_env
+        shard_info = shard_from_env()
+
+        batch_config = {
+            "base_url": model_url, "model": model_id, "api_key": api_key,
+        }
         batch_result = await env.run_batch(solver=solver, config=batch_config)
         if batch_result is not None:
+            if shard_info:
+                logger.warning(
+                    "Shard env vars detected (idx=%d, total=%d) but benchmark "
+                    "'%s' uses run_batch() which is not shardable.",
+                    shard_info[0], shard_info[1], bench.name,
+                )
             for _key in ("api_key", "api-key"):
                 batch_result.get("config", {}).pop(_key, None)
             bench_name = getattr(env, "name", bench.name)
@@ -410,42 +586,27 @@ async def _run_single_benchmark(
             write_all(batch_result, task_dir)
             return batch_result
 
-        judge_client = _make_judge_client(config, bench.judge) if bench.judge else None
+        judge_client = None
+        from nemo_evaluator.eval.config import JudgeMetric
 
-        sandbox_mgr = None
-        sb = bench.sandbox
-        if sb and sb.backend != "none":
-            from nemo_evaluator.sandbox.manager import SandboxManager
+        for metric in bench.scoring.metrics:
+            if isinstance(metric, JudgeMetric):
+                judge_client = _make_judge_client(
+                    config, metric.service, handles,
+                )
+                break
 
-            sb = bench.sandbox
-            backend_kwargs: dict[str, Any] = {}
-            if sb.backend == "docker":
-                backend_kwargs = {"network": sb.network, "memory": sb.memory, "cpus": sb.cpus}
-            elif sb.backend == "slurm":
-                backend_kwargs = {"shared_fs_root": None}
-            elif sb.backend == "ecs_fargate":
-                backend_kwargs = {"ecs_config": _build_ecs_sandbox_config(sb.ecs)}
-
-            slurm_nodes: list[str] | None = None
-            if sb.backend == "slurm" and sb.sandbox_nodes > 0:
-                import os
-                raw = os.environ.get("NEL_SANDBOX_NODES", "")
-                slurm_nodes = raw.split(",") if raw else None
-
-            sandbox_mgr = SandboxManager(
-                backend=sb.backend,
-                concurrency=sb.concurrency,
-                default_image=sb.image,
-                image_template=sb.image_template,
-                slurm_nodes=slurm_nodes,
-                slots_per_node=sb.slots_per_node,
-                **backend_kwargs,
-            )
+        sandbox_mgr = _make_sandbox_manager(bench.sandbox)
 
         bench_name = getattr(env, "name", bench.name)
         safe = _safe_name(bench_name)
         task_dir = output_dir / safe
         task_dir.mkdir(parents=True, exist_ok=True)
+
+        scorer_names = [
+            m.name for m in bench.scoring.metrics
+            if getattr(m, "type", None) == "scorer"
+        ]
 
         run_config: dict[str, Any] = {
             "benchmark": bench_name,
@@ -453,10 +614,8 @@ async def _run_single_benchmark(
             "base_url": model_url,
             "repeats": bench.repeats,
             "max_problems": bench.max_problems,
-            "scorers": bench.scorers,
+            "scorers": scorer_names or None,
         }
-        if sb:
-            run_config["_sandbox_config"] = sb
 
         bundle = await run_evaluation(
             env, solver,
@@ -471,6 +630,7 @@ async def _run_single_benchmark(
             step_log_dir=task_dir,
             resume=resume,
             skip_failed=bench.skip_failed,
+            shard_info=shard_info,
         )
 
         write_all(bundle, task_dir)
@@ -480,30 +640,7 @@ async def _run_single_benchmark(
             proxy_handle.stop()
 
 
-def _make_judge_client(config: EvalConfig, judge_name: str) -> Any:
-    """Create a fresh ModelClient for a judge service (safe for per-benchmark event loops)."""
-    from nemo_evaluator.runner.model_client import ModelClient
-
-    url = config.resolve_model_url(judge_name)
-    mid = config.resolve_model_id(judge_name)
-    api_key = config.resolve_api_key(judge_name)
-    return ModelClient(base_url=url, model=mid, api_key=api_key,
-                       temperature=0.0, max_tokens=2048)
-
-
-def _resolve_reasoning_pattern(config: EvalConfig, service_name: str) -> str | None:
-    """Extract reasoning_pattern from config, handling both simple and advanced modes."""
-    if config.is_simple and config.model:
-        return config.model.reasoning_pattern
-    if config.services:
-        svc = config.services.get(service_name)
-        if svc:
-            return svc.reasoning_pattern
-    return None
-
-
 def _load_prior_bundle(task_dir: str) -> dict[str, Any]:
-    """Load an eval bundle JSON from a prior completed benchmark run."""
     import json
 
     d = Path(task_dir)
@@ -513,7 +650,9 @@ def _load_prior_bundle(task_dir: str) -> dict[str, Any]:
     return json.loads(bundle_files[0].read_text(encoding="utf-8"))
 
 
-def run_local(config: EvalConfig, *, resume: bool = False) -> list[dict[str, Any]]:
+def run_local(
+    config: EvalConfig, *, resume: bool = False,
+) -> list[dict[str, Any]]:
     import click
 
     from nemo_evaluator.runner.checkpoint import CheckpointManager
@@ -528,7 +667,7 @@ def run_local(config: EvalConfig, *, resume: bool = False) -> list[dict[str, Any
     handles: dict[str, _ServiceHandle] = {}
     bundles: list[dict[str, Any]] = []
 
-    for name, svc in config.resolved_services().items():
+    for name, svc in config.services.items():
         if svc.is_managed:
             handles[name] = _ServiceHandle(name, svc)
 
@@ -540,7 +679,9 @@ def run_local(config: EvalConfig, *, resume: bool = False) -> list[dict[str, Any
 
         for i, bench in enumerate(config.benchmarks):
             n = len(config.benchmarks)
-            click.echo(f"\n{'='*60}\n  Benchmark {i+1}/{n}: {bench.name}\n{'='*60}")
+            click.echo(
+                f"\n{'='*60}\n  Benchmark {i+1}/{n}: {bench.name}\n{'='*60}"
+            )
 
             if ckpt.is_completed(bench.name):
                 prior = ckpt.get_completed_result(bench.name)
@@ -551,12 +692,14 @@ def run_local(config: EvalConfig, *, resume: bool = False) -> list[dict[str, Any
             if resume and ckpt.has_partial_progress(bench.name):
                 progress = ckpt.get_progress(bench.name)
                 if progress:
-                    click.echo(f"  Resuming ({progress['verified']} verified, "
-                               f"{progress['inferred']} inferred)")
+                    click.echo(
+                        f"  Resuming ({progress['verified']} verified, "
+                        f"{progress['inferred']} inferred)"
+                    )
 
             try:
                 bundle = asyncio.run(_run_single_benchmark(
-                    bench, config, handles, output_dir, {},
+                    bench, config, handles, output_dir,
                     resume=resume,
                 ))
 
@@ -573,7 +716,9 @@ def run_local(config: EvalConfig, *, resume: bool = False) -> list[dict[str, Any
                 click.echo()
 
             except Exception as exc:
-                logger.error("Benchmark %s failed: %s", bench.name, exc, exc_info=True)
+                logger.error(
+                    "Benchmark %s failed: %s", bench.name, exc, exc_info=True,
+                )
                 ckpt.mark_failed(bench.name, str(exc))
                 click.echo(f"  FAILED: {exc}", err=True)
                 bundles.append({
@@ -586,7 +731,9 @@ def run_local(config: EvalConfig, *, resume: bool = False) -> list[dict[str, Any
         completed, failed = summary["completed"], summary["failed"]
         if failed > 0:
             click.echo(f"\n{completed} completed, {failed} failed", err=True)
-            click.echo("Re-run with --resume to retry failed benchmarks.", err=True)
+            click.echo(
+                "Re-run with --resume to retry failed benchmarks.", err=True,
+            )
 
         _generate_reports(config, output_dir, in_memory_bundles=bundles)
 
@@ -604,7 +751,6 @@ def _generate_reports(
     *,
     in_memory_bundles: list[dict[str, Any]] | None = None,
 ) -> None:
-    """Generate all requested report formats and run export plugins."""
     import click
 
     from nemo_evaluator.cli.report import RENDERERS, _build_table, _load_bundles
@@ -640,9 +786,14 @@ def _generate_reports(
     for exporter_name in config.output.export:
         try:
             from nemo_evaluator.runner.exporters import get_exporter
-            exporter_kwargs = config.output.export_config.get(exporter_name, {})
+
+            exporter_kwargs = config.output.export_config.get(
+                exporter_name, {},
+            )
             exporter = get_exporter(exporter_name, **exporter_kwargs)
-            exporter.export(export_bundles, config={"output_dir": str(output_dir)})
+            exporter.export(
+                export_bundles, config={"output_dir": str(output_dir)},
+            )
             click.echo(f"Exported to: {exporter_name}")
         except Exception as exc:
             logger.error("Export to %s failed: %s", exporter_name, exc)

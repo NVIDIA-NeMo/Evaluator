@@ -1,0 +1,52 @@
+# Flavor: SLURM + vLLM + Harbor agent + Apptainer sandbox (het-group)
+# Full distributed SWE-bench: vLLM serves the model on GPU nodes,
+# Harbor/OpenHands runs agents co-located with the model,
+# Apptainer sandboxes run on separate CPU-only nodes via het-groups.
+#
+# Prerequisites:
+#   - Access to a SLURM cluster with GPU and CPU partitions
+#   - Apptainer >= 1.1 on all nodes
+#   - Shared filesystem (e.g. /lustre, /nfs) for SIF cache + staging
+#   - Model weights accessible on shared filesystem
+# Run: nel eval run examples/configs/16a_slurm_swebench_harbor_apptainer.yaml
+
+services:
+  model:
+    type: vllm
+    model: nvidia/Llama-3.1-70B-Instruct
+    protocol: chat_completions
+    tensor_parallel_size: 4
+    port: 8000
+    node_pool: gpu
+
+sandboxes:
+  swebench:
+    type: apptainer
+    node_pool: sandbox_cpu
+    sif_cache_dir: /shared/nel_sif_cache
+    concurrency: 8
+    slots_per_node: 4
+    timeout: 1800.0
+
+benchmarks:
+  - name: swebench-verified
+    max_problems: 10
+    solver:
+      type: harbor
+      service: model
+      agent: openhands-sdk
+      agent_kwargs:
+        max_iterations: 100
+    sandbox: swebench
+
+cluster:
+  type: slurm
+  walltime: "04:00:00"
+  node_pools:
+    gpu:
+      partition: gpu
+      nodes: 1
+      gres: "gpu:4"
+    sandbox_cpu:
+      partition: cpu
+      nodes: 2
