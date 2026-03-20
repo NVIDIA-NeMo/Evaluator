@@ -30,6 +30,7 @@ from nemo_evaluator_launcher.executors.slurm.executor import (
     SlurmExecutor,
     _create_slurm_sbatch_script,
     _generate_autoresume_handler,
+    _generate_heartbeat_bash,
 )
 
 
@@ -3921,3 +3922,59 @@ class TestSbatchExtraFlags:
         switches_pos = script.index("#SBATCH --switches 1")
         job_name_pos = script.index("#SBATCH --job-name")
         assert comment_pos < switches_pos < job_name_pos
+
+
+class TestGenerateHeartbeatBash:
+    def test_no_container(self):
+        cfg = OmegaConf.create(
+            {
+                "execution": {
+                    "heartbeat": {
+                        "script": "curl http://example.com/ping",
+                        "interval": 60,
+                    }
+                },
+            }
+        )
+        bash = _generate_heartbeat_bash(cfg, Path("/tmp/task"))
+        assert "curl http://example.com/ping" in bash
+        assert "sleep 60" in bash
+        assert "srun" not in bash
+        assert "_heartbeat_pid" in bash
+
+    def test_with_container(self):
+        cfg = OmegaConf.create(
+            {
+                "execution": {
+                    "heartbeat": {
+                        "script": "python3 /tmp/task/export.py --update",
+                        "container": "ghcr.io#mlflow/mlflow:v3.10.0",
+                        "interval": 300,
+                    }
+                },
+            }
+        )
+        bash = _generate_heartbeat_bash(cfg, Path("/tmp/task"))
+        assert "srun" in bash
+        assert "ghcr.io#mlflow/mlflow:v3.10.0" in bash
+        assert "sleep 300" in bash
+        assert "/tmp/task:/tmp/task" in bash
+        assert "python3 /tmp/task/export.py --update" in bash
+
+    def test_default_interval(self):
+        cfg = OmegaConf.create(
+            {
+                "execution": {"heartbeat": {"script": "echo heartbeat"}},
+            }
+        )
+        bash = _generate_heartbeat_bash(cfg, Path("/tmp/task"))
+        assert "sleep 300" in bash
+
+    def test_logging_on_failure(self):
+        cfg = OmegaConf.create(
+            {
+                "execution": {"heartbeat": {"script": "false"}},
+            }
+        )
+        bash = _generate_heartbeat_bash(cfg, Path("/tmp/task"))
+        assert "[heartbeat] FAILED (non-fatal)" in bash

@@ -860,7 +860,22 @@ def _create_evaluation_launch_script(
         "--output_dir /results", f"--output_dir {output_dir}"
     )
 
-    # Create the launch script (based on old implementation)
+    hb = cfg.execution.get("heartbeat", {})
+    hb_script = hb.get("script")
+    hb_interval = hb.get("interval", 300)
+    if hb_script:
+        heartbeat_section = (
+            f"(\n"
+            f"  while kill -0 $$ 2>/dev/null; do\n"
+            f"    sleep {hb_interval}\n"
+            f"    {hb_script} || echo '[heartbeat] FAILED (non-fatal)'\n"
+            f"  done\n"
+            f") &\n"
+            f"_heartbeat_pid=$!\n"
+        )
+    else:
+        heartbeat_section = ""
+
     script = f"""#!/bin/bash
 set -e
 
@@ -880,10 +895,18 @@ echo "Command: {eval_command_modified}"
 
 {eval_command_debug_comment}
 
+# Heartbeat
+_heartbeat_pid=0
+{heartbeat_section}
+
 # Execute the evaluation with proper error handling
 set +e
 {eval_command_modified}
 exit_code=$?
+
+# Stop heartbeat
+kill "$_heartbeat_pid" 2>/dev/null || true
+wait "$_heartbeat_pid" 2>/dev/null || true
 
 # Set proper permissions
 chmod 777 -R {output_dir} 2>/dev/null || true

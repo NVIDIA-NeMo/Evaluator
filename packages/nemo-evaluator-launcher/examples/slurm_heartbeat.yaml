@@ -1,0 +1,75 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# ==============================================================================
+# Evaluation with Heartbeat Monitoring
+# ==============================================================================
+# This configuration demonstrates the heartbeat feature, which runs a
+# user-provided script periodically during the evaluation job.
+#
+# The heartbeat checks every 60 seconds whether any artifacts have been
+# produced. This is useful for long-running evaluations where you want
+# to know progress without SSH-ing to the node.
+#
+# How to use:
+#
+# 1. Copy this file locally or clone the repository.
+# 2. Set the required values below (or pass them via CLI overrides):
+#    -o execution.hostname=my-cluster.com
+#    -o execution.output_dir=/absolute/path/on/cluster
+#    -o execution.account=my-account
+# 3. (Optional) Run with 10 samples for quick testing:
+#    -o ++evaluation.nemo_evaluator_config.config.params.limit_samples=10
+# 4. Run the evaluation:
+#    nemo-evaluator-launcher run --config path/to/slurm_heartbeat.yaml
+#
+# The heartbeat output appears in the SLURM log alongside the evaluation output.
+#
+# ⚠️  WARNING:
+#     Always run full evaluations (without limit_samples) for actual benchmark
+#     results. Using a subset of samples is solely for testing configuration
+#     and setup. Results from such test runs should NEVER be used to compare
+#     models or report benchmark performance.
+# ==============================================================================
+
+defaults:
+  - execution: slurm/default
+  - deployment: vllm
+  - _self_
+
+execution:
+  hostname: ???  # SLURM headnode hostname (required)
+  account: ???   # SLURM account (required)
+  output_dir: ??? # ABSOLUTE path on cluster (required)
+
+  partition: batch
+  walltime: "01:00:00"
+
+  heartbeat:
+    script: 'ls -la artifacts/ 2>/dev/null || echo "[heartbeat] no artifacts yet"'
+    interval: 60
+
+  mounts:
+    mount_home: false
+
+deployment:
+  checkpoint_path: null
+  hf_model_handle: meta-llama/Llama-3.1-8B-Instruct
+  served_model_name: meta-llama/Llama-3.1-8B-Instruct
+  tensor_parallel_size: 1
+
+evaluation:
+  tasks:
+    - name: lm-evaluation-harness.ifeval

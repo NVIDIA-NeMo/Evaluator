@@ -252,6 +252,22 @@ execution:
 `--switches=1` is useful for multi-node deployments. It instructs Slurm to allocate all nodes on the same network switch, which can reduce inter-node communication latency.
 :::
 
+## Heartbeat
+
+Run a user-provided script periodically during the job. Useful for monitoring progress or reporting to external systems.
+
+```yaml
+execution:
+  heartbeat:
+    script: 'ls -la artifacts/ 2>/dev/null || echo "no artifacts yet"'
+    interval: 60          # seconds (default: 300)
+    container: null       # optional container image for the heartbeat script
+```
+
+The heartbeat starts a background loop when the job begins and stops it after evaluation completes. If the script fails, it logs a warning but does not affect the evaluation.
+
+See [`examples/slurm_heartbeat.yaml`](../../../../../packages/nemo-evaluator-launcher/examples/slurm_heartbeat.yaml) for a complete example.
+
 ## Monitoring and Job Management
 
 For monitoring jobs, checking status, and managing evaluations, see the [Executors Overview](overview.md#job-management) section.

@@ -49,3 +49,8 @@ proxy:
     haproxy_port: 5009
     health_check_path: /health
     health_check_status: 200
+
+heartbeat:
+  script: null
+  interval: 300
+  container: null

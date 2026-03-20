@@ -18,3 +18,8 @@ output_dir: ???
 extra_docker_args: ""
 mode: sequential
 endpoint_readiness_timeout: 600
+
+heartbeat:
+  script: null
+  interval: 300
+  container: null

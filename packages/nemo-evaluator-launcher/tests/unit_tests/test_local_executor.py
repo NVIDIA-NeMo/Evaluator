@@ -865,3 +865,91 @@ class TestLocalExecutorEndpointReadinessTimeout:
 
         finally:
             os.environ.pop("TEST_API_KEY", None)
+
+
+class TestHeartbeatInLocalTemplate:
+    def test_heartbeat_start_and_stop(self):
+        """Heartbeat start/stop appear when script is configured."""
+        from pathlib import Path
+
+        from jinja2 import Environment
+
+        template_text = (
+            Path(__file__).parent.parent.parent
+            / "src"
+            / "nemo_evaluator_launcher"
+            / "executors"
+            / "local"
+            / "run.template.sh"
+        ).read_text()
+
+        # Minimal task dict to pass the for loop
+        task = type(
+            "T",
+            (),
+            {
+                "__getitem__": lambda s, k: {
+                    "job_id": "t.0",
+                    "name": "test",
+                    "output_dir": "/tmp/out",
+                    "secrets_env_content": None,
+                    "deployment": None,
+                    "eval_factory_command_debug_comment": "#",
+                    "eval_reexport_cmd": "",
+                    "deployment_reexport_cmd": "",
+                    "export_reexport_cmd": "",
+                    "eval_image": "img",
+                    "eval_mounts": "",
+                    "eval_env_vars": "",
+                    "eval_factory_command": "echo eval",
+                    "client_container_name": "c",
+                    "server_container_name": "s",
+                }[k],
+                "get": lambda s, k, d=None: {
+                    "deployment": None,
+                    "secrets_env_content": None,
+                }.get(k, d),
+            },
+        )()
+
+        env = Environment()
+        tmpl = env.from_string(template_text)
+        rendered = tmpl.render(
+            evaluation_tasks=[task],
+            auto_export_destinations=[],
+            auto_export_config_str="",
+            extra_docker_args="",
+            endpoint_readiness_timeout=300,
+            heartbeat_script="echo ping",
+            heartbeat_interval=30,
+        )
+        assert "_heartbeat_pid" in rendered
+        assert "echo ping" in rendered
+        assert "sleep 30" in rendered
+        assert "kill" in rendered
+
+    def test_no_heartbeat_when_none(self):
+        """No heartbeat injected when script is None."""
+        from pathlib import Path
+
+        from jinja2 import Environment
+
+        template_text = (
+            Path(__file__).parent.parent.parent
+            / "src"
+            / "nemo_evaluator_launcher"
+            / "executors"
+            / "local"
+            / "run.template.sh"
+        ).read_text()
+        env = Environment()
+        rendered = env.from_string(template_text).render(
+            evaluation_tasks=[],
+            auto_export_destinations=[],
+            auto_export_config_str="",
+            extra_docker_args="",
+            endpoint_readiness_timeout=300,
+            heartbeat_script=None,
+            heartbeat_interval=300,
+        )
+        assert "_heartbeat_pid" not in rendered
