@@ -49,13 +49,17 @@ External environments via URI schemes: `lm-eval://`, `skills://`, `vlmevalkit://
 Optional local proxy for LLM traffic observability. Intercepts all agent-to-model requests for logging, debugging, and custom transformations.
 
 ```yaml
-model:
-  url: https://integrate.api.nvidia.com/v1
-  id: nvidia/nemotron-3-super-120b-a12b
-  api_key: ${NVIDIA_API_KEY}
-  proxy:
-    verbose: true
-    interceptors: [my_module.MyCallback]
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+    interceptors:
+      - my_module.MyCallback
+    proxy:
+      verbose: true
 ```
 
 Install with `pip install -e ".[proxy]"`. Works with both local and ECS Fargate sandboxes (reverse SSH tunnel established automatically).
@@ -86,31 +90,30 @@ def my_scorer(sample: ScorerInput) -> dict:
 
 ## Solvers
 
-| Solver | Endpoint Type | Use Case |
-|--------|---------------|----------|
-| `ChatSolver` | `chat` | Standard chat completions (default) |
-| `CompletionSolver` | `completions` | Base model text completions |
-| `VLMSolver` | `vlm` | Vision-language (images + text) |
-| `HarborSolver` | `harbor` | Harbor agents (OpenHands etc.) |
-| `GymSolver` | `gym` | Delegate to nemo-gym server |
-| `NatSolver` | `nat` | NeMo Agent Toolkit (SSE) |
-| `OpenClawSolver` | `openclaw` | OpenClaw CLI agent |
+Configured via `solver.type` in each benchmark:
+
+| Solver Type | Config `type` | Use Case |
+|-------------|---------------|----------|
+| SimpleSolver | `simple` | Standard chat/completion/VLM (default) |
+| HarborSolver | `harbor` | Harbor agents (OpenHands, Terminus-2, etc.) |
+| ToolCallingSolver | `tool_calling` | Tool-use with Gym resource servers |
+| GymDelegationSolver | `gym_delegation` | Delegate to nemo-gym server |
+| OpenClawSolver | `openclaw` | OpenClaw CLI agent |
+| ContainerSolver | `container` | Legacy container harness |
 
 ### Compatibility
 
-| Environment | chat | completions | vlm | harbor | gym | nat | openclaw |
-|-------------|------|-------------|-----|--------|-----|-----|----------|
-| skills://      | yes  | yes  | yes  | yes    | yes | yes | yes      |
-| lm-eval://     | yes  | yes  | yes  | yes    | yes | yes | yes      |
-| vlmevalkit://  | --   | --   | yes  | --     | --  | --  | --       |
-| gym://         | yes  | yes  | yes  | yes    | yes | yes | yes      |
-| BYOB           | yes  | yes  | yes  | yes    | yes | yes | yes      |
-| harbor://      | yes* | yes* | yes* | yes    | yes | yes | yes      |
-| swebench-*     | yes* | yes* | yes* | yes    | yes | yes | yes      |
-| container://   | --   | --   | --   | --     | --  | --  | --       |
-| pinchbench     | partial | partial | partial | yes | yes | yes | yes |
+| Environment | simple | harbor | tool_calling | gym_delegation | openclaw |
+|-------------|--------|--------|-------------|----------------|----------|
+| BYOB           | yes | yes | yes | yes | yes |
+| skills://      | yes | yes | yes | yes | yes |
+| lm-eval://     | yes | yes | yes | yes | yes |
+| vlmevalkit://  | yes | --  | --  | --  | --  |
+| gym://         | yes | yes | yes | yes | yes |
+| swebench-*     | yes* | yes | yes | yes | yes |
+| container://   | --  | --  | --  | --  | --  |
 
-`yes*` = two-container mode; `partial` = only LLM-as-judge tasks score meaningfully; `--` = incompatible.
+`yes*` = two-container mode; `--` = incompatible.
 
 ## Sandboxes
 
@@ -132,6 +135,7 @@ Pyxis/Enroot-based execution with auto-selected container images per URI scheme.
 | Command | Purpose |
 |---------|---------|
 | `nel eval run` | Run evaluation (name or YAML) |
+| `nel eval merge <dir>` | Merge sharded results |
 | `nel eval report <dir>` | Generate reports |
 | `nel list` | List benchmarks |
 | `nel serve -b <name>` | Serve as HTTP endpoint |
@@ -142,7 +146,7 @@ Pyxis/Enroot-based execution with auto-selected container images per URI scheme.
 
 ## Examples
 
-See [`examples/configs/`](examples/configs/) for 20 end-to-end configs covering all solver types, verification methods, and execution backends.
+See [`examples/configs/`](examples/configs/) for 25 end-to-end configs covering all solver types, verification methods, and execution backends.
 
 ## License
 

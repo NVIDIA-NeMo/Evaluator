@@ -38,7 +38,7 @@ Deploy on SLURM, Docker, and CI/CD pipelines.
 
 - **Everything is an Environment.** Built-in benchmarks, NeMo Skills, Gym remotes, lm-eval tasks, and VLMEvalKit datasets all resolve through one registry.
 - **`@benchmark` + `@scorer`.** Define a complete benchmark in under 10 lines of Python.
-- **Pluggable solvers.** `ChatSolver`, `CompletionSolver`, `HarborSolver`, `GymSolver`, `VLMSolver` -- swap inference strategy without touching benchmarks.
+- **Pluggable solvers.** `simple`, `harbor`, `tool_calling`, `gym_delegation`, `openclaw` -- swap inference strategy per benchmark via config.
 - **Executors.** Run locally, in Docker, or on SLURM clusters with automatic model deployment.
 - **Resilient suites.** Per-benchmark checkpointing with failure isolation. Resume partially completed suites with `--resume`.
 - **Statistical regression.** Compare runs with confidence intervals and Mann-Whitney U p-values.

@@ -9,7 +9,7 @@ NEL provides three levels of isolation:
 | Level         | What                                | Implementation                      |
 | ------------- | ----------------------------------- | ----------------------------------- |
 | **Cluster**   | Where the overall eval runs         | `executors/` — Local, Docker, SLURM |
-| **Benchmark** | Per-benchmark environment container | SLURM `env_mode: separated`         |
+| **Benchmark** | Per-benchmark environment container | SLURM `node_pools` topology         |
 | **Problem**   | Per-problem isolated sandbox        | `sandbox/` — this module            |
 
 The per-problem sandbox is essential for:

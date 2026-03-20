@@ -68,14 +68,21 @@ nel eval run eval_config.yaml
 
 ```yaml
 # eval_config.yaml
-model:
-  url: https://inference-api.nvidia.com/v1
-  id: azure/openai/gpt-5.2
+services:
+  model:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
 
 benchmarks:
   - name: gsm8k
     repeats: 4
     max_problems: 100
+    solver:
+      type: simple
+      service: model
 ```
 
 Multi-benchmark configs support `--resume` for checkpoint-based recovery:
@@ -394,18 +401,32 @@ SLURM evaluations are driven by a YAML config with a `cluster: { type: slurm }` 
 
 ```yaml
 # slurm_eval.yaml
-model:
-  url: https://inference-api.nvidia.com/v1
-  id: azure/openai/gpt-5.2
+services:
+  model:
+    type: vllm
+    model: nvidia/Llama-3.1-70B-Instruct
+    protocol: chat_completions
+    tensor_parallel_size: 4
+    port: 8000
+    node_pool: compute
 
 benchmarks:
   - name: gsm8k
     repeats: 8
+    solver:
+      type: simple
+      service: model
 
 cluster:
   type: slurm
-  partition: batch
-  conda_env: gym
+  walltime: "04:00:00"
+  shards: 16
+  node_pools:
+    compute:
+      partition: batch
+      nodes: 1
+      ntasks_per_node: 1
+      gres: "gpu:4"
 
 output:
   dir: ./eval_results/gsm8k_distributed

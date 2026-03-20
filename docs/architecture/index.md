@@ -223,17 +223,17 @@ sequenceDiagram
 
 ## Solver Protocol
 
-Solvers decouple inference strategy from benchmark logic. The eval loop calls `solver.solve(task)` and receives a response.
+Solvers decouple inference strategy from benchmark logic. The eval loop calls `solver.solve(task)` and receives a response. In YAML configs, solvers are configured via `solver.type` in each benchmark.
 
-| Solver | Protocol | Use case |
-|--------|----------|----------|
-| `ChatSolver` | Single `/chat/completions` call | Standard benchmarks (default) |
-| `CompletionSolver` | `/completions` endpoint | Legacy models, prompt-based eval |
-| `VLMSolver` | `/chat/completions` with images | Vision-language benchmarks |
-| `HarborSolver` | Harbor agent SDK | Agentic evaluation (OpenHands, SWE-agent) |
-| `GymSolver` | HTTP client to nemo-gym server | Delegate solve (and optionally verify) to gym |
-| `NatSolver` | NAT agent via SSE (`/generate/full`) | Any benchmark with NAT agent (PinchBench, GSM8K, etc.) |
-| `OpenClawSolver` | OpenClaw CLI agent | OpenClaw benchmarks |
+| Solver | Config `type` | Protocol | Use case |
+|--------|---------------|----------|----------|
+| `ChatSolver` | `simple` | `/chat/completions` | Standard benchmarks (default) |
+| `VLMSolver` | `simple` (images) | `/chat/completions` + images | Vision-language benchmarks |
+| `HarborSolver` | `harbor` | Harbor agent SDK | Agentic evaluation (OpenHands, SWE-agent) |
+| `ToolCallingSolver` | `tool_calling` | Gym resource server tools | Tool-use benchmarks |
+| `GymSolver` | `gym_delegation` | HTTP to nemo-gym | Delegate solve to gym server |
+| `NatSolver` | (via service) | SSE `/generate/full` | NAT agent benchmarks |
+| `OpenClawSolver` | `openclaw` | OpenClaw CLI | OpenClaw benchmarks |
 
 ```python
 class Solver(Protocol):
@@ -263,9 +263,7 @@ The CLI dispatches via `get_executor(config.cluster.type)` and `detect_executor(
 | `DockerExecutor` | `cluster.type: docker` | `docker.json` | Runs eval inside a Docker container with the correct per-harness image |
 | `SlurmExecutor` | `cluster.type: slurm` | `slurm_job.json` | Generates self-contained sbatch scripts with per-benchmark containers |
 
-SLURM supports two container modes via `cluster.env_mode`:
-- **Colocated** (default): orchestrator + environment in the same per-harness container
-- **Separated**: each environment runs as a `nel serve` Gym server in its own container; a thin orchestrator in the base image talks to everything via HTTP
+SLURM uses `node_pools` to declare resource topology. Services and sandboxes reference pools by name, enabling heterogeneous jobs (e.g., GPU nodes for model serving + CPU nodes for sandboxes).
 
 Adding a new executor (e.g. Kubernetes) requires only a new class, a metadata file convention, and a registry entry.
 
