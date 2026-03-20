@@ -1306,7 +1306,7 @@ class TestLeptonExecutorKillJob:
                 task_name = kwargs.get("task_query")
                 mapping = kwargs.get("base_mapping", {})
                 if "." in task_name:
-                    task_name = task_name.split(".")[-1]
+                    _, task_name = task_name.split(".", 1)
                 for (harness, name), definition in mapping.items():
                     if name == task_name:
                         return definition
@@ -1335,10 +1335,10 @@ class TestLeptonExecutorKillJob:
                 call.args[1] for call in mock_create_endpoint.call_args_list
             ]
 
-            # Check sanitization: underscores -> hyphens, dots removed, lowercase
+            # Check sanitization: underscores -> hyphens, dots -> hyphens, lowercase
             assert any("mmlu" in ep for ep in endpoint_names)
             assert any("gsm8k" in ep for ep in endpoint_names)
-            assert any("arc" in ep or "challenge" in ep for ep in endpoint_names)
+            assert any("lm-eva" in ep for ep in endpoint_names)
 
             # Verify all are within 36 character limit
             for ep_name in endpoint_names:
