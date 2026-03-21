@@ -240,6 +240,47 @@ def _parse_atif(raw: Any) -> dict[str, Any] | None:
 
 
 # ---------------------------------------------------------------------------
+# Workspace diff capture + prompt-echo detection
+# ---------------------------------------------------------------------------
+
+async def _capture_workspace_diff(sandbox: "Sandbox") -> str:
+    """Run ``git diff HEAD`` inside the agent container and return the diff.
+
+    Returns empty string on any failure.  This gives the solver a meaningful
+    response for benchmarks where the agent modifies source code (SWE-bench,
+    terminal-bench, etc.) rather than producing text.
+    """
+    for workdir in ("/testbed", "/app", "/workspace"):
+        result = await sandbox.exec(
+            f"cd {workdir} && git diff HEAD 2>/dev/null",
+            timeout_sec=30,
+        )
+        if result.return_code == 0 and result.stdout.strip():
+            diff = result.stdout.strip()
+            if len(diff) > 50_000:
+                diff = diff[:50_000] + "\n... [diff truncated at 50 KB]"
+            return diff
+    return ""
+
+
+def _is_prompt_echo(response: str, prompt: str) -> bool:
+    """True when *response* is just the task prompt echoed back.
+
+    Agents that work by modifying files (rather than producing text)
+    sometimes set their "response" to the original instruction.
+    """
+    if not response or not prompt:
+        return False
+    r = response.strip()
+    p = prompt.strip()
+    if r == p:
+        return True
+    if len(r) > 200 and len(p) > 200:
+        return r[:200] == p[:200] and r[-200:] == p[-200:]
+    return False
+
+
+# ---------------------------------------------------------------------------
 # HarborSolver
 # ---------------------------------------------------------------------------
 
@@ -402,6 +443,10 @@ class HarborSolver:
             context = AgentContext()
             await agent.run(task.prompt, adapter, context)
 
+            # Capture git diff before downloading logs (agent may have
+            # modified /testbed in SWE-bench and similar tasks).
+            workspace_diff = await _capture_workspace_diff(sandbox)
+
             # Download container-side logs (no-op when host-mounted)
             if not adapter.is_mounted:
                 await _download_agent_logs(sandbox, agent_logs_dir)
@@ -437,8 +482,17 @@ class HarborSolver:
                     agent_name=self._harbor_agent,
                 )
 
-            # Response: context first, file fallback
+            # Store workspace diff in trajectory metadata (observability only).
+            if trajectory and workspace_diff:
+                doc = trajectory[0] if isinstance(trajectory, list) and trajectory else None
+                if isinstance(doc, dict):
+                    fm = doc.setdefault("final_metrics", {})
+                    fm["workspace_diff_preview"] = workspace_diff[:100_000]
+
+            # Response: prefer actual agent text, sentinel if empty/echo.
             response = _extract_response(context) or recovered["response"]
+            if not response or _is_prompt_echo(response, task.prompt):
+                response = "[workspace modified]" if workspace_diff else ""
 
             # Tokens: context first, file fallback
             prompt_tokens = context.n_input_tokens or recovered["prompt_tokens"]

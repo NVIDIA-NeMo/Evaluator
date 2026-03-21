@@ -1,8 +1,7 @@
-# Flavor: Terminal-Bench 2.0 via Harbor -- tasks auto-downloaded from Harbor registry,
-# solved by the Terminus-2 agent in ECS Fargate sandboxes, verified by per-task test.sh.
+# Flavor: Full Harbor (production) -- full 500-task SWE-bench run at scale.
 #
-# Uses harbor://terminal-bench@2.0 (89 tasks) from the Harbor registry.
-# Tasks are downloaded via sparse git checkout on first run.
+# Uses harbor://swebench-verified@1.0 (500 tasks) from the Harbor registry.
+# Tasks are auto-downloaded on first run.
 #
 # ECS infrastructure auto-discovered from AWS SSM Parameter Store.
 #
@@ -12,7 +11,7 @@
 #   - Terraform applied for target region (creates SSM parameter)
 #   - git (for sparse checkout)
 #   - pip install nemo-evaluator[harbor]
-# Run: nel eval run examples/configs/08_terminalbench_harbor.yaml
+# Run: nel eval run examples/configs/07_swebench_harbor_prod.yaml
 
 services:
   nemotron:
@@ -24,24 +23,28 @@ services:
     proxy_verbose: true
     interceptors:
       - name: turn_counter
-
-output:
-  export: [inspect]
+        config:
+          max_turns: 100
 
 benchmarks:
-  - name: harbor://terminal-bench@2.0
-    max_problems: 5
-    max_concurrent: 5
+  - name: harbor://swebench-verified@1.0
+    max_concurrent: 50
+    timeout: 3600.0
     solver:
       type: harbor
       service: nemotron
-      agent: terminus-2
+      agent: openhands-sdk
+      agent_kwargs:
+        max_iterations: 100
+        temperature: 1.0
     sandbox:
       type: ecs_fargate
       region: us-west-2
       cpu: "4096"
       memory: "8192"
-      max_task_lifetime_sec: 7200
-      log_stream_prefix: terminalbench
-      timeout: 600.0
-      concurrency: 5
+      ephemeral_storage_gib: 50
+      max_task_lifetime_sec: 14400
+      log_stream_prefix: swebench
+      ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
+      timeout: 3600.0
+      concurrency: 50

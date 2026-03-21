@@ -1,15 +1,24 @@
-"""Interceptor that counts and logs LLM turns per task as a live progress indicator.
+"""Interceptor that counts LLM turns per task, injects turn-budget
+awareness into agent messages, and hard-enforces the limit.
 
 Each concurrent agent task gets its own counter, keyed by a hash of the
 first user/system message (which contains the unique task prompt).
 
+When ``max_turns`` is set the interceptor operates in three phases:
+
+1. **Normal** (< 80% budget) — log only.
+2. **Warn** (>= 80% budget) — append a system note to messages telling
+   the agent how many turns remain so it can plan wrap-up.
+3. **Enforce** (> max_turns) — reject the request outright.  The agent
+   receives an error and must stop.
+
 Configuration (via YAML)::
 
     interceptors:
-      - turn_counter              # log every turn
+      - turn_counter              # log every turn (no limit)
       - turn_counter:
           every: 5                # log every 5th turn
-          max_turns: 100          # show "turn N/100"
+          max_turns: 100          # warn + enforce at 100
 """
 from __future__ import annotations
 
@@ -23,6 +32,9 @@ from typing import Any
 from litellm.integrations.custom_logger import CustomLogger
 
 logger = logging.getLogger(__name__)
+
+_WARN_THRESHOLD = 0.80
+_URGENT_THRESHOLD = 0.95
 
 
 def _session_key(data: dict) -> str:
@@ -50,7 +62,8 @@ class _Session:
 
 
 class Interceptor(CustomLogger):
-    """Counts LLM requests per task and logs progress."""
+    """Counts LLM requests per task, warns agents of remaining budget,
+    and hard-enforces the turn limit."""
 
     def __init__(
         self,
@@ -90,5 +103,40 @@ class Interceptor(CustomLogger):
                 "task %s turn %d%s%s [%s] (%d active)",
                 key, n, cap, elapsed, model, active,
             )
+
+        if self._max is None:
+            return None
+
+        # Hard-enforce: reject requests past the limit.
+        if n > self._max:
+            logger.warning(
+                "task %s REJECTED turn %d (max_turns=%d exceeded)",
+                key, n, self._max,
+            )
+            raise RuntimeError(
+                f"Turn budget exhausted: {n}/{self._max} turns used. "
+                f"The evaluation framework has terminated this agent session."
+            )
+
+        # Inject turn-budget awareness into the conversation so the agent
+        # can self-manage and wrap up before the hard limit.
+        remaining = self._max - n
+        messages = data.get("messages")
+        if not isinstance(messages, list):
+            return None
+
+        ratio = n / self._max
+        if ratio >= _URGENT_THRESHOLD:
+            note = (
+                f"[SYSTEM] URGENT: Turn {n}/{self._max} — only {remaining} turn(s) left. "
+                f"You MUST provide your final answer NOW. Do not start new work."
+            )
+            messages.append({"role": "system", "content": note})
+        elif ratio >= _WARN_THRESHOLD:
+            note = (
+                f"[SYSTEM] Turn {n}/{self._max} — {remaining} turns remaining. "
+                f"Begin wrapping up: finish current work and prepare your final answer."
+            )
+            messages.append({"role": "system", "content": note})
 
         return None

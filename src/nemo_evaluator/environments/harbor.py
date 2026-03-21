@@ -204,20 +204,29 @@ def download_harbor_tasks(
 
     Tasks that already exist on disk are skipped.
     """
-    if output_dir.exists() and any(output_dir.iterdir()):
-        n = sum(
-            1 for d in output_dir.iterdir()
-            if d.is_dir() and (d / "instruction.md").exists()
-        )
-        if n > 0:
-            logger.info("Harbor tasks already present: %d in %s", n, output_dir)
-            return output_dir
-
     output_dir.mkdir(parents=True, exist_ok=True)
 
     tasks = dataset.tasks
     if limit:
         tasks = tasks[:limit]
+
+    cached = {
+        d.name for d in output_dir.iterdir()
+        if d.is_dir() and (d / "instruction.md").exists()
+    }
+    needed = [t for t in tasks if t.name not in cached]
+    if not needed:
+        logger.info(
+            "Harbor tasks already present: %d/%d in %s",
+            len(cached), len(tasks), output_dir,
+        )
+        return output_dir
+
+    logger.info(
+        "Harbor cache has %d/%d tasks; downloading %d missing",
+        len(cached), len(tasks), len(needed),
+    )
+    tasks = needed
 
     groups: dict[tuple[str, str | None], list[RegistryTask]] = defaultdict(list)
     for task in tasks:
@@ -648,8 +657,13 @@ class HarborEnvironment(EvalEnvironment):
             reward = 1.0 if result.return_code == 0 else 0.0
             reward_details["reward_source"] = "exit_code_fallback"
 
+        extracted = (
+            f"test_exit={result.return_code} reward={reward}"
+        )
+
         return VerifyResult(
             reward=reward,
+            extracted_answer=extracted,
             scoring_details=reward_details,
         )
 

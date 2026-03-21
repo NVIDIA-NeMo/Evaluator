@@ -12,6 +12,7 @@ from nemo_evaluator.sandbox.lifecycle import (
     StatelessSandbox,
     pick_lifecycle,
 )
+from nemo_evaluator.sandbox.transfer import HostVolumeTransfer
 from tests.conftest import MockSandboxManager
 
 
@@ -116,7 +117,8 @@ class TestStatelessSandbox:
     async def test_separate_containers(self):
         """Agent and verify get different sandbox instances."""
         ctx, mgr = self._make_ctx()
-        lc = StatelessSandbox(ctx)
+        transfer = HostVolumeTransfer()
+        lc = StatelessSandbox(ctx, transfer)
 
         await lc.setup()
         agent_sb = await lc.get_agent_sandbox()
@@ -131,7 +133,8 @@ class TestStatelessSandbox:
     async def test_capture_cmd_executed(self):
         """capture_cmd is run in agent container during transition."""
         ctx, mgr = self._make_ctx(capture_cmd="git diff > /output/patch.diff")
-        lc = StatelessSandbox(ctx)
+        transfer = HostVolumeTransfer()
+        lc = StatelessSandbox(ctx, transfer)
 
         await lc.setup()
         agent_sb = await lc.get_agent_sandbox()
@@ -142,9 +145,9 @@ class TestStatelessSandbox:
     @pytest.mark.asyncio
     async def test_apply_cmd_executed(self):
         """apply_cmd is run in verify container after acquisition."""
-
         ctx, mgr = self._make_ctx(apply_cmd="git apply /input/patch.diff")
-        lc = StatelessSandbox(ctx)
+        transfer = HostVolumeTransfer()
+        lc = StatelessSandbox(ctx, transfer)
 
         await lc.setup()
         await lc.get_agent_sandbox()
@@ -155,31 +158,28 @@ class TestStatelessSandbox:
         await lc.teardown()
 
     @pytest.mark.asyncio
-    async def test_response_text_written_when_no_capture(self):
-        """Without capture_cmd, response text is written to shared volume."""
+    async def test_teardown_idempotent(self):
+        """Multiple teardown calls are safe (idempotent via _torn_down flag)."""
         ctx, mgr = self._make_ctx()
-        lc = StatelessSandbox(ctx)
+        transfer = HostVolumeTransfer()
+        lc = StatelessSandbox(ctx, transfer)
 
         await lc.setup()
-        await lc.transition_to_verify("my response text", solver_modified=False)
-
-        assert lc._shared_dir is not None
-        response_file = lc._shared_dir / "response.txt"
-        assert response_file.exists()
-        assert response_file.read_text() == "my response text"
+        await lc.get_agent_sandbox()
         await lc.teardown()
+        await lc.teardown()  # should not raise
 
     @pytest.mark.asyncio
-    async def test_teardown_cleans_shared_dir(self):
-        ctx, mgr = self._make_ctx()
-        lc = StatelessSandbox(ctx)
+    async def test_transition_after_teardown_is_noop(self):
+        """transition_to_verify after teardown is a no-op (torn_down guard)."""
+        ctx, mgr = self._make_ctx(capture_cmd="echo capture")
+        transfer = HostVolumeTransfer()
+        lc = StatelessSandbox(ctx, transfer)
 
         await lc.setup()
-        shared_dir = lc._shared_dir
-        assert shared_dir is not None and shared_dir.exists()
-
+        await lc.get_agent_sandbox()
         await lc.teardown()
-        assert not shared_dir.exists()
+        await lc.transition_to_verify("response", solver_modified=True)
 
 
 # ---------------------------------------------------------------------------

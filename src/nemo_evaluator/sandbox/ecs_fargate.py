@@ -66,6 +66,54 @@ def _require_aws_sdks():
         ) from e
     return boto3, getattr(botocore_config, "Config"), getattr(botocore_exceptions, "ClientError")
 
+# ── SSM auto-discovery ───────────────────────────────────────────────
+
+_ssm_config_cache: dict[str, dict[str, Any]] = {}
+
+def resolve_ecs_config_from_ssm(
+    region: str,
+    project: str = "harbor",
+) -> dict[str, Any]:
+    """Read ECS sandbox config from SSM Parameter Store.
+
+    Returns a dict matching the JSON structure written by Terraform
+    (cluster, subnets, security_groups, roles, SSH ARNs, EFS, etc.).
+    Results are cached per (region, project) for the process lifetime.
+    """
+    cache_key = f"{region}:{project}"
+    if cache_key in _ssm_config_cache:
+        return _ssm_config_cache[cache_key]
+
+    boto3, _, ClientError = _require_aws_sdks()
+    ssm = boto3.client("ssm", region_name=region)
+    param_name = f"/{project}/ecs-sandbox/config"
+    try:
+        resp = ssm.get_parameter(Name=param_name)
+    except ClientError as exc:
+        code = (exc.response.get("Error") or {}).get("Code", "")
+        if code == "ParameterNotFound":
+            raise RuntimeError(
+                f"SSM parameter '{param_name}' not found in {region}. "
+                f"Run 'terraform apply' in the ecs-sandbox stack for this "
+                f"region, or specify all ECS fields explicitly in your YAML."
+            ) from exc
+        raise
+
+    raw = resp["Parameter"]["Value"]
+    try:
+        config = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"SSM parameter '{param_name}' in {region} contains invalid JSON: {exc}"
+        ) from exc
+
+    _ssm_config_cache[cache_key] = config
+    logger.info(
+        "Resolved ECS config from SSM %s in %s (cluster=%s, %d subnets)",
+        param_name, region, config.get("cluster"), len(config.get("subnets", [])),
+    )
+    return config
+
 # ── Config dataclasses ───────────────────────────────────────────────
 
 def _sanitize_id(value: str, max_len: int = 100) -> str:
@@ -123,6 +171,8 @@ class EcsFargateConfig:
     codebuild_build_timeout: int = 30
     dockerhub_secret_arn: str | None = None
     build_parallelism: int = 50
+    efs_filesystem_id: str | None = None
+    efs_access_point_id: str | None = None
 
 # ── Retry utilities ──────────────────────────────────────────────────
 
@@ -614,6 +664,33 @@ class ImageBuilder:
                 return False
             raise
 
+    @staticmethod
+    def list_ecr_tags(ecr_repository: str, region: str | None = None) -> set[str]:
+        """Return all image tags present in an ECR repository.
+
+        Uses paginated ``list_images`` to fetch every tagged image in
+        a handful of API calls, rather than one ``describe_images``
+        call per tag.
+        """
+        boto3, _, ClientError = _require_aws_sdks()
+        ecr = boto3.client("ecr", region_name=region)
+        repo_name = ecr_repository.split("/", 1)[1] if "/" in ecr_repository else ecr_repository
+        tags: set[str] = set()
+        try:
+            paginator = ecr.get_paginator("list_images")
+            for page in paginator.paginate(
+                repositoryName=repo_name,
+                filter={"tagStatus": "TAGGED"},
+            ):
+                for img_id in page.get("imageIds", []):
+                    if tag := img_id.get("imageTag"):
+                        tags.add(tag)
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") == "RepositoryNotFoundException":
+                return set()
+            raise
+        return tags
+
     @classmethod
     def ensure_image_built(cls, *, cfg: EcsFargateConfig, environment_name: str,
                            force_build: bool = False) -> str:
@@ -712,11 +789,12 @@ class ImageBuilder:
                 f"DOCKERHUB_CREDS=$(aws secretsmanager get-secret-value"
                 f" --secret-id {cfg.dockerhub_secret_arn}"
                 f" --query SecretString --output text --region $AWS_DEFAULT_REGION)"
-                f' && echo "$DOCKERHUB_CREDS" | python3 -c'
-                """ "import sys,json;c=json.load(sys.stdin);print(c['password'])" """
-                f'| docker login -u $(echo "$DOCKERHUB_CREDS" | python3 -c'
-                """ "import sys,json;print(json.load(sys.stdin)['username'])") """
-                f"--password-stdin"
+                f' && DH_USER=$(echo "$DOCKERHUB_CREDS" | python3 -c'
+                """ "import sys,json;print(json.load(sys.stdin)['username'])")"""
+                f' && if [ -n "$DH_USER" ]; then echo "$DOCKERHUB_CREDS" | python3 -c'
+                """ "import sys,json;print(json.load(sys.stdin)['password'])" """
+                f'| docker login -u "$DH_USER" --password-stdin; fi'
+                f' || echo "Docker Hub login failed — continuing without auth"'
             )
         pre_yaml = "\n".join(f"      - {c}" for c in pre_build_cmds)
         build_cmd = (f"for i in 1 2 3; do docker build -t {repo_name}:{tag} . && break; "
@@ -860,7 +938,6 @@ class EcsFargateSandbox:
         try:
             await asyncio.to_thread(self._do_start)
             self._started = True
-            self._register_for_cleanup()
         except Exception:
             await asyncio.to_thread(self._cleanup)
             raise
@@ -977,6 +1054,7 @@ class EcsFargateSandbox:
         self._task_def_arn = self._register_task_definition(
             image=image, command=command, env=env, sidecar_def=sidecar_def)
         self._task_arn = self._run_task(self._task_def_arn)
+        self._register_for_cleanup()
         self._wait_for_running()
         self._task_ip = self._get_task_public_ip()
         self._wait_for_ssh_ready(self._task_ip, sidecar.sshd_port, sidecar.ssh_ready_timeout_sec)
@@ -1164,6 +1242,11 @@ class EcsFargateSandbox:
         containers = [c for c in containers if c.get("name") != "ssh-tunnel"]
         containers.append(sidecar_def)
 
+        task_volumes, mount_points = self._build_efs_volumes()
+        if mount_points:
+            existing_mounts = target.get("mountPoints") or []
+            target["mountPoints"] = existing_mounts + mount_points
+
         family = self._make_family_name()
         payload: dict[str, Any] = {
             "family": family,
@@ -1179,6 +1262,9 @@ class EcsFargateSandbox:
         for k in ("taskRoleArn", "executionRoleArn", "runtimePlatform", "volumes"):
             if base.get(k) is not None:
                 payload[k] = base[k]
+        if task_volumes:
+            existing_vols = payload.get("volumes") or []
+            payload["volumes"] = existing_vols + task_volumes
         if cfg.execution_role_arn:
             payload["executionRoleArn"] = cfg.execution_role_arn
         if cfg.task_role_arn:
@@ -1204,17 +1290,51 @@ class EcsFargateSandbox:
             container_def["environment"] = [{"name": k, "value": v} for k, v in sorted(env.items())]
         if log_cfg:
             container_def["logConfiguration"] = log_cfg
+
+        task_volumes, mount_points = self._build_efs_volumes()
+        if mount_points:
+            container_def["mountPoints"] = mount_points
+
         payload: dict[str, Any] = {
             "family": self._make_family_name(), "networkMode": "awsvpc",
             "requiresCompatibilities": ["FARGATE"], "cpu": cfg.cpu, "memory": cfg.memory,
             "executionRoleArn": cfg.execution_role_arn,
             "containerDefinitions": [container_def, sidecar_def],
         }
+        if task_volumes:
+            payload["volumes"] = task_volumes
         if cfg.task_role_arn:
             payload["taskRoleArn"] = cfg.task_role_arn
         if cfg.ephemeral_storage_gib:
             payload["ephemeralStorage"] = {"sizeInGiB": cfg.ephemeral_storage_gib}
         return self._do_register(payload)
+
+    def _build_efs_volumes(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Build EFS volume definitions and mount points from spec.volumes."""
+        task_volumes: list[dict[str, Any]] = []
+        mount_points: list[dict[str, Any]] = []
+        for i, vol in enumerate(self._spec.volumes):
+            if not vol.is_efs:
+                continue
+            vol_name = f"efs-{i}"
+            efs_cfg: dict[str, Any] = {
+                "fileSystemId": vol.efs_filesystem_id,
+                "transitEncryption": "ENABLED",
+            }
+            if vol.efs_access_point_id:
+                efs_cfg["authorizationConfig"] = {
+                    "accessPointId": vol.efs_access_point_id,
+                    "iam": "ENABLED",
+                }
+            elif vol.efs_root_directory:
+                efs_cfg["rootDirectory"] = vol.efs_root_directory
+            task_volumes.append({"name": vol_name, "efsVolumeConfiguration": efs_cfg})
+            mount_points.append({
+                "sourceVolume": vol_name,
+                "containerPath": vol.container_path,
+                "readOnly": vol.readonly,
+            })
+        return task_volumes, mount_points
 
     def _do_register(self, payload: dict[str, Any]) -> str:
         resp = _retry_with_backoff(lambda: self._ecs.register_task_definition(**payload),
@@ -1242,8 +1362,11 @@ class EcsFargateSandbox:
                 "subnets": cfg.subnets, "securityGroups": cfg.security_groups,
                 "assignPublicIp": "ENABLED" if cfg.assign_public_ip else "DISABLED"}},
         }
+        has_efs = any(v.is_efs for v in self._spec.volumes)
         if cfg.platform_version:
             run_kwargs["platformVersion"] = cfg.platform_version
+        elif has_efs:
+            run_kwargs["platformVersion"] = "1.4.0"
 
         last_failures: Any = None
         for attempt in range(1, cfg.run_task_max_retries + 1):

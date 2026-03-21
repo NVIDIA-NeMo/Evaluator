@@ -7,7 +7,6 @@ import logging
 import os
 import signal
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any, Literal
 
@@ -56,6 +55,43 @@ class SandboxManager:
         atexit.register(self._sync_cleanup)
         signal.signal(signal.SIGTERM, self._signal_handler)
         signal.signal(signal.SIGINT, self._signal_handler)
+
+    # ------------------------------------------------------------------
+    # Workspace transfer strategy
+    # ------------------------------------------------------------------
+
+    def get_transfer_strategy(self) -> Any:
+        """Return the appropriate WorkspaceTransfer for this backend."""
+        from nemo_evaluator.sandbox.transfer import (
+            EfsTransfer,
+            HostVolumeTransfer,
+            LocalDirectTransfer,
+            SandboxExecTransfer,
+        )
+
+        if self._backend == "local":
+            return LocalDirectTransfer()
+
+        if self._backend == "ecs_fargate":
+            ecs_cfg = self._backend_kwargs.get("ecs_config")
+            if ecs_cfg and getattr(ecs_cfg, "efs_filesystem_id", None):
+                return EfsTransfer(
+                    filesystem_id=ecs_cfg.efs_filesystem_id,
+                    access_point_id=getattr(ecs_cfg, "efs_access_point_id", None),
+                )
+            return SandboxExecTransfer()
+
+        staging_base = self._resolve_staging_base()
+        return HostVolumeTransfer(staging_base=staging_base)
+
+    def _resolve_staging_base(self) -> str | None:
+        """Return shared FS path for Slurm/Apptainer, None for Docker."""
+        if self._backend == "slurm":
+            return self._backend_kwargs.get("shared_fs_root")
+        if self._backend == "apptainer":
+            if self._slurm_nodes:
+                return self._sif_cache_dir or "/tmp"
+        return None
 
     # ------------------------------------------------------------------
     # Pre-pull
@@ -153,8 +189,8 @@ class SandboxManager:
         from nemo_evaluator.sandbox.ecs_fargate import ImageBuilder, _sanitize_id
 
         ecr_repo: str = ecs_cfg.ecr_repository
-        to_build: list[tuple[Any, str]] = []
 
+        candidates: list[tuple[Any, str, str]] = []
         for spec in req.specs:
             task_dir = spec.source.get("task_dir")
             if not task_dir:
@@ -164,10 +200,19 @@ class SandboxManager:
             if not Path(env_dir).is_dir():
                 logger.warning("Environment dir %s does not exist — skipping ECR build for %s", env_dir, spec.image)
                 continue
-
             env_name = _sanitize_id(spec.image)
             tag = ImageBuilder.get_ecr_image_tag(env_dir, env_name)
-            if ImageBuilder.image_exists_in_ecr(ecr_repo, tag, ecs_cfg.region):
+            candidates.append((spec, env_dir, tag))
+
+        loop = asyncio.get_running_loop()
+        existing_tags = await loop.run_in_executor(
+            None, ImageBuilder.list_ecr_tags, ecr_repo, ecs_cfg.region,
+        )
+        logger.info("ECR repo has %d existing tags; checking %d candidates", len(existing_tags), len(candidates))
+
+        to_build: list[tuple[Any, str]] = []
+        for spec, env_dir, tag in candidates:
+            if tag in existing_tags:
                 logger.info("ECR cache hit: %s:%s (%s)", ecr_repo, tag, spec.image)
                 continue
             to_build.append((spec, env_dir))
@@ -180,7 +225,6 @@ class SandboxManager:
             "Building %d/%d images via CodeBuild → ECR for ecs_fargate backend",
             len(to_build), len(req.specs),
         )
-        loop = asyncio.get_running_loop()
         parallelism = min(self._concurrency, getattr(ecs_cfg, "build_parallelism", 50))
         sem = asyncio.Semaphore(parallelism)
 
@@ -495,8 +539,14 @@ class SandboxManager:
     # ------------------------------------------------------------------
 
     def _signal_handler(self, signum: int, frame: Any) -> None:
+        logger.info("Signal %d received — stopping sandboxes", signum)
         self._sync_cleanup()
-        sys.exit(128 + signum)
+        try:
+            from nemo_evaluator.sandbox.ecs_fargate import _emergency_cleanup
+            _emergency_cleanup()
+        except Exception:
+            pass
+        raise KeyboardInterrupt()
 
     def _sync_cleanup(self) -> None:
         """Best-effort synchronous cleanup for atexit/signal."""

@@ -6,22 +6,20 @@ Three strategies control how sandboxes are managed during a single eval step:
 - ``StatefulSandbox``: One sandbox shared by solve and verify — verification
   sees all agent side-effects directly (HumanEval, current Harbor behavior).
 - ``StatelessSandbox``: Agent and verification run in separate sandboxes.
-  State is transferred via a shared host volume and a benchmark-defined
-  ``capture_cmd`` / ``apply_cmd`` pair.  This is the two-container model
-  that enables solver-agnostic verification.
+  State is transferred via a pluggable ``WorkspaceTransfer`` strategy
+  (host volumes, EFS, direct copy, or exec-based tar/untar).
 """
 from __future__ import annotations
 
+import asyncio
 import logging
-import shutil
-import tempfile
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from nemo_evaluator.sandbox.base import OutsideEndpoint, Sandbox, SandboxSpec
     from nemo_evaluator.sandbox.manager import SandboxManager
+    from nemo_evaluator.sandbox.transfer import WorkspaceTransfer
 
 logger = logging.getLogger(__name__)
 
@@ -133,30 +131,29 @@ class StatefulSandbox:
 class StatelessSandbox:
     """Agent and verification run in separate sandboxes.
 
-    State is transferred via a host-mounted shared volume:
+    Workspace state is transferred via a pluggable ``WorkspaceTransfer``
+    strategy:
 
-    1. Agent phase — ``get_agent_sandbox()`` starts an agent container with
-       ``/output`` mounted read-write.  Only called when the solver actually
-       needs a sandbox (lazy).
+    1. Agent phase — ``get_agent_sandbox()`` starts an agent container
+       with the transfer's volume config applied.
     2. Transition — ``transition_to_verify()`` runs the benchmark's
-       ``capture_cmd`` inside the agent container (for in-container solvers)
-       or writes the solver's text response to the shared volume (for
-       external solvers).  The agent container is then released.
-    3. Verify phase — ``get_verify_sandbox()`` starts a *fresh* container
-       with ``/input`` mounted read-only, runs ``apply_cmd`` to restore the
-       agent's changes, and returns the sandbox to the scorer.
+       ``capture_cmd`` inside the agent container, calls
+       ``transfer.post_capture()``, then releases the agent container.
+    3. Verify phase — ``get_verify_sandbox()`` starts a *fresh* container,
+       calls ``transfer.pre_restore()``, runs ``apply_cmd``, and returns
+       the sandbox to the scorer.
     """
 
-    def __init__(self, ctx: LifecycleContext) -> None:
+    def __init__(self, ctx: LifecycleContext, transfer: WorkspaceTransfer) -> None:
         self._ctx = ctx
-        self._shared_dir: Path | None = None
+        self._transfer = transfer
         self._agent_sandbox: Sandbox | None = None
         self._verify_sandbox: Sandbox | None = None
+        self._lock = asyncio.Lock()
+        self._torn_down = False
 
     async def setup(self) -> None:
-        d = tempfile.mkdtemp(prefix="nel_shared_")
-        Path(d).chmod(0o700)
-        self._shared_dir = Path(d)
+        pass
 
     async def get_agent_sandbox(self) -> Sandbox:
         if self._agent_sandbox is not None:
@@ -165,9 +162,7 @@ class StatelessSandbox:
             raise RuntimeError(
                 "StatelessSandbox: no agent_spec but get_agent_sandbox called"
             )
-        spec = _attach_volume(
-            self._ctx.agent_spec, self._shared_dir, "/output", readonly=False,
-        )
+        spec = self._transfer.prepare_agent_spec(self._ctx.agent_spec)
         self._agent_sandbox = await self._ctx.sandbox_mgr.acquire(
             spec, outside_endpoints=self._ctx.outside_endpoints,
         )
@@ -176,33 +171,32 @@ class StatelessSandbox:
     async def transition_to_verify(
         self, response_text: str, solver_modified: bool,
     ) -> None:
-        if self._agent_sandbox and self._ctx.capture_cmd and solver_modified:
-            try:
-                await self._agent_sandbox.exec(
-                    self._ctx.capture_cmd, timeout_sec=120,
-                )
-            except Exception:
-                logger.warning(
-                    "StatelessSandbox: capture_cmd failed, "
-                    "falling back to response text",
-                    exc_info=True,
-                )
-                self._write_response(response_text)
-        else:
-            self._write_response(response_text)
-
-        if self._agent_sandbox is not None:
-            try:
-                await self._ctx.sandbox_mgr.release(self._agent_sandbox)
-            except Exception:
-                logger.debug("StatelessSandbox: agent release failed", exc_info=True)
-            self._agent_sandbox = None
+        async with self._lock:
+            if self._torn_down:
+                return
+            if self._agent_sandbox and self._ctx.capture_cmd and solver_modified:
+                try:
+                    await self._agent_sandbox.exec(
+                        self._ctx.capture_cmd, timeout_sec=120,
+                    )
+                    await self._transfer.post_capture(self._agent_sandbox)
+                except Exception:
+                    logger.warning(
+                        "StatelessSandbox: capture_cmd / post_capture failed",
+                        exc_info=True,
+                    )
+            if self._agent_sandbox is not None:
+                try:
+                    await self._ctx.sandbox_mgr.release(self._agent_sandbox)
+                except Exception:
+                    logger.debug("StatelessSandbox: agent release failed",
+                                 exc_info=True)
+                self._agent_sandbox = None
 
     async def get_verify_sandbox(self) -> Sandbox:
-        spec = _attach_volume(
-            self._ctx.verify_spec, self._shared_dir, "/input", readonly=True,
-        )
+        spec = self._transfer.prepare_verify_spec(self._ctx.verify_spec)
         self._verify_sandbox = await self._ctx.sandbox_mgr.acquire(spec)
+        await self._transfer.pre_restore(self._verify_sandbox)
         if self._ctx.apply_cmd:
             result = await self._verify_sandbox.exec(
                 self._ctx.apply_cmd,
@@ -216,6 +210,10 @@ class StatelessSandbox:
         return self._verify_sandbox
 
     async def teardown(self) -> None:
+        async with self._lock:
+            if self._torn_down:
+                return
+            self._torn_down = True
         for sb in (self._agent_sandbox, self._verify_sandbox):
             if sb is not None:
                 try:
@@ -224,46 +222,10 @@ class StatelessSandbox:
                     pass
         self._agent_sandbox = None
         self._verify_sandbox = None
-
-        if self._shared_dir is not None:
-            shutil.rmtree(self._shared_dir, ignore_errors=True)
-            self._shared_dir = None
-
-    def _write_response(self, text: str) -> None:
-        if self._shared_dir is not None:
-            (self._shared_dir / "response.txt").write_text(text or "")
+        await self._transfer.cleanup()
 
 
-# -- Helpers -----------------------------------------------------------------
-
-def _attach_volume(
-    spec: SandboxSpec,
-    host_dir: Path | None,
-    container_path: str,
-    *,
-    readonly: bool,
-) -> SandboxSpec:
-    """Return a copy of *spec* with an extra volume mount appended."""
-    from nemo_evaluator.sandbox.base import SandboxSpec as SS, VolumeMount
-
-    if host_dir is None:
-        return spec
-
-    vol = VolumeMount(
-        host_path=str(host_dir),
-        container_path=container_path,
-        readonly=readonly,
-    )
-    return SS(
-        image=spec.image,
-        workdir=spec.workdir,
-        env=dict(spec.env),
-        files=dict(spec.files),
-        entrypoint=spec.entrypoint,
-        volumes=list(spec.volumes) + [vol],
-        environment_dir=spec.environment_dir,
-    )
-
+# -- Factory -----------------------------------------------------------------
 
 def pick_lifecycle(
     seed: Any,
@@ -286,15 +248,21 @@ def pick_lifecycle(
         verify_spec = sandbox_mgr.resolve_spec(
             seed, base_override=seed.verify_sandbox_spec,
         ) or seed.verify_sandbox_spec
-        return StatelessSandbox(LifecycleContext(
-            sandbox_mgr=sandbox_mgr,
-            agent_spec=agent_spec,
-            verify_spec=verify_spec,
-            capture_cmd=config_capture_cmd or seed.capture_cmd,
-            apply_cmd=seed.apply_cmd,
-            verify_timeout=verify_timeout,
-            outside_endpoints=eps,
-        ))
+
+        transfer = sandbox_mgr.get_transfer_strategy()
+
+        return StatelessSandbox(
+            LifecycleContext(
+                sandbox_mgr=sandbox_mgr,
+                agent_spec=agent_spec,
+                verify_spec=verify_spec,
+                capture_cmd=config_capture_cmd or seed.capture_cmd,
+                apply_cmd=seed.apply_cmd,
+                verify_timeout=verify_timeout,
+                outside_endpoints=eps,
+            ),
+            transfer=transfer,
+        )
 
     if sandbox_mgr is not None:
         spec = sandbox_mgr.resolve_spec(seed)

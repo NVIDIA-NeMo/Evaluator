@@ -53,6 +53,8 @@ class DockerSandbox:
         ]
 
         for vol in self._spec.volumes:
+            if vol.is_efs:
+                continue
             flag = f"{vol.host_path}:{vol.container_path}"
             if vol.readonly:
                 flag += ":ro"

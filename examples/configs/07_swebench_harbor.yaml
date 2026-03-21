@@ -4,10 +4,14 @@
 # Uses harbor://swebench-verified@1.0 (500 tasks) from the Harbor registry.
 # Tasks are auto-downloaded on first run.
 #
+# ECS infrastructure (cluster, subnets, roles, SSH keys, EFS, S3, etc.)
+# is auto-discovered from AWS SSM Parameter Store.  Only region and
+# benchmark-specific overrides are needed.
+#
 # Prerequisites:
 #   - NVIDIA_API_KEY set in environment
-#   - AWS credentials configured (IAM role or env vars)
-#   - ECS cluster, subnets, security groups, and SSH key pair in Secrets Manager
+#   - AWS credentials configured (orchestrator IAM user)
+#   - Terraform applied for target region (creates SSM parameter)
 #   - git (for sparse checkout)
 #   - pip install nemo-evaluator[harbor]
 # Run: nel eval run examples/configs/07_swebench_harbor.yaml
@@ -39,30 +43,11 @@ benchmarks:
     sandbox:
       type: ecs_fargate
       region: us-west-2
-      cluster: harbor-cluster
-      subnets:
-        - subnet-0ac852ca0a783a332
-        - subnet-0500dcb4c191d93a8
-      security_groups:
-        - sg-035f677c8d037013c
-      assign_public_ip: true
-      execution_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-execution"
-      task_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-task"
-      log_group: "/ecs/harbor/us-west-2"
-      log_stream_prefix: swebench
       cpu: "4096"
       memory: "8192"
       ephemeral_storage_gib: 50
       max_task_lifetime_sec: 14400
-      s3_bucket: "harbor-staging-20260210135420899800000003"
-      # CodeBuild builds per-task Docker images (from Harbor env Dockerfiles)
-      # and pushes to ECR.  Images are content-hash-tagged for caching.
+      log_stream_prefix: swebench
       ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
-      codebuild_service_role: "arn:aws:iam::463701203462:role/harbor-codebuild"
-      ssh_sidecar:
-        sshd_port: 2222
-        ssh_ready_timeout_sec: 120
-        public_key_secret_arn: "arn:aws:secretsmanager:us-west-2:463701203462:secret:harbor-ssh-tunnel-pubkey-us-west-2-pcm7ZZ"
-        private_key_secret_arn: "arn:aws:secretsmanager:us-west-2:463701203462:secret:harbor-ssh-tunnel-privkey-us-west-2-d3G7CV"
       timeout: 3600.0
       concurrency: 3

@@ -146,9 +146,9 @@ def _make_harbor(rest: str, **kwargs: Any) -> "EvalEnvironment":
     safe_dir_name = rest.replace("/", "__")
     dataset_path = Path(datasets_dir) / safe_dir_name
 
-    if not dataset_path.is_dir():
-        limit = kwargs.get("num_examples")
-        if not auto_prepare(rest, dataset_path, limit=limit):
+    limit = kwargs.get("num_examples")
+    if not auto_prepare(rest, dataset_path, limit=limit):
+        if not dataset_path.is_dir():
             raise KeyError(
                 f"Harbor dataset {rest!r} not found in registry and "
                 f"{dataset_path} does not exist on disk."

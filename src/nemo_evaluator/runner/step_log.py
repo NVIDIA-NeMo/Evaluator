@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 INFERENCE_LOG = "inference_log.jsonl"
 VERIFIED_LOG = "verified_log.jsonl"
 META_TYPE = "meta"
-MAX_TRAJECTORY_BYTES = 10 * 1024
+MAX_TRAJECTORY_BYTES = 5 * 1024 * 1024
 
 
 def config_hash(config: dict[str, Any]) -> str:

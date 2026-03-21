@@ -2,10 +2,12 @@
 # Tasks with embedded grading code are scored automatically; the rest
 # fall through to LLM-as-judge.
 #
+# ECS infrastructure auto-discovered from AWS SSM Parameter Store.
+#
 # Prerequisites:
 #   - NVIDIA_API_KEY set in environment
-#   - AWS credentials configured (IAM role or env vars)
-#   - ECS cluster, subnets, security groups, and SSH key pair in Secrets Manager
+#   - AWS credentials configured (orchestrator IAM user)
+#   - Terraform applied for target region (creates SSM parameter)
 # Run: nel eval run examples/configs/12_pinchbench_openclaw.yaml
 
 services:
@@ -29,26 +31,10 @@ benchmarks:
       service: nemotron
     sandbox:
       type: ecs_fargate
-      image: ghcr.io/openclaw/openclaw
-      timeout: 900.0
-      concurrency: 3
       region: us-west-2
-      cluster: harbor-cluster
-      subnets:
-        - subnet-0ac852ca0a783a332
-        - subnet-0500dcb4c191d93a8
-      security_groups:
-        - sg-035f677c8d037013c
-      assign_public_ip: true
-      execution_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-execution"
-      task_role_arn: "arn:aws:iam::463701203462:role/harbor-ecs-task"
-      log_group: "/ecs/harbor/us-west-2"
-      log_stream_prefix: pinchbench
+      image: ghcr.io/openclaw/openclaw
       cpu: "2048"
       memory: "4096"
-      s3_bucket: "harbor-staging-20260210135420899800000003"
-      ssh_sidecar:
-        sshd_port: 2222
-        ssh_ready_timeout_sec: 120
-        public_key_secret_arn: "arn:aws:secretsmanager:us-west-2:463701203462:secret:harbor-ssh-tunnel-pubkey-us-west-2-pcm7ZZ"
-        private_key_secret_arn: "arn:aws:secretsmanager:us-west-2:463701203462:secret:harbor-ssh-tunnel-privkey-us-west-2-d3G7CV"
+      log_stream_prefix: pinchbench
+      timeout: 900.0
+      concurrency: 3

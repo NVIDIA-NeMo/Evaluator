@@ -67,6 +67,8 @@ class SlurmSandbox:
 
         mount_args: list[str] = []
         for vol in self._spec.volumes:
+            if vol.is_efs:
+                continue
             mount = f"{vol.host_path}:{vol.container_path}"
             if vol.readonly:
                 mount += ":ro"

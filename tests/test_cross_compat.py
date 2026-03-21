@@ -150,7 +150,8 @@ class TestSolverLifecycleCombos:
             capture_cmd="git diff > /output/patch.diff",
             apply_cmd="git apply /input/patch.diff",
         )
-        lc = StatelessSandbox(ctx)
+        from nemo_evaluator.sandbox.transfer import HostVolumeTransfer
+        lc = StatelessSandbox(ctx, transfer=HostVolumeTransfer())
         await lc.setup()
 
         agent_sb = await lc.get_agent_sandbox()

@@ -58,45 +58,86 @@ def _build_ecs_sandbox_config(cfg: EcsFargateSandbox) -> Any:
         SshSidecarConfig as SandboxSshConfig,
     )
 
+    ssm: dict[str, Any] = {}
+    use_ssm = cfg.region is not None and cfg.cluster is None
+    if use_ssm:
+        from nemo_evaluator.sandbox.ecs_fargate import resolve_ecs_config_from_ssm
+
+        ssm = resolve_ecs_config_from_ssm(cfg.region, cfg.ssm_project)  # type: ignore[arg-type]
+
+    def _pick(yaml_val: Any, ssm_key: str, default: Any = None) -> Any:
+        if yaml_val is not None:
+            return yaml_val
+        return ssm.get(ssm_key, default)
+
+    cluster = _pick(cfg.cluster, "cluster", "")
+    subnets = cfg.subnets or ssm.get("subnets", [])
+    security_groups = cfg.security_groups or ssm.get("security_groups", [])
+    assign_public_ip = _pick(cfg.assign_public_ip, "assign_public_ip", True)
+
+    execution_role_arn = _pick(cfg.execution_role_arn, "execution_role_arn")
+    task_role_arn = _pick(cfg.task_role_arn, "task_role_arn")
+    log_group = _pick(cfg.log_group, "log_group")
+    s3_bucket = _pick(cfg.s3_bucket, "s3_bucket")
+    ecr_repository = _pick(cfg.ecr_repository, "ecr_repository")
+    codebuild_service_role = _pick(cfg.codebuild_service_role, "codebuild_service_role")
+    dockerhub_secret_arn = _pick(cfg.dockerhub_secret_arn, "dockerhub_secret_arn")
+    efs_filesystem_id = _pick(cfg.efs_filesystem_id, "efs_filesystem_id")
+    efs_access_point_id = _pick(cfg.efs_access_point_id, "efs_access_point_id")
+    max_task_lifetime_sec = cfg.max_task_lifetime_sec or 14400
+
     ssh_sidecar = None
+    ssm_ssh = ssm.get("ssh_sidecar", {})
     if cfg.ssh_sidecar:
         sc = cfg.ssh_sidecar
-        if not sc.private_key_secret_arn or not sc.public_key_secret_arn:
+        pub_arn = sc.public_key_secret_arn or ssm_ssh.get("public_key_secret_arn", "")
+        priv_arn = sc.private_key_secret_arn or ssm_ssh.get("private_key_secret_arn", "")
+        if not pub_arn or not priv_arn:
             raise ValueError(
                 "ssh_sidecar.private_key_secret_arn and "
-                "ssh_sidecar.public_key_secret_arn are required."
+                "ssh_sidecar.public_key_secret_arn are required "
+                "(set in YAML or auto-discovered from SSM)."
             )
         ssh_sidecar = SandboxSshConfig(
             sshd_port=sc.sshd_port,
             ssh_ready_timeout_sec=sc.ssh_ready_timeout_sec,
-            public_key_secret_arn=sc.public_key_secret_arn,
-            private_key_secret_arn=sc.private_key_secret_arn,
+            public_key_secret_arn=pub_arn,
+            private_key_secret_arn=priv_arn,
             image=sc.image,
             exec_server_port=sc.exec_server_port,
+        )
+    elif ssm_ssh.get("public_key_secret_arn") and ssm_ssh.get("private_key_secret_arn"):
+        ssh_sidecar = SandboxSshConfig(
+            sshd_port=ssm_ssh.get("sshd_port", 2222),
+            public_key_secret_arn=ssm_ssh["public_key_secret_arn"],
+            private_key_secret_arn=ssm_ssh["private_key_secret_arn"],
         )
 
     return SandboxEcsConfig(
         region=cfg.region,
-        cluster=cfg.cluster,
-        subnets=cfg.subnets,
-        security_groups=cfg.security_groups,
-        assign_public_ip=cfg.assign_public_ip,
+        cluster=cluster,
+        subnets=subnets,
+        security_groups=security_groups,
+        assign_public_ip=assign_public_ip,
         image_template=cfg.image_template,
         container_port=cfg.container_port,
         cpu=cfg.cpu,
         memory=cfg.memory,
         ephemeral_storage_gib=cfg.ephemeral_storage_gib,
-        execution_role_arn=cfg.execution_role_arn,
-        task_role_arn=cfg.task_role_arn,
-        log_group=cfg.log_group,
+        execution_role_arn=execution_role_arn,
+        task_role_arn=task_role_arn,
+        log_group=log_group,
         log_stream_prefix=cfg.log_stream_prefix,
-        max_task_lifetime_sec=cfg.max_task_lifetime_sec,
+        max_task_lifetime_sec=max_task_lifetime_sec,
         ssh_sidecar=ssh_sidecar,
-        s3_bucket=cfg.s3_bucket,
+        s3_bucket=s3_bucket,
         s3_prefix=cfg.s3_prefix,
-        ecr_repository=cfg.ecr_repository,
+        ecr_repository=ecr_repository,
         codebuild_project=cfg.codebuild_project,
-        codebuild_service_role=cfg.codebuild_service_role,
+        codebuild_service_role=codebuild_service_role,
+        dockerhub_secret_arn=dockerhub_secret_arn,
+        efs_filesystem_id=efs_filesystem_id,
+        efs_access_point_id=efs_access_point_id,
     )
 
 
@@ -749,6 +790,10 @@ def run_local(
                     if isinstance(v, dict) and "value" in v:
                         click.echo(f"{k}={v['value']:.4f} ", nl=False)
                 click.echo()
+
+            except KeyboardInterrupt:
+                click.echo("\n  Interrupted — shutting down gracefully", err=True)
+                break
 
             except Exception as exc:
                 logger.error(

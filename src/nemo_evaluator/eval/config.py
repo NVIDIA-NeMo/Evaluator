@@ -305,6 +305,12 @@ class SshSidecarConfig(BaseModel):
 
 
 class EcsFargateSandbox(_SandboxBase):
+    """ECS Fargate sandbox config.
+
+    When ``region`` is set but ``cluster`` is omitted, NEL auto-discovers
+    infrastructure from AWS SSM Parameter Store (written by Terraform).
+    Any field explicitly set in YAML overrides the SSM default.
+    """
     type: Literal["ecs_fargate"] = "ecs_fargate"
     image: str | None = None
     image_template: str | None = None
@@ -314,10 +320,10 @@ class EcsFargateSandbox(_SandboxBase):
     container_port: int | None = None
 
     region: str | None = None
-    cluster: str
+    cluster: str | None = None
     subnets: list[str] = Field(default_factory=list)
     security_groups: list[str] = Field(default_factory=list)
-    assign_public_ip: bool = True
+    assign_public_ip: bool | None = None
     cpu: str = "4096"
     memory: str = "8192"
     ephemeral_storage_gib: int | None = None
@@ -325,13 +331,18 @@ class EcsFargateSandbox(_SandboxBase):
     task_role_arn: str | None = None
     log_group: str | None = None
     log_stream_prefix: str | None = None
-    max_task_lifetime_sec: int = 14400
+    max_task_lifetime_sec: int | None = None
     ssh_sidecar: SshSidecarConfig | None = None
     s3_bucket: str | None = None
     s3_prefix: str | None = None
     ecr_repository: str | None = None
     codebuild_project: str | None = None
     codebuild_service_role: str | None = None
+    dockerhub_secret_arn: str | None = None
+    efs_filesystem_id: str | None = None
+    efs_access_point_id: str | None = None
+
+    ssm_project: str = "harbor"
 
 
 class _SlurmSandboxBase(_SandboxBase):

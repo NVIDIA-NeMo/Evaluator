@@ -394,6 +394,8 @@ async def run_evaluation(
             elif first_error is None:
                 first_error = exc
 
+    interrupted = False
+
     try:
         for idx in range(start, end):
             if first_error is not None:
@@ -425,6 +427,14 @@ async def run_evaluation(
             done, _ = await asyncio.wait(pending)
             _check_done(done)
 
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        interrupted = True
+        logger.warning("Interrupted — cancelling %d pending tasks", len(pending))
+        for t in pending:
+            t.cancel()
+        if pending:
+            await asyncio.wait(pending, timeout=30)
+
     finally:
         if inference_log is not None:
             inference_log.close()
@@ -436,6 +446,8 @@ async def run_evaluation(
             await solver.close()
         if hasattr(env, "close"):
             await env.close()
+        if interrupted:
+            raise KeyboardInterrupt()
 
     elapsed = time.monotonic() - t0
 

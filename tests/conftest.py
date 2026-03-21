@@ -103,6 +103,10 @@ class MockSandboxManager:
             img = item.image if hasattr(item, "image") else str(item)
             await self._ensure_pulled(img)
 
+    def get_transfer_strategy(self):
+        from nemo_evaluator.sandbox.transfer import HostVolumeTransfer
+        return HostVolumeTransfer()
+
     async def shutdown(self) -> None:
         for sb in self._acquired:
             if sb.is_running:

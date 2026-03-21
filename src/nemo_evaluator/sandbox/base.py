@@ -71,11 +71,22 @@ class OutsideEndpoint:
 
 @dataclass
 class VolumeMount:
-    """Host-to-container volume mount."""
+    """Host bind mount or EFS mount.
 
-    host_path: str
-    container_path: str
+    When ``efs_filesystem_id`` is set this is an EFS mount (ECS Fargate).
+    Otherwise it is a host bind mount (Docker / Slurm / Apptainer).
+    """
+
+    host_path: str = ""
+    container_path: str = ""
     readonly: bool = False
+    efs_filesystem_id: str | None = None
+    efs_root_directory: str | None = None
+    efs_access_point_id: str | None = None
+
+    @property
+    def is_efs(self) -> bool:
+        return self.efs_filesystem_id is not None
 
 
 @dataclass

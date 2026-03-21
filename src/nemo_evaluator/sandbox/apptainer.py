@@ -130,6 +130,8 @@ class ApptainerSandbox:
         ])
 
         for vol in self._spec.volumes:
+            if vol.is_efs:
+                continue
             bind = f"{vol.host_path}:{vol.container_path}"
             if vol.readonly:
                 bind += ":ro"
