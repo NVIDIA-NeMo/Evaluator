@@ -183,30 +183,76 @@ def _build_quick_config(bench, model_url, model_id, api_key, repeats,
 
 
 # ---------------------------------------------------------------------------
+# Shared job resolution helper
+# ---------------------------------------------------------------------------
+
+def _resolve_or_fail(job_id, host, output_dir):
+    from nemo_evaluator.executors.slurm import resolve_job
+
+    meta = resolve_job(job_id=job_id, host=host, output_dir=output_dir)
+    if meta is None:
+        hint = f"job-id={job_id}" if job_id else f"output-dir={output_dir}"
+        raise click.ClickException(
+            f"No job metadata found for {hint}. "
+            f"Verify SSH access with: ssh <host> hostname"
+        )
+    return meta
+
+
+def _resolve_latest_job_id(meta: dict) -> str:
+    """Follow .nel_job_chain on the remote host to get the latest job ID."""
+    remote_dir = meta.get("remote_dir", "")
+    hostname = meta.get("hostname", "")
+    if not remote_dir or not hostname:
+        return meta["job_id"]
+    try:
+        from nemo_evaluator.eval.ssh import ssh_run
+
+        chain = ssh_run(
+            hostname,
+            f"tail -1 {remote_dir}/.nel_job_chain 2>/dev/null",
+            username=meta.get("username") or None,
+            timeout=10.0,
+        ).strip()
+        return chain if chain else meta["job_id"]
+    except Exception:
+        return meta["job_id"]
+
+
+# ---------------------------------------------------------------------------
 # nel eval status
 # ---------------------------------------------------------------------------
 
 @eval_cmd.command("status")
-@click.option("--output-dir", "-o", default="./eval_results")
-@click.option("--job-id", default=None, help="SLURM job ID")
+@click.option("--output-dir", "-o", default=None)
+@click.option("--job-id", default=None, help="SLURM job ID (bare number or full path)")
 @click.option("--host", default=None, help="SLURM login hostname")
 @click.option("--user", default=None, help="SSH username")
 def eval_status(output_dir, job_id, host, user):
-    """Check evaluation status."""
-    if job_id and host:
+    """Check evaluation status. Follows auto-resume job chains."""
+    if job_id or output_dir:
+        meta = _resolve_or_fail(job_id, host, output_dir or "./eval_results")
+        latest_id = _resolve_latest_job_id(meta)
+
         from nemo_evaluator.eval.ssh import check_job_status
 
-        info = check_job_status(host, job_id, user)
+        target_host = meta["hostname"]
+        info = check_job_status(target_host, latest_id, meta.get("username") or user)
+
+        if latest_id != meta["job_id"]:
+            click.echo(f"Original job: {meta['job_id']}  (chain → {latest_id})")
         for k, v in info.items():
             click.echo(f"  {k}: {v}")
+        if meta.get("remote_dir"):
+            click.echo(f"  remote_dir: {meta['remote_dir']}")
         return
 
     from nemo_evaluator.executors import detect_executor
 
-    ex = detect_executor(output_dir)
+    ex = detect_executor("./eval_results")
     if ex is None:
-        raise click.ClickException(f"No evaluation metadata found in {output_dir}")
-    state = ex.status(output_dir)
+        raise click.ClickException("No evaluation metadata found. Use --job-id or -o.")
+    state = ex.status("./eval_results")
     click.echo(f"Executor: {state.executor}")
     click.echo(f"Running:  {state.running}")
     for k, v in state.details.items():
@@ -218,28 +264,264 @@ def eval_status(output_dir, job_id, host, user):
 # ---------------------------------------------------------------------------
 
 @eval_cmd.command("stop")
-@click.option("--output-dir", "-o", default="./eval_results")
+@click.option("--output-dir", "-o", default=None)
 @click.option("--job-id", default=None, help="SLURM job ID")
 @click.option("--host", default=None, help="SLURM login hostname")
 @click.option("--user", default=None, help="SSH username")
 def eval_stop(output_dir, job_id, host, user):
     """Stop/cancel a running evaluation."""
-    if job_id and host:
+    if job_id or output_dir:
+        meta = _resolve_or_fail(job_id, host, output_dir or "./eval_results")
+        latest_id = _resolve_latest_job_id(meta)
+
         from nemo_evaluator.eval.ssh import cancel_job
 
-        cancel_job(host, job_id, user)
-        click.echo(f"Cancelled SLURM job {job_id}")
+        cancel_job(meta["hostname"], latest_id, meta.get("username") or user)
+        click.echo(f"Cancelled SLURM job {latest_id}")
         return
 
     from nemo_evaluator.executors import detect_executor
 
-    ex = detect_executor(output_dir)
+    ex = detect_executor("./eval_results")
     if ex is None:
-        raise click.ClickException(f"No evaluation metadata found in {output_dir}")
-    if ex.stop(output_dir):
+        raise click.ClickException("No evaluation metadata found. Use --job-id or -o.")
+    if ex.stop("./eval_results"):
         click.echo("Evaluation stopped.")
     else:
         click.echo("Could not stop evaluation (may already be finished).", err=True)
+
+
+# ---------------------------------------------------------------------------
+# nel eval jobs
+# ---------------------------------------------------------------------------
+
+@eval_cmd.command("jobs")
+@click.option("--offline", is_flag=True, help="Skip live status checks via SSH")
+def eval_jobs(offline):
+    """List all tracked SLURM jobs from local store."""
+    import json
+
+    from nemo_evaluator.executors.slurm import _jobs_store
+
+    jobs_dir = _jobs_store()
+    if not jobs_dir.is_dir():
+        click.echo("No tracked jobs.")
+        return
+
+    rows = []
+    for meta_path in sorted(jobs_dir.glob("*/slurm_job.json")):
+        try:
+            meta = json.loads(meta_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        rows.append(meta)
+
+    if not rows:
+        click.echo("No tracked jobs.")
+        return
+
+    rows.sort(key=lambda m: m.get("submitted_at", ""), reverse=True)
+
+    header = f"{'JOB_ID':<12} {'STATE':<12} {'HOST':<30} {'SUBMITTED':<22} {'REMOTE_DIR'}"
+    click.echo(header)
+    click.echo("-" * len(header))
+
+    for meta in rows:
+        state = "—"
+        if not offline:
+            try:
+                from nemo_evaluator.eval.ssh import check_job_status
+
+                latest_id = _resolve_latest_job_id(meta)
+                info = check_job_status(
+                    meta["hostname"], latest_id, meta.get("username") or None,
+                )
+                state = info.get("state", "UNKNOWN")
+            except Exception:
+                state = "SSH_ERR"
+
+        submitted = meta.get("submitted_at", "—")
+        if submitted != "—" and len(submitted) > 19:
+            submitted = submitted[:19]
+
+        rdir = meta.get("remote_dir", "")
+        if len(rdir) > 60:
+            rdir = "..." + rdir[-57:]
+        click.echo(f"{meta['job_id']:<12} {state:<12} {meta.get('hostname', '?'):<30} {submitted:<22} {rdir}")
+
+
+# ---------------------------------------------------------------------------
+# nel eval logs
+# ---------------------------------------------------------------------------
+
+@eval_cmd.command("logs")
+@click.option("--output-dir", "-o", default=None)
+@click.option("--job-id", default=None, help="SLURM job ID")
+@click.option("--host", default=None, help="SLURM login hostname")
+@click.option("--follow", "-f", is_flag=True, help="Stream logs (tail -f)")
+@click.option("--tail", "-n", "tail_lines", type=int, default=None, help="Last N lines")
+def eval_logs(output_dir, job_id, host, follow, tail_lines):
+    """View remote SLURM job logs."""
+    import subprocess
+    import sys
+
+    meta = _resolve_or_fail(job_id, host, output_dir)
+    latest_id = _resolve_latest_job_id(meta)
+    target_host = meta["hostname"]
+    target = f"{meta['username']}@{target_host}" if meta.get("username") else target_host
+    rdir = meta["remote_dir"]
+    log_file = f"{rdir}/slurm-{latest_id}.log"
+
+    if latest_id != meta["job_id"]:
+        click.echo(f"Following chain: {meta['job_id']} → {latest_id}", err=True)
+
+    if follow:
+        n_arg = f"-n {tail_lines}" if tail_lines else "-n 50"
+        cmd = ["ssh", target, f"tail {n_arg} -f {log_file}"]
+        click.echo(f"Streaming: {target}:{log_file}", err=True)
+        try:
+            subprocess.run(cmd, check=False)
+        except KeyboardInterrupt:
+            sys.exit(0)
+    elif tail_lines:
+        from nemo_evaluator.eval.ssh import ssh_run
+
+        out = ssh_run(target_host, f"tail -n {tail_lines} {log_file}",
+                       username=meta.get("username") or None, timeout=30.0)
+        click.echo(out)
+    else:
+        from nemo_evaluator.eval.ssh import ssh_run
+
+        out = ssh_run(target_host, f"cat {log_file}",
+                       username=meta.get("username") or None, timeout=60.0)
+        click.echo(out)
+
+
+# ---------------------------------------------------------------------------
+# nel eval resume
+# ---------------------------------------------------------------------------
+
+@eval_cmd.command("resume")
+@click.option("--output-dir", "-o", default=None)
+@click.option("--job-id", default=None, help="SLURM job ID to resume")
+@click.option("--host", default=None, help="SLURM login hostname")
+@click.option("--continue-attempts", is_flag=True,
+              help="Keep existing attempt counter (default: reset to 0)")
+def eval_resume(output_dir, job_id, host, continue_attempts):
+    """Manually resubmit a failed/timed-out SLURM evaluation."""
+    import shlex
+
+    meta = _resolve_or_fail(job_id, host, output_dir)
+    target_host = meta["hostname"]
+    rdir = meta["remote_dir"]
+    script = f"{rdir}/nel_eval.sbatch"
+
+    from nemo_evaluator.eval.ssh import ssh_run
+
+    if not continue_attempts:
+        ssh_run(target_host, f"echo 0 > {shlex.quote(rdir)}/.nel_attempt",
+                username=meta.get("username") or None, timeout=10.0)
+        click.echo("Reset attempt counter to 0.")
+
+    output = ssh_run(target_host, f"sbatch {shlex.quote(script)}",
+                     username=meta.get("username") or None, timeout=30.0)
+    click.echo(f"Resubmitted: {output.strip()}")
+
+    import re
+
+    m = re.search(r"(\d+)", output)
+    if m:
+        new_jid = m.group(1)
+        click.echo(f"New job ID: {new_jid}")
+        click.echo(f"Tail logs:  nel eval logs --job-id {new_jid} -f")
+        click.echo(f"Status:     nel eval status --job-id {new_jid}")
+
+
+# ---------------------------------------------------------------------------
+# nel eval clean
+# ---------------------------------------------------------------------------
+
+@eval_cmd.command("clean")
+@click.option("--older-than", default=None,
+              help="Remove entries older than duration (e.g. 7d, 4w, 24h)")
+@click.option("--state", "filter_state", default=None,
+              help="Remove only entries with this SLURM state (e.g. COMPLETED, FAILED)")
+@click.option("--dry-run", is_flag=True, help="Show what would be removed")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+def eval_clean(older_than, filter_state, dry_run, yes):
+    """Clean stale entries from the local SLURM jobs store."""
+    import json
+    import re
+    import shutil
+    from datetime import datetime, timedelta, timezone
+
+    from nemo_evaluator.executors.slurm import _jobs_store
+
+    jobs_dir = _jobs_store()
+    if not jobs_dir.is_dir():
+        click.echo("No tracked jobs to clean.")
+        return
+
+    cutoff = None
+    if older_than:
+        m = re.match(r"^(\d+)\s*([hdwm])$", older_than.strip())
+        if not m:
+            raise click.ClickException(
+                f"Invalid duration: {older_than!r}. Use e.g. 7d, 4w, 24h"
+            )
+        amount, unit = int(m.group(1)), m.group(2)
+        delta = {"h": timedelta(hours=amount), "d": timedelta(days=amount),
+                 "w": timedelta(weeks=amount), "m": timedelta(days=amount * 30)}[unit]
+        cutoff = datetime.now(timezone.utc) - delta
+
+    to_remove: list[tuple[Path, dict]] = []
+    for meta_path in sorted(jobs_dir.glob("*/slurm_job.json")):
+        try:
+            meta = json.loads(meta_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+
+        if cutoff and meta.get("submitted_at"):
+            try:
+                sub = datetime.fromisoformat(meta["submitted_at"])
+                if sub > cutoff:
+                    continue
+            except ValueError:
+                pass
+
+        if filter_state:
+            try:
+                from nemo_evaluator.eval.ssh import check_job_status
+
+                info = check_job_status(
+                    meta["hostname"], meta["job_id"],
+                    meta.get("username") or None,
+                )
+                if info.get("state", "").upper() != filter_state.upper():
+                    continue
+            except Exception:
+                continue
+
+        to_remove.append((meta_path.parent, meta))
+
+    if not to_remove:
+        click.echo("Nothing to clean.")
+        return
+
+    click.echo(f"Found {len(to_remove)} entries to remove:")
+    for dirp, meta in to_remove:
+        click.echo(f"  {meta['job_id']}  {meta.get('hostname', '?')}  {meta.get('submitted_at', '?')}")
+
+    if dry_run:
+        click.echo("(dry-run — nothing removed)")
+        return
+
+    if not yes:
+        click.confirm("Remove these entries?", abort=True)
+
+    for dirp, _meta in to_remove:
+        shutil.rmtree(dirp, ignore_errors=True)
+    click.echo(f"Removed {len(to_remove)} entries.")
 
 
 # ---------------------------------------------------------------------------

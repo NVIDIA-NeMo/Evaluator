@@ -62,10 +62,10 @@ def _ensure_env(api_key: str | None, model_url: str | None, model_id: str | None
     the provider hint for OpenAI-compatible endpoints).
     """
     key = _resolve_api_key(api_key)
-    if key:
-        os.environ["LLM_API_KEY"] = key
-    else:
-        logger.warning("No API key available for Harbor agent")
+    if not key:
+        key = "no-key-needed"
+        logger.info("No API key found — using dummy key for self-hosted model")
+    os.environ["LLM_API_KEY"] = key
     if model_url:
         os.environ["LLM_BASE_URL"] = model_url
     if model_id:

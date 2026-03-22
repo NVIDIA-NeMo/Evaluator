@@ -97,6 +97,13 @@ def _ssh(target: str, remote_cmd: str, timeout: float = 30.0) -> str:
     return _run(["ssh", *_ssh_opts(target), target, remote_cmd], timeout=timeout)
 
 
+def ssh_run(hostname: str, remote_cmd: str, username: str | None = None,
+            timeout: float = 30.0) -> str:
+    """Public API: run a command on a remote host via SSH."""
+    target = f"{username}@{hostname}" if username else hostname
+    return _ssh(target, remote_cmd, timeout=timeout)
+
+
 def _scp(local_path: str, remote_dest: str, target: str, timeout: float = 60.0) -> str:
     _ensure_master(target)
     return _run(["scp", "-p", *_ssh_opts(target), local_path, remote_dest], timeout=timeout)
@@ -189,7 +196,7 @@ def _sacct_status(target: str, job_id: str) -> dict[str, str]:
             timeout=15.0,
         )
     except SSHError:
-        return {"job_id": job_id, "state": "COMPLETED"}
+        return {"job_id": job_id, "state": "UNKNOWN"}
 
     for line in output.strip().splitlines():
         fields = line.split("|")
@@ -199,7 +206,7 @@ def _sacct_status(target: str, job_id: str) -> dict[str, str]:
                 "state": fields[1],
                 "exit_code": fields[2],
             }
-    return {"job_id": job_id, "state": "COMPLETED"}
+    return {"job_id": job_id, "state": "UNKNOWN"}
 
 
 def cancel_job(

@@ -855,6 +855,7 @@ ClusterConfig = Annotated[
 
 class OutputConfig(BaseModel):
     dir: str = "./eval_results"
+    timestamped: bool = True
     report: list[str] = Field(default_factory=lambda: ["markdown"])
     export: list[str] = Field(default_factory=list)
     export_config: dict[str, Any] = Field(default_factory=dict)

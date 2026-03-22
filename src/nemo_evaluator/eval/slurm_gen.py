@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
+import os
 import re
 import shlex
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -44,12 +47,17 @@ export NEL_INNER_EXECUTION=1
 
 OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
+JOB_START_EPOCH=$(date +%s)
 mkdir -p "$OUTPUT_DIR"
 
+echo "$SLURM_JOB_ID" >> "$OUTPUT_DIR/.nel_job_chain"
+
+{resume_tracking}
 echo "=== NeMo Evaluator ==="
 echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $(hostname)"
 echo "Start: $(date -Iseconds)"
+{resume_attempt_info}
 """
 
 _SHARD_SETUP = """\
@@ -98,12 +106,17 @@ export NEL_INNER_EXECUTION=1
 
 OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
+JOB_START_EPOCH=$(date +%s)
 mkdir -p "$OUTPUT_DIR"
 
+echo "$SLURM_JOB_ID" >> "$OUTPUT_DIR/.nel_job_chain"
+
+{resume_tracking}
 echo "=== NeMo Evaluator (het-job) ==="
 echo "Job ID: $SLURM_JOB_ID"
 {het_echo_lines}
 echo "Start: $(date -Iseconds)"
+{resume_attempt_info}
 """
 
 _SECRETS_SOURCE = """\
@@ -226,7 +239,7 @@ export {svc_url_var}="${{{model_url_bash}}}"
 export {svc_model_var}="${{{model_id_bash}}}"
 export NEL_OUTPUT_DIR="$OUTPUT_DIR/{safe_name}"
 mkdir -p "$NEL_OUTPUT_DIR"
-{run_prefix}nel eval run "$OUTPUT_DIR/config_{safe_name}.yaml" || {{ echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; }}
+{run_prefix}nel eval run "$OUTPUT_DIR/config_{safe_name}.yaml" {extra_flags}|| {{ echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; }}
 """
 
 _REPORT = """\
@@ -349,35 +362,46 @@ done
 wait
 """
 
-_AUTO_RESUME = """\
-# Auto-resume on walltime expiry
+_RESUME_TRACKING = """\
 ATTEMPT_FILE="$OUTPUT_DIR/.nel_attempt"
 if [ -f "$ATTEMPT_FILE" ]; then
-    ATTEMPT=$(cat "$ATTEMPT_FILE")
+    NEL_ATTEMPT=$(cat "$ATTEMPT_FILE")
 else
-    ATTEMPT=0
+    NEL_ATTEMPT=0
 fi
-ATTEMPT=$((ATTEMPT + 1))
-echo $ATTEMPT > "$ATTEMPT_FILE"
+NEL_ATTEMPT=$((NEL_ATTEMPT + 1))
+echo $NEL_ATTEMPT > "$ATTEMPT_FILE"
+"""
 
-if [ $ATTEMPT -ge {max_attempts} ]; then
-    echo "Max resume attempts ({max_attempts}) reached."
+_RESUME_ATTEMPT_INFO = """\
+echo "Attempt: $NEL_ATTEMPT / {max_attempts}"
+"""
+
+_AUTO_RESUME = """\
+# Auto-resume: check if evaluation needs to continue
+if [ $NEL_ATTEMPT -ge {max_attempts} ]; then
+    echo "Max resume attempts ({max_attempts}) reached. Not resubmitting."
 else
-    if python3 -c "
+    JOB_RUNTIME=$(( $(date +%s) - JOB_START_EPOCH ))
+    if [ $JOB_RUNTIME -lt 600 ] && [ ! -f "$OUTPUT_DIR/checkpoint.json" ]; then
+        echo "Job failed quickly (${{JOB_RUNTIME}}s) without progress. Not resubmitting."
+    elif python3 -c "
 import json, sys, os
 cp_path = '$OUTPUT_DIR/checkpoint.json'
 if not os.path.exists(cp_path):
     sys.exit(0)
 cp = json.load(open(cp_path))
+total = {total_benchmarks}
 failed = len(cp.get('failed_benchmarks', {{}}))
 completed = len(cp.get('completed_benchmarks', {{}}))
-sys.exit(0 if failed > 0 or completed == 0 else 1)
+reports_ok = os.path.exists('$OUTPUT_DIR/report.md') or total == 0
+sys.exit(0 if (failed > 0 or completed < total or not reports_ok) else 1)
 " 2>/dev/null; then
-        echo "Evaluation incomplete, resubmitting (attempt $ATTEMPT/{max_attempts})..."
+        echo "Evaluation incomplete, resubmitting (attempt $NEL_ATTEMPT/{max_attempts})..."
         NEXT_JOB=$(sbatch --dependency=afternotok:$SLURM_JOB_ID "{script_path}")
         echo "Resubmitted: $NEXT_JOB"
     else
-        echo "All benchmarks completed, no resubmit needed."
+        echo "All benchmarks completed and reports generated. No resubmit needed."
     fi
 fi
 """
@@ -694,6 +718,13 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
         het_echo_lines = "\n".join(
             f'echo "Het-group {i} ({name}): $SLURM_JOB_NODELIST_HET_GROUP_{i}"' for i, name in enumerate(used_pools)
         )
+        resume_tracking = ""
+        resume_attempt_info = ""
+        if cluster.auto_resume:
+            resume_tracking = _RESUME_TRACKING
+            resume_attempt_info = _RESUME_ATTEMPT_INFO.format(
+                max_attempts=cluster.max_resume_attempts,
+            )
         parts.append(
             _HEADER_HETJOB_FOOTER.format(
                 job_name=job_name,
@@ -701,6 +732,8 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
                 walltime=cluster.walltime,
                 account_line=account_line,
                 het_echo_lines=het_echo_lines,
+                resume_tracking=resume_tracking,
+                resume_attempt_info=resume_attempt_info,
             )
         )
     else:
@@ -708,6 +741,13 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
         gres_line = f"#SBATCH --gres={pool.gres}" if pool.gres else ""
         partition_line = f"#SBATCH --partition={pool.partition}" if pool.partition else ""
         array_line = f"#SBATCH --array=0-{cluster.shards - 1}" if cluster.shards else ""
+        resume_tracking = ""
+        resume_attempt_info = ""
+        if cluster.auto_resume:
+            resume_tracking = _RESUME_TRACKING
+            resume_attempt_info = _RESUME_ATTEMPT_INFO.format(
+                max_attempts=cluster.max_resume_attempts,
+            )
         parts.append(
             _HEADER.format(
                 job_name=job_name,
@@ -719,6 +759,8 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
                 partition_line=partition_line,
                 account_line=account_line,
                 array_line=array_line,
+                resume_tracking=resume_tracking,
+                resume_attempt_info=resume_attempt_info,
             )
         )
 
@@ -889,6 +931,7 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
                 svc_model_var=model_id_var,
             )
             sidecar_configs[safe_name] = sidecar
+            config_extra_flags = "--resume " if cluster.auto_resume else ""
             parts.append(
                 _TASK_CONFIG.format(
                     idx=i,
@@ -901,6 +944,7 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
                     repeats=bench.repeats,
                     safe_name=safe_name,
                     run_prefix=run_prefix,
+                    extra_flags=config_extra_flags,
                 )
             )
         else:
@@ -953,6 +997,7 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
             parts.append(
                 _AUTO_RESUME.format(
                     max_attempts=cluster.max_resume_attempts,
+                    total_benchmarks=len(config.benchmarks),
                     script_path="$OUTPUT_DIR/nel_eval.sbatch",
                 )
             )
@@ -994,6 +1039,24 @@ def _redact(value: str) -> str:
     return f"***{value[-4:]}"
 
 
+def _run_id(config: EvalConfig) -> str:
+    """Generate a timestamped run ID: YYYYMMDD_HHMMSSZ-{hash8}.
+
+    The hash is derived from benchmark names and model identifiers to
+    avoid collisions when multiple jobs are submitted in the same second.
+    """
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    parts: list[str] = []
+    for b in config.benchmarks:
+        parts.append(b.name)
+        svc_name = getattr(b.solver, "service", "")
+        svc = config.services.get(svc_name) if svc_name else None
+        if svc:
+            parts.append(getattr(svc, "model", "") or "")
+    digest = hashlib.sha256("|".join(parts).encode()).hexdigest()[:8]
+    return f"{ts}_{digest}"
+
+
 def write_sbatch(config: EvalConfig, output_dir: str | Path | None = None) -> tuple[Path, list[Path]]:
     """Write sbatch script + sidecar config YAMLs + .secrets.env.
 
@@ -1001,7 +1064,20 @@ def write_sbatch(config: EvalConfig, output_dir: str | Path | None = None) -> tu
     The extra paths include sidecar configs and .secrets.env, all of
     which must be copied alongside the sbatch script for SSH submission.
     """
-    out = Path(output_dir or config.output.dir)
+    base_dir = str(output_dir or config.output.dir)
+
+    should_stamp = (
+        config.output.timestamped
+        and os.environ.get("NEL_INNER_EXECUTION") != "1"
+        and output_dir is None  # explicit output_dir = user wants that exact path
+    )
+    if should_stamp:
+        run_dir = str(Path(base_dir) / _run_id(config))
+        config.output.dir = run_dir
+    else:
+        run_dir = base_dir
+
+    out = Path(run_dir)
     out.mkdir(parents=True, exist_ok=True)
 
     script, sidecar_configs, secrets_env = generate_sbatch(config)
