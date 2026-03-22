@@ -790,8 +790,9 @@ class ImageBuilder:
     @staticmethod
     def _generate_buildspec(cfg: EcsFargateConfig, repo_name: str, tag: str, image_url: str) -> str:
         ecr_registry = (cfg.ecr_repository or "").split("/")[0]
+        ecr_region = ImageBuilder._ecr_region(cfg.ecr_repository or "", fallback="$AWS_DEFAULT_REGION")
         pre_build_cmds = [
-            f"aws ecr get-login-password --region $AWS_DEFAULT_REGION"
+            f"aws ecr get-login-password --region {ecr_region}"
             f" | docker login --username AWS --password-stdin {ecr_registry}",
         ]
         if cfg.dockerhub_secret_arn:

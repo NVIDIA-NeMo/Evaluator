@@ -838,6 +838,21 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
     total = len(config.benchmarks)
     sidecar_configs: dict[str, dict] = {}
 
+    eval_run_prefix = ""
+    if use_containers and base_override:
+        _eval_mounts = [f"--container-mounts={m}" for m in cluster.container_mounts]
+        _eval_mounts.append(f"--container-mounts={output_dir}:{output_dir}")
+        if cluster.mount_home:
+            _eval_mounts.append("--container-mounts=$HOME:$HOME")
+        else:
+            _eval_mounts.append("--no-container-mount-home")
+        _eval_envs = [f"--container-env={k}" for k in cluster_env_keys]
+        eval_run_prefix = (
+            f"srun --overlap --nodes 1 --ntasks 1 "
+            f"--container-image {base_override} "
+            f"{' '.join(_eval_mounts)} {' '.join(_eval_envs)} \\\n    "
+        )
+
     for i, bench in enumerate(config.benchmarks, 1):
         svc_name = _get_solver_service(bench) or ""
         upper = _safe(svc_name).upper() if svc_name else "MODEL"
@@ -930,7 +945,7 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
         }
         for fmt in config.output.report:
             ext = ext_map.get(fmt, fmt)
-            report_cmds.append(f'nel eval report "$OUTPUT_DIR" -f {fmt} -o "$OUTPUT_DIR/report.{ext}"')
+            report_cmds.append(f'{eval_run_prefix}nel eval report "$OUTPUT_DIR" -f {fmt} -o "$OUTPUT_DIR/report.{ext}"')
         if report_cmds:
             parts.append(_REPORT.format(report_commands="\n".join(report_cmds)))
 
