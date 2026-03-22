@@ -434,9 +434,7 @@ class OpenClawSolver:
 
         if result.return_code != 0:
             err_msg = f"exit code {result.return_code}: {result.stderr[:500]}"
-            logger.warning(
-                "OpenClawSolver[sandbox]: %s for %s", err_msg, task_id,
-            )
+            logger.warning("OpenClawSolver[sandbox]: %s for %s", err_msg, task_id)
             return SolveResult(
                 response="",
                 trajectory=build_atif_trajectory(
@@ -709,9 +707,7 @@ class OpenClawSolver:
 
         if process.returncode != 0:
             err_msg = f"exit code {process.returncode}: {stderr[:500]}"
-            logger.warning(
-                "OpenClawSolver[local]: %s for %s", err_msg, task_id,
-            )
+            logger.warning("OpenClawSolver[local]: %s for %s", err_msg, task_id)
             return SolveResult(
                 response="",
                 trajectory=build_atif_trajectory(

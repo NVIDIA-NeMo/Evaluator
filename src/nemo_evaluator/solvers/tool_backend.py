@@ -43,8 +43,11 @@ class ToolResult:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-class ToolInfraError(Exception):
-    """Unrecoverable infrastructure failure — abort the solve loop."""
+from nemo_evaluator.errors import GracefulError
+
+
+class ToolInfraError(GracefulError):
+    """Unrecoverable tool infrastructure failure — scores 0.0, no retry."""
 
 
 # ── Protocol ──────────────────────────────────────────────────────────

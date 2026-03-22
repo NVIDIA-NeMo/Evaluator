@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from nemo_evaluator.environments.base import EvalEnvironment, VerifyResult
+from nemo_evaluator.errors import GracefulError
 from nemo_evaluator.metrics.aggregation import category_breakdown, scoring_details_breakdown, summary_stats
 from nemo_evaluator.metrics.confidence import bootstrap_ci
 from nemo_evaluator.metrics.pass_at_k import aggregate_pass_at_k, pass_at_k
@@ -16,7 +17,7 @@ from nemo_evaluator.observability.progress import NoOpProgress, ProgressTracker
 from nemo_evaluator.observability.types import StepRecord
 from nemo_evaluator.runner.artifacts import build_artifact_bundle
 from nemo_evaluator.sandbox.lifecycle import pick_lifecycle
-from nemo_evaluator.solvers import Solver, SolveResult
+from nemo_evaluator.solvers import Solver
 from nemo_evaluator.runner.step_log import (
     INFERENCE_LOG,
     VERIFIED_LOG,
@@ -52,6 +53,7 @@ async def run_evaluation(
     shard_info: tuple[int, int] | None = None,
 ) -> dict[str, Any]:
     config = config or {}
+    max_system_retries = max(1, max_system_retries)
 
     name = env.name
     ds_size = await env.dataset_size()
@@ -252,14 +254,14 @@ async def run_evaluation(
                                 step.model_response = solve_result.model_response
                                 step.model_ms = solve_result.model_response.latency_ms
                             if solve_result.error:
-                                logger.warning("solve error p%d r%d (solver): %s",
+                                logger.warning("solve error p%d r%d (graceful): %s",
                                                idx, rep, solve_result.error)
                                 step.model_error = solve_result.error
-                        except Exception as e:
+                        except GracefulError as e:
                             step.model_error = str(e)
-                            if _is_system_error(e):
-                                raise
-                            logger.warning("solve error p%d r%d (solver): %s", idx, rep, e)
+                            logger.warning("solve error p%d r%d (graceful): %s", idx, rep, e)
+                        except Exception:
+                            raise  # system error — outer loop will retry
 
                         response_text = solve_result.response if solve_result else ""
                         tokens = solve_result.model_response.total_tokens if solve_result and solve_result.model_response else 0
@@ -284,7 +286,7 @@ async def run_evaluation(
                             reward=0.0,
                             scoring_details={
                                 "error": step.model_error,
-                                "error_category": "solver",
+                                "error_category": "graceful",
                                 "method": "solve_failed",
                             },
                         )
@@ -312,47 +314,48 @@ async def run_evaluation(
                         )
                     break  # success — exit retry loop
 
+                except GracefulError as e:
+                    await lifecycle.teardown()
+                    logger.warning(
+                        "p%d r%d: graceful error, grading 0.0: %s",
+                        idx, rep, e,
+                    )
+                    vr = VerifyResult(
+                        reward=0.0,
+                        scoring_details={
+                            "error": str(e),
+                            "error_category": "graceful",
+                            "method": "graceful_error",
+                        },
+                    )
+                    break
+
                 except Exception as e:
                     await lifecycle.teardown()
-                    cat = _error_category(e)
-                    if cat == "system":
-                        if _attempt < max_system_retries:
-                            delay = min(30, 5 * (2 ** (_attempt - 1)))
-                            logger.warning(
-                                "p%d r%d: system error (attempt %d/%d), "
-                                "retrying in %ds: %s",
-                                idx, rep, _attempt, max_system_retries, delay, e,
-                            )
-                            await asyncio.sleep(delay)
-                            continue
-                        logger.error(
-                            "p%d r%d: system error exhausted %d retries: %s",
-                            idx, rep, max_system_retries, e,
-                        )
-                        if not skip_failed:
-                            raise
-                        vr = VerifyResult(
-                            reward=0.0,
-                            scoring_details={
-                                "error": str(e),
-                                "error_category": "system",
-                                "retries_exhausted": max_system_retries,
-                                "method": "system_error",
-                            },
-                        )
-                    else:
+                    if _attempt < max_system_retries:
+                        delay = min(30, 5 * (2 ** (_attempt - 1)))
                         logger.warning(
-                            "p%d r%d: non-system error (%s), grading 0.0: %s",
-                            idx, rep, cat, e,
+                            "p%d r%d: system error (attempt %d/%d), "
+                            "retrying in %ds: %s",
+                            idx, rep, _attempt, max_system_retries, delay, e,
                         )
-                        vr = VerifyResult(
-                            reward=0.0,
-                            scoring_details={
-                                "error": str(e),
-                                "error_category": cat,
-                                "method": "step_failed",
-                            },
-                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    logger.error(
+                        "p%d r%d: system error exhausted %d retries: %s",
+                        idx, rep, max_system_retries, e,
+                    )
+                    if not skip_failed:
+                        raise
+                    vr = VerifyResult(
+                        reward=0.0,
+                        scoring_details={
+                            "error": str(e),
+                            "error_category": "system",
+                            "retries_exhausted": max_system_retries,
+                            "method": "system_error",
+                        },
+                    )
                     break
             try:
                 step.verify_ms = (time.monotonic() - tv) * 1000
@@ -452,6 +455,8 @@ async def run_evaluation(
     def _check_done(done_tasks: set[asyncio.Task]) -> None:
         nonlocal first_error
         for t in done_tasks:
+            if t.cancelled():
+                continue
             exc = t.exception()
             if exc is None:
                 continue
@@ -615,35 +620,6 @@ async def run_evaluation(
     bundle["_results"] = results
     bundle["_artifacts"] = artifacts
     return bundle
-
-
-_SYSTEM_ERROR_TYPES: tuple[type, ...] = (
-    OSError, ConnectionError, TimeoutError, asyncio.TimeoutError,
-)
-
-_SYSTEM_ERROR_KEYWORDS = (
-    "throttling", "rate limit", "service unavailable", "503",
-    "internal server error", "500", "network", "connection reset",
-    "broken pipe", "ecs task", "resource", "capacity",
-    "ssh not ready", "ssh tunnel", "no route to host",
-)
-
-
-def _is_system_error(exc: BaseException) -> bool:
-    """True for infrastructure / transient errors that should abort the run.
-
-    Solver-level failures (empty response, wrong output, agent crash)
-    are NOT system errors — they are graded as 0.0.
-    """
-    if isinstance(exc, _SYSTEM_ERROR_TYPES):
-        return True
-    msg = str(exc).lower()
-    return any(kw in msg for kw in _SYSTEM_ERROR_KEYWORDS)
-
-
-def _error_category(exc: BaseException) -> str:
-    """Return ``"system"`` or ``"solver"`` for logging and scoring_details."""
-    return "system" if _is_system_error(exc) else "solver"
 
 
 def _solver_accepts_sandbox(solver: Any) -> bool:

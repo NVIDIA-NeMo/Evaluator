@@ -12,6 +12,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from nemo_evaluator.environments.base import SeedResult
+from nemo_evaluator.errors import GracefulError
 from nemo_evaluator.observability.types import ModelResponse
 from nemo_evaluator.runner.model_client import ModelClient, ToolCallInfo, ToolCallingResponse
 from nemo_evaluator.solvers.base import SolveResult
@@ -88,6 +89,10 @@ class ReActSolver:
         backend = self._build_backend(sandbox)
 
         try:
+            atif_steps: list[dict[str, Any]] = []
+            total_prompt_tokens = 0
+            total_completion_tokens = 0
+
             # 2. Discover tools (prefer seed metadata, fall back to backend)
             tools = task.metadata.get("tools") if task.metadata else None
             if not tools:
@@ -97,27 +102,14 @@ class ReActSolver:
 
             # 3. Build initial messages
             messages = self._build_initial_messages(task)
-            atif_steps: list[dict[str, Any]] = []
-
-            # 4. ReAct loop
-            total_prompt_tokens = 0
-            total_completion_tokens = 0
             last_response: ModelResponse | None = None
             last_tcr: ToolCallingResponse | None = None
 
             gen_overrides = self._gen_overrides()
 
             for turn in range(self._max_turns):
-                # 4a. Call model with tools
-                try:
-                    tcr = await self._client.chat_with_tools(messages, tools, **gen_overrides)
-                except Exception as exc:
-                    logger.error("Model call failed on turn %d: %s", turn, exc)
-                    return self._error_result(
-                        f"Model call failed on turn {turn}: {exc}",
-                        atif_steps, total_prompt_tokens, total_completion_tokens,
-                        last_response, t0,
-                    )
+                # 4a. Call model with tools — exceptions propagate to eval loop
+                tcr = await self._client.chat_with_tools(messages, tools, **gen_overrides)
 
                 last_response = tcr.model_response
                 last_tcr = tcr
@@ -179,9 +171,10 @@ class ReActSolver:
                 messages = self._manage_context(messages)
 
             # 5. Extract response
-            error = None
             if last_tcr and last_tcr.tool_calls and turn >= self._max_turns - 1:
-                error = "max_turns_exhausted"
+                raise GracefulError(
+                    f"max_turns_exhausted ({self._max_turns} turns)"
+                )
 
             if self._response_mode == "sandbox_artifact":
                 final_text = ""
@@ -195,7 +188,6 @@ class ReActSolver:
                 model_name=last_response.model if last_response else None,
                 prompt_tokens=total_prompt_tokens,
                 completion_tokens=total_completion_tokens,
-                status=error,
             )
 
             latency_ms = (time.monotonic() - t0) * 1000
@@ -215,11 +207,10 @@ class ReActSolver:
                 response=final_text,
                 model_response=last_response,
                 trajectory=trajectory,
-                error=error,
             )
 
-        except ToolInfraError as exc:
-            logger.error("Tool infrastructure failure: %s", exc)
+        except GracefulError as exc:
+            logger.warning("ReActSolver: graceful failure: %s", exc)
             latency_ms = (time.monotonic() - t0) * 1000
             return SolveResult(
                 response="",
@@ -229,7 +220,7 @@ class ReActSolver:
                     latency_ms=round(latency_ms, 2),
                 ),
                 trajectory=build_atif_trajectory(
-                    atif_steps + [{"source": "system", "message": f"INFRA ERROR: {exc}"}],
+                    atif_steps + [{"source": "system", "message": str(exc)}],
                     agent_name="nemo-evaluator-react",
                     status="error",
                 ),
@@ -351,35 +342,6 @@ class ReActSolver:
             if msg.get("role") == "assistant" and msg.get("content"):
                 return msg["content"]
         return ""
-
-    def _error_result(
-        self,
-        error: str,
-        atif_steps: list[dict[str, Any]],
-        prompt_tokens: int,
-        completion_tokens: int,
-        last_response: ModelResponse | None,
-        t0: float,
-    ) -> SolveResult:
-        latency_ms = (time.monotonic() - t0) * 1000
-        atif_steps.append({"source": "system", "message": f"ERROR: {error}"})
-        return SolveResult(
-            response="",
-            model_response=ModelResponse(
-                content="",
-                model=last_response.model if last_response else self._client.model,
-                total_tokens=prompt_tokens + completion_tokens,
-                latency_ms=round(latency_ms, 2),
-            ),
-            trajectory=build_atif_trajectory(
-                atif_steps,
-                agent_name="nemo-evaluator-react",
-                status="error",
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-            ),
-            error=error,
-        )
 
     async def close(self) -> None:
         if self._http_backend:

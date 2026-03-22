@@ -141,7 +141,7 @@ class TestSlurmHeaderFlag:
 
         config = _make_config("slurm", bench="gsm8k")
 
-        script = generate_sbatch(config)
+        script, _, _ = generate_sbatch(config)
         assert "export NEL_INNER_EXECUTION=1" in script
 
     def test_export_has_comment(self):
@@ -149,7 +149,7 @@ class TestSlurmHeaderFlag:
 
         config = _make_config("slurm", bench="gsm8k")
 
-        script = generate_sbatch(config)
+        script, _, _ = generate_sbatch(config)
         lines = script.splitlines()
         for i, line in enumerate(lines):
             if "export NEL_INNER_EXECUTION=1" in line:

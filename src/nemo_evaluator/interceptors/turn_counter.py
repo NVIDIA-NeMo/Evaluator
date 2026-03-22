@@ -113,7 +113,8 @@ class Interceptor(CustomLogger):
                 "task %s REJECTED turn %d (max_turns=%d exceeded)",
                 key, n, self._max,
             )
-            raise RuntimeError(
+            from nemo_evaluator.errors import GracefulError
+            raise GracefulError(
                 f"Turn budget exhausted: {n}/{self._max} turns used. "
                 f"The evaluation framework has terminated this agent session."
             )
