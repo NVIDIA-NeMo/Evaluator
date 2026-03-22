@@ -1,4 +1,5 @@
 """Tests for the NEL-driven ReActSolver and tool backends."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -151,7 +152,6 @@ class TestOpenApiToTools:
 
 
 class TestSandboxToolBackend:
-
     def _make_sandbox(self, exec_result=None):
         sandbox = AsyncMock()
         spec = MagicMock()
@@ -218,10 +218,13 @@ class TestSandboxToolBackend:
     async def test_file_write_uses_upload(self):
         sb = self._make_sandbox()
         backend = SandboxToolBackend(sb)
-        result = await backend.call_tool("file_write", {
-            "path": "/workspace/test.py",
-            "content": "print('hi')",
-        })
+        result = await backend.call_tool(
+            "file_write",
+            {
+                "path": "/workspace/test.py",
+                "content": "print('hi')",
+            },
+        )
         assert not result.is_error
         assert "Written" in result.content
         sb.upload.assert_awaited_once()
@@ -250,10 +253,13 @@ class TestSandboxToolBackend:
 
         sb.download = AsyncMock(side_effect=_download)
         backend = SandboxToolBackend(sb)
-        result = await backend.call_tool("str_replace_editor", {
-            "command": "view",
-            "path": "/workspace/test.py",
-        })
+        result = await backend.call_tool(
+            "str_replace_editor",
+            {
+                "command": "view",
+                "path": "/workspace/test.py",
+            },
+        )
         assert not result.is_error
         assert "line2" in result.content
         await backend.close()
@@ -267,12 +273,15 @@ class TestSandboxToolBackend:
 
         sb.download = AsyncMock(side_effect=_download)
         backend = SandboxToolBackend(sb)
-        result = await backend.call_tool("str_replace_editor", {
-            "command": "str_replace",
-            "path": "/workspace/test.py",
-            "old_str": "old_value",
-            "new_str": "new_value",
-        })
+        result = await backend.call_tool(
+            "str_replace_editor",
+            {
+                "command": "str_replace",
+                "path": "/workspace/test.py",
+                "old_str": "old_value",
+                "new_str": "new_value",
+            },
+        )
         assert not result.is_error
         await backend.close()
 
@@ -298,19 +307,22 @@ class TestSandboxToolBackend:
 
 
 class TestCompositeToolBackend:
-
     @pytest.mark.asyncio
     async def test_merges_tools_and_routes(self):
         b1 = AsyncMock()
-        b1.list_tools = AsyncMock(return_value=[
-            {"type": "function", "function": {"name": "web_search"}},
-        ])
+        b1.list_tools = AsyncMock(
+            return_value=[
+                {"type": "function", "function": {"name": "web_search"}},
+            ]
+        )
         b1.call_tool = AsyncMock(return_value=ToolResult(content="result1"))
 
         b2 = AsyncMock()
-        b2.list_tools = AsyncMock(return_value=[
-            {"type": "function", "function": {"name": "bash"}},
-        ])
+        b2.list_tools = AsyncMock(
+            return_value=[
+                {"type": "function", "function": {"name": "bash"}},
+            ]
+        )
         b2.call_tool = AsyncMock(return_value=ToolResult(content="result2"))
 
         comp = CompositeToolBackend([b1, b2])
@@ -330,9 +342,11 @@ class TestCompositeToolBackend:
     @pytest.mark.asyncio
     async def test_unknown_tool_raises(self):
         b1 = AsyncMock()
-        b1.list_tools = AsyncMock(return_value=[
-            {"type": "function", "function": {"name": "tool1"}},
-        ])
+        b1.list_tools = AsyncMock(
+            return_value=[
+                {"type": "function", "function": {"name": "tool1"}},
+            ]
+        )
         comp = CompositeToolBackend([b1])
         await comp.list_tools()
         with pytest.raises(ToolInfraError, match="not found"):
@@ -343,7 +357,6 @@ class TestCompositeToolBackend:
 
 
 class TestReActSolver:
-
     def _make_solver(self, **kwargs):
         from nemo_evaluator.solvers.react import ReActSolver
 
@@ -360,9 +373,12 @@ class TestReActSolver:
 
     def _mock_backend(self, tools=None, call_result=None):
         backend = AsyncMock()
-        backend.list_tools = AsyncMock(return_value=tools or [
-            {"type": "function", "function": {"name": "bash"}},
-        ])
+        backend.list_tools = AsyncMock(
+            return_value=tools
+            or [
+                {"type": "function", "function": {"name": "bash"}},
+            ]
+        )
         backend.call_tool = AsyncMock(return_value=call_result or ToolResult(content="ok"))
         backend.close = AsyncMock()
         return backend
@@ -370,9 +386,7 @@ class TestReActSolver:
     @pytest.mark.asyncio
     async def test_single_turn_no_tools(self):
         solver, client = self._make_solver()
-        client.chat_with_tools = AsyncMock(
-            return_value=_make_tool_calling_response(content="The answer is 42.")
-        )
+        client.chat_with_tools = AsyncMock(return_value=_make_tool_calling_response(content="The answer is 42."))
         backend = self._mock_backend()
         with patch.object(solver, "_build_backend", return_value=backend):
             result = await solver.solve(_make_seed("What is 6*7?"))
@@ -421,7 +435,7 @@ class TestReActSolver:
         with patch.object(solver, "_build_backend", return_value=backend):
             result = await solver.solve(_make_seed())
 
-        assert result.error == "max_turns_exhausted"
+        assert result.error.startswith("max_turns_exhausted")
 
     @pytest.mark.asyncio
     async def test_tool_error_fed_back_to_model(self):
@@ -584,9 +598,9 @@ class TestReActSolver:
 
 
 class TestToolCallingSolverConfig:
-
     def test_requires_at_least_one_tool_source(self):
         from nemo_evaluator.eval.config import ToolCallingSolverConfig
+
         with pytest.raises(Exception, match="at least one tool source"):
             ToolCallingSolverConfig(
                 type="tool_calling",
@@ -597,6 +611,7 @@ class TestToolCallingSolverConfig:
 
     def test_resource_service_only(self):
         from nemo_evaluator.eval.config import ToolCallingSolverConfig
+
         cfg = ToolCallingSolverConfig(
             type="tool_calling",
             service="model",
@@ -607,6 +622,7 @@ class TestToolCallingSolverConfig:
 
     def test_sandbox_tools_only(self):
         from nemo_evaluator.eval.config import ToolCallingSolverConfig
+
         cfg = ToolCallingSolverConfig(
             type="tool_calling",
             service="model",
@@ -617,6 +633,7 @@ class TestToolCallingSolverConfig:
 
     def test_both_tools_ok(self):
         from nemo_evaluator.eval.config import ToolCallingSolverConfig
+
         cfg = ToolCallingSolverConfig(
             type="tool_calling",
             service="model",
@@ -633,6 +650,7 @@ class TestToolCallingSolverConfig:
             ExternalApiService,
             ToolCallingSolverConfig,
         )
+
         with pytest.raises(Exception, match="requires a sandbox"):
             EvalConfig(
                 services={
@@ -661,6 +679,7 @@ class TestToolCallingSolverConfig:
             ExternalApiService,
             ToolCallingSolverConfig,
         )
+
         with pytest.raises(Exception, match="not in services"):
             EvalConfig(
                 services={
@@ -684,6 +703,7 @@ class TestToolCallingSolverConfig:
 
     def test_defaults(self):
         from nemo_evaluator.eval.config import ToolCallingSolverConfig
+
         cfg = ToolCallingSolverConfig(
             type="tool_calling",
             service="model",
@@ -699,26 +719,29 @@ class TestToolCallingSolverConfig:
 
 
 class TestChatWithTools:
-
     @pytest.mark.asyncio
     async def test_parses_tool_calls(self):
         from nemo_evaluator.runner.model_client import ModelClient
 
         api_response = {
-            "choices": [{
-                "message": {
-                    "content": None,
-                    "tool_calls": [{
-                        "id": "call_1",
-                        "type": "function",
-                        "function": {
-                            "name": "bash",
-                            "arguments": '{"command": "ls"}',
-                        },
-                    }],
-                },
-                "finish_reason": "tool_calls",
-            }],
+            "choices": [
+                {
+                    "message": {
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "type": "function",
+                                "function": {
+                                    "name": "bash",
+                                    "arguments": '{"command": "ls"}',
+                                },
+                            }
+                        ],
+                    },
+                    "finish_reason": "tool_calls",
+                }
+            ],
             "model": "test-model",
             "usage": {"prompt_tokens": 50, "completion_tokens": 20, "total_tokens": 70},
         }
@@ -743,10 +766,12 @@ class TestChatWithTools:
         from nemo_evaluator.runner.model_client import ModelClient
 
         api_response = {
-            "choices": [{
-                "message": {"content": "The answer is 42."},
-                "finish_reason": "stop",
-            }],
+            "choices": [
+                {
+                    "message": {"content": "The answer is 42."},
+                    "finish_reason": "stop",
+                }
+            ],
             "model": "test-model",
             "usage": {"prompt_tokens": 50, "completion_tokens": 10, "total_tokens": 60},
         }
@@ -767,19 +792,23 @@ class TestChatWithTools:
         from nemo_evaluator.runner.model_client import ModelClient
 
         api_response = {
-            "choices": [{
-                "message": {
-                    "content": "",
-                    "tool_calls": [{
-                        "id": "call_1",
-                        "function": {
-                            "name": "bash",
-                            "arguments": "not valid json {{{",
-                        },
-                    }],
-                },
-                "finish_reason": "tool_calls",
-            }],
+            "choices": [
+                {
+                    "message": {
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "function": {
+                                    "name": "bash",
+                                    "arguments": "not valid json {{{",
+                                },
+                            }
+                        ],
+                    },
+                    "finish_reason": "tool_calls",
+                }
+            ],
             "model": "test-model",
             "usage": {"prompt_tokens": 50, "completion_tokens": 10, "total_tokens": 60},
         }

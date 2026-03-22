@@ -1,3 +1,10 @@
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
 default:
   image: python:3.11-slim
   tags:
@@ -23,12 +30,6 @@ lint:
     - pip install --quiet ruff
   script:
     - ruff check src/ tests/
-  rules:
-    - changes:
-        - src/**/*
-        - tests/**/*
-        - pyproject.toml
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 test-offline:
   stage: test
@@ -40,13 +41,6 @@ test-offline:
     reports:
       junit: report-offline.xml
     when: always
-  rules:
-    - changes:
-        - src/**/*
-        - tests/**/*
-        - pyproject.toml
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 test-network:
   stage: test
@@ -78,13 +72,6 @@ build-docs:
     paths:
       - docs/_build/html
     expire_in: 1 week
-  rules:
-    - changes:
-        - docs/**/*
-        - src/**/*
-        - pyproject.toml
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 pages:
   stage: deploy
@@ -120,13 +107,7 @@ pages:
   rules:
     - if: $CI_COMMIT_TAG
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - docker/**
-        - src/**/*
-        - pyproject.toml
-    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
-      changes:
+    - changes:
         - docker/**
         - src/**/*
         - pyproject.toml
