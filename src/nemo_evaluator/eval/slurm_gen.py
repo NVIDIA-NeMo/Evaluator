@@ -954,11 +954,11 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
     for name, svc in config.services.items():
         if not isinstance(svc, ExternalApiService):
             upper = _safe(name).upper()
-            kill_cmds.append(f"    kill ${upper}_PID 2>/dev/null || true")
+            kill_cmds.append(f"    [ -n \"${{{upper}_PID:-}}\" ] && kill ${upper}_PID 2>/dev/null || true")
     for name, svc in config.services.items():
         if not isinstance(svc, ExternalApiService):
             upper = _safe(name).upper()
-            kill_cmds.append(f"    wait ${upper}_PID 2>/dev/null || true")
+            kill_cmds.append(f"    [ -n \"${{{upper}_PID:-}}\" ] && wait ${upper}_PID 2>/dev/null || true")
 
     cleanup_body = "\n".join(kill_cmds) if kill_cmds else "    echo 'No managed services.'"
     parts.insert(1, _CLEANUP_FUNC.format(kill_commands=cleanup_body))
