@@ -111,6 +111,7 @@ def _build_ecs_sandbox_config(cfg: EcsFargateSandbox) -> Any:
             sshd_port=ssm_ssh.get("sshd_port", 2222),
             public_key_secret_arn=ssm_ssh["public_key_secret_arn"],
             private_key_secret_arn=ssm_ssh["private_key_secret_arn"],
+            exec_server_port=ssm_ssh.get("exec_server_port", 5000),
         )
 
     return SandboxEcsConfig(
@@ -704,6 +705,7 @@ async def _run_single_benchmark(
             step_log_dir=task_dir,
             resume=resume,
             skip_failed=bench.skip_failed,
+            max_system_retries=bench.max_system_retries,
             shard_info=shard_info,
         )
 

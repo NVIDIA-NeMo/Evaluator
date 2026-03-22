@@ -48,6 +48,7 @@ async def run_evaluation(
     step_log_dir: Path | None = None,
     resume: bool = False,
     skip_failed: bool = False,
+    max_system_retries: int = 3,
     shard_info: tuple[int, int] | None = None,
 ) -> dict[str, Any]:
     config = config or {}
@@ -201,11 +202,6 @@ async def run_evaluation(
             )
 
             step_t0 = time.monotonic()
-            solve_result: SolveResult | None = None
-            sandbox = None
-            response_text = ""
-            tokens = 0
-            latency_ms = 0.0
 
             outside_eps: list[OutsideEndpoint] = []
             if model_url:
@@ -213,82 +209,152 @@ async def run_evaluation(
                 outside_eps.append(OE(url=model_url, env_var="MODEL_BASE_URL"))
 
             sandbox_cfg = config.get("_sandbox_config")
-            lifecycle = pick_lifecycle(
-                seed_result,
-                sandbox_manager,
-                outside_endpoints=outside_eps,
-                config_capture_cmd=sandbox_cfg.capture_cmd if sandbox_cfg else None,
-                verify_timeout=sandbox_cfg.verify_timeout if sandbox_cfg else 600.0,
-            )
+            vr: VerifyResult | None = None
+            tv = step_t0
 
-            try:
-                await lifecycle.setup()
-                cached_inferred = inferred_cache.get(key)
-                if cached_inferred is not None:
-                    response_text = cached_inferred.get("response", "")
-                    tokens = cached_inferred.get("tokens", 0)
-                    latency_ms = cached_inferred.get("latency_ms", 0)
-                    logger.debug("resume p%d r%d: using cached inference", idx, rep)
-                else:
-                    pg.on_phase(idx - start, rep, n_problems, n_repeats, "solving")
-                    try:
-                        if _solver_accepts_sandbox(solver):
-                            sandbox = await lifecycle.get_agent_sandbox()
-                        if sandbox is not None:
-                            solve_result = await solver.solve(seed_result, sandbox=sandbox)
-                        else:
-                            solve_result = await solver.solve(seed_result)
-                        if solve_result.model_response:
-                            step.model_response = solve_result.model_response
-                            step.model_ms = solve_result.model_response.latency_ms
-                        if solve_result.error and not skip_failed:
-                            raise RuntimeError(
-                                f"Solver failed on p{idx} r{rep}: {solve_result.error}"
-                            )
-                    except Exception as e:
-                        step.model_error = str(e)
-                        if not skip_failed:
-                            raise
-                        logger.warning("solve error p%d r%d: %s", idx, rep, e)
+            for _attempt in range(1, max_system_retries + 1):
+                solve_result = None
+                sandbox = None
+                response_text = ""
+                tokens = 0
+                latency_ms = 0.0
+                step.model_error = None
+                vr = None
 
-                    response_text = solve_result.response if solve_result else ""
-                    tokens = solve_result.model_response.total_tokens if solve_result and solve_result.model_response else 0
-                    latency_ms = solve_result.model_response.latency_ms if solve_result and solve_result.model_response else 0
-
-                    if inference_log is not None:
-                        inf_record = {
-                            "problem_idx": idx, "repeat": rep,
-                            "response": response_text,
-                            "tokens": tokens, "latency_ms": latency_ms,
-                            "prompt": seed_result.prompt,
-                            "expected_answer": seed_result.expected_answer,
-                            "seed_metadata": seed_result.metadata,
-                            "trajectory": solve_result.trajectory if solve_result else None,
-                        }
-                        await inference_log.append(inf_record)
-                await lifecycle.transition_to_verify(
-                    response_text, solver_modified=(sandbox is not None),
+                lifecycle = pick_lifecycle(
+                    seed_result,
+                    sandbox_manager,
+                    outside_endpoints=outside_eps,
+                    config_capture_cmd=sandbox_cfg.capture_cmd if sandbox_cfg else None,
+                    verify_timeout=sandbox_cfg.verify_timeout if sandbox_cfg else 600.0,
                 )
-                pg.on_phase(idx - start, rep, n_problems, n_repeats, "verifying")
-                tv = time.monotonic()
-                if solve_result and solve_result.reward is not None:
-                    vr = VerifyResult(
-                        reward=solve_result.reward,
-                        scoring_details=solve_result.scoring_details,
-                    )
-                    logger.debug("p%d r%d: using pre-computed reward=%.4f", idx, rep, vr.reward)
-                else:
-                    try:
+
+                try:
+                    await lifecycle.setup()
+
+                    # ── Solve ────────────────────────────────────────
+                    cached_inferred = inferred_cache.get(key)
+                    if cached_inferred is not None:
+                        response_text = cached_inferred.get("response", "")
+                        tokens = cached_inferred.get("tokens", 0)
+                        latency_ms = cached_inferred.get("latency_ms", 0)
+                        logger.debug("resume p%d r%d: using cached inference", idx, rep)
+                    else:
+                        pg.on_phase(idx - start, rep, n_problems, n_repeats, "solving")
+                        try:
+                            if _solver_accepts_sandbox(solver):
+                                sandbox = await lifecycle.get_agent_sandbox()
+                            if sandbox is not None:
+                                solve_result = await solver.solve(seed_result, sandbox=sandbox)
+                            else:
+                                solve_result = await solver.solve(seed_result)
+                            if solve_result.model_response:
+                                step.model_response = solve_result.model_response
+                                step.model_ms = solve_result.model_response.latency_ms
+                            if solve_result.error:
+                                logger.warning("solve error p%d r%d (solver): %s",
+                                               idx, rep, solve_result.error)
+                                step.model_error = solve_result.error
+                        except Exception as e:
+                            step.model_error = str(e)
+                            if _is_system_error(e):
+                                raise
+                            logger.warning("solve error p%d r%d (solver): %s", idx, rep, e)
+
+                        response_text = solve_result.response if solve_result else ""
+                        tokens = solve_result.model_response.total_tokens if solve_result and solve_result.model_response else 0
+                        latency_ms = solve_result.model_response.latency_ms if solve_result and solve_result.model_response else 0
+
+                        if inference_log is not None:
+                            inf_record = {
+                                "problem_idx": idx, "repeat": rep,
+                                "response": response_text,
+                                "tokens": tokens, "latency_ms": latency_ms,
+                                "prompt": seed_result.prompt,
+                                "expected_answer": seed_result.expected_answer,
+                                "seed_metadata": seed_result.metadata,
+                                "trajectory": solve_result.trajectory if solve_result else None,
+                            }
+                            await inference_log.append(inf_record)
+
+                    # ── Verify ───────────────────────────────────────
+                    _solve_failed = step.model_error is not None
+                    if _solve_failed:
+                        vr = VerifyResult(
+                            reward=0.0,
+                            scoring_details={
+                                "error": step.model_error,
+                                "error_category": "solver",
+                                "method": "solve_failed",
+                            },
+                        )
+                        logger.info(
+                            "p%d r%d: solver failed — grading 0.0 (skipping verify)",
+                            idx, rep,
+                        )
+                    else:
+                        await lifecycle.transition_to_verify(
+                            response_text, solver_modified=(sandbox is not None),
+                        )
+                        pg.on_phase(idx - start, rep, n_problems, n_repeats, "verifying")
+                    tv = time.monotonic()
+                    if not _solve_failed and solve_result and solve_result.reward is not None:
+                        vr = VerifyResult(
+                            reward=solve_result.reward,
+                            scoring_details=solve_result.scoring_details,
+                        )
+                        logger.debug("p%d r%d: using pre-computed reward=%.4f", idx, rep, vr.reward)
+                    elif not _solve_failed:
                         verify_sandbox = await lifecycle.get_verify_sandbox()
                         vr = await env.verify(
                             response_text, seed_result.expected_answer,
                             sandbox=verify_sandbox, **seed_result.metadata,
                         )
-                    except Exception as e:
+                    break  # success — exit retry loop
+
+                except Exception as e:
+                    await lifecycle.teardown()
+                    cat = _error_category(e)
+                    if cat == "system":
+                        if _attempt < max_system_retries:
+                            delay = min(30, 5 * (2 ** (_attempt - 1)))
+                            logger.warning(
+                                "p%d r%d: system error (attempt %d/%d), "
+                                "retrying in %ds: %s",
+                                idx, rep, _attempt, max_system_retries, delay, e,
+                            )
+                            await asyncio.sleep(delay)
+                            continue
+                        logger.error(
+                            "p%d r%d: system error exhausted %d retries: %s",
+                            idx, rep, max_system_retries, e,
+                        )
                         if not skip_failed:
                             raise
-                        logger.warning("verify error p%d r%d: %s", idx, rep, e)
-                        vr = VerifyResult(reward=0.0, scoring_details={"error": str(e), "method": "verify_failed"})
+                        vr = VerifyResult(
+                            reward=0.0,
+                            scoring_details={
+                                "error": str(e),
+                                "error_category": "system",
+                                "retries_exhausted": max_system_retries,
+                                "method": "system_error",
+                            },
+                        )
+                    else:
+                        logger.warning(
+                            "p%d r%d: non-system error (%s), grading 0.0: %s",
+                            idx, rep, cat, e,
+                        )
+                        vr = VerifyResult(
+                            reward=0.0,
+                            scoring_details={
+                                "error": str(e),
+                                "error_category": cat,
+                                "method": "step_failed",
+                            },
+                        )
+                    break
+            try:
                 step.verify_ms = (time.monotonic() - tv) * 1000
                 step.total_ms = (time.monotonic() - step_t0) * 1000
 
@@ -389,9 +455,10 @@ async def run_evaluation(
             exc = t.exception()
             if exc is None:
                 continue
-            if skip_failed:
-                logger.error("Step failed (skip_failed=True, continuing): %s", exc)
-            elif first_error is None:
+            logger.error(
+                "Step failed (retries exhausted, will abort run): %s", exc,
+            )
+            if first_error is None:
                 first_error = exc
 
     interrupted = False
@@ -548,6 +615,35 @@ async def run_evaluation(
     bundle["_results"] = results
     bundle["_artifacts"] = artifacts
     return bundle
+
+
+_SYSTEM_ERROR_TYPES: tuple[type, ...] = (
+    OSError, ConnectionError, TimeoutError, asyncio.TimeoutError,
+)
+
+_SYSTEM_ERROR_KEYWORDS = (
+    "throttling", "rate limit", "service unavailable", "503",
+    "internal server error", "500", "network", "connection reset",
+    "broken pipe", "ecs task", "resource", "capacity",
+    "ssh not ready", "ssh tunnel", "no route to host",
+)
+
+
+def _is_system_error(exc: BaseException) -> bool:
+    """True for infrastructure / transient errors that should abort the run.
+
+    Solver-level failures (empty response, wrong output, agent crash)
+    are NOT system errors — they are graded as 0.0.
+    """
+    if isinstance(exc, _SYSTEM_ERROR_TYPES):
+        return True
+    msg = str(exc).lower()
+    return any(kw in msg for kw in _SYSTEM_ERROR_KEYWORDS)
+
+
+def _error_category(exc: BaseException) -> str:
+    """Return ``"system"`` or ``"solver"`` for logging and scoring_details."""
+    return "system" if _is_system_error(exc) else "solver"
 
 
 def _solver_accepts_sandbox(solver: Any) -> bool:

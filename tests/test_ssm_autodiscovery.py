@@ -25,6 +25,7 @@ SSM_CONFIG = {
     "efs_access_point_id": "fsap-bbb",
     "ssh_sidecar": {
         "sshd_port": 2222,
+        "exec_server_port": 5000,
         "public_key_secret_arn": "arn:aws:secretsmanager:us-west-2:123456:secret:pub",
         "private_key_secret_arn": "arn:aws:secretsmanager:us-west-2:123456:secret:priv",
     },
@@ -212,7 +213,7 @@ class TestBuildEcsSandboxConfigWithSsm:
         assert result.max_task_lifetime_sec == 14400
 
     def test_ssh_sidecar_autodiscovery(self):
-        """SSH sidecar key ARNs populated from SSM when not in YAML."""
+        """SSH sidecar key ARNs and exec_server_port populated from SSM when not in YAML."""
         cfg = EcsFargateSandbox(region="us-west-2")
 
         with patch(
@@ -223,8 +224,28 @@ class TestBuildEcsSandboxConfigWithSsm:
 
         assert result.ssh_sidecar is not None
         assert result.ssh_sidecar.sshd_port == 2222
+        assert result.ssh_sidecar.exec_server_port == 5000
         assert "pub" in result.ssh_sidecar.public_key_secret_arn
         assert "priv" in result.ssh_sidecar.private_key_secret_arn
+
+    def test_ssh_sidecar_exec_server_port_defaults_to_5000(self):
+        """When SSM omits exec_server_port, it defaults to 5000 (exec-server mode)."""
+        ssm_no_exec_port = dict(SSM_CONFIG)
+        ssm_no_exec_port["ssh_sidecar"] = {
+            "sshd_port": 2222,
+            "public_key_secret_arn": SSM_CONFIG["ssh_sidecar"]["public_key_secret_arn"],
+            "private_key_secret_arn": SSM_CONFIG["ssh_sidecar"]["private_key_secret_arn"],
+        }
+        cfg = EcsFargateSandbox(region="us-west-2")
+
+        with patch(
+            "nemo_evaluator.sandbox.ecs_fargate.resolve_ecs_config_from_ssm",
+            return_value=ssm_no_exec_port,
+        ):
+            result = self._build(cfg)
+
+        assert result.ssh_sidecar is not None
+        assert result.ssh_sidecar.exec_server_port == 5000
 
     def test_yaml_overrides_ssm(self):
         """Explicitly set YAML fields take precedence over SSM."""

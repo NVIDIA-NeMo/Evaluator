@@ -440,6 +440,59 @@ def _build_harbor_dockerfiles(
 
 
 # ---------------------------------------------------------------------------
+# Verify helpers
+# ---------------------------------------------------------------------------
+
+
+async def _download_json(sandbox: Any, remote_path: str) -> dict | None:
+    """Download a JSON file from the sandbox, return parsed dict or None."""
+    import tempfile as _tf
+
+    try:
+        with _tf.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            local_path = Path(f.name)
+        await sandbox.download(remote_path, local_path)
+        return json.loads(local_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    finally:
+        try:
+            local_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+def _extract_test_section(stdout: str) -> str:
+    """Pull the meaningful test/grading section out of raw test.sh stdout.
+
+    Strips pip-install and git-checkout preamble by looking for known markers
+    (test runner banners, pytest output patterns, SWEBench grading output).
+    Falls back to the last 4000 chars if no markers found.
+    """
+    _MARKERS = [
+        "PASSED", "FAILED", "ERROR",
+        "SWEBench results starts here",
+        "test session starts",
+        "======",
+        "------",
+        "Ran ",
+        " ... ok",
+        " ... FAIL",
+    ]
+    lines = stdout.splitlines()
+    first_interesting = len(lines)
+    for i, line in enumerate(lines):
+        if any(m in line for m in _MARKERS):
+            first_interesting = i
+            break
+
+    if first_interesting < len(lines):
+        return "\n".join(lines[first_interesting:])[-8000:]
+
+    return stdout[-4000:]
+
+
+# ---------------------------------------------------------------------------
 # HarborEnvironment
 # ---------------------------------------------------------------------------
 
@@ -626,14 +679,25 @@ class HarborEnvironment(EvalEnvironment):
         result = await sandbox.exec("bash /tests/test.sh", timeout_sec=600)
 
         reward = 0.0
+        _MAX_LOG = 50_000
+        full_stdout = result.stdout or ""
+        full_stderr = result.stderr or ""
+
+        test_summary = _extract_test_section(full_stdout)
+
         reward_details: dict[str, Any] = {
             "method": "harbor",
             "test_exit_code": result.return_code,
-            "test_stdout": result.stdout[:2000] if result.stdout else "",
-            "test_stderr": result.stderr[:2000] if result.stderr else "",
+            "test_summary": test_summary,
+            "test_stdout": full_stdout[-_MAX_LOG:],
+            "test_stderr": full_stderr[-_MAX_LOG:],
         }
 
         import tempfile as _tempfile
+
+        report = await _download_json(sandbox, "/logs/verifier/report.json")
+        if report is not None:
+            reward_details["report"] = report
 
         try:
             with _tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:

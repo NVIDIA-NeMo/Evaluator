@@ -727,6 +727,7 @@ class BenchmarkConfig(BaseModel):
     context_window: int | None = None
     timeout: float = 1800.0
     skip_failed: bool = False
+    max_system_retries: int = 3
 
     verifier: str | None = None
 

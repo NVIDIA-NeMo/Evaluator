@@ -75,10 +75,19 @@ class SandboxManager:
         if self._backend == "ecs_fargate":
             ecs_cfg = self._backend_kwargs.get("ecs_config")
             if ecs_cfg and getattr(ecs_cfg, "efs_filesystem_id", None):
+                logger.info(
+                    "Workspace transfer: EFS (fs=%s, ap=%s)",
+                    ecs_cfg.efs_filesystem_id,
+                    getattr(ecs_cfg, "efs_access_point_id", None),
+                )
                 return EfsTransfer(
                     filesystem_id=ecs_cfg.efs_filesystem_id,
                     access_point_id=getattr(ecs_cfg, "efs_access_point_id", None),
                 )
+            logger.warning(
+                "Workspace transfer: SandboxExecTransfer (no EFS configured). "
+                "This is slower and requires /output to be writable."
+            )
             return SandboxExecTransfer()
 
         staging_base = self._resolve_staging_base()

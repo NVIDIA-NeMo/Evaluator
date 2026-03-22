@@ -28,7 +28,7 @@ services:
 
 benchmarks:
   - name: harbor://swebench-verified@1.0
-    max_concurrent: 50
+    max_concurrent: 10
     timeout: 3600.0
     solver:
       type: harbor
@@ -47,4 +47,4 @@ benchmarks:
       log_stream_prefix: swebench
       ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
       timeout: 3600.0
-      concurrency: 50
+      concurrency: 10

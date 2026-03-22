@@ -148,25 +148,58 @@ class EfsTransfer:
 
     def prepare_verify_spec(self, spec: SandboxSpec) -> SandboxSpec:
         return _clone_spec_with_volume(
-            spec, self._efs_volume("/input", readonly=True),
+            spec, self._efs_volume("/input", readonly=False),
         )
 
     async def post_capture(self, source: Sandbox) -> None:
+        logger.info(
+            "EfsTransfer.post_capture: fs=%s ap=%s session=%s",
+            self._fs_id, self._ap_id, self._session_path,
+        )
         if self._ap_id:
             session = self._session_path.lstrip("/")
-            await source.exec(
+            result = await source.exec(
                 f"mkdir -p /output/{session} && "
                 f"mv /output/workspace.tar /output/{session}/workspace.tar",
                 timeout_sec=120,
             )
+            if result.return_code != 0:
+                logger.error(
+                    "EfsTransfer.post_capture: mv failed rc=%d: %s",
+                    result.return_code, (result.stderr or "")[:300],
+                )
+        else:
+            result = await source.exec(
+                "ls -lh /output/workspace.tar 2>&1", timeout_sec=10,
+            )
+            logger.info(
+                "EfsTransfer.post_capture (no-ap): /output/workspace.tar → %s",
+                (result.stdout or "").strip()[:200],
+            )
 
     async def pre_restore(self, target: Sandbox) -> None:
+        logger.info(
+            "EfsTransfer.pre_restore: fs=%s ap=%s session=%s",
+            self._fs_id, self._ap_id, self._session_path,
+        )
         if self._ap_id:
             session = self._session_path.lstrip("/")
-            await target.exec(
+            result = await target.exec(
                 f"cp /input/{session}/workspace.tar /input/workspace.tar",
                 timeout_sec=120,
             )
+            if result.return_code != 0:
+                logger.error(
+                    "EfsTransfer.pre_restore: cp failed rc=%d: %s",
+                    result.return_code, (result.stderr or "")[:300],
+                )
+        result = await target.exec(
+            "ls -lh /input/workspace.tar 2>&1", timeout_sec=10,
+        )
+        logger.info(
+            "EfsTransfer.pre_restore: /input/workspace.tar → %s",
+            (result.stdout or "").strip()[:200],
+        )
 
     async def cleanup(self) -> None:
         logger.debug("EfsTransfer: session %s — cleanup deferred to reaper",
@@ -247,35 +280,68 @@ class SandboxExecTransfer:
         return spec
 
     async def post_capture(self, source: Sandbox) -> None:
+        logger.info("SandboxExecTransfer.post_capture: starting tar+download")
+        sz_check = await source.exec(
+            "ls -lh /output/workspace.tar 2>&1 || echo 'NOT FOUND'",
+            timeout_sec=10,
+        )
+        logger.info(
+            "SandboxExecTransfer: /output/workspace.tar = %s",
+            (sz_check.stdout or "").strip()[:200],
+        )
         result = await source.exec(
             "tar czf /tmp/_ws.tar.gz -C /output . 2>/dev/null || "
             "tar czf /tmp/_ws.tar.gz -C /workspace . 2>/dev/null",
-            timeout_sec=120,
+            timeout_sec=300,
         )
         if result.return_code != 0:
-            logger.warning("SandboxExecTransfer: tar failed (rc=%d): %s",
-                           result.return_code, result.stderr[:300])
+            logger.error("SandboxExecTransfer: tar FAILED (rc=%d): %s",
+                         result.return_code, (result.stderr or "")[:300])
             return
+        gz_check = await source.exec("ls -lh /tmp/_ws.tar.gz", timeout_sec=10)
+        logger.info(
+            "SandboxExecTransfer: /tmp/_ws.tar.gz = %s",
+            (gz_check.stdout or "").strip()[:200],
+        )
         try:
             await source.download("/tmp/_ws.tar.gz", self._archive)
+            logger.info(
+                "SandboxExecTransfer: downloaded archive (%d bytes)",
+                self._archive.stat().st_size if self._archive.exists() else 0,
+            )
         except Exception:
-            logger.warning("SandboxExecTransfer: download failed", exc_info=True)
+            logger.error("SandboxExecTransfer: download FAILED", exc_info=True)
 
     async def pre_restore(self, target: Sandbox) -> None:
         if not self._archive.exists():
-            logger.warning("SandboxExecTransfer: no archive to restore")
+            logger.error(
+                "SandboxExecTransfer: no local archive to restore — "
+                "agent workspace will NOT be applied to verify container!"
+            )
             return
+        logger.info(
+            "SandboxExecTransfer.pre_restore: uploading %d bytes",
+            self._archive.stat().st_size,
+        )
         try:
             await target.upload(self._archive, "/tmp/_ws.tar.gz")
             result = await target.exec(
                 "mkdir -p /input && tar xzf /tmp/_ws.tar.gz -C /input",
-                timeout_sec=120,
+                timeout_sec=300,
             )
             if result.return_code != 0:
-                logger.warning("SandboxExecTransfer: untar failed (rc=%d): %s",
-                               result.return_code, result.stderr[:300])
+                logger.error("SandboxExecTransfer: untar FAILED (rc=%d): %s",
+                             result.return_code, (result.stderr or "")[:300])
+            else:
+                check = await target.exec(
+                    "ls -lh /input/workspace.tar 2>&1", timeout_sec=10,
+                )
+                logger.info(
+                    "SandboxExecTransfer: restored — %s",
+                    (check.stdout or "").strip()[:200],
+                )
         except Exception:
-            logger.warning("SandboxExecTransfer: restore failed", exc_info=True)
+            logger.error("SandboxExecTransfer: restore FAILED", exc_info=True)
 
     async def cleanup(self) -> None:
         shutil.rmtree(self._staging, ignore_errors=True)

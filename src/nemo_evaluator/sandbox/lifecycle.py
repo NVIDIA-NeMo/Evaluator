@@ -177,14 +177,37 @@ class StatelessSandbox:
             if self._agent_sandbox and self._ctx.capture_cmd and solver_modified:
                 try:
                     await self._agent_sandbox.exec(
-                        self._ctx.capture_cmd, timeout_sec=120,
+                        "mkdir -p /output /input", timeout_sec=10,
                     )
+                    cap_result = await self._agent_sandbox.exec(
+                        self._ctx.capture_cmd, timeout_sec=300,
+                    )
+                    if cap_result.return_code != 0:
+                        logger.error(
+                            "StatelessSandbox: capture_cmd FAILED (rc=%d): %s",
+                            cap_result.return_code,
+                            (cap_result.stderr or "")[:500],
+                        )
+                    else:
+                        verify_result = await self._agent_sandbox.exec(
+                            "ls -lh /output/workspace.tar 2>&1 || echo 'MISSING'",
+                            timeout_sec=10,
+                        )
+                        logger.info(
+                            "StatelessSandbox: capture complete — %s",
+                            (verify_result.stdout or "").strip()[:200],
+                        )
                     await self._transfer.post_capture(self._agent_sandbox)
                 except Exception:
-                    logger.warning(
-                        "StatelessSandbox: capture_cmd / post_capture failed",
+                    logger.error(
+                        "StatelessSandbox: capture_cmd / post_capture FAILED",
                         exc_info=True,
                     )
+            elif solver_modified:
+                logger.error(
+                    "StatelessSandbox: solver_modified=True but no agent "
+                    "sandbox — workspace will NOT be transferred to verify!",
+                )
             if self._agent_sandbox is not None:
                 try:
                     await self._ctx.sandbox_mgr.release(self._agent_sandbox)
@@ -196,16 +219,33 @@ class StatelessSandbox:
     async def get_verify_sandbox(self) -> Sandbox:
         spec = self._transfer.prepare_verify_spec(self._ctx.verify_spec)
         self._verify_sandbox = await self._ctx.sandbox_mgr.acquire(spec)
+        await self._verify_sandbox.exec("mkdir -p /output /input", timeout_sec=10)
         await self._transfer.pre_restore(self._verify_sandbox)
+        check = await self._verify_sandbox.exec(
+            "ls -lh /input/workspace.tar 2>&1",
+            timeout_sec=10,
+        )
+        ws_present = check.return_code == 0
+        logger.info(
+            "StatelessSandbox: verify workspace check — %s — %s",
+            "PRESENT" if ws_present else "MISSING",
+            (check.stdout or "").strip()[:200],
+        )
+        if not ws_present:
+            logger.error(
+                "StatelessSandbox: /input/workspace.tar MISSING in verify "
+                "container — agent changes will NOT be applied! "
+                "Verify results will be against unmodified base image.",
+            )
         if self._ctx.apply_cmd:
             result = await self._verify_sandbox.exec(
                 self._ctx.apply_cmd,
                 timeout_sec=self._ctx.verify_timeout,
             )
             if result.return_code != 0:
-                logger.warning(
-                    "StatelessSandbox: apply_cmd exited %d: %s",
-                    result.return_code, result.stderr[:500],
+                logger.error(
+                    "StatelessSandbox: apply_cmd FAILED (rc=%d): %s",
+                    result.return_code, (result.stderr or "")[:500],
                 )
         return self._verify_sandbox
 
