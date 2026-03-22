@@ -42,8 +42,8 @@ _HEADER = """\
 {array_line}
 
 set -uo pipefail
-# Prevent nel from re-submitting to SLURM/Docker from inside the job.
 export NEL_INNER_EXECUTION=1
+export PYTHONUNBUFFERED=1
 
 OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
@@ -103,6 +103,7 @@ _HEADER_HETJOB_FOOTER = """\
 
 set -uo pipefail
 export NEL_INNER_EXECUTION=1
+export PYTHONUNBUFFERED=1
 
 OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
@@ -794,6 +795,9 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
     )
 
     cluster_env_keys = list(cluster.container_env.keys())
+    for _implicit in ("PYTHONUNBUFFERED", "NEL_INNER_EXECUTION"):
+        if _implicit not in cluster_env_keys:
+            cluster_env_keys.append(_implicit)
 
     if use_containers:
         parts.append(_preflight_image_checks(config, cluster))
@@ -1057,6 +1061,22 @@ def _run_id(config: EvalConfig) -> str:
     return f"{ts}_{digest}"
 
 
+def stamp_output_dir(config: EvalConfig) -> None:
+    """Append a timestamped run-ID subdirectory to config.output.dir.
+
+    Called once before write_sbatch / generate_sbatch so the timestamped
+    path is baked into the sbatch script and all metadata.  Skipped when
+    running inside a SLURM job (NEL_INNER_EXECUTION=1) or when the user
+    has opted out (output.timestamped=false).
+    """
+    if (
+        not config.output.timestamped
+        or os.environ.get("NEL_INNER_EXECUTION") == "1"
+    ):
+        return
+    config.output.dir = str(Path(config.output.dir) / _run_id(config))
+
+
 def write_sbatch(config: EvalConfig, output_dir: str | Path | None = None) -> tuple[Path, list[Path]]:
     """Write sbatch script + sidecar config YAMLs + .secrets.env.
 
@@ -1064,20 +1084,7 @@ def write_sbatch(config: EvalConfig, output_dir: str | Path | None = None) -> tu
     The extra paths include sidecar configs and .secrets.env, all of
     which must be copied alongside the sbatch script for SSH submission.
     """
-    base_dir = str(output_dir or config.output.dir)
-
-    should_stamp = (
-        config.output.timestamped
-        and os.environ.get("NEL_INNER_EXECUTION") != "1"
-        and output_dir is None  # explicit output_dir = user wants that exact path
-    )
-    if should_stamp:
-        run_dir = str(Path(base_dir) / _run_id(config))
-        config.output.dir = run_dir
-    else:
-        run_dir = base_dir
-
-    out = Path(run_dir)
+    out = Path(output_dir or config.output.dir)
     out.mkdir(parents=True, exist_ok=True)
 
     script, sidecar_configs, secrets_env = generate_sbatch(config)

@@ -698,7 +698,7 @@ async def _run_single_benchmark(
             max_problems=bench.max_problems,
             max_concurrent=concurrency,
             config=run_config,
-            progress=ConsoleProgress(),
+            progress=ConsoleProgress(log_interval=config.output.progress_interval),
             judge_client=judge_client,
             sandbox_manager=sandbox_mgr,
             model_url=model_url,

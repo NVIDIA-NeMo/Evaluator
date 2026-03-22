@@ -8,6 +8,16 @@ from typing import Protocol
 logger = logging.getLogger(__name__)
 
 
+def _fmt_duration(seconds: float) -> str:
+    """Format seconds as e.g. '1h23m', '45m12s', or '12s'."""
+    s = int(seconds)
+    if s >= 3600:
+        return f"{s // 3600}h{(s % 3600) // 60:02d}m"
+    if s >= 60:
+        return f"{s // 60}m{s % 60:02d}s"
+    return f"{s}s"
+
+
 class ProgressTracker(Protocol):
     def on_start(self, benchmark: str, total_problems: int, total_repeats: int) -> None: ...
     def on_step(self, problem: int, repeat: int, total_problems: int, total_repeats: int,
@@ -29,10 +39,11 @@ class ConsoleProgress:
 
     _PHASE_ORDER = {"solving": 1, "verifying": 2, "judging": 2}
 
-    def __init__(self, log_interval: float = 30.0) -> None:
+    def __init__(self, log_interval: float = 60.0) -> None:
         self._t0 = 0.0
         self._tokens = 0
         self._steps = 0
+        self._correct = 0
         self._total = 0
         self._line_len = 0
         self._is_tty = hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
@@ -55,6 +66,8 @@ class ConsoleProgress:
                 reward: float, tokens: int, latency_ms: float) -> None:
         self._tokens += tokens
         self._steps += 1
+        if reward > 0:
+            self._correct += 1
         self._phases.pop((problem, repeat), None)
         elapsed = time.monotonic() - self._t0
 
@@ -66,9 +79,16 @@ class ConsoleProgress:
             now = time.monotonic()
             if now - self._last_log >= self._log_interval or self._steps == total:
                 rate = self._steps / elapsed if elapsed > 0 else 0
+                eta = (total - self._steps) / rate if rate > 0 else 0
+                eta_str = _fmt_duration(eta) if eta > 0 else "—"
+                elapsed_str = _fmt_duration(elapsed)
+                acc = self._correct / self._steps if self._steps else 0
                 logger.info(
-                    "progress: %d/%d (%.1f%%) | %.1f/s | %d tok",
-                    self._steps, total, pct, rate, self._tokens,
+                    "progress: %d/%d (%.1f%%) | pass@1=%.1f%% (%d/%d) | "
+                    "%.1f/s | %s elapsed | ETA %s | %d tok",
+                    self._steps, total, pct,
+                    100 * acc, self._correct, self._steps,
+                    rate, elapsed_str, eta_str, self._tokens,
                 )
                 self._last_log = now
 

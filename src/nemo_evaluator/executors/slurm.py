@@ -29,19 +29,19 @@ class SlurmExecutor:
     def run(self, config, *, dry_run=False, resume=False, background=False, **_kwargs) -> None:
         import click
 
-        from nemo_evaluator.eval.slurm_gen import write_sbatch
+        from nemo_evaluator.eval.slurm_gen import stamp_output_dir, write_sbatch
+
+        parent_dir = config.output.dir
+        stamp_output_dir(config)
+        resolved_dir = config.output.dir  # may now include timestamped subdir
 
         is_remote = bool(config.cluster.hostname)
         local_staging = None
-
-        # write_sbatch may append a timestamped subdir to config.output.dir
-        parent_dir = config.output.dir
         if is_remote:
             local_staging = Path(tempfile.mkdtemp(prefix="nel-slurm-"))
             script_path, extra_paths = write_sbatch(config, output_dir=local_staging)
         else:
             script_path, extra_paths = write_sbatch(config)
-        resolved_dir = config.output.dir  # may differ from parent_dir after timestamping
 
         click.echo(f"Generated: {script_path}")
         for sp in extra_paths:
