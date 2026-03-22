@@ -236,6 +236,40 @@ echo "=== Generating reports ==="
 {report_commands}
 """
 
+_PREFLIGHT_IMAGE_CHECK = """\
+# Pre-flight: verify container images are pullable
+echo "Checking container images..."
+{checks}
+echo "  All images OK."
+"""
+
+_IMAGE_CHECK_LINE = """\
+echo "  {label}: {image}"
+srun --overlap --nodes 1 --ntasks 1 --container-image {image} true 2>&1 \\
+    | head -5 || {{ echo "FATAL: cannot pull image for {label}: {image}"; exit 1; }}"""
+
+
+def _preflight_image_checks(config: EvalConfig, cluster: SlurmCluster) -> str:
+    """Generate bash that validates all container images before starting services."""
+    images: dict[str, str] = {}
+    for name, svc in config.services.items():
+        img = getattr(svc, "image", None)
+        if img:
+            images[name] = img
+    eval_img = getattr(cluster, "eval_image", None)
+    if eval_img:
+        images["eval-runner"] = eval_img
+
+    if not images:
+        return ""
+
+    checks = [
+        _IMAGE_CHECK_LINE.format(label=label, image=img)
+        for label, img in images.items()
+    ]
+    return _PREFLIGHT_IMAGE_CHECK.format(checks="\n".join(checks))
+
+
 _CLEANUP_FUNC = """\
 # Cleanup function — called on EXIT (success, failure, or signal)
 cleanup() {{
@@ -354,8 +388,8 @@ def _safe(s: str) -> str:
 
 
 _MODEL_CMD = {
-    "vllm": ("python -m vllm.entrypoints.openai.api_server", "--model", "--tensor-parallel-size"),
-    "sglang": ("python -m sglang.launch_server", "--model-path", "--tp-size"),
+    "vllm": ("vllm serve", "", "--tensor-parallel-size"),
+    "sglang": ("sglang serve", "", "--tp-size"),
 }
 
 
@@ -719,6 +753,9 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
 
     cluster_env_keys = list(cluster.container_env.keys())
 
+    if use_containers:
+        parts.append(_preflight_image_checks(config, cluster))
+
     if cluster.conda_env:
         parts.append(_CONDA_ACTIVATE.format(conda_env=cluster.conda_env))
 
@@ -817,6 +854,7 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
         run_prefix = ""
         if use_containers and eval_image:
             eval_mount_parts = [f"--container-mounts={m}" for m in cluster.container_mounts]
+            eval_mount_parts.append(f"--container-mounts={output_dir}:{output_dir}")
             if cluster.mount_home:
                 eval_mount_parts.append("--container-mounts=$HOME:$HOME")
             else:

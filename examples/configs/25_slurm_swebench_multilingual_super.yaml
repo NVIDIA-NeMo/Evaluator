@@ -27,7 +27,6 @@ services:
       - "--async-scheduling"
       - "--dtype=auto"
       - "--kv-cache-dtype=fp8"
-      - "--swap-space=0"
       - "--trust-remote-code"
       - "--attention-backend=TRITON_ATTN"
       - "--gpu-memory-utilization=0.9"
@@ -35,7 +34,7 @@ services:
       - "--max-num-seqs=256"
       - "--enable-auto-tool-choice"
       - "--tool-call-parser=qwen3_coder"
-      - "--reasoning_parser=nano-v3"
+      - "--reasoning_parser=nemotron_v3"
     extra_env:
       VLLM_CACHE_ROOT: /cache/vllm
       VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"

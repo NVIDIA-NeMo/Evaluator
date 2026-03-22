@@ -75,7 +75,7 @@ class _ModelServerBase(BaseModel):
     num_nodes: int = 1
     gpus: list[int] | int | None = None
     image: str | None = None
-    health_path: str = "/v1/health/ready"
+    health_path: str = "/health"
     startup_timeout: float = 600.0
     extra_env: dict[str, str] = Field(default_factory=dict)
     extra_args: list[str] = Field(default_factory=list)
