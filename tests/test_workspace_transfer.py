@@ -89,13 +89,13 @@ class TestEfsTransfer:
         assert vol.efs_root_directory is None
         assert not vol.readonly
 
-    def test_verify_spec_gets_readonly_efs_volume(self):
+    def test_verify_spec_gets_writable_efs_volume(self):
         t = EfsTransfer(filesystem_id="fs-abc123")
         spec = SandboxSpec(image="verify:latest")
         result = t.prepare_verify_spec(spec)
         efs_vols = [v for v in result.volumes if v.is_efs]
         assert len(efs_vols) == 1
-        assert efs_vols[0].readonly
+        assert not efs_vols[0].readonly
 
     @pytest.mark.asyncio
     async def test_cleanup_does_not_raise(self):
