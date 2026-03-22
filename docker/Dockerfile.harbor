@@ -16,7 +16,8 @@ RUN pip install --no-cache-dir --upgrade pip
 COPY pyproject.toml README.md ./
 COPY src/ src/
 
-RUN pip install --no-cache-dir ".[scoring,stats,harbor,proxy-full]"
+RUN pip install --no-cache-dir "litellm[proxy]"
+RUN pip install --no-cache-dir ".[scoring,stats,harbor]"
 
 ENV PYTHONUNBUFFERED=1
 CMD ["nel", "--help"]
