@@ -126,6 +126,21 @@ container-base:
         docker push "${REGISTRY}:latest"
       fi
 
+container-harbor:
+  extends: .container-build
+  needs: ["container-base"]
+  script:
+    - docker build
+      --cache-from "${REGISTRY}:latest-harbor"
+      --tag "${REGISTRY}:${TAG}-harbor"
+      -f docker/Dockerfile.harbor .
+    - docker push "${REGISTRY}:${TAG}-harbor"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "${REGISTRY}:${TAG}-harbor" "${REGISTRY}:latest-harbor"
+        docker push "${REGISTRY}:latest-harbor"
+      fi
+
 container-lm-eval:
   extends: .container-build
   needs: ["container-base"]
