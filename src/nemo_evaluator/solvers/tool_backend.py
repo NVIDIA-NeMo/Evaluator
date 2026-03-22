@@ -18,6 +18,8 @@ import json
 import logging
 import tempfile
 from dataclasses import dataclass, field
+
+from nemo_evaluator.errors import GracefulError
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -41,9 +43,6 @@ class ToolResult:
     content: str
     is_error: bool = False
     metadata: dict[str, Any] = field(default_factory=dict)
-
-
-from nemo_evaluator.errors import GracefulError
 
 
 class ToolInfraError(GracefulError):
