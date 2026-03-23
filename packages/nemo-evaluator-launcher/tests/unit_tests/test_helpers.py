@@ -27,6 +27,7 @@ from nemo_evaluator_launcher.common.helpers import (
     get_health_url,
     get_served_model_name,
     get_timestamp_string,
+    get_unique_task_name,
 )
 
 
@@ -651,6 +652,27 @@ class TestResolveEndpointReadinessTimeout:
 
         cfg = OmegaConf.create({"execution": {}})
         assert resolve_endpoint_readiness_timeout(cfg) == 3600
+
+
+class TestUniqueTaskName:
+    """Tests for get_unique_task_name function."""
+
+    @pytest.mark.parametrize(
+        "task_name, idx, expected",
+        [
+            pytest.param("mmlu", 0, "mmlu.0", id="single_task"),
+            pytest.param("mmlu", 5, "mmlu.5", id="higher_index"),
+            pytest.param(
+                "lm-evaluation-harness.ifeval",
+                0,
+                "lm-evaluation-harness.ifeval.0",
+                id="dotted_name",
+            ),
+            pytest.param("mmlu.0", 0, "mmlu.0.0", id="pre_suffixed_name"),
+        ],
+    )
+    def test_get_unique_task_name(self, task_name, idx, expected):
+        assert get_unique_task_name(task_name, idx) == expected
 
 
 class TestIsLocalImagePath:

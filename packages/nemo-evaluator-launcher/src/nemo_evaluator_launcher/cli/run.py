@@ -76,7 +76,9 @@ class Cmd:
         nargs="?",
         alias=["-t"],
         metadata={
-            "help": "Run only specific tasks from the config. Example: -t ifeval -t gsm8k"
+            "help": "Run only specific tasks from the config. Use plain names to select all instances "
+            "(-t ifeval) or positional names to select a specific instance (-t mmlu.0, -t mmlu.2). "
+            "Example: -t ifeval -t gsm8k"
         },
     )
     config_output: str | None = field(

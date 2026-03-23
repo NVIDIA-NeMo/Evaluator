@@ -134,6 +134,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         )
 
         # Env vars are now in .secrets.env, not inline in script
@@ -167,6 +168,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         )
 
         # Env vars are now in .secrets.env, not inline in script
@@ -202,6 +204,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # Check that deployment mounts are added to deployment container
@@ -233,6 +236,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # Check that evaluation mounts are added to evaluation container
@@ -256,6 +260,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # Should NOT contain --no-container-mount-home when mount_home is True
@@ -278,6 +283,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # Should contain --no-container-mount-home when mount_home is False
@@ -297,6 +303,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # Should NOT contain --no-container-mount-home by default (mount_home defaults to True)
@@ -318,6 +325,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         )
         script = result.cmd
 
@@ -352,6 +360,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         )
         script = result.cmd
 
@@ -391,6 +400,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # Script should be generated successfully without errors
@@ -416,6 +426,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         )
         script = result.cmd
 
@@ -478,6 +489,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         )
         script = result.cmd
 
@@ -553,6 +565,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # Each per-instance srun uses per-instance --nodes/--ntasks
@@ -583,6 +596,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # num_nodes=2, num_instances=1 → nodes_per_instance=2 → --nodes 2 --ntasks 2
@@ -624,6 +638,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         if expect_gres_in_script:
@@ -769,6 +784,7 @@ class TestMaxWalltimeFeature:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # Should have autoresume logic WITH default max_walltime (120:00:00 = 5 days)
@@ -792,6 +808,7 @@ class TestMaxWalltimeFeature:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # Should have autoresume logic WITH max_walltime checks
@@ -817,6 +834,7 @@ class TestMaxWalltimeFeature:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # When explicitly set to None, should have autoresume logic but NO max_walltime checks
@@ -2828,6 +2846,7 @@ class TestMultiNodeMultiInstance:
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
+                task_idx=0,
             )
 
     @pytest.mark.parametrize(
@@ -2850,6 +2869,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         )
         assert result.cmd  # non-empty script
 
@@ -2872,6 +2892,7 @@ class TestMultiNodeMultiInstance:
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
+                task_idx=0,
             )
 
     def test_multiple_instances_false_raises(
@@ -2889,6 +2910,7 @@ class TestMultiNodeMultiInstance:
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
+                task_idx=0,
             )
 
     # ── ALL_NODE_IPS and HEAD_NODE_IPS in srun command ───────────────────
@@ -2903,6 +2925,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert 'export ALL_NODE_IPS=$(IFS=,; echo "${NODES_IPS_ARRAY[*]}")' in script
@@ -2921,6 +2944,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert "HEAD_NODE_IPS=()" in script
@@ -2958,6 +2982,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert f"for ((g=0; g<{expected_loop_count}; g++))" in script
@@ -2975,6 +3000,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # Find the --container-env line and check ALL_NODE_IPS is listed
@@ -2998,6 +3024,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # The wait-for-server handler should use 127.0.0.1
@@ -3030,6 +3057,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert f"TIMEOUT={expected_timeout}" in script
@@ -3048,6 +3076,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert '"${HEAD_NODE_IPS[@]}"' in script
@@ -3116,6 +3145,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert "proxy" in script.lower()
@@ -3135,6 +3165,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert "proxy" not in script.lower()
@@ -3154,6 +3185,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert 'for _pid in "${SERVER_PIDS[@]}"' in script
@@ -3173,6 +3205,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert "base64 -d > deployment_cmd.sh" in script
@@ -3200,6 +3233,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert "base64 -d > deployment_cmd.sh" in script
@@ -3217,6 +3251,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # Should have bash -c '...' &
@@ -3237,6 +3272,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert "base64 -d > deployment_pre_cmd.sh" in script
@@ -3256,6 +3292,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert "deployment_pre_cmd.sh" not in script
@@ -3277,6 +3314,7 @@ class TestMultiNodeMultiInstance:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert f"--nodes {num_nodes}" in script
@@ -3588,6 +3626,7 @@ class TestJudgeDeploymentFeature:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # 2 model nodes + 1 judge node = 3 total
@@ -3605,6 +3644,7 @@ class TestJudgeDeploymentFeature:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert "MODEL_NUM_NODES=2" in script
@@ -3627,6 +3667,7 @@ class TestJudgeDeploymentFeature:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert "# judge deployment server" in script
@@ -3647,6 +3688,7 @@ class TestJudgeDeploymentFeature:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # Health check waits on the judge port/path
@@ -3665,6 +3707,7 @@ class TestJudgeDeploymentFeature:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         )
 
         # Judge env vars should be in secrets
@@ -3683,6 +3726,7 @@ class TestJudgeDeploymentFeature:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert (
@@ -3706,6 +3750,7 @@ class TestJudgeDeploymentFeature:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert "kill $JUDGE_SERVER_PID" in script
@@ -3722,6 +3767,7 @@ class TestJudgeDeploymentFeature:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert "/cache/huggingface:/root/.cache/huggingface" in script
@@ -3738,6 +3784,7 @@ class TestJudgeDeploymentFeature:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # Model deployment copies MODEL_NODES into DEPLOY_NODES_ARRAY, then
@@ -3756,6 +3803,7 @@ class TestJudgeDeploymentFeature:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         # Should not contain judge-specific elements
@@ -3798,6 +3846,7 @@ class TestJudgeDeploymentFeature:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
         assert "JUDGE_SERVER_PID" not in script
@@ -3888,6 +3937,7 @@ class TestSbatchExtraFlags:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
     def test_empty_sbatch_extra_flags(self, base_config, mock_task, mock_dependencies):
