@@ -22,6 +22,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 
+SAMPLE_OUTPUTS_DIR: str = "nemo-evaluator-per-sample-outputs"
+
 # NOTE: For ApiEndpoint, EvaluationTarget, ConfigParams, and EvaluationConfig all fields
 #       are Optional and default=None, because depending on the command run (run_eval or
 #       ls) we either require them or don't. We also don't require user to provide all
@@ -115,6 +117,36 @@ class EvaluationConfig(BaseModel):
         description="Supported endpoint types like chat or completions", default=None
     )
     type: Optional[str] = Field(description="Type of the task", default=None)
+
+
+class SampleRecord(BaseModel):
+    """Normalized per-sample output record written to nemo-evaluator-per-sample-outputs/.
+
+    Required, never None:
+        query, id, generation, num_generated_tokens, num_prompt_tokens, sub_query_id, symbolic_correct
+
+    Required, may be None:
+        answer, ground_truth
+
+    Extra fields from the raw source are allowed and passed through.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    # ── Always present, never None ──────────────────────────────────────────
+    query: str | dict
+    id: str
+    generation: str | dict
+    num_generated_tokens: int
+    num_prompt_tokens: int
+    sub_query_id: int = 0
+
+    # ── Always present, may be None ─────────────────────────────────────────
+    symbolic_correct: Any
+
+    # ── May be None ──────────────────────────────────────────────────────────
+    answer: Optional[Any] = None
+    ground_truth: Optional[Any] = None
 
 
 class EvaluationMetadata(dict):
