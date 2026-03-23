@@ -5,8 +5,9 @@ import asyncio
 import logging
 import os
 import re
+import threading
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 from nemo_evaluator.eval.config import (
     AgentSolverConfig,
@@ -31,6 +32,28 @@ from nemo_evaluator.eval.config import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _drain_pipe_to_file(pipe: IO[bytes], log_path: Path) -> threading.Thread:
+    """Read from a subprocess pipe and write to a log file in a background thread.
+
+    Prevents pipe buffer deadlocks and creates per-service log files.
+    """
+    def _worker() -> None:
+        try:
+            with open(log_path, "wb") as f:
+                while True:
+                    chunk = pipe.read(8192)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    f.flush()
+        except (OSError, ValueError):
+            pass
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+    return t
 
 
 def _serialize_interceptors(interceptors: list[InterceptorConfig]) -> list:
@@ -283,7 +306,14 @@ def _make_solver(
 
 
 def _start_model_service(svc: Any):
+    import subprocess as _sp
+
     from nemo_evaluator.eval.deployment import DeployConfig, get_deployment
+
+    if hasattr(svc, "setup_commands") and svc.setup_commands:
+        for cmd in svc.setup_commands:
+            logger.info("Running setup command: %s", cmd)
+            _sp.check_call(cmd, shell=True)
 
     gpu_count = svc.gpus if isinstance(svc.gpus, int) else len(svc.gpus) if svc.gpus else 1
 
@@ -391,13 +421,31 @@ class _NatServiceHandle:
 
 
 class _ServiceHandle:
-    def __init__(self, name: str, svc: Any) -> None:
+    def __init__(self, name: str, svc: Any, log_dir: Path | None = None) -> None:
         self.name = name
         self.svc = svc
         self._deployment = None
         self._gym = None
         self._nat = None
+        self._drain_thread: threading.Thread | None = None
+        self._log_dir = log_dir
         self.url: str = ""
+
+    def _setup_log_drain(self) -> None:
+        """Attach a pipe drain thread for the managed service's stdout."""
+        if self._log_dir is None:
+            return
+        pipe = None
+        if self._deployment and hasattr(self._deployment, "_process"):
+            proc = self._deployment._process
+            if proc and proc.stdout:
+                pipe = proc.stdout
+        elif self._nat and self._nat._process and self._nat._process.stdout:
+            pipe = self._nat._process.stdout
+        if pipe is not None:
+            log_path = self._log_dir / f"server-{self.name}.log"
+            self._drain_thread = _drain_pipe_to_file(pipe, log_path)
+            logger.info("Draining %s stdout to %s", self.name, log_path)
 
     def start(self) -> str:
         if not self.svc.is_managed:
@@ -415,10 +463,12 @@ class _ServiceHandle:
             )
             self._nat.start(startup_timeout=self.svc.startup_timeout)
             self.url = self._nat.endpoint
+            self._setup_log_drain()
             return self.url
 
         if isinstance(self.svc, _MODEL_SERVICE_TYPES) and self.svc.is_managed:
             self._deployment, self.url = _start_model_service(self.svc)
+            self._setup_log_drain()
             return self.url
 
         self.url = self.svc.base_url
@@ -738,6 +788,9 @@ def run_local(
     output_dir = Path(config.output.dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    log_dir = output_dir / "logs"
+    log_dir.mkdir(exist_ok=True)
+
     ckpt = CheckpointManager(output_dir)
     if not resume:
         ckpt.clear()
@@ -747,7 +800,7 @@ def run_local(
 
     for name, svc in config.services.items():
         if svc.is_managed:
-            handles[name] = _ServiceHandle(name, svc)
+            handles[name] = _ServiceHandle(name, svc, log_dir=log_dir)
 
     try:
         for name, handle in handles.items():

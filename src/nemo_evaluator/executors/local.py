@@ -6,7 +6,7 @@ import os
 import signal
 from pathlib import Path
 
-from nemo_evaluator.executors import ProcessState
+from nemo_evaluator.executors import Executor, ProcessState
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
-class LocalExecutor:
+class LocalExecutor(Executor):
     name = "local"
 
     def run(self, config, *, dry_run=False, resume=False,
@@ -59,6 +59,7 @@ class LocalExecutor:
         from nemo_evaluator.eval.local_runner import run_local
 
         _write_pid(config.output.dir)
+        self._save_run_meta(config)
         try:
             bundles = run_local(config, resume=resume)
             completed = sum(1 for b in bundles if not b.get("_failed"))
@@ -73,6 +74,29 @@ class LocalExecutor:
             if pid_file.exists():
                 pid_file.unlink()
 
+    @staticmethod
+    def _save_run_meta(config) -> str:
+        """Write unified RunMeta, return the run_id."""
+        from datetime import datetime, timezone
+
+        from nemo_evaluator.executors.run_store import (
+            RunMeta,
+            config_summary,
+            generate_run_id,
+        )
+
+        run_id = generate_run_id(config)
+        run_meta = RunMeta(
+            run_id=run_id,
+            executor="local",
+            output_dir=str(Path(config.output.dir).resolve()),
+            started_at=datetime.now(timezone.utc).isoformat(),
+            config_summary=config_summary(config),
+            details={"pid": os.getpid()},
+        )
+        run_meta.save()
+        return run_id
+
     def _run_background(self, config, *, resume: bool = False) -> None:
         import sys
 
@@ -81,9 +105,10 @@ class LocalExecutor:
         pid = os.fork()
         if pid > 0:
             _write_pid(config.output.dir, pid)
-            click.echo(f"Background evaluation started (PID {pid})")
-            click.echo(f"Check status: nel eval status -o {config.output.dir}")
-            click.echo(f"Stop:         nel eval stop -o {config.output.dir}")
+            run_id = self._save_run_meta(config)
+            click.echo(f"Background evaluation started (PID {pid}, run_id: {run_id})")
+            click.echo(f"Check status: nel eval status -r {run_id}")
+            click.echo(f"Stop:         nel eval stop -r {run_id}")
             return
 
         os.setsid()
@@ -128,6 +153,26 @@ class LocalExecutor:
         except OSError as e:
             logger.error("Failed to stop process %d: %s", pid, e)
             return False
+
+    def resume_run(self, run_meta, **kwargs) -> None:
+        import click
+
+
+        output_dir = run_meta.output_dir
+        config_path = Path(output_dir) / "_docker_config.json"
+        if not config_path.exists():
+            raise click.ClickException(
+                f"Cannot resume local run: no saved config in {output_dir}"
+            )
+
+        import json
+
+        from nemo_evaluator.eval.config import parse_eval_config
+
+        raw = json.loads(config_path.read_text(encoding="utf-8"))
+        config = parse_eval_config(raw)
+        config.output.dir = output_dir
+        self._run_foreground(config, resume=True)
 
     @staticmethod
     def detect(output_dir: str | Path) -> bool:

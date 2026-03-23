@@ -1,12 +1,14 @@
-"""Executor abstraction: run/status/stop for each execution backend."""
+"""Executor abstraction: run/status/stop/logs/resume for each execution backend."""
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from nemo_evaluator.eval.config import EvalConfig
+    from nemo_evaluator.executors.run_store import RunMeta
 
 
 @dataclass
@@ -16,9 +18,10 @@ class ProcessState:
     details: dict
 
 
-class Executor(Protocol):
-    name: str
+class Executor(ABC):
+    name: str = ""
 
+    @abstractmethod
     def run(
         self,
         config: "EvalConfig",
@@ -29,12 +32,31 @@ class Executor(Protocol):
         submit: bool = False,
     ) -> None: ...
 
+    @abstractmethod
     def status(self, output_dir: str | Path) -> ProcessState: ...
 
+    @abstractmethod
     def stop(self, output_dir: str | Path) -> bool: ...
 
     @staticmethod
+    @abstractmethod
     def detect(output_dir: str | Path) -> bool: ...
+
+    def logs(self, output_dir: str | Path, *, follow: bool = False,
+             tail: int | None = None) -> str | None:
+        """Return log content. Default: read nel_eval.log."""
+        log = Path(output_dir) / "nel_eval.log"
+        if not log.exists():
+            return None
+        text = log.read_text(encoding="utf-8")
+        if tail:
+            lines = text.splitlines()
+            return "\n".join(lines[-tail:])
+        return text
+
+    def resume_run(self, run_meta: "RunMeta", **kwargs) -> None:
+        """Resume a stopped/failed run. Override per executor."""
+        raise NotImplementedError(f"{self.name} executor does not support resume")
 
 
 _REGISTRY: dict[str, Executor] = {}

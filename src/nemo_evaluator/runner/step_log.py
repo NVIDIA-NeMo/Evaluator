@@ -35,13 +35,17 @@ def config_hash(config: dict[str, Any]) -> str:
 
 
 class StepLog:
-    """Async-safe append-only JSONL log with batched fsync.
+    """Async-safe append-only JSONL log with fsync-on-write.
 
     Each instance owns an asyncio.Lock so concurrent _run_step() tasks can
     safely call ``await log.append(record)`` without external coordination.
+
+    ``fsync_interval=1`` (default) ensures every write is immediately visible
+    on network filesystems (e.g. Lustre).  Set higher to trade visibility for
+    throughput on local disks.
     """
 
-    def __init__(self, path: Path, *, fsync_interval: int = 50) -> None:
+    def __init__(self, path: Path, *, fsync_interval: int = 1) -> None:
         self._path = path
         self._fsync_interval = fsync_interval
         self._lock = asyncio.Lock()
@@ -141,6 +145,7 @@ class StepLog:
         meta_line = {**meta, "_type": META_TYPE}
         self._fd.write(json.dumps(meta_line, default=str) + "\n")
         self._fd.flush()
+        os.fsync(self._fd.fileno())
 
     def close(self) -> None:
         if self._fd is not None:

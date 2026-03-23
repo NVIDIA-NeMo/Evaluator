@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
 import re
 import shlex
-from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -32,8 +30,8 @@ from nemo_evaluator.eval.containers import (
 _HEADER = """\
 #!/bin/bash
 #SBATCH --job-name=nel-eval-{job_name}
-#SBATCH --output={output_dir}/slurm-%j.log
-#SBATCH --error={output_dir}/slurm-%j.log
+#SBATCH --output={output_dir}/logs/slurm-%j.log
+#SBATCH --error={output_dir}/logs/slurm-%j.log
 #SBATCH --time={walltime}
 #SBATCH --nodes={nodes}
 #SBATCH --ntasks-per-node={ntasks_per_node}
@@ -93,8 +91,8 @@ _HEADER_HETJOB_SEPARATOR = """\
 
 _HEADER_HETJOB_FOOTER = """\
 #SBATCH --job-name=nel-eval-{job_name}
-#SBATCH --output={output_dir}/slurm-%j.log
-#SBATCH --error={output_dir}/slurm-%j.log
+#SBATCH --output={output_dir}/logs/slurm-%j.log
+#SBATCH --error={output_dir}/logs/slurm-%j.log
 #SBATCH --time={walltime}
 {account_line}
 
@@ -132,11 +130,7 @@ _MODEL_SERVICE = """\
 # Service: {name} ({svc_type})
 echo "Starting {svc_type} server: {name}..."
 echo "  Logs: $OUTPUT_DIR/logs/server-{name}.log"
-{srun_prefix}{cuda_prefix}{cmd} \\
-    {model_flag} {model} \\
-    --port {port} \\
-    {tp_flag}{dp_flag}\\
-    {extra_args}> "$OUTPUT_DIR/logs/server-{name}.log" 2>&1 &
+{srun_prefix}{cuda_prefix}{service_cmd}> "$OUTPUT_DIR/logs/server-{name}.log" 2>&1 &
 {name_upper}_PID=$!
 {name_upper}_URL="http://localhost:{port}/v1"
 {name_upper}_MODEL="{model}"
@@ -225,7 +219,7 @@ echo "  Logs: $OUTPUT_DIR/logs/eval-{safe_name}.log"
     --model-id "${model_id_var}" \\
     --repeats {repeats} \\
     {extra_flags}\\
-    -o "$OUTPUT_DIR/{safe_name}" 2>&1 | tee "$OUTPUT_DIR/logs/eval-{safe_name}.log"
+    -o "$OUTPUT_DIR/{safe_name}" 2>&1 | stdbuf -oL tee "$OUTPUT_DIR/logs/eval-{safe_name}.log"
 _EVAL_RC=${{PIPESTATUS[0]}}
 if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
 """
@@ -241,7 +235,7 @@ export {svc_url_var}="${{{model_url_bash}}}"
 export {svc_model_var}="${{{model_id_bash}}}"
 export NEL_OUTPUT_DIR="$OUTPUT_DIR/{safe_name}"
 mkdir -p "$NEL_OUTPUT_DIR"
-{run_prefix}nel eval run "$OUTPUT_DIR/config_{safe_name}.yaml" {extra_flags}2>&1 | tee "$OUTPUT_DIR/logs/eval-{safe_name}.log"
+{run_prefix}nel eval run "$OUTPUT_DIR/config_{safe_name}.yaml" {extra_flags}2>&1 | stdbuf -oL tee "$OUTPUT_DIR/logs/eval-{safe_name}.log"
 _EVAL_RC=${{PIPESTATUS[0]}}
 if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
 """
@@ -530,17 +524,28 @@ def _service_block(
         cuda = ""
         if svc.gpus and isinstance(svc.gpus, list):
             cuda = f"CUDA_VISIBLE_DEVICES={','.join(str(g) for g in svc.gpus)} "
+
+        model_flag_part = f" {model_flag} {svc.model}" if model_flag else f" {svc.model}" if svc.model else ""
+        main_cmd = (
+            f"{cmd}{model_flag_part}"
+            f" --port {svc.port}"
+            f" {tp_flag}{dp_flag}{extra} "
+        )
+
+        setup_list = getattr(svc, "setup_commands", []) or []
+        if setup_list:
+            inner = " && ".join(setup_list) + " && " + main_cmd
+            service_cmd = f"bash -c {shlex.quote(inner)} "
+        else:
+            service_cmd = f"{main_cmd}"
+
         return env_exports + _MODEL_SERVICE.format(
             name=name,
             name_upper=upper,
             svc_type=svc.type,
-            cmd=cmd,
-            model_flag=model_flag,
+            service_cmd=service_cmd,
             model=svc.model or "",
             port=svc.port,
-            tp_flag=tp_flag,
-            dp_flag=dp_flag,
-            extra_args=extra,
             cuda_prefix=cuda,
             srun_prefix=srun_prefix,
         )
@@ -888,7 +893,7 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
             _eval_mounts.append("--no-container-mount-home")
         _eval_envs = [f"--container-env={k}" for k in cluster_env_keys]
         eval_run_prefix = (
-            f"srun --overlap --nodes 1 --ntasks 1 "
+            f"srun --overlap --unbuffered --nodes 1 --ntasks 1 "
             f"--container-image {base_override} "
             f"{' '.join(_eval_mounts)} {' '.join(_eval_envs)} \\\n    "
         )
@@ -916,7 +921,7 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
                 eval_mount_parts.append("--no-container-mount-home")
             eval_env_parts = [f"--container-env={k}" for k in cluster_env_keys]
             run_prefix = (
-                f"srun --overlap --nodes 1 --ntasks 1 "
+                f"srun --overlap --unbuffered --nodes 1 --ntasks 1 "
                 f"--container-image {eval_image} "
                 f"{' '.join(eval_mount_parts)} {' '.join(eval_env_parts)} \\\n    "
             )
@@ -1043,24 +1048,6 @@ def _redact(value: str) -> str:
     return f"***{value[-4:]}"
 
 
-def _run_id(config: EvalConfig) -> str:
-    """Generate a timestamped run ID: YYYYMMDD_HHMMSSZ-{hash8}.
-
-    The hash is derived from benchmark names and model identifiers to
-    avoid collisions when multiple jobs are submitted in the same second.
-    """
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    parts: list[str] = []
-    for b in config.benchmarks:
-        parts.append(b.name)
-        svc_name = getattr(b.solver, "service", "")
-        svc = config.services.get(svc_name) if svc_name else None
-        if svc:
-            parts.append(getattr(svc, "model", "") or "")
-    digest = hashlib.sha256("|".join(parts).encode()).hexdigest()[:8]
-    return f"{ts}_{digest}"
-
-
 def stamp_output_dir(config: EvalConfig) -> None:
     """Append a timestamped run-ID subdirectory to config.output.dir.
 
@@ -1074,7 +1061,9 @@ def stamp_output_dir(config: EvalConfig) -> None:
         or os.environ.get("NEL_INNER_EXECUTION") == "1"
     ):
         return
-    config.output.dir = str(Path(config.output.dir) / _run_id(config))
+    from nemo_evaluator.executors.run_store import generate_run_id
+
+    config.output.dir = str(Path(config.output.dir) / generate_run_id(config))
 
 
 def write_sbatch(config: EvalConfig, output_dir: str | Path | None = None) -> tuple[Path, list[Path]]:
@@ -1086,6 +1075,7 @@ def write_sbatch(config: EvalConfig, output_dir: str | Path | None = None) -> tu
     """
     out = Path(output_dir or config.output.dir)
     out.mkdir(parents=True, exist_ok=True)
+    (out / "logs").mkdir(exist_ok=True)
 
     script, sidecar_configs, secrets_env = generate_sbatch(config)
     path = out / "nel_eval.sbatch"

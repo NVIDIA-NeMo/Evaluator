@@ -80,6 +80,7 @@ class _ModelServerBase(BaseModel):
     startup_timeout: float = 600.0
     extra_env: dict[str, str] = Field(default_factory=dict)
     extra_args: list[str] = Field(default_factory=list)
+    setup_commands: list[str] = Field(default_factory=list)
     container_mounts: list[str] = Field(default_factory=list)
     reasoning_pattern: str | None = None
     max_input_tokens: int | None = None

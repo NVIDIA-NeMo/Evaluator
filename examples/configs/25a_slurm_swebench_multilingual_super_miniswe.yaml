@@ -1,7 +1,7 @@
 # SLURM + vLLM (Nemotron-3-Super-FP8) + SWE-bench Multilingual BYOB + ECS Fargate
 #
-# Deploys vLLM on a GPU node, evaluates swebench-multilingual (BYOB)
-# with the OpenHands-SDK agent. ECS Fargate provides sandboxed envs.
+# Same as 25_slurm_swebench_multilingual_super.yaml but uses mini-swe-agent
+# instead of openhands-sdk.
 #
 # Prerequisites:
 #   - SLURM cluster access (OCI-HSG or similar)
@@ -11,8 +11,8 @@
 #   - pip install nemo-evaluator[harbor]
 #
 # Run:
-#   nel eval run examples/configs/25_slurm_swebench_multilingual_super.yaml --dry-run
-#   nel eval run examples/configs/25_slurm_swebench_multilingual_super.yaml
+#   nel eval run examples/configs/25a_slurm_swebench_multilingual_super_miniswe.yaml --dry-run
+#   nel eval run examples/configs/25a_slurm_swebench_multilingual_super_miniswe.yaml
 
 services:
   nemotron:
@@ -65,7 +65,7 @@ benchmarks:
     solver:
       type: harbor
       service: nemotron
-      agent: openhands-sdk
+      agent: mini-swe-agent
       agent_kwargs:
         max_iterations: 30
         temperature: 1.0
@@ -76,7 +76,7 @@ benchmarks:
       memory: "8192"
       ephemeral_storage_gib: 50
       max_task_lifetime_sec: 14400
-      log_stream_prefix: swebench-ml-super
+      log_stream_prefix: swebench-ml-super-miniswe
       ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
       timeout: 3600.0
       concurrency: 10
@@ -105,4 +105,4 @@ cluster:
       gres: "gpu:4"
 
 output:
-  dir: /lustre/fsw/portfolios/coreai/users/${USER}/nemo-evaluator-rundirs/super-fp8/swebench-multilingual
+  dir: /lustre/fsw/portfolios/coreai/users/${USER}/nemo-evaluator-rundirs/super-fp8/swebench-multilingual-miniswe
