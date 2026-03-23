@@ -306,7 +306,14 @@ def _make_solver(
 
 
 def _start_model_service(svc: Any):
+    import subprocess as _sp
+
     from nemo_evaluator.eval.deployment import DeployConfig, get_deployment
+
+    if hasattr(svc, "setup_commands") and svc.setup_commands:
+        for cmd in svc.setup_commands:
+            logger.info("Running setup command: %s", cmd)
+            _sp.check_call(cmd, shell=True)
 
     gpu_count = svc.gpus if isinstance(svc.gpus, int) else len(svc.gpus) if svc.gpus else 1
 

@@ -365,12 +365,10 @@ def eval_logs(run_id, output_dir, job_id, host, follow, tail_lines):
         hostname = details.get("hostname", "")
         username = details.get("username") or None
         rdir = details.get("remote_dir", run_meta.output_dir)
-        jid = details.get("job_id", "")
-
         from nemo_evaluator.executors.slurm import _resolve_latest_job_id_from_meta
 
         latest_id = _resolve_latest_job_id_from_meta(details)
-        log_file = f"{rdir}/slurm-{latest_id}.log"
+        log_file = f"{rdir}/logs/slurm-{latest_id}.log"
         target = f"{username}@{hostname}" if username else hostname
         n_arg = f"-n {tail_lines}" if tail_lines else "-n 50"
         cmd = ["ssh", target, f"tail {n_arg} -f {log_file}"]

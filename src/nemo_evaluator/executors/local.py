@@ -157,7 +157,6 @@ class LocalExecutor(Executor):
     def resume_run(self, run_meta, **kwargs) -> None:
         import click
 
-        from nemo_evaluator.executors.run_store import load_run_meta
 
         output_dir = run_meta.output_dir
         config_path = Path(output_dir) / "_docker_config.json"

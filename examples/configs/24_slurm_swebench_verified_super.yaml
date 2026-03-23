@@ -1,6 +1,6 @@
-# SLURM + vLLM (Nemotron-3-Super-BF16) + Harbor SWE-bench Verified + ECS Fargate
+# SLURM + vLLM (Nemotron-3-Super-FP8) + Harbor SWE-bench Verified + ECS Fargate
 #
-# Deploys vLLM on a GPU node, evaluates harbor://swebench-verified@1.0
+# Deploys vLLM on a GPU node (tp=2, dp=4), evaluates harbor://swebench-verified@1.0
 # with the OpenHands-SDK agent. ECS Fargate provides sandboxed envs.
 #
 # Prerequisites:
@@ -17,24 +17,30 @@
 services:
   nemotron:
     type: vllm
-    model: nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16
+    model: nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8
     protocol: chat_completions
-    port: 8000
-    tensor_parallel_size: 4
-    data_parallel_size: 2
+    port: 5000
+    tensor_parallel_size: 2
+    data_parallel_size: 4
     image: vllm/vllm-openai:v0.18.0-cu130
     startup_timeout: 1800.0
+    setup_commands:
+      - 'wget -q "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8/resolve/main/super_v3_reasoning_parser.py" -O /tmp/super_v3_reasoning_parser.py'
     extra_args:
       - "--async-scheduling"
+      - "--dtype=auto"
       - "--kv-cache-dtype=fp8"
+      - "--swap-space=0"
       - "--trust-remote-code"
       - "--attention-backend=TRITON_ATTN"
       - "--gpu-memory-utilization=0.9"
       - "--enable-chunked-prefill"
-      - "--max-num-seqs=256"
+      - "--max-num-seqs=512"
+      - "--served-model-name=nemotron"
       - "--enable-auto-tool-choice"
       - "--tool-call-parser=qwen3_coder"
-      - "--reasoning-parser=nemotron_v3"
+      - "--reasoning-parser-plugin=/tmp/super_v3_reasoning_parser.py"
+      - "--reasoning-parser=super_v3"
     extra_env:
       VLLM_CACHE_ROOT: /cache/vllm
       VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
@@ -43,7 +49,7 @@ services:
     generation:
       temperature: 1.0
       top_p: 0.95
-      max_tokens: 131072
+      max_tokens: 16384
     interceptors:
       - name: turn_counter
         config:
@@ -53,7 +59,7 @@ services:
 
 benchmarks:
   - name: harbor://swebench-verified@1.0
-    max_concurrent: 100
+    max_concurrent: 30
     timeout: 3600.0
     #max_problems: 5  # uncomment for smoke-testing
     solver:
@@ -61,7 +67,7 @@ benchmarks:
       service: nemotron
       agent: openhands-sdk
       agent_kwargs:
-        max_iterations: 100
+        max_iterations: 30
         temperature: 1.0
     sandbox:
       type: ecs_fargate
@@ -73,7 +79,7 @@ benchmarks:
       log_stream_prefix: swebench-super
       ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
       timeout: 3600.0
-      concurrency: 100
+      concurrency: 30
 
 cluster:
   type: slurm
@@ -98,4 +104,4 @@ cluster:
       gres: "gpu:8"
 
 output:
-  dir: /lustre/fsw/portfolios/coreai/users/${USER}/nemo-evaluator-rundirs/super-bf16/swebench-verified
+  dir: /lustre/fsw/portfolios/coreai/users/${USER}/nemo-evaluator-rundirs/super-fp8/swebench-verified

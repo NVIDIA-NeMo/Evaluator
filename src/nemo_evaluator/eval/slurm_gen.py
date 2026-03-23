@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import re
 import shlex
-from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -31,8 +30,8 @@ from nemo_evaluator.eval.containers import (
 _HEADER = """\
 #!/bin/bash
 #SBATCH --job-name=nel-eval-{job_name}
-#SBATCH --output={output_dir}/slurm-%j.log
-#SBATCH --error={output_dir}/slurm-%j.log
+#SBATCH --output={output_dir}/logs/slurm-%j.log
+#SBATCH --error={output_dir}/logs/slurm-%j.log
 #SBATCH --time={walltime}
 #SBATCH --nodes={nodes}
 #SBATCH --ntasks-per-node={ntasks_per_node}
@@ -92,8 +91,8 @@ _HEADER_HETJOB_SEPARATOR = """\
 
 _HEADER_HETJOB_FOOTER = """\
 #SBATCH --job-name=nel-eval-{job_name}
-#SBATCH --output={output_dir}/slurm-%j.log
-#SBATCH --error={output_dir}/slurm-%j.log
+#SBATCH --output={output_dir}/logs/slurm-%j.log
+#SBATCH --error={output_dir}/logs/slurm-%j.log
 #SBATCH --time={walltime}
 {account_line}
 
@@ -131,11 +130,7 @@ _MODEL_SERVICE = """\
 # Service: {name} ({svc_type})
 echo "Starting {svc_type} server: {name}..."
 echo "  Logs: $OUTPUT_DIR/logs/server-{name}.log"
-{srun_prefix}{cuda_prefix}{cmd} \\
-    {model_flag} {model} \\
-    --port {port} \\
-    {tp_flag}{dp_flag}\\
-    {extra_args}> "$OUTPUT_DIR/logs/server-{name}.log" 2>&1 &
+{srun_prefix}{cuda_prefix}{service_cmd}> "$OUTPUT_DIR/logs/server-{name}.log" 2>&1 &
 {name_upper}_PID=$!
 {name_upper}_URL="http://localhost:{port}/v1"
 {name_upper}_MODEL="{model}"
@@ -529,17 +524,28 @@ def _service_block(
         cuda = ""
         if svc.gpus and isinstance(svc.gpus, list):
             cuda = f"CUDA_VISIBLE_DEVICES={','.join(str(g) for g in svc.gpus)} "
+
+        model_flag_part = f" {model_flag} {svc.model}" if model_flag else f" {svc.model}" if svc.model else ""
+        main_cmd = (
+            f"{cmd}{model_flag_part}"
+            f" --port {svc.port}"
+            f" {tp_flag}{dp_flag}{extra} "
+        )
+
+        setup_list = getattr(svc, "setup_commands", []) or []
+        if setup_list:
+            inner = " && ".join(setup_list) + " && " + main_cmd
+            service_cmd = f"bash -c {shlex.quote(inner)} "
+        else:
+            service_cmd = f"{main_cmd}"
+
         return env_exports + _MODEL_SERVICE.format(
             name=name,
             name_upper=upper,
             svc_type=svc.type,
-            cmd=cmd,
-            model_flag=model_flag,
+            service_cmd=service_cmd,
             model=svc.model or "",
             port=svc.port,
-            tp_flag=tp_flag,
-            dp_flag=dp_flag,
-            extra_args=extra,
             cuda_prefix=cuda,
             srun_prefix=srun_prefix,
         )
@@ -1069,6 +1075,7 @@ def write_sbatch(config: EvalConfig, output_dir: str | Path | None = None) -> tu
     """
     out = Path(output_dir or config.output.dir)
     out.mkdir(parents=True, exist_ok=True)
+    (out / "logs").mkdir(exist_ok=True)
 
     script, sidecar_configs, secrets_env = generate_sbatch(config)
     path = out / "nel_eval.sbatch"

@@ -178,10 +178,9 @@ class SlurmExecutor(Executor):
         hostname = meta["hostname"]
         username = meta.get("username") or None
         rdir = meta.get("remote_dir", str(output_dir))
-        job_id = meta["job_id"]
 
         latest_id = _resolve_latest_job_id_from_meta(meta)
-        log_file = f"{rdir}/slurm-{latest_id}.log"
+        log_file = f"{rdir}/logs/slurm-{latest_id}.log"
 
         if tail:
             return ssh_run(hostname, f"tail -n {tail} {log_file}",

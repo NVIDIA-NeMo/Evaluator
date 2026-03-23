@@ -128,12 +128,12 @@ def copy_to_remote(
     if has_secrets:
         _ssh(
             target,
-            f"mkdir -p {shlex.quote(remote_dir)} && "
+            f"mkdir -p {shlex.quote(remote_dir)}/logs && "
             f"install -m 600 /dev/null {shlex.quote(remote_dir + '/.secrets.env')}",
             timeout=15.0,
         )
     else:
-        _ssh(target, f"mkdir -p {shlex.quote(remote_dir)}", timeout=15.0)
+        _ssh(target, f"mkdir -p {shlex.quote(remote_dir)}/logs", timeout=15.0)
 
     for p in local_paths:
         _scp(str(p), f"{target}:{remote_dir}/", target)
