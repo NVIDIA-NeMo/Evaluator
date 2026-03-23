@@ -18,6 +18,8 @@ import json
 import logging
 import tempfile
 from dataclasses import dataclass, field
+
+from nemo_evaluator.errors import GracefulError
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -43,8 +45,8 @@ class ToolResult:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-class ToolInfraError(Exception):
-    """Unrecoverable infrastructure failure — abort the solve loop."""
+class ToolInfraError(GracefulError):
+    """Unrecoverable tool infrastructure failure — scores 0.0, no retry."""
 
 
 # ── Protocol ──────────────────────────────────────────────────────────

@@ -107,9 +107,8 @@ def _build_config(
     litellm_params: dict[str, Any] = {
         "model": f"openai/{model_id}",
         "api_base": _strip_chat_completions(model_url),
+        "api_key": api_key or "no-key-needed",
     }
-    if api_key:
-        litellm_params["api_key"] = api_key
 
     cfg: dict[str, Any] = {
         "model_list": [

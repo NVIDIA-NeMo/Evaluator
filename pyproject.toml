@@ -55,7 +55,7 @@ dev = [
     "pytest-xdist>=3.0",
     "ruff>=0.1",
     "pre-commit>=3.0",
-    "nemo-evaluator[scoring,stats,lm-eval]",
+    "nemo-evaluator[scoring,stats,lm-eval,harbor]",
 ]
 
 [project.scripts]

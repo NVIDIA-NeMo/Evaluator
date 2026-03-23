@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from nemo_evaluator.errors import GracefulError
 from nemo_evaluator.observability.types import ModelResponse
 from nemo_evaluator.solvers.base import SolveResult
 from nemo_evaluator.solvers.trajectory_util import build_atif_trajectory
@@ -61,10 +62,10 @@ def _ensure_env(api_key: str | None, model_url: str | None, model_id: str | None
     the provider hint for OpenAI-compatible endpoints).
     """
     key = _resolve_api_key(api_key)
-    if key:
-        os.environ["LLM_API_KEY"] = key
-    else:
-        logger.warning("No API key available for Harbor agent")
+    if not key:
+        key = "no-key-needed"
+        logger.info("No API key found — using dummy key for self-hosted model")
+    os.environ["LLM_API_KEY"] = key
     if model_url:
         os.environ["LLM_BASE_URL"] = model_url
     if model_id:
@@ -501,6 +502,8 @@ class HarborSolver:
             latency_ms = (time.monotonic() - t0) * 1000
 
             # Detect silent agent failure: no response and no tokens produced.
+            # Kept as SolveResult.error (not a raise) to preserve the full
+            # trajectory / context already collected above.
             error = None
             if not response and prompt_tokens + completion_tokens == 0:
                 error = (
@@ -522,8 +525,8 @@ class HarborSolver:
                 error=error,
             )
 
-        except Exception as exc:
-            logger.exception("HarborSolver.solve() failed")
+        except GracefulError as exc:
+            logger.warning("HarborSolver: graceful failure: %s", exc)
             latency_ms = (time.monotonic() - t0) * 1000
 
             try:
@@ -534,10 +537,7 @@ class HarborSolver:
 
             recovered = _recover_from_logs(agent_logs_dir)
             trajectory = recovered["trajectory"] or build_atif_trajectory(
-                steps=[{
-                    "source": "system",
-                    "message": str(exc),
-                }],
+                steps=[{"source": "system", "message": str(exc)}],
                 agent_name=self._harbor_agent,
                 status="error",
             )
@@ -552,6 +552,10 @@ class HarborSolver:
                 trajectory=trajectory,
                 error=str(exc),
             )
+
+        except Exception:
+            logger.exception("HarborSolver.solve() system error — will retry")
+            raise
 
     async def close(self) -> None:
         pass

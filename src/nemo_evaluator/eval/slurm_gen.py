@@ -1,9 +1,15 @@
 """Generate self-contained sbatch scripts from EvalConfig."""
+
 from __future__ import annotations
 
+import hashlib
+import os
 import re
 import shlex
+from datetime import datetime, timezone
 from pathlib import Path
+
+import yaml
 
 from nemo_evaluator.eval.config import (
     ApptainerSandbox,
@@ -11,6 +17,8 @@ from nemo_evaluator.eval.config import (
     ExternalApiService,
     GymResourceService,
     NatAgentService,
+    NoSandbox,
+    SimpleSolver,
     SlurmCluster,
     SlurmSandbox,
 )
@@ -23,8 +31,8 @@ from nemo_evaluator.eval.containers import (
 _HEADER = """\
 #!/bin/bash
 #SBATCH --job-name=nel-eval-{job_name}
-#SBATCH --output={output_dir}/slurm-%j.out
-#SBATCH --error={output_dir}/slurm-%j.err
+#SBATCH --output={output_dir}/slurm-%j.log
+#SBATCH --error={output_dir}/slurm-%j.log
 #SBATCH --time={walltime}
 #SBATCH --nodes={nodes}
 #SBATCH --ntasks-per-node={ntasks_per_node}
@@ -34,17 +42,22 @@ _HEADER = """\
 {array_line}
 
 set -uo pipefail
-# Prevent nel from re-submitting to SLURM/Docker from inside the job.
 export NEL_INNER_EXECUTION=1
+export PYTHONUNBUFFERED=1
 
 OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
+JOB_START_EPOCH=$(date +%s)
 mkdir -p "$OUTPUT_DIR"
 
+echo "$SLURM_JOB_ID" >> "$OUTPUT_DIR/.nel_job_chain"
+
+{resume_tracking}
 echo "=== NeMo Evaluator ==="
 echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $(hostname)"
 echo "Start: $(date -Iseconds)"
+{resume_attempt_info}
 """
 
 _SHARD_SETUP = """\
@@ -83,32 +96,43 @@ _HEADER_HETJOB_SEPARATOR = """\
 
 _HEADER_HETJOB_FOOTER = """\
 #SBATCH --job-name=nel-eval-{job_name}
-#SBATCH --output={output_dir}/slurm-%j.out
-#SBATCH --error={output_dir}/slurm-%j.err
+#SBATCH --output={output_dir}/slurm-%j.log
+#SBATCH --error={output_dir}/slurm-%j.log
 #SBATCH --time={walltime}
 {account_line}
 
 set -uo pipefail
 export NEL_INNER_EXECUTION=1
+export PYTHONUNBUFFERED=1
 
 OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
+JOB_START_EPOCH=$(date +%s)
 mkdir -p "$OUTPUT_DIR"
 
+echo "$SLURM_JOB_ID" >> "$OUTPUT_DIR/.nel_job_chain"
+
+{resume_tracking}
 echo "=== NeMo Evaluator (het-job) ==="
 echo "Job ID: $SLURM_JOB_ID"
 {het_echo_lines}
 echo "Start: $(date -Iseconds)"
+{resume_attempt_info}
+"""
+
+_SECRETS_SOURCE = """\
+# Load credentials from separate file (not embedded in this script).
+# Restrict permissions: chmod 600 "$BASE_OUTPUT_DIR/.secrets.env"
+BASE_OUTPUT_DIR="$OUTPUT_DIR"
+if [ -f "$BASE_OUTPUT_DIR/.secrets.env" ]; then
+    set -a
+    source "$BASE_OUTPUT_DIR/.secrets.env"
+    set +a
+fi
 """
 
 _CONDA_ACTIVATE = """\
 source /opt/anaconda3/bin/activate {conda_env}
-"""
-
-_CONTAINER_COMMON = """\
-# Container mode (Pyxis/Enroot)
-CONTAINER_MOUNTS="{mount_flags}"
-CONTAINER_ENV="{env_flags}"
 """
 
 _MODEL_SERVICE = """\
@@ -117,7 +141,7 @@ echo "Starting {svc_type} server: {name}..."
 {srun_prefix}{cuda_prefix}{cmd} \\
     {model_flag} {model} \\
     --port {port} \\
-    {tp_flag}\\
+    {tp_flag}{dp_flag}\\
     {extra_args}&
 {name_upper}_PID=$!
 {name_upper}_URL="http://localhost:{port}/v1"
@@ -206,6 +230,19 @@ echo "============================================================"
     -o "$OUTPUT_DIR/{safe_name}" || {{ echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; }}
 """
 
+_TASK_CONFIG = """\
+# Benchmark {idx}/{total}: {bench_name} (full config)
+echo ""
+echo "============================================================"
+echo "  Benchmark {idx}/{total}: {bench_name} (repeats={repeats})"
+echo "============================================================"
+export {svc_url_var}="${{{model_url_bash}}}"
+export {svc_model_var}="${{{model_id_bash}}}"
+export NEL_OUTPUT_DIR="$OUTPUT_DIR/{safe_name}"
+mkdir -p "$NEL_OUTPUT_DIR"
+{run_prefix}nel eval run "$OUTPUT_DIR/config_{safe_name}.yaml" {extra_flags}|| {{ echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; }}
+"""
+
 _REPORT = """\
 # Generate reports
 echo ""
@@ -213,14 +250,55 @@ echo "=== Generating reports ==="
 {report_commands}
 """
 
-_CLEANUP = """\
-# Cleanup
-echo ""
-echo "Shutting down services..."
-{kill_commands}
-echo "=== Evaluation complete ==="
-echo "End: $(date -Iseconds)"
-echo "Results: $OUTPUT_DIR"
+_PREFLIGHT_IMAGE_CHECK = """\
+# Pre-flight: verify container images are pullable
+echo "Checking container images..."
+{checks}
+echo "  All images OK."
+"""
+
+_IMAGE_CHECK_LINE = """\
+echo "  {label}: {image}"
+srun --overlap --nodes 1 --ntasks 1 --container-image {image} true 2>&1 \\
+    | head -5 || {{ echo "FATAL: cannot pull image for {label}: {image}"; exit 1; }}"""
+
+
+def _preflight_image_checks(config: EvalConfig, cluster: SlurmCluster) -> str:
+    """Generate bash that validates all container images before starting services."""
+    images: dict[str, str] = {}
+    for name, svc in config.services.items():
+        img = getattr(svc, "image", None)
+        if img:
+            images[name] = img
+    eval_img = getattr(cluster, "eval_image", None)
+    if eval_img:
+        images["eval-runner"] = eval_img
+
+    if not images:
+        return ""
+
+    checks = [
+        _IMAGE_CHECK_LINE.format(label=label, image=img)
+        for label, img in images.items()
+    ]
+    return _PREFLIGHT_IMAGE_CHECK.format(checks="\n".join(checks))
+
+
+_CLEANUP_FUNC = """\
+# Cleanup function — called on EXIT (success, failure, or signal)
+cleanup() {{
+    echo ""
+    echo "Shutting down services..."
+    {kill_commands}
+{auto_resume}
+    echo "=== Evaluation complete ==="
+    echo "End: $(date -Iseconds)"
+    echo "Results: $OUTPUT_DIR"
+}}
+trap cleanup EXIT
+"""
+
+_FOOTER = """\
 exit $NEL_EXIT_CODE
 """
 
@@ -286,35 +364,46 @@ done
 wait
 """
 
-_AUTO_RESUME = """\
-# Auto-resume on walltime expiry
+_RESUME_TRACKING = """\
 ATTEMPT_FILE="$OUTPUT_DIR/.nel_attempt"
 if [ -f "$ATTEMPT_FILE" ]; then
-    ATTEMPT=$(cat "$ATTEMPT_FILE")
+    NEL_ATTEMPT=$(cat "$ATTEMPT_FILE")
 else
-    ATTEMPT=0
+    NEL_ATTEMPT=0
 fi
-ATTEMPT=$((ATTEMPT + 1))
-echo $ATTEMPT > "$ATTEMPT_FILE"
+NEL_ATTEMPT=$((NEL_ATTEMPT + 1))
+echo $NEL_ATTEMPT > "$ATTEMPT_FILE"
+"""
 
-if [ $ATTEMPT -ge {max_attempts} ]; then
-    echo "Max resume attempts ({max_attempts}) reached."
+_RESUME_ATTEMPT_INFO = """\
+echo "Attempt: $NEL_ATTEMPT / {max_attempts}"
+"""
+
+_AUTO_RESUME = """\
+# Auto-resume: check if evaluation needs to continue
+if [ $NEL_ATTEMPT -ge {max_attempts} ]; then
+    echo "Max resume attempts ({max_attempts}) reached. Not resubmitting."
 else
-    if python3 -c "
+    JOB_RUNTIME=$(( $(date +%s) - JOB_START_EPOCH ))
+    if [ $JOB_RUNTIME -lt 600 ] && [ ! -f "$OUTPUT_DIR/checkpoint.json" ]; then
+        echo "Job failed quickly (${{JOB_RUNTIME}}s) without progress. Not resubmitting."
+    elif python3 -c "
 import json, sys, os
 cp_path = '$OUTPUT_DIR/checkpoint.json'
 if not os.path.exists(cp_path):
     sys.exit(0)
 cp = json.load(open(cp_path))
+total = {total_benchmarks}
 failed = len(cp.get('failed_benchmarks', {{}}))
 completed = len(cp.get('completed_benchmarks', {{}}))
-sys.exit(0 if failed > 0 or completed == 0 else 1)
+reports_ok = os.path.exists('$OUTPUT_DIR/report.md') or total == 0
+sys.exit(0 if (failed > 0 or completed < total or not reports_ok) else 1)
 " 2>/dev/null; then
-        echo "Evaluation incomplete, resubmitting (attempt $ATTEMPT/{max_attempts})..."
+        echo "Evaluation incomplete, resubmitting (attempt $NEL_ATTEMPT/{max_attempts})..."
         NEXT_JOB=$(sbatch --dependency=afternotok:$SLURM_JOB_ID "{script_path}")
         echo "Resubmitted: $NEXT_JOB"
     else
-        echo "All benchmarks completed, no resubmit needed."
+        echo "All benchmarks completed and reports generated. No resubmit needed."
     fi
 fi
 """
@@ -325,8 +414,8 @@ def _safe(s: str) -> str:
 
 
 _MODEL_CMD = {
-    "vllm": ("python -m vllm.entrypoints.openai.api_server", "--model", "--tensor-parallel-size"),
-    "sglang": ("python -m sglang.launch_server", "--model-path", "--tp-size"),
+    "vllm": ("vllm serve", "", "--tensor-parallel-size", "--data-parallel-size"),
+    "sglang": ("sglang serve", "", "--tp-size", "--dp-size"),
 }
 
 
@@ -360,8 +449,52 @@ def _resolve_service_image(svc) -> str:
     return resolve_deployment_image(svc.type)
 
 
-def _service_block(name: str, svc, *, use_containers: bool = False,
-                   pool_to_het: dict[str, int] | None = None) -> str:
+def _build_srun_prefix(
+    svc, deploy_image: str, *, het_flag: str, cluster_mounts: list[str], cluster_env_keys: list[str], mount_home: bool
+) -> str:
+    """Build a per-service srun command with merged mounts and env."""
+    if not deploy_image:
+        return ""
+
+    svc_mounts = getattr(svc, "container_mounts", [])
+    all_mounts = cluster_mounts + svc_mounts
+    mount_parts = [f"--container-mounts={m}" for m in all_mounts]
+    if mount_home:
+        mount_parts.append("--container-mounts=$HOME:$HOME")
+    else:
+        mount_parts.append("--no-container-mount-home")
+
+    svc_env = getattr(svc, "extra_env", {})
+    env_parts = [f"--container-env={k}" for k in cluster_env_keys]
+    env_parts += [f"--container-env={k}" for k in svc_env]
+
+    num_nodes = getattr(svc, "num_nodes", 1)
+    return (
+        f"srun --overlap --nodes {num_nodes} --ntasks 1{het_flag} "
+        f"--container-image {deploy_image} "
+        f"{' '.join(mount_parts)} {' '.join(env_parts)} "
+    )
+
+
+def _service_env_exports(svc) -> str:
+    """Generate export lines for service-specific env vars."""
+    svc_env = getattr(svc, "extra_env", {})
+    if not svc_env:
+        return ""
+    lines = [f"export {k}={shlex.quote(v)}" for k, v in svc_env.items()]
+    return "\n".join(lines) + "\n"
+
+
+def _service_block(
+    name: str,
+    svc,
+    *,
+    use_containers: bool = False,
+    cluster_mounts: list[str] | None = None,
+    cluster_env_keys: list[str] | None = None,
+    mount_home: bool = True,
+    pool_to_het: dict[str, int] | None = None,
+) -> str:
     upper = _safe(name).upper()
     pool = getattr(svc, "node_pool", None)
     het_flag = ""
@@ -369,64 +502,85 @@ def _service_block(name: str, svc, *, use_containers: bool = False,
         het_flag = f" --het-group={pool_to_het[pool]}"
 
     if svc.type in _MODEL_CMD:
-        cmd, model_flag, tp_flag_name = _MODEL_CMD[svc.type]
+        cmd, model_flag, tp_flag_name, dp_flag_name = _MODEL_CMD[svc.type]
         deploy_image = _resolve_service_image(svc)
         srun_prefix = ""
-        if use_containers and deploy_image:
-            srun_prefix = (
-                f"srun --overlap --nodes {svc.num_nodes} --ntasks 1{het_flag} "
-                f"--container-image {deploy_image} $CONTAINER_MOUNTS $CONTAINER_ENV "
+        if use_containers:
+            srun_prefix = _build_srun_prefix(
+                svc,
+                deploy_image,
+                het_flag=het_flag,
+                cluster_mounts=cluster_mounts or [],
+                cluster_env_keys=cluster_env_keys or [],
+                mount_home=mount_home,
             )
-        tp_flag = (
-            f"{tp_flag_name} {svc.tensor_parallel_size} "
-            if svc.tensor_parallel_size else ""
-        )
+        env_exports = _service_env_exports(svc)
+        tp_flag = f"{tp_flag_name} {svc.tensor_parallel_size} " if svc.tensor_parallel_size else ""
+        dp_flag = f"{dp_flag_name} {svc.data_parallel_size} " if svc.data_parallel_size else ""
         extra = " ".join(svc.extra_args)
         cuda = ""
         if svc.gpus and isinstance(svc.gpus, list):
-            cuda = f'CUDA_VISIBLE_DEVICES={",".join(str(g) for g in svc.gpus)} '
-        return _MODEL_SERVICE.format(
-            name=name, name_upper=upper, svc_type=svc.type,
-            cmd=cmd, model_flag=model_flag, model=svc.model or "",
-            port=svc.port, tp_flag=tp_flag, extra_args=extra,
-            cuda_prefix=cuda, srun_prefix=srun_prefix,
+            cuda = f"CUDA_VISIBLE_DEVICES={','.join(str(g) for g in svc.gpus)} "
+        return env_exports + _MODEL_SERVICE.format(
+            name=name,
+            name_upper=upper,
+            svc_type=svc.type,
+            cmd=cmd,
+            model_flag=model_flag,
+            model=svc.model or "",
+            port=svc.port,
+            tp_flag=tp_flag,
+            dp_flag=dp_flag,
+            extra_args=extra,
+            cuda_prefix=cuda,
+            srun_prefix=srun_prefix,
         )
 
     if isinstance(svc, NatAgentService):
         deploy_image = _resolve_service_image(svc)
         srun_prefix = ""
-        if use_containers and deploy_image:
-            srun_prefix = (
-                f"srun --overlap --nodes 1 --ntasks 1{het_flag} "
-                f"--container-image {deploy_image} $CONTAINER_MOUNTS $CONTAINER_ENV "
+        if use_containers:
+            srun_prefix = _build_srun_prefix(
+                svc,
+                deploy_image,
+                het_flag=het_flag,
+                cluster_mounts=cluster_mounts or [],
+                cluster_env_keys=cluster_env_keys or [],
+                mount_home=mount_home,
             )
         config_file = svc.nat_config_file or "config.yml"
         return _NAT_SERVICE.format(
-            name=name, name_upper=upper, port=svc.port,
-            config_file=config_file, srun_prefix=srun_prefix,
+            name=name,
+            name_upper=upper,
+            port=svc.port,
+            config_file=config_file,
+            srun_prefix=srun_prefix,
         )
 
     if isinstance(svc, GymResourceService):
         if svc.server_cmd:
             return _GYM_CMD_SERVICE.format(
-                name=name, name_upper=upper,
+                name=name,
+                name_upper=upper,
                 server_cmd=svc.server_cmd,
             )
         return _GYM_SERVICE.format(
-            name=name, name_upper=upper,
-            benchmark=svc.benchmark or "", port=svc.port,
+            name=name,
+            name_upper=upper,
+            benchmark=svc.benchmark or "",
+            port=svc.port,
         )
 
     if isinstance(svc, ExternalApiService):
         return (
-            f'# Service: {name} (external API)\n'
+            f"# Service: {name} (external API)\n"
             f'{upper}_URL="{svc.url or ""}"\n'
             f'{upper}_MODEL="{svc.model or ""}"\n'
             f'{upper}_PID=""\n'
         )
 
     return (
-        f'# Service: {name} ({svc.type})\n'
+        f"# Service: {name} ({svc.type})\n"
         f'{upper}_URL="http://localhost:{getattr(svc, "port", 8000)}/v1"\n'
         f'{upper}_MODEL="{getattr(svc, "model", "") or ""}"\n'
         f'{upper}_PID=""\n'
@@ -444,14 +598,19 @@ def _health_block(name: str, svc) -> str:
 
     if isinstance(svc, GymResourceService) and svc.server_cmd:
         return _HEALTH_WAIT_MULTI.format(
-            name=name, name_upper=upper, url=url,
+            name=name,
+            name_upper=upper,
+            url=url,
             max_attempts=max_attempts,
         )
 
     health = getattr(svc, "health_path", "/health") or "/health"
     return _HEALTH_WAIT.format(
-        name=name, name_upper=upper, url=url,
-        health_path=health, max_attempts=max_attempts,
+        name=name,
+        name_upper=upper,
+        url=url,
+        health_path=health,
+        max_attempts=max_attempts,
     )
 
 
@@ -471,16 +630,68 @@ def _find_sandbox_bench(config: EvalConfig):
     return None
 
 
-def generate_sbatch(config: EvalConfig) -> str:
+def _needs_full_config(bench) -> bool:
+    """True if the benchmark can't use --bench quick mode (needs the full config YAML)."""
+    return not isinstance(bench.solver, SimpleSolver) or not isinstance(bench.sandbox, NoSandbox)
+
+
+def _extract_bench_config(config: EvalConfig, bench_idx: int, svc_url_var: str, svc_model_var: str) -> dict:
+    """Build a standalone config dict for one benchmark.
+
+    Managed model services are replaced with external API services whose
+    ``url`` and ``model`` reference shell env-vars (expanded by NEL at
+    load time).  Cluster is forced to ``local`` since this runs inside
+    the sbatch job.
+    """
+    bench = config.benchmarks[bench_idx]
+    svc_name = _get_solver_service(bench) or ""
+    svc = config.services.get(svc_name)
+
+    _PROTO_SUFFIX = {
+        "chat_completions": "/chat/completions",
+        "completions": "/completions",
+        "responses": "/responses",
+    }
+
+    services: dict = {}
+    if svc:
+        proto = getattr(svc, "protocol", "chat_completions")
+        url_suffix = _PROTO_SUFFIX.get(proto, "/chat/completions")
+        svc_dict: dict = {
+            "type": "api",
+            "url": f"${{{svc_url_var}}}{url_suffix}",
+            "protocol": proto,
+            "model": f"${{{svc_model_var}}}",
+        }
+        api_key = getattr(svc, "api_key", None)
+        if api_key:
+            svc_dict["api_key"] = api_key
+        if hasattr(svc, "interceptors") and svc.interceptors:
+            svc_dict["interceptors"] = [ic.model_dump(exclude_none=True) for ic in svc.interceptors]
+        if hasattr(svc, "generation"):
+            gen = svc.generation.model_dump(exclude_none=True)
+            if gen:
+                svc_dict["generation"] = gen
+        svc_dict["proxy_verbose"] = getattr(svc, "proxy_verbose", False)
+        services[svc_name] = svc_dict
+
+    bench_dict = bench.model_dump(exclude_none=True)
+    bench_dict.pop("scoring", None)
+
+    return {
+        "services": services,
+        "benchmarks": [bench_dict],
+        "output": {"dir": "${NEL_OUTPUT_DIR}"},
+    }
+
+
+def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str, str]]:
     cluster = config.cluster
     if not isinstance(cluster, SlurmCluster):
         raise ValueError(f"generate_sbatch requires a SlurmCluster, got {type(cluster).__name__}")
 
     output_dir = config.output.dir
-    job_name = (
-        _safe(config.benchmarks[0].name) if len(config.benchmarks) == 1
-        else "multi"
-    )
+    job_name = _safe(config.benchmarks[0].name) if len(config.benchmarks) == 1 else "multi"
     account_line = f"#SBATCH --account={cluster.account}" if cluster.account else ""
 
     used_pools = _collect_used_pools(config)
@@ -495,75 +706,120 @@ def generate_sbatch(config: EvalConfig) -> str:
             pool = cluster.node_pools[pool_name]
             gres_line = f"#SBATCH --gres={pool.gres}" if pool.gres else ""
             partition_line = f"#SBATCH --partition={pool.partition}" if pool.partition else ""
-            parts.append(_HEADER_HETJOB_POOL.format(
-                het_idx=i, pool_name=pool_name,
-                nodes=pool.nodes, ntasks_per_node=pool.ntasks_per_node,
-                gres_line=gres_line, partition_line=partition_line,
-            ))
+            parts.append(
+                _HEADER_HETJOB_POOL.format(
+                    het_idx=i,
+                    pool_name=pool_name,
+                    nodes=pool.nodes,
+                    ntasks_per_node=pool.ntasks_per_node,
+                    gres_line=gres_line,
+                    partition_line=partition_line,
+                )
+            )
             if i < len(used_pools) - 1:
                 parts.append(_HEADER_HETJOB_SEPARATOR)
 
         het_echo_lines = "\n".join(
-            f'echo "Het-group {i} ({name}): $SLURM_JOB_NODELIST_HET_GROUP_{i}"'
-            for i, name in enumerate(used_pools)
+            f'echo "Het-group {i} ({name}): $SLURM_JOB_NODELIST_HET_GROUP_{i}"' for i, name in enumerate(used_pools)
         )
-        parts.append(_HEADER_HETJOB_FOOTER.format(
-            job_name=job_name, output_dir=output_dir,
-            walltime=cluster.walltime, account_line=account_line,
-            het_echo_lines=het_echo_lines,
-        ))
+        resume_tracking = ""
+        resume_attempt_info = ""
+        if cluster.auto_resume:
+            resume_tracking = _RESUME_TRACKING
+            resume_attempt_info = _RESUME_ATTEMPT_INFO.format(
+                max_attempts=cluster.max_resume_attempts,
+            )
+        parts.append(
+            _HEADER_HETJOB_FOOTER.format(
+                job_name=job_name,
+                output_dir=output_dir,
+                walltime=cluster.walltime,
+                account_line=account_line,
+                het_echo_lines=het_echo_lines,
+                resume_tracking=resume_tracking,
+                resume_attempt_info=resume_attempt_info,
+            )
+        )
     else:
         pool = cluster.node_pools[used_pools[0]]
         gres_line = f"#SBATCH --gres={pool.gres}" if pool.gres else ""
         partition_line = f"#SBATCH --partition={pool.partition}" if pool.partition else ""
-        array_line = (
-            f"#SBATCH --array=0-{cluster.shards - 1}"
-            if cluster.shards else ""
+        array_line = f"#SBATCH --array=0-{cluster.shards - 1}" if cluster.shards else ""
+        resume_tracking = ""
+        resume_attempt_info = ""
+        if cluster.auto_resume:
+            resume_tracking = _RESUME_TRACKING
+            resume_attempt_info = _RESUME_ATTEMPT_INFO.format(
+                max_attempts=cluster.max_resume_attempts,
+            )
+        parts.append(
+            _HEADER.format(
+                job_name=job_name,
+                output_dir=output_dir,
+                walltime=cluster.walltime,
+                nodes=pool.nodes,
+                ntasks_per_node=pool.ntasks_per_node,
+                gres_line=gres_line,
+                partition_line=partition_line,
+                account_line=account_line,
+                array_line=array_line,
+                resume_tracking=resume_tracking,
+                resume_attempt_info=resume_attempt_info,
+            )
         )
-        parts.append(_HEADER.format(
-            job_name=job_name, output_dir=output_dir,
-            walltime=cluster.walltime, nodes=pool.nodes,
-            ntasks_per_node=pool.ntasks_per_node,
-            gres_line=gres_line, partition_line=partition_line,
-            account_line=account_line, array_line=array_line,
-        ))
 
     is_sharded = cluster.shards is not None
+    secrets_env: dict[str, str] = {}
+
+    if is_sharded:
+        for bench in config.benchmarks:
+            if _needs_full_config(bench):
+                raise ValueError(
+                    f"Sharding (shards={cluster.shards}) is incompatible with "
+                    f"benchmark '{bench.name}' which requires a sidecar config "
+                    f"(solver type '{bench.solver.type}' or sandbox type "
+                    f"'{bench.sandbox.type}'). Remove shards or use a simple solver."
+                )
+
+    if cluster.container_env:
+        secrets_env.update(cluster.container_env)
+        parts.append(_SECRETS_SOURCE)
 
     if is_sharded:
         parts.append(_SHARD_SETUP)
 
-    use_containers = cluster.container_image is not None
+    _any_service_has_image = any(getattr(s, "image", None) for s in config.services.values())
+    use_containers = (
+        cluster.container_mounts
+        or cluster.container_env
+        or _any_service_has_image
+        or any(getattr(s, "container_mounts", []) for s in config.services.values())
+        or getattr(cluster, "eval_image", None)
+    )
+
+    cluster_env_keys = list(cluster.container_env.keys())
+    for _implicit in ("PYTHONUNBUFFERED", "NEL_INNER_EXECUTION"):
+        if _implicit not in cluster_env_keys:
+            cluster_env_keys.append(_implicit)
+
     if use_containers:
-        mount_parts = []
-        for m in cluster.container_mounts:
-            mount_parts.append(f"--container-mounts={m}")
-        if cluster.mount_home:
-            mount_parts.append("--container-mounts=$HOME:$HOME")
-        else:
-            mount_parts.append("--no-container-mount-home")
-        mount_flags = " ".join(mount_parts)
-        env_flags = " ".join(
-            f"--container-env={k}" for k in cluster.container_env
-        )
-        parts.append(_CONTAINER_COMMON.format(
-            mount_flags=mount_flags,
-            env_flags=env_flags,
-        ))
-        for k, v in cluster.container_env.items():
-            parts.append(f'export {k}="{v}"')
-        if cluster.container_env:
-            parts.append("")
+        parts.append(_preflight_image_checks(config, cluster))
 
     if cluster.conda_env:
         parts.append(_CONDA_ACTIVATE.format(conda_env=cluster.conda_env))
 
     for name, svc in config.services.items():
-        parts.append(_service_block(
-            name, svc,
-            use_containers=use_containers,
-            pool_to_het=pool_to_het if use_het else None,
-        ))
+        parts.append(
+            _service_block(
+                name,
+                svc,
+                use_containers=use_containers,
+                cluster_mounts=cluster.container_mounts,
+                cluster_env_keys=cluster_env_keys,
+                mount_home=cluster.mount_home,
+                pool_to_het=pool_to_het if use_het else None,
+            )
+        )
 
     parts.append("")
 
@@ -583,25 +839,26 @@ def generate_sbatch(config: EvalConfig) -> str:
             het_idx = pool_to_het[sandbox_pool_name]
             pool = cluster.node_pools[sandbox_pool_name]
             total_slots = pool.nodes * slots
-            parts.append(_SANDBOX_NODES_HETJOB.format(
-                het_group=het_idx,
-                sandbox_node_count=pool.nodes,
-                slots_per_node=slots,
-                total_slots=total_slots,
-            ))
+            parts.append(
+                _SANDBOX_NODES_HETJOB.format(
+                    het_group=het_idx,
+                    sandbox_node_count=pool.nodes,
+                    slots_per_node=slots,
+                    total_slots=total_slots,
+                )
+            )
         elif sandbox_pool_name and sandbox_pool_name in cluster.node_pools:
             pool = cluster.node_pools[sandbox_pool_name]
             total_slots = pool.nodes * slots
-            sandbox_start = sum(
-                cluster.node_pools[p].nodes for p in used_pools
-                if p != sandbox_pool_name
-            ) + 1
-            parts.append(_SANDBOX_NODES_INLINE.format(
-                sandbox_start_node=sandbox_start,
-                sandbox_node_count=pool.nodes,
-                slots_per_node=slots,
-                total_slots=total_slots,
-            ))
+            sandbox_start = sum(cluster.node_pools[p].nodes for p in used_pools if p != sandbox_pool_name) + 1
+            parts.append(
+                _SANDBOX_NODES_INLINE.format(
+                    sandbox_start_node=sandbox_start,
+                    sandbox_node_count=pool.nodes,
+                    slots_per_node=slots,
+                    total_slots=total_slots,
+                )
+            )
 
         het_group_flag = (
             f" --het-group={pool_to_het[sandbox_pool_name]}"
@@ -612,83 +869,136 @@ def generate_sbatch(config: EvalConfig) -> str:
 
         if isinstance(sb, ApptainerSandbox) and sb_image:
             sif_cache = sb.sif_cache_dir or "/tmp/nel_sif_cache"
-            parts.append(_APPTAINER_PRE_PROVISION.format(
-                sif_cache_dir=sif_cache,
-                images=shlex.quote(sb_image),
-                het_group_flag=het_group_flag,
-            ))
+            parts.append(
+                _APPTAINER_PRE_PROVISION.format(
+                    sif_cache_dir=sif_cache,
+                    images=shlex.quote(sb_image),
+                    het_group_flag=het_group_flag,
+                )
+            )
         elif isinstance(sb, SlurmSandbox) and sb_image:
-            parts.append(_SANDBOX_PRE_PULL.format(
-                images=shlex.quote(sb_image),
-            ))
+            parts.append(
+                _SANDBOX_PRE_PULL.format(
+                    images=shlex.quote(sb_image),
+                )
+            )
 
-    base_override = cluster.container_image
+    base_override = getattr(cluster, "eval_image", None)
     total = len(config.benchmarks)
+    sidecar_configs: dict[str, dict] = {}
+
+    eval_run_prefix = ""
+    if use_containers and base_override:
+        _eval_mounts = [f"--container-mounts={m}" for m in cluster.container_mounts]
+        _eval_mounts.append(f"--container-mounts={output_dir}:{output_dir}")
+        if cluster.mount_home:
+            _eval_mounts.append("--container-mounts=$HOME:$HOME")
+        else:
+            _eval_mounts.append("--no-container-mount-home")
+        _eval_envs = [f"--container-env={k}" for k in cluster_env_keys]
+        eval_run_prefix = (
+            f"srun --overlap --nodes 1 --ntasks 1 "
+            f"--container-image {base_override} "
+            f"{' '.join(_eval_mounts)} {' '.join(_eval_envs)} \\\n    "
+        )
 
     for i, bench in enumerate(config.benchmarks, 1):
         svc_name = _get_solver_service(bench) or ""
         upper = _safe(svc_name).upper() if svc_name else "MODEL"
         model_url_var = f"{upper}_URL"
         model_id_var = f"{upper}_MODEL"
-
-        extra_flags = ""
-        gen = getattr(bench.solver, "generation", None)
-        system_prompt = getattr(bench.solver, "system_prompt", None)
-        if system_prompt:
-            extra_flags += f"--system-prompt {shlex.quote(system_prompt)} "
-        if gen and gen.temperature is not None:
-            extra_flags += f"--temperature {gen.temperature} "
-        if gen and gen.max_tokens is not None:
-            extra_flags += f"--max-tokens {gen.max_tokens} "
-        if bench.max_problems is not None:
-            extra_flags += f"--max-problems {bench.max_problems} "
-        if cluster.auto_resume:
-            extra_flags += "--resume "
-
         safe_name = _safe(bench.name)
 
         eval_image = ""
         if use_containers:
-            eval_image = (
-                resolve_eval_image(bench.name, base_override=base_override)
-                or default_base_image(base_override)
+            eval_image = resolve_eval_image(bench.name, base_override=base_override) or default_base_image(
+                base_override
             )
 
         run_prefix = ""
         if use_containers and eval_image:
+            eval_mount_parts = [f"--container-mounts={m}" for m in cluster.container_mounts]
+            eval_mount_parts.append(f"--container-mounts={output_dir}:{output_dir}")
+            if cluster.mount_home:
+                eval_mount_parts.append("--container-mounts=$HOME:$HOME")
+            else:
+                eval_mount_parts.append("--no-container-mount-home")
+            eval_env_parts = [f"--container-env={k}" for k in cluster_env_keys]
             run_prefix = (
                 f"srun --overlap --nodes 1 --ntasks 1 "
-                f"--container-image {eval_image} $CONTAINER_MOUNTS $CONTAINER_ENV \\\n    "
+                f"--container-image {eval_image} "
+                f"{' '.join(eval_mount_parts)} {' '.join(eval_env_parts)} \\\n    "
             )
 
-        parts.append(_TASK.format(
-            idx=i, total=total, bench_name=bench.name,
-            model_url_var=model_url_var, model_id_var=model_id_var,
-            repeats=bench.repeats, extra_flags=extra_flags,
-            safe_name=safe_name, run_prefix=run_prefix,
-        ))
+        if _needs_full_config(bench):
+            sidecar = _extract_bench_config(
+                config,
+                i - 1,
+                svc_url_var=model_url_var,
+                svc_model_var=model_id_var,
+            )
+            sidecar_configs[safe_name] = sidecar
+            config_extra_flags = "--resume " if cluster.auto_resume else ""
+            parts.append(
+                _TASK_CONFIG.format(
+                    idx=i,
+                    total=total,
+                    bench_name=bench.name,
+                    svc_url_var=model_url_var,
+                    svc_model_var=model_id_var,
+                    model_url_bash=model_url_var,
+                    model_id_bash=model_id_var,
+                    repeats=bench.repeats,
+                    safe_name=safe_name,
+                    run_prefix=run_prefix,
+                    extra_flags=config_extra_flags,
+                )
+            )
+        else:
+            extra_flags = ""
+            gen = getattr(bench.solver, "generation", None)
+            system_prompt = getattr(bench.solver, "system_prompt", None)
+            if system_prompt:
+                extra_flags += f"--system-prompt {shlex.quote(system_prompt)} "
+            if gen and gen.temperature is not None:
+                extra_flags += f"--temperature {gen.temperature} "
+            if gen and gen.max_tokens is not None:
+                extra_flags += f"--max-tokens {gen.max_tokens} "
+            if bench.max_problems is not None:
+                extra_flags += f"--max-problems {bench.max_problems} "
+            if cluster.auto_resume:
+                extra_flags += "--resume "
+
+            parts.append(
+                _TASK.format(
+                    idx=i,
+                    total=total,
+                    bench_name=bench.name,
+                    model_url_var=model_url_var,
+                    model_id_var=model_id_var,
+                    repeats=bench.repeats,
+                    extra_flags=extra_flags,
+                    safe_name=safe_name,
+                    run_prefix=run_prefix,
+                )
+            )
 
     if is_sharded:
         parts.append(_SHARD_MERGE_HINT.format(parent_output_dir=output_dir))
     else:
         report_cmds = []
         ext_map = {
-            "markdown": "md", "html": "html", "csv": "csv",
-            "json": "json", "latex": "tex",
+            "markdown": "md",
+            "html": "html",
+            "csv": "csv",
+            "json": "json",
+            "latex": "tex",
         }
         for fmt in config.output.report:
             ext = ext_map.get(fmt, fmt)
-            report_cmds.append(
-                f'nel eval report "$OUTPUT_DIR" -f {fmt} -o "$OUTPUT_DIR/report.{ext}"'
-            )
+            report_cmds.append(f'{eval_run_prefix}nel eval report "$OUTPUT_DIR" -f {fmt} -o "$OUTPUT_DIR/report.{ext}"')
         if report_cmds:
             parts.append(_REPORT.format(report_commands="\n".join(report_cmds)))
-
-        if cluster.auto_resume:
-            parts.append(_AUTO_RESUME.format(
-                max_attempts=cluster.max_resume_attempts,
-                script_path="$OUTPUT_DIR/nel_eval.sbatch",
-            ))
 
     if sb_bench and isinstance(sb_bench.sandbox, ApptainerSandbox):
         het_group_flag = (
@@ -702,25 +1012,104 @@ def generate_sbatch(config: EvalConfig) -> str:
     for name, svc in config.services.items():
         if not isinstance(svc, ExternalApiService):
             upper = _safe(name).upper()
-            kill_cmds.append(f'kill ${upper}_PID 2>/dev/null || true')
+            kill_cmds.append(f"    [ -n \"${{{upper}_PID:-}}\" ] && kill ${upper}_PID 2>/dev/null || true")
     for name, svc in config.services.items():
         if not isinstance(svc, ExternalApiService):
             upper = _safe(name).upper()
-            kill_cmds.append(f'wait ${upper}_PID 2>/dev/null || true')
+            kill_cmds.append(f"    [ -n \"${{{upper}_PID:-}}\" ] && wait ${upper}_PID 2>/dev/null || true")
 
-    parts.append(_CLEANUP.format(
-        kill_commands="\n".join(kill_cmds) if kill_cmds else "echo 'No managed services.'"
-    ))
+    auto_resume_in_cleanup = ""
+    if not is_sharded and cluster.auto_resume:
+        _raw = _AUTO_RESUME.format(
+            max_attempts=cluster.max_resume_attempts,
+            total_benchmarks=len(config.benchmarks),
+            script_path="$OUTPUT_DIR/nel_eval.sbatch",
+        )
+        auto_resume_in_cleanup = "\n".join(
+            ("    " + line) if line.strip() else ""
+            for line in _raw.strip().splitlines()
+        )
 
-    return "\n".join(parts)
+    cleanup_body = "\n".join(kill_cmds) if kill_cmds else "    echo 'No managed services.'"
+    parts.insert(1, _CLEANUP_FUNC.format(kill_commands=cleanup_body, auto_resume=auto_resume_in_cleanup))
+
+    parts.append(_FOOTER)
+
+    return "\n".join(parts), sidecar_configs, secrets_env
 
 
-def write_sbatch(config: EvalConfig, output_dir: str | Path | None = None) -> Path:
+def _redact(value: str) -> str:
+    """Mask a secret value for display, showing only the last 4 chars.
+
+    Matches the old evaluator's ``redact_secrets_env_content()`` behaviour:
+    all values are redacted (no name-based heuristic).
+    """
+    if len(value) <= 4:
+        return "***"
+    return f"***{value[-4:]}"
+
+
+def _run_id(config: EvalConfig) -> str:
+    """Generate a timestamped run ID: YYYYMMDD_HHMMSSZ-{hash8}.
+
+    The hash is derived from benchmark names and model identifiers to
+    avoid collisions when multiple jobs are submitted in the same second.
+    """
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    parts: list[str] = []
+    for b in config.benchmarks:
+        parts.append(b.name)
+        svc_name = getattr(b.solver, "service", "")
+        svc = config.services.get(svc_name) if svc_name else None
+        if svc:
+            parts.append(getattr(svc, "model", "") or "")
+    digest = hashlib.sha256("|".join(parts).encode()).hexdigest()[:8]
+    return f"{ts}_{digest}"
+
+
+def stamp_output_dir(config: EvalConfig) -> None:
+    """Append a timestamped run-ID subdirectory to config.output.dir.
+
+    Called once before write_sbatch / generate_sbatch so the timestamped
+    path is baked into the sbatch script and all metadata.  Skipped when
+    running inside a SLURM job (NEL_INNER_EXECUTION=1) or when the user
+    has opted out (output.timestamped=false).
+    """
+    if (
+        not config.output.timestamped
+        or os.environ.get("NEL_INNER_EXECUTION") == "1"
+    ):
+        return
+    config.output.dir = str(Path(config.output.dir) / _run_id(config))
+
+
+def write_sbatch(config: EvalConfig, output_dir: str | Path | None = None) -> tuple[Path, list[Path]]:
+    """Write sbatch script + sidecar config YAMLs + .secrets.env.
+
+    Returns (sbatch_path, list_of_extra_paths).
+    The extra paths include sidecar configs and .secrets.env, all of
+    which must be copied alongside the sbatch script for SSH submission.
+    """
     out = Path(output_dir or config.output.dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    script = generate_sbatch(config)
+    script, sidecar_configs, secrets_env = generate_sbatch(config)
     path = out / "nel_eval.sbatch"
     path.write_text(script, encoding="utf-8")
     path.chmod(0o755)
-    return path
+
+    extra_paths: list[Path] = []
+
+    if secrets_env:
+        secrets_path = out / ".secrets.env"
+        lines = [f"export {k}={shlex.quote(v)}" for k, v in secrets_env.items()]
+        secrets_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        secrets_path.chmod(0o600)
+        extra_paths.append(secrets_path)
+
+    for safe_name, cfg_dict in sidecar_configs.items():
+        cfg_path = out / f"config_{safe_name}.yaml"
+        cfg_path.write_text(yaml.dump(cfg_dict, default_flow_style=False, sort_keys=False), encoding="utf-8")
+        extra_paths.append(cfg_path)
+
+    return path, extra_paths

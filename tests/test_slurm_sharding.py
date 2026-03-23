@@ -1,78 +1,216 @@
 """Tests for SLURM array job generation and eval_loop shard_info."""
+
 from nemo_evaluator.eval.config import EvalConfig
 from nemo_evaluator.eval.slurm_gen import generate_sbatch
 
 
 def _make_slurm_config(shards=None, auto_resume=False):
-    return EvalConfig.model_validate({
-        "services": {
-            "model": {
-                "type": "api",
-                "url": "http://x/v1/chat/completions",
-                "protocol": "chat_completions",
+    return EvalConfig.model_validate(
+        {
+            "services": {
+                "model": {
+                    "type": "api",
+                    "url": "http://x/v1/chat/completions",
+                    "protocol": "chat_completions",
+                },
             },
-        },
-        "benchmarks": [
-            {"name": "gsm8k", "repeats": 5, "solver": {"type": "simple", "service": "model"}},
-        ],
-        "cluster": {
-            "type": "slurm",
-            "walltime": "02:00:00",
-            "auto_resume": auto_resume,
-            "shards": shards,
-            "node_pools": {
-                "compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"},
+            "benchmarks": [
+                {"name": "gsm8k", "repeats": 5, "solver": {"type": "simple", "service": "model"}},
+            ],
+            "cluster": {
+                "type": "slurm",
+                "walltime": "02:00:00",
+                "auto_resume": auto_resume,
+                "shards": shards,
+                "node_pools": {
+                    "compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"},
+                },
             },
-        },
-    })
+        }
+    )
 
 
 class TestSbatchArrayGeneration:
     def test_no_shards_no_array(self):
         cfg = _make_slurm_config(shards=None)
-        script = generate_sbatch(cfg)
+        script, _, _ = generate_sbatch(cfg)
         assert "--array" not in script
         assert "NEL_SHARD_IDX" not in script
         assert "nel eval merge" not in script
 
     def test_shards_emits_array(self):
         cfg = _make_slurm_config(shards=4)
-        script = generate_sbatch(cfg)
+        script, _, _ = generate_sbatch(cfg)
         assert "#SBATCH --array=0-3" in script
 
     def test_shards_exports_env_vars(self):
         cfg = _make_slurm_config(shards=8)
-        script = generate_sbatch(cfg)
+        script, _, _ = generate_sbatch(cfg)
         assert "export NEL_SHARD_IDX=$SLURM_ARRAY_TASK_ID" in script
         assert "export NEL_TOTAL_SHARDS=$SLURM_ARRAY_TASK_COUNT" in script
 
     def test_shards_per_shard_output_dir(self):
         cfg = _make_slurm_config(shards=4)
-        script = generate_sbatch(cfg)
+        script, _, _ = generate_sbatch(cfg)
         assert 'OUTPUT_DIR="$OUTPUT_DIR/shard_$SLURM_ARRAY_TASK_ID"' in script
 
     def test_shards_skips_report(self):
         cfg = _make_slurm_config(shards=4)
-        script = generate_sbatch(cfg)
+        script, _, _ = generate_sbatch(cfg)
         assert "nel eval report" not in script
 
     def test_shards_skips_auto_resume(self):
         """auto_resume + shards is rejected at config level, but verify script
         doesn't contain resume logic when shards is set."""
         cfg = _make_slurm_config(shards=4)
-        script = generate_sbatch(cfg)
+        script, _, _ = generate_sbatch(cfg)
         assert "ATTEMPT_FILE" not in script
         assert "resubmitting" not in script.lower()
 
     def test_shards_includes_merge_hint(self):
         cfg = _make_slurm_config(shards=4)
-        script = generate_sbatch(cfg)
+        script, _, _ = generate_sbatch(cfg)
         assert "nel eval merge" in script
 
     def test_no_shards_has_report(self):
         cfg = _make_slurm_config(shards=None)
-        script = generate_sbatch(cfg)
+        script, _, _ = generate_sbatch(cfg)
         assert "nel eval report" in script
+
+
+class TestSidecarConfigGeneration:
+    """Complex benchmarks (harbor solver + ecs sandbox) generate sidecar YAML."""
+
+    def test_harbor_bench_gets_sidecar(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "http://x/v1/chat/completions",
+                        "protocol": "chat_completions",
+                    },
+                },
+                "benchmarks": [
+                    {
+                        "name": "harbor://swebench-verified@1.0",
+                        "solver": {"type": "harbor", "service": "model", "agent": "openhands-sdk"},
+                        "sandbox": {"type": "ecs_fargate", "region": "us-west-2"},
+                    }
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1}},
+                },
+            }
+        )
+        script, sidecars, _ = generate_sbatch(cfg)
+        assert len(sidecars) == 1
+        key = list(sidecars.keys())[0]
+        sidecar = sidecars[key]
+        assert sidecar["services"]["model"]["type"] == "api"
+        assert "${MODEL_URL}" in sidecar["services"]["model"]["url"]
+        assert "${MODEL_MODEL}" in sidecar["services"]["model"]["model"]
+        assert sidecar["benchmarks"][0]["solver"]["type"] == "harbor"
+        assert sidecar["benchmarks"][0]["sandbox"]["type"] == "ecs_fargate"
+        assert "nel eval run" in script
+        assert f"config_{key}.yaml" in script
+        assert "srun --overlap" not in script.split("nel eval run")[0].split("Benchmark 1/1")[-1]
+
+    def test_simple_bench_uses_quick_mode(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "http://x/v1/chat/completions",
+                        "protocol": "chat_completions",
+                    },
+                },
+                "benchmarks": [
+                    {
+                        "name": "gsm8k",
+                        "solver": {"type": "simple", "service": "model"},
+                    }
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1}},
+                },
+            }
+        )
+        script, sidecars, _ = generate_sbatch(cfg)
+        assert len(sidecars) == 0
+        assert '--bench "gsm8k"' in script
+
+    def test_secrets_not_in_sbatch_script(self):
+        """Credentials must go to .secrets.env, not inline in the sbatch script."""
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "http://x/v1/chat/completions",
+                        "protocol": "chat_completions",
+                    },
+                },
+                "benchmarks": [
+                    {
+                        "name": "gsm8k",
+                        "solver": {"type": "simple", "service": "model"},
+                    }
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "container_env": {
+                        "HF_TOKEN": "hf_SUPERSECRET1234",
+                        "AWS_SECRET_ACCESS_KEY": "wJalrXUtnFEMI/K7MDENG",
+                    },
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1}},
+                },
+            }
+        )
+        script, _, secrets_env = generate_sbatch(cfg)
+        assert "hf_SUPERSECRET1234" not in script
+        assert "wJalrXUtnFEMI/K7MDENG" not in script
+        assert "source" in script and ".secrets.env" in script
+        assert secrets_env["HF_TOKEN"] == "hf_SUPERSECRET1234"
+        assert secrets_env["AWS_SECRET_ACCESS_KEY"] == "wJalrXUtnFEMI/K7MDENG"
+
+    def test_shards_plus_sidecar_rejected(self):
+        """Sharding with complex benchmarks must raise at generation time."""
+        import pytest
+
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "http://x/v1/chat/completions",
+                        "protocol": "chat_completions",
+                    },
+                },
+                "benchmarks": [
+                    {
+                        "name": "harbor://swebench-verified@1.0",
+                        "solver": {"type": "harbor", "service": "model", "agent": "openhands"},
+                        "sandbox": {"type": "ecs_fargate", "region": "us-west-2"},
+                    }
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "shards": 4,
+                    "auto_resume": False,
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1}},
+                },
+            }
+        )
+        with pytest.raises(ValueError, match="incompatible"):
+            generate_sbatch(cfg)
 
 
 class TestShardInfoComputation:

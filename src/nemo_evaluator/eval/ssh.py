@@ -1,24 +1,112 @@
 """SSH submission: copy scripts to a SLURM login node and submit via sbatch."""
+
 from __future__ import annotations
 
-import json
+import atexit
 import logging
+import shlex
 import subprocess
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+_control_sockets: list[tuple[str, str]] = []
 
 
 class SSHError(RuntimeError):
     pass
 
 
+def _ssh_opts(target: str) -> list[str]:
+    """Return SSH options that enable connection multiplexing.
+
+    First call for a given target opens a ControlMaster; subsequent calls
+    reuse it — so the user authenticates only once.
+    """
+    socket_dir = Path.home() / ".ssh" / "nel"
+    socket_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if socket_dir.stat().st_mode & 0o077:
+        socket_dir.chmod(0o700)
+    control_path = str(socket_dir / "%C")
+
+    if not any(t == target for t, _ in _control_sockets):
+        _control_sockets.append((target, control_path))
+
+    return [
+        "-o",
+        f"ControlPath={control_path}",
+        "-o",
+        "ControlMaster=auto",
+        "-o",
+        "ControlPersist=120",
+    ]
+
+
+def _cleanup_sockets() -> None:
+    for target, control_path in _control_sockets:
+        try:
+            subprocess.run(
+                ["ssh", "-o", f"ControlPath={control_path}", "-O", "exit", target],
+                capture_output=True,
+                timeout=5,
+            )
+        except Exception:
+            pass
+
+
+atexit.register(_cleanup_sockets)
+
+
 def _run(cmd: list[str], timeout: float = 30.0) -> str:
     logger.debug("Running: %s", " ".join(cmd))
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as e:
+        raise SSHError(f"Timed out after {timeout}s: {' '.join(cmd)}") from e
     if result.returncode != 0:
         raise SSHError(f"Command failed ({result.returncode}): {' '.join(cmd)}\n{result.stderr}")
     return result.stdout.strip()
+
+
+def _ensure_master(target: str) -> None:
+    """Open a ControlMaster connection if one isn't already active.
+
+    Runs with inherited stdin/stdout so the user can type a password
+    or respond to host-key prompts interactively.
+    """
+    opts = _ssh_opts(target)
+    check = subprocess.run(
+        ["ssh", *opts, "-O", "check", target],
+        capture_output=True,
+        timeout=5,
+    )
+    if check.returncode == 0:
+        return
+
+    logger.info("Opening SSH connection to %s ...", target)
+    result = subprocess.run(
+        ["ssh", *opts, target, "true"],
+        timeout=30,
+    )
+    if result.returncode != 0:
+        raise SSHError(f"Failed to open SSH connection to {target}")
+
+
+def _ssh(target: str, remote_cmd: str, timeout: float = 30.0) -> str:
+    _ensure_master(target)
+    return _run(["ssh", *_ssh_opts(target), target, remote_cmd], timeout=timeout)
+
+
+def ssh_run(hostname: str, remote_cmd: str, username: str | None = None,
+            timeout: float = 30.0) -> str:
+    """Public API: run a command on a remote host via SSH."""
+    target = f"{username}@{hostname}" if username else hostname
+    return _ssh(target, remote_cmd, timeout=timeout)
+
+
+def _scp(local_path: str, remote_dest: str, target: str, timeout: float = 60.0) -> str:
+    _ensure_master(target)
+    return _run(["scp", "-p", *_ssh_opts(target), local_path, remote_dest], timeout=timeout)
 
 
 def _ssh_target(hostname: str, username: str | None = None) -> str:
@@ -33,13 +121,22 @@ def copy_to_remote(
     remote_dir: str,
     username: str | None = None,
 ) -> None:
-    """Copy files to the remote host via scp."""
+    """Copy files to the remote host via scp, preserving permissions."""
     target = _ssh_target(hostname, username)
 
-    _run(["ssh", target, "mkdir", "-p", remote_dir], timeout=15.0)
+    has_secrets = any(p.name == ".secrets.env" for p in local_paths)
+    if has_secrets:
+        _ssh(
+            target,
+            f"mkdir -p {shlex.quote(remote_dir)} && "
+            f"install -m 600 /dev/null {shlex.quote(remote_dir + '/.secrets.env')}",
+            timeout=15.0,
+        )
+    else:
+        _ssh(target, f"mkdir -p {shlex.quote(remote_dir)}", timeout=15.0)
 
     for p in local_paths:
-        _run(["scp", str(p), f"{target}:{remote_dir}/"], timeout=60.0)
+        _scp(str(p), f"{target}:{remote_dir}/", target)
         logger.info("Copied %s -> %s:%s/", p.name, target, remote_dir)
 
 
@@ -50,7 +147,7 @@ def submit_sbatch(
 ) -> str:
     """Submit an sbatch script on the remote host and return the SLURM job ID."""
     target = _ssh_target(hostname, username)
-    output = _run(["ssh", target, "sbatch", remote_script], timeout=30.0)
+    output = _ssh(target, f"sbatch {shlex.quote(remote_script)}")
 
     # sbatch output: "Submitted batch job 12345"
     parts = output.split()
@@ -64,19 +161,19 @@ def check_job_status(
     job_id: str,
     username: str | None = None,
 ) -> dict[str, str]:
-    """Check SLURM job status via squeue."""
+    """Check SLURM job status via squeue, falling back to sacct."""
     target = _ssh_target(hostname, username)
     try:
-        output = _run([
-            "ssh", target,
-            "squeue", "--job", job_id, "--noheader",
-            "--format=%i|%j|%T|%M|%N",
-        ], timeout=15.0)
+        output = _ssh(
+            target,
+            f"squeue --job {shlex.quote(job_id)} --noheader --format=%i|%j|%T|%M|%N",
+            timeout=15.0,
+        )
     except SSHError:
         return {"job_id": job_id, "state": "UNKNOWN"}
 
     if not output.strip():
-        return {"job_id": job_id, "state": "COMPLETED"}
+        return _sacct_status(target, job_id)
 
     fields = output.strip().split("|")
     if len(fields) >= 5:
@@ -90,6 +187,28 @@ def check_job_status(
     return {"job_id": job_id, "state": output.strip()}
 
 
+def _sacct_status(target: str, job_id: str) -> dict[str, str]:
+    """Fall back to sacct for completed/failed jobs no longer in squeue."""
+    try:
+        output = _ssh(
+            target,
+            f"sacct -j {shlex.quote(job_id)} --noheader --parsable2 --format=JobID,State,ExitCode -n",
+            timeout=15.0,
+        )
+    except SSHError:
+        return {"job_id": job_id, "state": "UNKNOWN"}
+
+    for line in output.strip().splitlines():
+        fields = line.split("|")
+        if len(fields) >= 3 and fields[0] == job_id:
+            return {
+                "job_id": job_id,
+                "state": fields[1],
+                "exit_code": fields[2],
+            }
+    return {"job_id": job_id, "state": "UNKNOWN"}
+
+
 def cancel_job(
     hostname: str,
     job_id: str,
@@ -97,7 +216,7 @@ def cancel_job(
 ) -> None:
     """Cancel a SLURM job via scancel."""
     target = _ssh_target(hostname, username)
-    _run(["ssh", target, "scancel", job_id], timeout=15.0)
+    _ssh(target, f"scancel {shlex.quote(job_id)}", timeout=15.0)
     logger.info("Cancelled SLURM job %s", job_id)
 
 
@@ -115,16 +234,10 @@ def submit_eval(
     remote_script = f"{remote_dir}/{script_path.name}"
     job_id = submit_sbatch(hostname, remote_script, username)
 
-    metadata = {
+    return {
         "job_id": job_id,
         "hostname": hostname,
         "username": username or "",
         "remote_dir": remote_dir,
         "script": remote_script,
     }
-
-    meta_path = script_path.parent / "slurm_job.json"
-    meta_path.write_text(json.dumps(metadata, indent=2))
-    logger.info("SLURM job %s submitted. Metadata: %s", job_id, meta_path)
-
-    return metadata

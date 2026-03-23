@@ -1,4 +1,5 @@
 """Tests for eval config schema validation and env var expansion."""
+
 import pytest
 import warnings
 
@@ -198,11 +199,13 @@ class TestParseEvalConfig:
         cfg = EvalConfig(
             services={
                 "vllm_model": VllmService(
-                    type="vllm", model="Qwen/Qwen3.5-9B",
+                    type="vllm",
+                    model="Qwen/Qwen3.5-9B",
                     protocol="chat_completions",
                 ),
                 "external": ExternalApiService(
-                    type="api", url="http://x/v1/chat/completions",
+                    type="api",
+                    url="http://x/v1/chat/completions",
                     protocol="chat_completions",
                 ),
             },
@@ -292,8 +295,10 @@ class TestServiceValidation:
                         scoring=ScoringConfig(
                             metrics=[
                                 JudgeMetric(
-                                    type="judge", name="test",
-                                    service="s", max_score=5.0,
+                                    type="judge",
+                                    name="test",
+                                    service="s",
+                                    max_score=5.0,
                                 ),
                             ],
                         ),
@@ -317,8 +322,10 @@ class TestServiceValidation:
                     scoring=ScoringConfig(
                         metrics=[
                             JudgeMetric(
-                                type="judge", name="test",
-                                service="s", max_score=5.0,
+                                type="judge",
+                                name="test",
+                                service="s",
+                                max_score=5.0,
                                 allow_self_judge=True,
                             ),
                         ],
@@ -344,7 +351,8 @@ class TestSandboxValidation:
                     BenchmarkConfig(
                         name="swebench",
                         solver=HarborSolverConfig(
-                            type="harbor", service="s",
+                            type="harbor",
+                            service="s",
                             agent="openhands",
                         ),
                     ),
@@ -364,7 +372,8 @@ class TestSandboxValidation:
                 BenchmarkConfig(
                     name="swebench",
                     solver=HarborSolverConfig(
-                        type="harbor", service="s",
+                        type="harbor",
+                        service="s",
                         agent="openhands",
                     ),
                     sandbox=DockerSandbox(type="docker"),
@@ -463,6 +472,7 @@ class TestUrlProtocolWarning:
 
 # ── Sharding config tests ───────────────────────────────────────────
 
+
 def _slurm_config(**cluster_overrides):
     """Helper to build a minimal shardable SLURM config."""
     cluster = {
@@ -473,8 +483,7 @@ def _slurm_config(**cluster_overrides):
     cluster.update(cluster_overrides)
     return {
         "services": {
-            "model": {"type": "api", "url": "http://x/v1/chat/completions",
-                       "protocol": "chat_completions"},
+            "model": {"type": "api", "url": "http://x/v1/chat/completions", "protocol": "chat_completions"},
         },
         "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
         "cluster": cluster,
@@ -487,7 +496,7 @@ class TestShardsField:
         assert cfg.cluster.shards is None
 
     def test_shards_accepted(self):
-        cfg = EvalConfig.model_validate(_slurm_config(shards=4))
+        cfg = EvalConfig.model_validate(_slurm_config(shards=4, auto_resume=False))
         assert cfg.cluster.shards == 4
 
     def test_shards_zero_rejected(self):
@@ -501,24 +510,32 @@ class TestShardsField:
 
 class TestShardsHetJobGuard:
     def test_shards_with_single_pool_ok(self):
-        cfg = EvalConfig.model_validate(_slurm_config(shards=4))
+        cfg = EvalConfig.model_validate(_slurm_config(shards=4, auto_resume=False))
         assert cfg.cluster.shards == 4
 
     def test_shards_with_multi_pool_raises(self):
         raw = {
             "services": {
                 "model": {
-                    "type": "vllm", "model": "m", "protocol": "chat_completions",
-                    "port": 8000, "node_pool": "gpu",
+                    "type": "vllm",
+                    "model": "m",
+                    "protocol": "chat_completions",
+                    "port": 8000,
+                    "node_pool": "gpu",
                 },
             },
-            "benchmarks": [{
-                "name": "gsm8k",
-                "solver": {"type": "simple", "service": "model"},
-                "sandbox": {"type": "slurm", "image": "ubuntu:22.04", "node_pool": "cpu"},
-            }],
+            "benchmarks": [
+                {
+                    "name": "gsm8k",
+                    "solver": {"type": "simple", "service": "model"},
+                    "sandbox": {"type": "slurm", "image": "ubuntu:22.04", "node_pool": "cpu"},
+                }
+            ],
             "cluster": {
-                "type": "slurm", "walltime": "01:00:00", "shards": 4,
+                "type": "slurm",
+                "walltime": "01:00:00",
+                "shards": 4,
+                "auto_resume": False,
                 "node_pools": {
                     "gpu": {"partition": "gpu", "nodes": 1, "gres": "gpu:4"},
                     "cpu": {"partition": "cpu", "nodes": 2},

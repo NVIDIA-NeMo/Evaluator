@@ -1,0 +1,99 @@
+# SLURM + vLLM (Nemotron-3-Super-FP8) + Terminal-Bench v1 BYOB + ECS Fargate
+#
+# Deploys vLLM on a GPU node, evaluates terminal-bench-v1 (BYOB)
+# with the Terminus-2 agent. ECS Fargate provides sandboxed envs.
+#
+# Prerequisites:
+#   - SLURM cluster access (OCI-HSG or similar)
+#   - AWS credentials: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+#   - HF_TOKEN for model download
+#   - Terraform applied for us-west-2 ECS region
+#   - git (for cloning terminal-bench repo on first run)
+#   - pip install nemo-evaluator[harbor]
+#
+# Run:
+#   nel eval run examples/configs/26_slurm_terminalbench_v1_super.yaml --dry-run
+#   nel eval run examples/configs/26_slurm_terminalbench_v1_super.yaml
+
+services:
+  nemotron:
+    type: vllm
+    model: nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8
+    protocol: chat_completions
+    port: 8000
+    tensor_parallel_size: 2
+    image: vllm/vllm-openai:v0.18.0-cu130
+    startup_timeout: 1800.0
+    extra_args:
+      - "--async-scheduling"
+      - "--dtype=auto"
+      - "--kv-cache-dtype=fp8"
+      - "--trust-remote-code"
+      - "--attention-backend=TRITON_ATTN"
+      - "--gpu-memory-utilization=0.9"
+      - "--enable-chunked-prefill"
+      - "--max-num-seqs=256"
+      - "--enable-auto-tool-choice"
+      - "--tool-call-parser=qwen3_coder"
+      - "--reasoning_parser=nemotron_v3"
+    extra_env:
+      VLLM_CACHE_ROOT: /cache/vllm
+      VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+    container_mounts:
+      - /lustre/fsw/portfolios/coreai/users/${USER}/cache/vllm:/cache/vllm
+    generation:
+      temperature: 1.0
+      top_p: 0.95
+      max_tokens: 131072
+    interceptors:
+      - name: turn_counter
+        config:
+          max_turns: 100
+    proxy_verbose: false
+    node_pool: gpu
+
+benchmarks:
+  - name: terminal-bench-v1
+    max_concurrent: 5
+    timeout: 3600.0
+    # max_problems: 5  # uncomment for smoke-testing
+    solver:
+      type: harbor
+      service: nemotron
+      agent: terminus-2
+    sandbox:
+      type: ecs_fargate
+      region: us-west-1
+      cpu: "4096"
+      memory: "16384"
+      ephemeral_storage_gib: 50
+      max_task_lifetime_sec: 10800
+      log_stream_prefix: terminalbench-super
+      timeout: 600.0
+      concurrency: 5
+
+cluster:
+  type: slurm
+  hostname: cw-dfw-cs-001-login-01
+  account: coreai_dlalgo_compeval
+  walltime: "04:00:00"
+  eval_image: gitlab-master.nvidia.com:5005/dl/JoC/competitive_evaluation/nemo-evaluator-next:latest-harbor
+  container_mounts:
+    - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
+  container_env:
+    HF_TOKEN: ${HF_TOKEN}
+    HF_HOME: /cache/huggingface
+    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    AWS_DEFAULT_REGION: us-west-2
+    LLM_API_KEY: "no-key-needed"
+  mount_home: false
+  node_pools:
+    gpu:
+      partition: batch
+      nodes: 1
+      ntasks_per_node: 1
+      gres: "gpu:4"
+
+output:
+  dir: /lustre/fsw/portfolios/coreai/users/${USER}/nemo-evaluator-rundirs/super-fp8/terminalbench-v1

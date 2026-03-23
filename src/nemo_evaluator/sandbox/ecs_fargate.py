@@ -653,7 +653,8 @@ class ImageBuilder:
     @staticmethod
     def image_exists_in_ecr(ecr_repository: str, tag: str, region: str | None = None) -> bool:
         boto3, _, ClientError = _require_aws_sdks()
-        ecr = boto3.client("ecr", region_name=region)
+        ecr_region = ImageBuilder._ecr_region(ecr_repository, fallback=region)
+        ecr = boto3.client("ecr", region_name=ecr_region)
         repo_name = ecr_repository.split("/", 1)[1] if "/" in ecr_repository else ecr_repository
         try:
             ecr.describe_images(repositoryName=repo_name, imageIds=[{"imageTag": tag}])
@@ -665,6 +666,14 @@ class ImageBuilder:
             raise
 
     @staticmethod
+    def _ecr_region(ecr_repository: str, fallback: str | None = None) -> str | None:
+        """Extract the region from an ECR repo URL like '123.dkr.ecr.us-west-2.amazonaws.com/repo'."""
+        parts = ecr_repository.split(".")
+        if len(parts) >= 4 and parts[1] == "dkr" and parts[2] == "ecr":
+            return parts[3]
+        return fallback
+
+    @staticmethod
     def list_ecr_tags(ecr_repository: str, region: str | None = None) -> set[str]:
         """Return all image tags present in an ECR repository.
 
@@ -673,7 +682,8 @@ class ImageBuilder:
         call per tag.
         """
         boto3, _, ClientError = _require_aws_sdks()
-        ecr = boto3.client("ecr", region_name=region)
+        ecr_region = ImageBuilder._ecr_region(ecr_repository, fallback=region)
+        ecr = boto3.client("ecr", region_name=ecr_region)
         repo_name = ecr_repository.split("/", 1)[1] if "/" in ecr_repository else ecr_repository
         tags: set[str] = set()
         try:
@@ -780,8 +790,9 @@ class ImageBuilder:
     @staticmethod
     def _generate_buildspec(cfg: EcsFargateConfig, repo_name: str, tag: str, image_url: str) -> str:
         ecr_registry = (cfg.ecr_repository or "").split("/")[0]
+        ecr_region = ImageBuilder._ecr_region(cfg.ecr_repository or "", fallback="$AWS_DEFAULT_REGION")
         pre_build_cmds = [
-            f"aws ecr get-login-password --region $AWS_DEFAULT_REGION"
+            f"aws ecr get-login-password --region {ecr_region}"
             f" | docker login --username AWS --password-stdin {ecr_registry}",
         ]
         if cfg.dockerhub_secret_arn:

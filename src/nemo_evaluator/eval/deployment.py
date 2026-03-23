@@ -23,7 +23,7 @@ class DeployConfig:
     model: str | None = None
     gpus: int = 1
     port: int = 8000
-    health_path: str = "/v1/health/ready"
+    health_path: str = "/health"
     startup_timeout: float = 600.0
     extra_env: dict[str, str] = field(default_factory=dict)
     extra_args: list[str] = field(default_factory=list)
@@ -199,7 +199,7 @@ class NIMDeployment(DockerModelDeployment):
     def _build_docker_cmd(self) -> list[str]:
         c = self._config
         c.extra_env.setdefault("NIM_SERVED_MODEL_NAME", c.model or "model")
-        c.health_path = c.health_path or "/v1/health/ready"
+        c.health_path = c.health_path or "/health"
         return super()._build_docker_cmd()
 
 

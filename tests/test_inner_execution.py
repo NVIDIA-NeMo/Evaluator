@@ -4,7 +4,6 @@ from __future__ import annotations
 import os
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from nemo_evaluator.eval.config import (
     BenchmarkConfig,
@@ -141,20 +140,14 @@ class TestSlurmHeaderFlag:
 
         config = _make_config("slurm", bench="gsm8k")
 
-        script = generate_sbatch(config)
+        script, _, _ = generate_sbatch(config)
         assert "export NEL_INNER_EXECUTION=1" in script
 
-    def test_export_has_comment(self):
+    def test_unbuffered_python(self):
         from nemo_evaluator.eval.slurm_gen import generate_sbatch
 
         config = _make_config("slurm", bench="gsm8k")
 
-        script = generate_sbatch(config)
-        lines = script.splitlines()
-        for i, line in enumerate(lines):
-            if "export NEL_INNER_EXECUTION=1" in line:
-                assert i > 0 and "Prevent" in lines[i - 1], \
-                    "Export should be preceded by an explanatory comment"
-                break
-        else:
-            pytest.fail("export NEL_INNER_EXECUTION=1 not found in script")
+        script, _, _ = generate_sbatch(config)
+        assert "export PYTHONUNBUFFERED=1" in script, \
+            "PYTHONUNBUFFERED must be set for real-time log output in SLURM"

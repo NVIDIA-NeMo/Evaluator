@@ -12,6 +12,7 @@ Design:
   - Named sandboxes for reuse across benchmarks.
   - Cross-reference validation at parse time.
 """
+
 from __future__ import annotations
 
 import os
@@ -38,6 +39,7 @@ class GenerationConfig(BaseModel):
     Merge semantics: when a solver specifies generation, each non-None
     field overrides the corresponding service-level field.  Fields left
     as None inherit from the service's generation config."""
+
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
     top_p: float | None = Field(default=None, ge=0.0, le=1.0)
     max_tokens: int | None = Field(default=None, gt=0)
@@ -56,6 +58,7 @@ class GenerationConfig(BaseModel):
 
 class InterceptorConfig(BaseModel):
     """A LiteLLM interceptor attached to a service's proxy."""
+
     name: str
     config: dict[str, Any] = Field(default_factory=dict)
 
@@ -63,18 +66,21 @@ class InterceptorConfig(BaseModel):
 class _ModelServerBase(BaseModel):
     """Shared fields for locally-deployed model servers (vllm, sglang,
     nim, docker_model).  NEL starts these servers and knows their URL."""
+
     model: str
     port: int = 8000
     protocol: Protocol
     tensor_parallel_size: int | None = None
     pipeline_parallel_size: int | None = None
+    data_parallel_size: int | None = None
     num_nodes: int = 1
     gpus: list[int] | int | None = None
     image: str | None = None
-    health_path: str = "/v1/health/ready"
+    health_path: str = "/health"
     startup_timeout: float = 600.0
     extra_env: dict[str, str] = Field(default_factory=dict)
     extra_args: list[str] = Field(default_factory=list)
+    container_mounts: list[str] = Field(default_factory=list)
     reasoning_pattern: str | None = None
     max_input_tokens: int | None = None
     max_output_tokens: int | None = None
@@ -119,6 +125,7 @@ class ExternalApiService(BaseModel):
     `url` is the FULL URL where requests are sent (always include path).
     `protocol` is the wire format (can decouple for experimental endpoints).
     """
+
     type: Literal["api"] = "api"
     url: str
     protocol: Protocol
@@ -164,7 +171,8 @@ class ExternalApiService(BaseModel):
                     warnings.warn(
                         f"Service url '{self.url}' ends with '{suffix}' but "
                         f"protocol is '{self.protocol}' (expected '{expected}').",
-                        UserWarning, stacklevel=2,
+                        UserWarning,
+                        stacklevel=2,
                     )
                 break
         return self
@@ -173,6 +181,7 @@ class ExternalApiService(BaseModel):
 class GymResourceService(BaseModel):
     """A nemo-gym resource server (exposes /seed_session, /verify, tool
     endpoints).  Not a model — no protocol/generation/interceptors."""
+
     type: Literal["gym"] = "gym"
     url: str | None = None
     port: int = 8000
@@ -200,6 +209,7 @@ class GymResourceService(BaseModel):
 
 class NatAgentService(BaseModel):
     """A NAT agent server."""
+
     type: Literal["nat"] = "nat"
     port: int = 8000
     image: str | None = None
@@ -223,6 +233,7 @@ class NatAgentService(BaseModel):
 
 class CustomService(BaseModel):
     """Plugin service — dynamically imported from class_path."""
+
     type: Literal["custom"] = "custom"
     class_path: str
     config: dict[str, Any] = Field(default_factory=dict)
@@ -248,10 +259,7 @@ def _service_discriminator(v: Any) -> str:
         return t
     t = getattr(v, "type", None)
     if t is None:
-        raise ValueError(
-            f"Cannot determine service type from {type(v).__name__}. "
-            f"Expected a dict with a 'type' field."
-        )
+        raise ValueError(f"Cannot determine service type from {type(v).__name__}. Expected a dict with a 'type' field.")
     return t
 
 
@@ -268,7 +276,11 @@ ServiceConfig = Annotated[
 ]
 
 _MODEL_SERVICE_TYPES = (
-    VllmService, SglangService, NimService, DockerModelService, ExternalApiService,
+    VllmService,
+    SglangService,
+    NimService,
+    DockerModelService,
+    ExternalApiService,
 )
 
 
@@ -279,6 +291,7 @@ _MODEL_SERVICE_TYPES = (
 
 class _SandboxBase(BaseModel):
     """Shared sandbox fields used by the eval loop / lifecycle."""
+
     capture_cmd: str | None = None
     verify_timeout: float = 600.0
 
@@ -311,6 +324,7 @@ class EcsFargateSandbox(_SandboxBase):
     infrastructure from AWS SSM Parameter Store (written by Terraform).
     Any field explicitly set in YAML overrides the SSM default.
     """
+
     type: Literal["ecs_fargate"] = "ecs_fargate"
     image: str | None = None
     image_template: str | None = None
@@ -347,6 +361,7 @@ class EcsFargateSandbox(_SandboxBase):
 
 class _SlurmSandboxBase(_SandboxBase):
     """Shared fields for SLURM-based sandboxes (Pyxis/Enroot and Apptainer)."""
+
     image: str | None = None
     image_template: str | None = None
     memory: str = "4g"
@@ -382,6 +397,7 @@ class NoSandbox(BaseModel):
 
 class CustomSandbox(BaseModel):
     """Plugin sandbox backend — dynamically imported from class_path."""
+
     type: Literal["custom"] = "custom"
     class_path: str
     config: dict[str, Any] = Field(default_factory=dict)
@@ -395,10 +411,7 @@ def _sandbox_discriminator(v: Any) -> str:
         return t
     t = getattr(v, "type", None)
     if t is None:
-        raise ValueError(
-            f"Cannot determine sandbox type from {type(v).__name__}. "
-            f"Expected a dict with a 'type' field."
-        )
+        raise ValueError(f"Cannot determine sandbox type from {type(v).__name__}. Expected a dict with a 'type' field.")
     return t
 
 
@@ -421,6 +434,7 @@ SandboxConfig = Annotated[
 class SimpleSolver(BaseModel):
     """Unified solver for chat completions, text completions, and VLM.
     The service's `protocol` field determines the API format."""
+
     type: Literal["simple"] = "simple"
     service: str
     system_prompt: str | None = None
@@ -430,6 +444,7 @@ class SimpleSolver(BaseModel):
 
 class HarborSolverConfig(BaseModel):
     """Harbor agent solver — runs a Harbor agent inside a sandbox."""
+
     type: Literal["harbor"] = "harbor"
     service: str
     agent: str
@@ -439,6 +454,7 @@ class HarborSolverConfig(BaseModel):
 
 class AgentSolverConfig(BaseModel):
     """Agent-as-library solver — imports agent into NEL process."""
+
     type: Literal["agent"] = "agent"
     service: str
     framework: str = "harbor"
@@ -452,6 +468,7 @@ class ToolCallingSolverConfig(BaseModel):
     At least one of ``resource_service`` (Gym HTTP tools) or ``sandbox_tools``
     (bash/file tools in sandbox) must be configured.
     """
+
     type: Literal["tool_calling"] = "tool_calling"
     service: str
     resource_service: str | None = None
@@ -475,6 +492,7 @@ class ToolCallingSolverConfig(BaseModel):
 
 class GymDelegationSolverConfig(BaseModel):
     """Delegates entire agent loop to a Gym agent server (/run endpoint)."""
+
     type: Literal["gym_delegation"] = "gym_delegation"
     service: str
     gym_service: str
@@ -484,12 +502,14 @@ class GymDelegationSolverConfig(BaseModel):
 
 class NatSolverConfig(BaseModel):
     """NAT agent solver."""
+
     type: Literal["nat"] = "nat"
     service: str
 
 
 class OpenClawSolverConfig(BaseModel):
     """OpenClaw subprocess solver."""
+
     type: Literal["openclaw"] = "openclaw"
     service: str
     thinking: str = "high"
@@ -507,6 +527,7 @@ class ContainerSolverConfig(BaseModel):
     ``config.type``, ``target.api_endpoint``, and any extra ``params``
     defined here merged into ``config.params``.
     """
+
     type: Literal["container"] = "container"
     service: str
     uri: str
@@ -523,6 +544,7 @@ class ContainerSolverConfig(BaseModel):
 
 class CustomSolverConfig(BaseModel):
     """Plugin solver — dynamically imported from class_path."""
+
     type: Literal["custom"] = "custom"
     service: str | None = None
     class_path: str
@@ -537,10 +559,7 @@ def _solver_discriminator(v: Any) -> str:
         return t
     t = getattr(v, "type", None)
     if t is None:
-        raise ValueError(
-            f"Cannot determine solver type from {type(v).__name__}. "
-            f"Expected a dict with a 'type' field."
-        )
+        raise ValueError(f"Cannot determine solver type from {type(v).__name__}. Expected a dict with a 'type' field.")
     return t
 
 
@@ -565,12 +584,14 @@ SolverConfig = Annotated[
 
 class ScorerMetric(BaseModel):
     """A function-based scorer from the registry."""
+
     type: Literal["scorer"] = "scorer"
     name: str
 
 
 class _JudgeBase(BaseModel):
     """Shared validation for judge metrics."""
+
     rubric: str | None = None
     rubric_file: str | None = None
 
@@ -583,6 +604,7 @@ class _JudgeBase(BaseModel):
 
 class JudgeMetric(_JudgeBase):
     """An LLM-as-judge metric."""
+
     type: Literal["judge"] = "judge"
     name: str
     service: str
@@ -598,6 +620,7 @@ class JudgeMetric(_JudgeBase):
 
 class PairwiseJudgeMetric(_JudgeBase):
     """Pairwise comparison judge."""
+
     type: Literal["pairwise_judge"] = "pairwise_judge"
     name: str
     judge_service: str
@@ -611,6 +634,7 @@ class PairwiseJudgeMetric(_JudgeBase):
 
 class EnsembleJudgeMetric(_JudgeBase):
     """Ensemble: multiple judge models score independently."""
+
     type: Literal["ensemble_judge"] = "ensemble_judge"
     name: str
     services: list[str] = Field(min_length=2)
@@ -623,6 +647,7 @@ class EnsembleJudgeMetric(_JudgeBase):
 
 class SandboxMetric(BaseModel):
     """Sandbox-based evaluation (run command, check exit code)."""
+
     type: Literal["sandbox"] = "sandbox"
     name: str
     command: str | None = None
@@ -631,6 +656,7 @@ class SandboxMetric(BaseModel):
 
 class RewardModelMetric(BaseModel):
     """A reward-model-as-judge metric."""
+
     type: Literal["reward_model"] = "reward_model"
     name: str
     service: str
@@ -651,6 +677,7 @@ class RewardModelMetric(BaseModel):
 
 class CustomMetric(BaseModel):
     """Plugin metric — dynamically imported from class_path."""
+
     type: Literal["custom"] = "custom"
     name: str
     class_path: str
@@ -665,10 +692,7 @@ def _metric_discriminator(v: Any) -> str:
         return t
     t = getattr(v, "type", None)
     if t is None:
-        raise ValueError(
-            f"Cannot determine metric type from {type(v).__name__}. "
-            f"Expected a dict with a 'type' field."
-        )
+        raise ValueError(f"Cannot determine metric type from {type(v).__name__}. Expected a dict with a 'type' field.")
     return t
 
 
@@ -686,6 +710,7 @@ MetricConfig = Annotated[
 
 class ScoringConfig(BaseModel):
     """Scoring pipeline for a benchmark."""
+
     include_defaults: bool = True
     metrics: list[MetricConfig] = Field(default_factory=list)
     primary: str | None = None
@@ -701,13 +726,10 @@ class ScoringConfig(BaseModel):
             metric_names = set(names)
             if self.primary not in metric_names:
                 raise ValueError(
-                    f"scoring.primary={self.primary!r} not found in metrics. "
-                    f"Available: {sorted(metric_names)}"
+                    f"scoring.primary={self.primary!r} not found in metrics. Available: {sorted(metric_names)}"
                 )
         if len(self.metrics) > 1 and self.primary is None:
-            raise ValueError(
-                "scoring.primary is required when multiple metrics are defined."
-            )
+            raise ValueError("scoring.primary is required when multiple metrics are defined.")
         return self
 
 
@@ -718,6 +740,7 @@ class ScoringConfig(BaseModel):
 
 class BenchmarkConfig(BaseModel):
     """Single benchmark entry."""
+
     name: str
     solver: SolverConfig
     repeats: int = 1
@@ -737,14 +760,14 @@ class BenchmarkConfig(BaseModel):
     @model_validator(mode="after")
     def _solver_requires_sandbox(self) -> BenchmarkConfig:
         _NEEDS_SANDBOX = (
-            HarborSolverConfig, AgentSolverConfig,
+            HarborSolverConfig,
+            AgentSolverConfig,
             OpenClawSolverConfig,
         )
         if isinstance(self.solver, _NEEDS_SANDBOX):
             if isinstance(self.sandbox, NoSandbox):
                 raise ValueError(
-                    f"solver type '{self.solver.type}' requires a sandbox "
-                    f"(docker, apptainer, slurm, or ecs_fargate)"
+                    f"solver type '{self.solver.type}' requires a sandbox (docker, apptainer, slurm, or ecs_fargate)"
                 )
         if (
             isinstance(self.solver, ToolCallingSolverConfig)
@@ -780,6 +803,7 @@ class DockerCluster(BaseModel):
 
 class NodePool(BaseModel):
     """A named group of compute resources within a SLURM cluster."""
+
     partition: str
     nodes: int = 1
     ntasks_per_node: int = 1
@@ -792,12 +816,12 @@ class SlurmCluster(BaseModel):
     walltime: str = "04:00:00"
     node_pools: dict[str, NodePool] = Field(min_length=1)
     conda_env: str | None = None
-    container_image: str | None = None
+    eval_image: str | None = None
     container_mounts: list[str] = Field(default_factory=list)
     container_env: dict[str, str] = Field(default_factory=dict)
     shm_size: str | None = None
     mount_home: bool = True
-    auto_resume: bool = False
+    auto_resume: bool = True
     max_resume_attempts: int = 3
     shards: int | None = Field(default=None, ge=1)
 
@@ -813,10 +837,7 @@ def _cluster_discriminator(v: Any) -> str:
         return t
     t = getattr(v, "type", None)
     if t is None:
-        raise ValueError(
-            f"Cannot determine cluster type from {type(v).__name__}. "
-            f"Expected a dict with a 'type' field."
-        )
+        raise ValueError(f"Cannot determine cluster type from {type(v).__name__}. Expected a dict with a 'type' field.")
     return t
 
 
@@ -835,6 +856,8 @@ ClusterConfig = Annotated[
 
 class OutputConfig(BaseModel):
     dir: str = "./eval_results"
+    timestamped: bool = True
+    progress_interval: float = 60.0
     report: list[str] = Field(default_factory=lambda: ["markdown"])
     export: list[str] = Field(default_factory=list)
     export_config: dict[str, Any] = Field(default_factory=dict)
@@ -911,18 +934,22 @@ class EvalConfig(BaseModel):
 
             solver_svc = _get_solver_service(solver)
             if solver_svc is not None and solver_svc not in available:
-                errors.append(
-                    f"{prefix}.solver.service={solver_svc!r} "
-                    f"not in services {sorted(available)}"
-                )
+                errors.append(f"{prefix}.solver.service={solver_svc!r} not in services {sorted(available)}")
 
             if solver_svc is not None and solver_svc in available:
                 svc = self.services[solver_svc]
-                if isinstance(solver, (SimpleSolver, HarborSolverConfig,
-                                       AgentSolverConfig, OpenClawSolverConfig,
-                                       ContainerSolverConfig,
-                                       ToolCallingSolverConfig,
-                                       GymDelegationSolverConfig)):
+                if isinstance(
+                    solver,
+                    (
+                        SimpleSolver,
+                        HarborSolverConfig,
+                        AgentSolverConfig,
+                        OpenClawSolverConfig,
+                        ContainerSolverConfig,
+                        ToolCallingSolverConfig,
+                        GymDelegationSolverConfig,
+                    ),
+                ):
                     if not isinstance(svc, _MODEL_SERVICE_TYPES):
                         errors.append(
                             f"{prefix}.solver.service={solver_svc!r} is a "
@@ -940,26 +967,16 @@ class EvalConfig(BaseModel):
             if isinstance(solver, ToolCallingSolverConfig):
                 if solver.resource_service is not None:
                     if solver.resource_service not in available:
-                        errors.append(
-                            f"{prefix}.solver.resource_service="
-                            f"{solver.resource_service!r} not in services"
-                        )
+                        errors.append(f"{prefix}.solver.resource_service={solver.resource_service!r} not in services")
                     elif not isinstance(self.services[solver.resource_service], GymResourceService):
                         errors.append(
-                            f"{prefix}.solver.resource_service="
-                            f"{solver.resource_service!r} must be a 'gym' service"
+                            f"{prefix}.solver.resource_service={solver.resource_service!r} must be a 'gym' service"
                         )
             elif isinstance(solver, GymDelegationSolverConfig):
                 if solver.gym_service not in available:
-                    errors.append(
-                        f"{prefix}.solver.gym_service="
-                        f"{solver.gym_service!r} not in services"
-                    )
+                    errors.append(f"{prefix}.solver.gym_service={solver.gym_service!r} not in services")
                 elif not isinstance(self.services[solver.gym_service], GymResourceService):
-                    errors.append(
-                        f"{prefix}.solver.gym_service="
-                        f"{solver.gym_service!r} must be a 'gym' service"
-                    )
+                    errors.append(f"{prefix}.solver.gym_service={solver.gym_service!r} must be a 'gym' service")
 
             if bench.verifier and bench.verifier not in available:
                 errors.append(f"{prefix}.verifier={bench.verifier!r} not in services")
@@ -970,11 +987,7 @@ class EvalConfig(BaseModel):
                 if isinstance(metric, JudgeMetric):
                     if metric.service not in available:
                         errors.append(f"{mprefix}.service={metric.service!r} not in services")
-                    elif (
-                        solver_svc is not None
-                        and metric.service == solver_svc
-                        and not metric.allow_self_judge
-                    ):
+                    elif solver_svc is not None and metric.service == solver_svc and not metric.allow_self_judge:
                         errors.append(
                             f"{mprefix}.service={metric.service!r} is the "
                             f"same as the solver's service. Use a separate "
@@ -1008,10 +1021,7 @@ class EvalConfig(BaseModel):
         for name, svc in self.services.items():
             pool_ref = getattr(svc, "node_pool", None)
             if pool_ref and pool_ref not in pools:
-                errors.append(
-                    f"services.{name}.node_pool={pool_ref!r} "
-                    f"not in cluster.node_pools {sorted(pools)}"
-                )
+                errors.append(f"services.{name}.node_pool={pool_ref!r} not in cluster.node_pools {sorted(pools)}")
             tp = getattr(svc, "tensor_parallel_size", None)
             if tp and pool_ref and pool_ref in pools:
                 pool = self.cluster.node_pools[pool_ref]
@@ -1026,17 +1036,13 @@ class EvalConfig(BaseModel):
         for sb_name, sb in self.sandboxes.items():
             pool_ref = getattr(sb, "node_pool", None)
             if pool_ref and pool_ref not in pools:
-                errors.append(
-                    f"sandboxes.{sb_name}.node_pool={pool_ref!r} "
-                    f"not in cluster.node_pools {sorted(pools)}"
-                )
+                errors.append(f"sandboxes.{sb_name}.node_pool={pool_ref!r} not in cluster.node_pools {sorted(pools)}")
 
         for i, bench in enumerate(self.benchmarks):
             pool_ref = getattr(bench.sandbox, "node_pool", None)
             if pool_ref and pool_ref not in pools:
                 errors.append(
-                    f"benchmarks[{i}].sandbox.node_pool={pool_ref!r} "
-                    f"not in cluster.node_pools {sorted(pools)}"
+                    f"benchmarks[{i}].sandbox.node_pool={pool_ref!r} not in cluster.node_pools {sorted(pools)}"
                 )
 
         if errors:
@@ -1135,7 +1141,8 @@ class EvalConfig(BaseModel):
                     f"benchmark '{bench.name}': startup ({max_startup}s) + "
                     f"timeout ({bench.timeout}s) = {total}s exceeds "
                     f"walltime ({self.cluster.walltime} = {walltime_sec}s)",
-                    UserWarning, stacklevel=2,
+                    UserWarning,
+                    stacklevel=2,
                 )
         return self
 
@@ -1175,6 +1182,7 @@ def _expand_env(value: Any) -> Any:
     Strict: raises ValueError if a variable has no value and no default.
     Use ${VAR:-} to explicitly allow empty string fallback.
     """
+
     def _replace(m: re.Match) -> str:
         var_name = m.group(1)
         default = m.group(2)
@@ -1188,6 +1196,7 @@ def _expand_env(value: Any) -> Any:
             f"and no default was provided. "
             f"Use ${{{var_name}:-default_value}} to set a fallback."
         )
+
     if isinstance(value, str):
         return _ENV_RE.sub(_replace, value)
     if isinstance(value, dict):
