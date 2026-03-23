@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+
 import yaml
 from omegaconf import DictConfig, OmegaConf
 
@@ -92,9 +93,9 @@ def _is_task_name_override(override: str) -> bool:
 
 
 def apply_task_name_overrides(
-    cfg: "DictConfig",
+    cfg: DictConfig,
     task_overrides: list[str],
-) -> "DictConfig":
+) -> DictConfig:
     """Resolve task-name sugar overrides and apply them to *cfg* in-place.
 
     Steps:
@@ -108,24 +109,23 @@ def apply_task_name_overrides(
     if not task_overrides:
         return cfg
 
-    name_to_indices = _build_task_name_index(cfg)
-    all_names = list(name_to_indices.keys())
+    task_name_to_index_mapping = _build_task_name_to_index_mapping(cfg)
 
     for override in task_overrides:
-        prefix, key_value = _strip_hydra_prefix(override)
-        # key_value looks like "evaluation.tasks.<task_name_and_rest>=<value>"
-        rest = key_value[len(_TASKS_PREFIX) :]  # "<task_name_and_rest>=<value>"
-
-        task_name, remaining_path, value_str = _resolve_task_segment(
-            rest, name_to_indices, all_names
+        prefix, after_prefix = _strip_hydra_prefix(override)
+        # after_prefix looks like "evaluation.tasks.<task_name_and_key>=<value>"
+        task_name_and_key_value = after_prefix[
+            len(_TASKS_PREFIX) :
+        ]  # "<task_name_and_key>=<value>"
+        task_name, key, value_str = _resolve_task_segment(
+            task_name_and_key_value, task_name_to_index_mapping
         )
-
-        indices = _lookup_task(task_name, name_to_indices, all_names)
+        indices = _lookup_task(task_name, task_name_to_index_mapping)
 
         for idx in indices:
             dotted_path = f"evaluation.tasks.{idx}"
-            if remaining_path:
-                dotted_path += f".{remaining_path}"
+            if key:
+                dotted_path += f".{key}"
 
             if prefix == "~":
                 _delete_key(cfg, dotted_path)
@@ -142,12 +142,14 @@ def apply_task_name_overrides(
 # ---------------------------------------------------------------------------
 
 
-def _build_task_name_index(cfg: "DictConfig") -> dict[str, list[int]]:
+def _build_task_name_to_index_mapping(cfg: DictConfig) -> dict[str, list[int]]:
     """Return ``{task_name: [idx, …]}`` from ``cfg.evaluation.tasks``."""
-    mapping: dict[str, list[int]] = defaultdict(list)
+    mapping = defaultdict(list)
     tasks = cfg.evaluation.tasks
     for idx, task in enumerate(tasks):
         mapping[task.name].append(idx)
+        if len(mapping[task.name]) > 1:
+            raise NotImplementedError("duplicate task.names not supported yet")
     return dict(mapping)
 
 
@@ -158,89 +160,91 @@ def _strip_hydra_prefix(override: str) -> tuple[str, str]:
 
 
 def _resolve_task_segment(
-    rest: str,
-    name_to_indices: dict[str, list[int]],
-    all_names: list[str],
+    task_name_and_key_value: str,
+    task_name_to_index_mapping: dict[str, list[int]],
 ) -> tuple[str, str, str | None]:
-    """Given the part after ``evaluation.tasks.``, find the task name, remaining path, and value.
-
-    For task names that contain dots (e.g. ``lm-evaluation-harness.mmlu``), we try
-    progressively longer candidate names and pick the longest match.
+    """Split `task_name_and_key_value` into task name, remaining key and value.
 
     Returns:
-        (task_name, remaining_path, value_str)
+        (task_name, remaining_key, value_str)
         *value_str* is ``None`` when there is no ``=`` in the override.
     """
-    # Split off the value first (everything after the first unquoted '=')
-    value_str: str | None = None
-    eq_idx = rest.find("=")
+    # Split off the value first (everything after the first =)
+    all_task_names = list(task_name_to_index_mapping.keys())
+    value_str = None
+    task_name_and_key = task_name_and_key_value
+    eq_idx = task_name_and_key_value.find("=")
     if eq_idx != -1:
-        value_str = rest[eq_idx + 1 :]
-        rest = rest[:eq_idx]
+        value_str = task_name_and_key_value[eq_idx + 1 :]
+        task_name_and_key = task_name_and_key_value[:eq_idx]
 
-    # rest is now "<task_name_segments>.<remaining_path>" (all dots).
-    # Try all splits from longest candidate name to shortest.
-    segments = rest.split(".")
-    best_name: str | None = None
-    best_remaining: str | None = None
+    # task_name_and_key is now "<task_name_segments>.<remaining_key>".
+    # Try all splits from shortest candidate name to longest.
+    segments = task_name_and_key.split(".")
+    best_task_name = None
+    best_remaining_key = None
 
-    for i in range(len(segments), 0, -1):
-        candidate = ".".join(segments[:i])
-        remaining = ".".join(segments[i:])
+    for i in range(1, len(segments) + 1):
+        candidate_task_name = ".".join(segments[:i])
+        remaining_key = ".".join(segments[i:])
         # Check exact match
-        if candidate in name_to_indices:
-            best_name = candidate
-            best_remaining = remaining
+        if candidate_task_name in task_name_to_index_mapping:
+            best_task_name = candidate_task_name
+            best_remaining_key = remaining_key
             break
         # Check suffix match
-        suffix_matches = [n for n in all_names if n.endswith(f".{candidate}") or n == candidate]
+        suffix_matches = [
+            task_name
+            for task_name in all_task_names
+            if task_name.endswith(f".{candidate_task_name}")
+            or task_name == candidate_task_name
+        ]
         if suffix_matches:
-            best_name = candidate
-            best_remaining = remaining
+            best_task_name = candidate_task_name
+            best_remaining_key = remaining_key
             break
 
-    if best_name is None:
+    if best_task_name is None:
         # Fall back to shortest split (first segment as task name)
-        best_name = segments[0]
-        best_remaining = ".".join(segments[1:])
+        best_task_name = segments[0]
+        best_remaining_key = ".".join(segments[1:])
 
-    return best_name, best_remaining or "", value_str
+    return best_task_name, best_remaining_key, value_str
 
 
 def _lookup_task(
     task_name: str,
-    name_to_indices: dict[str, list[int]],
-    all_names: list[str],
+    task_name_to_index_mapping: dict[str, list[int]],
 ) -> list[int]:
     """Resolve *task_name* to list of indices.
 
     Strategy: exact match first, then suffix match.  Errors on 0 or >1 matches.
     """
+
     # Exact match
-    if task_name in name_to_indices:
-        indices = name_to_indices[task_name]
+    if task_name in task_name_to_index_mapping:
+        indices = task_name_to_index_mapping[task_name]
         if len(indices) > 1:
-            _raise_ambiguous(task_name, indices, all_names)
+            _raise_ambiguous(task_name, indices)
         return indices
 
     # Suffix match: e.g. "mmlu" matches "lm-evaluation-harness.mmlu"
     suffix_hits = [
         (name, idxs)
-        for name, idxs in name_to_indices.items()
+        for name, idxs in task_name_to_index_mapping.items()
         if name.endswith(f".{task_name}")
     ]
 
     if len(suffix_hits) == 0:
-        available = sorted(all_names)
         raise ValueError(
             f"Task '{task_name}' not found in config. "
-            f"Available tasks: {available}"
+            f"Available tasks: {sorted(task_name_to_index_mapping.keys())}"
         )
 
     if len(suffix_hits) == 1:
         name, idxs = suffix_hits[0]
         if len(idxs) > 1:
-            _raise_ambiguous(name, idxs, all_names)
+            _raise_ambiguous(name, idxs)
         return idxs
 
     # Multiple suffix matches
@@ -251,20 +255,15 @@ def _lookup_task(
     )
 
 
-def _raise_ambiguous(
-    task_name: str, indices: list[int], all_names: list[str]
-) -> None:
-    hint_lines = [
-        f"  -o '++evaluation.tasks.{idx}.<rest>=<value>'"
-        for idx in indices
-    ]
+def _raise_ambiguous(task_name: str, indices: list[int]) -> None:
+    hint_lines = [f"  -o '++evaluation.tasks.{idx}.<rest>=<value>'" for idx in indices]
     raise ValueError(
         f"Task '{task_name}' appears at indices {indices} — cannot resolve unambiguously.\n"
         f"Use index-based override instead:\n" + "\n".join(hint_lines)
     )
 
 
-def _delete_key(cfg: "DictConfig", dotted_path: str) -> None:
+def _delete_key(cfg: DictConfig, dotted_path: str) -> None:
     """Delete a key from *cfg* at *dotted_path*, mirroring Hydra's ``~`` semantics."""
     parts = dotted_path.rsplit(".", 1)
     if len(parts) == 2:
