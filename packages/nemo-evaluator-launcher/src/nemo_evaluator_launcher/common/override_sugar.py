@@ -18,7 +18,7 @@
 Allows users to write:
     -o 'evaluation.tasks.mmlu.nemo_evaluator_config.config.params.parallelism=64'
 instead of fragile index-based overrides:
-    -o '++evaluation.tasks.1.nemo_evaluator_config.config.params.parallelism=64'
+    -o 'evaluation.tasks.1.nemo_evaluator_config.config.params.parallelism=64'
 """
 
 from __future__ import annotations
@@ -82,7 +82,7 @@ def _is_task_name_override(override: str) -> bool:
     # sugar (it would be an error later, but it's not a valid Hydra index override either).
     first_segment = rest.split(".", 1)[0].split("=", 1)[0]
     if not first_segment:
-        raise ValueError("invalid override={override!r}")
+        raise ValueError(f"invalid override={override!r}")
 
     try:
         int(first_segment)
@@ -96,7 +96,7 @@ def apply_task_name_overrides(
     cfg: DictConfig,
     task_overrides: list[str],
 ) -> DictConfig:
-    """Resolve task-name sugar overrides and apply them to *cfg* in-place.
+    """Resolve task-name sugar overrides, modify *cfg* in place, and return it.
 
     Steps:
     1. Build a ``name → [index, …]`` mapping from ``cfg.evaluation.tasks``.
@@ -132,6 +132,7 @@ def apply_task_name_overrides(
             else:
                 value = _parse_value(value_str) if value_str is not None else None
                 force_add = prefix == "++"
+                # Note: Hydra's '+' (list-append) is treated as a plain set here.
                 OmegaConf.update(cfg, dotted_path, value, force_add=force_add)
 
     return cfg
@@ -143,13 +144,16 @@ def apply_task_name_overrides(
 
 
 def _build_task_name_to_index_mapping(cfg: DictConfig) -> dict[str, list[int]]:
-    """Return ``{task_name: [idx, …]}`` from ``cfg.evaluation.tasks``."""
+    """Return ``{task_name: [idx]}`` from ``cfg.evaluation.tasks``.
+
+    Each list always has exactly one element; duplicate task names raise immediately.
+    """
     mapping = defaultdict(list)
     tasks = cfg.evaluation.tasks
     for idx, task in enumerate(tasks):
         mapping[task.name].append(idx)
         if len(mapping[task.name]) > 1:
-            raise NotImplementedError("duplicate task.names not supported yet")
+            _raise_ambiguous(task.name, mapping[task.name])
     return dict(mapping)
 
 
@@ -170,7 +174,6 @@ def _resolve_task_segment(
         *value_str* is ``None`` when there is no ``=`` in the override.
     """
     # Split off the value first (everything after the first =)
-    all_task_names = list(task_name_to_index_mapping.keys())
     value_str = None
     task_name_and_key = task_name_and_key_value
     eq_idx = task_name_and_key_value.find("=")
@@ -179,35 +182,24 @@ def _resolve_task_segment(
         task_name_and_key = task_name_and_key_value[:eq_idx]
 
     # task_name_and_key is now "<task_name_segments>.<remaining_key>".
-    # Try all splits from shortest candidate name to longest.
+    # Task names have at most one dot (e.g. "abc.xyz"), so try a 2-segment
+    # candidate first, then fall back to a 1-segment candidate.
     segments = task_name_and_key.split(".")
-    best_task_name = None
-    best_remaining_key = None
 
-    for i in range(1, len(segments) + 1):
-        candidate_task_name = ".".join(segments[:i])
-        remaining_key = ".".join(segments[i:])
-        # Check exact match
-        if candidate_task_name in task_name_to_index_mapping:
-            best_task_name = candidate_task_name
-            best_remaining_key = remaining_key
-            break
-        # Check suffix match
-        suffix_matches = [
-            task_name
-            for task_name in all_task_names
-            if task_name.endswith(f".{candidate_task_name}")
-            or task_name == candidate_task_name
-        ]
-        if suffix_matches:
-            best_task_name = candidate_task_name
-            best_remaining_key = remaining_key
-            break
+    task_name_candidate1 = segments[0]
+    task_name_candidate2 = ".".join(segments[:2]) if len(segments) >= 2 else None
+    remaining_key_candidate1 = ".".join(segments[1:])
+    remaining_key_candidate2 = ".".join(segments[2:])
 
-    if best_task_name is None:
-        # Fall back to shortest split (first segment as task name)
-        best_task_name = segments[0]
-        best_remaining_key = ".".join(segments[1:])
+    if (
+        task_name_candidate2 is not None
+        and task_name_candidate2 in task_name_to_index_mapping
+    ):
+        best_task_name = task_name_candidate2
+        best_remaining_key = remaining_key_candidate2
+    else:
+        best_task_name = task_name_candidate1
+        best_remaining_key = remaining_key_candidate1
 
     return best_task_name, best_remaining_key, value_str
 
@@ -223,10 +215,7 @@ def _lookup_task(
 
     # Exact match
     if task_name in task_name_to_index_mapping:
-        indices = task_name_to_index_mapping[task_name]
-        if len(indices) > 1:
-            _raise_ambiguous(task_name, indices)
-        return indices
+        return task_name_to_index_mapping[task_name]
 
     # Suffix match: e.g. "mmlu" matches "lm-evaluation-harness.mmlu"
     suffix_hits = [
@@ -243,8 +232,6 @@ def _lookup_task(
 
     if len(suffix_hits) == 1:
         name, idxs = suffix_hits[0]
-        if len(idxs) > 1:
-            _raise_ambiguous(name, idxs)
         return idxs
 
     # Multiple suffix matches
@@ -266,10 +253,7 @@ def _raise_ambiguous(task_name: str, indices: list[int]) -> None:
 def _delete_key(cfg: DictConfig, dotted_path: str) -> None:
     """Delete a key from *cfg* at *dotted_path*, mirroring Hydra's ``~`` semantics."""
 
-    # rsplit(".", 1) splits on the last dot, giving at most 2 parts
     parts = dotted_path.rsplit(".", 1)
-    # len == 2: path has at least one dot, e.g. "evaluation.tasks.0.xxx" → parent = "evaluation.tasks.0", key = "xxx"
-    # len == 1: no dots at all, e.g. "evaluation_tasks_0" (very unlikely this function will be called with dotted_path without dots)
     if len(parts) == 2:
         parent_path, key = parts
         parent = OmegaConf.select(cfg, parent_path)

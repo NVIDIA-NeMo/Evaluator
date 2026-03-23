@@ -23,7 +23,6 @@ from nemo_evaluator_launcher.common.override_sugar import (
     partition_overrides,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -98,8 +97,18 @@ def duplicate_suffix_cfg():
         {
             "evaluation": {
                 "tasks": [
-                    {"name": "lm-evaluation-harness.mmlu", "nemo_evaluator_config": {"config": {"params": {"parallelism": 1}}}},
-                    {"name": "nemo_skills.mmlu", "nemo_evaluator_config": {"config": {"params": {"parallelism": 1}}}},
+                    {
+                        "name": "lm-evaluation-harness.mmlu",
+                        "nemo_evaluator_config": {
+                            "config": {"params": {"parallelism": 1}}
+                        },
+                    },
+                    {
+                        "name": "nemo_skills.mmlu",
+                        "nemo_evaluator_config": {
+                            "config": {"params": {"parallelism": 1}}
+                        },
+                    },
                 ]
             }
         }
@@ -113,9 +122,24 @@ def duplicate_name_cfg():
         {
             "evaluation": {
                 "tasks": [
-                    {"name": "mmlu", "nemo_evaluator_config": {"config": {"params": {"parallelism": 1}}}},
-                    {"name": "gsm8k", "nemo_evaluator_config": {"config": {"params": {"parallelism": 1}}}},
-                    {"name": "mmlu", "nemo_evaluator_config": {"config": {"params": {"parallelism": 2}}}},
+                    {
+                        "name": "mmlu",
+                        "nemo_evaluator_config": {
+                            "config": {"params": {"parallelism": 1}}
+                        },
+                    },
+                    {
+                        "name": "gsm8k",
+                        "nemo_evaluator_config": {
+                            "config": {"params": {"parallelism": 1}}
+                        },
+                    },
+                    {
+                        "name": "mmlu",
+                        "nemo_evaluator_config": {
+                            "config": {"params": {"parallelism": 2}}
+                        },
+                    },
                 ]
             }
         }
@@ -207,7 +231,10 @@ class TestApplyTaskNameOverrides:
             "evaluation.tasks.mmlu.nemo_evaluator_config.config.params.parallelism=64"
         ]
         cfg = apply_task_name_overrides(simple_cfg, overrides)
-        assert cfg.evaluation.tasks[2].nemo_evaluator_config.config.params.parallelism == 64
+        assert (
+            cfg.evaluation.tasks[2].nemo_evaluator_config.config.params.parallelism
+            == 64
+        )
 
     def test_multiple_overrides(self, simple_cfg):
         overrides = [
@@ -215,10 +242,17 @@ class TestApplyTaskNameOverrides:
             "evaluation.tasks.gsm8k.nemo_evaluator_config.config.params.parallelism=16",
         ]
         cfg = apply_task_name_overrides(simple_cfg, overrides)
-        assert cfg.evaluation.tasks[0].nemo_evaluator_config.config.params.parallelism == 8
-        assert cfg.evaluation.tasks[1].nemo_evaluator_config.config.params.parallelism == 16
+        assert (
+            cfg.evaluation.tasks[0].nemo_evaluator_config.config.params.parallelism == 8
+        )
+        assert (
+            cfg.evaluation.tasks[1].nemo_evaluator_config.config.params.parallelism
+            == 16
+        )
         # Unchanged
-        assert cfg.evaluation.tasks[2].nemo_evaluator_config.config.params.parallelism == 1
+        assert (
+            cfg.evaluation.tasks[2].nemo_evaluator_config.config.params.parallelism == 1
+        )
 
     def test_force_add_prefix(self, simple_cfg):
         overrides = [
@@ -239,7 +273,10 @@ class TestApplyTaskNameOverrides:
             "evaluation.tasks.mmlu.nemo_evaluator_config.config.params.parallelism=128"
         ]
         cfg = apply_task_name_overrides(simple_cfg, overrides)
-        assert cfg.evaluation.tasks[2].nemo_evaluator_config.config.params.parallelism == 128
+        assert (
+            cfg.evaluation.tasks[2].nemo_evaluator_config.config.params.parallelism
+            == 128
+        )
         assert isinstance(
             cfg.evaluation.tasks[2].nemo_evaluator_config.config.params.parallelism, int
         )
@@ -250,7 +287,8 @@ class TestApplyTaskNameOverrides:
         ]
         cfg = apply_task_name_overrides(simple_cfg, overrides)
         assert (
-            cfg.evaluation.tasks[2].nemo_evaluator_config.config.params.extra.verbose is True
+            cfg.evaluation.tasks[2].nemo_evaluator_config.config.params.extra.verbose
+            is True
         )
 
     def test_list_value(self, simple_cfg):
@@ -274,9 +312,14 @@ class TestDottedTaskNames:
             "evaluation.tasks.lm-evaluation-harness.mmlu.nemo_evaluator_config.config.params.parallelism=64"
         ]
         cfg = apply_task_name_overrides(dotted_name_cfg, overrides)
-        assert cfg.evaluation.tasks[1].nemo_evaluator_config.config.params.parallelism == 64
+        assert (
+            cfg.evaluation.tasks[1].nemo_evaluator_config.config.params.parallelism
+            == 64
+        )
         # Others unchanged
-        assert cfg.evaluation.tasks[0].nemo_evaluator_config.config.params.parallelism == 1
+        assert (
+            cfg.evaluation.tasks[0].nemo_evaluator_config.config.params.parallelism == 1
+        )
 
     def test_suffix_match(self, dotted_name_cfg):
         """Short name 'mmlu' should match 'lm-evaluation-harness.mmlu' via suffix."""
@@ -284,14 +327,89 @@ class TestDottedTaskNames:
             "evaluation.tasks.mmlu.nemo_evaluator_config.config.params.parallelism=32"
         ]
         cfg = apply_task_name_overrides(dotted_name_cfg, overrides)
-        assert cfg.evaluation.tasks[1].nemo_evaluator_config.config.params.parallelism == 32
+        assert (
+            cfg.evaluation.tasks[1].nemo_evaluator_config.config.params.parallelism
+            == 32
+        )
 
     def test_suffix_match_gpqa(self, dotted_name_cfg):
         overrides = [
             "evaluation.tasks.gpqa_diamond.nemo_evaluator_config.config.params.parallelism=16"
         ]
         cfg = apply_task_name_overrides(dotted_name_cfg, overrides)
-        assert cfg.evaluation.tasks[2].nemo_evaluator_config.config.params.parallelism == 16
+        assert (
+            cfg.evaluation.tasks[2].nemo_evaluator_config.config.params.parallelism
+            == 16
+        )
+
+    def test_exact_name_shadows_suffix_match(self):
+        """Exact match on 'mmlu' wins even when 'lm.mmlu' would also suffix-match."""
+        cfg = OmegaConf.create(
+            {
+                "evaluation": {
+                    "tasks": [
+                        {
+                            "name": "mmlu",
+                            "nemo_evaluator_config": {
+                                "config": {"params": {"parallelism": 1}}
+                            },
+                        },
+                        {
+                            "name": "lm.mmlu",
+                            "nemo_evaluator_config": {
+                                "config": {"params": {"parallelism": 1}}
+                            },
+                        },
+                    ]
+                }
+            }
+        )
+        overrides = [
+            "evaluation.tasks.mmlu.nemo_evaluator_config.config.params.parallelism=64"
+        ]
+        cfg = apply_task_name_overrides(cfg, overrides)
+        assert (
+            cfg.evaluation.tasks[0].nemo_evaluator_config.config.params.parallelism
+            == 64
+        )
+        assert (
+            cfg.evaluation.tasks[1].nemo_evaluator_config.config.params.parallelism == 1
+        )
+
+    def test_prefix_name_not_confused_with_longer_name(self):
+        """Longest exact match wins when one task name is a prefix of another."""
+        cfg = OmegaConf.create(
+            {
+                "evaluation": {
+                    "tasks": [
+                        {
+                            "name": "lm",
+                            "nemo_evaluator_config": {
+                                "config": {"params": {"parallelism": 1}}
+                            },
+                        },
+                        {
+                            "name": "lm.mmlu",
+                            "nemo_evaluator_config": {
+                                "config": {"params": {"parallelism": 1}}
+                            },
+                        },
+                    ]
+                }
+            }
+        )
+        overrides = [
+            "evaluation.tasks.lm.mmlu.nemo_evaluator_config.config.params.parallelism=64"
+        ]
+        cfg = apply_task_name_overrides(cfg, overrides)
+        # Should target 'lm.mmlu' (index 1), not 'lm' (index 0)
+        assert (
+            cfg.evaluation.tasks[1].nemo_evaluator_config.config.params.parallelism
+            == 64
+        )
+        assert (
+            cfg.evaluation.tasks[0].nemo_evaluator_config.config.params.parallelism == 1
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -329,9 +447,60 @@ class TestErrors:
             "evaluation.tasks.lm-evaluation-harness.mmlu.nemo_evaluator_config.config.params.parallelism=99"
         ]
         cfg = apply_task_name_overrides(duplicate_suffix_cfg, overrides)
-        assert cfg.evaluation.tasks[0].nemo_evaluator_config.config.params.parallelism == 99
+        assert (
+            cfg.evaluation.tasks[0].nemo_evaluator_config.config.params.parallelism
+            == 99
+        )
         # Second task unchanged
-        assert cfg.evaluation.tasks[1].nemo_evaluator_config.config.params.parallelism == 1
+        assert (
+            cfg.evaluation.tasks[1].nemo_evaluator_config.config.params.parallelism == 1
+        )
+
+    def test_full_name_disambiguation_second_task(self, duplicate_suffix_cfg):
+        """Full name for the second task also disambiguates correctly."""
+        overrides = [
+            "evaluation.tasks.nemo_skills.mmlu.nemo_evaluator_config.config.params.parallelism=77"
+        ]
+        cfg = apply_task_name_overrides(duplicate_suffix_cfg, overrides)
+        assert (
+            cfg.evaluation.tasks[1].nemo_evaluator_config.config.params.parallelism
+            == 77
+        )
+        assert (
+            cfg.evaluation.tasks[0].nemo_evaluator_config.config.params.parallelism == 1
+        )
+
+    def test_suffix_not_found_with_dotted_names(self, dotted_name_cfg):
+        """Nonexistent suffix raises 'not found' even when all tasks have dotted names."""
+        overrides = [
+            "evaluation.tasks.nonexistent.nemo_evaluator_config.config.params.parallelism=1"
+        ]
+        with pytest.raises(ValueError, match="not found"):
+            apply_task_name_overrides(dotted_name_cfg, overrides)
+
+    def test_single_task_list(self):
+        """Config with a single task resolves correctly."""
+        cfg = OmegaConf.create(
+            {
+                "evaluation": {
+                    "tasks": [
+                        {
+                            "name": "lm.mmlu",
+                            "nemo_evaluator_config": {
+                                "config": {"params": {"parallelism": 1}}
+                            },
+                        },
+                    ]
+                }
+            }
+        )
+        overrides = [
+            "evaluation.tasks.mmlu.nemo_evaluator_config.config.params.parallelism=8"
+        ]
+        cfg = apply_task_name_overrides(cfg, overrides)
+        assert (
+            cfg.evaluation.tasks[0].nemo_evaluator_config.config.params.parallelism == 8
+        )
 
     def test_tilde_deletes_key(self, simple_cfg):
         """~evaluation.tasks.<name>.<key> should delete the key."""
