@@ -34,12 +34,20 @@ class RunMeta:
     details: dict = field(default_factory=dict)
 
     def save(self) -> None:
-        """Write to both the output dir and the central store."""
-        out = Path(self.output_dir)
-        out.mkdir(parents=True, exist_ok=True)
+        """Write to both the output dir and the central store.
+
+        The output-dir write is best-effort: for remote executors (e.g.
+        SLURM) the path may not be locally accessible.
+        """
         data = json.dumps(asdict(self), indent=2)
 
-        (out / _RUN_META).write_text(data, encoding="utf-8")
+        try:
+            out = Path(self.output_dir)
+            out.mkdir(parents=True, exist_ok=True)
+            (out / _RUN_META).write_text(data, encoding="utf-8")
+        except OSError:
+            logger.debug("Could not write %s to output dir %s (remote path?)",
+                         _RUN_META, self.output_dir)
 
         store_dir = _runs_store() / self.run_id
         store_dir.mkdir(parents=True, exist_ok=True)
