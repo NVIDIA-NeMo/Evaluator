@@ -1064,6 +1064,16 @@ def _create_slurm_sbatch_script(
             remote_task_subdir=remote_task_subdir,
         )
 
+    # Keep in sync with nemo_evaluator.core.evaluate.INTERRUPTED_MARKER_FILENAME
+    interrupted_marker = (
+        remote_task_subdir / "artifacts" / ".nemo_evaluator_interrupted"
+    )
+    s += "\n# Propagate interrupted status so SLURM marks the job as FAILED\n"
+    s += f'if [ -f "{interrupted_marker}" ]; then\n'
+    s += '    echo "Evaluation was interrupted (SIGTERM). Exiting with code 143."\n'
+    s += "    exit 143\n"
+    s += "fi\n"
+
     debug_str = "\n".join(["# " + line for line in s.splitlines()])
 
     # Combine unsafe flags from deployment, auxiliary deployments, and evaluation
@@ -1095,8 +1105,18 @@ def _generate_auto_export_section(
     if not destinations:
         return ""
 
+    # Keep in sync with nemo_evaluator.core.evaluate.INTERRUPTED_MARKER_FILENAME
+    interrupted_marker = (
+        remote_task_subdir / "artifacts" / ".nemo_evaluator_interrupted"
+    )
+
     s = "\n# Auto-export on success\n"
     s += "EVAL_EXIT_CODE=$?\n"
+    s += f'EVAL_INTERRUPTED_MARKER="{interrupted_marker}"\n'
+    s += 'if [ $EVAL_EXIT_CODE -eq 0 ] && [ -f "$EVAL_INTERRUPTED_MARKER" ]; then\n'
+    s += "    echo 'Evaluation exited 0 after SIGTERM. Skipping auto-export.'\n"
+    s += "    EVAL_EXIT_CODE=143\n"
+    s += "fi\n"
     s += "if [ $EVAL_EXIT_CODE -eq 0 ]; then\n"
     s += "    echo 'Evaluation completed successfully. Starting auto-export...'\n"
     s += f'    cd "{remote_task_subdir}/artifacts"\n'
