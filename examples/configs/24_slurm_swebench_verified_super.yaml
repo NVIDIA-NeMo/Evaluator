@@ -1,4 +1,4 @@
-# SLURM + vLLM (Nemotron-3-Super-FP8) + Harbor SWE-bench Verified + ECS Fargate
+# SLURM + vLLM (Nemotron-3-Super-BF16) + Harbor SWE-bench Verified + ECS Fargate
 #
 # Deploys vLLM on a GPU node, evaluates harbor://swebench-verified@1.0
 # with the OpenHands-SDK agent. ECS Fargate provides sandboxed envs.
@@ -17,15 +17,15 @@
 services:
   nemotron:
     type: vllm
-    model: nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8
+    model: nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16
     protocol: chat_completions
     port: 8000
-    tensor_parallel_size: 2
+    tensor_parallel_size: 4
+    data_parallel_size: 2
     image: vllm/vllm-openai:v0.18.0-cu130
     startup_timeout: 1800.0
     extra_args:
       - "--async-scheduling"
-      - "--dtype=auto"
       - "--kv-cache-dtype=fp8"
       - "--trust-remote-code"
       - "--attention-backend=TRITON_ATTN"
@@ -34,7 +34,7 @@ services:
       - "--max-num-seqs=256"
       - "--enable-auto-tool-choice"
       - "--tool-call-parser=qwen3_coder"
-      - "--reasoning_parser=nemotron_v3"
+      - "--reasoning-parser=nemotron_v3"
     extra_env:
       VLLM_CACHE_ROOT: /cache/vllm
       VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
@@ -55,7 +55,7 @@ benchmarks:
   - name: harbor://swebench-verified@1.0
     max_concurrent: 100
     timeout: 3600.0
-    max_problems: 5  # uncomment for smoke-testing
+    #max_problems: 5  # uncomment for smoke-testing
     solver:
       type: harbor
       service: nemotron
@@ -80,7 +80,7 @@ cluster:
   hostname: cw-dfw-cs-001-login-01
   account: coreai_dlalgo_compeval
   walltime: "04:00:00"
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260322-141130-13256415-harbor
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260322-201021-37df71b9-harbor
   container_mounts:
     - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
   container_env:
@@ -95,7 +95,7 @@ cluster:
       partition: batch
       nodes: 1
       ntasks_per_node: 1
-      gres: "gpu:4"
+      gres: "gpu:8"
 
 output:
-  dir: /lustre/fsw/portfolios/coreai/users/${USER}/nemo-evaluator-rundirs/super-fp8/swebench-verified
+  dir: /lustre/fsw/portfolios/coreai/users/${USER}/nemo-evaluator-rundirs/super-bf16/swebench-verified

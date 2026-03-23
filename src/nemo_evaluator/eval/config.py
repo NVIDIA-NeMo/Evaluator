@@ -72,6 +72,7 @@ class _ModelServerBase(BaseModel):
     protocol: Protocol
     tensor_parallel_size: int | None = None
     pipeline_parallel_size: int | None = None
+    data_parallel_size: int | None = None
     num_nodes: int = 1
     gpus: list[int] | int | None = None
     image: str | None = None

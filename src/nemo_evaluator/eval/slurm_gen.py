@@ -141,7 +141,7 @@ echo "Starting {svc_type} server: {name}..."
 {srun_prefix}{cuda_prefix}{cmd} \\
     {model_flag} {model} \\
     --port {port} \\
-    {tp_flag}\\
+    {tp_flag}{dp_flag}\\
     {extra_args}&
 {name_upper}_PID=$!
 {name_upper}_URL="http://localhost:{port}/v1"
@@ -290,6 +290,7 @@ cleanup() {{
     echo ""
     echo "Shutting down services..."
     {kill_commands}
+{auto_resume}
     echo "=== Evaluation complete ==="
     echo "End: $(date -Iseconds)"
     echo "Results: $OUTPUT_DIR"
@@ -413,8 +414,8 @@ def _safe(s: str) -> str:
 
 
 _MODEL_CMD = {
-    "vllm": ("vllm serve", "", "--tensor-parallel-size"),
-    "sglang": ("sglang serve", "", "--tp-size"),
+    "vllm": ("vllm serve", "", "--tensor-parallel-size", "--data-parallel-size"),
+    "sglang": ("sglang serve", "", "--tp-size", "--dp-size"),
 }
 
 
@@ -501,7 +502,7 @@ def _service_block(
         het_flag = f" --het-group={pool_to_het[pool]}"
 
     if svc.type in _MODEL_CMD:
-        cmd, model_flag, tp_flag_name = _MODEL_CMD[svc.type]
+        cmd, model_flag, tp_flag_name, dp_flag_name = _MODEL_CMD[svc.type]
         deploy_image = _resolve_service_image(svc)
         srun_prefix = ""
         if use_containers:
@@ -515,6 +516,7 @@ def _service_block(
             )
         env_exports = _service_env_exports(svc)
         tp_flag = f"{tp_flag_name} {svc.tensor_parallel_size} " if svc.tensor_parallel_size else ""
+        dp_flag = f"{dp_flag_name} {svc.data_parallel_size} " if svc.data_parallel_size else ""
         extra = " ".join(svc.extra_args)
         cuda = ""
         if svc.gpus and isinstance(svc.gpus, list):
@@ -528,6 +530,7 @@ def _service_block(
             model=svc.model or "",
             port=svc.port,
             tp_flag=tp_flag,
+            dp_flag=dp_flag,
             extra_args=extra,
             cuda_prefix=cuda,
             srun_prefix=srun_prefix,
@@ -997,15 +1000,6 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
         if report_cmds:
             parts.append(_REPORT.format(report_commands="\n".join(report_cmds)))
 
-        if cluster.auto_resume:
-            parts.append(
-                _AUTO_RESUME.format(
-                    max_attempts=cluster.max_resume_attempts,
-                    total_benchmarks=len(config.benchmarks),
-                    script_path="$OUTPUT_DIR/nel_eval.sbatch",
-                )
-            )
-
     if sb_bench and isinstance(sb_bench.sandbox, ApptainerSandbox):
         het_group_flag = (
             f" --het-group={pool_to_het[sandbox_pool_name]}"
@@ -1024,8 +1018,20 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
             upper = _safe(name).upper()
             kill_cmds.append(f"    [ -n \"${{{upper}_PID:-}}\" ] && wait ${upper}_PID 2>/dev/null || true")
 
+    auto_resume_in_cleanup = ""
+    if not is_sharded and cluster.auto_resume:
+        _raw = _AUTO_RESUME.format(
+            max_attempts=cluster.max_resume_attempts,
+            total_benchmarks=len(config.benchmarks),
+            script_path="$OUTPUT_DIR/nel_eval.sbatch",
+        )
+        auto_resume_in_cleanup = "\n".join(
+            ("    " + line) if line.strip() else ""
+            for line in _raw.strip().splitlines()
+        )
+
     cleanup_body = "\n".join(kill_cmds) if kill_cmds else "    echo 'No managed services.'"
-    parts.insert(1, _CLEANUP_FUNC.format(kill_commands=cleanup_body))
+    parts.insert(1, _CLEANUP_FUNC.format(kill_commands=cleanup_body, auto_resume=auto_resume_in_cleanup))
 
     parts.append(_FOOTER)
 

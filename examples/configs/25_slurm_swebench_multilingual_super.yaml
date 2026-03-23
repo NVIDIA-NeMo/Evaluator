@@ -89,6 +89,7 @@ cluster:
     AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
     AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     AWS_DEFAULT_REGION: us-west-2
+    LLM_API_KEY: "no-key-needed"
   mount_home: false
   node_pools:
     gpu:
