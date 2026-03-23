@@ -34,6 +34,7 @@ from nemo_evaluator_launcher.common.execdb import (
 from nemo_evaluator_launcher.common.helpers import (
     check_unlisted_tasks_safeguard,
     get_eval_factory_command,
+    get_unique_task_name,
     is_local_image_path,
 )
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -442,7 +443,7 @@ class LeptonExecutor(BaseExecutor):
                 lepton_job_names.append(lepton_job_name)
 
                 # Create task output directory (for result collection)
-                task_output_dir = output_dir / task.name
+                task_output_dir = output_dir / get_unique_task_name(task.name, idx)
                 task_output_dir.mkdir(parents=True, exist_ok=True)
 
                 # Determine evaluation image
