@@ -1,7 +1,7 @@
 # SLURM + vLLM (Nemotron-3-Super-BF16) + Harbor SWE-bench Verified + ECS Fargate
 #
-# Deploys vLLM on a GPU node, evaluates harbor://swebench-verified@1.0
-# with the OpenHands-SDK agent. ECS Fargate provides sandboxed envs.
+# Same as 24_slurm_swebench_verified_super.yaml but uses mini-swe-agent
+# instead of openhands-sdk.
 #
 # Prerequisites:
 #   - SLURM cluster access (OCI-HSG or similar)
@@ -11,8 +11,8 @@
 #   - pip install nemo-evaluator[harbor]
 #
 # Run:
-#   nel eval run examples/configs/24_slurm_swebench_verified_super.yaml --dry-run
-#   nel eval run examples/configs/24_slurm_swebench_verified_super.yaml
+#   nel eval run examples/configs/24a_slurm_swebench_verified_super_miniswe.yaml --dry-run
+#   nel eval run examples/configs/24a_slurm_swebench_verified_super_miniswe.yaml
 
 services:
   nemotron:
@@ -59,10 +59,11 @@ benchmarks:
     solver:
       type: harbor
       service: nemotron
-      agent: openhands-sdk
+      agent: mini-swe-agent
       agent_kwargs:
         max_iterations: 100
         temperature: 1.0
+        # TODO: verify mini-swe-agent specific kwargs once docs are available
     sandbox:
       type: ecs_fargate
       region: us-west-1
@@ -70,7 +71,7 @@ benchmarks:
       memory: "8192"
       ephemeral_storage_gib: 50
       max_task_lifetime_sec: 14400
-      log_stream_prefix: swebench-super
+      log_stream_prefix: swebench-super-miniswe
       ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
       timeout: 3600.0
       concurrency: 100
@@ -98,4 +99,4 @@ cluster:
       gres: "gpu:8"
 
 output:
-  dir: /lustre/fsw/portfolios/coreai/users/${USER}/nemo-evaluator-rundirs/super-bf16/swebench-verified
+  dir: /lustre/fsw/portfolios/coreai/users/${USER}/nemo-evaluator-rundirs/super-bf16/swebench-verified-miniswe

@@ -120,12 +120,9 @@ spec:
       containers:
         - name: merge
           image: nemo-evaluator:latest
-          command: ["nel", "slurm", "merge"]
+          command: ["nel", "eval", "merge"]
           args:
-            - "--shard-dir"
             - "/results"
-            - "--output-dir"
-            - "/results/merged"
           volumeMounts:
             - name: results
               mountPath: /results

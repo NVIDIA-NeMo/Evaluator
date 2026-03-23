@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
 import re
 import shlex
@@ -225,7 +224,7 @@ echo "  Logs: $OUTPUT_DIR/logs/eval-{safe_name}.log"
     --model-id "${model_id_var}" \\
     --repeats {repeats} \\
     {extra_flags}\\
-    -o "$OUTPUT_DIR/{safe_name}" 2>&1 | tee "$OUTPUT_DIR/logs/eval-{safe_name}.log"
+    -o "$OUTPUT_DIR/{safe_name}" 2>&1 | stdbuf -oL tee "$OUTPUT_DIR/logs/eval-{safe_name}.log"
 _EVAL_RC=${{PIPESTATUS[0]}}
 if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
 """
@@ -241,7 +240,7 @@ export {svc_url_var}="${{{model_url_bash}}}"
 export {svc_model_var}="${{{model_id_bash}}}"
 export NEL_OUTPUT_DIR="$OUTPUT_DIR/{safe_name}"
 mkdir -p "$NEL_OUTPUT_DIR"
-{run_prefix}nel eval run "$OUTPUT_DIR/config_{safe_name}.yaml" {extra_flags}2>&1 | tee "$OUTPUT_DIR/logs/eval-{safe_name}.log"
+{run_prefix}nel eval run "$OUTPUT_DIR/config_{safe_name}.yaml" {extra_flags}2>&1 | stdbuf -oL tee "$OUTPUT_DIR/logs/eval-{safe_name}.log"
 _EVAL_RC=${{PIPESTATUS[0]}}
 if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
 """
@@ -888,7 +887,7 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
             _eval_mounts.append("--no-container-mount-home")
         _eval_envs = [f"--container-env={k}" for k in cluster_env_keys]
         eval_run_prefix = (
-            f"srun --overlap --nodes 1 --ntasks 1 "
+            f"srun --overlap --unbuffered --nodes 1 --ntasks 1 "
             f"--container-image {base_override} "
             f"{' '.join(_eval_mounts)} {' '.join(_eval_envs)} \\\n    "
         )
@@ -916,7 +915,7 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
                 eval_mount_parts.append("--no-container-mount-home")
             eval_env_parts = [f"--container-env={k}" for k in cluster_env_keys]
             run_prefix = (
-                f"srun --overlap --nodes 1 --ntasks 1 "
+                f"srun --overlap --unbuffered --nodes 1 --ntasks 1 "
                 f"--container-image {eval_image} "
                 f"{' '.join(eval_mount_parts)} {' '.join(eval_env_parts)} \\\n    "
             )
@@ -1043,24 +1042,6 @@ def _redact(value: str) -> str:
     return f"***{value[-4:]}"
 
 
-def _run_id(config: EvalConfig) -> str:
-    """Generate a timestamped run ID: YYYYMMDD_HHMMSSZ-{hash8}.
-
-    The hash is derived from benchmark names and model identifiers to
-    avoid collisions when multiple jobs are submitted in the same second.
-    """
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    parts: list[str] = []
-    for b in config.benchmarks:
-        parts.append(b.name)
-        svc_name = getattr(b.solver, "service", "")
-        svc = config.services.get(svc_name) if svc_name else None
-        if svc:
-            parts.append(getattr(svc, "model", "") or "")
-    digest = hashlib.sha256("|".join(parts).encode()).hexdigest()[:8]
-    return f"{ts}_{digest}"
-
-
 def stamp_output_dir(config: EvalConfig) -> None:
     """Append a timestamped run-ID subdirectory to config.output.dir.
 
@@ -1074,7 +1055,9 @@ def stamp_output_dir(config: EvalConfig) -> None:
         or os.environ.get("NEL_INNER_EXECUTION") == "1"
     ):
         return
-    config.output.dir = str(Path(config.output.dir) / _run_id(config))
+    from nemo_evaluator.executors.run_store import generate_run_id
+
+    config.output.dir = str(Path(config.output.dir) / generate_run_id(config))
 
 
 def write_sbatch(config: EvalConfig, output_dir: str | Path | None = None) -> tuple[Path, list[Path]]:

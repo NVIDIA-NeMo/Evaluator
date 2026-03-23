@@ -119,8 +119,7 @@ services:
   # Merge sharded results
   eval-merge:
     build: ..
-    command: >
-      slurm merge --shard-dir /results --output-dir /results/merged
+    command: ["nel", "eval", "merge", "/results"]
     volumes:
       - ./results:/results
     profiles: ["sharded"]

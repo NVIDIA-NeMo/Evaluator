@@ -8,7 +8,7 @@ import shlex
 import subprocess
 from pathlib import Path
 
-from nemo_evaluator.executors import ProcessState
+from nemo_evaluator.executors import Executor, ProcessState
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ def _build_local_image(variant: str, *, quiet: bool = False) -> str:
     return tag
 
 
-class DockerExecutor:
+class DockerExecutor(Executor):
     name = "docker"
 
     def run(self, config, *, dry_run=False, resume=False,
@@ -163,10 +163,32 @@ class DockerExecutor:
             json.dumps({"container_id": container_id, "image": image}),
             encoding="utf-8",
         )
-        click.echo(f"Container started: {container_id[:12]}")
-        click.echo(f"Check status: nel eval status -o {output_dir}")
-        click.echo(f"Stop:         nel eval stop -o {output_dir}")
-        click.echo(f"Logs:         docker logs -f {container_id[:12]}")
+
+        from nemo_evaluator.executors.run_store import (
+            RunMeta,
+            config_summary as _config_summary,
+            generate_run_id,
+        )
+        from datetime import datetime, timezone
+
+        run_id = generate_run_id(config)
+        run_meta = RunMeta(
+            run_id=run_id,
+            executor="docker",
+            output_dir=output_dir,
+            started_at=datetime.now(timezone.utc).isoformat(),
+            config_summary=_config_summary(config),
+            details={
+                "container_id": container_id,
+                "image": image,
+            },
+        )
+        run_meta.save()
+
+        click.echo(f"Container started: {container_id[:12]}  (run_id: {run_id})")
+        click.echo(f"Check status: nel eval status -r {run_id}")
+        click.echo(f"Stop:         nel eval stop -r {run_id}")
+        click.echo(f"Logs:         nel eval logs -r {run_id}")
 
     def status(self, output_dir: str | Path) -> ProcessState:
         meta = _read_meta(output_dir)
@@ -203,6 +225,38 @@ class DockerExecutor:
         except Exception as e:
             logger.error("Failed to stop container %s: %s", container_id, e)
             return False
+
+    def logs(self, output_dir: str | Path, *, follow: bool = False,
+             tail: int | None = None) -> str | None:
+        meta = _read_meta(output_dir)
+        if meta is None:
+            return super().logs(output_dir, follow=follow, tail=tail)
+        container_id = meta.get("container_id", "")
+        cmd = ["docker", "logs"]
+        if tail:
+            cmd.extend(["--tail", str(tail)])
+        cmd.append(container_id)
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            return result.stdout + result.stderr
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return super().logs(output_dir, follow=follow, tail=tail)
+
+    def resume_run(self, run_meta, **kwargs) -> None:
+        details = run_meta.details
+        container_id = details.get("container_id", "")
+        if not container_id:
+            raise RuntimeError("No container_id in run metadata")
+        try:
+            result = subprocess.run(
+                ["docker", "start", container_id],
+                capture_output=True, text=True, timeout=30,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"docker start failed: {result.stderr.strip()}")
+            logger.info("Resumed Docker container %s", container_id)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"Timed out trying to start container {container_id}")
 
     @staticmethod
     def detect(output_dir: str | Path) -> bool:

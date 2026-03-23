@@ -10,7 +10,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from nemo_evaluator.executors import ProcessState
+from nemo_evaluator.executors import Executor, ProcessState
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ def _jobs_store() -> Path:
     return base / "nel" / "jobs"
 
 
-class SlurmExecutor:
+class SlurmExecutor(Executor):
     name = "slurm"
 
     def run(self, config, *, dry_run=False, resume=False, background=False, **_kwargs) -> None:
@@ -85,14 +85,37 @@ class SlurmExecutor:
             meta_path = meta_dir / _META_FILE
             meta_path.write_text(json.dumps(meta, indent=2))
 
+            from nemo_evaluator.executors.run_store import (
+                RunMeta,
+                config_summary,
+                generate_run_id,
+            )
+
+            run_id = generate_run_id(config)
+            run_meta = RunMeta(
+                run_id=run_id,
+                executor="slurm",
+                output_dir=resolved_dir,
+                started_at=meta["submitted_at"],
+                config_summary=config_summary(config),
+                details={
+                    "job_id": meta["job_id"],
+                    "hostname": meta["hostname"],
+                    "remote_dir": meta.get("remote_dir", resolved_dir),
+                    "username": meta.get("username", ""),
+                    "parent_dir": parent_dir,
+                },
+            )
+            run_meta.save()
+
             jid = meta["job_id"]
             host = config.cluster.hostname
-            click.echo(f"\nSLURM job submitted: {jid}")
+            click.echo(f"\nSLURM job submitted: {jid}  (run_id: {run_id})")
             click.echo(f"Remote dir: {host}:{resolved_dir}")
             click.echo(f"Log:        {host}:{resolved_dir}/slurm-{jid}.log")
             click.echo(f"Metadata:   {meta_path}")
-            click.echo(f"\nTail logs:  ssh {host} tail -f {resolved_dir}/slurm-{jid}.log")
-            click.echo(f"Status:     nel eval status --job-id {jid}")
+            click.echo(f"\nTail logs:  nel eval logs -r {run_id} -f")
+            click.echo(f"Status:     nel eval status -r {run_id}")
             return
 
         import subprocess
@@ -145,9 +168,82 @@ class SlurmExecutor:
             logger.error("Failed to cancel SLURM job %s: %s", meta["job_id"], e)
             return False
 
+    def logs(self, output_dir: str | Path, *, follow: bool = False,
+             tail: int | None = None) -> str | None:
+        meta = _read_meta(output_dir)
+        if meta is None:
+            return None
+        from nemo_evaluator.eval.ssh import ssh_run
+
+        hostname = meta["hostname"]
+        username = meta.get("username") or None
+        rdir = meta.get("remote_dir", str(output_dir))
+        job_id = meta["job_id"]
+
+        latest_id = _resolve_latest_job_id_from_meta(meta)
+        log_file = f"{rdir}/slurm-{latest_id}.log"
+
+        if tail:
+            return ssh_run(hostname, f"tail -n {tail} {log_file}",
+                           username=username, timeout=30.0)
+        return ssh_run(hostname, f"cat {log_file}",
+                       username=username, timeout=60.0)
+
+    def resume_run(self, run_meta, **kwargs) -> None:
+        import re
+        import shlex as shlex_mod
+
+        import click
+
+        details = run_meta.details
+        hostname = details.get("hostname", "")
+        username = details.get("username") or None
+        rdir = details.get("remote_dir", run_meta.output_dir)
+        script = f"{rdir}/nel_eval.sbatch"
+
+        from nemo_evaluator.eval.ssh import ssh_run
+
+        continue_attempts = kwargs.get("continue_attempts", False)
+        if not continue_attempts:
+            ssh_run(hostname,
+                    f"rm -f {shlex_mod.quote(rdir)}/.nel_infra_retries "
+                    f"{shlex_mod.quote(rdir)}/.nel_accumulated_walltime",
+                    username=username, timeout=10.0)
+
+        output = ssh_run(hostname, f"sbatch {shlex_mod.quote(script)}",
+                         username=username, timeout=30.0)
+        click.echo(f"Resubmitted: {output.strip()}")
+
+        m = re.search(r"(\d+)", output)
+        if m:
+            new_jid = m.group(1)
+            click.echo(f"New job ID: {new_jid}")
+            click.echo(f"Tail logs:  nel eval logs -r {run_meta.run_id} -f")
+            click.echo(f"Status:     nel eval status -r {run_meta.run_id}")
+
     @staticmethod
     def detect(output_dir: str | Path) -> bool:
         return _read_meta(output_dir) is not None
+
+
+def _resolve_latest_job_id_from_meta(meta: dict) -> str:
+    """Follow .nel_job_chain on the remote host to get the latest job ID."""
+    remote_dir = meta.get("remote_dir", "")
+    hostname = meta.get("hostname", "")
+    if not remote_dir or not hostname:
+        return meta["job_id"]
+    try:
+        from nemo_evaluator.eval.ssh import ssh_run
+
+        chain = ssh_run(
+            hostname,
+            f"tail -1 {remote_dir}/.nel_job_chain 2>/dev/null",
+            username=meta.get("username") or None,
+            timeout=10.0,
+        ).strip()
+        return chain if chain else meta["job_id"]
+    except Exception:
+        return meta["job_id"]
 
 
 def resolve_job(
