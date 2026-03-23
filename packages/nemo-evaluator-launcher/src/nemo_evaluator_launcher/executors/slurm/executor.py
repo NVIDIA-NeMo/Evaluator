@@ -835,6 +835,10 @@ def _create_slurm_sbatch_script(
         s += 'echo "PRIMARY_NODE: ${PRIMARY_NODE}"\n'
     s += "\n"
 
+    if cfg.execution.get("heartbeat", {}).get("script"):
+        s += _generate_heartbeat_bash(cfg, remote_task_subdir)
+        s += "\n"
+
     # prepare deployment mounts
     deployment_mounts_list = []
     deployment_is_unsafe = False
@@ -1039,6 +1043,10 @@ def _create_slurm_sbatch_script(
     s += "bash -c '\n"
     s += eval_factory_command
     s += "'\n\n"
+
+    if cfg.execution.get("heartbeat", {}).get("script"):
+        s += 'kill "$_heartbeat_pid" 2>/dev/null || true\n'
+        s += 'wait "$_heartbeat_pid" 2>/dev/null || true\n'
 
     # terminate the server after all evaluation clients finish
     if cfg.deployment.type != "none":
@@ -2435,3 +2443,35 @@ def _validate_remote_paths_exist(
         )
         logger.error("Mount validation failed", missing_paths=missing_paths)
         raise ValueError(error_message)
+
+
+def _generate_heartbeat_bash(cfg: DictConfig, remote_task_subdir: Path) -> str:
+    """Background loop that runs a user-provided script periodically."""
+    hb = cfg.execution.heartbeat
+    script = str(hb.script)
+    interval = int(hb.get("interval", 300))
+    container = hb.get("container")
+
+    if container:
+        run_cmd = (
+            f"srun --mpi pmix --overlap "
+            f'--nodelist "${{PRIMARY_NODE}}" --nodes 1 --ntasks 1 '
+            f"--container-image {container} "
+            f"--no-container-mount-home "
+            f"--container-mounts {remote_task_subdir}:{remote_task_subdir} "
+            f"--output {remote_task_subdir}/logs/heartbeat-%A.log "
+            f"{script}"
+        )
+    else:
+        run_cmd = script
+
+    return (
+        f"_heartbeat_pid=0\n"
+        f"(\n"
+        f"  while kill -0 $$ 2>/dev/null; do\n"
+        f"    sleep {interval}\n"
+        f"    {run_cmd} || echo '[heartbeat] FAILED (non-fatal)'\n"
+        f"  done\n"
+        f") &\n"
+        f"_heartbeat_pid=$!\n"
+    )

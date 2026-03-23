@@ -90,3 +90,8 @@ lepton_platform:
     # Image pull secrets for task containers
     image_pull_secrets:
       - "lepton-nvidia"
+
+heartbeat:
+  script: null
+  interval: 300
+  container: null

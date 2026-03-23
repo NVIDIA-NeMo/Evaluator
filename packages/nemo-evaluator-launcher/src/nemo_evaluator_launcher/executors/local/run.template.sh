@@ -54,6 +54,18 @@ else
     # Create pre-start stage file
     echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.pre-start"
 
+    {% if heartbeat_script %}
+    # Heartbeat: run script periodically in background
+    _heartbeat_pid=0
+    (
+      while kill -0 $$ 2>/dev/null; do
+        sleep {{ heartbeat_interval }}
+        {{ heartbeat_script }} || echo '[heartbeat] FAILED (non-fatal)'
+      done
+    ) &
+    _heartbeat_pid=$!
+    {% endif %}
+
     # Debug contents of the eval factory command's config
     {{ task.eval_factory_command_debug_comment | indent(4) }}
 
@@ -127,6 +139,11 @@ else
         exit 0;
       ' > "$logs_dir/client_stdout.log" 2>&1
     exit_code=$?
+
+    {% if heartbeat_script %}
+    kill "$_heartbeat_pid" 2>/dev/null || true
+    wait "$_heartbeat_pid" 2>/dev/null || true
+    {% endif %}
 
     {% if task.deployment %}
     # Stop the server
