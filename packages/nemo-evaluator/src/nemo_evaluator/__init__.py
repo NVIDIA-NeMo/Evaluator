@@ -53,7 +53,6 @@ __all__ = [
     "Score",
     "ScoreStats",
     "TaskResult",
-    "run_eval",
     "evaluate",
     "show_available_tasks",
     "__version__",
