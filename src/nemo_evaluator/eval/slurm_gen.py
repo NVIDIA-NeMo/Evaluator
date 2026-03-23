@@ -21,6 +21,7 @@ from nemo_evaluator.eval.config import (
     SimpleSolver,
     SlurmCluster,
     SlurmSandbox,
+    _parse_walltime,
 )
 from nemo_evaluator.eval.containers import (
     default_base_image,
@@ -48,16 +49,12 @@ export PYTHONUNBUFFERED=1
 OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
 JOB_START_EPOCH=$(date +%s)
-mkdir -p "$OUTPUT_DIR"
+mkdir -p "$OUTPUT_DIR/logs"
 
-echo "$SLURM_JOB_ID" >> "$OUTPUT_DIR/.nel_job_chain"
-
-{resume_tracking}
 echo "=== NeMo Evaluator ==="
 echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $(hostname)"
 echo "Start: $(date -Iseconds)"
-{resume_attempt_info}
 """
 
 _SHARD_SETUP = """\
@@ -108,16 +105,12 @@ export PYTHONUNBUFFERED=1
 OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
 JOB_START_EPOCH=$(date +%s)
-mkdir -p "$OUTPUT_DIR"
+mkdir -p "$OUTPUT_DIR/logs"
 
-echo "$SLURM_JOB_ID" >> "$OUTPUT_DIR/.nel_job_chain"
-
-{resume_tracking}
 echo "=== NeMo Evaluator (het-job) ==="
 echo "Job ID: $SLURM_JOB_ID"
 {het_echo_lines}
 echo "Start: $(date -Iseconds)"
-{resume_attempt_info}
 """
 
 _SECRETS_SOURCE = """\
@@ -138,11 +131,12 @@ source /opt/anaconda3/bin/activate {conda_env}
 _MODEL_SERVICE = """\
 # Service: {name} ({svc_type})
 echo "Starting {svc_type} server: {name}..."
+echo "  Logs: $OUTPUT_DIR/logs/server-{name}.log"
 {srun_prefix}{cuda_prefix}{cmd} \\
     {model_flag} {model} \\
     --port {port} \\
     {tp_flag}{dp_flag}\\
-    {extra_args}&
+    {extra_args}> "$OUTPUT_DIR/logs/server-{name}.log" 2>&1 &
 {name_upper}_PID=$!
 {name_upper}_URL="http://localhost:{port}/v1"
 {name_upper}_MODEL="{model}"
@@ -151,21 +145,24 @@ echo "Starting {svc_type} server: {name}..."
 _GYM_SERVICE = """\
 # Service: {name} (gym)
 echo "Starting benchmark server: {name}..."
-nel serve -b {benchmark} --host 0.0.0.0 -p {port} &
+echo "  Logs: $OUTPUT_DIR/logs/server-{name}.log"
+nel serve -b {benchmark} --host 0.0.0.0 -p {port} > "$OUTPUT_DIR/logs/server-{name}.log" 2>&1 &
 {name_upper}_PID=$!
 """
 
 _GYM_CMD_SERVICE = """\
 # Service: {name} (gym / custom server)
 echo "Starting server: {name}..."
-{server_cmd} &
+echo "  Logs: $OUTPUT_DIR/logs/server-{name}.log"
+({server_cmd}) > "$OUTPUT_DIR/logs/server-{name}.log" 2>&1 &
 {name_upper}_PID=$!
 """
 
 _NAT_SERVICE = """\
 # Service: {name} (nat agent)
 echo "Starting NAT agent server: {name}..."
-{srun_prefix}nat serve --config_file {config_file} --port {port} --host 0.0.0.0 &
+echo "  Logs: $OUTPUT_DIR/logs/server-{name}.log"
+{srun_prefix}nat serve --config_file {config_file} --port {port} --host 0.0.0.0 > "$OUTPUT_DIR/logs/server-{name}.log" 2>&1 &
 {name_upper}_PID=$!
 {name_upper}_URL="http://localhost:{port}"
 {name_upper}_MODEL="nat-agent"
@@ -221,13 +218,16 @@ echo ""
 echo "============================================================"
 echo "  Benchmark {idx}/{total}: {bench_name} (repeats={repeats})"
 echo "============================================================"
+echo "  Logs: $OUTPUT_DIR/logs/eval-{safe_name}.log"
 {run_prefix}nel eval run \\
     --bench "{bench_name}" \\
     --model-url "${model_url_var}" \\
     --model-id "${model_id_var}" \\
     --repeats {repeats} \\
     {extra_flags}\\
-    -o "$OUTPUT_DIR/{safe_name}" || {{ echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; }}
+    -o "$OUTPUT_DIR/{safe_name}" 2>&1 | tee "$OUTPUT_DIR/logs/eval-{safe_name}.log"
+_EVAL_RC=${{PIPESTATUS[0]}}
+if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
 """
 
 _TASK_CONFIG = """\
@@ -236,11 +236,14 @@ echo ""
 echo "============================================================"
 echo "  Benchmark {idx}/{total}: {bench_name} (repeats={repeats})"
 echo "============================================================"
+echo "  Logs: $OUTPUT_DIR/logs/eval-{safe_name}.log"
 export {svc_url_var}="${{{model_url_bash}}}"
 export {svc_model_var}="${{{model_id_bash}}}"
 export NEL_OUTPUT_DIR="$OUTPUT_DIR/{safe_name}"
 mkdir -p "$NEL_OUTPUT_DIR"
-{run_prefix}nel eval run "$OUTPUT_DIR/config_{safe_name}.yaml" {extra_flags}|| {{ echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; }}
+{run_prefix}nel eval run "$OUTPUT_DIR/config_{safe_name}.yaml" {extra_flags}2>&1 | tee "$OUTPUT_DIR/logs/eval-{safe_name}.log"
+_EVAL_RC=${{PIPESTATUS[0]}}
+if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
 """
 
 _REPORT = """\
@@ -290,7 +293,6 @@ cleanup() {{
     echo ""
     echo "Shutting down services..."
     {kill_commands}
-{auto_resume}
     echo "=== Evaluation complete ==="
     echo "End: $(date -Iseconds)"
     echo "Results: $OUTPUT_DIR"
@@ -364,49 +366,56 @@ done
 wait
 """
 
-_RESUME_TRACKING = """\
-ATTEMPT_FILE="$OUTPUT_DIR/.nel_attempt"
-if [ -f "$ATTEMPT_FILE" ]; then
-    NEL_ATTEMPT=$(cat "$ATTEMPT_FILE")
-else
-    NEL_ATTEMPT=0
-fi
-NEL_ATTEMPT=$((NEL_ATTEMPT + 1))
-echo $NEL_ATTEMPT > "$ATTEMPT_FILE"
-"""
+_AUTORESUME_PROLOGUE = """\
+# --- Auto-resume chain ---
+_this_script="$OUTPUT_DIR/nel_eval.sbatch"
+_prev_slurm_job_id="${{1:-}}"
+_walltime_file="$OUTPUT_DIR/.nel_accumulated_walltime"
+_retry_file="$OUTPUT_DIR/.nel_infra_retries"
 
-_RESUME_ATTEMPT_INFO = """\
-echo "Attempt: $NEL_ATTEMPT / {max_attempts}"
-"""
+if [[ "$_prev_slurm_job_id" != "" ]]; then
+    for _sacct_try in 1 2 3 4 5; do
+        _prev_state=$(sacct -j $_prev_slurm_job_id -P -n -o State | head -n 1)
+        [[ -n "$_prev_state" ]] && break
+        sleep 2
+    done
+    _prev_elapsed=$(sacct -j $_prev_slurm_job_id -P -n -o ElapsedRaw | head -n 1)
+    _prev_elapsed=${{_prev_elapsed:-0}}
+    _accumulated=$(cat "$_walltime_file" 2>/dev/null || echo 0)
+    _accumulated=$((_accumulated + _prev_elapsed))
+    echo $_accumulated > "$_walltime_file"
 
-_AUTO_RESUME = """\
-# Auto-resume: check if evaluation needs to continue
-if [ $NEL_ATTEMPT -ge {max_attempts} ]; then
-    echo "Max resume attempts ({max_attempts}) reached. Not resubmitting."
-else
-    JOB_RUNTIME=$(( $(date +%s) - JOB_START_EPOCH ))
-    if [ $JOB_RUNTIME -lt 600 ] && [ ! -f "$OUTPUT_DIR/checkpoint.json" ]; then
-        echo "Job failed quickly (${{JOB_RUNTIME}}s) without progress. Not resubmitting."
-    elif python3 -c "
-import json, sys, os
-cp_path = '$OUTPUT_DIR/checkpoint.json'
-if not os.path.exists(cp_path):
-    sys.exit(0)
-cp = json.load(open(cp_path))
-total = {total_benchmarks}
-failed = len(cp.get('failed_benchmarks', {{}}))
-completed = len(cp.get('completed_benchmarks', {{}}))
-reports_ok = os.path.exists('$OUTPUT_DIR/report.md') or total == 0
-sys.exit(0 if (failed > 0 or completed < total or not reports_ok) else 1)
-" 2>/dev/null; then
-        echo "Evaluation incomplete, resubmitting (attempt $NEL_ATTEMPT/{max_attempts})..."
-        NEXT_JOB=$(sbatch --dependency=afternotok:$SLURM_JOB_ID "{script_path}")
-        echo "Resubmitted: $NEXT_JOB"
+    if [[ $_prev_state == 'COMPLETED' ]]; then
+        echo "Previous job $_prev_slurm_job_id completed successfully. Exiting."
+        exit 0
+    elif [[ $_prev_state == CANCELLED* ]]; then
+        echo "Previous job $_prev_slurm_job_id was cancelled. Stopping chain."
+        exit 0
+    elif [[ $_prev_state == 'TIMEOUT' || $_prev_state == 'PREEMPTED' || $_prev_state == 'NODE_FAIL' ]]; then
+        echo "Previous job $_prev_slurm_job_id: $_prev_state. Resuming..."
+{max_walltime_check}
     else
-        echo "All benchmarks completed and reports generated. No resubmit needed."
+        _retries=$(cat "$_retry_file" 2>/dev/null || echo 0)
+        _retries=$((_retries + 1))
+        echo $_retries > "$_retry_file"
+        if [[ $_retries -ge {max_retries} ]]; then
+            echo "Infra retry limit ({max_retries}) reached after $_prev_state. Stopping."
+            exit 1
+        fi
+        echo "Previous job $_prev_slurm_job_id: $_prev_state. Infra retry $_retries/{max_retries}..."
     fi
 fi
+
+echo "$SLURM_JOB_ID" >> "$OUTPUT_DIR/.nel_job_chain"
+sbatch --dependency=afternotok:$SLURM_JOB_ID "$_this_script" $SLURM_JOB_ID \\
+    || echo "WARNING: Failed to submit auto-resume follow-up. Chain will NOT continue on failure."
 """
+
+_MAX_WALLTIME_CHECK = """\
+        if [[ $_accumulated -ge {max_walltime_seconds} ]]; then
+            echo "Max walltime ({max_walltime}) exceeded ($_accumulated s). Stopping chain."
+            exit 1
+        fi"""
 
 
 def _safe(s: str) -> str:
@@ -722,13 +731,6 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
         het_echo_lines = "\n".join(
             f'echo "Het-group {i} ({name}): $SLURM_JOB_NODELIST_HET_GROUP_{i}"' for i, name in enumerate(used_pools)
         )
-        resume_tracking = ""
-        resume_attempt_info = ""
-        if cluster.auto_resume:
-            resume_tracking = _RESUME_TRACKING
-            resume_attempt_info = _RESUME_ATTEMPT_INFO.format(
-                max_attempts=cluster.max_resume_attempts,
-            )
         parts.append(
             _HEADER_HETJOB_FOOTER.format(
                 job_name=job_name,
@@ -736,8 +738,6 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
                 walltime=cluster.walltime,
                 account_line=account_line,
                 het_echo_lines=het_echo_lines,
-                resume_tracking=resume_tracking,
-                resume_attempt_info=resume_attempt_info,
             )
         )
     else:
@@ -745,13 +745,6 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
         gres_line = f"#SBATCH --gres={pool.gres}" if pool.gres else ""
         partition_line = f"#SBATCH --partition={pool.partition}" if pool.partition else ""
         array_line = f"#SBATCH --array=0-{cluster.shards - 1}" if cluster.shards else ""
-        resume_tracking = ""
-        resume_attempt_info = ""
-        if cluster.auto_resume:
-            resume_tracking = _RESUME_TRACKING
-            resume_attempt_info = _RESUME_ATTEMPT_INFO.format(
-                max_attempts=cluster.max_resume_attempts,
-            )
         parts.append(
             _HEADER.format(
                 job_name=job_name,
@@ -763,8 +756,6 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
                 partition_line=partition_line,
                 account_line=account_line,
                 array_line=array_line,
-                resume_tracking=resume_tracking,
-                resume_attempt_info=resume_attempt_info,
             )
         )
 
@@ -1018,20 +1009,23 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
             upper = _safe(name).upper()
             kill_cmds.append(f"    [ -n \"${{{upper}_PID:-}}\" ] && wait ${upper}_PID 2>/dev/null || true")
 
-    auto_resume_in_cleanup = ""
     if not is_sharded and cluster.auto_resume:
-        _raw = _AUTO_RESUME.format(
-            max_attempts=cluster.max_resume_attempts,
-            total_benchmarks=len(config.benchmarks),
-            script_path="$OUTPUT_DIR/nel_eval.sbatch",
+        max_walltime_check = ""
+        if cluster.max_walltime is not None:
+            max_walltime_seconds = _parse_walltime(cluster.max_walltime)
+            max_walltime_check = _MAX_WALLTIME_CHECK.format(
+                max_walltime_seconds=max_walltime_seconds,
+                max_walltime=cluster.max_walltime,
+            )
+        prologue = _AUTORESUME_PROLOGUE.format(
+            max_retries=cluster.max_retries,
+            max_walltime_check=max_walltime_check,
         )
-        auto_resume_in_cleanup = "\n".join(
-            ("    " + line) if line.strip() else ""
-            for line in _raw.strip().splitlines()
-        )
+        parts.insert(1, prologue)
 
     cleanup_body = "\n".join(kill_cmds) if kill_cmds else "    echo 'No managed services.'"
-    parts.insert(1, _CLEANUP_FUNC.format(kill_commands=cleanup_body, auto_resume=auto_resume_in_cleanup))
+    cleanup_idx = 2 if (not is_sharded and cluster.auto_resume) else 1
+    parts.insert(cleanup_idx, _CLEANUP_FUNC.format(kill_commands=cleanup_body))
 
     parts.append(_FOOTER)
 
