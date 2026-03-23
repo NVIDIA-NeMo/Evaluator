@@ -64,8 +64,8 @@ class TestSbatchArrayGeneration:
         doesn't contain resume logic when shards is set."""
         cfg = _make_slurm_config(shards=4)
         script, _, _ = generate_sbatch(cfg)
-        assert "ATTEMPT_FILE" not in script
-        assert "resubmitting" not in script.lower()
+        assert "afternotok" not in script
+        assert "sacct" not in script
 
     def test_shards_includes_merge_hint(self):
         cfg = _make_slurm_config(shards=4)
@@ -76,6 +76,229 @@ class TestSbatchArrayGeneration:
         cfg = _make_slurm_config(shards=None)
         script, _, _ = generate_sbatch(cfg)
         assert "nel eval report" in script
+
+
+class TestAutoresumePrologue:
+    def test_autoresume_prologue_in_script(self):
+        cfg = _make_slurm_config(auto_resume=True)
+        script, _, _ = generate_sbatch(cfg)
+        assert "sacct" in script
+        assert "afternotok" in script
+        assert "_retry_file" in script
+        assert "_walltime_file" in script
+        assert "_prev_slurm_job_id" in script
+
+    def test_autoresume_disabled(self):
+        cfg = _make_slurm_config(auto_resume=False)
+        script, _, _ = generate_sbatch(cfg)
+        assert "sacct" not in script
+        assert "afternotok" not in script
+
+    def test_max_walltime_block_present(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "http://x/v1/chat/completions",
+                        "protocol": "chat_completions",
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "repeats": 5, "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "auto_resume": True,
+                    "max_walltime": "48:00:00",
+                    "node_pools": {
+                        "compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"},
+                    },
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "172800" in script
+        assert "Max walltime" in script
+
+    def test_max_walltime_omitted_when_none(self):
+        cfg = _make_slurm_config(auto_resume=True)
+        script, _, _ = generate_sbatch(cfg)
+        assert "Max walltime" not in script
+
+    def test_max_retries_in_script(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "http://x/v1/chat/completions",
+                        "protocol": "chat_completions",
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "repeats": 5, "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "auto_resume": True,
+                    "max_retries": 5,
+                    "node_pools": {
+                        "compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"},
+                    },
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "Infra retry limit (5)" in script
+
+
+    def test_cancelled_handling_in_script(self):
+        cfg = _make_slurm_config(auto_resume=True)
+        script, _, _ = generate_sbatch(cfg)
+        assert "CANCELLED" in script
+        assert "was cancelled" in script
+
+    def test_sacct_retry_loop_in_script(self):
+        cfg = _make_slurm_config(auto_resume=True)
+        script, _, _ = generate_sbatch(cfg)
+        assert "_sacct_try" in script
+        assert "sleep 2" in script
+
+    def test_sbatch_failure_warning_in_script(self):
+        cfg = _make_slurm_config(auto_resume=True)
+        script, _, _ = generate_sbatch(cfg)
+        assert "WARNING: Failed to submit auto-resume" in script
+
+    def test_prologue_before_cleanup_trap(self):
+        cfg = _make_slurm_config(auto_resume=True)
+        script, _, _ = generate_sbatch(cfg)
+        prologue_pos = script.index("Auto-resume chain")
+        trap_pos = script.index("trap cleanup EXIT")
+        assert prologue_pos < trap_pos
+
+    def test_max_walltime_days_format(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "http://x/v1/chat/completions",
+                        "protocol": "chat_completions",
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "repeats": 5, "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "auto_resume": True,
+                    "max_walltime": "2-00:00:00",
+                    "node_pools": {
+                        "compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"},
+                    },
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "172800" in script
+
+    def test_max_walltime_invalid_format_rejected(self):
+        import pytest
+
+        with pytest.raises(Exception):
+            EvalConfig.model_validate(
+                {
+                    "services": {
+                        "model": {
+                            "type": "api",
+                            "url": "http://x/v1/chat/completions",
+                            "protocol": "chat_completions",
+                        },
+                    },
+                    "benchmarks": [
+                        {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                    ],
+                    "cluster": {
+                        "type": "slurm",
+                        "walltime": "02:00:00",
+                        "max_walltime": "banana",
+                        "node_pools": {
+                            "compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"},
+                        },
+                    },
+                }
+            )
+
+    def test_max_retries_negative_rejected(self):
+        import pytest
+
+        with pytest.raises(Exception):
+            EvalConfig.model_validate(
+                {
+                    "services": {
+                        "model": {
+                            "type": "api",
+                            "url": "http://x/v1/chat/completions",
+                            "protocol": "chat_completions",
+                        },
+                    },
+                    "benchmarks": [
+                        {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                    ],
+                    "cluster": {
+                        "type": "slurm",
+                        "walltime": "02:00:00",
+                        "max_retries": -1,
+                        "node_pools": {
+                            "compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"},
+                        },
+                    },
+                }
+            )
+
+
+class TestPerServiceLogFiles:
+    def test_logs_dir_created(self):
+        cfg = _make_slurm_config()
+        script, _, _ = generate_sbatch(cfg)
+        assert 'mkdir -p "$OUTPUT_DIR/logs"' in script
+
+    def test_eval_task_tees_to_log_file(self):
+        cfg = _make_slurm_config()
+        script, _, _ = generate_sbatch(cfg)
+        assert "tee" in script
+        assert "logs/eval-" in script
+        assert "PIPESTATUS" in script
+
+    def test_vllm_service_log_redirect(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "vllm",
+                        "model": "m",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "node_pools": {
+                        "compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"},
+                    },
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert 'logs/server-model.log' in script
 
 
 class TestSidecarConfigGeneration:

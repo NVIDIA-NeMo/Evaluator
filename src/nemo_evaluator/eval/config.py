@@ -822,8 +822,22 @@ class SlurmCluster(BaseModel):
     shm_size: str | None = None
     mount_home: bool = True
     auto_resume: bool = True
-    max_resume_attempts: int = 3
+    max_retries: int = Field(default=3, ge=0)
+    max_walltime: str | None = None
     shards: int | None = Field(default=None, ge=1)
+
+    @field_validator("max_walltime")
+    @classmethod
+    def _validate_max_walltime(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        try:
+            _parse_walltime(v)
+        except (ValueError, TypeError):
+            raise ValueError(
+                f"max_walltime must be in SLURM time format (HH:MM:SS or D-HH:MM:SS), got: {v!r}"
+            )
+        return v
 
     hostname: str | None = None
     username: str | None = None

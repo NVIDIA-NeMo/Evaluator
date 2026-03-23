@@ -1,16 +1,10 @@
 # nemo-evaluator + NeMo Skills
 # For: skills:// benchmarks (mmlu-pro, gsm8k, math, etc.)
-FROM python:3.12-slim AS base
-
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+ARG BASE_IMAGE=nemo-evaluator:latest
+FROM ${BASE_IMAGE}
 
 WORKDIR /app
-RUN pip install --no-cache-dir --upgrade pip
-
-COPY pyproject.toml README.md ./
-COPY src/ src/
 
 RUN pip install --no-cache-dir ".[scoring,stats,skills]"
 
-ENV PYTHONUNBUFFERED=1
 CMD ["nel", "--help"]

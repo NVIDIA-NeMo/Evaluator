@@ -103,100 +103,249 @@ pages:
       else
         export TAG="dev-${TS}-${CI_COMMIT_SHORT_SHA}"
       fi
-    - echo "TAG=${TAG}"
+    - echo "TAG=${TAG} ARCH=${ARCH}"
   rules:
     - if: $CI_COMMIT_TAG
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - changes:
         - docker/**
-        - src/**/*
+        - src/**
         - pyproject.toml
 
-container-base:
+.container-build-amd64:
   extends: .container-build
+  tags:
+    - nv-core-evals-x86
+  variables:
+    ARCH: amd64
+
+.container-build-arm64:
+  extends: .container-build
+  tags:
+    - nv-core-evals-arm64-aws
+  variables:
+    ARCH: arm64
+
+# --- base ---
+
+container-base-amd64:
+  extends: .container-build-amd64
   script:
+    - docker pull "${REGISTRY}:latest-amd64" || true
     - docker build --pull
-      --cache-from "${REGISTRY}:latest"
-      --tag "${REGISTRY}:${TAG}"
+      --platform linux/amd64
+      --cache-from "${REGISTRY}:latest-amd64"
+      --tag "${REGISTRY}:${TAG}-amd64"
       -f docker/Dockerfile.base .
-    - docker push "${REGISTRY}:${TAG}"
+    - docker push "${REGISTRY}:${TAG}-amd64"
     - |
       if [ -n "$CI_COMMIT_TAG" ]; then
-        docker tag "${REGISTRY}:${TAG}" "${REGISTRY}:latest"
-        docker push "${REGISTRY}:latest"
+        docker tag "${REGISTRY}:${TAG}-amd64" "${REGISTRY}:latest-amd64"
+        docker push "${REGISTRY}:latest-amd64"
       fi
 
-container-harbor:
-  extends: .container-build
-  needs: ["container-base"]
+container-base-arm64:
+  extends: .container-build-arm64
   script:
+    - docker pull "${REGISTRY}:latest-arm64" || true
+    - docker build --pull
+      --platform linux/arm64
+      --cache-from "${REGISTRY}:latest-arm64"
+      --tag "${REGISTRY}:${TAG}-arm64"
+      -f docker/Dockerfile.base .
+    - docker push "${REGISTRY}:${TAG}-arm64"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "${REGISTRY}:${TAG}-arm64" "${REGISTRY}:latest-arm64"
+        docker push "${REGISTRY}:latest-arm64"
+      fi
+
+# --- harbor ---
+
+container-harbor-amd64:
+  extends: .container-build-amd64
+  needs: ["container-base-amd64"]
+  script:
+    - docker pull "${REGISTRY}:latest-harbor-amd64" || true
     - docker build
-      --cache-from "${REGISTRY}:latest-harbor"
-      --tag "${REGISTRY}:${TAG}-harbor"
+      --platform linux/amd64
+      --build-arg BASE_IMAGE="${REGISTRY}:${TAG}-amd64"
+      --cache-from "${REGISTRY}:latest-harbor-amd64"
+      --tag "${REGISTRY}:${TAG}-harbor-amd64"
       -f docker/Dockerfile.harbor .
-    - docker push "${REGISTRY}:${TAG}-harbor"
+    - docker push "${REGISTRY}:${TAG}-harbor-amd64"
     - |
       if [ -n "$CI_COMMIT_TAG" ]; then
-        docker tag "${REGISTRY}:${TAG}-harbor" "${REGISTRY}:latest-harbor"
-        docker push "${REGISTRY}:latest-harbor"
+        docker tag "${REGISTRY}:${TAG}-harbor-amd64" "${REGISTRY}:latest-harbor-amd64"
+        docker push "${REGISTRY}:latest-harbor-amd64"
       fi
 
-container-lm-eval:
-  extends: .container-build
-  needs: ["container-base"]
+container-harbor-arm64:
+  extends: .container-build-arm64
+  needs: ["container-base-arm64"]
   script:
+    - docker pull "${REGISTRY}:latest-harbor-arm64" || true
     - docker build
-      --cache-from "${REGISTRY}:latest-lm-eval"
-      --tag "${REGISTRY}:${TAG}-lm-eval"
+      --platform linux/arm64
+      --build-arg BASE_IMAGE="${REGISTRY}:${TAG}-arm64"
+      --cache-from "${REGISTRY}:latest-harbor-arm64"
+      --tag "${REGISTRY}:${TAG}-harbor-arm64"
+      -f docker/Dockerfile.harbor .
+    - docker push "${REGISTRY}:${TAG}-harbor-arm64"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "${REGISTRY}:${TAG}-harbor-arm64" "${REGISTRY}:latest-harbor-arm64"
+        docker push "${REGISTRY}:latest-harbor-arm64"
+      fi
+
+# --- lm-eval ---
+
+container-lm-eval-amd64:
+  extends: .container-build-amd64
+  needs: ["container-base-amd64"]
+  script:
+    - docker pull "${REGISTRY}:latest-lm-eval-amd64" || true
+    - docker build
+      --platform linux/amd64
+      --build-arg BASE_IMAGE="${REGISTRY}:${TAG}-amd64"
+      --cache-from "${REGISTRY}:latest-lm-eval-amd64"
+      --tag "${REGISTRY}:${TAG}-lm-eval-amd64"
       -f docker/Dockerfile.lm-eval .
-    - docker push "${REGISTRY}:${TAG}-lm-eval"
+    - docker push "${REGISTRY}:${TAG}-lm-eval-amd64"
     - |
       if [ -n "$CI_COMMIT_TAG" ]; then
-        docker tag "${REGISTRY}:${TAG}-lm-eval" "${REGISTRY}:latest-lm-eval"
-        docker push "${REGISTRY}:latest-lm-eval"
+        docker tag "${REGISTRY}:${TAG}-lm-eval-amd64" "${REGISTRY}:latest-lm-eval-amd64"
+        docker push "${REGISTRY}:latest-lm-eval-amd64"
       fi
 
-container-skills:
-  extends: .container-build
-  needs: ["container-base"]
+container-lm-eval-arm64:
+  extends: .container-build-arm64
+  needs: ["container-base-arm64"]
   script:
+    - docker pull "${REGISTRY}:latest-lm-eval-arm64" || true
     - docker build
-      --cache-from "${REGISTRY}:latest-skills"
-      --tag "${REGISTRY}:${TAG}-skills"
+      --platform linux/arm64
+      --build-arg BASE_IMAGE="${REGISTRY}:${TAG}-arm64"
+      --cache-from "${REGISTRY}:latest-lm-eval-arm64"
+      --tag "${REGISTRY}:${TAG}-lm-eval-arm64"
+      -f docker/Dockerfile.lm-eval .
+    - docker push "${REGISTRY}:${TAG}-lm-eval-arm64"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "${REGISTRY}:${TAG}-lm-eval-arm64" "${REGISTRY}:latest-lm-eval-arm64"
+        docker push "${REGISTRY}:latest-lm-eval-arm64"
+      fi
+
+# --- skills ---
+
+container-skills-amd64:
+  extends: .container-build-amd64
+  needs: ["container-base-amd64"]
+  script:
+    - docker pull "${REGISTRY}:latest-skills-amd64" || true
+    - docker build
+      --platform linux/amd64
+      --build-arg BASE_IMAGE="${REGISTRY}:${TAG}-amd64"
+      --cache-from "${REGISTRY}:latest-skills-amd64"
+      --tag "${REGISTRY}:${TAG}-skills-amd64"
       -f docker/Dockerfile.skills .
-    - docker push "${REGISTRY}:${TAG}-skills"
+    - docker push "${REGISTRY}:${TAG}-skills-amd64"
     - |
       if [ -n "$CI_COMMIT_TAG" ]; then
-        docker tag "${REGISTRY}:${TAG}-skills" "${REGISTRY}:latest-skills"
-        docker push "${REGISTRY}:latest-skills"
+        docker tag "${REGISTRY}:${TAG}-skills-amd64" "${REGISTRY}:latest-skills-amd64"
+        docker push "${REGISTRY}:latest-skills-amd64"
       fi
 
-container-gym:
-  extends: .container-build
-  needs: ["container-base"]
+container-skills-arm64:
+  extends: .container-build-arm64
+  needs: ["container-base-arm64"]
   script:
+    - docker pull "${REGISTRY}:latest-skills-arm64" || true
     - docker build
-      --cache-from "${REGISTRY}:latest-gym"
-      --tag "${REGISTRY}:${TAG}-gym"
+      --platform linux/arm64
+      --build-arg BASE_IMAGE="${REGISTRY}:${TAG}-arm64"
+      --cache-from "${REGISTRY}:latest-skills-arm64"
+      --tag "${REGISTRY}:${TAG}-skills-arm64"
+      -f docker/Dockerfile.skills .
+    - docker push "${REGISTRY}:${TAG}-skills-arm64"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "${REGISTRY}:${TAG}-skills-arm64" "${REGISTRY}:latest-skills-arm64"
+        docker push "${REGISTRY}:latest-skills-arm64"
+      fi
+
+# --- gym ---
+
+container-gym-amd64:
+  extends: .container-build-amd64
+  needs: ["container-base-amd64"]
+  script:
+    - docker pull "${REGISTRY}:latest-gym-amd64" || true
+    - docker build
+      --platform linux/amd64
+      --build-arg BASE_IMAGE="${REGISTRY}:${TAG}-amd64"
+      --cache-from "${REGISTRY}:latest-gym-amd64"
+      --tag "${REGISTRY}:${TAG}-gym-amd64"
       -f docker/Dockerfile.gym .
-    - docker push "${REGISTRY}:${TAG}-gym"
+    - docker push "${REGISTRY}:${TAG}-gym-amd64"
     - |
       if [ -n "$CI_COMMIT_TAG" ]; then
-        docker tag "${REGISTRY}:${TAG}-gym" "${REGISTRY}:latest-gym"
-        docker push "${REGISTRY}:latest-gym"
+        docker tag "${REGISTRY}:${TAG}-gym-amd64" "${REGISTRY}:latest-gym-amd64"
+        docker push "${REGISTRY}:latest-gym-amd64"
       fi
 
-container-full:
-  extends: .container-build
-  needs: ["container-base"]
+container-gym-arm64:
+  extends: .container-build-arm64
+  needs: ["container-base-arm64"]
   script:
+    - docker pull "${REGISTRY}:latest-gym-arm64" || true
     - docker build
-      --cache-from "${REGISTRY}:latest-full"
-      --tag "${REGISTRY}:${TAG}-full"
-      -f docker/Dockerfile.full .
-    - docker push "${REGISTRY}:${TAG}-full"
+      --platform linux/arm64
+      --build-arg BASE_IMAGE="${REGISTRY}:${TAG}-arm64"
+      --cache-from "${REGISTRY}:latest-gym-arm64"
+      --tag "${REGISTRY}:${TAG}-gym-arm64"
+      -f docker/Dockerfile.gym .
+    - docker push "${REGISTRY}:${TAG}-gym-arm64"
     - |
       if [ -n "$CI_COMMIT_TAG" ]; then
-        docker tag "${REGISTRY}:${TAG}-full" "${REGISTRY}:latest-full"
-        docker push "${REGISTRY}:latest-full"
+        docker tag "${REGISTRY}:${TAG}-gym-arm64" "${REGISTRY}:latest-gym-arm64"
+        docker push "${REGISTRY}:latest-gym-arm64"
+      fi
+
+# --- full ---
+
+container-full-amd64:
+  extends: .container-build-amd64
+  needs: ["container-base-amd64"]
+  script:
+    - docker pull "${REGISTRY}:latest-full-amd64" || true
+    - docker build
+      --platform linux/amd64
+      --build-arg BASE_IMAGE="${REGISTRY}:${TAG}-amd64"
+      --cache-from "${REGISTRY}:latest-full-amd64"
+      --tag "${REGISTRY}:${TAG}-full-amd64"
+      -f docker/Dockerfile.full .
+    - docker push "${REGISTRY}:${TAG}-full-amd64"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "${REGISTRY}:${TAG}-full-amd64" "${REGISTRY}:latest-full-amd64"
+        docker push "${REGISTRY}:latest-full-amd64"
+      fi
+
+container-full-arm64:
+  extends: .container-build-arm64
+  needs: ["container-base-arm64"]
+  script:
+    - docker pull "${REGISTRY}:latest-full-arm64" || true
+    - docker build
+      --platform linux/arm64
+      --build-arg BASE_IMAGE="${REGISTRY}:${TAG}-arm64"
+      --cache-from "${REGISTRY}:latest-full-arm64"
+      --tag "${REGISTRY}:${TAG}-full-arm64"
+      -f docker/Dockerfile.full .
+    - docker push "${REGISTRY}:${TAG}-full-arm64"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "${REGISTRY}:${TAG}-full-arm64" "${REGISTRY}:latest-full-arm64"
+        docker push "${REGISTRY}:latest-full-arm64"
       fi

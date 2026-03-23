@@ -1,16 +1,10 @@
 # nemo-evaluator with all harnesses
 # For: any benchmark scheme. Larger image but zero additional pulls needed.
-FROM python:3.12-slim AS base
-
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+ARG BASE_IMAGE=nemo-evaluator:latest
+FROM ${BASE_IMAGE}
 
 WORKDIR /app
-RUN pip install --no-cache-dir --upgrade pip
-
-COPY pyproject.toml README.md ./
-COPY src/ src/
 
 RUN pip install --no-cache-dir ".[all]"
 
-ENV PYTHONUNBUFFERED=1
 CMD ["nel", "--help"]
