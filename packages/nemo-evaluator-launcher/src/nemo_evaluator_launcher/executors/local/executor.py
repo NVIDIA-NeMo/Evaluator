@@ -68,6 +68,9 @@ from nemo_evaluator_launcher.executors.base import (
 )
 from nemo_evaluator_launcher.executors.registry import register_executor
 
+# Keep in sync with nemo_evaluator.core.evaluate.INTERRUPTED_MARKER_FILENAME
+INTERRUPTED_MARKER_FILENAME = ".nemo_evaluator_interrupted"
+
 
 @register_executor("local")
 class LocalExecutor(BaseExecutor):
@@ -520,6 +523,8 @@ class LocalExecutor(BaseExecutor):
                 )
             ]
 
+        interrupted_marker = artifacts_dir / INTERRUPTED_MARKER_FILENAME
+
         # Check if job was killed
         if job_data.data.get("killed", False):
             return [
@@ -540,7 +545,19 @@ class LocalExecutor(BaseExecutor):
                 if " " in content:
                     timestamp, exit_code_str = content.rsplit(" ", 1)
                     exit_code = int(exit_code_str)
-                    if exit_code == 0:
+                    if interrupted_marker.exists():
+                        if exit_code != 0:
+                            logger.warning(
+                                f"Job {id} was interrupted but exited with code {exit_code}"
+                            )
+                        return [
+                            ExecutionStatus(
+                                id=id,
+                                state=ExecutionState.KILLED,
+                                progress=dict(progress=progress),
+                            )
+                        ]
+                    elif exit_code == 0:
                         return [
                             ExecutionStatus(
                                 id=id,
