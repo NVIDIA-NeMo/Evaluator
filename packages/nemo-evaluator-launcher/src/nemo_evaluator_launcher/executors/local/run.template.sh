@@ -62,7 +62,7 @@ else
         sleep {{ heartbeat_interval }}
         {{ heartbeat_script }} || echo '[heartbeat] FAILED (non-fatal)'
       done
-    ) &
+    ) >> "$logs_dir/stdout.log" 2>&1 &
     _heartbeat_pid=$!
     {% endif %}
 
