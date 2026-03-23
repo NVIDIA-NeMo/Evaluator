@@ -112,7 +112,7 @@ class SlurmExecutor(Executor):
             host = config.cluster.hostname
             click.echo(f"\nSLURM job submitted: {jid}  (run_id: {run_id})")
             click.echo(f"Remote dir: {host}:{resolved_dir}")
-            click.echo(f"Log:        {host}:{resolved_dir}/slurm-{jid}.log")
+            click.echo(f"Log:        {host}:{resolved_dir}/logs/slurm-{jid}.log")
             click.echo(f"Metadata:   {meta_path}")
             click.echo(f"\nTail logs:  nel eval logs -r {run_id} -f")
             click.echo(f"Status:     nel eval status -r {run_id}")

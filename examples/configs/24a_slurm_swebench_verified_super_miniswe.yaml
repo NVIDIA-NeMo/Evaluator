@@ -25,12 +25,11 @@ services:
     image: vllm/vllm-openai:v0.18.0-cu130
     startup_timeout: 1800.0
     setup_commands:
-      - 'wget -q "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8/resolve/main/super_v3_reasoning_parser.py" -O /tmp/super_v3_reasoning_parser.py'
+      - 'curl -sSL -o /tmp/super_v3_reasoning_parser.py https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8/resolve/main/super_v3_reasoning_parser.py'
     extra_args:
       - "--async-scheduling"
       - "--dtype=auto"
       - "--kv-cache-dtype=fp8"
-      - "--swap-space=0"
       - "--trust-remote-code"
       - "--attention-backend=TRITON_ATTN"
       - "--gpu-memory-utilization=0.9"
