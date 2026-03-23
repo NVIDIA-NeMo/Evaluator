@@ -126,34 +126,19 @@ class TestFilterTasks:
                 ],
                 id="preserves_original_order",
             ),
-            # Plain name takes priority over unique name to avoid shadowing.
-            # "mmlu.0" as unique name would resolve to index 0 (the "mmlu"
-            # task), but as plain name it matches index 2 — plain name wins.
+            # Unique name resolves correctly alongside plain names.
             pytest.param(
                 [
                     {"name": "mmlu", "container": "eval:v1"},
                     {"name": "gsm8k", "container": "eval:v1"},
-                    {"name": "mmlu.0", "container": "eval:v2"},
+                    {"name": "mmlu", "container": "eval:v2"},
                 ],
-                ["mmlu.0"],
+                ["mmlu.0", "gsm8k"],
                 [
-                    {"name": "mmlu.0", "container": "eval:v2"},
-                ],
-                id="plain_name_priority_over_unique_name",
-            ),
-            # "mmlu.1" as unique name would resolve to index 1 (the "mmlu"
-            # task), but as plain name it matches index 2 — plain name wins.
-            pytest.param(
-                [
-                    {"name": "gsm8k", "container": "eval:v1"},
                     {"name": "mmlu", "container": "eval:v1"},
-                    {"name": "mmlu.1", "container": "eval:v2"},
+                    {"name": "gsm8k", "container": "eval:v1"},
                 ],
-                ["mmlu.1"],
-                [
-                    {"name": "mmlu.1", "container": "eval:v2"},
-                ],
-                id="plain_name_priority_different_indices",
+                id="unique_name_and_plain_name_together",
             ),
         ],
     )

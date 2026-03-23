@@ -202,25 +202,22 @@ def _find_matching_task_indices(
     """Match each filter against the task list by plain name or unique name.
 
     A filter like ``"mmlu"`` matches every task with that plain name.
-    A filter like ``"mmlu.0"`` matches a single task by its unique name,
-    but only if no task is literally named ``"mmlu.0"`` (plain name takes
-    priority to avoid shadowing real task names).
+    A filter like ``"mmlu.0"`` matches a single task by its unique name
+    (unique names are generated as ``"{name}.{index}"`` and task names
+    cannot contain a dot-digit suffix, so there is no ambiguity).
 
     Returns ``(found_indices_sorted, unmatched_filters)``.
     """
-    by_name: defaultdict[str, list[int]] = defaultdict(list)
+    lookup: dict[str, list[int]] = defaultdict(list)
     for i, t in enumerate(tasks):
-        by_name[t.name].append(i)
-
-    by_unique_name = {get_unique_task_name(t.name, i): i for i, t in enumerate(tasks)}
+        lookup[t.name].append(i)
+        lookup[get_unique_task_name(t.name, i)].append(i)
 
     found: set[int] = set()
     unmatched_filters: list[str] = []
     for f in task_name_filters:
-        if f in by_name:
-            found.update(by_name[f])
-        elif f in by_unique_name:
-            found.add(by_unique_name[f])
+        if f in lookup:
+            found.update(lookup[f])
         else:
             unmatched_filters.append(f)
 
@@ -231,8 +228,9 @@ def filter_tasks(cfg: RunConfig, task_name_filters: list[str]) -> RunConfig:
     """Filter evaluation tasks to only include specified task names.
 
     Accepts both plain names (``"mmlu"`` — all instances) and positional
-    unique names (``"mmlu.0"`` — one specific instance).  Plain names
-    take priority so that unique names never shadow a real task name.
+    unique names (``"mmlu.0"`` — one specific instance).  Task names
+    cannot contain a dot-digit suffix, so there is no ambiguity between
+    plain names and unique names.
 
     Args:
         cfg: The configuration object for the evaluation run.

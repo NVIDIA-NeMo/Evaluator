@@ -114,10 +114,34 @@ nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/l
 nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml -t ifeval -t mbpp --dry-run
 ```
 
+When a config contains **duplicate task names** (e.g. the same benchmark run with different
+containers or settings), you can select a specific instance using its positional index:
+
+```bash
+# Given a config with two "mmlu" tasks at positions 0 and 2:
+#   tasks:
+#     - name: mmlu          # index 0
+#     - name: gsm8k         # index 1
+#     - name: mmlu          # index 2
+
+# Select all instances of mmlu (both index 0 and 2)
+nemo-evaluator-launcher run --config my_config.yaml -t mmlu
+
+# Select only the first mmlu instance (index 0)
+nemo-evaluator-launcher run --config my_config.yaml -t mmlu.0
+
+# Select only the second mmlu instance (index 2)
+nemo-evaluator-launcher run --config my_config.yaml -t mmlu.2
+
+# Mix plain names and positional names
+nemo-evaluator-launcher run --config my_config.yaml -t gsm8k -t mmlu.2
+```
+
 **Notes:**
 - Tasks must be defined in your configuration file under `evaluation.tasks`
 - If any requested task is not found in the configuration, the command will fail with an error listing available tasks
 - Task filtering preserves all task-specific overrides and `nemo_evaluator_config` settings
+- Positional names use the format `{name}.{index}` where `index` is the task's position in the full task list (zero-based)
 
 ### Examples by Executor
 
