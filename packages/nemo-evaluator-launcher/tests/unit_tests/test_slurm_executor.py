@@ -3859,6 +3859,7 @@ class TestSbatchExtraFlags:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            task_idx=0,
         ).cmd
 
     def test_empty_sbatch_extra_flags(self, base_config, mock_task, mock_dependencies):
