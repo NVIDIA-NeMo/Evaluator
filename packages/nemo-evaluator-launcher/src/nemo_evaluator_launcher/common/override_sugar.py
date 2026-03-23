@@ -252,7 +252,10 @@ def _raise_ambiguous(task_name: str, indices: list[int]) -> None:
 
 def _delete_key(cfg: DictConfig, dotted_path: str) -> None:
     """Delete a key from *cfg* at *dotted_path*, mirroring Hydra's ``~`` semantics."""
-
+    # rsplit(".", 1) splits on the last dot, giving at most 2 parts
+    # len == 2: path has at least one dot, e.g. "evaluation.tasks.0.xxx"
+    # len == 1: no dots at all, e.g. "evaluation_tasks_0"
+    #   (very unlikely this function will be called with `dotted_path` without dots)
     parts = dotted_path.rsplit(".", 1)
     if len(parts) == 2:
         parent_path, key = parts
