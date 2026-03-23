@@ -868,20 +868,21 @@ class TestLocalExecutorEndpointReadinessTimeout:
 
 
 class TestHeartbeatInLocalTemplate:
+    @staticmethod
+    def _load_template():
+        from importlib.resources import files
+
+        return (
+            files("nemo_evaluator_launcher.executors.local")
+            .joinpath("run.template.sh")
+            .read_text()
+        )
+
     def test_heartbeat_start_and_stop(self):
         """Heartbeat start/stop appear when script is configured."""
-        from pathlib import Path
-
         from jinja2 import Environment
 
-        template_text = (
-            Path(__file__).parent.parent.parent
-            / "src"
-            / "nemo_evaluator_launcher"
-            / "executors"
-            / "local"
-            / "run.template.sh"
-        ).read_text()
+        template_text = self._load_template()
 
         # Minimal task dict to pass the for loop
         task = type(
@@ -930,18 +931,9 @@ class TestHeartbeatInLocalTemplate:
 
     def test_no_heartbeat_when_none(self):
         """No heartbeat injected when script is None."""
-        from pathlib import Path
-
         from jinja2 import Environment
 
-        template_text = (
-            Path(__file__).parent.parent.parent
-            / "src"
-            / "nemo_evaluator_launcher"
-            / "executors"
-            / "local"
-            / "run.template.sh"
-        ).read_text()
+        template_text = self._load_template()
         env = Environment()
         rendered = env.from_string(template_text).render(
             evaluation_tasks=[],
