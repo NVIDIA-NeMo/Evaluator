@@ -7,10 +7,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from nemo_evaluator_launcher.common.logging_utils import logger
 
-WATCH_STATE_FILE = os.getenv(
-    "NEMO_EVALUATOR_WATCH_STATE_FILE",
-    Path.home() / ".nemo-evaluator" / "watch-state" / "watch-state.v1.jsonl",
-)
+WATCH_STATE_FILE = os.getenv("NEMO_EVALUATOR_WATCH_STATE_FILE", None)
+if WATCH_STATE_FILE is not None:
+    WATCH_STATE_FILE = Path(WATCH_STATE_FILE)
+else:
+    WATCH_STATE_FILE = (
+        Path.home() / ".nemo-evaluator" / "watch-state" / "watch-state.v1.jsonl"
+    )
 
 
 class SubmittedCheckpoint(BaseModel):
