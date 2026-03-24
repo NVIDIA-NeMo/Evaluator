@@ -3,7 +3,7 @@
 import pytest
 import warnings
 
-from nemo_evaluator.orchestration.config import (
+from nemo_evaluator.config import (
     EvalConfig,
     ExternalApiService,
     VllmService,
@@ -17,8 +17,8 @@ from nemo_evaluator.orchestration.config import (
     LocalCluster,
     GenerationConfig,
     parse_eval_config,
-    _expand_env,
 )
+from nemo_evaluator.config.eval_config import _expand_env
 
 
 class TestEnvExpansion:

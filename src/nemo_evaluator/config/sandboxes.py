@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Discriminator, Field, Tag, model_validator
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, model_validator
 
 
 class _SandboxBase(BaseModel):
     """Shared sandbox fields used by the eval loop / lifecycle."""
+
+    model_config = ConfigDict(extra="forbid")
 
     capture_cmd: str | None = None
     verify_timeout: float = 600.0
@@ -27,6 +29,8 @@ class DockerSandbox(_SandboxBase):
 
 
 class SshSidecarConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     sshd_port: int = 2222
     ssh_ready_timeout_sec: float = 120.0
     public_key_secret_arn: str
@@ -107,6 +111,8 @@ class ApptainerSandbox(_SlurmSandboxBase):
 
 
 class NoSandbox(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     type: Literal["none"] = "none"
 
     capture_cmd: str | None = None
@@ -115,6 +121,8 @@ class NoSandbox(BaseModel):
 
 class CustomSandbox(BaseModel):
     """Plugin sandbox backend — dynamically imported from class_path."""
+
+    model_config = ConfigDict(extra="forbid")
 
     type: Literal["custom"] = "custom"
     class_path: str

@@ -1,9 +1,10 @@
-"""Evaluation config schema (Pydantic).
+"""Evaluation config schema (Pydantic) and YAML composition engine.
 
 Fully explicit, docker-compose-style configuration for evaluations.
 No sugar, no shorthands, no implicit defaults for architectural choices.
 
 Sub-modules:
+  - compose: Hydra-style YAML composition (defaults, _base_, self-refs)
   - services: model server + API + gym + NAT + custom service schemas
   - sandboxes: Docker, ECS Fargate, SLURM, Apptainer, custom sandbox schemas
   - solvers: simple, harbor, agent, tool_calling, etc. solver schemas
@@ -21,9 +22,9 @@ from .clusters import (
     LocalCluster,
     NodePool,
     SlurmCluster,
-    _parse_walltime,
 )
-from .eval_config import EvalConfig, _expand_env, parse_eval_config
+from .compose import compose_config
+from .eval_config import EvalConfig, parse_eval_config
 from .output import OutputConfig
 from .sandboxes import (
     ApptainerSandbox,
@@ -34,8 +35,6 @@ from .sandboxes import (
     SandboxConfig,
     SlurmSandbox,
     SshSidecarConfig,
-    _SandboxBase,
-    _SlurmSandboxBase,
 )
 from .scoring import (
     CustomMetric,
@@ -61,8 +60,6 @@ from .services import (
     ServiceConfig,
     SglangService,
     VllmService,
-    _MODEL_SERVICE_TYPES,
-    _ModelServerBase,
 )
 from .solvers import (
     AgentSolverConfig,
@@ -78,11 +75,12 @@ from .solvers import (
 )
 
 __all__ = [
+    # Composition
+    "compose_config",
     # Services
     "Protocol",
     "GenerationConfig",
     "InterceptorConfig",
-    "_ModelServerBase",
     "VllmService",
     "SglangService",
     "NimService",
@@ -92,13 +90,10 @@ __all__ = [
     "NatAgentService",
     "CustomService",
     "ServiceConfig",
-    "_MODEL_SERVICE_TYPES",
     # Sandboxes
-    "_SandboxBase",
     "DockerSandbox",
     "SshSidecarConfig",
     "EcsFargateSandbox",
-    "_SlurmSandboxBase",
     "SlurmSandbox",
     "ApptainerSandbox",
     "NoSandbox",
@@ -133,11 +128,9 @@ __all__ = [
     "NodePool",
     "SlurmCluster",
     "ClusterConfig",
-    "_parse_walltime",
     # Output
     "OutputConfig",
     # Top-level
     "EvalConfig",
     "parse_eval_config",
-    "_expand_env",
 ]

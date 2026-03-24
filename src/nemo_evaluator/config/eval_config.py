@@ -7,7 +7,7 @@ import re
 import warnings
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .benchmarks import BenchmarkConfig
 from .clusters import ClusterConfig, LocalCluster, SlurmCluster, _parse_walltime
@@ -43,6 +43,8 @@ def _get_solver_service(solver: Any) -> str | None:
 
 
 class EvalConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     services: dict[str, ServiceConfig]
     sandboxes: dict[str, SandboxConfig] = Field(default_factory=dict)
     benchmarks: list[BenchmarkConfig] = Field(min_length=1)

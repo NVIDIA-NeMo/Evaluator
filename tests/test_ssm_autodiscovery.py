@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nemo_evaluator.orchestration.config import EcsFargateSandbox, SshSidecarConfig
+from nemo_evaluator.config import EcsFargateSandbox, SshSidecarConfig
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────

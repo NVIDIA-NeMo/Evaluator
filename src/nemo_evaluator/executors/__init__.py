@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from nemo_evaluator.orchestration.config import EvalConfig
+    from nemo_evaluator.config import EvalConfig
     from nemo_evaluator.run_store import RunMeta
 
 

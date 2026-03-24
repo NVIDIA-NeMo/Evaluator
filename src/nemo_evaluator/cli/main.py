@@ -3,7 +3,7 @@
 import click
 
 from nemo_evaluator.cli.cache_sqsh import cache_sqsh_cmd
-from nemo_evaluator.cli.config import config_cmd
+from nemo_evaluator.cli.settings import config_cmd
 from nemo_evaluator.cli.eval import eval_cmd
 from nemo_evaluator.cli.list import list_cmd
 from nemo_evaluator.cli.package import package_cmd

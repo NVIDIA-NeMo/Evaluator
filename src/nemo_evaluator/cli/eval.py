@@ -80,11 +80,10 @@ def eval_run(config_file, bench, model_url, model_id, api_key,
 
 
 def _load_config(config_file: str, overrides: tuple[str, ...] = ()):
-    import yaml
+    from nemo_evaluator.config import parse_eval_config
+    from nemo_evaluator.config.compose import compose_config
 
-    from nemo_evaluator.orchestration.config import parse_eval_config
-
-    raw = yaml.safe_load(Path(config_file).read_text()) or {}
+    raw = compose_config(config_file)
     for ov in overrides:
         _apply_override(raw, ov)
     return parse_eval_config(raw)
@@ -136,7 +135,7 @@ def _apply_override(data: dict, override: str) -> None:
 def _build_quick_config(bench, model_url, model_id, api_key, repeats,
                         max_problems, system_prompt, temperature, max_tokens,
                         output_dir):
-    from nemo_evaluator.orchestration.config import (
+    from nemo_evaluator.config import (
         BenchmarkConfig,
         EvalConfig,
         ExternalApiService,

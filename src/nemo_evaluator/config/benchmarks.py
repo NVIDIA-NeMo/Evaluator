@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .sandboxes import NoSandbox, SandboxConfig
 from .scoring import ScoringConfig
@@ -17,6 +17,8 @@ from .solvers import (
 
 class BenchmarkConfig(BaseModel):
     """Single benchmark entry."""
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str
     solver: SolverConfig

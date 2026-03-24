@@ -9,7 +9,7 @@ import threading
 from pathlib import Path
 from typing import IO, Any
 
-from nemo_evaluator.orchestration.config import (
+from nemo_evaluator.config import (
     AgentSolverConfig,
     ApptainerSandbox,
     ContainerSolverConfig,
@@ -28,8 +28,8 @@ from nemo_evaluator.orchestration.config import (
     SimpleSolver,
     SlurmSandbox,
     ToolCallingSolverConfig,
-    _MODEL_SERVICE_TYPES,
 )
+from nemo_evaluator.config.services import _MODEL_SERVICE_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -724,7 +724,7 @@ async def _run_single_benchmark(
             return batch_result
 
         judge_client = None
-        from nemo_evaluator.orchestration.config import JudgeMetric
+        from nemo_evaluator.config import JudgeMetric
 
         for metric in bench.scoring.metrics:
             if isinstance(metric, JudgeMetric):

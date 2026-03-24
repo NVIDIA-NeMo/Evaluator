@@ -27,6 +27,11 @@ flowchart TB
         MC["ModelClient"]
     end
 
+    subgraph CFG["Config"]
+        EVALCFG["EvalConfig"]
+        COMPOSE["compose"]
+    end
+
     subgraph ORCH["Orchestration"]
         DEPLOY["ModelServer"]
         LOCALRUN["Orchestrator"]
@@ -64,6 +69,7 @@ flowchart TB
         JSCHEMA["json_schema.py"]
     end
 
+    RUN --> EVALCFG
     RUN --> EXEC
     EXEC --> ORCH
     ORCH --> DEPLOY
@@ -91,6 +97,7 @@ flowchart TB
     style CLI fill:#e8eaf6
     style ENVS fill:#e8f5e9
     style ENGINE fill:#fff3e0
+    style CFG fill:#e8eaf6
     style ORCH fill:#fff8e1
     style EXEC fill:#f3e5f5
     style OBS fill:#fce4ec
@@ -107,8 +114,8 @@ flowchart TB
 | `benchmarks/` | 15 built-in benchmarks (all `@benchmark` + `@scorer`) | Scorer functions |
 | `solvers/` | Pluggable inference strategies | `Solver`, `ChatSolver`, `VLMSolver`, `HarborSolver`, `GymSolver`, `ReActSolver`, `NatSolver`, `OpenClawSolver` (config `type`: `simple` → ChatSolver/VLMSolver, `harbor`, `tool_calling` → ReActSolver, `gym_delegation`, etc.) |
 | `engine/` | Core eval loop, model client, checkpoint, comparison, export plugins | `run_evaluation()`, `ModelClient`, `CheckpointManager`, `InspectExporter`, `WandBExporter` |
-| `orchestration/` | Suite orchestration, config, model server management, SLURM generation, proxy lifecycle | `run_local()`, `EvalConfig`, `DeployConfig`, `generate_sbatch()`, `start_proxy()` |
-| `orchestration/config/` | Pydantic config schemas split by domain | `services.py`, `sandboxes.py`, `solvers.py`, `scoring.py`, `clusters.py`, `benchmarks.py`, `output.py`, `eval_config.py` |
+| `config/` | Pydantic config schemas, env expansion, YAML composition | `EvalConfig`, `parse_eval_config()`, `compose_config()`, `services.py`, `sandboxes.py`, `solvers.py`, `scoring.py`, `clusters.py` |
+| `orchestration/` | Suite orchestration, model server management, SLURM generation, proxy lifecycle | `run_local()`, `DeployConfig`, `generate_sbatch()`, `start_proxy()` |
 | `serving/` | HTTP server for environments (evaluator + Gym protocol) | `generate_app()` |
 | `executors/` | Executor protocol and backends (local, Docker, SLURM) | `Executor`, `get_executor()`, `detect_executor()`, `ProcessState` |
 | `sandbox/` | Per-problem isolated execution and strategy patterns | `Sandbox`, `SandboxSpec`, `SandboxManager`, `ECSFargateSandbox`, `NoSandbox`, `StatefulSandbox`, `StatelessSandbox` |

@@ -1,1 +1,1 @@
-"""Evaluation orchestration: config, runners, SLURM generation."""
+"""Evaluation orchestration: local runner, SLURM generation, model server lifecycle."""

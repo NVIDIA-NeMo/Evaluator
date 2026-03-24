@@ -5,7 +5,7 @@ import os
 from unittest.mock import MagicMock, patch
 
 
-from nemo_evaluator.orchestration.config import (
+from nemo_evaluator.config import (
     BenchmarkConfig,
     DockerCluster,
     EvalConfig,

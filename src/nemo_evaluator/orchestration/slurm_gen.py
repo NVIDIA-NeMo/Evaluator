@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-from nemo_evaluator.orchestration.config import (
+from nemo_evaluator.config import (
     ApptainerSandbox,
     EvalConfig,
     ExternalApiService,
@@ -19,8 +19,8 @@ from nemo_evaluator.orchestration.config import (
     SimpleSolver,
     SlurmCluster,
     SlurmSandbox,
-    _parse_walltime,
 )
+from nemo_evaluator.config.clusters import _parse_walltime
 from nemo_evaluator.orchestration.image_resolver import (
     default_base_image,
     resolve_deployment_image,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Discriminator, Field, Tag, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, field_validator, model_validator
 
 from .services import GenerationConfig
 
@@ -12,6 +12,8 @@ from .services import GenerationConfig
 class SimpleSolver(BaseModel):
     """Unified solver for chat completions, text completions, and VLM.
     The service's `protocol` field determines the API format."""
+
+    model_config = ConfigDict(extra="forbid")
 
     type: Literal["simple"] = "simple"
     service: str
@@ -23,6 +25,8 @@ class SimpleSolver(BaseModel):
 class HarborSolverConfig(BaseModel):
     """Harbor agent solver — runs a Harbor agent inside a sandbox."""
 
+    model_config = ConfigDict(extra="forbid")
+
     type: Literal["harbor"] = "harbor"
     service: str
     agent: str
@@ -32,6 +36,8 @@ class HarborSolverConfig(BaseModel):
 
 class AgentSolverConfig(BaseModel):
     """Agent-as-library solver — imports agent into NEL process."""
+
+    model_config = ConfigDict(extra="forbid")
 
     type: Literal["agent"] = "agent"
     service: str
@@ -46,6 +52,8 @@ class ToolCallingSolverConfig(BaseModel):
     At least one of ``resource_service`` (Gym HTTP tools) or ``sandbox_tools``
     (bash/file tools in sandbox) must be configured.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     type: Literal["tool_calling"] = "tool_calling"
     service: str
@@ -71,6 +79,8 @@ class ToolCallingSolverConfig(BaseModel):
 class GymDelegationSolverConfig(BaseModel):
     """Delegates entire agent loop to a Gym agent server (/run endpoint)."""
 
+    model_config = ConfigDict(extra="forbid")
+
     type: Literal["gym_delegation"] = "gym_delegation"
     service: str
     gym_service: str
@@ -81,12 +91,16 @@ class GymDelegationSolverConfig(BaseModel):
 class NatSolverConfig(BaseModel):
     """NAT agent solver."""
 
+    model_config = ConfigDict(extra="forbid")
+
     type: Literal["nat"] = "nat"
     service: str
 
 
 class OpenClawSolverConfig(BaseModel):
     """OpenClaw subprocess solver."""
+
+    model_config = ConfigDict(extra="forbid")
 
     type: Literal["openclaw"] = "openclaw"
     service: str
@@ -106,6 +120,8 @@ class ContainerSolverConfig(BaseModel):
     defined here merged into ``config.params``.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     type: Literal["container"] = "container"
     service: str
     uri: str
@@ -122,6 +138,8 @@ class ContainerSolverConfig(BaseModel):
 
 class CustomSolverConfig(BaseModel):
     """Plugin solver — dynamically imported from class_path."""
+
+    model_config = ConfigDict(extra="forbid")
 
     type: Literal["custom"] = "custom"
     service: str | None = None

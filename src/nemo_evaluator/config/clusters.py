@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Discriminator, Field, Tag, field_validator
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, field_validator
 
 
 def _parse_walltime(walltime: str) -> int:
@@ -21,6 +21,8 @@ def _parse_walltime(walltime: str) -> int:
 
 
 class LocalCluster(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     type: Literal["local"] = "local"
     gpus: list[int] | None = None
     max_memory: str | None = None
@@ -39,6 +41,8 @@ class DockerCluster(BaseModel):
 class NodePool(BaseModel):
     """A named group of compute resources within a SLURM cluster."""
 
+    model_config = ConfigDict(extra="forbid")
+
     partition: str
     nodes: int = 1
     ntasks_per_node: int = 1
@@ -46,6 +50,8 @@ class NodePool(BaseModel):
 
 
 class SlurmCluster(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     type: Literal["slurm"] = "slurm"
     account: str | None = None
     walltime: str = "04:00:00"

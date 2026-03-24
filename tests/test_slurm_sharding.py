@@ -1,6 +1,6 @@
 """Tests for SLURM array job generation and eval_loop shard_info."""
 
-from nemo_evaluator.orchestration.config import EvalConfig
+from nemo_evaluator.config import EvalConfig
 from nemo_evaluator.orchestration.slurm_gen import generate_sbatch
 
 

@@ -6,7 +6,7 @@ import warnings
 from typing import Annotated, Any, Literal
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, Discriminator, Field, Tag, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, field_validator, model_validator
 
 Protocol = Literal["chat_completions", "completions", "responses"]
 
@@ -18,6 +18,8 @@ class GenerationConfig(BaseModel):
     Merge semantics: when a solver specifies generation, each non-None
     field overrides the corresponding service-level field.  Fields left
     as None inherit from the service's generation config."""
+
+    model_config = ConfigDict(extra="forbid")
 
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
     top_p: float | None = Field(default=None, ge=0.0, le=1.0)
@@ -38,6 +40,8 @@ class GenerationConfig(BaseModel):
 class InterceptorConfig(BaseModel):
     """A LiteLLM interceptor attached to a service's proxy."""
 
+    model_config = ConfigDict(extra="forbid")
+
     name: str
     config: dict[str, Any] = Field(default_factory=dict)
 
@@ -45,6 +49,8 @@ class InterceptorConfig(BaseModel):
 class _ModelServerBase(BaseModel):
     """Shared fields for locally-deployed model servers (vllm, sglang,
     nim, docker_model).  NEL starts these servers and knows their URL."""
+
+    model_config = ConfigDict(extra="forbid")
 
     model: str
     port: int = 8000
@@ -106,6 +112,8 @@ class ExternalApiService(BaseModel):
     `protocol` is the wire format (can decouple for experimental endpoints).
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     type: Literal["api"] = "api"
     url: str
     protocol: Protocol
@@ -162,6 +170,8 @@ class GymResourceService(BaseModel):
     """A nemo-gym resource server (exposes /seed_session, /verify, tool
     endpoints).  Not a model — no protocol/generation/interceptors."""
 
+    model_config = ConfigDict(extra="forbid")
+
     type: Literal["gym"] = "gym"
     url: str | None = None
     port: int = 8000
@@ -190,6 +200,8 @@ class GymResourceService(BaseModel):
 class NatAgentService(BaseModel):
     """A NAT agent server."""
 
+    model_config = ConfigDict(extra="forbid")
+
     type: Literal["nat"] = "nat"
     port: int = 8000
     image: str | None = None
@@ -213,6 +225,8 @@ class NatAgentService(BaseModel):
 
 class CustomService(BaseModel):
     """Plugin service — dynamically imported from class_path."""
+
+    model_config = ConfigDict(extra="forbid")
 
     type: Literal["custom"] = "custom"
     class_path: str

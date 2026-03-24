@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Discriminator, Field, Tag, model_validator
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, model_validator
 
 
 class ScorerMetric(BaseModel):
     """A function-based scorer from the registry."""
+
+    model_config = ConfigDict(extra="forbid")
 
     type: Literal["scorer"] = "scorer"
     name: str
@@ -16,6 +18,8 @@ class ScorerMetric(BaseModel):
 
 class _JudgeBase(BaseModel):
     """Shared validation for judge metrics."""
+
+    model_config = ConfigDict(extra="forbid")
 
     rubric: str | None = None
     rubric_file: str | None = None
@@ -73,6 +77,8 @@ class EnsembleJudgeMetric(_JudgeBase):
 class SandboxMetric(BaseModel):
     """Sandbox-based evaluation (run command, check exit code)."""
 
+    model_config = ConfigDict(extra="forbid")
+
     type: Literal["sandbox"] = "sandbox"
     name: str
     command: str | None = None
@@ -81,6 +87,8 @@ class SandboxMetric(BaseModel):
 
 class RewardModelMetric(BaseModel):
     """A reward-model-as-judge metric."""
+
+    model_config = ConfigDict(extra="forbid")
 
     type: Literal["reward_model"] = "reward_model"
     name: str
@@ -102,6 +110,8 @@ class RewardModelMetric(BaseModel):
 
 class CustomMetric(BaseModel):
     """Plugin metric — dynamically imported from class_path."""
+
+    model_config = ConfigDict(extra="forbid")
 
     type: Literal["custom"] = "custom"
     name: str
@@ -135,6 +145,8 @@ MetricConfig = Annotated[
 
 class ScoringConfig(BaseModel):
     """Scoring pipeline for a benchmark."""
+
+    model_config = ConfigDict(extra="forbid")
 
     include_defaults: bool = True
     metrics: list[MetricConfig] = Field(default_factory=list)

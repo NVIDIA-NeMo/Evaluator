@@ -599,7 +599,7 @@ class TestReActSolver:
 
 class TestToolCallingSolverConfig:
     def test_requires_at_least_one_tool_source(self):
-        from nemo_evaluator.orchestration.config import ToolCallingSolverConfig
+        from nemo_evaluator.config import ToolCallingSolverConfig
 
         with pytest.raises(Exception, match="at least one tool source"):
             ToolCallingSolverConfig(
@@ -610,7 +610,7 @@ class TestToolCallingSolverConfig:
             )
 
     def test_resource_service_only(self):
-        from nemo_evaluator.orchestration.config import ToolCallingSolverConfig
+        from nemo_evaluator.config import ToolCallingSolverConfig
 
         cfg = ToolCallingSolverConfig(
             type="tool_calling",
@@ -621,7 +621,7 @@ class TestToolCallingSolverConfig:
         assert not cfg.sandbox_tools
 
     def test_sandbox_tools_only(self):
-        from nemo_evaluator.orchestration.config import ToolCallingSolverConfig
+        from nemo_evaluator.config import ToolCallingSolverConfig
 
         cfg = ToolCallingSolverConfig(
             type="tool_calling",
@@ -632,7 +632,7 @@ class TestToolCallingSolverConfig:
         assert cfg.resource_service is None
 
     def test_both_tools_ok(self):
-        from nemo_evaluator.orchestration.config import ToolCallingSolverConfig
+        from nemo_evaluator.config import ToolCallingSolverConfig
 
         cfg = ToolCallingSolverConfig(
             type="tool_calling",
@@ -644,7 +644,7 @@ class TestToolCallingSolverConfig:
         assert cfg.sandbox_tools
 
     def test_sandbox_tools_requires_sandbox(self):
-        from nemo_evaluator.orchestration.config import (
+        from nemo_evaluator.config import (
             BenchmarkConfig,
             EvalConfig,
             ExternalApiService,
@@ -673,7 +673,7 @@ class TestToolCallingSolverConfig:
             )
 
     def test_resource_service_validated(self):
-        from nemo_evaluator.orchestration.config import (
+        from nemo_evaluator.config import (
             BenchmarkConfig,
             EvalConfig,
             ExternalApiService,
@@ -702,7 +702,7 @@ class TestToolCallingSolverConfig:
             )
 
     def test_defaults(self):
-        from nemo_evaluator.orchestration.config import ToolCallingSolverConfig
+        from nemo_evaluator.config import ToolCallingSolverConfig
 
         cfg = ToolCallingSolverConfig(
             type="tool_calling",

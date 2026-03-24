@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class OutputConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     dir: str = "./eval_results"
     timestamped: bool = True
     progress_interval: float = 60.0

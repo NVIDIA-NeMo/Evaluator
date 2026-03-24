@@ -167,7 +167,7 @@ class LocalExecutor(Executor):
 
         import json
 
-        from nemo_evaluator.orchestration.config import parse_eval_config
+        from nemo_evaluator.config import parse_eval_config
 
         raw = json.loads(config_path.read_text(encoding="utf-8"))
         config = parse_eval_config(raw)
