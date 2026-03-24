@@ -362,6 +362,7 @@ Evaluation Configuration Parameters <evaluation/parameters>
 Tasks Not Explicitly Defined by FDF <evaluation/custom-task>
 Evaluation Techniques <evaluation/run-evals/index>
 Add Evaluation Packages to NeMo Framework <evaluation/nemo-fw-optional-package>
+Evaluate Multimodal Models with NeMo Framework <evaluation/nemo-fw-multimodal>
 :::
 
 <!-- TODO: Add these pages once ready:
