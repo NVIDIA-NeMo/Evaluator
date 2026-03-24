@@ -9,6 +9,7 @@ equivalent to ``docker cp``.
 
 Requires Apptainer >= 1.1 for ``instance start`` / ``instance stop``.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -37,14 +38,16 @@ def _check_apptainer_version() -> None:
         return
     try:
         proc = subprocess.run(
-            ["apptainer", "--version"], capture_output=True, text=True, timeout=10,
+            ["apptainer", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         raw = proc.stdout.strip().split()[-1]
         parts = tuple(int(x) for x in raw.split(".")[:2])
         if parts < _MIN_VERSION:
             raise RuntimeError(
-                f"ApptainerSandbox requires Apptainer >= {'.'.join(map(str, _MIN_VERSION))}, "
-                f"found {raw}"
+                f"ApptainerSandbox requires Apptainer >= {'.'.join(map(str, _MIN_VERSION))}, found {raw}"
             )
         _version_checked = True
     except FileNotFoundError:
@@ -74,9 +77,7 @@ class ApptainerSandbox:
         _check_apptainer_version()
         self._spec = spec
         self._node = node
-        self._sif_cache_dir = sif_cache_dir or os.environ.get(
-            "APPTAINER_CACHEDIR", "/tmp/nel_sif_cache"
-        )
+        self._sif_cache_dir = sif_cache_dir or os.environ.get("APPTAINER_CACHEDIR", "/tmp/nel_sif_cache")
         self._memory_mb = memory_mb
         self._het_group = het_group
         self._instance_name = f"nel-{uuid4().hex[:12]}"
@@ -99,7 +100,8 @@ class ApptainerSandbox:
         """When running on a SLURM node, prefix commands with srun."""
         if self._node:
             prefix = [
-                "srun", "--overlap",
+                "srun",
+                "--overlap",
                 f"--nodelist={self._node}",
                 "--ntasks=1",
             ]
@@ -109,7 +111,9 @@ class ApptainerSandbox:
         return []
 
     async def start(
-        self, *, outside_endpoints: list[OutsideEndpoint] | None = None,
+        self,
+        *,
+        outside_endpoints: list[OutsideEndpoint] | None = None,
     ) -> None:
         import tempfile
 
@@ -121,13 +125,18 @@ class ApptainerSandbox:
         entrypoint = self._spec.entrypoint or "sleep infinity"
 
         cmd: list[str] = [*self._srun_prefix()]
-        cmd.extend([
-            "apptainer", "instance", "start",
-            "--writable-tmpfs",
-            "--cleanenv",
-            "--no-home",
-            "--bind", f"{staging}:/_staging",
-        ])
+        cmd.extend(
+            [
+                "apptainer",
+                "instance",
+                "start",
+                "--writable-tmpfs",
+                "--cleanenv",
+                "--no-home",
+                "--bind",
+                f"{staging}:/_staging",
+            ]
+        )
 
         for vol in self._spec.volumes:
             if vol.is_efs:
@@ -156,10 +165,7 @@ class ApptainerSandbox:
         )
         stdout, stderr = await proc.communicate()
         if proc.returncode != 0:
-            raise RuntimeError(
-                f"apptainer instance start failed (rc={proc.returncode}): "
-                f"{stderr.decode()[:500]}"
-            )
+            raise RuntimeError(f"apptainer instance start failed (rc={proc.returncode}): {stderr.decode()[:500]}")
         self._running = True
 
         if entrypoint != "sleep infinity":
@@ -170,7 +176,9 @@ class ApptainerSandbox:
 
         logger.debug(
             "apptainer sandbox started: %s sif=%s node=%s",
-            self._instance_name, sif, self._node or "local",
+            self._instance_name,
+            sif,
+            self._node or "local",
         )
 
     async def stop(self) -> None:
@@ -192,8 +200,12 @@ class ApptainerSandbox:
         logger.debug("apptainer sandbox stopped: %s", self._instance_name)
 
     async def exec(
-        self, command: str, timeout_sec: float = 180,
-        *, cwd: str | None = None, env: dict[str, str] | None = None,
+        self,
+        command: str,
+        timeout_sec: float = 180,
+        *,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
     ) -> ExecResult:
         if not self._running:
             raise RuntimeError("Sandbox not started")
@@ -205,9 +217,12 @@ class ApptainerSandbox:
             shell_cmd = f"cd {cwd} && {shell_cmd}"
         cmd = [
             *self._srun_prefix(),
-            "apptainer", "exec",
+            "apptainer",
+            "exec",
             f"instance://{self._instance_name}",
-            "/bin/bash", "-c", shell_cmd,
+            "/bin/bash",
+            "-c",
+            shell_cmd,
         ]
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -216,14 +231,17 @@ class ApptainerSandbox:
         )
         try:
             stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout_sec,
+                proc.communicate(),
+                timeout=timeout_sec,
             )
         except asyncio.TimeoutError:
             proc.kill()
             await proc.wait()
             return ExecResult("", "timeout", -1)
         return ExecResult(
-            stdout.decode(), stderr.decode(), proc.returncode or 0,
+            stdout.decode(),
+            stderr.decode(),
+            proc.returncode or 0,
         )
 
     async def upload(self, local_path: Path, remote_path: str) -> None:

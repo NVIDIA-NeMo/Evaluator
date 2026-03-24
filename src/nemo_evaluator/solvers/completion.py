@@ -1,4 +1,5 @@
 """CompletionSolver: uses the /completions endpoint instead of /chat/completions."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -13,12 +14,22 @@ from .trajectory_util import build_single_turn_atif
 class CompletionSolver:
     """Uses the /completions endpoint instead of /chat/completions."""
 
-    def __init__(self, base_url: str, model: str, api_key: str | None = None,
-                 temperature: float | None = None, max_tokens: int | None = None) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        api_key: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> None:
         from nemo_evaluator.engine.model_client import ModelClient
+
         self._model_client = ModelClient(
-            base_url=base_url.rstrip("/"), model=model, api_key=api_key,
-            temperature=temperature, max_tokens=max_tokens,
+            base_url=base_url.rstrip("/"),
+            model=model,
+            api_key=api_key,
+            temperature=temperature,
+            max_tokens=max_tokens,
         )
         self._url = f"{base_url.rstrip('/')}/completions"
         self._model = model
@@ -27,6 +38,7 @@ class CompletionSolver:
 
     async def solve(self, task: SeedResult) -> SolveResult:
         import time
+
         payload: dict[str, Any] = {
             "model": self._model,
             "prompt": task.prompt,
@@ -44,7 +56,8 @@ class CompletionSolver:
         pt = usage.get("prompt_tokens", 0)
         ct = usage.get("completion_tokens", 0)
         model_resp = ModelResponse(
-            content=text, model=data.get("model", self._model),
+            content=text,
+            model=data.get("model", self._model),
             finish_reason=data["choices"][0].get("finish_reason", ""),
             prompt_tokens=pt,
             completion_tokens=ct,
@@ -53,7 +66,8 @@ class CompletionSolver:
             raw_response=data,
         )
         trajectory = build_single_turn_atif(
-            task.prompt, text,
+            task.prompt,
+            text,
             model_name=self._model,
             prompt_tokens=pt,
             completion_tokens=ct,

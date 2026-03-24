@@ -16,6 +16,7 @@ interceptor constructor::
       - modify_tools:
           strip_properties: [security_risk]
 """
+
 from __future__ import annotations
 
 import importlib
@@ -46,9 +47,7 @@ def _parse_entry(entry: str | dict[str, Any]) -> tuple[str, dict[str, Any]]:
         name = next(iter(entry))
         cfg = entry[name]
         return name, cfg if isinstance(cfg, dict) else {}
-    raise ValueError(
-        f"Interceptor entry must be a string or a single-key dict, got: {entry!r}"
-    )
+    raise ValueError(f"Interceptor entry must be a string or a single-key dict, got: {entry!r}")
 
 
 def resolve_interceptors(entries: list[str | dict[str, Any]]) -> list[Any]:
@@ -65,9 +64,7 @@ def resolve_interceptors(entries: list[str | dict[str, Any]]) -> list[Any]:
             mod = importlib.import_module(_REGISTRY[name])
             cls = getattr(mod, "Interceptor", None)
             if cls is None:
-                raise AttributeError(
-                    f"Interceptor module {_REGISTRY[name]!r} has no 'Interceptor' class"
-                )
+                raise AttributeError(f"Interceptor module {_REGISTRY[name]!r} has no 'Interceptor' class")
             result.append(cls(**kwargs))
             logger.info("Loaded custom interceptor: %s (config=%s)", name, kwargs or "-")
         else:

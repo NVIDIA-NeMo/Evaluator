@@ -4,6 +4,7 @@ All Harbor imports are lazy so this module can be imported without
 the harbor package installed -- the ImportError surfaces only when
 a HarborSolver is actually instantiated.
 """
+
 from __future__ import annotations
 
 import logging

@@ -77,9 +77,7 @@ class SlurmCluster(BaseModel):
         try:
             _parse_walltime(v)
         except (ValueError, TypeError):
-            raise ValueError(
-                f"max_walltime must be in SLURM time format (HH:MM:SS or D-HH:MM:SS), got: {v!r}"
-            )
+            raise ValueError(f"max_walltime must be in SLURM time format (HH:MM:SS or D-HH:MM:SS), got: {v!r}")
         return v
 
     hostname: str | None = None

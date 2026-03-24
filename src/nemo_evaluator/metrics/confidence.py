@@ -30,9 +30,7 @@ def bootstrap_ci(
         return ConfidenceInterval(mean=mean, ci_lower=mean, ci_upper=mean, confidence=confidence, method="bootstrap")
 
     rng = np.random.default_rng(seed)
-    boot_means = np.array([
-        rng.choice(arr, size=len(arr), replace=True).mean() for _ in range(n_bootstrap)
-    ])
+    boot_means = np.array([rng.choice(arr, size=len(arr), replace=True).mean() for _ in range(n_bootstrap)])
 
     alpha = 1.0 - confidence
     lower = float(np.percentile(boot_means, 100 * alpha / 2))

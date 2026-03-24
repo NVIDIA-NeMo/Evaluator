@@ -1,4 +1,5 @@
 """Tests for JSON schema validation scoring."""
+
 from nemo_evaluator.scoring.json_schema import extract_json, validate_json_schema
 
 

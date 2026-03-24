@@ -20,6 +20,7 @@ Configuration (via YAML)::
           every: 5                # log every 5th turn
           max_turns: 100          # warn + enforce at 100
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -47,9 +48,7 @@ def _session_key(data: dict) -> str:
     for msg in messages:
         content = msg.get("content", "")
         if isinstance(content, list):
-            content = "".join(
-                part.get("text", "") for part in content if isinstance(part, dict)
-            )
+            content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
         if content:
             return hashlib.sha256(content.encode()).hexdigest()[:8]
     return "unknown"
@@ -101,7 +100,12 @@ class Interceptor(CustomLogger):
             elapsed = f" (+{dt:.1f}s)" if dt > 0 else ""
             logger.info(
                 "task %s turn %d%s%s [%s] (%d active)",
-                key, n, cap, elapsed, model, active,
+                key,
+                n,
+                cap,
+                elapsed,
+                model,
+                active,
             )
 
         if self._max is None:
@@ -111,9 +115,12 @@ class Interceptor(CustomLogger):
         if n > self._max:
             logger.warning(
                 "task %s REJECTED turn %d (max_turns=%d exceeded)",
-                key, n, self._max,
+                key,
+                n,
+                self._max,
             )
             from nemo_evaluator.errors import GracefulError
+
             raise GracefulError(
                 f"Turn budget exhausted: {n}/{self._max} turns used. "
                 f"The evaluation framework has terminated this agent session."

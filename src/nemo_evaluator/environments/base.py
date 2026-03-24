@@ -59,8 +59,11 @@ class EvalEnvironment(ABC):
 
     @abstractmethod
     async def verify(
-        self, response: str, expected: str,
-        sandbox: Sandbox | None = None, **metadata: Any,
+        self,
+        response: str,
+        expected: str,
+        sandbox: Sandbox | None = None,
+        **metadata: Any,
     ) -> VerifyResult: ...
 
     async def sandbox_specs(self) -> list[SandboxSpec] | None:
@@ -98,5 +101,3 @@ class EvalEnvironment(ABC):
 
     async def close(self) -> None:
         """Clean up resources. Override for environments that hold connections."""
-
-

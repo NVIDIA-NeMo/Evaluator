@@ -3,6 +3,7 @@
 Scorers are functions ``(ScorerInput) -> dict`` used by benchmarks.
 Look up scorers by name via :func:`get_scorer`.
 """
+
 from __future__ import annotations
 
 from typing import Callable
@@ -39,9 +40,7 @@ def _mcq_extract(sample: ScorerInput) -> dict:
 def get_scorer(name: str) -> Callable[[ScorerInput], dict]:
     """Look up a scorer by name. Raises KeyError if unknown."""
     if name not in _SCORER_REGISTRY:
-        raise KeyError(
-            f"Unknown scorer {name!r}. Available: {sorted(_SCORER_REGISTRY)}"
-        )
+        raise KeyError(f"Unknown scorer {name!r}. Available: {sorted(_SCORER_REGISTRY)}")
     return _SCORER_REGISTRY[name]
 
 

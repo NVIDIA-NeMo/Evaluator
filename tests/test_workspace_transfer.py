@@ -1,4 +1,5 @@
 """Tests for WorkspaceTransfer implementations."""
+
 from __future__ import annotations
 
 import pytest
@@ -16,8 +17,8 @@ from nemo_evaluator.sandbox.transfer import (
 # HostVolumeTransfer
 # ---------------------------------------------------------------------------
 
-class TestHostVolumeTransfer:
 
+class TestHostVolumeTransfer:
     def test_shared_dir_created(self):
         t = HostVolumeTransfer()
         assert t._shared_dir.exists()
@@ -66,8 +67,8 @@ class TestHostVolumeTransfer:
 # EfsTransfer
 # ---------------------------------------------------------------------------
 
-class TestEfsTransfer:
 
+class TestEfsTransfer:
     def test_session_path_format(self):
         t = EfsTransfer(filesystem_id="fs-abc123")
         assert t._session_path.startswith("/")
@@ -107,8 +108,8 @@ class TestEfsTransfer:
 # LocalDirectTransfer
 # ---------------------------------------------------------------------------
 
-class TestLocalDirectTransfer:
 
+class TestLocalDirectTransfer:
     def test_staging_dir_created(self):
         t = LocalDirectTransfer()
         assert t._staging.exists()
@@ -132,8 +133,8 @@ class TestLocalDirectTransfer:
 # SandboxExecTransfer
 # ---------------------------------------------------------------------------
 
-class TestSandboxExecTransfer:
 
+class TestSandboxExecTransfer:
     def test_staging_dir_created(self):
         t = SandboxExecTransfer()
         assert t._staging.exists()
@@ -157,8 +158,8 @@ class TestSandboxExecTransfer:
 # VolumeMount.is_efs
 # ---------------------------------------------------------------------------
 
-class TestVolumeMountIsEfs:
 
+class TestVolumeMountIsEfs:
     def test_host_volume_not_efs(self):
         v = VolumeMount(host_path="/tmp/x", container_path="/data")
         assert not v.is_efs
@@ -184,10 +185,11 @@ class TestVolumeMountIsEfs:
 # SandboxManager.get_transfer_strategy()
 # ---------------------------------------------------------------------------
 
-class TestManagerTransferStrategy:
 
+class TestManagerTransferStrategy:
     def _make_manager(self, backend="docker", **kwargs):
         from nemo_evaluator.sandbox.manager import SandboxManager
+
         return SandboxManager(backend=backend, **kwargs)
 
     def test_docker_returns_host_volume(self):
@@ -202,6 +204,7 @@ class TestManagerTransferStrategy:
 
     def test_ecs_without_efs_returns_exec(self):
         from nemo_evaluator.sandbox.ecs_fargate import EcsFargateConfig
+
         cfg = EcsFargateConfig()
         mgr = self._make_manager(backend="ecs_fargate", ecs_config=cfg)
         t = mgr.get_transfer_strategy()
@@ -209,6 +212,7 @@ class TestManagerTransferStrategy:
 
     def test_ecs_with_efs_returns_efs_transfer(self):
         from nemo_evaluator.sandbox.ecs_fargate import EcsFargateConfig
+
         cfg = EcsFargateConfig(efs_filesystem_id="fs-abc", efs_access_point_id="fsap-xyz")
         mgr = self._make_manager(backend="ecs_fargate", ecs_config=cfg)
         t = mgr.get_transfer_strategy()

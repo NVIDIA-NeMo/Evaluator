@@ -4,6 +4,7 @@ Each sandbox is a Docker container on a bridge network (default), giving it
 its own IP address to avoid port collisions when running many concurrently.
 All operations are async via ``asyncio.create_subprocess_exec``.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -44,7 +45,9 @@ class DockerSandbox:
         entrypoint = self._spec.entrypoint or "sleep infinity"
 
         cmd: list[str] = [
-            "docker", "run", "-d",
+            "docker",
+            "run",
+            "-d",
             f"--name={self._name}",
             f"--network={self._network}",
             f"--memory={self._memory}",
@@ -81,7 +84,9 @@ class DockerSandbox:
 
         if self._network != "host":
             inspect = await asyncio.create_subprocess_exec(
-                "docker", "inspect", "-f",
+                "docker",
+                "inspect",
+                "-f",
                 "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
                 self._container_id,
                 stdout=asyncio.subprocess.PIPE,
@@ -92,13 +97,15 @@ class DockerSandbox:
         for local, remote in self._spec.files.items():
             await self.upload(Path(local), remote)
 
-        logger.debug("sandbox started: %s image=%s ip=%s",
-                      self._name, self._spec.image, self._container_ip)
+        logger.debug("sandbox started: %s image=%s ip=%s", self._name, self._spec.image, self._container_ip)
 
     async def stop(self) -> None:
         if self._container_id:
             proc = await asyncio.create_subprocess_exec(
-                "docker", "rm", "-f", self._container_id,
+                "docker",
+                "rm",
+                "-f",
+                self._container_id,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -107,8 +114,12 @@ class DockerSandbox:
             self._container_id = None
 
     async def exec(
-        self, command: str, timeout_sec: float = 180,
-        *, cwd: str | None = None, env: dict[str, str] | None = None,
+        self,
+        command: str,
+        timeout_sec: float = 180,
+        *,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
     ) -> ExecResult:
         if not self._container_id:
             raise RuntimeError("Sandbox not started")
@@ -126,7 +137,8 @@ class DockerSandbox:
         )
         try:
             stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout_sec,
+                proc.communicate(),
+                timeout=timeout_sec,
             )
         except asyncio.TimeoutError:
             proc.kill()
@@ -138,7 +150,9 @@ class DockerSandbox:
         if not self._container_id:
             raise RuntimeError("Sandbox not started")
         proc = await asyncio.create_subprocess_exec(
-            "docker", "cp", str(local_path),
+            "docker",
+            "cp",
+            str(local_path),
             f"{self._container_id}:{remote_path}",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -152,8 +166,10 @@ class DockerSandbox:
             raise RuntimeError("Sandbox not started")
         local_path.parent.mkdir(parents=True, exist_ok=True)
         proc = await asyncio.create_subprocess_exec(
-            "docker", "cp",
-            f"{self._container_id}:{remote_path}", str(local_path),
+            "docker",
+            "cp",
+            f"{self._container_id}:{remote_path}",
+            str(local_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -164,10 +180,7 @@ class DockerSandbox:
     def resolve_outside_endpoint(self, url: str) -> str:
         if self._network == "host":
             return url
-        return (
-            url.replace("localhost", "host.docker.internal")
-            .replace("127.0.0.1", "host.docker.internal")
-        )
+        return url.replace("localhost", "host.docker.internal").replace("127.0.0.1", "host.docker.internal")
 
     @property
     def is_running(self) -> bool:

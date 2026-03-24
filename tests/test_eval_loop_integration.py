@@ -1,4 +1,5 @@
 """Integration tests: run_evaluation end-to-end with mock solver."""
+
 import asyncio
 
 
@@ -24,12 +25,14 @@ class _MockEnv(EvalEnvironment):
 
     async def verify(self, response, expected, **meta):
         correct = response.strip() == expected.strip()
-        return VerifyResult(reward=1.0 if correct else 0.0, extracted_answer=response.strip(),
-                            scoring_details={"method": "exact"})
+        return VerifyResult(
+            reward=1.0 if correct else 0.0, extracted_answer=response.strip(), scoring_details={"method": "exact"}
+        )
 
 
 class _MockSolver:
     """Returns the expected answer for first 2 problems, wrong for the third."""
+
     async def solve(self, task):
         if task.expected_answer in ("2", "5"):
             return SolveResult(response=task.expected_answer)

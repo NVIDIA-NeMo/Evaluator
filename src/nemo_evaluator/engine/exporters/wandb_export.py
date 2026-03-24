@@ -1,4 +1,5 @@
 """WandB exporter: log evaluation results to Weights & Biases."""
+
 from __future__ import annotations
 
 import logging
@@ -8,8 +9,9 @@ logger = logging.getLogger(__name__)
 
 
 class WandBExporter:
-    def __init__(self, project: str = "nemo-evaluator", entity: str | None = None,
-                 tags: list[str] | None = None, **kwargs: Any) -> None:
+    def __init__(
+        self, project: str = "nemo-evaluator", entity: str | None = None, tags: list[str] | None = None, **kwargs: Any
+    ) -> None:
         self._project = project
         self._entity = entity
         self._tags = tags or []
@@ -42,11 +44,13 @@ class WandBExporter:
 
             wandb.log(flat_scores)
 
-            rows.append({
-                "benchmark": name,
-                "samples": bm.get("samples", 0),
-                **{k.split("/")[-1]: v for k, v in flat_scores.items()},
-            })
+            rows.append(
+                {
+                    "benchmark": name,
+                    "samples": bm.get("samples", 0),
+                    **{k.split("/")[-1]: v for k, v in flat_scores.items()},
+                }
+            )
 
         if rows:
             all_cols: list[str] = []

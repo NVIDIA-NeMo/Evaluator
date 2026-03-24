@@ -30,7 +30,8 @@ class TestModelClient:
 
     def test_exponential_backoff(self):
         c = ModelClient(
-            base_url="https://api.example.com/v1", model="test",
+            base_url="https://api.example.com/v1",
+            model="test",
             retry=RetryConfig(base_delay=1.0, max_delay=60.0, jitter=False),
         )
         assert c._backoff_delay(0) == 1.0
@@ -40,7 +41,8 @@ class TestModelClient:
 
     def test_backoff_jitter_stays_within_bounds(self):
         c = ModelClient(
-            base_url="https://api.example.com/v1", model="test",
+            base_url="https://api.example.com/v1",
+            model="test",
             retry=RetryConfig(base_delay=1.0, jitter=True),
         )
         delays = [c._backoff_delay(0) for _ in range(100)]

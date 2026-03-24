@@ -1,4 +1,5 @@
 """Tests for checkpointing and resume."""
+
 from nemo_evaluator.engine.checkpoint import CheckpointManager
 
 

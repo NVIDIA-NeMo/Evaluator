@@ -27,6 +27,7 @@ Registry resolution order:
 2. Sibling ``harbor/`` repo relative to the workspace root
 3. Download from GitHub (``laude-institute/harbor/main/registry.json``)
 """
+
 from __future__ import annotations
 
 import json
@@ -48,9 +49,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-REGISTRY_URL = (
-    "https://raw.githubusercontent.com/laude-institute/harbor/main/registry.json"
-)
+REGISTRY_URL = "https://raw.githubusercontent.com/laude-institute/harbor/main/registry.json"
 
 # ---------------------------------------------------------------------------
 # Registry data model
@@ -155,8 +154,7 @@ def find_dataset(name: str, version: str | None = None) -> DatasetSpec:
     if not matches:
         available = sorted({d.name for d in registry})
         raise KeyError(
-            f"Harbor dataset {name!r} not found. "
-            f"Available ({len(available)}): {', '.join(available[:20])} …"
+            f"Harbor dataset {name!r} not found. Available ({len(available)}): {', '.join(available[:20])} …"
         )
 
     if version:
@@ -164,10 +162,7 @@ def find_dataset(name: str, version: str | None = None) -> DatasetSpec:
             if m.version == version:
                 return m
         versions = [m.version for m in matches]
-        raise KeyError(
-            f"Harbor dataset {name!r} version {version!r} not found. "
-            f"Available versions: {versions}"
-        )
+        raise KeyError(f"Harbor dataset {name!r} version {version!r} not found. Available versions: {versions}")
 
     # Auto-resolve best version
     try:
@@ -210,21 +205,22 @@ def download_harbor_tasks(
     if limit:
         tasks = tasks[:limit]
 
-    cached = {
-        d.name for d in output_dir.iterdir()
-        if d.is_dir() and (d / "instruction.md").exists()
-    }
+    cached = {d.name for d in output_dir.iterdir() if d.is_dir() and (d / "instruction.md").exists()}
     needed = [t for t in tasks if t.name not in cached]
     if not needed:
         logger.info(
             "Harbor tasks already present: %d/%d in %s",
-            len(cached), len(tasks), output_dir,
+            len(cached),
+            len(tasks),
+            output_dir,
         )
         return output_dir
 
     logger.info(
         "Harbor cache has %d/%d tasks; downloading %d missing",
-        len(cached), len(tasks), len(needed),
+        len(cached),
+        len(tasks),
+        len(needed),
     )
     tasks = needed
 
@@ -234,16 +230,16 @@ def download_harbor_tasks(
 
     logger.info(
         "Downloading %d tasks from %d git source(s) for %s@%s",
-        len(tasks), len(groups), dataset.name, dataset.version,
+        len(tasks),
+        len(groups),
+        dataset.name,
+        dataset.version,
     )
 
     for (git_url, commit_id), group_tasks in groups.items():
         _download_task_group(git_url, commit_id, group_tasks, output_dir)
 
-    n = sum(
-        1 for d in output_dir.iterdir()
-        if d.is_dir() and (d / "instruction.md").exists()
-    )
+    n = sum(1 for d in output_dir.iterdir() if d.is_dir() and (d / "instruction.md").exists())
     logger.info("Harbor download complete: %d tasks in %s", n, output_dir)
     return output_dir
 
@@ -268,7 +264,9 @@ def _git(
     except subprocess.CalledProcessError as exc:
         logger.error(
             "git command failed: %s\nstdout: %s\nstderr: %s",
-            " ".join(cmd), exc.stdout, exc.stderr,
+            " ".join(cmd),
+            exc.stdout,
+            exc.stderr,
         )
         raise
 
@@ -285,8 +283,7 @@ def _download_task_group(
 
         logger.info("Cloning %s (sparse, depth=1)…", git_url)
         _git(
-            ["git", "clone", "--filter=blob:none", "--depth", "1",
-             "--no-checkout", git_url, str(tmp_dir)],
+            ["git", "clone", "--filter=blob:none", "--depth", "1", "--no-checkout", git_url, str(tmp_dir)],
         )
 
         sparse_paths = [t.path for t in tasks]
@@ -434,7 +431,8 @@ def _build_harbor_dockerfiles(
         if result.returncode != 0:
             logger.error(
                 "Docker build failed for %s:\n%s",
-                spec.image, result.stderr[-2000:],
+                spec.image,
+                result.stderr[-2000:],
             )
             raise RuntimeError(f"Docker build failed for {spec.image}")
 
@@ -470,7 +468,9 @@ def _extract_test_section(stdout: str) -> str:
     Falls back to the last 4000 chars if no markers found.
     """
     _MARKERS = [
-        "PASSED", "FAILED", "ERROR",
+        "PASSED",
+        "FAILED",
+        "ERROR",
         "SWEBench results starts here",
         "test session starts",
         "======",
@@ -514,9 +514,7 @@ class HarborEnvironment(EvalEnvironment):
         self.name = self._dataset_path.name
 
         if not self._dataset_path.is_dir():
-            raise FileNotFoundError(
-                f"Harbor dataset directory not found: {self._dataset_path}"
-            )
+            raise FileNotFoundError(f"Harbor dataset directory not found: {self._dataset_path}")
 
         for task_dir in sorted(self._dataset_path.iterdir()):
             if task_dir.is_dir() and (task_dir / "instruction.md").exists():
@@ -527,7 +525,9 @@ class HarborEnvironment(EvalEnvironment):
 
         logger.info(
             "Harbor %s: %d tasks loaded from %s",
-            self.name, len(self._tasks), self._dataset_path,
+            self.name,
+            len(self._tasks),
+            self._dataset_path,
         )
 
     async def dataset_size(self) -> int:
@@ -741,9 +741,7 @@ class HarborEnvironment(EvalEnvironment):
             reward = 1.0 if result.return_code == 0 else 0.0
             reward_details["reward_source"] = "exit_code_fallback"
 
-        extracted = (
-            f"test_exit={result.return_code} reward={reward}"
-        )
+        extracted = f"test_exit={result.return_code} reward={reward}"
 
         return VerifyResult(
             reward=reward,

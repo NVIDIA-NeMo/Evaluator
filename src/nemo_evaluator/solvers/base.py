@@ -1,4 +1,5 @@
 """Solver protocol: pluggable inference strategy for the eval loop."""
+
 from __future__ import annotations
 
 import logging

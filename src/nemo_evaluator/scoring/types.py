@@ -1,4 +1,5 @@
 """Scoring data types shared across all scorer implementations."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

@@ -1,4 +1,5 @@
 """Tests for solver implementations with mocked dependencies."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
@@ -32,8 +33,8 @@ def _make_model_response(content: str = "The answer is 4.") -> ModelResponse:
 # ChatSolver
 # ---------------------------------------------------------------------------
 
-class TestChatSolver:
 
+class TestChatSolver:
     @pytest.mark.asyncio
     async def test_basic_solve(self):
         from nemo_evaluator.solvers.chat import ChatSolver
@@ -79,8 +80,8 @@ class TestChatSolver:
 # NatSolver
 # ---------------------------------------------------------------------------
 
-class TestNatSolver:
 
+class TestNatSolver:
     @pytest.mark.asyncio
     async def test_solve_calls_nat_endpoint(self):
         from contextlib import asynccontextmanager
@@ -89,13 +90,18 @@ class TestNatSolver:
         solver = NatSolver(nat_url="http://fake-nat:8000")
 
         class _FakeResp:
-            def raise_for_status(self): pass
+            def raise_for_status(self):
+                pass
+
             async def text(self):
                 return 'data: {"output": "Fixed the bug"}\n\n'
 
         class _FakeSession:
-            async def __aenter__(self): return self
-            async def __aexit__(self, *a): pass
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                pass
 
             @asynccontextmanager
             async def post(self, url, **kw):
@@ -104,7 +110,9 @@ class TestNatSolver:
             @asynccontextmanager
             async def get(self, url, **kw):
                 class _Health:
-                    def raise_for_status(self): pass
+                    def raise_for_status(self):
+                        pass
+
                 yield _Health()
 
         with patch("aiohttp.ClientSession", return_value=_FakeSession()):
@@ -116,8 +124,8 @@ class TestNatSolver:
 # OpenClawSolver
 # ---------------------------------------------------------------------------
 
-class TestOpenClawSolver:
 
+class TestOpenClawSolver:
     def test_init_with_skip_preflight(self):
         """OpenClawSolver can be created with skip_preflight=True."""
         from nemo_evaluator.solvers.openclaw import OpenClawSolver

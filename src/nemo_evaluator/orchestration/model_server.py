@@ -1,4 +1,5 @@
 """Model server deployment: start, health-check, stop."""
+
 from __future__ import annotations
 
 import logging
@@ -72,9 +73,14 @@ class DockerModelDeployment:
     def _build_docker_cmd(self) -> list[str]:
         c = self._config
         cmd = [
-            "docker", "run", "--rm", "-d",
-            "--name", self._container_name,
-            "-p", f"{self._port}:{self._port}",
+            "docker",
+            "run",
+            "--rm",
+            "-d",
+            "--name",
+            self._container_name,
+            "-p",
+            f"{self._port}:{self._port}",
         ]
 
         if c.gpus > 0:
@@ -122,8 +128,7 @@ class DockerModelDeployment:
         if not self._process_started:
             return
         logger.info("Stopping model container: %s", self._container_name)
-        subprocess.run(["docker", "stop", self._container_name],
-                       capture_output=True, timeout=30)
+        subprocess.run(["docker", "stop", self._container_name], capture_output=True, timeout=30)
         self._process_started = False
 
 
@@ -139,16 +144,24 @@ class ProcessModelDeployment:
         c = self._config
         if c.type == "vllm":
             return [
-                "python", "-m", "vllm.entrypoints.openai.api_server",
-                "--model", c.model or "",
-                "--port", str(self._port),
+                "python",
+                "-m",
+                "vllm.entrypoints.openai.api_server",
+                "--model",
+                c.model or "",
+                "--port",
+                str(self._port),
                 *c.extra_args,
             ]
         if c.type == "sglang":
             return [
-                "python", "-m", "sglang.launch_server",
-                "--model-path", c.model or "",
-                "--port", str(self._port),
+                "python",
+                "-m",
+                "sglang.launch_server",
+                "--model-path",
+                c.model or "",
+                "--port",
+                str(self._port),
                 *c.extra_args,
             ]
         raise ValueError(f"ProcessModelDeployment does not support type={c.type!r}")
@@ -228,19 +241,25 @@ class RayMultiNodeDeployment:
         logger.info("Starting Ray head node for %d-node deployment", nodes)
         self._head_process = subprocess.Popen(
             ["ray", "start", "--head", "--port=6379", "--dashboard-port=8265"],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
         )
         time.sleep(5)
 
         cmd = [
-            "python", "-m", "vllm.entrypoints.openai.api_server",
-            "--model", c.model or "",
-            "--port", str(self._port),
+            "python",
+            "-m",
+            "vllm.entrypoints.openai.api_server",
+            "--model",
+            c.model or "",
+            "--port",
+            str(self._port),
         ]
 
         # vLLM uses Ray automatically for multi-GPU/multi-node when these are set
-        tp = next((a for i, a in enumerate(c.extra_args)
-                    if a == "--tensor-parallel-size" and i + 1 < len(c.extra_args)), None)
+        tp = next(
+            (a for i, a in enumerate(c.extra_args) if a == "--tensor-parallel-size" and i + 1 < len(c.extra_args)), None
+        )
         if tp is None and hasattr(c, "gpus") and c.gpus > 1:
             cmd.extend(["--tensor-parallel-size", str(c.gpus)])
 
@@ -251,8 +270,7 @@ class RayMultiNodeDeployment:
 
         env = {**os.environ, **c.cluster_env, **c.extra_env}
         logger.info("Starting vLLM with Ray: %s", " ".join(cmd))
-        self._vllm_process = subprocess.Popen(cmd, env=env,
-                                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        self._vllm_process = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         self.health_wait(c.startup_timeout)
         return f"http://localhost:{self._port}/v1"
 
@@ -304,7 +322,9 @@ _DEPLOYMENT_MAP = {
     "api": lambda c: APIDeployment(c.extra_env.get("base_url", "")),
     "nim": NIMDeployment,
     "docker": DockerModelDeployment,
-    "vllm": lambda c: RayMultiNodeDeployment(c) if (c.nodes > 1 or (c.pipeline_parallel_size or 0) > 1) else ProcessModelDeployment(c),
+    "vllm": lambda c: (
+        RayMultiNodeDeployment(c) if (c.nodes > 1 or (c.pipeline_parallel_size or 0) > 1) else ProcessModelDeployment(c)
+    ),
     "sglang": ProcessModelDeployment,
 }
 
@@ -312,6 +332,5 @@ _DEPLOYMENT_MAP = {
 def get_deployment(config: DeployConfig) -> ModelDeployment:
     factory = _DEPLOYMENT_MAP.get(config.type)
     if factory is None:
-        raise ValueError(f"Unknown deployment type: {config.type!r}. "
-                         f"Available: {', '.join(sorted(_DEPLOYMENT_MAP))}")
+        raise ValueError(f"Unknown deployment type: {config.type!r}. Available: {', '.join(sorted(_DEPLOYMENT_MAP))}")
     return factory(config)

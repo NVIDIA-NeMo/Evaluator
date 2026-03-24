@@ -20,6 +20,7 @@ Two transport modes over SSH:
 
 Includes Docker image building via AWS CodeBuild with ECR caching.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -53,9 +54,11 @@ T = TypeVar("T")
 
 # ── Lazy AWS SDK import ──────────────────────────────────────────────
 
+
 def _require_aws_sdks():
     try:
         import importlib
+
         boto3 = importlib.import_module("boto3")
         botocore_config = importlib.import_module("botocore.config")
         botocore_exceptions = importlib.import_module("botocore.exceptions")
@@ -66,9 +69,11 @@ def _require_aws_sdks():
         ) from e
     return boto3, getattr(botocore_config, "Config"), getattr(botocore_exceptions, "ClientError")
 
+
 # ── SSM auto-discovery ───────────────────────────────────────────────
 
 _ssm_config_cache: dict[str, dict[str, Any]] = {}
+
 
 def resolve_ecs_config_from_ssm(
     region: str,
@@ -103,22 +108,26 @@ def resolve_ecs_config_from_ssm(
     try:
         config = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            f"SSM parameter '{param_name}' in {region} contains invalid JSON: {exc}"
-        ) from exc
+        raise RuntimeError(f"SSM parameter '{param_name}' in {region} contains invalid JSON: {exc}") from exc
 
     _ssm_config_cache[cache_key] = config
     logger.info(
         "Resolved ECS config from SSM %s in %s (cluster=%s, %d subnets)",
-        param_name, region, config.get("cluster"), len(config.get("subnets", [])),
+        param_name,
+        region,
+        config.get("cluster"),
+        len(config.get("subnets", [])),
     )
     return config
 
+
 # ── Config dataclasses ───────────────────────────────────────────────
+
 
 def _sanitize_id(value: str, max_len: int = 100) -> str:
     cleaned = re.sub(r"[^a-zA-Z0-9-]+", "-", value).strip("-")
     return cleaned[:max_len] or "task"
+
 
 @dataclass(frozen=True)
 class SshSidecarConfig:
@@ -127,6 +136,7 @@ class SshSidecarConfig:
     exec_server_port set → exec-server mode (one-way tunnel).
     exec_server_port None → agent-server mode (two-way tunnel).
     """
+
     sshd_port: int = 2222
     ssh_ready_timeout_sec: float = 120.0
     public_key_secret_arn: str = ""
@@ -134,9 +144,11 @@ class SshSidecarConfig:
     image: str | None = None
     exec_server_port: int | None = None
 
+
 @dataclass(frozen=True)
 class EcsFargateConfig:
     """Configuration for the ECS Fargate sandbox."""
+
     region: str | None = None
     cluster: str = ""
     subnets: list[str] = field(default_factory=list)
@@ -174,17 +186,28 @@ class EcsFargateConfig:
     efs_filesystem_id: str | None = None
     efs_access_point_id: str | None = None
 
+
 # ── Retry utilities ──────────────────────────────────────────────────
 
-_RETRYABLE_CODES = frozenset({
-    "ThrottlingException", "TooManyRequestsException",
-    "ServiceUnavailable", "RequestLimitExceeded",
-})
+_RETRYABLE_CODES = frozenset(
+    {
+        "ThrottlingException",
+        "TooManyRequestsException",
+        "ServiceUnavailable",
+        "RequestLimitExceeded",
+    }
+)
 _RETRYABLE_MESSAGES = (
-    "capacity is unavailable", "rate exceeded", "too many concurrent",
-    "throttl", "connect timeout", "read timeout", "connection reset",
+    "capacity is unavailable",
+    "rate exceeded",
+    "too many concurrent",
+    "throttl",
+    "connect timeout",
+    "read timeout",
+    "connection reset",
     "endpointconnectionerror",
 )
+
 
 def _is_retryable_error(exc: Exception) -> bool:
     msg = str(exc).lower()
@@ -193,10 +216,15 @@ def _is_retryable_error(exc: Exception) -> bool:
         code = (exc.response.get("Error") or {}).get("Code", "")  # type: ignore[union-attr]
     return code in _RETRYABLE_CODES or any(m in msg for m in _RETRYABLE_MESSAGES)
 
+
 def _retry_with_backoff(
-    func: Callable[[], T], *, operation_name: str,
-    max_retries: int | None = None, base_delay: float = 1.0,
-    max_delay: float = 60.0, jitter: float = 0.5,
+    func: Callable[[], T],
+    *,
+    operation_name: str,
+    max_retries: int | None = None,
+    base_delay: float = 1.0,
+    max_delay: float = 60.0,
+    jitter: float = 0.5,
 ) -> T:
     attempt = 0
     while True:
@@ -211,16 +239,18 @@ def _retry_with_backoff(
                 raise
             delay = min(base_delay * (2 ** (attempt - 1)), max_delay)
             delay *= 1 + random.uniform(-jitter, jitter)
-            logger.warning("%s throttled (attempt %d), retrying in %.1fs: %s",
-                           operation_name, attempt, delay, exc)
+            logger.warning("%s throttled (attempt %d), retrying in %.1fs: %s", operation_name, attempt, delay, exc)
             time.sleep(delay)
 
+
 # ── SSH helpers ──────────────────────────────────────────────────────
+
 
 def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
 
 def download_secret_to_file(secret_arn: str, region: str | None = None) -> str:
     """Fetch a Secrets Manager secret → temp file (mode 0600)."""
@@ -233,21 +263,31 @@ def download_secret_to_file(secret_arn: str, region: str | None = None) -> str:
     os.chmod(path, 0o600)
     return path
 
+
 def download_secret_to_string(secret_arn: str, region: str | None = None) -> str:
     boto3, *_ = _require_aws_sdks()
     sm = boto3.client("secretsmanager", region_name=region)
     return sm.get_secret_value(SecretId=secret_arn)["SecretString"]
 
+
 # ── SSH tunnel ───────────────────────────────────────────────────────
+
 
 class SshTunnel:
     """Manages an ``ssh -N`` subprocess with ``-L`` / ``-R`` tunnels."""
 
-    def __init__(self, *, host: str, port: int = 2222, user: str = "root",
-                 key_file: str, forward_port: int | None = None,
-                 forwards: list[str] | None = None,
-                 reverses: list[str] | None = None,
-                 local_port_override: int | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        host: str,
+        port: int = 2222,
+        user: str = "root",
+        key_file: str,
+        forward_port: int | None = None,
+        forwards: list[str] | None = None,
+        reverses: list[str] | None = None,
+        local_port_override: int | None = None,
+    ) -> None:
         self._host = host
         self._port = port
         self._user = user
@@ -286,26 +326,29 @@ class SshTunnel:
                     try:
                         self._wait_for_local_port(self._local_port, timeout=15.0)
                     except Exception as port_exc:
-                        logger.warning("SSH alive but forward port %d not open: %s",
-                                       self._local_port, port_exc)
+                        logger.warning("SSH alive but forward port %d not open: %s", self._local_port, port_exc)
                         self._kill()
                         last_err = str(port_exc)
                         time.sleep(min(5.0, attempt * 1.5))
                         continue
-                logger.info("SSH tunnel started (pid=%d, attempt %d/%d)",
-                            self._proc.pid, attempt, max_retries)
+                logger.info("SSH tunnel started (pid=%d, attempt %d/%d)", self._proc.pid, attempt, max_retries)
                 return
-            stderr = (self._proc.stderr.read().decode(errors="replace")
-                      if self._proc.stderr else "")
+            stderr = self._proc.stderr.read().decode(errors="replace") if self._proc.stderr else ""
             last_err = stderr.strip()
             self._proc = None
-            if not any(m in last_err for m in (
-                "Connection refused", "Connection timed out",
-                "No route to host", "Connection reset",
-            )):
+            if not any(
+                m in last_err
+                for m in (
+                    "Connection refused",
+                    "Connection timed out",
+                    "No route to host",
+                    "Connection reset",
+                )
+            ):
                 raise RuntimeError(f"SSH tunnel exited immediately (attempt {attempt}): {last_err}")
-            logger.warning("SSH tunnel attempt %d/%d failed: %s — retrying in %.0fs",
-                           attempt, max_retries, last_err, backoff)
+            logger.warning(
+                "SSH tunnel attempt %d/%d failed: %s — retrying in %.0fs", attempt, max_retries, last_err, backoff
+            )
             time.sleep(backoff)
             backoff = min(30.0, backoff * 1.5)
         raise RuntimeError(f"SSH tunnel failed after {max_retries} attempts: {last_err}")
@@ -331,12 +374,26 @@ class SshTunnel:
 
     def _build_ssh_cmd(self) -> list[str]:
         cmd = [
-            "ssh", "-N",
-            "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=5",
-            "-o", "ConnectTimeout=15", "-o", "ExitOnForwardFailure=yes",
-            "-o", "LogLevel=ERROR",
-            "-i", self._key_file, "-p", str(self._port),
+            "ssh",
+            "-N",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ServerAliveInterval=30",
+            "-o",
+            "ServerAliveCountMax=5",
+            "-o",
+            "ConnectTimeout=15",
+            "-o",
+            "ExitOnForwardFailure=yes",
+            "-o",
+            "LogLevel=ERROR",
+            "-i",
+            self._key_file,
+            "-p",
+            str(self._port),
         ]
         if self._simple_forward_port is not None:
             cmd += ["-L", f"127.0.0.1:{self._local_port}:127.0.0.1:{self._simple_forward_port}"]
@@ -379,6 +436,7 @@ class SshTunnel:
     def _poll_health(self, url: str, timeout: float) -> None:
         import urllib.error
         import urllib.request
+
         deadline = time.monotonic() + timeout
         attempt = 0
         while time.monotonic() < deadline:
@@ -395,12 +453,18 @@ class SshTunnel:
             time.sleep(min(3.0, 1.0 + attempt * 0.5))
         raise TimeoutError(f"Health endpoint not reachable after {timeout:.0f}s: {url}")
 
+
 # ── SSH sidecar container builder ────────────────────────────────────
 
+
 def build_ssh_sidecar_container(
-    sidecar_cfg: SshSidecarConfig, *, public_key_value: str,
-    max_lifetime_sec: int, log_group: str | None = None,
-    log_region: str = "us-east-1", log_stream_prefix: str = "ecs-sandbox",
+    sidecar_cfg: SshSidecarConfig,
+    *,
+    public_key_value: str,
+    max_lifetime_sec: int,
+    log_group: str | None = None,
+    log_region: str = "us-east-1",
+    log_stream_prefix: str = "ecs-sandbox",
 ) -> dict[str, Any]:
     port = sidecar_cfg.sshd_port
     image = sidecar_cfg.image or "alpine:latest"
@@ -428,24 +492,32 @@ def build_ssh_sidecar_container(
         f"{watchdog}exec /usr/sbin/sshd -D -e -p {port}"
     )
     container: dict[str, Any] = {
-        "name": "ssh-tunnel", "image": image, "essential": True,
-        "entryPoint": ["sh", "-c"], "command": [sshd_cmd],
+        "name": "ssh-tunnel",
+        "image": image,
+        "essential": True,
+        "entryPoint": ["sh", "-c"],
+        "command": [sshd_cmd],
         "environment": [{"name": "SSH_PUBLIC_KEY", "value": public_key_value}],
         "healthCheck": {
             "command": ["CMD-SHELL", f"nc -z localhost {port} || exit 1"],
-            "interval": 5, "timeout": 3, "retries": 10, "startPeriod": 30,
+            "interval": 5,
+            "timeout": 3,
+            "retries": 10,
+            "startPeriod": 30,
         },
     }
     if log_group:
         container["logConfiguration"] = {
             "logDriver": "awslogs",
             "options": {
-                "awslogs-group": log_group, "awslogs-region": log_region,
+                "awslogs-group": log_group,
+                "awslogs-region": log_region,
                 "awslogs-stream-prefix": f"{log_stream_prefix}-tunnel",
                 "awslogs-create-group": "true",
             },
         }
     return container
+
 
 # ── Exec server — embedded script + HTTP client ─────────────────────
 
@@ -533,9 +605,14 @@ if __name__ == "__main__":
 '''
 
 _TRANSIENT_ERRORS = (
-    ConnectionResetError, ConnectionRefusedError, ConnectionAbortedError,
-    BrokenPipeError, TimeoutError, OSError,
+    ConnectionResetError,
+    ConnectionRefusedError,
+    ConnectionAbortedError,
+    BrokenPipeError,
+    TimeoutError,
+    OSError,
 )
+
 
 class ExecClient:
     """HTTP client for the exec server (through the SSH tunnel)."""
@@ -547,12 +624,12 @@ class ExecClient:
     def exec(self, cmd: str, *, timeout: int = 300) -> ExecResult:
         resp = self._post("/exec", {"cmd": cmd, "timeout": timeout})
         return ExecResult(
-            stdout=resp.get("stdout", ""), stderr=resp.get("stderr", ""),
+            stdout=resp.get("stdout", ""),
+            stderr=resp.get("stderr", ""),
             return_code=resp.get("rc", -1),
         )
 
-    def upload(self, remote_path: str, data: bytes | Path, *,
-               mode: str | None = None, max_retries: int = 3) -> None:
+    def upload(self, remote_path: str, data: bytes | Path, *, mode: str | None = None, max_retries: int = 3) -> None:
         if isinstance(data, Path):
             data = data.read_bytes()
         body: dict[str, Any] = {"path": remote_path, "content": base64.b64encode(data).decode()}
@@ -576,38 +653,56 @@ class ExecClient:
 
     def download(self, remote_path: str, *, max_retries: int = 3) -> bytes:
         import urllib.parse
+
         url = f"{self._base}/download?path={urllib.parse.quote(remote_path)}"
-        return self._request(label=f"download {remote_path}", url=url, method="GET",
-                             timeout=self._timeout, max_retries=max_retries)
+        return self._request(
+            label=f"download {remote_path}", url=url, method="GET", timeout=self._timeout, max_retries=max_retries
+        )
 
     def health(self) -> bool:
         try:
-            self._request(label="health", url=f"{self._base}/health", method="GET",
-                          timeout=5, max_retries=1)
+            self._request(label="health", url=f"{self._base}/health", method="GET", timeout=5, max_retries=1)
             return True
         except (ConnectionError, OSError, TimeoutError, RuntimeError):
             return False
 
-    def _post(self, path: str, body: dict[str, Any], *,
-              timeout_override: float | None = None, max_retries: int = 4) -> dict[str, Any]:
+    def _post(
+        self, path: str, body: dict[str, Any], *, timeout_override: float | None = None, max_retries: int = 4
+    ) -> dict[str, Any]:
         url = f"{self._base}{path}"
         payload = json.dumps(body).encode()
         if timeout_override is not None:
             http_timeout = timeout_override
         else:
             cmd_timeout = body.get("timeout")
-            http_timeout = (max(self._timeout, cmd_timeout + 30)
-                            if isinstance(cmd_timeout, (int, float)) else self._timeout)
-        raw = self._request(label=f"POST {path}", url=url, method="POST", data=payload,
-                            headers={"Content-Type": "application/json"},
-                            timeout=http_timeout, max_retries=max_retries)
+            http_timeout = (
+                max(self._timeout, cmd_timeout + 30) if isinstance(cmd_timeout, (int, float)) else self._timeout
+            )
+        raw = self._request(
+            label=f"POST {path}",
+            url=url,
+            method="POST",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=http_timeout,
+            max_retries=max_retries,
+        )
         return json.loads(raw)
 
-    def _request(self, *, label: str, url: str, method: str,
-                 data: bytes | None = None, headers: dict[str, str] | None = None,
-                 timeout: float, max_retries: int) -> bytes:
+    def _request(
+        self,
+        *,
+        label: str,
+        url: str,
+        method: str,
+        data: bytes | None = None,
+        headers: dict[str, str] | None = None,
+        timeout: float,
+        max_retries: int,
+    ) -> bytes:
         import urllib.error
         import urllib.request
+
         last_err: Exception | None = None
         for attempt in range(1, max_retries + 1):
             req = urllib.request.Request(url, data=data, method=method)
@@ -623,14 +718,15 @@ class ExecClient:
                 last_err = exc
                 if attempt < max_retries:
                     wait = min(15.0, 2.0 ** (attempt - 1))
-                    logger.warning("%s attempt %d/%d: %s — retry in %.1fs",
-                                   label, attempt, max_retries, exc, wait)
+                    logger.warning("%s attempt %d/%d: %s — retry in %.1fs", label, attempt, max_retries, exc, wait)
                     time.sleep(wait)
                     continue
                 raise ConnectionError(f"{label} failed after {max_retries} attempts: {last_err}") from last_err
         raise ConnectionError(f"{label} unreachable")
 
+
 # ── Image builder — AWS CodeBuild + ECR caching ─────────────────────
+
 
 class ImageBuilder:
     """Build Docker images via CodeBuild → ECR with content-hash caching."""
@@ -702,8 +798,7 @@ class ImageBuilder:
         return tags
 
     @classmethod
-    def ensure_image_built(cls, *, cfg: EcsFargateConfig, environment_name: str,
-                           force_build: bool = False) -> str:
+    def ensure_image_built(cls, *, cfg: EcsFargateConfig, environment_name: str, force_build: bool = False) -> str:
         ecr_repo = cfg.ecr_repository
         env_dir = cfg.environment_dir
         if not ecr_repo or not env_dir:
@@ -737,8 +832,7 @@ class ImageBuilder:
             try:
                 if not force_build and cls.image_exists_in_ecr(ecr_repo, tag, cfg.region):
                     return image_url
-                cls._build_and_push(cfg=cfg, environment_name=environment_name,
-                                    tag=tag, image_url=image_url)
+                cls._build_and_push(cfg=cfg, environment_name=environment_name, tag=tag, image_url=image_url)
             finally:
                 cls._build_semaphore.release()  # type: ignore[union-attr]
         finally:
@@ -776,9 +870,12 @@ class ImageBuilder:
                 name=project_name,
                 source={"type": "NO_SOURCE", "buildspec": "version: 0.2"},
                 artifacts={"type": "NO_ARTIFACTS"},
-                environment={"type": "LINUX_CONTAINER",
-                             "image": "aws/codebuild/amazonlinux-x86_64-standard:5.0",
-                             "computeType": cfg.codebuild_compute_type, "privilegedMode": True},
+                environment={
+                    "type": "LINUX_CONTAINER",
+                    "image": "aws/codebuild/amazonlinux-x86_64-standard:5.0",
+                    "computeType": cfg.codebuild_compute_type,
+                    "privilegedMode": True,
+                },
                 serviceRole=cfg.codebuild_service_role,
                 timeoutInMinutes=cfg.codebuild_build_timeout,
             )
@@ -808,8 +905,10 @@ class ImageBuilder:
                 f' || echo "Docker Hub login failed — continuing without auth"'
             )
         pre_yaml = "\n".join(f"      - {c}" for c in pre_build_cmds)
-        build_cmd = (f"for i in 1 2 3; do docker build -t {repo_name}:{tag} . && break; "
-                     f'echo "build failed ($i/3), retry in 30s"; sleep 30; done')
+        build_cmd = (
+            f"for i in 1 2 3; do docker build -t {repo_name}:{tag} . && break; "
+            f'echo "build failed ($i/3), retry in 30s"; sleep 30; done'
+        )
         return (
             "version: 0.2\nphases:\n  pre_build:\n    commands:\n"
             f"{pre_yaml}\n  build:\n    commands:\n"
@@ -831,12 +930,10 @@ class ImageBuilder:
                 failed = [p for p in phases if p.get("phaseStatus") not in (None, "SUCCEEDED")]
                 ctx = "; ".join(f"{p['phaseType']}: {p.get('phaseStatus')}" for p in failed) or status
                 raise RuntimeError(f"CodeBuild failed for {image_url}: {ctx} (build: {build_id})")
-            logger.debug("CodeBuild %s — phase=%s status=%s",
-                         build_id, build.get("currentPhase"), status)
+            logger.debug("CodeBuild %s — phase=%s status=%s", build_id, build.get("currentPhase"), status)
 
     @classmethod
-    def _build_and_push(cls, *, cfg: EcsFargateConfig, environment_name: str,
-                        tag: str, image_url: str) -> None:
+    def _build_and_push(cls, *, cfg: EcsFargateConfig, environment_name: str, tag: str, image_url: str) -> None:
         boto3, *_ = _require_aws_sdks()
         ecr_repo = cfg.ecr_repository or ""
         repo_name = ecr_repo.split("/", 1)[1] if "/" in ecr_repo else ecr_repo
@@ -847,17 +944,20 @@ class ImageBuilder:
         project_name = cls._resolve_codebuild_project(cfg, cb, nonce)
         buildspec = cls._generate_buildspec(cfg, repo_name, tag, image_url)
         resp = cb.start_build(
-            projectName=project_name, sourceTypeOverride="S3",
+            projectName=project_name,
+            sourceTypeOverride="S3",
             sourceLocationOverride=f"{cfg.s3_bucket}/{s3_key}",
             buildspecOverride=buildspec,
             timeoutInMinutesOverride=cfg.codebuild_build_timeout,
-            privilegedModeOverride=True, environmentTypeOverride="LINUX_CONTAINER",
+            privilegedModeOverride=True,
+            environmentTypeOverride="LINUX_CONTAINER",
             imageOverride="aws/codebuild/amazonlinux-x86_64-standard:5.0",
             computeTypeOverride=cfg.codebuild_compute_type,
         )
         build_id = resp["build"]["id"]
         logger.info("CodeBuild started: %s", build_id)
         cls._poll_codebuild(cb, build_id, image_url)
+
 
 # ── Core sandbox ─────────────────────────────────────────────────────
 
@@ -867,6 +967,7 @@ _atexit_registered = False
 _PROCESS_NONCE = f"{int(time.time())}-{uuid.uuid4().hex[:8]}"
 _exec_server_url_cache: dict[str, str] = {}
 
+
 def _emergency_cleanup() -> None:
     with _cleanup_lock:
         for sb in list(_active_sandboxes.values()):
@@ -874,6 +975,7 @@ def _emergency_cleanup() -> None:
                 sb._sync_stop()
             except Exception:
                 logger.debug("Emergency cleanup failed for sandbox %s", id(sb), exc_info=True)
+
 
 class EcsFargateSandbox:
     """ECS Fargate sandbox — async :class:`Sandbox` protocol."""
@@ -961,8 +1063,12 @@ class EcsFargateSandbox:
         self._unregister_from_cleanup()
 
     async def exec(
-        self, command: str, timeout_sec: float = 180,
-        *, cwd: str | None = None, env: dict[str, str] | None = None,
+        self,
+        command: str,
+        timeout_sec: float = 180,
+        *,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
     ) -> ExecResult:
         self._require_exec_client()
         shell_cmd = command
@@ -971,8 +1077,7 @@ class EcsFargateSandbox:
             shell_cmd = f"export {exports} && {shell_cmd}"
         if cwd:
             shell_cmd = f"cd {cwd} && {shell_cmd}"
-        return await asyncio.to_thread(
-            self._exec_client.exec, shell_cmd, timeout=int(timeout_sec))  # type: ignore[union-attr]
+        return await asyncio.to_thread(self._exec_client.exec, shell_cmd, timeout=int(timeout_sec))  # type: ignore[union-attr]
 
     async def upload(self, local_path: Path, remote_path: str) -> None:
         self._require_exec_client()
@@ -983,8 +1088,7 @@ class EcsFargateSandbox:
                     await self.upload(child, f"{remote_path}/{child.relative_to(local)}")
             return
         if local.stat().st_size > 512 * 1024 and self._cfg.s3_bucket:
-            await asyncio.to_thread(self._upload_via_s3, [local],
-                                    os.path.dirname(remote_path) or "/tmp")
+            await asyncio.to_thread(self._upload_via_s3, [local], os.path.dirname(remote_path) or "/tmp")
         else:
             await asyncio.to_thread(self._exec_client.upload, remote_path, local)  # type: ignore[union-attr]
 
@@ -1039,7 +1143,8 @@ class EcsFargateSandbox:
         if cfg.ecr_repository and env_dir:
             per_task_cfg = _dc_replace(cfg, environment_dir=env_dir)
             built_image = ImageBuilder.ensure_image_built(
-                cfg=per_task_cfg, environment_name=_sanitize_id(self._spec.image or "sandbox"))
+                cfg=per_task_cfg, environment_name=_sanitize_id(self._spec.image or "sandbox")
+            )
         image = self._resolve_image(built_image)
 
         if not sidecar.private_key_secret_arn or not sidecar.public_key_secret_arn:
@@ -1059,11 +1164,16 @@ class EcsFargateSandbox:
         env = self._build_env_vars()
         log_region = cfg.region or os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
         sidecar_def = build_ssh_sidecar_container(
-            sidecar, public_key_value=ssh_public_key_value,
-            max_lifetime_sec=cfg.max_task_lifetime_sec, log_group=cfg.log_group,
-            log_region=log_region, log_stream_prefix=cfg.log_stream_prefix or "ecs-sandbox")
+            sidecar,
+            public_key_value=ssh_public_key_value,
+            max_lifetime_sec=cfg.max_task_lifetime_sec,
+            log_group=cfg.log_group,
+            log_region=log_region,
+            log_stream_prefix=cfg.log_stream_prefix or "ecs-sandbox",
+        )
         self._task_def_arn = self._register_task_definition(
-            image=image, command=command, env=env, sidecar_def=sidecar_def)
+            image=image, command=command, env=env, sidecar_def=sidecar_def
+        )
         self._task_arn = self._run_task(self._task_def_arn)
         self._register_for_cleanup()
         self._wait_for_running()
@@ -1080,8 +1190,7 @@ class EcsFargateSandbox:
 
     def _init_aws_clients(self) -> None:
         boto3, Config, _ = _require_aws_sdks()
-        boto_cfg = Config(connect_timeout=30, read_timeout=60,
-                          retries={"max_attempts": 8, "mode": "adaptive"})
+        boto_cfg = Config(connect_timeout=30, read_timeout=60, retries={"max_attempts": 8, "mode": "adaptive"})
         self._ecs = boto3.client("ecs", region_name=self._cfg.region, config=boto_cfg)
         self._ec2 = boto3.client("ec2", region_name=self._cfg.region, config=boto_cfg)
 
@@ -1109,8 +1218,10 @@ class EcsFargateSandbox:
         if self._spec.image:
             return self._spec.image
         if not cfg.task_definition:
-            raise ValueError("No image available: set image on SandboxSpec, image_template, "
-                             "ecr_repository + environment_dir, or task_definition")
+            raise ValueError(
+                "No image available: set image on SandboxSpec, image_template, "
+                "ecr_repository + environment_dir, or task_definition"
+            )
         return ""
 
     def _parse_outside_url(self) -> ParseResult:
@@ -1149,8 +1260,7 @@ class EcsFargateSandbox:
         logger.info("Uploaded exec server → s3://%s/%s", cfg.s3_bucket, key)
         return url
 
-    def _build_container_command(self, exec_server_url: str | None,
-                                 sidecar: SshSidecarConfig) -> list[str] | None:
+    def _build_container_command(self, exec_server_url: str | None, sidecar: SshSidecarConfig) -> list[str] | None:
         if exec_server_url is None:
             return None
         exec_port = sidecar.exec_server_port or 19542
@@ -1200,44 +1310,60 @@ class EcsFargateSandbox:
 
     # ── Task definition registration ─────────────────────────────────
 
-    def _register_task_definition(self, *, image: str, command: list[str] | None,
-                                  env: dict[str, str], sidecar_def: dict[str, Any]) -> str:
+    def _register_task_definition(
+        self, *, image: str, command: list[str] | None, env: dict[str, str], sidecar_def: dict[str, Any]
+    ) -> str:
         cfg = self._cfg
         log_region = cfg.region or os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
         log_cfg: dict[str, Any] | None = None
         if cfg.log_group:
-            log_cfg = {"logDriver": "awslogs", "options": {
-                "awslogs-group": cfg.log_group, "awslogs-region": log_region,
-                "awslogs-stream-prefix": cfg.log_stream_prefix or "ecs-sandbox",
-                "awslogs-create-group": "true"}}
+            log_cfg = {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": cfg.log_group,
+                    "awslogs-region": log_region,
+                    "awslogs-stream-prefix": cfg.log_stream_prefix or "ecs-sandbox",
+                    "awslogs-create-group": "true",
+                },
+            }
 
         _, _, ClientError = _require_aws_sdks()
         base: dict[str, Any] | None = None
         if cfg.task_definition:
             try:
-                base = self._ecs.describe_task_definition(
-                    taskDefinition=cfg.task_definition)["taskDefinition"]
+                base = self._ecs.describe_task_definition(taskDefinition=cfg.task_definition)["taskDefinition"]
             except ClientError as exc:
                 if exc.response.get("Error", {}).get("Code") == "ClientException":
-                    logger.warning("Base task definition %s not found, registering from scratch",
-                                   cfg.task_definition)
+                    logger.warning("Base task definition %s not found, registering from scratch", cfg.task_definition)
                 else:
                     raise
 
         if base is not None:
-            return self._register_from_base(base=base, image=image, command=command,
-                                            env=env, sidecar_def=sidecar_def, log_cfg=log_cfg)
-        return self._register_from_scratch(image=image, command=command, env=env,
-                                           sidecar_def=sidecar_def, log_cfg=log_cfg)
+            return self._register_from_base(
+                base=base, image=image, command=command, env=env, sidecar_def=sidecar_def, log_cfg=log_cfg
+            )
+        return self._register_from_scratch(
+            image=image, command=command, env=env, sidecar_def=sidecar_def, log_cfg=log_cfg
+        )
 
-    def _register_from_base(self, *, base: dict, image: str, command: list[str] | None,
-                            env: dict[str, str], sidecar_def: dict, log_cfg: dict | None) -> str:
+    def _register_from_base(
+        self,
+        *,
+        base: dict,
+        image: str,
+        command: list[str] | None,
+        env: dict[str, str],
+        sidecar_def: dict,
+        log_cfg: dict | None,
+    ) -> str:
         cfg = self._cfg
         containers = list(base.get("containerDefinitions") or [])
         target = next((cd for cd in containers if cd.get("name") == cfg.container_name), None)
         if target is None:
-            raise RuntimeError(f"Base task-def has no container '{cfg.container_name}'. "
-                               f"Available: {[c.get('name') for c in containers]}")
+            raise RuntimeError(
+                f"Base task-def has no container '{cfg.container_name}'. "
+                f"Available: {[c.get('name') for c in containers]}"
+            )
         if image:
             target["image"] = image
         if command is not None:
@@ -1266,9 +1392,11 @@ class EcsFargateSandbox:
             "cpu": str(max(int(base.get("cpu") or "256"), int(cfg.cpu))),
             "memory": str(max(int(base.get("memory") or "512"), int(cfg.memory))),
             "containerDefinitions": containers,
-            "ephemeralStorage": {"sizeInGiB": max(
-                (base.get("ephemeralStorage") or {}).get("sizeInGiB", 20),
-                cfg.ephemeral_storage_gib or 20)},
+            "ephemeralStorage": {
+                "sizeInGiB": max(
+                    (base.get("ephemeralStorage") or {}).get("sizeInGiB", 20), cfg.ephemeral_storage_gib or 20
+                )
+            },
         }
         for k in ("taskRoleArn", "executionRoleArn", "runtimePlatform", "volumes"):
             if base.get(k) is not None:
@@ -1282,13 +1410,15 @@ class EcsFargateSandbox:
             payload["taskRoleArn"] = cfg.task_role_arn
         return self._do_register(payload)
 
-    def _register_from_scratch(self, *, image: str, command: list[str] | None,
-                               env: dict[str, str], sidecar_def: dict, log_cfg: dict | None) -> str:
+    def _register_from_scratch(
+        self, *, image: str, command: list[str] | None, env: dict[str, str], sidecar_def: dict, log_cfg: dict | None
+    ) -> str:
         cfg = self._cfg
         if not cfg.execution_role_arn:
             raise RuntimeError("execution_role_arn required when no base task definition provided")
         container_def: dict[str, Any] = {
-            "name": cfg.container_name, "essential": True,
+            "name": cfg.container_name,
+            "essential": True,
             "dependsOn": [{"containerName": "ssh-tunnel", "condition": "HEALTHY"}],
         }
         if image:
@@ -1307,8 +1437,11 @@ class EcsFargateSandbox:
             container_def["mountPoints"] = mount_points
 
         payload: dict[str, Any] = {
-            "family": self._make_family_name(), "networkMode": "awsvpc",
-            "requiresCompatibilities": ["FARGATE"], "cpu": cfg.cpu, "memory": cfg.memory,
+            "family": self._make_family_name(),
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": cfg.cpu,
+            "memory": cfg.memory,
             "executionRoleArn": cfg.execution_role_arn,
             "containerDefinitions": [container_def, sidecar_def],
         }
@@ -1340,24 +1473,28 @@ class EcsFargateSandbox:
             elif vol.efs_root_directory:
                 efs_cfg["rootDirectory"] = vol.efs_root_directory
             task_volumes.append({"name": vol_name, "efsVolumeConfiguration": efs_cfg})
-            mount_points.append({
-                "sourceVolume": vol_name,
-                "containerPath": vol.container_path,
-                "readOnly": vol.readonly,
-            })
+            mount_points.append(
+                {
+                    "sourceVolume": vol_name,
+                    "containerPath": vol.container_path,
+                    "readOnly": vol.readonly,
+                }
+            )
         return task_volumes, mount_points
 
     def _do_register(self, payload: dict[str, Any]) -> str:
-        resp = _retry_with_backoff(lambda: self._ecs.register_task_definition(**payload),
-                                   operation_name="register_task_definition", max_retries=25)
+        resp = _retry_with_backoff(
+            lambda: self._ecs.register_task_definition(**payload),
+            operation_name="register_task_definition",
+            max_retries=25,
+        )
         arn = resp["taskDefinition"]["taskDefinitionArn"]
         logger.info("Registered task def: %s", arn)
         return arn
 
     def _make_family_name(self) -> str:
         nonce = uuid.uuid4().hex[:12]
-        raw = (f"{self._cfg.task_definition_family_prefix}"
-               f"-{_sanitize_id(self._spec.image or 'sandbox')}-{nonce}")
+        raw = f"{self._cfg.task_definition_family_prefix}-{_sanitize_id(self._spec.image or 'sandbox')}-{nonce}"
         family = re.sub(r"[^A-Za-z0-9_-]", "_", raw)[:255]
         if not family or not re.match(r"^[A-Za-z0-9]", family):
             family = f"ecs_{family}"
@@ -1368,10 +1505,16 @@ class EcsFargateSandbox:
     def _run_task(self, task_def_arn: str) -> str:
         cfg = self._cfg
         run_kwargs: dict[str, Any] = {
-            "cluster": cfg.cluster, "taskDefinition": task_def_arn, "launchType": "FARGATE",
-            "networkConfiguration": {"awsvpcConfiguration": {
-                "subnets": cfg.subnets, "securityGroups": cfg.security_groups,
-                "assignPublicIp": "ENABLED" if cfg.assign_public_ip else "DISABLED"}},
+            "cluster": cfg.cluster,
+            "taskDefinition": task_def_arn,
+            "launchType": "FARGATE",
+            "networkConfiguration": {
+                "awsvpcConfiguration": {
+                    "subnets": cfg.subnets,
+                    "securityGroups": cfg.security_groups,
+                    "assignPublicIp": "ENABLED" if cfg.assign_public_ip else "DISABLED",
+                }
+            },
         }
         has_efs = any(v.is_efs for v in self._spec.volumes)
         if cfg.platform_version:
@@ -1382,14 +1525,16 @@ class EcsFargateSandbox:
         last_failures: Any = None
         for attempt in range(1, cfg.run_task_max_retries + 1):
             try:
-                resp = _retry_with_backoff(lambda: self._ecs.run_task(**run_kwargs),
-                                           operation_name="run_task", max_retries=3)
+                resp = _retry_with_backoff(
+                    lambda: self._ecs.run_task(**run_kwargs), operation_name="run_task", max_retries=3
+                )
             except Exception as exc:
                 if not _is_retryable_error(exc) or attempt >= cfg.run_task_max_retries:
                     raise
                 delay = min(60.0, 2.0 ** min(6, attempt - 1)) + random.random() * 2
-                logger.warning("run_task failed (%d/%d): %s — retry in %.1fs",
-                               attempt, cfg.run_task_max_retries, exc, delay)
+                logger.warning(
+                    "run_task failed (%d/%d): %s — retry in %.1fs", attempt, cfg.run_task_max_retries, exc, delay
+                )
                 time.sleep(delay)
                 continue
             failures = resp.get("failures") or []
@@ -1402,12 +1547,16 @@ class EcsFargateSandbox:
                 return task_arn
             last_failures = failures
             reasons = " | ".join(str(f.get("reason", "")) for f in failures)
-            if (not any(m in reasons.lower() for m in _RETRYABLE_MESSAGES)
-                    or attempt >= cfg.run_task_max_retries):
+            if not any(m in reasons.lower() for m in _RETRYABLE_MESSAGES) or attempt >= cfg.run_task_max_retries:
                 raise RuntimeError(f"run_task failures: {failures}")
             delay = min(60.0, 2.0 ** min(6, attempt - 1)) + random.random() * 2
-            logger.warning("run_task capacity issue (%d/%d): %s — retry in %.1fs",
-                           attempt, cfg.run_task_max_retries, reasons, delay)
+            logger.warning(
+                "run_task capacity issue (%d/%d): %s — retry in %.1fs",
+                attempt,
+                cfg.run_task_max_retries,
+                reasons,
+                delay,
+            )
             time.sleep(delay)
         raise RuntimeError(f"run_task failed after {cfg.run_task_max_retries} retries: {last_failures}")
 
@@ -1465,8 +1614,7 @@ class EcsFargateSandbox:
                             if d.get("name") == "privateIPv4Address" and d.get("value"):
                                 return d["value"]
                     raise RuntimeError("No ENI/IP yet")
-                iface = self._ec2.describe_network_interfaces(
-                    NetworkInterfaceIds=[eni_id])["NetworkInterfaces"][0]
+                iface = self._ec2.describe_network_interfaces(NetworkInterfaceIds=[eni_id])["NetworkInterfaces"][0]
                 pub = (iface.get("Association") or {}).get("PublicIp")
                 if pub:
                     logger.info("Container public IP: %s", pub)
@@ -1520,7 +1668,10 @@ class EcsFargateSandbox:
             reverses.append(f"{port}:{host}:{port}")
             logger.info(
                 "Reverse tunnel: container :%d → host %s:%d (%s)",
-                port, host, port, ep.env_var,
+                port,
+                host,
+                port,
+                ep.env_var,
             )
         return reverses
 
@@ -1529,9 +1680,13 @@ class EcsFargateSandbox:
         reverse_specs = self._build_reverse_specs()
         if sidecar.exec_server_port is not None:
             self._ssh_tunnel = SshTunnel(
-                host=self._task_ip, port=sidecar.sshd_port, user="root",
-                key_file=self._ssh_key_file, forward_port=sidecar.exec_server_port,
-                reverses=reverse_specs)
+                host=self._task_ip,
+                port=sidecar.sshd_port,
+                user="root",
+                key_file=self._ssh_key_file,
+                forward_port=sidecar.exec_server_port,
+                reverses=reverse_specs,
+            )
             self._ssh_tunnel.open()
         else:
             remote_host, remote_port = self._resolve_tunnel_target()
@@ -1541,11 +1696,14 @@ class EcsFargateSandbox:
             if not container_port:
                 raise ValueError("container_port is required in agent-server mode")
             self._ssh_tunnel = SshTunnel(
-                host=self._task_ip, port=sidecar.sshd_port, user="root",
+                host=self._task_ip,
+                port=sidecar.sshd_port,
+                user="root",
                 key_file=self._ssh_key_file,
                 forwards=[f"{self._agent_forward_port}:localhost:{container_port}"],
                 reverses=[f"{self._ssh_tunnel_port}:{remote_host}:{remote_port}"],
-                local_port_override=self._agent_forward_port)
+                local_port_override=self._agent_forward_port,
+            )
             self._ssh_tunnel.open()
 
     # ── Cleanup ──────────────────────────────────────────────────────
@@ -1560,9 +1718,12 @@ class EcsFargateSandbox:
         if self._task_arn and self._ecs:
             try:
                 _retry_with_backoff(
-                    lambda: self._ecs.stop_task(cluster=self._cfg.cluster,
-                                                task=self._task_arn, reason="sandbox cleanup"),
-                    operation_name="stop_task", max_retries=10)
+                    lambda: self._ecs.stop_task(
+                        cluster=self._cfg.cluster, task=self._task_arn, reason="sandbox cleanup"
+                    ),
+                    operation_name="stop_task",
+                    max_retries=10,
+                )
                 logger.info("Stopped ECS task: %s", self._task_arn)
             except Exception as exc:
                 logger.warning("Failed to stop task %s: %s", self._task_arn, exc)
@@ -1570,7 +1731,9 @@ class EcsFargateSandbox:
             try:
                 _retry_with_backoff(
                     lambda: self._ecs.deregister_task_definition(taskDefinition=self._task_def_arn),
-                    operation_name="deregister_task_definition", max_retries=5)
+                    operation_name="deregister_task_definition",
+                    max_retries=5,
+                )
                 logger.info("Deregistered task def: %s", self._task_def_arn)
             except Exception as exc:
                 logger.warning("Failed to deregister task def %s: %s", self._task_def_arn, exc)
@@ -1592,7 +1755,8 @@ class EcsFargateSandbox:
         if self._exec_client is None:
             raise RuntimeError(
                 "exec()/upload()/download() require exec-server mode "
-                "(ssh_sidecar.exec_server_port). In agent-server mode use sandbox.ssh_tunnel.")
+                "(ssh_sidecar.exec_server_port). In agent-server mode use sandbox.ssh_tunnel."
+            )
 
     def _upload_via_s3(self, paths: list[Path], dest_dir: str) -> None:
         cfg = self._cfg
@@ -1614,18 +1778,19 @@ class EcsFargateSandbox:
         nonce = uuid.uuid4().hex[:12]
         key = f"{prefix}/{self._run_id}/upload-{nonce}.tar.gz"
         s3.put_object(Bucket=cfg.s3_bucket, Key=key, Body=buf.read())
-        url = s3.generate_presigned_url("get_object",
-                                        Params={"Bucket": cfg.s3_bucket, "Key": key}, ExpiresIn=21600)
+        url = s3.generate_presigned_url("get_object", Params={"Bucket": cfg.s3_bucket, "Key": key}, ExpiresIn=21600)
         dl_cmd = (
             f"mkdir -p {shlex.quote(dest_dir)} && TGZ=/tmp/_upload_$$.tar.gz && "
             f"( curl -sf -L --max-time 300 -o $TGZ {shlex.quote(url)} 2>/dev/null || "
             f"python3 -c 'import urllib.request as u,sys;u.urlretrieve(sys.argv[1],sys.argv[2])' "
             f"{shlex.quote(url)} $TGZ ) && "
-            f"tar xzf $TGZ -C {shlex.quote(dest_dir)} && rm -f $TGZ && echo ok")
+            f"tar xzf $TGZ -C {shlex.quote(dest_dir)} && rm -f $TGZ && echo ok"
+        )
         result = self._exec_client.exec(dl_cmd, timeout=360)  # type: ignore[union-attr]
         if "ok" not in result.stdout:
-            raise RuntimeError(f"S3 upload extraction failed (rc={result.return_code}): "
-                               f"{result.stderr or result.stdout}")
+            raise RuntimeError(
+                f"S3 upload extraction failed (rc={result.return_code}): {result.stderr or result.stdout}"
+            )
 
     # ── Atexit cleanup ───────────────────────────────────────────────
 

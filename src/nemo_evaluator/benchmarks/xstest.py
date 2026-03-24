@@ -12,6 +12,7 @@ Scoring uses prefix-based string-match refusal detection from the XSTest paper
 
 Paper: https://arxiv.org/abs/2308.01263
 """
+
 import csv
 import io
 import urllib.request
@@ -19,10 +20,7 @@ import urllib.request
 from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput
 
-_XSTEST_CSV_URL = (
-    "https://raw.githubusercontent.com/paul-rottger/exaggerated-safety/"
-    "main/xstest_v2_prompts.csv"
-)
+_XSTEST_CSV_URL = "https://raw.githubusercontent.com/paul-rottger/exaggerated-safety/main/xstest_v2_prompts.csv"
 
 _REFUSAL_PREFIXES = (
     "sorry",
@@ -71,9 +69,7 @@ def _normalize_row(row: dict, idx: int, rng) -> dict:
     if "responses_create_params" in row:
         rcp = row["responses_create_params"]
         inputs = rcp.get("input", [])
-        prompt = next(
-            (m["content"] for m in reversed(inputs) if m.get("role") == "user"), ""
-        )
+        prompt = next((m["content"] for m in reversed(inputs) if m.get("role") == "user"), "")
         meta = row.get("verifier_metadata", {})
         return {
             "prompt": prompt,

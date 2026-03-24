@@ -1,4 +1,5 @@
 """Docker executor: run evaluation inside a container."""
+
 from __future__ import annotations
 
 import json
@@ -18,11 +19,7 @@ _LOCAL_TAG_PREFIX = "nemo-evaluator"
 
 
 def _is_repo_root(p: Path) -> bool:
-    return (
-        (p / "pyproject.toml").exists()
-        and (p / "docker").is_dir()
-        and (p / "src" / "nemo_evaluator").is_dir()
-    )
+    return (p / "pyproject.toml").exists() and (p / "docker").is_dir() and (p / "src" / "nemo_evaluator").is_dir()
 
 
 def _find_repo_root() -> Path | None:
@@ -62,6 +59,7 @@ def _build_local_image(variant: str, *, quiet: bool = False) -> str:
     logger.info("Building local image: %s", shlex.join(cmd))
     if not quiet:
         import click
+
         click.echo(f"Building {tag} from {dockerfile.relative_to(repo)} …")
 
     result = subprocess.run(cmd, capture_output=quiet, text=True)
@@ -74,8 +72,7 @@ def _build_local_image(variant: str, *, quiet: bool = False) -> str:
 class DockerExecutor(Executor):
     name = "docker"
 
-    def run(self, config, *, dry_run=False, resume=False,
-            background=False, submit=False) -> None:
+    def run(self, config, *, dry_run=False, resume=False, background=False, submit=False) -> None:
         import click
 
         from nemo_evaluator.orchestration.image_resolver import resolve_eval_image, scheme_to_variant
@@ -112,8 +109,12 @@ class DockerExecutor(Executor):
         container_env = dict(getattr(config.cluster, "container_env", {}))
 
         _FORWARD_ENVS = (
-            "NEMO_API_KEY", "NEMO_MODEL_URL", "NEMO_MODEL_ID",
-            "HF_TOKEN", "MLFLOW_TRACKING_URI", "MLFLOW_TRACKING_TOKEN",
+            "NEMO_API_KEY",
+            "NEMO_MODEL_URL",
+            "NEMO_MODEL_ID",
+            "HF_TOKEN",
+            "MLFLOW_TRACKING_URI",
+            "MLFLOW_TRACKING_TOKEN",
         )
         forwarded: list[str] = []
         for key in _FORWARD_ENVS:
@@ -143,7 +144,8 @@ class DockerExecutor(Executor):
         Path(output_dir).mkdir(parents=True, exist_ok=True)
         cfg_path = Path(output_dir) / "_docker_config.json"
         cfg_path.write_text(
-            json.dumps(config.model_dump(), default=str), encoding="utf-8",
+            json.dumps(config.model_dump(), default=str),
+            encoding="utf-8",
         )
 
         shm = getattr(config.cluster, "shm_size", None)
@@ -155,13 +157,19 @@ class DockerExecutor(Executor):
             extra_docker_args.extend([f"--shm-size={shm}"])
 
         cmd = [
-            "docker", "run", "-d",
-            "--name", f"nel-eval-{os.getpid()}",
+            "docker",
+            "run",
+            "-d",
+            "--name",
+            f"nel-eval-{os.getpid()}",
             *extra_docker_args,
             *mount_args,
             *env_args,
             image,
-            "nel", "eval", "run", str(cfg_path),
+            "nel",
+            "eval",
+            "run",
+            str(cfg_path),
         ]
         if resume:
             cmd.append("--resume")
@@ -225,14 +233,14 @@ class DockerExecutor(Executor):
         try:
             result = subprocess.run(
                 ["docker", "inspect", "-f", "{{.State.Status}}", container_id],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             st = result.stdout.strip()
-            return ProcessState("docker", st == "running",
-                                {"container_id": container_id, "status": st})
+            return ProcessState("docker", st == "running", {"container_id": container_id, "status": st})
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            return ProcessState("docker", False,
-                                {"container_id": container_id, "error": str(e)})
+            return ProcessState("docker", False, {"container_id": container_id, "error": str(e)})
 
     def stop(self, output_dir: str | Path) -> bool:
         meta = _read_meta(output_dir)
@@ -244,7 +252,8 @@ class DockerExecutor(Executor):
         try:
             subprocess.run(
                 ["docker", "stop", container_id],
-                capture_output=True, timeout=30,
+                capture_output=True,
+                timeout=30,
             )
             logger.info("Stopped Docker container %s", container_id)
             return True
@@ -252,8 +261,7 @@ class DockerExecutor(Executor):
             logger.error("Failed to stop container %s: %s", container_id, e)
             return False
 
-    def logs(self, output_dir: str | Path, *, follow: bool = False,
-             tail: int | None = None) -> str | None:
+    def logs(self, output_dir: str | Path, *, follow: bool = False, tail: int | None = None) -> str | None:
         meta = _read_meta(output_dir)
         if meta is None:
             return super().logs(output_dir, follow=follow, tail=tail)
@@ -276,7 +284,9 @@ class DockerExecutor(Executor):
         try:
             result = subprocess.run(
                 ["docker", "start", container_id],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             if result.returncode != 0:
                 raise RuntimeError(f"docker start failed: {result.stderr.strip()}")

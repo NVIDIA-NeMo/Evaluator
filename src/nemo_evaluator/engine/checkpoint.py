@@ -1,4 +1,5 @@
 """Checkpoint and resume for multi-benchmark evaluation runs."""
+
 from __future__ import annotations
 
 import fcntl

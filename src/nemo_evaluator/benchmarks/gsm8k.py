@@ -1,4 +1,5 @@
 """GSM8K -- grade school math (1.3K test problems)."""
+
 import re
 from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput, answer_line
@@ -16,8 +17,13 @@ def _prepare(row, idx, rng):
     return {**row, "answer": answer}
 
 
-@benchmark(name="gsm8k", dataset="hf://openai/gsm8k?config=main&split=test",
-           prompt=_PROMPT, target_field="answer", prepare_row=_prepare)
+@benchmark(
+    name="gsm8k",
+    dataset="hf://openai/gsm8k?config=main&split=test",
+    prompt=_PROMPT,
+    target_field="answer",
+    prepare_row=_prepare,
+)
 @scorer
 def gsm8k_scorer(sample: ScorerInput) -> dict:
     return answer_line(sample, pattern=r"(?i)(?:the answer is|answer\s*:)\s*([^\n]+)")

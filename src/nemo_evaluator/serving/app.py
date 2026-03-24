@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 class SeedSessionRequest(BaseModel):
     idx: int = 0
 
+
 class SeedSessionResponse(BaseModel):
     prompt: str = ""
     expected_answer: str = ""
@@ -26,10 +27,12 @@ class SeedSessionResponse(BaseModel):
     system: str | None = None
     sandbox_spec: dict | None = None
 
+
 class VerifyRequest(BaseModel):
     response: str
     expected: str
     metadata: dict[str, Any] = Field(default_factory=dict)
+
 
 class VerifyResponse(BaseModel):
     reward: float
@@ -43,14 +46,19 @@ async def _export_jsonl(env: EvalEnvironment, path: Path) -> None:
     with path.open("w", encoding="utf-8") as f:
         for idx in range(len(env)):
             seed = await env.seed(idx)
-            f.write(json.dumps({
-                "responses_create_params": {
-                    "input": [{"role": "user", "content": seed.prompt}],
-                },
-                "expected_answer": seed.expected_answer,
-                "uuid": f"{env.name}-{idx}",
-                "metadata": seed.metadata,
-            }) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "responses_create_params": {
+                            "input": [{"role": "user", "content": seed.prompt}],
+                        },
+                        "expected_answer": seed.expected_answer,
+                        "uuid": f"{env.name}-{idx}",
+                        "metadata": seed.metadata,
+                    }
+                )
+                + "\n"
+            )
     logger.info("Exported %d rows to %s", len(env), path)
 
 
@@ -67,15 +75,16 @@ def generate_app(
 
     def _validate_idx(idx: int) -> None:
         if idx < 0 or idx >= ds_size:
-            raise HTTPException(
-                status_code=400,
-                detail=f"idx={idx} out of range [0, {ds_size})"
-            )
+            raise HTTPException(status_code=400, detail=f"idx={idx} out of range [0, {ds_size})")
 
     @app.get("/health")
     async def health():
-        return {"status": "ok", "benchmark": env.name, "dataset_size": ds_size,
-                "protocol": "gym" if gym_compat else "evaluator"}
+        return {
+            "status": "ok",
+            "benchmark": env.name,
+            "dataset_size": ds_size,
+            "protocol": "gym" if gym_compat else "evaluator",
+        }
 
     @app.post("/seed_session", response_model=SeedSessionResponse)
     async def seed_session(body: SeedSessionRequest = SeedSessionRequest()):
@@ -84,10 +93,14 @@ def generate_app(
         spec_dict = None
         if sr.sandbox_spec is not None:
             from dataclasses import asdict
+
             spec_dict = asdict(sr.sandbox_spec)
         return SeedSessionResponse(
-            prompt=sr.prompt, expected_answer=sr.expected_answer,
-            metadata=sr.metadata, messages=sr.messages, system=sr.system,
+            prompt=sr.prompt,
+            expected_answer=sr.expected_answer,
+            metadata=sr.metadata,
+            messages=sr.messages,
+            system=sr.system,
             sandbox_spec=spec_dict,
         )
 
@@ -104,8 +117,12 @@ def generate_app(
             expected = body["expected"]
             meta = body.get("metadata", {})
             vr = await env.verify(response_text, expected, **meta)
-            return VerifyResponse(reward=vr.reward, extracted_answer=vr.extracted_answer,
-                                  scoring_details=vr.scoring_details, metadata=vr.metadata)
+            return VerifyResponse(
+                reward=vr.reward,
+                extracted_answer=vr.extracted_answer,
+                scoring_details=vr.scoring_details,
+                metadata=vr.metadata,
+            )
         else:
             raw_response = body.get("response", "")
             text = extract_assistant_text(raw_response)

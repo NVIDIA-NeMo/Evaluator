@@ -145,20 +145,30 @@ def _write_yaml(path: Path, data: dict | str) -> Path:
 class TestComposeConfig:
     def test_flat_config_no_defaults(self, config_dir: Path):
         """Backward-compat: config without defaults: works identically."""
-        cfg = _write_yaml(config_dir / "flat.yaml", {
-            "services": {"model": {"type": "api", "url": "http://localhost:8000/chat/completions", "model": "test"}},
-            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
-        })
+        cfg = _write_yaml(
+            config_dir / "flat.yaml",
+            {
+                "services": {
+                    "model": {"type": "api", "url": "http://localhost:8000/chat/completions", "model": "test"}
+                },
+                "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+            },
+        )
         raw = compose_config(cfg)
         assert raw["services"]["model"]["type"] == "api"
         assert len(raw["benchmarks"]) == 1
 
     def test_fragment_loading(self, config_dir: Path):
         """Fragments from conf/ are loaded and merged under the correct key."""
-        _write_yaml(config_dir / "conf" / "clusters" / "local.yaml", {
-            "type": "local",
-        })
-        cfg = _write_yaml(config_dir / "main.yaml", """\
+        _write_yaml(
+            config_dir / "conf" / "clusters" / "local.yaml",
+            {
+                "type": "local",
+            },
+        )
+        cfg = _write_yaml(
+            config_dir / "main.yaml",
+            """\
             defaults:
               - clusters/local
             services:
@@ -169,24 +179,33 @@ class TestComposeConfig:
             benchmarks:
               - name: gsm8k
                 solver: {type: simple, service: model}
-        """)
+        """,
+        )
         raw = compose_config(cfg)
         assert raw["cluster"]["type"] == "local"
         assert raw["services"]["model"]["type"] == "api"
 
     def test_base_inheritance(self, config_dir: Path):
         """_base_: loads a full config and overlays the current one."""
-        _write_yaml(config_dir / "base.yaml", {
-            "services": {"model": {"type": "api", "url": "http://localhost:8000/chat/completions", "model": "base-model"}},
-            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
-            "output": {"dir": "/base/output"},
-        })
-        cfg = _write_yaml(config_dir / "child.yaml", """\
+        _write_yaml(
+            config_dir / "base.yaml",
+            {
+                "services": {
+                    "model": {"type": "api", "url": "http://localhost:8000/chat/completions", "model": "base-model"}
+                },
+                "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+                "output": {"dir": "/base/output"},
+            },
+        )
+        cfg = _write_yaml(
+            config_dir / "child.yaml",
+            """\
             defaults:
               - _base_: base
             output:
               dir: /child/output
-        """)
+        """,
+        )
         raw = compose_config(cfg)
         assert raw["services"]["model"]["model"] == "base-model"
         assert raw["output"]["dir"] == "/child/output"
@@ -194,24 +213,30 @@ class TestComposeConfig:
 
     def test_base_deep_merge(self, config_dir: Path):
         """Child's dict fields are deep-merged on top of base's."""
-        _write_yaml(config_dir / "base.yaml", {
-            "services": {
-                "model": {
-                    "type": "api",
-                    "url": "http://localhost:8000/chat/completions",
-                    "model": "base-model",
-                    "extra_field": "keep",
+        _write_yaml(
+            config_dir / "base.yaml",
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "http://localhost:8000/chat/completions",
+                        "model": "base-model",
+                        "extra_field": "keep",
+                    },
                 },
+                "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
             },
-            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
-        })
-        cfg = _write_yaml(config_dir / "child.yaml", """\
+        )
+        cfg = _write_yaml(
+            config_dir / "child.yaml",
+            """\
             defaults:
               - _base_: base
             services:
               model:
                 model: child-model
-        """)
+        """,
+        )
         raw = compose_config(cfg)
         assert raw["services"]["model"]["model"] == "child-model"
         assert raw["services"]["model"]["extra_field"] == "keep"
@@ -219,28 +244,41 @@ class TestComposeConfig:
 
     def test_null_deletes_key(self, config_dir: Path):
         """Setting a key to null removes it from the inherited base."""
-        _write_yaml(config_dir / "base.yaml", {
-            "services": {"model": {"type": "api", "url": "http://localhost:8000/chat/completions", "model": "test"}},
-            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
-            "output": {"dir": "/base", "extra": "remove-me"},
-        })
-        cfg = _write_yaml(config_dir / "child.yaml", """\
+        _write_yaml(
+            config_dir / "base.yaml",
+            {
+                "services": {
+                    "model": {"type": "api", "url": "http://localhost:8000/chat/completions", "model": "test"}
+                },
+                "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+                "output": {"dir": "/base", "extra": "remove-me"},
+            },
+        )
+        cfg = _write_yaml(
+            config_dir / "child.yaml",
+            """\
             defaults:
               - _base_: base
             output:
               extra: null
-        """)
+        """,
+        )
         raw = compose_config(cfg)
         assert "extra" not in raw["output"]
         assert raw["output"]["dir"] == "/base"
 
     def test_self_position(self, config_dir: Path):
         """_self_ controls merge priority."""
-        _write_yaml(config_dir / "conf" / "clusters" / "remote.yaml", {
-            "type": "local",
-            "extra": "from-fragment",
-        })
-        cfg = _write_yaml(config_dir / "main.yaml", """\
+        _write_yaml(
+            config_dir / "conf" / "clusters" / "remote.yaml",
+            {
+                "type": "local",
+                "extra": "from-fragment",
+            },
+        )
+        cfg = _write_yaml(
+            config_dir / "main.yaml",
+            """\
             defaults:
               - _self_
               - clusters/remote
@@ -255,102 +293,142 @@ class TestComposeConfig:
             cluster:
               type: local
               extra: from-main
-        """)
+        """,
+        )
         raw = compose_config(cfg)
         # Fragment comes after _self_, so fragment wins
         assert raw["cluster"]["extra"] == "from-fragment"
 
     def test_circular_reference_detected(self, config_dir: Path):
-        _write_yaml(config_dir / "a.yaml", """\
+        _write_yaml(
+            config_dir / "a.yaml",
+            """\
             defaults:
               - _base_: b
             services:
               model: {type: api, url: http://x/chat/completions, model: test}
             benchmarks:
               - {name: x, solver: {type: simple, service: model}}
-        """)
-        _write_yaml(config_dir / "b.yaml", """\
+        """,
+        )
+        _write_yaml(
+            config_dir / "b.yaml",
+            """\
             defaults:
               - _base_: a
             services:
               model: {type: api, url: http://x/chat/completions, model: test}
             benchmarks:
               - {name: x, solver: {type: simple, service: model}}
-        """)
+        """,
+        )
         with pytest.raises(ValueError, match="Circular config reference"):
             compose_config(config_dir / "a.yaml")
 
     def test_missing_fragment_raises(self, config_dir: Path):
-        cfg = _write_yaml(config_dir / "bad.yaml", """\
+        cfg = _write_yaml(
+            config_dir / "bad.yaml",
+            """\
             defaults:
               - clusters/nonexistent
             services:
               model: {type: api, url: http://x/chat/completions, model: test}
             benchmarks:
               - {name: x, solver: {type: simple, service: model}}
-        """)
+        """,
+        )
         with pytest.raises(FileNotFoundError, match="nonexistent"):
             compose_config(cfg)
 
     def test_multiple_fragments_merge(self, config_dir: Path):
         """Multiple fragment defaults are all merged."""
-        _write_yaml(config_dir / "conf" / "clusters" / "local.yaml", {
-            "type": "local",
-        })
-        _write_yaml(config_dir / "conf" / "services" / "model.yaml", {
-            "model": {"type": "api", "url": "http://localhost:8000/chat/completions", "model": "test"},
-        })
-        cfg = _write_yaml(config_dir / "multi.yaml", """\
+        _write_yaml(
+            config_dir / "conf" / "clusters" / "local.yaml",
+            {
+                "type": "local",
+            },
+        )
+        _write_yaml(
+            config_dir / "conf" / "services" / "model.yaml",
+            {
+                "model": {"type": "api", "url": "http://localhost:8000/chat/completions", "model": "test"},
+            },
+        )
+        cfg = _write_yaml(
+            config_dir / "multi.yaml",
+            """\
             defaults:
               - clusters/local
               - services/model
             benchmarks:
               - name: gsm8k
                 solver: {type: simple, service: model}
-        """)
+        """,
+        )
         raw = compose_config(cfg)
         assert raw["cluster"]["type"] == "local"
         assert raw["services"]["model"]["type"] == "api"
 
     def test_self_refs_resolved(self, config_dir: Path):
         """${.path} references are resolved in the final output."""
-        cfg = _write_yaml(config_dir / "selfref.yaml", {
-            "services": {"model": {"type": "api", "url": "http://localhost:8000/chat/completions", "model": "my-model"}},
-            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
-            "output": {"dir": "./results/${.services.model.model}"},
-        })
+        cfg = _write_yaml(
+            config_dir / "selfref.yaml",
+            {
+                "services": {
+                    "model": {"type": "api", "url": "http://localhost:8000/chat/completions", "model": "my-model"}
+                },
+                "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+                "output": {"dir": "./results/${.services.model.model}"},
+            },
+        )
         raw = compose_config(cfg)
         assert raw["output"]["dir"] == "./results/my-model"
 
     def test_env_vars_not_expanded(self, config_dir: Path):
         """compose_config does NOT expand ${ENV_VAR} — that's parse_eval_config's job."""
-        cfg = _write_yaml(config_dir / "envvar.yaml", {
-            "services": {"model": {"type": "api", "url": "http://localhost:8000/chat/completions", "model": "test"}},
-            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
-            "output": {"dir": "/path/${HF_HOME}"},
-        })
+        cfg = _write_yaml(
+            config_dir / "envvar.yaml",
+            {
+                "services": {
+                    "model": {"type": "api", "url": "http://localhost:8000/chat/completions", "model": "test"}
+                },
+                "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+                "output": {"dir": "/path/${HF_HOME}"},
+            },
+        )
         raw = compose_config(cfg)
         assert raw["output"]["dir"] == "/path/${HF_HOME}"
 
     def test_chained_base_inheritance(self, config_dir: Path):
         """base -> child -> grandchild all compose correctly."""
-        _write_yaml(config_dir / "grandparent.yaml", {
-            "services": {"model": {"type": "api", "url": "http://localhost:8000/chat/completions", "model": "gp-model"}},
-            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
-            "output": {"dir": "/gp"},
-        })
-        _write_yaml(config_dir / "parent.yaml", """\
+        _write_yaml(
+            config_dir / "grandparent.yaml",
+            {
+                "services": {
+                    "model": {"type": "api", "url": "http://localhost:8000/chat/completions", "model": "gp-model"}
+                },
+                "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+                "output": {"dir": "/gp"},
+            },
+        )
+        _write_yaml(
+            config_dir / "parent.yaml",
+            """\
             defaults:
               - _base_: grandparent
             output:
               dir: /parent
-        """)
-        cfg = _write_yaml(config_dir / "child.yaml", """\
+        """,
+        )
+        cfg = _write_yaml(
+            config_dir / "child.yaml",
+            """\
             defaults:
               - _base_: parent
             output:
               dir: /child
-        """)
+        """,
+        )
         raw = compose_config(cfg)
         assert raw["services"]["model"]["model"] == "gp-model"
         assert raw["output"]["dir"] == "/child"
@@ -386,51 +464,69 @@ class TestStripPrivateKeys:
 
 class TestUserVars:
     def test_underscore_vars_resolved_then_stripped(self, config_dir: Path):
-        cfg = _write_yaml(config_dir / "uservars.yaml", {
-            "_model_name": "nemotron-super",
-            "services": {"model": {
-                "type": "api",
-                "url": "http://localhost:8000/chat/completions",
-                "model": "${._model_name}",
-            }},
-            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
-            "output": {"dir": "./results/${._model_name}"},
-        })
+        cfg = _write_yaml(
+            config_dir / "uservars.yaml",
+            {
+                "_model_name": "nemotron-super",
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "http://localhost:8000/chat/completions",
+                        "model": "${._model_name}",
+                    }
+                },
+                "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+                "output": {"dir": "./results/${._model_name}"},
+            },
+        )
         raw = compose_config(cfg)
         assert raw["services"]["model"]["model"] == "nemotron-super"
         assert raw["output"]["dir"] == "./results/nemotron-super"
         assert "_model_name" not in raw
 
     def test_nested_underscore_var_resolved(self, config_dir: Path):
-        cfg = _write_yaml(config_dir / "nested_uv.yaml", {
-            "_common": {"model": "nemotron", "base_url": "http://vllm:8000"},
-            "services": {"model": {
-                "type": "api",
-                "url": "${._common.base_url}/v1/chat/completions",
-                "model": "${._common.model}",
-            }},
-            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
-        })
+        cfg = _write_yaml(
+            config_dir / "nested_uv.yaml",
+            {
+                "_common": {"model": "nemotron", "base_url": "http://vllm:8000"},
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "${._common.base_url}/v1/chat/completions",
+                        "model": "${._common.model}",
+                    }
+                },
+                "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+            },
+        )
         raw = compose_config(cfg)
         assert raw["services"]["model"]["url"] == "http://vllm:8000/v1/chat/completions"
         assert raw["services"]["model"]["model"] == "nemotron"
         assert "_common" not in raw
 
     def test_underscore_vars_in_base_inherited(self, config_dir: Path):
-        _write_yaml(config_dir / "base_uv.yaml", {
-            "_model_id": "base-model",
-            "services": {"model": {
-                "type": "api",
-                "url": "http://localhost:8000/chat/completions",
-                "model": "${._model_id}",
-            }},
-            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
-        })
-        cfg = _write_yaml(config_dir / "child_uv.yaml", """\
+        _write_yaml(
+            config_dir / "base_uv.yaml",
+            {
+                "_model_id": "base-model",
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "http://localhost:8000/chat/completions",
+                        "model": "${._model_id}",
+                    }
+                },
+                "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+            },
+        )
+        cfg = _write_yaml(
+            config_dir / "child_uv.yaml",
+            """\
             defaults:
               - _base_: base_uv
             _model_id: child-model
-        """)
+        """,
+        )
         raw = compose_config(cfg)
         assert raw["services"]["model"]["model"] == "child-model"
         assert "_model_id" not in raw

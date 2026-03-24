@@ -168,8 +168,7 @@ class SlurmExecutor(Executor):
             logger.error("Failed to cancel SLURM job %s: %s", meta["job_id"], e)
             return False
 
-    def logs(self, output_dir: str | Path, *, follow: bool = False,
-             tail: int | None = None) -> str | None:
+    def logs(self, output_dir: str | Path, *, follow: bool = False, tail: int | None = None) -> str | None:
         meta = _read_meta(output_dir)
         if meta is None:
             return None
@@ -183,10 +182,8 @@ class SlurmExecutor(Executor):
         log_file = f"{rdir}/logs/slurm-{latest_id}.log"
 
         if tail:
-            return ssh_run(hostname, f"tail -n {tail} {log_file}",
-                           username=username, timeout=30.0)
-        return ssh_run(hostname, f"cat {log_file}",
-                       username=username, timeout=60.0)
+            return ssh_run(hostname, f"tail -n {tail} {log_file}", username=username, timeout=30.0)
+        return ssh_run(hostname, f"cat {log_file}", username=username, timeout=60.0)
 
     def resume_run(self, run_meta, **kwargs) -> None:
         import re
@@ -204,13 +201,14 @@ class SlurmExecutor(Executor):
 
         continue_attempts = kwargs.get("continue_attempts", False)
         if not continue_attempts:
-            ssh_run(hostname,
-                    f"rm -f {shlex_mod.quote(rdir)}/.nel_infra_retries "
-                    f"{shlex_mod.quote(rdir)}/.nel_accumulated_walltime",
-                    username=username, timeout=10.0)
+            ssh_run(
+                hostname,
+                f"rm -f {shlex_mod.quote(rdir)}/.nel_infra_retries {shlex_mod.quote(rdir)}/.nel_accumulated_walltime",
+                username=username,
+                timeout=10.0,
+            )
 
-        output = ssh_run(hostname, f"sbatch {shlex_mod.quote(script)}",
-                         username=username, timeout=30.0)
+        output = ssh_run(hostname, f"sbatch {shlex_mod.quote(script)}", username=username, timeout=30.0)
         click.echo(f"Resubmitted: {output.strip()}")
 
         m = re.search(r"(\d+)", output)

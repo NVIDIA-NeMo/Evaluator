@@ -27,9 +27,9 @@ variables:
 lint:
   stage: lint
   before_script:
-    - pip install --quiet ruff
+    - pip install --quiet pre-commit
   script:
-    - ruff check src/ tests/
+    - pre-commit run --all-files
 
 test-offline:
   stage: test

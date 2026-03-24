@@ -6,6 +6,7 @@ Subcommands:
   stop    Stop/cancel a running evaluation
   report  Generate reports from completed results
 """
+
 from __future__ import annotations
 
 import logging
@@ -37,9 +38,25 @@ def eval_cmd():
 @click.option("--resume", is_flag=True, help="Resume a partially completed evaluation")
 @click.option("--override", "-O", multiple=True, help="Override: key=value (dot notation)")
 @click.option("--verbose", "-v", is_flag=True)
-def eval_run(config_file, bench, model_url, model_id, api_key,
-             repeats, max_problems, system_prompt, temperature, max_tokens,
-             output_dir, dry_run, submit, background, resume, override, verbose):
+def eval_run(
+    config_file,
+    bench,
+    model_url,
+    model_id,
+    api_key,
+    repeats,
+    max_problems,
+    system_prompt,
+    temperature,
+    max_tokens,
+    output_dir,
+    dry_run,
+    submit,
+    background,
+    resume,
+    override,
+    verbose,
+):
     """Start evaluation. Accepts a config YAML or --bench for quick mode."""
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
@@ -52,8 +69,15 @@ def eval_run(config_file, bench, model_url, model_id, api_key,
             config.output.dir = output_dir
     elif bench:
         config = _build_quick_config(
-            bench, model_url, model_id, api_key, repeats,
-            max_problems, system_prompt, temperature, max_tokens,
+            bench,
+            model_url,
+            model_id,
+            api_key,
+            repeats,
+            max_problems,
+            system_prompt,
+            temperature,
+            max_tokens,
             output_dir or "./eval_results",
         )
     else:
@@ -75,8 +99,7 @@ def eval_run(config_file, bench, model_url, model_id, api_key,
         executor = get_executor(executor_type)
     except KeyError as e:
         raise click.ClickException(str(e))
-    executor.run(config, dry_run=dry_run, resume=resume,
-                 background=background, submit=submit)
+    executor.run(config, dry_run=dry_run, resume=resume, background=background, submit=submit)
 
 
 def _load_config(config_file: str, overrides: tuple[str, ...] = ()):
@@ -92,9 +115,7 @@ def _load_config(config_file: str, overrides: tuple[str, ...] = ()):
 
 def _apply_override(data: dict, override: str) -> None:
     if "=" not in override:
-        raise click.ClickException(
-            f"Invalid override format: {override!r}. Expected key=value"
-        )
+        raise click.ClickException(f"Invalid override format: {override!r}. Expected key=value")
     key, value = override.split("=", 1)
     parts = key.strip().split(".")
 
@@ -118,9 +139,7 @@ def _apply_override(data: dict, override: str) -> None:
             try:
                 d = d[int(p)]
             except (ValueError, IndexError):
-                raise click.ClickException(
-                    f"Cannot index list with {p!r} in override {key!r}"
-                )
+                raise click.ClickException(f"Cannot index list with {p!r} in override {key!r}")
         else:
             d = d.setdefault(p, {})
     last = parts[-1]
@@ -128,16 +147,14 @@ def _apply_override(data: dict, override: str) -> None:
         try:
             d[int(last)] = parsed_value
         except (ValueError, IndexError):
-            raise click.ClickException(
-                f"Cannot index list with {last!r} in override {key!r}"
-            )
+            raise click.ClickException(f"Cannot index list with {last!r} in override {key!r}")
     else:
         d[last] = parsed_value
 
 
-def _build_quick_config(bench, model_url, model_id, api_key, repeats,
-                        max_problems, system_prompt, temperature, max_tokens,
-                        output_dir):
+def _build_quick_config(
+    bench, model_url, model_id, api_key, repeats, max_problems, system_prompt, temperature, max_tokens, output_dir
+):
     from nemo_evaluator.config import (
         BenchmarkConfig,
         EvalConfig,
@@ -170,16 +187,18 @@ def _build_quick_config(bench, model_url, model_id, api_key, repeats,
                 ),
             ),
         },
-        benchmarks=[BenchmarkConfig(
-            name=bench,
-            solver=SimpleSolver(
-                type="simple",
-                service="model",
-                system_prompt=system_prompt,
-            ),
-            repeats=repeats,
-            max_problems=max_problems,
-        )],
+        benchmarks=[
+            BenchmarkConfig(
+                name=bench,
+                solver=SimpleSolver(
+                    type="simple",
+                    service="model",
+                    system_prompt=system_prompt,
+                ),
+                repeats=repeats,
+                max_problems=max_problems,
+            )
+        ],
         output=OutputConfig(dir=output_dir),
     )
 
@@ -188,12 +207,12 @@ def _build_quick_config(bench, model_url, model_id, api_key, repeats,
 # Shared run resolution helper
 # ---------------------------------------------------------------------------
 
+
 def _resolve_run_or_fail(run_id=None, output_dir=None, job_id=None, host=None):
     """Resolve a RunMeta from --run-id, --output-dir, or legacy --job-id."""
     from nemo_evaluator.run_store import resolve_run
 
-    meta = resolve_run(run_id=run_id, output_dir=output_dir,
-                       job_id=job_id, host=host)
+    meta = resolve_run(run_id=run_id, output_dir=output_dir, job_id=job_id, host=host)
     if meta is not None:
         return meta
 
@@ -213,9 +232,7 @@ def _resolve_run_or_fail(run_id=None, output_dir=None, job_id=None, host=None):
                 details=legacy,
             )
 
-    hint = (f"run-id={run_id}" if run_id
-            else f"job-id={job_id}" if job_id
-            else f"output-dir={output_dir}")
+    hint = f"run-id={run_id}" if run_id else f"job-id={job_id}" if job_id else f"output-dir={output_dir}"
     raise click.ClickException(f"No run metadata found for {hint}.")
 
 
@@ -229,6 +246,7 @@ def _get_executor_for_run(run_meta):
 # ---------------------------------------------------------------------------
 # nel eval status
 # ---------------------------------------------------------------------------
+
 
 @eval_cmd.command("status")
 @click.option("--run-id", "-r", default=None, help="NEL run ID")
@@ -252,9 +270,7 @@ def eval_status(run_id, output_dir, job_id, host):
 
     ex = detect_executor("./eval_results")
     if ex is None:
-        raise click.ClickException(
-            "No evaluation metadata found. Use -r <run_id> or -o <dir>."
-        )
+        raise click.ClickException("No evaluation metadata found. Use -r <run_id> or -o <dir>.")
     state = ex.status("./eval_results")
     click.echo(f"Executor: {state.executor}")
     click.echo(f"Running:  {state.running}")
@@ -265,6 +281,7 @@ def eval_status(run_id, output_dir, job_id, host):
 # ---------------------------------------------------------------------------
 # nel eval stop
 # ---------------------------------------------------------------------------
+
 
 @eval_cmd.command("stop")
 @click.option("--run-id", "-r", default=None, help="NEL run ID")
@@ -286,9 +303,7 @@ def eval_stop(run_id, output_dir, job_id, host):
 
     ex = detect_executor("./eval_results")
     if ex is None:
-        raise click.ClickException(
-            "No evaluation metadata found. Use -r <run_id> or -o <dir>."
-        )
+        raise click.ClickException("No evaluation metadata found. Use -r <run_id> or -o <dir>.")
     if ex.stop("./eval_results"):
         click.echo("Evaluation stopped.")
     else:
@@ -298,6 +313,7 @@ def eval_stop(run_id, output_dir, job_id, host):
 # ---------------------------------------------------------------------------
 # nel eval jobs
 # ---------------------------------------------------------------------------
+
 
 @eval_cmd.command("jobs")
 @click.option("--offline", is_flag=True, help="Skip live status checks")
@@ -346,6 +362,7 @@ def eval_jobs(offline):
 # ---------------------------------------------------------------------------
 # nel eval logs
 # ---------------------------------------------------------------------------
+
 
 @eval_cmd.command("logs")
 @click.option("--run-id", "-r", default=None, help="NEL run ID")
@@ -407,13 +424,13 @@ def eval_logs(run_id, output_dir, job_id, host, follow, tail_lines):
 # nel eval resume
 # ---------------------------------------------------------------------------
 
+
 @eval_cmd.command("resume")
 @click.option("--run-id", "-r", default=None, help="NEL run ID")
 @click.option("--output-dir", "-o", default=None)
 @click.option("--job-id", default=None, help="SLURM job ID (legacy)")
 @click.option("--host", default=None, help="SLURM login hostname (legacy)")
-@click.option("--continue-attempts", is_flag=True,
-              help="Keep existing retry counter (default: reset)")
+@click.option("--continue-attempts", is_flag=True, help="Keep existing retry counter (default: reset)")
 def eval_resume(run_id, output_dir, job_id, host, continue_attempts):
     """Resume a failed/timed-out evaluation."""
     run_meta = _resolve_run_or_fail(run_id, output_dir, job_id, host)
@@ -426,11 +443,12 @@ def eval_resume(run_id, output_dir, job_id, host, continue_attempts):
 # nel eval clean
 # ---------------------------------------------------------------------------
 
+
 @eval_cmd.command("clean")
-@click.option("--older-than", default=None,
-              help="Remove entries older than duration (e.g. 7d, 4w, 24h)")
-@click.option("--executor", "filter_executor", default=None,
-              help="Remove only entries for this executor (slurm, docker, local)")
+@click.option("--older-than", default=None, help="Remove entries older than duration (e.g. 7d, 4w, 24h)")
+@click.option(
+    "--executor", "filter_executor", default=None, help="Remove only entries for this executor (slurm, docker, local)"
+)
 @click.option("--dry-run", is_flag=True, help="Show what would be removed")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
 def eval_clean(older_than, filter_executor, dry_run, yes):
@@ -449,12 +467,14 @@ def eval_clean(older_than, filter_executor, dry_run, yes):
     if older_than:
         m = re.match(r"^(\d+)\s*([hdwm])$", older_than.strip())
         if not m:
-            raise click.ClickException(
-                f"Invalid duration: {older_than!r}. Use e.g. 7d, 4w, 24h"
-            )
+            raise click.ClickException(f"Invalid duration: {older_than!r}. Use e.g. 7d, 4w, 24h")
         amount, unit = int(m.group(1)), m.group(2)
-        delta = {"h": timedelta(hours=amount), "d": timedelta(days=amount),
-                 "w": timedelta(weeks=amount), "m": timedelta(days=amount * 30)}[unit]
+        delta = {
+            "h": timedelta(hours=amount),
+            "d": timedelta(days=amount),
+            "w": timedelta(weeks=amount),
+            "m": timedelta(days=amount * 30),
+        }[unit]
         cutoff = datetime.now(timezone.utc) - delta
 
     to_remove = []
@@ -499,11 +519,12 @@ def eval_clean(older_than, filter_executor, dry_run, yes):
 # nel eval report
 # ---------------------------------------------------------------------------
 
+
 @eval_cmd.command("report")
 @click.argument("results_dir", type=click.Path(exists=True))
-@click.option("--format", "-f", "fmt",
-              type=click.Choice(["markdown", "html", "csv", "json", "latex"]),
-              default="markdown")
+@click.option(
+    "--format", "-f", "fmt", type=click.Choice(["markdown", "html", "csv", "json", "latex"]), default="markdown"
+)
 @click.option("--output", "-o", type=click.Path(), default=None)
 @click.option("--all-formats", is_flag=True)
 def eval_report(results_dir, fmt, output, all_formats):
@@ -524,8 +545,11 @@ def eval_report(results_dir, fmt, output, all_formats):
 
     if all_formats:
         ext_map = {
-            "markdown": "md", "html": "html", "csv": "csv",
-            "json": "json", "latex": "tex",
+            "markdown": "md",
+            "html": "html",
+            "csv": "csv",
+            "json": "json",
+            "latex": "tex",
         }
         for f, renderer in RENDERERS.items():
             ext = ext_map.get(f, f)
@@ -546,10 +570,12 @@ def eval_report(results_dir, fmt, output, all_formats):
 # nel eval merge
 # ---------------------------------------------------------------------------
 
+
 @eval_cmd.command("merge")
 @click.argument("output_dir", type=click.Path(exists=True))
-@click.option("--repeats", "-n", type=int, default=None,
-              help="Override n_repeats (auto-detected from shard bundles if omitted)")
+@click.option(
+    "--repeats", "-n", type=int, default=None, help="Override n_repeats (auto-detected from shard bundles if omitted)"
+)
 def eval_merge(output_dir, repeats):
     """Merge results from sharded evaluation runs.
 
@@ -561,10 +587,7 @@ def eval_merge(output_dir, repeats):
     root = Path(output_dir)
     shard_dirs = sorted(root.glob("shard_*"))
     if not shard_dirs:
-        raise click.ClickException(
-            f"No shard_*/ directories found in {output_dir}. "
-            f"Expected shard_0/, shard_1/, etc."
-        )
+        raise click.ClickException(f"No shard_*/ directories found in {output_dir}. Expected shard_0/, shard_1/, etc.")
 
     actual = set()
     for d in shard_dirs:
@@ -576,8 +599,7 @@ def eval_merge(output_dir, repeats):
     missing = set(range(max_idx + 1)) - actual
     if missing:
         click.echo(
-            f"Warning: missing shards: {sorted(missing)}. "
-            f"Merge will produce partial results.",
+            f"Warning: missing shards: {sorted(missing)}. Merge will produce partial results.",
             err=True,
         )
 
@@ -588,9 +610,7 @@ def eval_merge(output_dir, repeats):
                 benchmarks.setdefault(bench_dir.name, []).append(bench_dir)
 
     if not benchmarks:
-        raise click.ClickException(
-            "No benchmark results (results.jsonl) found in any shard directory."
-        )
+        raise click.ClickException("No benchmark results (results.jsonl) found in any shard directory.")
 
     n_repeats = repeats
     if n_repeats is None:

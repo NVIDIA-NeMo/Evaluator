@@ -4,6 +4,7 @@ Verify that every agentic benchmark can work with every solver type,
 and every solver type can drive every lifecycle strategy.
 These tests use mocks -- no real Docker, no real models.
 """
+
 from __future__ import annotations
 
 import inspect
@@ -32,32 +33,36 @@ from tests.conftest import (
 
 SOLVER_CLASSES = []
 
+
 def _load_solver_classes():
     """Dynamically import all known solver classes."""
     global SOLVER_CLASSES
     pairs = []
     try:
         from nemo_evaluator.solvers.chat import ChatSolver
+
         pairs.append(("ChatSolver", ChatSolver))
     except ImportError:
         pass
     try:
         from nemo_evaluator.solvers.nat import NatSolver
+
         pairs.append(("NatSolver", NatSolver))
     except ImportError:
         pass
     try:
         from nemo_evaluator.solvers.openclaw import OpenClawSolver
+
         pairs.append(("OpenClawSolver", OpenClawSolver))
     except ImportError:
         pass
     SOLVER_CLASSES = pairs
 
+
 _load_solver_classes()
 
 
 class TestSolverProtocol:
-
     @pytest.mark.parametrize("name,cls", SOLVER_CLASSES)
     def test_solve_method_exists(self, name, cls):
         sig = inspect.signature(cls.solve)
@@ -79,8 +84,8 @@ class TestSolverProtocol:
 
 LIFECYCLE_NAMES = ["NoSandbox", "StatefulSandbox", "StatelessSandbox"]
 
-class TestSolverLifecycleCombos:
 
+class TestSolverLifecycleCombos:
     def _make_seed(self, needs_sandbox: bool, two_container: bool = False):
         kw = dict(prompt="test", expected_answer="42")
         if needs_sandbox:
@@ -151,6 +156,7 @@ class TestSolverLifecycleCombos:
             apply_cmd="git apply /input/patch.diff",
         )
         from nemo_evaluator.sandbox.transfer import HostVolumeTransfer
+
         lc = StatelessSandbox(ctx, transfer=HostVolumeTransfer())
         await lc.setup()
 
@@ -200,6 +206,7 @@ async def test_text_benchmark_full_loop(bench: str):
 
     fp = FIXTURE_DIR / f"{bench}.json"
     from tests.conftest import FixturedEnvironment
+
     env = FixturedEnvironment(fp)
     solver = CachedSolver(fp)
 

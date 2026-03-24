@@ -1,4 +1,5 @@
 """HealthBench -- health-related QA (requires LLM-as-judge)."""
+
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput, needs_judge
@@ -27,21 +28,29 @@ def _seed_healthbench(row, idx):
     conv = row.get("prompt", row.get("conversation", []))
     if isinstance(conv, list) and conv:
         prompt = conv[-1].get("content", "") if isinstance(conv[-1], dict) else str(conv[-1])
-        messages = [{"role": m.get("role", "user"), "content": m.get("content", "")}
-                    for m in conv if isinstance(m, dict)]
+        messages = [
+            {"role": m.get("role", "user"), "content": m.get("content", "")} for m in conv if isinstance(m, dict)
+        ]
     else:
         prompt = str(conv)
         messages = [{"role": "user", "content": prompt}]
     rubrics = row.get("rubrics", row.get("criteria", []))
     return SeedResult(
-        prompt=prompt, expected_answer="",
+        prompt=prompt,
+        expected_answer="",
         messages=messages,
         metadata={"category": row.get("category", ""), "criteria": rubrics},
     )
 
 
-@benchmark(name="healthbench", dataset=_load_healthbench, target_field="",
-           prompt="", seed_fn=_seed_healthbench, extra={"judge": True})
+@benchmark(
+    name="healthbench",
+    dataset=_load_healthbench,
+    target_field="",
+    prompt="",
+    seed_fn=_seed_healthbench,
+    extra={"judge": True},
+)
 @scorer
 def healthbench_scorer(sample: ScorerInput) -> dict:
     return needs_judge(sample)

@@ -4,6 +4,7 @@ Each sandbox is a container on a SLURM node launched via ``srun --container-imag
 Multiple sandboxes (slots) can be multiplexed on a single node to avoid wasting
 one full node per problem.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -46,7 +47,8 @@ class SlurmSandbox:
     def _srun_base(self) -> list[str]:
         """Base srun arguments including node and optional het-group."""
         args = [
-            "srun", "--overlap",
+            "srun",
+            "--overlap",
             f"--nodelist={self._node}",
             "--ntasks=1",
         ]
@@ -81,7 +83,9 @@ class SlurmSandbox:
             f"--container-name={self._container_name}",
             *mount_args,
             *env_args,
-            "/bin/bash", "-c", entrypoint,
+            "/bin/bash",
+            "-c",
+            entrypoint,
         ]
 
         proc = await asyncio.create_subprocess_exec(
@@ -101,8 +105,13 @@ class SlurmSandbox:
         for local, remote in self._spec.files.items():
             await self.upload(Path(local), remote)
 
-        logger.debug("slurm sandbox started: %s node=%s slot=%d image=%s",
-                      self._container_name, self._node, self._slot, self._spec.image)
+        logger.debug(
+            "slurm sandbox started: %s node=%s slot=%d image=%s",
+            self._container_name,
+            self._node,
+            self._slot,
+            self._spec.image,
+        )
 
     async def stop(self) -> None:
         if not self._running:
@@ -110,7 +119,8 @@ class SlurmSandbox:
         cmd = [
             *self._srun_base(),
             f"--container-name={self._container_name}",
-            "kill", "1",
+            "kill",
+            "1",
         ]
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -122,8 +132,12 @@ class SlurmSandbox:
         logger.debug("slurm sandbox stopped: %s", self._container_name)
 
     async def exec(
-        self, command: str, timeout_sec: float = 180,
-        *, cwd: str | None = None, env: dict[str, str] | None = None,
+        self,
+        command: str,
+        timeout_sec: float = 180,
+        *,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
     ) -> ExecResult:
         if not self._running:
             raise RuntimeError("Sandbox not started")
@@ -136,7 +150,9 @@ class SlurmSandbox:
         cmd = [
             *self._srun_base(),
             f"--container-name={self._container_name}",
-            "/bin/bash", "-c", shell_cmd,
+            "/bin/bash",
+            "-c",
+            shell_cmd,
         ]
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -145,7 +161,8 @@ class SlurmSandbox:
         )
         try:
             stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout_sec,
+                proc.communicate(),
+                timeout=timeout_sec,
             )
         except asyncio.TimeoutError:
             proc.kill()

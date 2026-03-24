@@ -3,6 +3,7 @@
 Shared by GymEnvironment (native protocol mode) and the evaluator server
 (gym-compat mode).
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -68,7 +69,8 @@ def wrap_text_as_gym_response(text: str) -> dict[str, Any]:
 
 
 def wrap_text_as_responses_create_params(
-    prompt: str, model: str = "evaluator",
+    prompt: str,
+    model: str = "evaluator",
 ) -> dict[str, Any]:
     """Build a minimal NeMoGymResponseCreateParamsNonStreaming-compatible dict."""
     return {

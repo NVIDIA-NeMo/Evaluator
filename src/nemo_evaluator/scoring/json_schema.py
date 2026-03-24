@@ -1,4 +1,5 @@
 """JSON schema validation scoring for structured output evaluation."""
+
 from __future__ import annotations
 
 import json
@@ -22,7 +23,7 @@ def extract_json(text: str) -> Any | None:
         ei = text.rfind(end)
         if si != -1 and ei != -1 and ei > si:
             try:
-                return json.loads(text[si:ei + 1])
+                return json.loads(text[si : ei + 1])
             except json.JSONDecodeError:
                 continue
 
@@ -57,8 +58,12 @@ def _validate(data: Any, schema: dict[str, Any], path: str = "$") -> list[str]:
 
     if expected_type:
         type_map = {
-            "object": dict, "array": list, "string": str,
-            "number": (int, float), "integer": int, "boolean": bool,
+            "object": dict,
+            "array": list,
+            "string": str,
+            "number": (int, float),
+            "integer": int,
+            "boolean": bool,
             "null": type(None),
         }
         expected = type_map.get(expected_type)

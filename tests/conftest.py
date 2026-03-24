@@ -1,4 +1,5 @@
 """Shared test fixtures: mock sandbox, cached solver, fixtured environment."""
+
 from __future__ import annotations
 
 import json
@@ -14,6 +15,7 @@ FIXTURE_DIR = Path(__file__).parent / "fixtures"
 # Sandbox mocks
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class MockExecResult:
     stdout: str = ""
@@ -26,6 +28,7 @@ class MockSandbox:
 
     def __init__(self, image: str = "python:3.12-slim", exec_results: dict[str, MockExecResult] | None = None):
         from nemo_evaluator.sandbox.base import SandboxSpec
+
         self._spec = SandboxSpec(image=image)
         self._running = False
         self._exec_results = exec_results or {}
@@ -105,6 +108,7 @@ class MockSandboxManager:
 
     def get_transfer_strategy(self):
         from nemo_evaluator.sandbox.transfer import HostVolumeTransfer
+
         return HostVolumeTransfer()
 
     async def shutdown(self) -> None:
@@ -117,6 +121,7 @@ class MockSandboxManager:
 # ---------------------------------------------------------------------------
 # Fixtured environment (reads from JSON fixtures, no HF download)
 # ---------------------------------------------------------------------------
+
 
 class FixturedEnvironment:
     """Replays seed/verify data from a fixture JSON file."""
@@ -140,6 +145,7 @@ class FixturedEnvironment:
 
     async def seed(self, idx: int):
         from nemo_evaluator.environments.base import SeedResult
+
         row = self._data[idx]
         return SeedResult(
             prompt=row["prompt"],
@@ -151,6 +157,7 @@ class FixturedEnvironment:
 
     async def verify(self, response: str, expected: str, sandbox=None, **meta):
         from nemo_evaluator.environments.base import VerifyResult
+
         # Match by both response and expected_answer for exact replay
         for row in self._data:
             if row["expected_answer"] == expected and row["model_response"] == response:
@@ -180,6 +187,7 @@ class FixturedEnvironment:
 # Cached solver (replays golden model responses from fixtures)
 # ---------------------------------------------------------------------------
 
+
 class CachedSolver:
     """Replays pre-recorded responses from a fixture file."""
 
@@ -192,6 +200,7 @@ class CachedSolver:
 
     async def solve(self, task, sandbox=None):
         from nemo_evaluator.solvers.base import SolveResult
+
         text = self._responses.get(task.prompt) or self._ordered[self._idx % len(self._ordered)]
         self._idx += 1
         return SolveResult(response=text)
@@ -204,6 +213,7 @@ class CachedSolver:
 # Mock judge client
 # ---------------------------------------------------------------------------
 
+
 class MockJudgeClient:
     """Returns a canned judge score."""
 
@@ -212,6 +222,7 @@ class MockJudgeClient:
 
     async def chat(self, messages=None, prompt=None, system=None):
         from nemo_evaluator.observability.types import ModelResponse
+
         return ModelResponse(
             content=f"Score: {self.default_score}",
             total_tokens=50,
@@ -221,6 +232,7 @@ class MockJudgeClient:
 # ---------------------------------------------------------------------------
 # Pytest fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def fixture_dir():
@@ -246,6 +258,4 @@ def load_fixture(name: str) -> list[dict[str, Any]]:
         return json.load(f)
 
 
-AVAILABLE_FIXTURES = [
-    p.stem for p in sorted(FIXTURE_DIR.glob("*.json"))
-] if FIXTURE_DIR.exists() else []
+AVAILABLE_FIXTURES = [p.stem for p in sorted(FIXTURE_DIR.glob("*.json"))] if FIXTURE_DIR.exists() else []

@@ -23,8 +23,10 @@ __all__ = [
 def __getattr__(name: str):
     if name == "HarborSolver":
         from nemo_evaluator.solvers.harbor import HarborSolver
+
         return HarborSolver
     if name == "ReActSolver":
         from nemo_evaluator.solvers.react import ReActSolver
+
         return ReActSolver
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

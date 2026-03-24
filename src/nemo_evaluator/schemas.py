@@ -34,6 +34,7 @@ class BenchmarkResult(BaseModel):
 
 class RunSnapshot(BaseModel):
     """Snapshot of the config used for a single evaluation run (serialized in bundles)."""
+
     benchmark: str = ""
     model: str = ""
     base_url: str = ""
@@ -51,7 +52,6 @@ class RunSnapshot(BaseModel):
 
 
 class EvalBundle(BaseModel):
-
     run_id: str
     config_hash: str
     sdk_version: str

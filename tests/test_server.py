@@ -73,20 +73,23 @@ class TestGymCompatServer:
         return TestClient(app)
 
     def test_gym_verify_with_string_response(self, client):
-        resp = client.post("/verify", json={
-            "response": "0",
-            "expected_answer": "0",
-        })
+        resp = client.post(
+            "/verify",
+            json={
+                "response": "0",
+                "expected_answer": "0",
+            },
+        )
         assert resp.status_code == 200
         assert resp.json()["reward"] == 1.0
 
     def test_gym_verify_with_structured_response(self, client):
-        resp = client.post("/verify", json={
-            "response": {
-                "output": [{"type": "message", "role": "assistant",
-                            "content": [{"text": "0"}]}]
+        resp = client.post(
+            "/verify",
+            json={
+                "response": {"output": [{"type": "message", "role": "assistant", "content": [{"text": "0"}]}]},
+                "expected_answer": "0",
             },
-            "expected_answer": "0",
-        })
+        )
         assert resp.status_code == 200
         assert resp.json()["reward"] == 1.0

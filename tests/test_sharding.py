@@ -1,4 +1,3 @@
-
 import pytest
 
 from nemo_evaluator.engine.sharding import get_shard_range, shard_from_env

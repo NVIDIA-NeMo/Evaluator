@@ -9,6 +9,7 @@ Output is written to tests/fixtures/<benchmark>.json and should be committed to 
 The fixtures include full seed data (prompt, expected_answer, metadata) so tests
 can run offline without downloading HF datasets.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -32,7 +33,11 @@ API_URL = os.environ.get("NEMO_MODEL_URL", "https://inference-api.nvidia.com/v1/
 MODEL_ID = os.environ.get("NEMO_MODEL_ID", "azure/openai/gpt-5.2")
 
 BENCHMARKS_WITH_CUSTOM_DATASETS = {
-    "drop", "triviaqa", "mgsm", "pinchbench", "healthbench",
+    "drop",
+    "triviaqa",
+    "mgsm",
+    "pinchbench",
+    "healthbench",
 }
 JUDGE_BENCHMARKS = {"simpleqa", "healthbench"}
 
@@ -71,8 +76,13 @@ async def generate_for_benchmark(bench_name: str, api_key: str) -> list[dict[str
             try:
                 model_resp = await client.chat(messages=msgs)
                 response_text = model_resp.content
-                logger.info("%s[%d]: got response (%d chars, %d tokens)",
-                            bench_name, idx, len(response_text), model_resp.total_tokens)
+                logger.info(
+                    "%s[%d]: got response (%d chars, %d tokens)",
+                    bench_name,
+                    idx,
+                    len(response_text),
+                    model_resp.total_tokens,
+                )
             except Exception as e:
                 logger.warning("%s[%d]: API error: %s", bench_name, idx, e)
                 response_text = ""
@@ -84,20 +94,19 @@ async def generate_for_benchmark(bench_name: str, api_key: str) -> list[dict[str
             if bench_name not in JUDGE_BENCHMARKS:
                 try:
                     vr = await env.verify(
-                        response_text, seed.expected_answer,
+                        response_text,
+                        seed.expected_answer,
                         **seed.metadata,
                     )
                     reward = vr.reward
                     extracted_answer = vr.extracted_answer
                     scoring_details = vr.scoring_details
-                    logger.info("%s[%d]: reward=%.2f extracted=%s",
-                                bench_name, idx, reward, extracted_answer)
+                    logger.info("%s[%d]: reward=%.2f extracted=%s", bench_name, idx, reward, extracted_answer)
                 except Exception as e:
                     logger.warning("%s[%d]: verify error: %s", bench_name, idx, e)
                     scoring_details = {"error": str(e)}
             else:
-                scoring_details = {"method": "skipped_in_fixture_gen",
-                                   "reason": "judge required"}
+                scoring_details = {"method": "skipped_in_fixture_gen", "reason": "judge required"}
 
             clean_metadata = {}
             for k, v in seed.metadata.items():
@@ -107,18 +116,20 @@ async def generate_for_benchmark(bench_name: str, api_key: str) -> list[dict[str
                 except (TypeError, ValueError):
                     clean_metadata[k] = str(v)
 
-            fixtures.append({
-                "idx": idx,
-                "prompt": seed.prompt,
-                "expected_answer": seed.expected_answer,
-                "metadata": clean_metadata,
-                "messages": seed.messages,
-                "system": seed.system,
-                "model_response": response_text,
-                "reward": reward,
-                "extracted_answer": extracted_answer,
-                "scoring_details": scoring_details,
-            })
+            fixtures.append(
+                {
+                    "idx": idx,
+                    "prompt": seed.prompt,
+                    "expected_answer": seed.expected_answer,
+                    "metadata": clean_metadata,
+                    "messages": seed.messages,
+                    "system": seed.system,
+                    "model_response": response_text,
+                    "reward": reward,
+                    "extracted_answer": extracted_answer,
+                    "scoring_details": scoring_details,
+                }
+            )
     finally:
         await client.close()
         if hasattr(env, "close"):
@@ -138,9 +149,17 @@ async def main():
     import nemo_evaluator.benchmarks  # noqa: F401 -- register all benchmarks
 
     bench_names = [
-        "mmlu", "mmlu_pro", "gpqa", "gsm8k", "math500",
-        "mgsm", "drop", "triviaqa",
-        "humaneval", "simpleqa", "healthbench",
+        "mmlu",
+        "mmlu_pro",
+        "gpqa",
+        "gsm8k",
+        "math500",
+        "mgsm",
+        "drop",
+        "triviaqa",
+        "humaneval",
+        "simpleqa",
+        "healthbench",
         "pinchbench",
     ]
 
@@ -165,11 +184,7 @@ async def main():
     total = sum(len(v) for v in results.values())
     logger.info("Done: %d benchmarks, %d total fixtures", len(results), total)
 
-    scored = sum(
-        1 for fixtures in results.values()
-        for f in fixtures
-        if f["reward"] > 0
-    )
+    scored = sum(1 for fixtures in results.values() for f in fixtures if f["reward"] > 0)
     logger.info("Scored correctly: %d / %d", scored, total)
 
 

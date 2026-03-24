@@ -20,8 +20,7 @@ class TestModelResponse:
 
 class TestStepRecord:
     def test_to_dict_includes_model_hashes(self):
-        resp = ModelResponse(content="42", model="test", total_tokens=10,
-                             request_prompt="Q", request_system=None)
+        resp = ModelResponse(content="42", model="test", total_tokens=10, request_prompt="Q", request_system=None)
         step = StepRecord(model_response=resp)
         d = step.to_dict()
         assert d["model"]["content"] == "42"
@@ -67,11 +66,14 @@ class TestArtifactCollector:
     def test_runtime_aggregation(self):
         c = ArtifactCollector()
         for _ in range(10):
-            c.record(StepRecord(
-                model_response=ModelResponse(content="x", total_tokens=100,
-                                             prompt_tokens=50, completion_tokens=50, latency_ms=100.0),
-                model_ms=100.0,
-            ))
+            c.record(
+                StepRecord(
+                    model_response=ModelResponse(
+                        content="x", total_tokens=100, prompt_tokens=50, completion_tokens=50, latency_ms=100.0
+                    ),
+                    model_ms=100.0,
+                )
+            )
         arts = c.build(elapsed=10.0)
         assert arts.runtime.total_steps == 10
         assert arts.runtime.total_tokens == 1000

@@ -1,4 +1,5 @@
 """Tests for unified verify endpoint -- accepts both evaluator and gym formats."""
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -36,41 +37,31 @@ class TestUnifiedVerify:
         return TestClient(app)
 
     def test_evaluator_format_in_eval_mode(self, client_eval_mode):
-        r = client_eval_mode.post("/verify", json={
-            "response": "4", "expected": "4", "metadata": {}
-        })
+        r = client_eval_mode.post("/verify", json={"response": "4", "expected": "4", "metadata": {}})
         assert r.status_code == 200
         assert r.json()["reward"] == 1.0
         assert r.json()["scoring_details"]["method"] == "exact"
 
     def test_evaluator_format_in_gym_mode(self, client_gym_mode):
         """GymEnvironment sends evaluator format -- should work in gym mode too."""
-        r = client_gym_mode.post("/verify", json={
-            "response": "4", "expected": "4", "metadata": {}
-        })
+        r = client_gym_mode.post("/verify", json={"response": "4", "expected": "4", "metadata": {}})
         assert r.status_code == 200
         assert r.json()["reward"] == 1.0
 
     def test_gym_format_in_gym_mode(self, client_gym_mode):
         """Gym sends its native format with expected_answer."""
-        r = client_gym_mode.post("/verify", json={
-            "response": "4", "expected_answer": "4", "metadata": {}
-        })
+        r = client_gym_mode.post("/verify", json={"response": "4", "expected_answer": "4", "metadata": {}})
         assert r.status_code == 200
         assert r.json()["reward"] == 1.0
 
     def test_gym_format_in_eval_mode(self, client_eval_mode):
         """Gym format should also work in evaluator mode."""
-        r = client_eval_mode.post("/verify", json={
-            "response": "4", "expected_answer": "4", "metadata": {}
-        })
+        r = client_eval_mode.post("/verify", json={"response": "4", "expected_answer": "4", "metadata": {}})
         assert r.status_code == 200
         assert r.json()["reward"] == 1.0
 
     def test_wrong_answer(self, client_eval_mode):
-        r = client_eval_mode.post("/verify", json={
-            "response": "5", "expected": "4"
-        })
+        r = client_eval_mode.post("/verify", json={"response": "5", "expected": "4"})
         assert r.status_code == 200
         assert r.json()["reward"] == 0.0
 

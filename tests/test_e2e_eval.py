@@ -3,6 +3,7 @@
 These tests exercise the full `run_evaluation` code path without any network calls
 or real model inference -- every response is replayed from golden fixtures.
 """
+
 from __future__ import annotations
 
 import pytest

@@ -7,6 +7,7 @@ Two log files per benchmark:
 On resume, the eval loop loads both logs to determine which (problem_idx, repeat)
 pairs can be skipped or need only partial re-execution.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -27,8 +28,7 @@ MAX_TRAJECTORY_BYTES = 5 * 1024 * 1024
 
 def config_hash(config: dict[str, Any]) -> str:
     """Deterministic hash of inference-affecting config fields."""
-    keys = ["model", "base_url", "temperature", "max_tokens", "top_p",
-            "system_prompt", "model_url"]
+    keys = ["model", "base_url", "temperature", "max_tokens", "top_p", "system_prompt", "model_url"]
     subset = {k: config.get(k) for k in keys if config.get(k) is not None}
     raw = json.dumps(subset, sort_keys=True)
     return f"sha256:{hashlib.sha256(raw.encode()).hexdigest()}"
@@ -75,8 +75,7 @@ class StepLog:
                 try:
                     record = json.loads(line)
                 except json.JSONDecodeError:
-                    logger.warning("step_log: skipping corrupt line %d in %s",
-                                   lineno, self._path.name)
+                    logger.warning("step_log: skipping corrupt line %d in %s", lineno, self._path.name)
                     continue
                 if record.get("_type") == META_TYPE:
                     continue
@@ -104,8 +103,7 @@ class StepLog:
                 return None
         return None
 
-    def compact(self, cache: dict[tuple[int, int], dict[str, Any]],
-                meta: dict[str, Any] | None = None) -> None:
+    def compact(self, cache: dict[tuple[int, int], dict[str, Any]], meta: dict[str, Any] | None = None) -> None:
         """Rewrite the file deduped from the loaded cache.
 
         Prevents unbounded growth from repeated crash/resume cycles.

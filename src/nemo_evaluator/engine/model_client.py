@@ -82,6 +82,7 @@ class ModelClient:
             self.base_url = self.base_url[: -len("/chat/completions")]
         if self.cache_dir:
             from nemo_evaluator.engine.cache import ResponseCache
+
             self._cache = ResponseCache(self.cache_dir)
 
     def _headers(self) -> dict[str, str]:
@@ -107,8 +108,9 @@ class ModelClient:
             await self._http.close()
             self._http = None
 
-    async def chat(self, prompt: str | None = None, system: str | None = None,
-                   messages: list[dict[str, str]] | None = None) -> ModelResponse:
+    async def chat(
+        self, prompt: str | None = None, system: str | None = None, messages: list[dict[str, str]] | None = None
+    ) -> ModelResponse:
         if messages is not None:
             msgs = list(messages)
         else:
@@ -122,9 +124,14 @@ class ModelClient:
 
         if self._cache:
             cached = self._cache.get(
-                self.model, cache_prompt, system,
-                self.temperature, self.max_tokens,
-                top_p=self.top_p, seed=self.seed, messages=cache_msgs,
+                self.model,
+                cache_prompt,
+                system,
+                self.temperature,
+                self.max_tokens,
+                top_p=self.top_p,
+                seed=self.seed,
+                messages=cache_msgs,
             )
             if cached:
                 return self._parse_response(cached, 0.0, cache_prompt, system)
@@ -149,9 +156,15 @@ class ModelClient:
 
         if self._cache:
             self._cache.put(
-                self.model, cache_prompt, system,
-                self.temperature, self.max_tokens, data,
-                top_p=self.top_p, seed=self.seed, messages=cache_msgs,
+                self.model,
+                cache_prompt,
+                system,
+                self.temperature,
+                self.max_tokens,
+                data,
+                top_p=self.top_p,
+                seed=self.seed,
+                messages=cache_msgs,
             )
         return self._parse_response(data, latency, cache_prompt, system)
 
@@ -196,9 +209,9 @@ class ModelClient:
         latency = (time.monotonic() - t0) * 1000
 
         if self._cache:
-            self._cache.put(self.model, prompt, system,
-                            self.temperature, self.max_tokens, data,
-                            top_p=self.top_p, seed=self.seed)
+            self._cache.put(
+                self.model, prompt, system, self.temperature, self.max_tokens, data, top_p=self.top_p, seed=self.seed
+            )
         return self._parse_response(data, latency, prompt, system)
 
     async def chat_with_tools(
@@ -249,11 +262,13 @@ class ModelClient:
                 parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
             except json.JSONDecodeError:
                 parsed_args = {"raw": raw_args}
-            tool_calls.append(ToolCallInfo(
-                id=raw_tc.get("id", ""),
-                name=fn.get("name", ""),
-                arguments=parsed_args,
-            ))
+            tool_calls.append(
+                ToolCallInfo(
+                    id=raw_tc.get("id", ""),
+                    name=fn.get("name", ""),
+                    arguments=parsed_args,
+                )
+            )
 
         ct = usage.get("completion_tokens_details") or {}
         model_response = ModelResponse(
@@ -289,8 +304,14 @@ class ModelClient:
                         if resp.status in self.retry.retry_on_status and attempt < self.retry.max_retries:
                             delay = self._backoff_delay(attempt)
                             body = await resp.text()
-                            logger.warning("Retryable status %d on attempt %d/%d, sleeping %.1fs | body: %.500s",
-                                           resp.status, attempt + 1, self.retry.max_retries + 1, delay, body)
+                            logger.warning(
+                                "Retryable status %d on attempt %d/%d, sleeping %.1fs | body: %.500s",
+                                resp.status,
+                                attempt + 1,
+                                self.retry.max_retries + 1,
+                                delay,
+                                body,
+                            )
                             await asyncio.sleep(delay)
                             continue
 
@@ -328,13 +349,12 @@ class ModelClient:
         return [item["embedding"] for item in embeddings_data]
 
     def _backoff_delay(self, attempt: int) -> float:
-        delay = min(self.retry.base_delay * (2 ** attempt), self.retry.max_delay)
+        delay = min(self.retry.base_delay * (2**attempt), self.retry.max_delay)
         if self.retry.jitter:
             delay *= 0.5 + random.random()
         return delay
 
-    def _parse_response(self, data: dict, latency: float,
-                        prompt: str, system: str | None) -> ModelResponse:
+    def _parse_response(self, data: dict, latency: float, prompt: str, system: str | None) -> ModelResponse:
         choices = data.get("choices", [])
         if not choices:
             raise ValueError(f"No choices in response: {data}")
@@ -349,6 +369,7 @@ class ModelClient:
         content = choice["message"].get("content") or ""
         if self.reasoning_pattern:
             import re as _re
+
             content = _re.sub(self.reasoning_pattern, "", content, flags=_re.DOTALL).strip()
 
         return ModelResponse(

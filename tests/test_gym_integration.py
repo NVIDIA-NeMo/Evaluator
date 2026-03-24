@@ -9,6 +9,7 @@ After the senior-engineer review the Gym integration uses:
 
 Tests are grouped by component.
 """
+
 from __future__ import annotations
 
 import json
@@ -60,13 +61,12 @@ class _FakeAiohttpSession:
         pass
 
 
-
 # ---------------------------------------------------------------------------
 # gym_protocol helpers
 # ---------------------------------------------------------------------------
 
-class TestGymProtocol:
 
+class TestGymProtocol:
     def test_wrap_text_as_gym_response(self):
         from nemo_evaluator.environments.gym_protocol import wrap_text_as_gym_response
 
@@ -82,6 +82,7 @@ class TestGymProtocol:
 
     def test_wrap_text_as_gym_response_empty(self):
         from nemo_evaluator.environments.gym_protocol import wrap_text_as_gym_response
+
         assert wrap_text_as_gym_response("")["output_text"] == ""
 
     def test_wrap_text_as_responses_create_params(self):
@@ -95,35 +96,46 @@ class TestGymProtocol:
         from nemo_evaluator.environments.gym_protocol import extract_prompt_from_rcp
 
         assert extract_prompt_from_rcp({"input": "hello"}) == "hello"
-        assert extract_prompt_from_rcp({
-            "input": [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}],
-        }) == "hi"
+        assert (
+            extract_prompt_from_rcp(
+                {
+                    "input": [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}],
+                }
+            )
+            == "hi"
+        )
         assert extract_prompt_from_rcp({}) == ""
 
     def test_messages_from_rcp(self):
         from nemo_evaluator.environments.gym_protocol import messages_from_rcp
 
-        msgs = messages_from_rcp({
-            "input": [{"role": "user", "content": "q"}, {"role": "assistant", "content": "a"}],
-        })
+        msgs = messages_from_rcp(
+            {
+                "input": [{"role": "user", "content": "q"}, {"role": "assistant", "content": "a"}],
+            }
+        )
         assert len(msgs) == 2
         assert msgs[0] == {"role": "user", "content": "q"}
 
     def test_extract_assistant_text_plain_string(self):
         from nemo_evaluator.environments.gym_protocol import extract_assistant_text
+
         assert extract_assistant_text("hello") == "hello"
 
     def test_extract_assistant_text_gym_response(self):
         from nemo_evaluator.environments.gym_protocol import extract_assistant_text, wrap_text_as_gym_response
+
         assert extract_assistant_text(wrap_text_as_gym_response("SQL;")) == "SQL;"
 
     def test_extract_assistant_text_openai_format(self):
         from nemo_evaluator.environments.gym_protocol import extract_assistant_text
+
         resp = {"choices": [{"message": {"content": "42"}}]}
         assert extract_assistant_text(resp) == "42"
 
     def test_extract_assistant_text_fallback(self):
         from nemo_evaluator.environments.gym_protocol import extract_assistant_text
+
         assert extract_assistant_text(12345) == "12345"
 
 
@@ -131,8 +143,8 @@ class TestGymProtocol:
 # GymDataset
 # ---------------------------------------------------------------------------
 
-class TestGymDataset:
 
+class TestGymDataset:
     def test_loads_jsonl(self, tmp_path):
         from nemo_evaluator.environments.gym import GymDataset
 
@@ -168,20 +180,24 @@ class TestGymDataset:
 # GymEnvironment -- evaluator protocol (default)
 # ---------------------------------------------------------------------------
 
-class TestGymEnvironmentEvaluator:
 
+class TestGymEnvironmentEvaluator:
     @pytest.mark.asyncio
     async def test_seed_from_server(self):
         from nemo_evaluator.environments.gym import GymEnvironment
 
         env = GymEnvironment("http://fake:8000")
 
-        fake = _FakeAiohttpSession(_FakeAiohttpResponse({
-            "prompt": "What is 2+2?",
-            "expected_answer": "4",
-            "metadata": {"cat": "math"},
-            "messages": [{"role": "user", "content": "What is 2+2?"}],
-        }))
+        fake = _FakeAiohttpSession(
+            _FakeAiohttpResponse(
+                {
+                    "prompt": "What is 2+2?",
+                    "expected_answer": "4",
+                    "metadata": {"cat": "math"},
+                    "messages": [{"role": "user", "content": "What is 2+2?"}],
+                }
+            )
+        )
         env._client = fake
 
         seed = await env.seed(0)
@@ -227,8 +243,8 @@ class TestGymEnvironmentEvaluator:
 # GymEnvironment -- native protocol (with GymDataset)
 # ---------------------------------------------------------------------------
 
-class TestGymEnvironmentNative:
 
+class TestGymEnvironmentNative:
     @pytest.fixture
     def spider_data(self, tmp_path):
         rows = [
@@ -280,10 +296,14 @@ class TestGymEnvironmentNative:
         ds = GymDataset(spider_data)
         env = GymEnvironment("http://fake:8000", protocol="native", dataset=ds)
 
-        fake = _FakeAiohttpSession(_FakeAiohttpResponse({
-            "reward": 1.0,
-            "extracted_sql": "SELECT * FROM employees;",
-        }))
+        fake = _FakeAiohttpSession(
+            _FakeAiohttpResponse(
+                {
+                    "reward": 1.0,
+                    "extracted_sql": "SELECT * FROM employees;",
+                }
+            )
+        )
         env._client = fake
 
         vr = await env.verify("SELECT * FROM employees;", "", problem_idx=0)
@@ -332,10 +352,11 @@ class TestGymEnvironmentNative:
 # ManagedGymEnvironment
 # ---------------------------------------------------------------------------
 
-class TestManagedGymEnvironment:
 
+class TestManagedGymEnvironment:
     def test_build_cmd_nel_benchmark(self):
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
+
         env = ManagedGymEnvironment(nel_benchmark="gsm8k", port=9999)
         cmd = env._build_cmd()
         assert isinstance(cmd, list)
@@ -343,12 +364,14 @@ class TestManagedGymEnvironment:
 
     def test_build_cmd_server_module(self):
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
+
         env = ManagedGymEnvironment(server_module="my_app.server", port=9999)
         cmd = env._build_cmd()
         assert "uvicorn" in cmd and "my_app.server:app" in cmd
 
     def test_build_cmd_server_cmd(self):
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
+
         env = ManagedGymEnvironment(server_cmd="python run_server.py", port=9999)
         cmd = env._build_cmd()
         assert isinstance(cmd, str)
@@ -356,6 +379,7 @@ class TestManagedGymEnvironment:
 
     def test_build_cmd_requires_at_least_one(self):
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
+
         with pytest.raises(ValueError, match="requires one of"):
             ManagedGymEnvironment(port=9999)._build_cmd()
 
@@ -368,14 +392,17 @@ class TestManagedGymEnvironment:
         ds = GymDataset(path)
 
         env = ManagedGymEnvironment(
-            nel_benchmark="test", port=9999,
-            protocol="native", dataset=ds,
+            nel_benchmark="test",
+            port=9999,
+            protocol="native",
+            dataset=ds,
         )
         assert env._protocol == "native"
         assert env._dataset_obj is ds
 
     def test_auto_port_selection(self):
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
+
         with patch("nemo_evaluator.environments.gym._find_free_port", return_value=12345):
             env = ManagedGymEnvironment(nel_benchmark="test")
         assert env._port == 12345
@@ -385,9 +412,9 @@ class TestManagedGymEnvironment:
 # Registry: gym:// URI resolution
 # ---------------------------------------------------------------------------
 
+
 @patch("nemo_evaluator.environments.gym._find_free_port", return_value=19999)
 class TestGymUriResolution:
-
     def test_host_port_evaluator(self, _mock_port):
         from nemo_evaluator.environments.registry import _make_gym
         from nemo_evaluator.environments.gym import GymEnvironment
@@ -444,6 +471,7 @@ class TestGymUriResolution:
 
     def test_protocol_kwarg(self, _mock_port):
         from nemo_evaluator.environments.registry import _make_gym
+
         env = _make_gym("localhost:8080", protocol="native")
         assert env.protocol == "native"
 
@@ -474,7 +502,6 @@ EXPECTED_RESOURCE_SERVERS = [
     reason="Gym fork not available at expected path",
 )
 class TestGymResourceServerInventory:
-
     def test_resource_servers_dir_exists(self):
         assert RESOURCE_SERVERS_DIR.is_dir()
 
@@ -493,6 +520,5 @@ class TestGymResourceServerInventory:
         assert (RESOURCE_SERVERS_DIR / "spider2_lite" / "data" / "example.jsonl").is_file()
 
     def test_total_resource_server_count(self):
-        servers = [d for d in RESOURCE_SERVERS_DIR.iterdir()
-                   if d.is_dir() and (d / "app.py").exists()]
+        servers = [d for d in RESOURCE_SERVERS_DIR.iterdir() if d.is_dir() and (d / "app.py").exists()]
         assert len(servers) >= 30, f"Only {len(servers)} resource servers found"

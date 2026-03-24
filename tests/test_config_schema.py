@@ -569,12 +569,14 @@ class TestApplyOverrideNull:
 
     def test_null_override_sets_none(self):
         from nemo_evaluator.cli.eval import _apply_override
+
         data = {"output": {"dir": "/tmp", "extra": "remove-me"}}
         _apply_override(data, "output.extra=null")
         assert data["output"]["extra"] is None
 
     def test_null_case_variants(self):
         from nemo_evaluator.cli.eval import _apply_override
+
         for null_str in ("null", "Null", "NULL", "~"):
             data = {"key": "value"}
             _apply_override(data, f"key={null_str}")
@@ -582,6 +584,7 @@ class TestApplyOverrideNull:
 
     def test_none_string_not_coerced(self):
         from nemo_evaluator.cli.eval import _apply_override
+
         data = {"key": "value"}
         _apply_override(data, "key=none")
         assert data["key"] == "none"

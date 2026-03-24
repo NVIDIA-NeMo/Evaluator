@@ -5,6 +5,7 @@ so that LiteLLM's global-state mutations don't affect the evaluator.
 A temporary config YAML is generated to route traffic to the upstream
 model endpoint and register interceptors.
 """
+
 from __future__ import annotations
 
 import logging
@@ -32,15 +33,13 @@ def _require_litellm() -> None:
         import litellm  # noqa: F401
     except ImportError:
         raise ImportError(
-            "LiteLLM proxy requires the litellm package. "
-            "Install with: pip install nemo-evaluator[proxy]"
+            "LiteLLM proxy requires the litellm package. Install with: pip install nemo-evaluator[proxy]"
         ) from None
     try:
         from litellm.proxy.proxy_server import app  # noqa: F401
     except ImportError as exc:
         raise ImportError(
-            f"LiteLLM is installed but proxy extras are missing ({exc}). "
-            f"Install with: pip install 'litellm[proxy]'"
+            f"LiteLLM is installed but proxy extras are missing ({exc}). Install with: pip install 'litellm[proxy]'"
         ) from None
 
 
@@ -83,7 +82,10 @@ class ProxyHandle:
         tail = lines[-n_lines:]
         logger.info(
             "LiteLLM proxy log tail (%d/%d lines, full log: %s):\n%s",
-            len(tail), len(lines), self.log_file, "\n".join(tail),
+            len(tail),
+            len(lines),
+            self.log_file,
+            "\n".join(tail),
         )
 
 
@@ -172,10 +174,7 @@ def _wait_for_healthy(port: int, timeout: float = _HEALTH_TIMEOUT) -> None:
         except (urllib.error.URLError, OSError) as exc:
             last_err = exc
         time.sleep(_HEALTH_POLL_INTERVAL)
-    raise TimeoutError(
-        f"LiteLLM proxy on port {port} did not become healthy "
-        f"within {timeout}s: {last_err}"
-    )
+    raise TimeoutError(f"LiteLLM proxy on port {port} did not become healthy within {timeout}s: {last_err}")
 
 
 def start_proxy(
@@ -211,7 +210,9 @@ def start_proxy(
 
     logger.info(
         "Starting LiteLLM proxy on port %d → %s (interceptors: %s)",
-        port, model_url, interceptors or [],
+        port,
+        model_url,
+        interceptors or [],
     )
 
     env = {**os.environ, "CONFIG_FILE_PATH": str(config_path)}
@@ -246,11 +247,16 @@ def start_proxy(
     else:
         proc = subprocess.Popen(
             [
-                sys.executable, "-m", "uvicorn",
+                sys.executable,
+                "-m",
+                "uvicorn",
                 "litellm.proxy.proxy_server:app",
-                "--host", "127.0.0.1",
-                "--port", str(port),
-                "--log-level", "warning",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(port),
+                "--log-level",
+                "warning",
             ],
             env=env,
             stdout=out_target,
@@ -274,7 +280,9 @@ def start_proxy(
 
     logger.info(
         "LiteLLM proxy ready (pid=%d, port=%d, log=%s)",
-        proc.pid, port, log_file,
+        proc.pid,
+        port,
+        log_file,
     )
     return ProxyHandle(
         url=f"http://127.0.0.1:{port}/v1",

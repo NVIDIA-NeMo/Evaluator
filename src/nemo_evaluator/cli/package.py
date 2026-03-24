@@ -1,4 +1,5 @@
 """nel package -- containerize a BYOB benchmark module."""
+
 from __future__ import annotations
 
 import subprocess
@@ -60,6 +61,7 @@ def package_cmd(module, tag, base_image, push, requirements, output):
             req_path.write_text("")
 
         import shutil
+
         dest = Path(tmpdir) / module_name
         if module_path.is_dir():
             shutil.copytree(module_path, dest)
@@ -69,7 +71,8 @@ def package_cmd(module, tag, base_image, push, requirements, output):
         click.echo(f"Building image: {tag}")
         result = subprocess.run(
             ["docker", "build", "-t", tag, "-f", str(dockerfile_path), str(tmpdir)],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if result.returncode != 0:
             raise click.ClickException(f"Docker build failed:\n{result.stderr}")

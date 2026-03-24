@@ -13,6 +13,7 @@ Directory convention::
 
 All Harbor imports are lazy.
 """
+
 from __future__ import annotations
 
 import logging
@@ -62,9 +63,7 @@ class ByobInstalledAgent:
     def _run_template(self) -> str:
         path = self._agent_dir / "run.sh.j2"
         if not path.exists():
-            raise FileNotFoundError(
-                f"BYOB agent requires run.sh.j2 in {self._agent_dir}"
-            )
+            raise FileNotFoundError(f"BYOB agent requires run.sh.j2 in {self._agent_dir}")
         return path.read_text()
 
     async def setup(self, environment: Any) -> None:
@@ -96,12 +95,14 @@ class ByobInstalledAgent:
 
         if result.return_code != 0:
             raise RuntimeError(
-                f"BYOB agent setup failed (exit code {result.return_code}): "
-                f"{(result.stderr or '')[:500]}"
+                f"BYOB agent setup failed (exit code {result.return_code}): {(result.stderr or '')[:500]}"
             )
 
     async def run(
-        self, instruction: str, environment: Any, context: Any,
+        self,
+        instruction: str,
+        environment: Any,
+        context: Any,
     ) -> None:
         from jinja2 import Environment as JinjaEnv
 

@@ -148,9 +148,7 @@ def _find_file(name: str, search_paths: list[Path]) -> Path:
             candidate = base / f"{name}{ext}"
             if candidate.is_file():
                 return candidate
-    raise FileNotFoundError(
-        f"Config fragment '{name}' not found in: {[str(p) for p in search_paths]}"
-    )
+    raise FileNotFoundError(f"Config fragment '{name}' not found in: {[str(p) for p in search_paths]}")
 
 
 def _find_base(name: str, referrer: Path, search_paths: list[Path]) -> Path:

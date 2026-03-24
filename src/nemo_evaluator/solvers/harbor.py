@@ -1,4 +1,5 @@
 """HarborSolver: runs Harbor-compatible agents inside a nel Sandbox."""
+
 from __future__ import annotations
 
 import asyncio
@@ -38,12 +39,12 @@ def _extract_response(context: Any) -> str:
 # API key resolution
 # ---------------------------------------------------------------------------
 
+
 def _resolve_api_key(explicit: str | None) -> str | None:
     """Return *explicit* if non-empty, else probe common env vars."""
     if explicit:
         return explicit
-    for var in ("LLM_API_KEY", "NVIDIA_API_KEY", "OPENAI_API_KEY",
-                "ANTHROPIC_API_KEY"):
+    for var in ("LLM_API_KEY", "NVIDIA_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
         val = os.environ.get(var)
         if val:
             return val
@@ -84,8 +85,13 @@ def _ensure_env(api_key: str | None, model_url: str | None, model_id: str | None
 # Agent log download
 # ---------------------------------------------------------------------------
 
+
 async def _download_agent_logs(
-    sandbox: "Sandbox", dest: Path, *, max_retries: int = 3, timeout: float = 180.0,
+    sandbox: "Sandbox",
+    dest: Path,
+    *,
+    max_retries: int = 3,
+    timeout: float = 180.0,
 ) -> None:
     """Download ``/logs/agent/`` from the container into *dest*.
 
@@ -97,17 +103,22 @@ async def _download_agent_logs(
             await _download_agent_logs_inner(sandbox, dest, max_retries=max_retries)
     except TimeoutError:
         logger.warning(
-            "Agent log download timed out after %.0fs — trajectory may be incomplete", timeout,
+            "Agent log download timed out after %.0fs — trajectory may be incomplete",
+            timeout,
         )
     except Exception:
         logger.error("Agent log download failed", exc_info=True)
 
 
 async def _download_agent_logs_inner(
-    sandbox: "Sandbox", dest: Path, *, max_retries: int = 3,
+    sandbox: "Sandbox",
+    dest: Path,
+    *,
+    max_retries: int = 3,
 ) -> None:
     ls = await sandbox.exec(
-        "find /logs/agent -type f 2>/dev/null | head -80", timeout_sec=15,
+        "find /logs/agent -type f 2>/dev/null | head -80",
+        timeout_sec=15,
     )
     if not ls.stdout:
         logger.warning("No files in /logs/agent/ inside container")
@@ -116,14 +127,15 @@ async def _download_agent_logs_inner(
 
     remote_tar = "/tmp/_nel_agent_logs.tar.gz"
     rc = await sandbox.exec(
-        f"tar czf {remote_tar} -C /logs/agent .", timeout_sec=120,
+        f"tar czf {remote_tar} -C /logs/agent .",
+        timeout_sec=120,
     )
     if rc.return_code != 0:
-        logger.error("tar failed (rc=%d): %s", rc.return_code,
-                      rc.stderr or rc.stdout)
+        logger.error("tar failed (rc=%d): %s", rc.return_code, rc.stderr or rc.stdout)
         return
 
     import tarfile
+
     local_tar = Path(tempfile.mktemp(suffix=".tar.gz"))
     try:
         last_err: Exception | None = None
@@ -133,21 +145,23 @@ async def _download_agent_logs_inner(
                 dest.mkdir(parents=True, exist_ok=True)
                 with tarfile.open(local_tar, "r:gz") as tar:
                     tar.extractall(dest)
-                logger.info("Downloaded %d files to %s",
-                             len(list(dest.rglob("*"))), dest)
+                logger.info("Downloaded %d files to %s", len(list(dest.rglob("*"))), dest)
                 return
             except Exception as exc:
                 last_err = exc
                 if attempt < max_retries:
                     logger.warning(
                         "Agent log download attempt %d/%d failed: %s",
-                        attempt, max_retries, exc,
+                        attempt,
+                        max_retries,
+                        exc,
                     )
                     await asyncio.sleep(2.0 * attempt)
                 else:
                     logger.error(
                         "Agent log download failed after %d attempts: %s",
-                        max_retries, last_err,
+                        max_retries,
+                        last_err,
                     )
     finally:
         local_tar.unlink(missing_ok=True)
@@ -170,6 +184,7 @@ async def _download_agent_logs_inner(
 # is deliberately NOT done here — that is the agent's responsibility.
 # ---------------------------------------------------------------------------
 
+
 def _recover_from_logs(agent_logs_dir: Path) -> dict[str, Any]:
     """Read trajectory + token counts from *agent_logs_dir*.
 
@@ -185,8 +200,7 @@ def _recover_from_logs(agent_logs_dir: Path) -> dict[str, Any]:
 
     # -- 1. ATIF trajectory JSON (canonical agent output) -------------------
     traj_files = sorted(
-        (f for f in agent_logs_dir.glob("*.json")
-         if "traj" in f.stem.lower()),
+        (f for f in agent_logs_dir.glob("*.json") if "traj" in f.stem.lower()),
         key=lambda p: (p.name != "trajectory.json", p.name),
     )
     canonical = agent_logs_dir / "trajectory.json"
@@ -210,8 +224,8 @@ def _recover_from_logs(agent_logs_dir: Path) -> dict[str, Any]:
             return out
 
         logger.warning(
-            "%s is not ATIF — skipping (agent should convert in "
-            "populate_context_post_run)", tf.name,
+            "%s is not ATIF — skipping (agent should convert in populate_context_post_run)",
+            tf.name,
         )
 
     # -- 2. Largest .txt log as generic fallback ----------------------------
@@ -230,19 +244,17 @@ def _recover_from_logs(agent_logs_dir: Path) -> dict[str, Any]:
             logger.info("Using %s as error log trajectory", rel)
             lines = text.strip().splitlines()
             if len(lines) > 200:
-                summary = (
-                    "\n".join(lines[:50])
-                    + "\n\n... [truncated middle] ...\n\n"
-                    + "\n".join(lines[-100:])
-                )
+                summary = "\n".join(lines[:50]) + "\n\n... [truncated middle] ...\n\n" + "\n".join(lines[-100:])
             else:
                 summary = text.strip()
             out["trajectory"] = build_atif_trajectory(
-                steps=[{
-                    "source": "system",
-                    "message": summary,
-                    "extra": {"source_file": str(rel)},
-                }],
+                steps=[
+                    {
+                        "source": "system",
+                        "message": summary,
+                        "extra": {"source_file": str(rel)},
+                    }
+                ],
                 status="error",
             )
             return out
@@ -254,10 +266,7 @@ def _parse_atif(raw: Any) -> dict[str, Any] | None:
     """Return parsed ATIF document or ``None`` if *raw* is not ATIF."""
     if not isinstance(raw, dict):
         return None
-    if not (
-        str(raw.get("schema_version", "")).startswith("ATIF")
-        or ("steps" in raw and "agent" in raw)
-    ):
+    if not (str(raw.get("schema_version", "")).startswith("ATIF") or ("steps" in raw and "agent" in raw)):
         return None
 
     fm = raw.get("final_metrics") or {}
@@ -279,6 +288,7 @@ def _parse_atif(raw: Any) -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 # Workspace diff capture + prompt-echo detection
 # ---------------------------------------------------------------------------
+
 
 async def _capture_workspace_diff(sandbox: "Sandbox") -> str:
     """Run ``git diff HEAD`` inside the agent container and return the diff.
@@ -321,13 +331,13 @@ def _is_prompt_echo(response: str, prompt: str) -> bool:
 # HarborSolver
 # ---------------------------------------------------------------------------
 
+
 def _check_harbor_installed() -> None:
     try:
         import harbor  # noqa: F401
     except ImportError:
         raise ImportError(
-            "Harbor agent integration requires the harbor package. "
-            "Install with: pip install nemo-evaluator[harbor]"
+            "Harbor agent integration requires the harbor package. Install with: pip install nemo-evaluator[harbor]"
         ) from None
 
 
@@ -380,10 +390,7 @@ class HarborSolver:
         kwargs = dict(self._harbor_agent_kwargs)
         model_id = self._model_id
         url = model_url or self._model_url
-        if (url
-                and "model_name" not in kwargs
-                and model_id
-                and not model_id.startswith("openai/")):
+        if url and "model_name" not in kwargs and model_id and not model_id.startswith("openai/"):
             model_id = f"openai/{model_id}"
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
@@ -408,18 +415,18 @@ class HarborSolver:
 
         name = self._harbor_agent
         if ":" in name:
-            return AgentFactory.create_agent_from_import_path(
-                name, logs_dir=logs_dir, **kwargs)
+            return AgentFactory.create_agent_from_import_path(name, logs_dir=logs_dir, **kwargs)
         agent_path = Path(name)
         if agent_path.is_dir():
             from nemo_evaluator.solvers.byob_agent import ByobInstalledAgent
-            return ByobInstalledAgent(
-                agent_dir=agent_path, logs_dir=logs_dir, **kwargs)
-        return AgentFactory.create_agent_from_name(
-            name, logs_dir=logs_dir, **kwargs)
+
+            return ByobInstalledAgent(agent_dir=agent_path, logs_dir=logs_dir, **kwargs)
+        return AgentFactory.create_agent_from_name(name, logs_dir=logs_dir, **kwargs)
 
     async def solve(
-        self, task: SeedResult, sandbox: Sandbox | None = None,
+        self,
+        task: SeedResult,
+        sandbox: Sandbox | None = None,
     ) -> SolveResult:
         if sandbox is None:
             raise RuntimeError("HarborSolver requires a sandbox.")
@@ -435,17 +442,16 @@ class HarborSolver:
         try:
             # Rewrite the proxy/model URL for the sandbox's network topology
             # (e.g. 127.0.0.1 → host.docker.internal for Docker bridge).
-            resolved_url = (
-                sandbox.resolve_outside_endpoint(self._model_url)
-                if self._model_url else self._model_url
-            )
+            resolved_url = sandbox.resolve_outside_endpoint(self._model_url) if self._model_url else self._model_url
             # Harbor agents read LLM_BASE_URL from os.environ directly
             # (not from kwargs), so we must update the process env.
             if resolved_url:
                 os.environ["LLM_BASE_URL"] = resolved_url
 
             adapter = SandboxEnvironmentAdapter(
-                sandbox, logs_dir=logs_dir, default_timeout=self._timeout,
+                sandbox,
+                logs_dir=logs_dir,
+                default_timeout=self._timeout,
                 persistent_env=self._container_env,
             )
 
@@ -468,7 +474,7 @@ class HarborSolver:
                     "else "
                     "  apt-get update -qq && apt-get install -y -qq curl && "
                     "  curl -LsSf https://astral.sh/uv/install.sh | sh && "
-                    "  export PATH=\"$HOME/.local/bin:$PATH\" && "
+                    '  export PATH="$HOME/.local/bin:$PATH" && '
                     "  uv python install 3.13 && "
                     "  uv venv /opt/openhands-sdk-venv --python 3.13 && "
                     "  . /opt/openhands-sdk-venv/bin/activate && "
@@ -490,9 +496,9 @@ class HarborSolver:
             except (asyncio.TimeoutError, TimeoutError):
                 elapsed = time.monotonic() - t0
                 logger.warning(
-                    "HarborSolver: agent.run() timed out after %.0fs "
-                    "(run_timeout=%.0fs) — collecting partial results",
-                    elapsed, self._run_timeout,
+                    "HarborSolver: agent.run() timed out after %.0fs (run_timeout=%.0fs) — collecting partial results",
+                    elapsed,
+                    self._run_timeout,
                 )
                 agent_timed_out = True
 
@@ -514,8 +520,7 @@ class HarborSolver:
                 try:
                     agent.populate_context_post_run(context)
                 except Exception:
-                    logger.warning("populate_context_post_run failed",
-                                   exc_info=True)
+                    logger.warning("populate_context_post_run failed", exc_info=True)
 
             # Recover trajectory / tokens / response from files (single pass)
             recovered = _recover_from_logs(agent_logs_dir)
@@ -524,10 +529,7 @@ class HarborSolver:
             # context.rollout_details (raw token IDs for SFT).
             trajectory = recovered["trajectory"]
             if not trajectory and context.rollout_details:
-                raw_details = [
-                    dict(d) if isinstance(d, dict) else d
-                    for d in context.rollout_details
-                ]
+                raw_details = [dict(d) if isinstance(d, dict) else d for d in context.rollout_details]
                 trajectory = build_atif_trajectory(
                     raw_details,
                     agent_name=self._harbor_agent,
@@ -563,8 +565,7 @@ class HarborSolver:
             # Timeout WITH partial work → return normally for verification.
             if agent_timed_out and not workspace_diff and prompt_tokens + completion_tokens == 0:
                 raise RuntimeError(
-                    f"Agent made no progress before run_timeout "
-                    f"({self._run_timeout:.0f}s). Model may be unreachable."
+                    f"Agent made no progress before run_timeout ({self._run_timeout:.0f}s). Model may be unreachable."
                 )
 
             error = None
@@ -575,10 +576,7 @@ class HarborSolver:
                     self._run_timeout,
                 )
             elif not response and prompt_tokens + completion_tokens == 0:
-                error = (
-                    "Agent produced no output (0 tokens, empty response). "
-                    "Check agent logs for details."
-                )
+                error = "Agent produced no output (0 tokens, empty response). Check agent logs for details."
                 logger.warning("HarborSolver: %s", error)
 
             return SolveResult(
@@ -626,7 +624,8 @@ class HarborSolver:
             return SolveResult(
                 response=response,
                 model_response=ModelResponse(
-                    content=response, model=self._model_id,
+                    content=response,
+                    model=self._model_id,
                     total_tokens=recovered["prompt_tokens"] + recovered["completion_tokens"],
                     completion_tokens=recovered["completion_tokens"],
                     latency_ms=round(latency_ms, 2),

@@ -7,6 +7,7 @@ Strategies:
   - LocalDirectTransfer — LocalSandbox (direct filesystem copies)
   - SandboxExecTransfer — generic fallback (exec + upload/download)
 """
+
 from __future__ import annotations
 
 import logging
@@ -29,6 +30,7 @@ _MAX_DIFF_PREVIEW = 100_000
 
 
 # ── Protocol ─────────────────────────────────────────────────────────
+
 
 class WorkspaceTransfer(Protocol):
     """Transfer workspace state between agent and verifier sandboxes."""
@@ -56,6 +58,7 @@ class WorkspaceTransfer(Protocol):
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
+
 def _clone_spec_with_volume(spec: SandboxSpec, vol: VolumeMount) -> SandboxSpec:
     return _dc_replace(
         spec,
@@ -67,6 +70,7 @@ def _clone_spec_with_volume(spec: SandboxSpec, vol: VolumeMount) -> SandboxSpec:
 
 # ── 1. HostVolumeTransfer ────────────────────────────────────────────
 
+
 class HostVolumeTransfer:
     """Docker / Slurm / Apptainer — host-mounted shared directory.
 
@@ -76,24 +80,33 @@ class HostVolumeTransfer:
     """
 
     def __init__(self, staging_base: str | None = None) -> None:
-        self._shared_dir = Path(tempfile.mkdtemp(
-            prefix="nel_xfer_", dir=staging_base,
-        ))
+        self._shared_dir = Path(
+            tempfile.mkdtemp(
+                prefix="nel_xfer_",
+                dir=staging_base,
+            )
+        )
         self._shared_dir.chmod(0o700)
 
     def prepare_agent_spec(self, spec: SandboxSpec) -> SandboxSpec:
-        return _clone_spec_with_volume(spec, VolumeMount(
-            host_path=str(self._shared_dir),
-            container_path="/output",
-            readonly=False,
-        ))
+        return _clone_spec_with_volume(
+            spec,
+            VolumeMount(
+                host_path=str(self._shared_dir),
+                container_path="/output",
+                readonly=False,
+            ),
+        )
 
     def prepare_verify_spec(self, spec: SandboxSpec) -> SandboxSpec:
-        return _clone_spec_with_volume(spec, VolumeMount(
-            host_path=str(self._shared_dir),
-            container_path="/input",
-            readonly=True,
-        ))
+        return _clone_spec_with_volume(
+            spec,
+            VolumeMount(
+                host_path=str(self._shared_dir),
+                container_path="/input",
+                readonly=True,
+            ),
+        )
 
     async def post_capture(self, source: Sandbox) -> None:
         pass
@@ -106,6 +119,7 @@ class HostVolumeTransfer:
 
 
 # ── 2. EfsTransfer ───────────────────────────────────────────────────
+
 
 class EfsTransfer:
     """ECS Fargate — shared EFS filesystem.
@@ -143,34 +157,39 @@ class EfsTransfer:
 
     def prepare_agent_spec(self, spec: SandboxSpec) -> SandboxSpec:
         return _clone_spec_with_volume(
-            spec, self._efs_volume("/output", readonly=False),
+            spec,
+            self._efs_volume("/output", readonly=False),
         )
 
     def prepare_verify_spec(self, spec: SandboxSpec) -> SandboxSpec:
         return _clone_spec_with_volume(
-            spec, self._efs_volume("/input", readonly=False),
+            spec,
+            self._efs_volume("/input", readonly=False),
         )
 
     async def post_capture(self, source: Sandbox) -> None:
         logger.info(
             "EfsTransfer.post_capture: fs=%s ap=%s session=%s",
-            self._fs_id, self._ap_id, self._session_path,
+            self._fs_id,
+            self._ap_id,
+            self._session_path,
         )
         if self._ap_id:
             session = self._session_path.lstrip("/")
             result = await source.exec(
-                f"mkdir -p /output/{session} && "
-                f"mv /output/workspace.tar /output/{session}/workspace.tar",
+                f"mkdir -p /output/{session} && mv /output/workspace.tar /output/{session}/workspace.tar",
                 timeout_sec=120,
             )
             if result.return_code != 0:
                 logger.error(
                     "EfsTransfer.post_capture: mv failed rc=%d: %s",
-                    result.return_code, (result.stderr or "")[:300],
+                    result.return_code,
+                    (result.stderr or "")[:300],
                 )
         else:
             result = await source.exec(
-                "ls -lh /output/workspace.tar 2>&1", timeout_sec=10,
+                "ls -lh /output/workspace.tar 2>&1",
+                timeout_sec=10,
             )
             logger.info(
                 "EfsTransfer.post_capture (no-ap): /output/workspace.tar → %s",
@@ -180,7 +199,9 @@ class EfsTransfer:
     async def pre_restore(self, target: Sandbox) -> None:
         logger.info(
             "EfsTransfer.pre_restore: fs=%s ap=%s session=%s",
-            self._fs_id, self._ap_id, self._session_path,
+            self._fs_id,
+            self._ap_id,
+            self._session_path,
         )
         if self._ap_id:
             session = self._session_path.lstrip("/")
@@ -191,10 +212,12 @@ class EfsTransfer:
             if result.return_code != 0:
                 logger.error(
                     "EfsTransfer.pre_restore: cp failed rc=%d: %s",
-                    result.return_code, (result.stderr or "")[:300],
+                    result.return_code,
+                    (result.stderr or "")[:300],
                 )
         result = await target.exec(
-            "ls -lh /input/workspace.tar 2>&1", timeout_sec=10,
+            "ls -lh /input/workspace.tar 2>&1",
+            timeout_sec=10,
         )
         logger.info(
             "EfsTransfer.pre_restore: /input/workspace.tar → %s",
@@ -202,11 +225,11 @@ class EfsTransfer:
         )
 
     async def cleanup(self) -> None:
-        logger.debug("EfsTransfer: session %s — cleanup deferred to reaper",
-                      self._session_path)
+        logger.debug("EfsTransfer: session %s — cleanup deferred to reaper", self._session_path)
 
 
 # ── 3. LocalDirectTransfer ───────────────────────────────────────────
+
 
 class LocalDirectTransfer:
     """LocalSandbox — no container isolation, direct filesystem ops.
@@ -228,13 +251,11 @@ class LocalDirectTransfer:
 
     async def post_capture(self, source: Sandbox) -> None:
         result = await source.exec(
-            "tar czf /tmp/_nel_ws.tar.gz -C /output . 2>/dev/null || "
-            "tar czf /tmp/_nel_ws.tar.gz -C . . 2>/dev/null",
+            "tar czf /tmp/_nel_ws.tar.gz -C /output . 2>/dev/null || tar czf /tmp/_nel_ws.tar.gz -C . . 2>/dev/null",
             timeout_sec=120,
         )
         if result.return_code != 0:
-            logger.warning("LocalDirectTransfer: tar failed (rc=%d): %s",
-                           result.return_code, result.stderr[:300])
+            logger.warning("LocalDirectTransfer: tar failed (rc=%d): %s", result.return_code, result.stderr[:300])
             return
         try:
             await source.download("/tmp/_nel_ws.tar.gz", self._archive)
@@ -252,8 +273,7 @@ class LocalDirectTransfer:
                 timeout_sec=120,
             )
             if result.return_code != 0:
-                logger.warning("LocalDirectTransfer: untar failed (rc=%d): %s",
-                               result.return_code, result.stderr[:300])
+                logger.warning("LocalDirectTransfer: untar failed (rc=%d): %s", result.return_code, result.stderr[:300])
         except Exception:
             logger.warning("LocalDirectTransfer: restore failed", exc_info=True)
 
@@ -262,6 +282,7 @@ class LocalDirectTransfer:
 
 
 # ── 4. SandboxExecTransfer ──────────────────────────────────────────
+
 
 class SandboxExecTransfer:
     """Generic fallback — uses exec() + download() / upload() from the
@@ -290,13 +311,11 @@ class SandboxExecTransfer:
             (sz_check.stdout or "").strip()[:200],
         )
         result = await source.exec(
-            "tar czf /tmp/_ws.tar.gz -C /output . 2>/dev/null || "
-            "tar czf /tmp/_ws.tar.gz -C /workspace . 2>/dev/null",
+            "tar czf /tmp/_ws.tar.gz -C /output . 2>/dev/null || tar czf /tmp/_ws.tar.gz -C /workspace . 2>/dev/null",
             timeout_sec=300,
         )
         if result.return_code != 0:
-            logger.error("SandboxExecTransfer: tar FAILED (rc=%d): %s",
-                         result.return_code, (result.stderr or "")[:300])
+            logger.error("SandboxExecTransfer: tar FAILED (rc=%d): %s", result.return_code, (result.stderr or "")[:300])
             return
         gz_check = await source.exec("ls -lh /tmp/_ws.tar.gz", timeout_sec=10)
         logger.info(
@@ -330,11 +349,13 @@ class SandboxExecTransfer:
                 timeout_sec=300,
             )
             if result.return_code != 0:
-                logger.error("SandboxExecTransfer: untar FAILED (rc=%d): %s",
-                             result.return_code, (result.stderr or "")[:300])
+                logger.error(
+                    "SandboxExecTransfer: untar FAILED (rc=%d): %s", result.return_code, (result.stderr or "")[:300]
+                )
             else:
                 check = await target.exec(
-                    "ls -lh /input/workspace.tar 2>&1", timeout_sec=10,
+                    "ls -lh /input/workspace.tar 2>&1",
+                    timeout_sec=10,
                 )
                 logger.info(
                     "SandboxExecTransfer: restored — %s",

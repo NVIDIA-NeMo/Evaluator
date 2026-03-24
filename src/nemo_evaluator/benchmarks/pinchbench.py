@@ -12,6 +12,7 @@ response text).
 
 Dataset is downloaded once from GitHub as a zip archive.
 """
+
 from __future__ import annotations
 
 import atexit
@@ -81,6 +82,7 @@ def _parse_task(path: Path) -> dict[str, Any]:
         raise ValueError(f"No YAML frontmatter in {path}")
 
     import yaml
+
     frontmatter = yaml.safe_load(fm_match.group(1))
     body = fm_match.group(2)
 
@@ -141,8 +143,9 @@ def _load_all_tasks() -> list[dict[str, Any]]:
             logger.warning("Failed to parse %s: %s", tf, exc)
 
     automated = sum(1 for r in rows if r.get("grading_code"))
-    logger.info("PinchBench: loaded %d tasks (%d automated, %d judge-scored)",
-                len(rows), automated, len(rows) - automated)
+    logger.info(
+        "PinchBench: loaded %d tasks (%d automated, %d judge-scored)", len(rows), automated, len(rows) - automated
+    )
     return rows
 
 
@@ -225,6 +228,7 @@ def pinchbench_scorer(sample: ScorerInput) -> dict[str, Any]:
 
     if not grading_code:
         from nemo_evaluator.scoring.judge import needs_judge
+
         return needs_judge(sample)
 
     transcript: list[dict[str, Any]] = []
@@ -239,13 +243,15 @@ def pinchbench_scorer(sample: ScorerInput) -> dict[str, Any]:
                 except json.JSONDecodeError:
                     transcript.append({"raw": line, "parse_error": True})
     else:
-        transcript = [{
-            "type": "message",
-            "message": {
-                "role": "assistant",
-                "content": [{"type": "text", "text": sample.response}],
-            },
-        }]
+        transcript = [
+            {
+                "type": "message",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": sample.response}],
+                },
+            }
+        ]
 
     try:
         scores = _run_grade(grading_code, transcript, workspace_path)

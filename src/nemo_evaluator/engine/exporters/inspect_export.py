@@ -8,6 +8,7 @@ Requires ``inspect_ai`` as an optional dependency::
 
     pip install nemo-evaluator[inspect]
 """
+
 from __future__ import annotations
 
 import json
@@ -25,8 +26,7 @@ def _try_import_inspect() -> None:
         import inspect_ai.log  # noqa: F401
     except ImportError:
         raise ImportError(
-            "inspect_ai is required for the 'inspect' exporter. "
-            "Install with: pip install nemo-evaluator[inspect]"
+            "inspect_ai is required for the 'inspect' exporter. Install with: pip install nemo-evaluator[inspect]"
         ) from None
 
 
@@ -204,23 +204,31 @@ def _build_eval_log(bundle: dict[str, Any]) -> Any:
     eval_scores: list[EvalScore] = []
     for metric_name, metric_val in nel_scores.items():
         if isinstance(metric_val, dict) and "value" in metric_val:
-            eval_scores.append(EvalScore(
-                name=metric_name,
-                scorer=metric_name,
-                metrics={metric_name: EvalMetric(
+            eval_scores.append(
+                EvalScore(
                     name=metric_name,
-                    value=metric_val["value"],
-                )},
-            ))
+                    scorer=metric_name,
+                    metrics={
+                        metric_name: EvalMetric(
+                            name=metric_name,
+                            value=metric_val["value"],
+                        )
+                    },
+                )
+            )
         elif isinstance(metric_val, (int, float)):
-            eval_scores.append(EvalScore(
-                name=metric_name,
-                scorer=metric_name,
-                metrics={metric_name: EvalMetric(
+            eval_scores.append(
+                EvalScore(
                     name=metric_name,
-                    value=metric_val,
-                )},
-            ))
+                    scorer=metric_name,
+                    metrics={
+                        metric_name: EvalMetric(
+                            name=metric_name,
+                            value=metric_val,
+                        )
+                    },
+                )
+            )
 
     eval_results = EvalResults(
         total_samples=n_samples,
@@ -256,9 +264,7 @@ class InspectExporter:
         _try_import_inspect()
         self._format = format
 
-    def export(
-        self, bundles: list[dict[str, Any]], config: dict[str, Any] | None = None
-    ) -> None:
+    def export(self, bundles: list[dict[str, Any]], config: dict[str, Any] | None = None) -> None:
         output_dir = Path((config or {}).get("output_dir", "./eval_results"))
 
         for bundle in bundles:
@@ -281,14 +287,13 @@ class InspectExporter:
     def _write_json_format(self, log: Any, task_dir: Path, name: str) -> None:
         path = task_dir / f"{name}_inspect.json"
         data = json.loads(log.model_dump_json(exclude_none=True))
-        path.write_text(
-            json.dumps(data, indent=2, default=str), encoding="utf-8"
-        )
+        path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
         logger.info("Inspect AI log written: %s", path)
 
     def _write_eval_format(self, log: Any, task_dir: Path, name: str) -> None:
         try:
             from inspect_ai.log import write_eval_log
+
             path = task_dir / f"{name}_inspect.eval"
             write_eval_log(log, location=str(path), format="eval")
             logger.info("Inspect AI log written: %s", path)

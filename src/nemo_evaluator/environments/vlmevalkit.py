@@ -1,4 +1,5 @@
 """VLMEvalKit datasets as EvalEnvironments (``vlmevalkit://`` URI scheme)."""
+
 from __future__ import annotations
 
 import logging
@@ -32,6 +33,7 @@ def _extract_mcq_answer(response: str, choices: dict[str, str]) -> str | None:
     """Extract a single option letter from the response (mirrors VLMEvalKit ``can_infer``)."""
     try:
         from vlmeval.utils.matching_util import can_infer
+
         result = can_infer(response, choices)
         if result and result != "Z":
             return result
@@ -48,9 +50,7 @@ def _extract_mcq_answer(response: str, choices: dict[str, str]) -> str | None:
     if len(found) == 1:
         return found[0]
 
-    answer_match = re.search(
-        r"(?i)(?:answer|choice|option)\s*(?:is|:)?\s*([A-Z])", response
-    )
+    answer_match = re.search(r"(?i)(?:answer|choice|option)\s*(?:is|:)?\s*([A-Z])", response)
     if answer_match and answer_match.group(1) in valid:
         return answer_match.group(1)
 
@@ -75,10 +75,7 @@ class VLMEvalKitEnvironment(EvalEnvironment):
 
         if dataset_name not in SUPPORTED_DATASETS:
             available = ", ".join(sorted(SUPPORTED_DATASETS)[:20])
-            raise ValueError(
-                f"Unknown VLMEvalKit dataset {dataset_name!r}. "
-                f"Available (first 20): {available} ..."
-            )
+            raise ValueError(f"Unknown VLMEvalKit dataset {dataset_name!r}. Available (first 20): {available} ...")
 
         self.dataset_name = dataset_name
         self.name = f"vlmevalkit://{dataset_name}"
@@ -93,7 +90,9 @@ class VLMEvalKitEnvironment(EvalEnvironment):
 
         logger.info(
             "VLMEvalKit %s: %d samples, type=%s",
-            dataset_name, len(self._data), self._dataset_type,
+            dataset_name,
+            len(self._data),
+            self._dataset_type,
         )
 
     async def dataset_size(self) -> int:
@@ -161,9 +160,7 @@ class VLMEvalKitEnvironment(EvalEnvironment):
         else:
             return self._score_vqa(response, expected)
 
-    def _score_mcq(
-        self, response: str, expected: str, choices: dict[str, str]
-    ) -> VerifyResult:
+    def _score_mcq(self, response: str, expected: str, choices: dict[str, str]) -> VerifyResult:
         predicted = _extract_mcq_answer(response, choices)
         correct = predicted is not None and predicted.upper() == expected.upper()
         return VerifyResult(

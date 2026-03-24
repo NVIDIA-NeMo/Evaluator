@@ -7,6 +7,7 @@ Usage:
     ray job submit --working-dir . -- python -m nemo_evaluator.engine.ray_launcher \
         --benchmark gsm8k --shards 8 --repeats 5
 """
+
 from __future__ import annotations
 
 import argparse
@@ -48,18 +49,23 @@ def run_shard(
     problem_range = get_shard_range(total, shard_idx, total_shards)
 
     config = {
-        "benchmark": benchmark, "model": model_id, "repeats": n_repeats,
+        "benchmark": benchmark,
+        "model": model_id,
+        "repeats": n_repeats,
         "shard": {"idx": shard_idx, "total": total_shards, "range": list(problem_range)},
     }
 
-    bundle = asyncio.run(run_evaluation(
-        env, solver,
-        n_repeats=n_repeats,
-        max_problems=max_problems,
-        config=config,
-        progress=NoOpProgress(),
-        problem_range=problem_range,
-    ))
+    bundle = asyncio.run(
+        run_evaluation(
+            env,
+            solver,
+            n_repeats=n_repeats,
+            max_problems=max_problems,
+            config=config,
+            progress=NoOpProgress(),
+            problem_range=problem_range,
+        )
+    )
 
     bundle.pop("_artifacts", None)
     return bundle
@@ -71,8 +77,12 @@ def main():
     parser.add_argument("--shards", "-s", type=int, default=4)
     parser.add_argument("--repeats", "-n", type=int, default=1)
     parser.add_argument("--max-problems", type=int, default=None)
-    parser.add_argument("--model-url", default=os.environ.get("NEMO_MODEL_URL"), required="NEMO_MODEL_URL" not in os.environ)
-    parser.add_argument("--model-id", default=os.environ.get("NEMO_MODEL_ID"), required="NEMO_MODEL_ID" not in os.environ)
+    parser.add_argument(
+        "--model-url", default=os.environ.get("NEMO_MODEL_URL"), required="NEMO_MODEL_URL" not in os.environ
+    )
+    parser.add_argument(
+        "--model-id", default=os.environ.get("NEMO_MODEL_ID"), required="NEMO_MODEL_ID" not in os.environ
+    )
     parser.add_argument("--api-key", default=os.environ.get("NEMO_API_KEY"))
     parser.add_argument("--system-prompt", default=None)
     parser.add_argument("--output-dir", "-o", default="./eval_results/ray")
@@ -82,9 +92,15 @@ def main():
 
     futures = [
         run_shard.remote(
-            args.benchmark, i, args.shards,
-            args.model_url, args.model_id, args.api_key,
-            args.repeats, args.max_problems, args.system_prompt,
+            args.benchmark,
+            i,
+            args.shards,
+            args.model_url,
+            args.model_id,
+            args.api_key,
+            args.repeats,
+            args.max_problems,
+            args.system_prompt,
         )
         for i in range(args.shards)
     ]
@@ -100,19 +116,19 @@ def main():
             shard_dir = Path(tmpdir) / f"shard_{i}"
             shard_dir.mkdir()
             results = bundle.pop("_results", [])
-            (shard_dir / "results.jsonl").write_text(
-                "\n".join(json.dumps(r, default=str) for r in results) + "\n")
+            (shard_dir / "results.jsonl").write_text("\n".join(json.dumps(r, default=str) for r in results) + "\n")
             bundle_path = shard_dir / f"{bundle.get('run_id', f'shard_{i}')}.json"
             bundle_path.write_text(json.dumps(bundle, indent=2, default=str))
 
         from nemo_evaluator.engine.sharding import merge_results
+
         shard_dirs = sorted(Path(tmpdir).glob("shard_*"))
         merged = merge_results(shard_dirs, out, n_repeats=args.repeats)
 
     print(f"\nMerged {args.shards} shards:")
     for k, v in merged.get("benchmark", {}).get("scores", {}).items():
         if isinstance(v, dict) and "value" in v:
-            print(f"  {k}: {v['value']:.4f}  [{v.get('ci_lower','?'):.4f}, {v.get('ci_upper','?'):.4f}]")
+            print(f"  {k}: {v['value']:.4f}  [{v.get('ci_lower', '?'):.4f}, {v.get('ci_upper', '?'):.4f}]")
     print(f"  Output: {out}/")
 
 

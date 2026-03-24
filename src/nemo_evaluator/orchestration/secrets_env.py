@@ -100,9 +100,7 @@ def build_reexport_commands(group_name: str, result: SecretsEnvResult) -> str:
     """
     commands = []
     for remapping in result.group_remappings.get(group_name, []):
-        commands.append(
-            f'export {remapping.original_name}="${{{remapping.disambiguated_name}}}"'
-        )
+        commands.append(f'export {remapping.original_name}="${{{remapping.disambiguated_name}}}"')
     return "\n".join(commands)
 
 
@@ -123,8 +121,8 @@ def redact_secrets_env_content(secrets_content: str) -> str:
     """
     redacted_lines: list[str] = []
     for line in secrets_content.splitlines():
-        if line.startswith("export ") and "=" in line[len("export "):]:
-            key, _, value = line[len("export "):].partition("=")
+        if line.startswith("export ") and "=" in line[len("export ") :]:
+            key, _, value = line[len("export ") :].partition("=")
             unquoted = value.strip('"')
             if len(unquoted) > 4:
                 redacted_lines.append(f'export {key}="***{unquoted[-4:]}"')
