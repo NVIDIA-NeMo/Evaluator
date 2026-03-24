@@ -81,11 +81,12 @@ def eval_run(config_file, bench, model_url, model_id, api_key,
 
 def _load_config(config_file: str, overrides: tuple[str, ...] = ()):
     from nemo_evaluator.config import parse_eval_config
-    from nemo_evaluator.config.compose import compose_config
+    from nemo_evaluator.config.compose import compose_config, _prune_nulls
 
     raw = compose_config(config_file)
     for ov in overrides:
         _apply_override(raw, ov)
+    _prune_nulls(raw)
     return parse_eval_config(raw)
 
 
@@ -98,7 +99,9 @@ def _apply_override(data: dict, override: str) -> None:
     parts = key.strip().split(".")
 
     parsed_value: object = value
-    if value.lower() in ("true", "false"):
+    if value in ("null", "Null", "NULL", "~"):
+        parsed_value = None
+    elif value.lower() in ("true", "false"):
         parsed_value = value.lower() == "true"
     else:
         try:

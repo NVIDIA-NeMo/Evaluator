@@ -331,12 +331,20 @@ class EvalConfig(BaseModel):
 
 _ENV_RE = re.compile(r"\$\{(\w+)(?::-(.*?))?\}")
 
+_ESC_SENTINEL = "\x00_NEL_ESC\x00"
+
 
 def _expand_env(value: Any) -> Any:
-    """Expand ${VAR} and ${VAR:-default} in strings.
+    """Expand ``${VAR}`` and ``${VAR:-default}`` in strings.
 
     Strict: raises ValueError if a variable has no value and no default.
-    Use ${VAR:-} to explicitly allow empty string fallback.
+    Use ``${VAR:-}`` to explicitly allow empty string fallback.
+
+    To defer expansion to runtime (e.g. for vars only available on a compute
+    node), escape with a double dollar: ``$${VAR}``.  This is converted to
+    the literal ``${VAR}`` and left for the shell to resolve later.  The
+    escaping applies to env-var expansion only, not to ``${.path}``
+    self-references (which are resolved earlier by ``compose_config``).
     """
 
     def _replace(m: re.Match) -> str:
@@ -354,7 +362,9 @@ def _expand_env(value: Any) -> Any:
         )
 
     if isinstance(value, str):
-        return _ENV_RE.sub(_replace, value)
+        protected = value.replace("$${", _ESC_SENTINEL)
+        expanded = _ENV_RE.sub(_replace, protected)
+        return expanded.replace(_ESC_SENTINEL, "${")
     if isinstance(value, dict):
         return {k: _expand_env(v) for k, v in value.items()}
     if isinstance(value, list):

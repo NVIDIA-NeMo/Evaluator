@@ -6,6 +6,9 @@ Provides Hydra-like config composition without external dependencies:
   - ``_base_:`` inheritance for variant configs (e.g. 24a extends 24)
   - ``${.path.to.val}`` self-referencing interpolation (resolved after merge)
   - ``null`` values delete keys inherited from a base
+  - Underscore-prefixed top-level keys (e.g. ``_common``, ``_model``) are
+    user-defined variables: available as ``${._common.field}`` self-references,
+    then stripped before Pydantic validation.
 
 All existing flat YAML configs continue to work unchanged — ``defaults:`` is optional.
 """
@@ -32,6 +35,7 @@ def compose_config(config_path: str | Path) -> dict[str, Any]:
     search_paths = _build_search_paths(config_path)
     raw = _load_and_compose(config_path, search_paths, _seen=set())
     raw = _resolve_self_refs(raw, raw)
+    _strip_private_keys(raw)
     return raw
 
 
@@ -107,6 +111,18 @@ def _prune_nulls(data: dict) -> None:
     for v in data.values():
         if isinstance(v, dict):
             _prune_nulls(v)
+
+
+def _strip_private_keys(data: dict) -> None:
+    """Remove underscore-prefixed top-level keys (user-defined variables).
+
+    These keys serve as reusable anchors for ``${.path}`` self-references
+    and are resolved before this function runs.  Only top-level keys are
+    stripped; nested underscore keys are left intact as they may be
+    legitimate Pydantic model fields.
+    """
+    for key in [k for k in data if isinstance(k, str) and k.startswith("_")]:
+        del data[key]
 
 
 # ── Fragment loading ──────────────────────────────────────────────────────

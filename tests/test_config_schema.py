@@ -53,6 +53,20 @@ class TestEnvExpansion:
         result = _expand_env("${NONEXISTENT:-}")
         assert result == ""
 
+    def test_escaped_env_var_preserved(self):
+        assert _expand_env("$${RUNTIME_VAR}/v1") == "${RUNTIME_VAR}/v1"
+
+    def test_escaped_mixed_with_expanded(self, monkeypatch):
+        monkeypatch.setenv("HOST_VAR", "http://localhost")
+        result = _expand_env("${HOST_VAR}/$${RUNTIME_VAR}")
+        assert result == "http://localhost/${RUNTIME_VAR}"
+
+    def test_escaped_with_default_syntax(self):
+        assert _expand_env("$${VAR:-default}") == "${VAR:-default}"
+
+    def test_double_dollar_no_brace_passthrough(self):
+        assert _expand_env("cost: $$100") == "cost: $$100"
+
 
 class TestParseEvalConfig:
     def test_minimal_api_config(self):
@@ -548,3 +562,26 @@ class TestShardsHetJobGuard:
     def test_shards_with_auto_resume_raises(self):
         with pytest.raises(ValueError, match="auto_resume"):
             EvalConfig.model_validate(_slurm_config(shards=4, auto_resume=True))
+
+
+class TestApplyOverrideNull:
+    """Test that -O key=null coerces to None for key deletion."""
+
+    def test_null_override_sets_none(self):
+        from nemo_evaluator.cli.eval import _apply_override
+        data = {"output": {"dir": "/tmp", "extra": "remove-me"}}
+        _apply_override(data, "output.extra=null")
+        assert data["output"]["extra"] is None
+
+    def test_null_case_variants(self):
+        from nemo_evaluator.cli.eval import _apply_override
+        for null_str in ("null", "Null", "NULL", "~"):
+            data = {"key": "value"}
+            _apply_override(data, f"key={null_str}")
+            assert data["key"] is None, f"Failed for {null_str!r}"
+
+    def test_none_string_not_coerced(self):
+        from nemo_evaluator.cli.eval import _apply_override
+        data = {"key": "value"}
+        _apply_override(data, "key=none")
+        assert data["key"] == "none"

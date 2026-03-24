@@ -12,6 +12,7 @@ from nemo_evaluator.config.compose import (
     _deep_merge,
     _prune_nulls,
     _resolve_self_refs,
+    _strip_private_keys,
     compose_config,
 )
 
@@ -78,6 +79,11 @@ class TestPruneNulls:
         d = {"a": 1, "b": {"c": 2}}
         _prune_nulls(d)
         assert d == {"a": 1, "b": {"c": 2}}
+
+    def test_null_in_list_preserved(self):
+        d = {"items": [1, None, 3]}
+        _prune_nulls(d)
+        assert d == {"items": [1, None, 3]}
 
 
 # ── _resolve_self_refs ────────────────────────────────────────────────────
@@ -348,3 +354,83 @@ class TestComposeConfig:
         raw = compose_config(cfg)
         assert raw["services"]["model"]["model"] == "gp-model"
         assert raw["output"]["dir"] == "/child"
+
+
+# ── _strip_private_keys ──────────────────────────────────────────────────
+
+
+class TestStripPrivateKeys:
+    def test_removes_underscore_prefixed(self):
+        d = {"_model": "foo", "services": {"a": 1}}
+        _strip_private_keys(d)
+        assert d == {"services": {"a": 1}}
+
+    def test_keeps_non_underscore_keys(self):
+        d = {"services": {"a": 1}, "output": {"dir": "/tmp"}}
+        _strip_private_keys(d)
+        assert d == {"services": {"a": 1}, "output": {"dir": "/tmp"}}
+
+    def test_nested_underscore_keys_preserved(self):
+        d = {"services": {"_internal": "keep"}}
+        _strip_private_keys(d)
+        assert d == {"services": {"_internal": "keep"}}
+
+    def test_multiple_private_keys(self):
+        d = {"_a": 1, "_b": 2, "real": 3}
+        _strip_private_keys(d)
+        assert d == {"real": 3}
+
+
+# ── compose_config user vars (integration) ──────────────────────────────
+
+
+class TestUserVars:
+    def test_underscore_vars_resolved_then_stripped(self, config_dir: Path):
+        cfg = _write_yaml(config_dir / "uservars.yaml", {
+            "_model_name": "nemotron-super",
+            "services": {"model": {
+                "type": "api",
+                "url": "http://localhost:8000/chat/completions",
+                "model": "${._model_name}",
+            }},
+            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+            "output": {"dir": "./results/${._model_name}"},
+        })
+        raw = compose_config(cfg)
+        assert raw["services"]["model"]["model"] == "nemotron-super"
+        assert raw["output"]["dir"] == "./results/nemotron-super"
+        assert "_model_name" not in raw
+
+    def test_nested_underscore_var_resolved(self, config_dir: Path):
+        cfg = _write_yaml(config_dir / "nested_uv.yaml", {
+            "_common": {"model": "nemotron", "base_url": "http://vllm:8000"},
+            "services": {"model": {
+                "type": "api",
+                "url": "${._common.base_url}/v1/chat/completions",
+                "model": "${._common.model}",
+            }},
+            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+        })
+        raw = compose_config(cfg)
+        assert raw["services"]["model"]["url"] == "http://vllm:8000/v1/chat/completions"
+        assert raw["services"]["model"]["model"] == "nemotron"
+        assert "_common" not in raw
+
+    def test_underscore_vars_in_base_inherited(self, config_dir: Path):
+        _write_yaml(config_dir / "base_uv.yaml", {
+            "_model_id": "base-model",
+            "services": {"model": {
+                "type": "api",
+                "url": "http://localhost:8000/chat/completions",
+                "model": "${._model_id}",
+            }},
+            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+        })
+        cfg = _write_yaml(config_dir / "child_uv.yaml", """\
+            defaults:
+              - _base_: base_uv
+            _model_id: child-model
+        """)
+        raw = compose_config(cfg)
+        assert raw["services"]["model"]["model"] == "child-model"
+        assert "_model_id" not in raw
