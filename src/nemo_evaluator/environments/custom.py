@@ -2,7 +2,7 @@
 
 All benchmarks -- built-in and user-provided -- use this API.
 
-    from nemo_evaluator.environments.byob import benchmark, scorer
+    from nemo_evaluator.environments.custom import benchmark, scorer
     from nemo_evaluator.scoring import ScorerInput, exact_match
 
     @benchmark(name="my-bench", dataset="hf://my/data?split=test",

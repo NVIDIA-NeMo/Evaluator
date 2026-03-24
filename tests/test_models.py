@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from nemo_evaluator.models import (
+from nemo_evaluator.schemas import (
     EvalBundle,
     RunSnapshot,
     BenchmarkResult,

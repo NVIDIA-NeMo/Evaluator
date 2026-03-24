@@ -1,0 +1,264 @@
+"""Service configuration schemas (vLLM, SGLang, NIM, external API, Gym, NAT, custom)."""
+
+from __future__ import annotations
+
+import warnings
+from typing import Annotated, Any, Literal
+from urllib.parse import urlparse
+
+from pydantic import BaseModel, Discriminator, Field, Tag, field_validator, model_validator
+
+Protocol = Literal["chat_completions", "completions", "responses"]
+
+
+class GenerationConfig(BaseModel):
+    """Default generation parameters for a service.  Solvers may override
+    these per-benchmark via their own `generation` field.
+
+    Merge semantics: when a solver specifies generation, each non-None
+    field overrides the corresponding service-level field.  Fields left
+    as None inherit from the service's generation config."""
+
+    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    top_p: float | None = Field(default=None, ge=0.0, le=1.0)
+    max_tokens: int | None = Field(default=None, gt=0)
+    stop: list[str] | None = None
+    frequency_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
+    presence_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
+
+    def merge_onto(self, base: GenerationConfig) -> GenerationConfig:
+        """Return a new config with self's non-None fields overriding base."""
+        merged = {}
+        for field_name in self.model_fields:
+            override = getattr(self, field_name)
+            merged[field_name] = override if override is not None else getattr(base, field_name)
+        return GenerationConfig(**merged)
+
+
+class InterceptorConfig(BaseModel):
+    """A LiteLLM interceptor attached to a service's proxy."""
+
+    name: str
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+class _ModelServerBase(BaseModel):
+    """Shared fields for locally-deployed model servers (vllm, sglang,
+    nim, docker_model).  NEL starts these servers and knows their URL."""
+
+    model: str
+    port: int = 8000
+    protocol: Protocol
+    tensor_parallel_size: int | None = None
+    pipeline_parallel_size: int | None = None
+    data_parallel_size: int | None = None
+    num_nodes: int = 1
+    gpus: list[int] | int | None = None
+    image: str | None = None
+    health_path: str = "/health"
+    startup_timeout: float = 600.0
+    extra_env: dict[str, str] = Field(default_factory=dict)
+    extra_args: list[str] = Field(default_factory=list)
+    setup_commands: list[str] = Field(default_factory=list)
+    container_mounts: list[str] = Field(default_factory=list)
+    reasoning_pattern: str | None = None
+    max_input_tokens: int | None = None
+    max_output_tokens: int | None = None
+    generation: GenerationConfig = Field(default_factory=GenerationConfig)
+    interceptors: list[InterceptorConfig] = Field(default_factory=list)
+    proxy_verbose: bool = False
+    depends_on: list[str] = Field(default_factory=list)
+    node_pool: str | None = None
+
+    @property
+    def is_model_server(self) -> bool:
+        return True
+
+    @property
+    def is_managed(self) -> bool:
+        return True
+
+    @property
+    def base_url(self) -> str:
+        return f"http://localhost:{self.port}/v1"
+
+
+class VllmService(_ModelServerBase):
+    type: Literal["vllm"] = "vllm"
+
+
+class SglangService(_ModelServerBase):
+    type: Literal["sglang"] = "sglang"
+
+
+class NimService(_ModelServerBase):
+    type: Literal["nim"] = "nim"
+
+
+class DockerModelService(_ModelServerBase):
+    type: Literal["docker_model"] = "docker_model"
+
+
+class ExternalApiService(BaseModel):
+    """Pre-deployed model / judge behind an HTTP endpoint.
+
+    `url` is the FULL URL where requests are sent (always include path).
+    `protocol` is the wire format (can decouple for experimental endpoints).
+    """
+
+    type: Literal["api"] = "api"
+    url: str
+    protocol: Protocol
+    model: str | None = None
+    api_key: str | None = None
+    health_path: str | None = None
+    max_input_tokens: int | None = None
+    max_output_tokens: int | None = None
+    generation: GenerationConfig = Field(default_factory=GenerationConfig)
+    interceptors: list[InterceptorConfig] = Field(default_factory=list)
+    proxy_verbose: bool = False
+
+    @property
+    def is_model_server(self) -> bool:
+        return True
+
+    @property
+    def is_managed(self) -> bool:
+        return False
+
+    @property
+    def base_url(self) -> str:
+        return self.url
+
+    @field_validator("url")
+    @classmethod
+    def _validate_url(cls, v: str) -> str:
+        if not v.startswith(("http://", "https://")):
+            raise ValueError(f"Service url must start with http:// or https://, got: {v!r}")
+        return v
+
+    @model_validator(mode="after")
+    def _warn_url_protocol_mismatch(self) -> ExternalApiService:
+        _SUFFIX_TO_PROTOCOL = [
+            ("/chat/completions", "chat_completions"),
+            ("/completions", "completions"),
+            ("/responses", "responses"),
+        ]
+        path = urlparse(self.url).path
+        for suffix, expected in _SUFFIX_TO_PROTOCOL:
+            if path.endswith(suffix):
+                if self.protocol != expected:
+                    warnings.warn(
+                        f"Service url '{self.url}' ends with '{suffix}' but "
+                        f"protocol is '{self.protocol}' (expected '{expected}').",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                break
+        return self
+
+
+class GymResourceService(BaseModel):
+    """A nemo-gym resource server (exposes /seed_session, /verify, tool
+    endpoints).  Not a model — no protocol/generation/interceptors."""
+
+    type: Literal["gym"] = "gym"
+    url: str | None = None
+    port: int = 8000
+    image: str | None = None
+    benchmark: str | None = None
+    server_cmd: str | None = None
+    startup_timeout: float = 120.0
+    depends_on: list[str] = Field(default_factory=list)
+    node_pool: str | None = None
+
+    @property
+    def is_model_server(self) -> bool:
+        return False
+
+    @property
+    def is_managed(self) -> bool:
+        return self.url is None
+
+    @property
+    def base_url(self) -> str:
+        if self.url:
+            return self.url
+        return f"http://localhost:{self.port}"
+
+
+class NatAgentService(BaseModel):
+    """A NAT agent server."""
+
+    type: Literal["nat"] = "nat"
+    port: int = 8000
+    image: str | None = None
+    nat_config_file: str | None = None
+    startup_timeout: float = 120.0
+    depends_on: list[str] = Field(default_factory=list)
+    node_pool: str | None = None
+
+    @property
+    def is_model_server(self) -> bool:
+        return False
+
+    @property
+    def is_managed(self) -> bool:
+        return True
+
+    @property
+    def base_url(self) -> str:
+        return f"http://localhost:{self.port}"
+
+
+class CustomService(BaseModel):
+    """Plugin service — dynamically imported from class_path."""
+
+    type: Literal["custom"] = "custom"
+    class_path: str
+    config: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def is_model_server(self) -> bool:
+        return False
+
+    @property
+    def is_managed(self) -> bool:
+        return True
+
+    @property
+    def base_url(self) -> str:
+        return ""
+
+
+def _service_discriminator(v: Any) -> str:
+    if isinstance(v, dict):
+        t = v.get("type")
+        if t is None:
+            raise ValueError("Service config must include a 'type' field")
+        return t
+    t = getattr(v, "type", None)
+    if t is None:
+        raise ValueError(f"Cannot determine service type from {type(v).__name__}. Expected a dict with a 'type' field.")
+    return t
+
+
+ServiceConfig = Annotated[
+    Annotated[VllmService, Tag("vllm")]
+    | Annotated[SglangService, Tag("sglang")]
+    | Annotated[NimService, Tag("nim")]
+    | Annotated[DockerModelService, Tag("docker_model")]
+    | Annotated[ExternalApiService, Tag("api")]
+    | Annotated[GymResourceService, Tag("gym")]
+    | Annotated[NatAgentService, Tag("nat")]
+    | Annotated[CustomService, Tag("custom")],
+    Discriminator(_service_discriminator),
+]
+
+_MODEL_SERVICE_TYPES = (
+    VllmService,
+    SglangService,
+    NimService,
+    DockerModelService,
+    ExternalApiService,
+)

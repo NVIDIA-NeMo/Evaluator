@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from nemo_evaluator.runner.exporters.base import ExportPlugin
+from nemo_evaluator.engine.exporters.base import ExportPlugin
 
 _REGISTRY: dict[str, type[ExportPlugin]] = {}
 
@@ -21,11 +21,11 @@ def get_exporter(name: str, **kwargs: Any) -> ExportPlugin:
 
 
 def _lazy_load() -> None:
-    from nemo_evaluator.runner.exporters.wandb_export import WandBExporter
+    from nemo_evaluator.engine.exporters.wandb_export import WandBExporter
     register_exporter("wandb", WandBExporter)
 
-    from nemo_evaluator.runner.exporters.mlflow_export import MLflowExporter
+    from nemo_evaluator.engine.exporters.mlflow_export import MLflowExporter
     register_exporter("mlflow", MLflowExporter)
 
-    from nemo_evaluator.runner.exporters.inspect_export import InspectExporter
+    from nemo_evaluator.engine.exporters.inspect_export import InspectExporter
     register_exporter("inspect", InspectExporter)

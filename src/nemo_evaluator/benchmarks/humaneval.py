@@ -1,5 +1,5 @@
 """HumanEval -- code generation with Docker-sandboxed test execution."""
-from nemo_evaluator.environments.byob import benchmark, scorer
+from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput, code_sandbox
 
 _PROMPT = (

@@ -52,7 +52,7 @@ regression:check:
   script:
     - |
       python -c "
-      from nemo_evaluator.runner.regression import compare_runs, write_regression
+      from nemo_evaluator.engine.comparison import compare_runs, write_regression
       from pathlib import Path
       import glob, sys, json
 

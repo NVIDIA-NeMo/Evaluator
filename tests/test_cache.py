@@ -1,6 +1,6 @@
 """Tests for response caching."""
 
-from nemo_evaluator.runner.cache import ResponseCache
+from nemo_evaluator.engine.cache import ResponseCache
 
 
 class TestResponseCache:

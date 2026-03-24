@@ -6,6 +6,7 @@ import logging
 import os
 import shlex
 import subprocess
+import warnings
 from pathlib import Path
 
 from nemo_evaluator.executors import Executor, ProcessState
@@ -77,7 +78,7 @@ class DockerExecutor(Executor):
             background=False, submit=False) -> None:
         import click
 
-        from nemo_evaluator.eval.containers import resolve_eval_image, scheme_to_variant
+        from nemo_evaluator.orchestration.image_resolver import resolve_eval_image, scheme_to_variant
 
         base = getattr(config.cluster, "image", None) or getattr(config.cluster, "container_image", None)
         local_build = not base or base == "local"
@@ -108,19 +109,36 @@ class DockerExecutor(Executor):
             if home:
                 mount_args.extend(["-v", f"{home}:{home}"])
 
-        env_args: list[str] = []
-        for k, v in getattr(config.cluster, "container_env", {}).items():
-            env_args.extend(["-e", f"{k}={v}"])
+        container_env = dict(getattr(config.cluster, "container_env", {}))
+
         _FORWARD_ENVS = (
             "NEMO_API_KEY", "NEMO_MODEL_URL", "NEMO_MODEL_ID",
             "HF_TOKEN", "MLFLOW_TRACKING_URI", "MLFLOW_TRACKING_TOKEN",
         )
+        forwarded: list[str] = []
         for key in _FORWARD_ENVS:
             val = os.environ.get(key)
-            if val:
-                env_args.extend(["-e", f"{key}={val}"])
+            if val and key not in container_env:
+                container_env[key] = val
+                forwarded.append(key)
+        if forwarded:
+            warnings.warn(
+                f"Auto-forwarded host env vars {forwarded} into container. "
+                "Use cluster.container_env instead for explicit control. "
+                "_FORWARD_ENVS auto-forwarding is deprecated.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
 
-        env_args.extend(["-e", "NEL_INNER_EXECUTION=1"])
+        container_env["NEL_INNER_EXECUTION"] = "1"
+        container_env["PYTHONUNBUFFERED"] = "1"
+
+        env_file_path = Path(output_dir) / ".docker.env"
+        env_file_path.parent.mkdir(parents=True, exist_ok=True)
+        lines = [f"{k}={v}" for k, v in container_env.items()]
+        env_file_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        env_file_path.chmod(0o600)
+        env_args: list[str] = ["--env-file", str(env_file_path)]
 
         Path(output_dir).mkdir(parents=True, exist_ok=True)
         cfg_path = Path(output_dir) / "_docker_config.json"
@@ -150,6 +168,14 @@ class DockerExecutor(Executor):
 
         if dry_run:
             click.echo(f"Docker command:\n  {shlex.join(cmd)}")
+            click.echo(f"\nEnv file ({env_file_path}):")
+            for k, v in container_env.items():
+                if k in ("NEL_INNER_EXECUTION", "PYTHONUNBUFFERED"):
+                    click.echo(f"  {k}={v}")
+                elif len(v) > 4:
+                    click.echo(f"  {k}=***{v[-4:]}")
+                else:
+                    click.echo(f"  {k}=***")
             return
 
         click.echo(f"Running in Docker: {image}")
@@ -164,7 +190,7 @@ class DockerExecutor(Executor):
             encoding="utf-8",
         )
 
-        from nemo_evaluator.executors.run_store import (
+        from nemo_evaluator.run_store import (
             RunMeta,
             config_summary as _config_summary,
             generate_run_id,

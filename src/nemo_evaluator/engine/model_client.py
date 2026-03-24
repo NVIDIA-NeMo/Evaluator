@@ -10,7 +10,7 @@ from typing import Any
 
 import aiohttp
 
-from nemo_evaluator.models import RetryConfig
+from nemo_evaluator.schemas import RetryConfig
 from nemo_evaluator.observability.types import ModelResponse
 
 logger = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ class ModelClient:
         if self.base_url.endswith("/chat/completions"):
             self.base_url = self.base_url[: -len("/chat/completions")]
         if self.cache_dir:
-            from nemo_evaluator.runner.cache import ResponseCache
+            from nemo_evaluator.engine.cache import ResponseCache
             self._cache = ResponseCache(self.cache_dir)
 
     def _headers(self) -> dict[str, str]:

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-from nemo_evaluator.eval.config import (
+from nemo_evaluator.orchestration.config import (
     ApptainerSandbox,
     EvalConfig,
     ExternalApiService,
@@ -21,10 +21,17 @@ from nemo_evaluator.eval.config import (
     SlurmSandbox,
     _parse_walltime,
 )
-from nemo_evaluator.eval.containers import (
+from nemo_evaluator.orchestration.image_resolver import (
     default_base_image,
     resolve_deployment_image,
     resolve_eval_image,
+)
+from nemo_evaluator.orchestration.secrets_env import (
+    SecretsEnvResult,
+    build_reexport_commands,
+    generate_secrets_env,
+    redact_secrets_env_content,
+    reexport_keys,
 )
 
 _HEADER = """\
@@ -453,9 +460,20 @@ def _resolve_service_image(svc) -> str:
 
 
 def _build_srun_prefix(
-    svc, deploy_image: str, *, het_flag: str, cluster_mounts: list[str], cluster_env_keys: list[str], mount_home: bool
+    svc,
+    deploy_image: str,
+    *,
+    het_flag: str,
+    cluster_mounts: list[str],
+    env_keys: list[str],
+    mount_home: bool,
 ) -> str:
-    """Build a per-service srun command with merged mounts and env."""
+    """Build a per-service srun command with merged mounts and env.
+
+    ``env_keys`` is the already-resolved list of original env var names
+    that this container needs (from the group's remappings + implicit vars).
+    The caller is responsible for emitting re-export commands beforehand.
+    """
     if not deploy_image:
         return ""
 
@@ -467,9 +485,7 @@ def _build_srun_prefix(
     else:
         mount_parts.append("--no-container-mount-home")
 
-    svc_env = getattr(svc, "extra_env", {})
-    env_parts = [f"--container-env={k}" for k in cluster_env_keys]
-    env_parts += [f"--container-env={k}" for k in svc_env]
+    env_parts = [f"--container-env={k}" for k in env_keys]
 
     num_nodes = getattr(svc, "num_nodes", 1)
     return (
@@ -479,22 +495,14 @@ def _build_srun_prefix(
     )
 
 
-def _service_env_exports(svc) -> str:
-    """Generate export lines for service-specific env vars."""
-    svc_env = getattr(svc, "extra_env", {})
-    if not svc_env:
-        return ""
-    lines = [f"export {k}={shlex.quote(v)}" for k, v in svc_env.items()]
-    return "\n".join(lines) + "\n"
-
-
 def _service_block(
     name: str,
     svc,
     *,
     use_containers: bool = False,
     cluster_mounts: list[str] | None = None,
-    cluster_env_keys: list[str] | None = None,
+    env_keys: list[str] | None = None,
+    reexport_cmds: str = "",
     mount_home: bool = True,
     pool_to_het: dict[str, int] | None = None,
 ) -> str:
@@ -514,10 +522,9 @@ def _service_block(
                 deploy_image,
                 het_flag=het_flag,
                 cluster_mounts=cluster_mounts or [],
-                cluster_env_keys=cluster_env_keys or [],
+                env_keys=env_keys or [],
                 mount_home=mount_home,
             )
-        env_exports = _service_env_exports(svc)
         tp_flag = f"{tp_flag_name} {svc.tensor_parallel_size} " if svc.tensor_parallel_size else ""
         dp_flag = f"{dp_flag_name} {svc.data_parallel_size} " if svc.data_parallel_size else ""
         extra = " ".join(svc.extra_args)
@@ -539,7 +546,8 @@ def _service_block(
         else:
             service_cmd = f"{main_cmd}"
 
-        return env_exports + _MODEL_SERVICE.format(
+        reexport_block = f"{reexport_cmds}\n" if reexport_cmds else ""
+        return reexport_block + _MODEL_SERVICE.format(
             name=name,
             name_upper=upper,
             svc_type=svc.type,
@@ -559,7 +567,7 @@ def _service_block(
                 deploy_image,
                 het_flag=het_flag,
                 cluster_mounts=cluster_mounts or [],
-                cluster_env_keys=cluster_env_keys or [],
+                env_keys=env_keys or [],
                 mount_home=mount_home,
             )
         config_file = svc.nat_config_file or "config.yml"
@@ -699,7 +707,12 @@ def _extract_bench_config(config: EvalConfig, bench_idx: int, svc_url_var: str, 
     }
 
 
-def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str, str]]:
+def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEnvResult]:
+    """Generate sbatch script content, sidecar configs, and secrets env.
+
+    Returns:
+        (script_text, sidecar_configs, secrets_result)
+    """
     cluster = config.cluster
     if not isinstance(cluster, SlurmCluster):
         raise ValueError(f"generate_sbatch requires a SlurmCluster, got {type(cluster).__name__}")
@@ -711,6 +724,23 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
     used_pools = _collect_used_pools(config)
     use_het = len(used_pools) > 1
     pool_to_het = {name: i for i, name in enumerate(used_pools)} if use_het else {}
+
+    # --- Build env groups for disambiguated .secrets.env ---
+    env_groups: dict[str, dict[str, str]] = {}
+
+    for name, svc in config.services.items():
+        svc_env = {**cluster.container_env, **getattr(svc, "extra_env", {})}
+        if svc_env:
+            env_groups[f"svc_{name}"] = svc_env
+
+    for bench in config.benchmarks:
+        eval_env = dict(cluster.container_env)
+        if eval_env:
+            env_groups[f"eval_{_safe(bench.name)}"] = eval_env
+
+    secrets_result = generate_secrets_env(env_groups)
+
+    _IMPLICIT_KEYS = ["PYTHONUNBUFFERED", "NEL_INNER_EXECUTION"]
 
     parts: list[str] = []
 
@@ -765,7 +795,6 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
         )
 
     is_sharded = cluster.shards is not None
-    secrets_env: dict[str, str] = {}
 
     if is_sharded:
         for bench in config.benchmarks:
@@ -777,8 +806,8 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
                     f"'{bench.sandbox.type}'). Remove shards or use a simple solver."
                 )
 
-    if cluster.container_env:
-        secrets_env.update(cluster.container_env)
+    has_secrets = bool(secrets_result.secrets_content.strip())
+    if has_secrets:
         parts.append(_SECRETS_SOURCE)
 
     if is_sharded:
@@ -793,11 +822,6 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
         or getattr(cluster, "eval_image", None)
     )
 
-    cluster_env_keys = list(cluster.container_env.keys())
-    for _implicit in ("PYTHONUNBUFFERED", "NEL_INNER_EXECUTION"):
-        if _implicit not in cluster_env_keys:
-            cluster_env_keys.append(_implicit)
-
     if use_containers:
         parts.append(_preflight_image_checks(config, cluster))
 
@@ -805,13 +829,18 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
         parts.append(_CONDA_ACTIVATE.format(conda_env=cluster.conda_env))
 
     for name, svc in config.services.items():
+        group_name = f"svc_{name}"
+        svc_env_keys = reexport_keys(group_name, secrets_result) + _IMPLICIT_KEYS
+        svc_env_keys = list(dict.fromkeys(svc_env_keys))
+        svc_reexport = build_reexport_commands(group_name, secrets_result)
         parts.append(
             _service_block(
                 name,
                 svc,
                 use_containers=use_containers,
                 cluster_mounts=cluster.container_mounts,
-                cluster_env_keys=cluster_env_keys,
+                env_keys=svc_env_keys,
+                reexport_cmds=svc_reexport,
                 mount_home=cluster.mount_home,
                 pool_to_het=pool_to_het if use_het else None,
             )
@@ -883,19 +912,30 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
     total = len(config.benchmarks)
     sidecar_configs: dict[str, dict] = {}
 
+    def _eval_srun_prefix(bench_name: str, image: str) -> str:
+        """Build srun prefix for eval containers with per-benchmark env keys."""
+        group_name = f"eval_{_safe(bench_name)}"
+        eval_env_keys = reexport_keys(group_name, secrets_result) + _IMPLICIT_KEYS
+        eval_env_keys = list(dict.fromkeys(eval_env_keys))
+        _mounts = [f"--container-mounts={m}" for m in cluster.container_mounts]
+        _mounts.append(f"--container-mounts={output_dir}:{output_dir}")
+        if cluster.mount_home:
+            _mounts.append("--container-mounts=$HOME:$HOME")
+        else:
+            _mounts.append("--no-container-mount-home")
+        _envs = [f"--container-env={k}" for k in eval_env_keys]
+        reexport = build_reexport_commands(group_name, secrets_result)
+        prefix = (
+            f"srun --overlap --unbuffered --nodes 1 --ntasks 1 "
+            f"--container-image {image} "
+            f"{' '.join(_mounts)} {' '.join(_envs)} \\\n    "
+        )
+        return f"{reexport}\n{prefix}" if reexport else prefix
+
     eval_run_prefix = ""
     if use_containers and base_override:
-        _eval_mounts = [f"--container-mounts={m}" for m in cluster.container_mounts]
-        _eval_mounts.append(f"--container-mounts={output_dir}:{output_dir}")
-        if cluster.mount_home:
-            _eval_mounts.append("--container-mounts=$HOME:$HOME")
-        else:
-            _eval_mounts.append("--no-container-mount-home")
-        _eval_envs = [f"--container-env={k}" for k in cluster_env_keys]
-        eval_run_prefix = (
-            f"srun --overlap --unbuffered --nodes 1 --ntasks 1 "
-            f"--container-image {base_override} "
-            f"{' '.join(_eval_mounts)} {' '.join(_eval_envs)} \\\n    "
+        eval_run_prefix = _eval_srun_prefix(
+            config.benchmarks[0].name if config.benchmarks else "_report", base_override
         )
 
     for i, bench in enumerate(config.benchmarks, 1):
@@ -913,18 +953,7 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
 
         run_prefix = ""
         if use_containers and eval_image:
-            eval_mount_parts = [f"--container-mounts={m}" for m in cluster.container_mounts]
-            eval_mount_parts.append(f"--container-mounts={output_dir}:{output_dir}")
-            if cluster.mount_home:
-                eval_mount_parts.append("--container-mounts=$HOME:$HOME")
-            else:
-                eval_mount_parts.append("--no-container-mount-home")
-            eval_env_parts = [f"--container-env={k}" for k in cluster_env_keys]
-            run_prefix = (
-                f"srun --overlap --unbuffered --nodes 1 --ntasks 1 "
-                f"--container-image {eval_image} "
-                f"{' '.join(eval_mount_parts)} {' '.join(eval_env_parts)} \\\n    "
-            )
+            run_prefix = _eval_srun_prefix(bench.name, eval_image)
 
         if _needs_full_config(bench):
             sidecar = _extract_bench_config(
@@ -1034,18 +1063,11 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], dict[str,
 
     parts.append(_FOOTER)
 
-    return "\n".join(parts), sidecar_configs, secrets_env
+    return "\n".join(parts), sidecar_configs, secrets_result
 
 
-def _redact(value: str) -> str:
-    """Mask a secret value for display, showing only the last 4 chars.
 
-    Matches the old evaluator's ``redact_secrets_env_content()`` behaviour:
-    all values are redacted (no name-based heuristic).
-    """
-    if len(value) <= 4:
-        return "***"
-    return f"***{value[-4:]}"
+
 
 
 def stamp_output_dir(config: EvalConfig) -> None:
@@ -1061,12 +1083,14 @@ def stamp_output_dir(config: EvalConfig) -> None:
         or os.environ.get("NEL_INNER_EXECUTION") == "1"
     ):
         return
-    from nemo_evaluator.executors.run_store import generate_run_id
+    from nemo_evaluator.run_store import generate_run_id
 
     config.output.dir = str(Path(config.output.dir) / generate_run_id(config))
 
 
-def write_sbatch(config: EvalConfig, output_dir: str | Path | None = None) -> tuple[Path, list[Path]]:
+def write_sbatch(
+    config: EvalConfig, output_dir: str | Path | None = None, *, dry_run: bool = False,
+) -> tuple[Path, list[Path]]:
     """Write sbatch script + sidecar config YAMLs + .secrets.env.
 
     Returns (sbatch_path, list_of_extra_paths).
@@ -1077,19 +1101,23 @@ def write_sbatch(config: EvalConfig, output_dir: str | Path | None = None) -> tu
     out.mkdir(parents=True, exist_ok=True)
     (out / "logs").mkdir(exist_ok=True)
 
-    script, sidecar_configs, secrets_env = generate_sbatch(config)
+    script, sidecar_configs, secrets_result = generate_sbatch(config)
     path = out / "nel_eval.sbatch"
     path.write_text(script, encoding="utf-8")
     path.chmod(0o755)
 
     extra_paths: list[Path] = []
 
-    if secrets_env:
+    if secrets_result.secrets_content.strip():
         secrets_path = out / ".secrets.env"
-        lines = [f"export {k}={shlex.quote(v)}" for k, v in secrets_env.items()]
-        secrets_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        secrets_path.write_text(secrets_result.secrets_content, encoding="utf-8")
         secrets_path.chmod(0o600)
         extra_paths.append(secrets_path)
+
+        if dry_run:
+            import click
+            click.echo("\n.secrets.env (redacted):")
+            click.echo(redact_secrets_env_content(secrets_result.secrets_content))
 
     for safe_name, cfg_dict in sidecar_configs.items():
         cfg_path = out / f"config_{safe_name}.yaml"

@@ -3,7 +3,7 @@
 import pytest
 import warnings
 
-from nemo_evaluator.eval.config import (
+from nemo_evaluator.orchestration.config import (
     EvalConfig,
     ExternalApiService,
     VllmService,

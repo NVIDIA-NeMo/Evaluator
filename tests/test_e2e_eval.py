@@ -21,7 +21,7 @@ from tests.conftest import (
 @pytest.mark.asyncio
 async def test_eval_loop_completes(bench: str):
     """Full eval loop: seed → solve (cached) → verify → metrics."""
-    from nemo_evaluator.runner.eval_loop import run_evaluation
+    from nemo_evaluator.engine.eval_loop import run_evaluation
 
     fixture_path = FIXTURE_DIR / f"{bench}.json"
     env = FixturedEnvironment(fixture_path)
@@ -51,7 +51,7 @@ async def test_eval_loop_completes(bench: str):
 @pytest.mark.asyncio
 async def test_eval_loop_n_repeats():
     """n_repeats > 1 gives us len(results) == problems * repeats."""
-    from nemo_evaluator.runner.eval_loop import run_evaluation
+    from nemo_evaluator.engine.eval_loop import run_evaluation
 
     bench = "mmlu"
     fixture_path = FIXTURE_DIR / f"{bench}.json"
@@ -76,7 +76,7 @@ async def test_eval_loop_n_repeats():
 @pytest.mark.asyncio
 async def test_eval_loop_with_sandbox_manager():
     """Eval loop works when a sandbox manager is provided (even if unused)."""
-    from nemo_evaluator.runner.eval_loop import run_evaluation
+    from nemo_evaluator.engine.eval_loop import run_evaluation
 
     bench = "gsm8k"
     fixture_path = FIXTURE_DIR / f"{bench}.json"
@@ -103,7 +103,7 @@ async def test_eval_loop_with_sandbox_manager():
 @pytest.mark.asyncio
 async def test_eval_loop_judge_client():
     """Judge client is called when verify returns needs_judge=True."""
-    from nemo_evaluator.runner.eval_loop import run_evaluation
+    from nemo_evaluator.engine.eval_loop import run_evaluation
 
     bench = "simpleqa"
     fixture_path = FIXTURE_DIR / f"{bench}.json"
@@ -130,7 +130,7 @@ async def test_eval_loop_judge_client():
 @pytest.mark.asyncio
 async def test_eval_loop_metrics_shape():
     """Verify that all expected metric keys are present."""
-    from nemo_evaluator.runner.eval_loop import run_evaluation
+    from nemo_evaluator.engine.eval_loop import run_evaluation
 
     bench = "drop"
     fixture_path = FIXTURE_DIR / f"{bench}.json"
@@ -167,7 +167,7 @@ async def test_eval_loop_metrics_shape():
 @pytest.mark.asyncio
 async def test_eval_loop_zero_reward():
     """Eval loop handles benchmarks where all rewards are zero (simpleqa fixture)."""
-    from nemo_evaluator.runner.eval_loop import run_evaluation
+    from nemo_evaluator.engine.eval_loop import run_evaluation
 
     bench = "simpleqa"
     fixture_path = FIXTURE_DIR / f"{bench}.json"

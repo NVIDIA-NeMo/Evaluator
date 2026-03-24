@@ -82,7 +82,7 @@ def eval_run(config_file, bench, model_url, model_id, api_key,
 def _load_config(config_file: str, overrides: tuple[str, ...] = ()):
     import yaml
 
-    from nemo_evaluator.eval.config import parse_eval_config
+    from nemo_evaluator.orchestration.config import parse_eval_config
 
     raw = yaml.safe_load(Path(config_file).read_text()) or {}
     for ov in overrides:
@@ -136,7 +136,7 @@ def _apply_override(data: dict, override: str) -> None:
 def _build_quick_config(bench, model_url, model_id, api_key, repeats,
                         max_problems, system_prompt, temperature, max_tokens,
                         output_dir):
-    from nemo_evaluator.eval.config import (
+    from nemo_evaluator.orchestration.config import (
         BenchmarkConfig,
         EvalConfig,
         ExternalApiService,
@@ -188,7 +188,7 @@ def _build_quick_config(bench, model_url, model_id, api_key, repeats,
 
 def _resolve_run_or_fail(run_id=None, output_dir=None, job_id=None, host=None):
     """Resolve a RunMeta from --run-id, --output-dir, or legacy --job-id."""
-    from nemo_evaluator.executors.run_store import resolve_run
+    from nemo_evaluator.run_store import resolve_run
 
     meta = resolve_run(run_id=run_id, output_dir=output_dir,
                        job_id=job_id, host=host)
@@ -196,11 +196,11 @@ def _resolve_run_or_fail(run_id=None, output_dir=None, job_id=None, host=None):
         return meta
 
     if job_id or host:
-        from nemo_evaluator.executors.slurm import resolve_job
+        from nemo_evaluator.executors.slurm_executor import resolve_job
 
         legacy = resolve_job(job_id=job_id, host=host, output_dir=output_dir)
         if legacy is not None:
-            from nemo_evaluator.executors.run_store import RunMeta
+            from nemo_evaluator.run_store import RunMeta
 
             return RunMeta(
                 run_id=f"legacy-{legacy.get('job_id', 'unknown')}",
@@ -302,7 +302,7 @@ def eval_stop(run_id, output_dir, job_id, host):
 def eval_jobs(offline):
     """List all tracked evaluation runs."""
     from nemo_evaluator.executors import get_executor
-    from nemo_evaluator.executors.run_store import list_runs
+    from nemo_evaluator.run_store import list_runs
 
     runs = list_runs()
     if not runs:
@@ -365,7 +365,7 @@ def eval_logs(run_id, output_dir, job_id, host, follow, tail_lines):
         hostname = details.get("hostname", "")
         username = details.get("username") or None
         rdir = details.get("remote_dir", run_meta.output_dir)
-        from nemo_evaluator.executors.slurm import _resolve_latest_job_id_from_meta
+        from nemo_evaluator.executors.slurm_executor import _resolve_latest_job_id_from_meta
 
         latest_id = _resolve_latest_job_id_from_meta(details)
         log_file = f"{rdir}/logs/slurm-{latest_id}.log"
@@ -436,7 +436,7 @@ def eval_clean(older_than, filter_executor, dry_run, yes):
     import re
     from datetime import datetime, timedelta, timezone
 
-    from nemo_evaluator.executors.run_store import list_runs, remove_run
+    from nemo_evaluator.run_store import list_runs, remove_run
 
     runs = list_runs()
     if not runs:
@@ -610,7 +610,7 @@ def eval_merge(output_dir, repeats):
         n_repeats = 1
         click.echo("Warning: could not detect n_repeats from bundles, defaulting to 1.", err=True)
 
-    from nemo_evaluator.runner.sharding import merge_results
+    from nemo_evaluator.engine.sharding import merge_results
 
     for bench_name, dirs in sorted(benchmarks.items()):
         merged_dir = root / bench_name

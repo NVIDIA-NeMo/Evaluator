@@ -1,5 +1,5 @@
 """MATH-500 -- competition math from HuggingFaceH4."""
-from nemo_evaluator.environments.byob import benchmark, scorer
+from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput, answer_line
 
 _PROMPT = (

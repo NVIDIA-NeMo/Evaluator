@@ -32,6 +32,7 @@ class SandboxManager:
         slurm_nodes: list[str] | None = None,
         slots_per_node: int = 4,
         sif_cache_dir: str | None = None,
+        global_env: dict[str, str] | None = None,
         **backend_kwargs: Any,
     ) -> None:
         self._backend = backend
@@ -39,6 +40,7 @@ class SandboxManager:
         self._sem = asyncio.Semaphore(concurrency)
         self._default_image = default_image
         self._image_template = image_template
+        self._global_env = global_env or {}
         self._backend_kwargs = backend_kwargs
         self._active: set[Any] = set()
         self._pulled: set[str] = set()
@@ -328,6 +330,20 @@ class SandboxManager:
     # Spec resolution
     # ------------------------------------------------------------------
 
+    def _merge_env(self, spec_env: dict[str, str]) -> dict[str, str]:
+        """Merge global_env (from sandbox config's container_env) with per-seed env.
+
+        Seed-provided env takes precedence over global env.
+        """
+        if not self._global_env:
+            return spec_env
+        conflicts = set(self._global_env) & set(spec_env)
+        if conflicts:
+            logger.debug(
+                "Sandbox global_env keys %s overridden by seed env", sorted(conflicts),
+            )
+        return {**self._global_env, **spec_env}
+
     def resolve_spec(
         self,
         seed: SeedResult,
@@ -339,6 +355,8 @@ class SandboxManager:
         Priority: image_template overrides the image, but per-problem fields
         (workdir, env, files, entrypoint) from the base spec are preserved.
         Extra volumes (e.g. shared volume for stateless verification) are appended.
+        ``global_env`` (from sandbox ``container_env``) is merged in, but
+        seed-provided env takes precedence.
 
         Args:
             base_override: Use this spec instead of ``seed.sandbox_spec``
@@ -361,7 +379,7 @@ class SandboxManager:
                 return SandboxSpec(
                     image=image,
                     workdir=base.workdir if base else "/workspace",
-                    env=dict(base.env) if base else {},
+                    env=self._merge_env(dict(base.env) if base else {}),
                     files=dict(base.files) if base else {},
                     entrypoint=base.entrypoint if base else None,
                     volumes=(list(base.volumes) if base else []) + vols,
@@ -369,11 +387,12 @@ class SandboxManager:
                 )
 
         if base:
-            if vols:
+            merged_env = self._merge_env(dict(base.env))
+            if vols or merged_env != base.env:
                 return SandboxSpec(
                     image=base.image,
                     workdir=base.workdir,
-                    env=dict(base.env),
+                    env=merged_env,
                     files=dict(base.files),
                     entrypoint=base.entrypoint,
                     volumes=list(base.volumes) + vols,
@@ -382,7 +401,11 @@ class SandboxManager:
             return base
 
         if self._default_image:
-            return SandboxSpec(image=self._default_image, volumes=vols)
+            return SandboxSpec(
+                image=self._default_image,
+                env=self._merge_env({}),
+                volumes=vols,
+            )
         return None
 
     # ------------------------------------------------------------------

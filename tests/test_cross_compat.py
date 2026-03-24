@@ -12,7 +12,7 @@ import pytest
 
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.sandbox.base import SandboxSpec
-from nemo_evaluator.sandbox.lifecycle import (
+from nemo_evaluator.sandbox.strategies import (
     NoSandbox,
     StatefulSandbox,
     StatelessSandbox,
@@ -196,7 +196,7 @@ _AVAILABLE_SANDBOX_FIXTURES = [b for b in _SANDBOX_FIXTURES if (FIXTURE_DIR / f"
 @pytest.mark.asyncio
 async def test_text_benchmark_full_loop(bench: str):
     """Text-only benchmark through full eval loop with NoSandbox lifecycle."""
-    from nemo_evaluator.runner.eval_loop import run_evaluation
+    from nemo_evaluator.engine.eval_loop import run_evaluation
 
     fp = FIXTURE_DIR / f"{bench}.json"
     from tests.conftest import FixturedEnvironment
@@ -217,7 +217,7 @@ async def test_text_benchmark_full_loop(bench: str):
 @pytest.mark.asyncio
 async def test_sandbox_benchmark_with_mock_manager(bench: str):
     """Sandbox-requiring benchmark through eval loop with mock sandbox."""
-    from nemo_evaluator.runner.eval_loop import run_evaluation
+    from nemo_evaluator.engine.eval_loop import run_evaluation
     from tests.conftest import FixturedEnvironment
 
     fp = FIXTURE_DIR / f"{bench}.json"

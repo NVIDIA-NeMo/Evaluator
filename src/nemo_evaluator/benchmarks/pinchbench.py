@@ -28,7 +28,7 @@ from typing import Any
 import urllib.request
 
 from nemo_evaluator.environments.base import SeedResult
-from nemo_evaluator.environments.byob import benchmark, scorer
+from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.scoring.types import ScorerInput
 
 logger = logging.getLogger(__name__)

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from nemo_evaluator.eval.config import EvalConfig
+    from nemo_evaluator.orchestration.config import EvalConfig
 
 logger = logging.getLogger(__name__)
 

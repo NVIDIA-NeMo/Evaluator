@@ -15,10 +15,10 @@ from nemo_evaluator.metrics.pass_at_k import aggregate_pass_at_k, pass_at_k
 from nemo_evaluator.observability.collector import ArtifactCollector
 from nemo_evaluator.observability.progress import NoOpProgress, ProgressTracker
 from nemo_evaluator.observability.types import StepRecord
-from nemo_evaluator.runner.artifacts import build_artifact_bundle
-from nemo_evaluator.sandbox.lifecycle import pick_lifecycle
+from nemo_evaluator.engine.artifacts import build_artifact_bundle
+from nemo_evaluator.sandbox.strategies import pick_lifecycle
 from nemo_evaluator.solvers import Solver
-from nemo_evaluator.runner.step_log import (
+from nemo_evaluator.engine.step_log import (
     INFERENCE_LOG,
     VERIFIED_LOG,
     StepLog,
@@ -64,7 +64,7 @@ async def run_evaluation(
         ds_size = min(ds_size, max_problems)
 
     if shard_info and not problem_range:
-        from nemo_evaluator.runner.sharding import get_shard_range
+        from nemo_evaluator.engine.sharding import get_shard_range
         shard_idx, total_shards = shard_info
         problem_range = get_shard_range(ds_size, shard_idx, total_shards)
         config["shard"] = {

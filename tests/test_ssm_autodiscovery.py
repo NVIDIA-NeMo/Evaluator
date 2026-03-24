@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nemo_evaluator.eval.config import EcsFargateSandbox, SshSidecarConfig
+from nemo_evaluator.orchestration.config import EcsFargateSandbox, SshSidecarConfig
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────
@@ -184,7 +184,7 @@ class TestEcsFargateSandboxModel:
 
 class TestBuildEcsSandboxConfigWithSsm:
     def _build(self, cfg: EcsFargateSandbox):
-        from nemo_evaluator.eval.local_runner import _build_ecs_sandbox_config
+        from nemo_evaluator.orchestration.orchestrator import _build_ecs_sandbox_config
         return _build_ecs_sandbox_config(cfg)
 
     def test_full_autodiscovery(self):

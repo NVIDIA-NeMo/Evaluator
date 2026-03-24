@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from nemo_evaluator.runner.step_log import INFERENCE_LOG, VERIFIED_LOG
+from nemo_evaluator.engine.step_log import INFERENCE_LOG, VERIFIED_LOG
 
 logger = logging.getLogger(__name__)
 

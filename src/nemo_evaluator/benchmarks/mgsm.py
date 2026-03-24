@@ -1,6 +1,6 @@
 """MGSM -- Multilingual Grade School Math (11 languages)."""
 from nemo_evaluator.environments.base import SeedResult
-from nemo_evaluator.environments.byob import benchmark, scorer
+from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput, numeric_match
 
 _LANGS = ["en", "de", "fr", "es", "ru", "zh", "ja", "th", "te", "bn", "sw"]

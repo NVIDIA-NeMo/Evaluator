@@ -56,7 +56,7 @@ class LocalExecutor(Executor):
     def _run_foreground(self, config, *, resume: bool = False) -> None:
         import click
 
-        from nemo_evaluator.eval.local_runner import run_local
+        from nemo_evaluator.orchestration.orchestrator import run_local
 
         _write_pid(config.output.dir)
         self._save_run_meta(config)
@@ -79,7 +79,7 @@ class LocalExecutor(Executor):
         """Write unified RunMeta, return the run_id."""
         from datetime import datetime, timezone
 
-        from nemo_evaluator.executors.run_store import (
+        from nemo_evaluator.run_store import (
             RunMeta,
             config_summary,
             generate_run_id,
@@ -121,7 +121,7 @@ class LocalExecutor(Executor):
         os.dup2(log_fd.fileno(), 2)
 
         try:
-            from nemo_evaluator.eval.local_runner import run_local
+            from nemo_evaluator.orchestration.orchestrator import run_local
             run_local(config, resume=resume)
         finally:
             pid_file = Path(config.output.dir) / "nel.pid"
@@ -167,7 +167,7 @@ class LocalExecutor(Executor):
 
         import json
 
-        from nemo_evaluator.eval.config import parse_eval_config
+        from nemo_evaluator.orchestration.config import parse_eval_config
 
         raw = json.loads(config_path.read_text(encoding="utf-8"))
         config = parse_eval_config(raw)

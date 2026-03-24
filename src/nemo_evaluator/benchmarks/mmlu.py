@@ -1,5 +1,5 @@
 """MMLU -- Massive Multitask Language Understanding (14K 4-choice QA)."""
-from nemo_evaluator.environments.byob import benchmark, scorer
+from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput, multichoice_regex
 
 _PROMPT = (

@@ -9,7 +9,7 @@ import threading
 from pathlib import Path
 from typing import IO, Any
 
-from nemo_evaluator.eval.config import (
+from nemo_evaluator.orchestration.config import (
     AgentSolverConfig,
     ApptainerSandbox,
     ContainerSolverConfig,
@@ -236,7 +236,7 @@ def _make_solver(
         )
 
     if isinstance(solver_cfg, ToolCallingSolverConfig):
-        from nemo_evaluator.runner.model_client import ModelClient
+        from nemo_evaluator.engine.model_client import ModelClient
         from nemo_evaluator.solvers.react import ReActSolver
         from nemo_evaluator.solvers.tool_backend import HttpToolBackend
 
@@ -305,10 +305,10 @@ def _make_solver(
     return ChatSolver(client, system_prompt=None)
 
 
-def _start_model_service(svc: Any):
+def _start_model_service(svc: Any, cluster_env: dict[str, str] | None = None):
     import subprocess as _sp
 
-    from nemo_evaluator.eval.deployment import DeployConfig, get_deployment
+    from nemo_evaluator.orchestration.model_server import DeployConfig, get_deployment
 
     if hasattr(svc, "setup_commands") and svc.setup_commands:
         for cmd in svc.setup_commands:
@@ -325,6 +325,7 @@ def _start_model_service(svc: Any):
         health_path=svc.health_path,
         startup_timeout=svc.startup_timeout,
         extra_env=svc.extra_env,
+        cluster_env=cluster_env or {},
         extra_args=list(svc.extra_args),
         nodes=svc.num_nodes,
         pipeline_parallel_size=svc.pipeline_parallel_size,
@@ -421,7 +422,10 @@ class _NatServiceHandle:
 
 
 class _ServiceHandle:
-    def __init__(self, name: str, svc: Any, log_dir: Path | None = None) -> None:
+    def __init__(
+        self, name: str, svc: Any, log_dir: Path | None = None,
+        cluster_env: dict[str, str] | None = None,
+    ) -> None:
         self.name = name
         self.svc = svc
         self._deployment = None
@@ -429,6 +433,7 @@ class _ServiceHandle:
         self._nat = None
         self._drain_thread: threading.Thread | None = None
         self._log_dir = log_dir
+        self._cluster_env = cluster_env or {}
         self.url: str = ""
 
     def _setup_log_drain(self) -> None:
@@ -467,7 +472,9 @@ class _ServiceHandle:
             return self.url
 
         if isinstance(self.svc, _MODEL_SERVICE_TYPES) and self.svc.is_managed:
-            self._deployment, self.url = _start_model_service(self.svc)
+            self._deployment, self.url = _start_model_service(
+                self.svc, cluster_env=self._cluster_env,
+            )
             self._setup_log_drain()
             return self.url
 
@@ -512,6 +519,8 @@ def _make_sandbox_manager(sb: Any) -> Any:
 
     from nemo_evaluator.sandbox.manager import SandboxManager
 
+    sandbox_env = getattr(sb, "container_env", {}) or {}
+
     if isinstance(sb, DockerSandbox):
         return SandboxManager(
             backend="docker",
@@ -521,6 +530,7 @@ def _make_sandbox_manager(sb: Any) -> Any:
             network=sb.network,
             memory=sb.memory,
             cpus=sb.cpus,
+            global_env=sandbox_env,
         )
 
     if isinstance(sb, (SlurmSandbox, ApptainerSandbox)):
@@ -553,6 +563,7 @@ def _make_sandbox_manager(sb: Any) -> Any:
             slurm_nodes=slurm_nodes,
             slots_per_node=sb.slots_per_node,
             sif_cache_dir=getattr(sb, "sif_cache_dir", None),
+            global_env=sandbox_env,
             **backend_kwargs,
         )
 
@@ -563,6 +574,7 @@ def _make_sandbox_manager(sb: Any) -> Any:
             default_image=sb.image,
             image_template=sb.image_template,
             ecs_config=_build_ecs_sandbox_config(sb),
+            global_env=sandbox_env,
         )
 
     return None
@@ -573,7 +585,7 @@ def _make_judge_client(
     judge_name: str,
     handles: dict[str, _ServiceHandle],
 ) -> Any:
-    from nemo_evaluator.runner.model_client import ModelClient
+    from nemo_evaluator.engine.model_client import ModelClient
 
     handle = handles.get(judge_name)
     if handle and handle.url:
@@ -598,9 +610,9 @@ async def _run_single_benchmark(
 ) -> dict[str, Any]:
     from nemo_evaluator.environments.registry import get_environment
     from nemo_evaluator.observability.progress import ConsoleProgress
-    from nemo_evaluator.runner.artifacts import write_all
-    from nemo_evaluator.runner.eval_loop import run_evaluation
-    from nemo_evaluator.runner.model_client import ModelClient
+    from nemo_evaluator.engine.artifacts import write_all
+    from nemo_evaluator.engine.eval_loop import run_evaluation
+    from nemo_evaluator.engine.model_client import ModelClient
 
     solver_cfg = bench.solver
     service_name: str | None = getattr(solver_cfg, "service", None)
@@ -622,7 +634,7 @@ async def _run_single_benchmark(
 
     proxy_handle = None
     if svc and hasattr(svc, "interceptors") and svc.interceptors:
-        from nemo_evaluator.eval.proxy import start_proxy
+        from nemo_evaluator.orchestration.proxy import start_proxy
 
         proxy_handle = start_proxy(
             model_url, model_id, api_key,
@@ -678,7 +690,7 @@ async def _run_single_benchmark(
                 bench, config, client, model_url, model_id, api_key,
             )
 
-        from nemo_evaluator.runner.sharding import shard_from_env
+        from nemo_evaluator.engine.sharding import shard_from_env
         shard_info = shard_from_env()
 
         batch_config: dict[str, Any] = {
@@ -712,7 +724,7 @@ async def _run_single_benchmark(
             return batch_result
 
         judge_client = None
-        from nemo_evaluator.eval.config import JudgeMetric
+        from nemo_evaluator.orchestration.config import JudgeMetric
 
         for metric in bench.scoring.metrics:
             if isinstance(metric, JudgeMetric):
@@ -783,7 +795,13 @@ def run_local(
 ) -> list[dict[str, Any]]:
     import click
 
-    from nemo_evaluator.runner.checkpoint import CheckpointManager
+    from nemo_evaluator.engine.checkpoint import CheckpointManager
+
+    os.environ.setdefault("PYTHONUNBUFFERED", "1")
+
+    cluster_env = getattr(config.cluster, "container_env", {}) or {}
+    saved_env: dict[str, str | None] = {k: os.environ.get(k) for k in cluster_env}
+    os.environ.update(cluster_env)
 
     output_dir = Path(config.output.dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -800,7 +818,9 @@ def run_local(
 
     for name, svc in config.services.items():
         if svc.is_managed:
-            handles[name] = _ServiceHandle(name, svc, log_dir=log_dir)
+            handles[name] = _ServiceHandle(
+                name, svc, log_dir=log_dir, cluster_env=cluster_env,
+            )
 
     try:
         for name, handle in handles.items():
@@ -876,6 +896,11 @@ def run_local(
         for name, handle in reversed(list(handles.items())):
             logger.info("Stopping service: %s", name)
             handle.stop()
+        for k, v in saved_env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
     return bundles
 
@@ -920,7 +945,7 @@ def _generate_reports(
 
     for exporter_name in config.output.export:
         try:
-            from nemo_evaluator.runner.exporters import get_exporter
+            from nemo_evaluator.engine.exporters import get_exporter
 
             exporter_kwargs = config.output.export_config.get(
                 exporter_name, {},

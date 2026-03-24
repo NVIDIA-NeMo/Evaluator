@@ -133,7 +133,7 @@ def merge_results(shard_dirs: list[str | Path], output_dir: str | Path, n_repeat
         cats = [{"category": c.category, "n_samples": c.n_samples,
                  "mean_reward": round(c.mean_reward, 4)} for c in cr]
 
-    from nemo_evaluator.runner.artifacts import build_artifact_bundle
+    from nemo_evaluator.engine.artifacts import build_artifact_bundle
     config = configs[0] if configs else {}
     config["n_shards"] = len(shard_dirs)
     bundle = build_artifact_bundle(

@@ -121,7 +121,7 @@ Deltas marked with `*` are statistically significant (Mann-Whitney U, p < 0.05).
 ### Python API
 
 ```python
-from nemo_evaluator.runner.regression import compare_runs, write_regression
+from nemo_evaluator.engine.comparison import compare_runs, write_regression
 
 report = compare_runs("baseline/eval-*.json", "candidate/eval-*.json")
 

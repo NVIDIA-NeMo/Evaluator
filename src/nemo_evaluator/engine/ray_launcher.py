@@ -4,7 +4,7 @@ Shards a benchmark across Ray workers, merges results.
 Compatible with Ray clusters used by NeMo Gym for training.
 
 Usage:
-    ray job submit --working-dir . -- python -m nemo_evaluator.runner.ray_launcher \
+    ray job submit --working-dir . -- python -m nemo_evaluator.engine.ray_launcher \
         --benchmark gsm8k --shards 8 --repeats 5
 """
 from __future__ import annotations
@@ -33,9 +33,9 @@ def run_shard(
 ) -> dict:
     from nemo_evaluator.environments.registry import get_environment
     from nemo_evaluator.observability.progress import NoOpProgress
-    from nemo_evaluator.runner.eval_loop import run_evaluation
-    from nemo_evaluator.runner.model_client import ModelClient
-    from nemo_evaluator.runner.sharding import get_shard_range
+    from nemo_evaluator.engine.eval_loop import run_evaluation
+    from nemo_evaluator.engine.model_client import ModelClient
+    from nemo_evaluator.engine.sharding import get_shard_range
     from nemo_evaluator.solvers import ChatSolver
 
     env = get_environment(benchmark)
@@ -105,7 +105,7 @@ def main():
             bundle_path = shard_dir / f"{bundle.get('run_id', f'shard_{i}')}.json"
             bundle_path.write_text(json.dumps(bundle, indent=2, default=str))
 
-        from nemo_evaluator.runner.sharding import merge_results
+        from nemo_evaluator.engine.sharding import merge_results
         shard_dirs = sorted(Path(tmpdir).glob("shard_*"))
         merged = merge_results(shard_dirs, out, n_repeats=args.repeats)
 

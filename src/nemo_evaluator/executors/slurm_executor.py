@@ -29,7 +29,7 @@ class SlurmExecutor(Executor):
     def run(self, config, *, dry_run=False, resume=False, background=False, **_kwargs) -> None:
         import click
 
-        from nemo_evaluator.eval.slurm_gen import stamp_output_dir, write_sbatch
+        from nemo_evaluator.orchestration.slurm_gen import stamp_output_dir, write_sbatch
 
         parent_dir = config.output.dir
         stamp_output_dir(config)
@@ -39,9 +39,9 @@ class SlurmExecutor(Executor):
         local_staging = None
         if is_remote:
             local_staging = Path(tempfile.mkdtemp(prefix="nel-slurm-"))
-            script_path, extra_paths = write_sbatch(config, output_dir=local_staging)
+            script_path, extra_paths = write_sbatch(config, output_dir=local_staging, dry_run=dry_run)
         else:
-            script_path, extra_paths = write_sbatch(config)
+            script_path, extra_paths = write_sbatch(config, dry_run=dry_run)
 
         click.echo(f"Generated: {script_path}")
         for sp in extra_paths:
@@ -63,7 +63,7 @@ class SlurmExecutor(Executor):
             return
 
         if is_remote:
-            from nemo_evaluator.eval.ssh import submit_eval
+            from nemo_evaluator.executors.ssh import submit_eval
 
             try:
                 meta = submit_eval(
@@ -85,7 +85,7 @@ class SlurmExecutor(Executor):
             meta_path = meta_dir / _META_FILE
             meta_path.write_text(json.dumps(meta, indent=2))
 
-            from nemo_evaluator.executors.run_store import (
+            from nemo_evaluator.run_store import (
                 RunMeta,
                 config_summary,
                 generate_run_id,
@@ -134,7 +134,7 @@ class SlurmExecutor(Executor):
         if meta is None:
             return ProcessState("slurm", False, {"error": f"No {_META_FILE} found"})
 
-        from nemo_evaluator.eval.ssh import check_job_status
+        from nemo_evaluator.executors.ssh import check_job_status
 
         info = check_job_status(
             hostname=meta["hostname"],
@@ -155,7 +155,7 @@ class SlurmExecutor(Executor):
             logger.warning("No %s found in %s", _META_FILE, output_dir)
             return False
 
-        from nemo_evaluator.eval.ssh import cancel_job
+        from nemo_evaluator.executors.ssh import cancel_job
 
         try:
             cancel_job(
@@ -173,7 +173,7 @@ class SlurmExecutor(Executor):
         meta = _read_meta(output_dir)
         if meta is None:
             return None
-        from nemo_evaluator.eval.ssh import ssh_run
+        from nemo_evaluator.executors.ssh import ssh_run
 
         hostname = meta["hostname"]
         username = meta.get("username") or None
@@ -200,7 +200,7 @@ class SlurmExecutor(Executor):
         rdir = details.get("remote_dir", run_meta.output_dir)
         script = f"{rdir}/nel_eval.sbatch"
 
-        from nemo_evaluator.eval.ssh import ssh_run
+        from nemo_evaluator.executors.ssh import ssh_run
 
         continue_attempts = kwargs.get("continue_attempts", False)
         if not continue_attempts:
@@ -232,7 +232,7 @@ def _resolve_latest_job_id_from_meta(meta: dict) -> str:
     if not remote_dir or not hostname:
         return meta["job_id"]
     try:
-        from nemo_evaluator.eval.ssh import ssh_run
+        from nemo_evaluator.executors.ssh import ssh_run
 
         chain = ssh_run(
             hostname,

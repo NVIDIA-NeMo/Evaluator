@@ -26,6 +26,7 @@ class DeployConfig:
     health_path: str = "/health"
     startup_timeout: float = 600.0
     extra_env: dict[str, str] = field(default_factory=dict)
+    cluster_env: dict[str, str] = field(default_factory=dict)
     extra_args: list[str] = field(default_factory=list)
     nodes: int = 1
     pipeline_parallel_size: int | None = None
@@ -79,7 +80,8 @@ class DockerModelDeployment:
         if c.gpus > 0:
             cmd += ["--gpus", f'"device={",".join(str(i) for i in range(c.gpus))}"']
 
-        for k, v in c.extra_env.items():
+        merged_env = {**c.cluster_env, **c.extra_env}
+        for k, v in merged_env.items():
             cmd += ["-e", f"{k}={v}"]
 
         cmd.append(c.image)
@@ -155,7 +157,7 @@ class ProcessModelDeployment:
         cmd = self._build_cmd()
         logger.info("Starting model process: %s", " ".join(cmd))
 
-        env = {**os.environ, **self._config.extra_env}
+        env = {**os.environ, **self._config.cluster_env, **self._config.extra_env}
         self._process = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         self.health_wait(self._config.startup_timeout)
         return f"http://localhost:{self._port}/v1"
@@ -247,7 +249,7 @@ class RayMultiNodeDeployment:
 
         cmd.extend(c.extra_args)
 
-        env = {**os.environ, **c.extra_env}
+        env = {**os.environ, **c.cluster_env, **c.extra_env}
         logger.info("Starting vLLM with Ray: %s", " ".join(cmd))
         self._vllm_process = subprocess.Popen(cmd, env=env,
                                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)

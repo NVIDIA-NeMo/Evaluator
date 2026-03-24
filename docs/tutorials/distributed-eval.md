@@ -117,7 +117,7 @@ After all pods complete, merge with `nel eval merge`.
 For Ray clusters (compatible with NeMo Gym's Ray infrastructure):
 
 ```bash
-ray job submit --working-dir . -- python -m nemo_evaluator.runner.ray_launcher \
+ray job submit --working-dir . -- python -m nemo_evaluator.engine.ray_launcher \
     --bench gsm8k --shards 8 --repeats 5 \
     --output-dir ./eval_results/ray
 ```
@@ -128,7 +128,7 @@ Each shard runs as a `@ray.remote` task. Results are merged in-process after all
 
 ```python
 import ray
-from nemo_evaluator.runner.ray_launcher import run_shard
+from nemo_evaluator.engine.ray_launcher import run_shard
 
 ray.init()
 futures = [run_shard.remote("gsm8k", i, 8, ...) for i in range(8)]
