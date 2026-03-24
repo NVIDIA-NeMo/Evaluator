@@ -15,7 +15,6 @@
 #
 """SSH/rsync utilities for interacting with remote SLURM clusters."""
 
-import shlex
 import subprocess
 import tempfile
 from contextlib import contextmanager
@@ -172,11 +171,16 @@ def rsync_upload(
     for local_source in local_sources:
         assert local_source.is_dir()
     remote_destination_str = f"{username}@{hostname}:{remote_target}"
-    local_sources_str = " ".join(map(str, local_sources))
-    rsync_upload_command = f"rsync -qcaz {local_sources_str} {remote_destination_str}"
-    logger.info("Rsyncing to remote dir", cmd=rsync_upload_command)
+    local_sources_str = map(str, local_sources)
+    rsync_upload_command = [
+        "rsync",
+        "-qcaz",
+        *local_sources_str,
+        remote_destination_str,
+    ]
+    logger.info("Rsyncing to remote dir", cmd=" ".join(rsync_upload_command))
     completed_process = subprocess.run(
-        args=shlex.split(rsync_upload_command),
+        args=rsync_upload_command,
         stderr=subprocess.PIPE,
     )
     if completed_process.returncode != 0:
