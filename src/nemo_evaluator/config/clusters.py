@@ -49,6 +49,7 @@ class NodePool(BaseModel):
     nodes: int = 1
     ntasks_per_node: int = 1
     gres: str | None = None
+    gpus_per_node: int | None = None
 
 
 class SlurmCluster(BaseModel):
@@ -79,6 +80,9 @@ class SlurmCluster(BaseModel):
         except (ValueError, TypeError):
             raise ValueError(f"max_walltime must be in SLURM time format (HH:MM:SS or D-HH:MM:SS), got: {v!r}")
         return v
+
+    sbatch_comment: str | None = None
+    sbatch_extra_flags: dict[str, Any] = Field(default_factory=dict)
 
     hostname: str | None = None
     username: str | None = None
