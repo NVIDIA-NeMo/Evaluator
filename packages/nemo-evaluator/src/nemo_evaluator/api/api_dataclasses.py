@@ -330,7 +330,7 @@ class SampleRecord(BaseModel):
     sub_query_id: int = Field(default=0, description="Sub-query index for multi-turn or repeated queries")
 
     # ── Always present, may be None ─────────────────────────────────────────
-    score: int | None = Field(description="Evaluation score for the sample")
+    score: int | None = Field(description="Evaluation score for the sample; None for intermediate steps")
 
     # ── May be None ──────────────────────────────────────────────────────────
     query: Optional[str | dict] = Field(default=None, description="Input question text or payload")
