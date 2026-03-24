@@ -330,7 +330,7 @@ class SampleRecord(BaseModel):
     sub_query_id: int = Field(default=0, description="Sub-query index for multi-turn or repeated queries")
 
     # ── Always present, may be None ─────────────────────────────────────────
-    symbolic_correct: Any = Field(description="Correctness signal (bool, list, or dict depending on task)")
+    score: int | None = Field(description="Evaluation score for the sample")
 
     # ── May be None ──────────────────────────────────────────────────────────
     query: Optional[str | dict] = Field(default=None, description="Input question text or payload")
