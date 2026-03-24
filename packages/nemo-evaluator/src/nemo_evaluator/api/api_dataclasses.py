@@ -16,7 +16,7 @@
 
 import warnings
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 import jinja2
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -331,6 +331,7 @@ class SampleRecord(BaseModel):
 
     # ── Always present, may be None ─────────────────────────────────────────
     score: int | None = Field(description="Evaluation score for the sample; None for intermediate steps")
+    score_name: Optional[str] = Field(default=None, description="Name of the source field used as the score signal (e.g. 'symbolic_correct', 'judgement', 'loose_eval')")
 
     # ── May be None ──────────────────────────────────────────────────────────
     query: Optional[str | dict] = Field(default=None, description="Input question text or payload")
