@@ -13,48 +13,81 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Unit tests for the watch mode (eval-and-sleep) feature."""
+"""Unit tests for the watcher module (nel-watch feature)."""
 
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
-import yaml
+import pytest
 from omegaconf import OmegaConf
 
-from nemo_evaluator_launcher.api.watch import (
+from nemo_evaluator_launcher.api.types import RunConfig
+from nemo_evaluator_launcher.watcher.configs import (
+    CHECKPOINT_FIELD,
     DEFAULT_CHECKPOINT_PATTERNS,
     DEFAULT_READY_MARKERS,
-    SubmittedCheckpoint,
-    WatchDirConfig,
-    WatchState,
-    _load_watch_config,
+    ClusterConfig,
+    ConversionConfig,
+    MonitoringConfig,
+    WatchConfig,
+)
+from nemo_evaluator_launcher.watcher.run import (
     _natural_sort_key,
     discover_checkpoints,
-    watch_checkpoints,
+    watch_and_evaluate,
 )
+from nemo_evaluator_launcher.watcher.watchdb import SubmittedCheckpoint, WatchStateDB
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def _make_checkpoint(tmp_path: Path, name: str, marker: str = "metadata.json") -> Path:
-    """Create a checkpoint subdirectory with a ready marker file."""
-    cp = tmp_path / name
-    cp.mkdir(parents=True, exist_ok=True)
-    (cp / marker).write_text("{}")
-    return cp
+def _make_cluster_config(**kwargs) -> ClusterConfig:
+    defaults = {
+        "username": "testuser",
+        "account": "test-account",
+        "output_dir": "/tmp/out",
+    }
+    return ClusterConfig(**{**defaults, **kwargs})
 
 
-def _sample_config() -> OmegaConf:
-    """Return a minimal OmegaConf config for testing."""
-    return OmegaConf.create(
-        {
-            "deployment": {"hf_model_handle": "original-model", "type": "none"},
-            "evaluation": {"tasks": [{"name": "test_task"}]},
-            "execution": {"type": "local", "output_dir": "/tmp/test_output"},
-            "target": {"api_endpoint": {}},
-        }
+def _make_eval_config(**kwargs) -> RunConfig:
+    """Create a minimal RunConfig with SLURM execution for WatchConfig tests."""
+    data = {
+        "deployment": {"checkpoint_path": None},
+        "execution": {"type": "slurm"},
+        **kwargs,
+    }
+    return RunConfig(OmegaConf.create(data))
+
+
+def _make_watch_config(
+    directories: list[str] | None = None,
+    output_dir: str = "/tmp/out",
+) -> WatchConfig:
+    """Return a minimal valid WatchConfig."""
+    return WatchConfig.model_construct(
+        cluster_config=_make_cluster_config(output_dir=output_dir),
+        monitoring_config=MonitoringConfig(
+            directories=directories or ["/checkpoints"], interval=None
+        ),
+        evaluation_configs=[_make_eval_config()],
+        conversion_config=None,
+    )
+
+
+def _make_submitted(
+    checkpoint: str = "/path/step_1", invocation_id: str = "inv-001"
+) -> SubmittedCheckpoint:
+    return SubmittedCheckpoint(
+        checkpoint=checkpoint,
+        session_id="session-xyz",
+        invocation_id=invocation_id,
+        timestamp="2026-03-04T21:00:00+00:00",
+        watch_config={},
+        eval_config={},
     )
 
 
@@ -86,606 +119,648 @@ class TestNaturalSort:
 
 
 # ---------------------------------------------------------------------------
-# Checkpoint discovery
+# discover_checkpoints (SSH-based)
 # ---------------------------------------------------------------------------
 
 
 class TestDiscoverCheckpoints:
-    def test_finds_ready_checkpoints(self, tmp_path):
-        _make_checkpoint(tmp_path, "step_1")
-        _make_checkpoint(tmp_path, "step_2")
-        # Not ready — no marker
-        (tmp_path / "step_3").mkdir()
-
-        result = discover_checkpoints(tmp_path, DEFAULT_READY_MARKERS)
-        assert len(result) == 2
-        assert result[0].name == "step_1"
-        assert result[1].name == "step_2"
-
-    def test_returns_natural_sorted_order(self, tmp_path):
-        _make_checkpoint(tmp_path, "step_10")
-        _make_checkpoint(tmp_path, "step_2")
-        _make_checkpoint(tmp_path, "step_1")
-
-        result = discover_checkpoints(tmp_path, DEFAULT_READY_MARKERS)
+    @patch("nemo_evaluator_launcher.watcher.run.run_remote_command")
+    def test_returns_sorted_paths(self, mock_cmd):
+        mock_cmd.return_value = (
+            "/checkpoints/step_10\n/checkpoints/step_2\n/checkpoints/step_1\n"
+        )
+        cluster = _make_cluster_config()
+        result = discover_checkpoints(
+            Path("/checkpoints"),
+            cluster,
+            DEFAULT_READY_MARKERS,
+            DEFAULT_CHECKPOINT_PATTERNS,
+        )
         assert [p.name for p in result] == ["step_1", "step_2", "step_10"]
 
-    def test_custom_ready_marker(self, tmp_path):
-        cp = tmp_path / "step_1"
-        cp.mkdir()
-        (cp / "done.txt").write_text("done")
-
-        assert discover_checkpoints(tmp_path, ["metadata.json"]) == []
-        assert len(discover_checkpoints(tmp_path, ["done.txt"])) == 1
-
-    def test_ignores_files_in_watch_dir(self, tmp_path):
-        (tmp_path / "some_file.txt").write_text("not a checkpoint")
-        _make_checkpoint(tmp_path, "step_1")
-
-        result = discover_checkpoints(tmp_path, DEFAULT_READY_MARKERS)
-        assert len(result) == 1
-
-    def test_nonexistent_watch_dir(self, tmp_path):
+    @patch("nemo_evaluator_launcher.watcher.run.run_remote_command")
+    def test_returns_empty_on_failure(self, mock_cmd):
+        mock_cmd.side_effect = RuntimeError("SSH error")
+        cluster = _make_cluster_config()
         result = discover_checkpoints(
-            tmp_path / "does_not_exist", DEFAULT_READY_MARKERS
+            Path("/checkpoints"),
+            cluster,
+            DEFAULT_READY_MARKERS,
+            DEFAULT_CHECKPOINT_PATTERNS,
         )
         assert result == []
 
-    def test_multi_marker_any_match(self, tmp_path):
-        """Checkpoint is ready if ANY marker exists."""
-        cp1 = tmp_path / "step_1"
-        cp1.mkdir()
-        (cp1 / "metadata.json").write_text("{}")
-
-        cp2 = tmp_path / "step_2"
-        cp2.mkdir()
-        (cp2 / "config.yaml").write_text("")
-
-        cp3 = tmp_path / "step_3"
-        cp3.mkdir()
-        # No markers
-
-        result = discover_checkpoints(tmp_path, ["metadata.json", "config.yaml"])
-        assert len(result) == 2
-        assert {p.name for p in result} == {"step_1", "step_2"}
-
-    def test_checkpoint_patterns_filter(self, tmp_path):
-        """Only dirs matching checkpoint patterns are considered."""
-        _make_checkpoint(tmp_path, "iter_100")
-        _make_checkpoint(tmp_path, "step_200")
-        _make_checkpoint(tmp_path, "random_dir")
-
+    @patch("nemo_evaluator_launcher.watcher.run.run_remote_command")
+    def test_returns_empty_when_no_output(self, mock_cmd):
+        mock_cmd.return_value = ""
+        cluster = _make_cluster_config()
         result = discover_checkpoints(
-            tmp_path,
+            Path("/checkpoints"),
+            cluster,
             DEFAULT_READY_MARKERS,
-            checkpoint_patterns=["iter_*", "step_*"],
+            DEFAULT_CHECKPOINT_PATTERNS,
         )
-        assert len(result) == 2
-        assert {p.name for p in result} == {"iter_100", "step_200"}
+        assert result == []
 
-    def test_checkpoint_patterns_wildcard(self, tmp_path):
-        """Pattern '*' matches all subdirectories."""
-        _make_checkpoint(tmp_path, "iter_100")
-        _make_checkpoint(tmp_path, "random_dir")
-
-        result = discover_checkpoints(
-            tmp_path, DEFAULT_READY_MARKERS, checkpoint_patterns=["*"]
+    @patch("nemo_evaluator_launcher.watcher.run.run_remote_command")
+    def test_passes_socket_to_remote_command(self, mock_cmd):
+        mock_cmd.return_value = ""
+        cluster = _make_cluster_config()
+        discover_checkpoints(
+            Path("/checkpoints"),
+            cluster,
+            DEFAULT_READY_MARKERS,
+            DEFAULT_CHECKPOINT_PATTERNS,
+            socket="/tmp/sock",
         )
-        assert len(result) == 2
+        call_kwargs = mock_cmd.call_args[1]
+        assert call_kwargs["socket"] == "/tmp/sock"
 
-    def test_checkpoint_patterns_none_matches_all(self, tmp_path):
-        """When checkpoint_patterns is None, all subdirs are candidates."""
-        _make_checkpoint(tmp_path, "iter_100")
-        _make_checkpoint(tmp_path, "any_name")
-
-        result = discover_checkpoints(
-            tmp_path, DEFAULT_READY_MARKERS, checkpoint_patterns=None
+    @patch("nemo_evaluator_launcher.watcher.run.run_remote_command")
+    def test_command_includes_checkpoint_patterns(self, mock_cmd):
+        mock_cmd.return_value = ""
+        cluster = _make_cluster_config()
+        discover_checkpoints(
+            Path("/ckpts"),
+            cluster,
+            DEFAULT_READY_MARKERS,
+            ["iter_*", "step_*"],
         )
-        assert len(result) == 2
+        cmd = mock_cmd.call_args[1]["command"]
+        assert "iter_*" in cmd
+        assert "step_*" in cmd
+
+    @patch("nemo_evaluator_launcher.watcher.run.run_remote_command")
+    def test_command_includes_ready_markers(self, mock_cmd):
+        mock_cmd.return_value = ""
+        cluster = _make_cluster_config()
+        discover_checkpoints(
+            Path("/ckpts"),
+            cluster,
+            ["metadata.json", "config.yaml"],
+            DEFAULT_CHECKPOINT_PATTERNS,
+        )
+        cmd = mock_cmd.call_args[1]["command"]
+        assert "metadata.json" in cmd
+        assert "config.yaml" in cmd
 
 
 # ---------------------------------------------------------------------------
-# WatchState
+# WatchStateDB
 # ---------------------------------------------------------------------------
 
 
-class TestWatchState:
-    def test_save_and_load(self, tmp_path):
-        state_file = tmp_path / ".watch_state.yaml"
-        state = WatchState(
-            submitted=[
-                SubmittedCheckpoint(
-                    checkpoint="/path/step_1",
-                    invocation_id="abc123",
-                    timestamp="2026-03-04T21:00:00+00:00",
-                    watch_dir="/path/checkpoints",
-                ),
-                SubmittedCheckpoint(
-                    checkpoint="/path/step_2",
-                    invocation_id="def456",
-                    timestamp="2026-03-04T21:05:00+00:00",
-                    watch_dir="/path/checkpoints",
-                ),
-            ]
+class TestWatchStateDB:
+    def test_append_and_submitted_paths(self, tmp_path, monkeypatch):
+        state_file = tmp_path / "watch-state.v1.jsonl"
+        monkeypatch.setattr(
+            "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE", state_file
         )
-        state.save(state_file)
 
-        loaded = WatchState.load(state_file)
-        assert len(loaded.submitted) == 2
-        assert loaded.submitted[0].checkpoint == "/path/step_1"
-        assert loaded.submitted[0].invocation_id == "abc123"
-        assert loaded.submitted[0].watch_dir == "/path/checkpoints"
-        assert loaded.submitted[1].checkpoint == "/path/step_2"
+        db = WatchStateDB()
+        db.append(_make_submitted("/path/step_1", "inv-001"))
+        db.append(_make_submitted("/path/step_2", "inv-002"))
 
-    def test_load_nonexistent(self, tmp_path):
-        state = WatchState.load(tmp_path / "nonexistent.yaml")
-        assert state.submitted == []
+        assert db.submitted_paths() == {"/path/step_1", "/path/step_2"}
 
-    def test_load_corrupt_file(self, tmp_path):
-        state_file = tmp_path / "corrupt.yaml"
-        state_file.write_text(":::: not valid yaml {{{{")
-        state = WatchState.load(state_file)
-        assert state.submitted == []
-
-    def test_submitted_paths(self):
-        state = WatchState(
-            submitted=[
-                SubmittedCheckpoint(checkpoint="/a", invocation_id="x", timestamp=""),
-                SubmittedCheckpoint(checkpoint="/b", invocation_id="y", timestamp=""),
-            ]
+    def test_persists_across_instances(self, tmp_path, monkeypatch):
+        state_file = tmp_path / "watch-state.v1.jsonl"
+        monkeypatch.setattr(
+            "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE", state_file
         )
-        assert state.submitted_paths() == {"/a", "/b"}
 
-    def test_save_creates_parent_dirs(self, tmp_path):
-        state_file = tmp_path / "deep" / "nested" / "state.yaml"
-        state = WatchState()
-        state.save(state_file)
+        db1 = WatchStateDB()
+        db1.append(_make_submitted("/path/step_1", "inv-001"))
+
+        db2 = WatchStateDB()
+        assert "/path/step_1" in db2.submitted_paths()
+
+    def test_submitted_paths_returns_empty_when_no_records(self, tmp_path, monkeypatch):
+        state_file = tmp_path / "watch-state.v1.jsonl"
+        monkeypatch.setattr(
+            "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE", state_file
+        )
+
+        db = WatchStateDB()
+        assert db.submitted_paths() == set()
+
+    def test_submitted_paths_filters_by_session_id(self, tmp_path, monkeypatch):
+        state_file = tmp_path / "watch-state.v1.jsonl"
+        monkeypatch.setattr(
+            "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE", state_file
+        )
+
+        db = WatchStateDB()
+        rec1 = SubmittedCheckpoint(
+            checkpoint="/a",
+            session_id="session-A",
+            invocation_id="inv-1",
+            timestamp="t",
+            watch_config={},
+            eval_config={},
+        )
+        rec2 = SubmittedCheckpoint(
+            checkpoint="/b",
+            session_id="session-B",
+            invocation_id="inv-2",
+            timestamp="t",
+            watch_config={},
+            eval_config={},
+        )
+        db.append(rec1)
+        db.append(rec2)
+
+        assert db.submitted_paths(session_ids=["session-A"]) == {"/a"}
+        assert db.submitted_paths(session_ids=["session-B"]) == {"/b"}
+        assert db.submitted_paths(session_ids=None) == {"/a", "/b"}
+
+    def test_submitted_paths_unfiltered_returns_all_sessions(
+        self, tmp_path, monkeypatch
+    ):
+        state_file = tmp_path / "watch-state.v1.jsonl"
+        monkeypatch.setattr(
+            "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE", state_file
+        )
+
+        db = WatchStateDB()
+        db.append(_make_submitted("/a", "inv-1"))
+        db.append(_make_submitted("/b", "inv-2"))
+
+        assert db.submitted_paths() == {"/a", "/b"}
+
+    def test_tolerates_corrupt_lines(self, tmp_path, monkeypatch):
+        state_file = tmp_path / "watch-state.v1.jsonl"
+        state_file.write_text("not-json\n")
+        monkeypatch.setattr(
+            "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE", state_file
+        )
+
+        db = WatchStateDB()
+        assert db.submitted_paths() == set()
+
+    def test_creates_parent_dirs(self, tmp_path, monkeypatch):
+        state_file = tmp_path / "deep" / "nested" / "watch-state.v1.jsonl"
+        monkeypatch.setattr(
+            "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE", state_file
+        )
+
+        db = WatchStateDB()
+        db.append(_make_submitted())
         assert state_file.exists()
 
-    def test_save_omits_none_watch_dir(self, tmp_path):
-        """When watch_dir is None, it should not appear in saved YAML."""
-        state_file = tmp_path / "state.yaml"
-        state = WatchState(
-            submitted=[
-                SubmittedCheckpoint(checkpoint="/a", invocation_id="x", timestamp="t"),
-            ]
+
+# ---------------------------------------------------------------------------
+# SubmittedCheckpoint
+# ---------------------------------------------------------------------------
+
+
+class TestSubmittedCheckpoint:
+    def test_valid_construction(self):
+        rec = _make_submitted()
+        assert rec.checkpoint == "/path/step_1"
+        assert rec.invocation_id == "inv-001"
+        assert rec.session_id == "session-xyz"
+
+    def test_rejects_extra_fields(self):
+        with pytest.raises(Exception):
+            SubmittedCheckpoint(
+                checkpoint="/a",
+                session_id="s",
+                invocation_id="i",
+                timestamp="t",
+                watch_config={},
+                eval_config={},
+                unknown_field="oops",
+            )
+
+
+# ---------------------------------------------------------------------------
+# Config validation
+# ---------------------------------------------------------------------------
+
+
+class TestMonitoringConfig:
+    def test_default_values(self):
+        cfg = MonitoringConfig(directories=["/checkpoints"])
+        assert cfg.interval == 300
+        assert cfg.ready_markers == list(DEFAULT_READY_MARKERS)
+        assert cfg.checkpoint_patterns == list(DEFAULT_CHECKPOINT_PATTERNS)
+        assert cfg.order == "last"
+
+    def test_interval_none_is_valid(self):
+        cfg = MonitoringConfig(directories=["/checkpoints"], interval=None)
+        assert cfg.interval is None
+
+    def test_interval_zero_is_invalid(self):
+        with pytest.raises(Exception):
+            MonitoringConfig(directories=["/checkpoints"], interval=0)
+
+    def test_interval_negative_is_invalid(self):
+        with pytest.raises(Exception):
+            MonitoringConfig(directories=["/checkpoints"], interval=-1)
+
+    def test_empty_directories_is_invalid(self):
+        with pytest.raises(Exception):
+            MonitoringConfig(directories=[])
+
+    def test_empty_ready_markers_is_invalid(self):
+        with pytest.raises(Exception):
+            MonitoringConfig(directories=["/checkpoints"], ready_markers=[])
+
+    def test_empty_checkpoint_patterns_is_invalid(self):
+        with pytest.raises(Exception):
+            MonitoringConfig(directories=["/checkpoints"], checkpoint_patterns=[])
+
+
+class TestConversionConfig:
+    def test_render_command_basic(self):
+        cfg = ConversionConfig(
+            container="nvcr.io/nemo:latest",
+            command_pattern="convert {{ input_path }} {{ output_path }}",
         )
-        state.save(state_file)
-        data = yaml.safe_load(state_file.read_text())
-        assert "watch_dir" not in data["submitted"][0]
+        result = cfg.render_command("/in/ckpt", "/out/ckpt")
+        assert result == "convert /in/ckpt /out/ckpt"
+
+    def test_render_command_with_extra_params(self):
+        cfg = ConversionConfig(
+            container="nvcr.io/nemo:latest",
+            command_pattern="convert {{ input_path }} {{ output_path }} --dtype {{ dtype }}",
+            command_params={"dtype": "bfloat16"},
+        )
+        result = cfg.render_command("/in", "/out")
+        assert "--dtype bfloat16" in result
+
+    def test_missing_input_placeholder_raises(self):
+        with pytest.raises(Exception, match="input_path"):
+            ConversionConfig(
+                container="img",
+                command_pattern="convert {{ output_path }}",
+            )
+
+    def test_missing_output_placeholder_raises(self):
+        with pytest.raises(Exception, match="output_path"):
+            ConversionConfig(
+                container="img",
+                command_pattern="convert {{ input_path }}",
+            )
+
+
+class TestWatchConfigValidation:
+    def test_valid_config(self):
+        cfg = WatchConfig(
+            cluster_config=_make_cluster_config(),
+            monitoring_config=MonitoringConfig(directories=["/checkpoints"]),
+            evaluation_configs=[_make_eval_config()],
+        )
+        assert cfg.conversion_config is None
+
+    def test_missing_deployment_raises(self):
+        eval_cfg = RunConfig(OmegaConf.create({"execution": {"type": "slurm"}}))
+        with pytest.raises(Exception, match="deployment"):
+            WatchConfig(
+                cluster_config=_make_cluster_config(),
+                monitoring_config=MonitoringConfig(directories=["/checkpoints"]),
+                evaluation_configs=[eval_cfg],
+            )
+
+    def test_missing_execution_raises(self):
+        eval_cfg = RunConfig(OmegaConf.create({"deployment": {}}))
+        with pytest.raises(Exception, match="execution"):
+            WatchConfig(
+                cluster_config=_make_cluster_config(),
+                monitoring_config=MonitoringConfig(directories=["/checkpoints"]),
+                evaluation_configs=[eval_cfg],
+            )
+
+    def test_non_slurm_execution_raises(self):
+        eval_cfg = RunConfig(
+            OmegaConf.create({"deployment": {}, "execution": {"type": "local"}})
+        )
+        with pytest.raises(Exception, match="Only SLURM execution is supported"):
+            WatchConfig(
+                cluster_config=_make_cluster_config(),
+                monitoring_config=MonitoringConfig(directories=["/checkpoints"]),
+                evaluation_configs=[eval_cfg],
+            )
 
 
 # ---------------------------------------------------------------------------
-# watch_checkpoints — once mode
+# watch_and_evaluate
 # ---------------------------------------------------------------------------
 
 
-class TestWatchCheckpointsOnce:
-    @patch("nemo_evaluator_launcher.api.watch.run_eval")
+@contextmanager
+def _noop_master_connection(**kwargs):
+    yield "fake-socket"
+
+
+class TestWatchAndEvaluate:
+    def _patch_all(self, mock_run_eval, tmp_state_file, discovered_checkpoints):
+        return [
+            patch(
+                "nemo_evaluator_launcher.watcher.run.master_connection",
+                side_effect=_noop_master_connection,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.run.discover_checkpoints",
+                return_value=discovered_checkpoints,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE",
+                tmp_state_file,
+            ),
+        ]
+
+    @patch("nemo_evaluator_launcher.watcher.run.run_eval")
+    def test_dry_run_does_not_call_run_eval(self, mock_run_eval, tmp_path):
+        checkpoint = Path("/checkpoints/step_1")
+        watch_config = _make_watch_config(directories=["/checkpoints"])
+
+        with (
+            patch(
+                "nemo_evaluator_launcher.watcher.run.master_connection",
+                side_effect=_noop_master_connection,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.run.discover_checkpoints",
+                return_value=[checkpoint],
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE",
+                tmp_path / "state.jsonl",
+            ),
+        ):
+            result = watch_and_evaluate(watch_config, dry_run=True)
+
+        assert mock_run_eval.called
+        assert any(
+            call.kwargs.get("dry_run") is True for call in mock_run_eval.call_args_list
+        )
+        assert result == []
+
+    @patch("nemo_evaluator_launcher.watcher.run.run_eval")
     def test_submits_new_checkpoints(self, mock_run_eval, tmp_path):
         mock_run_eval.return_value = "inv-001"
-        _make_checkpoint(tmp_path / "checkpoints", "step_1")
-        _make_checkpoint(tmp_path / "checkpoints", "step_2")
+        checkpoints = [Path("/checkpoints/step_1"), Path("/checkpoints/step_2")]
+        watch_config = _make_watch_config(directories=["/checkpoints"])
 
-        config = _sample_config()
-        state_file = tmp_path / "state.yaml"
+        with (
+            patch(
+                "nemo_evaluator_launcher.watcher.run.master_connection",
+                side_effect=_noop_master_connection,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.run.discover_checkpoints",
+                return_value=checkpoints,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE",
+                tmp_path / "state.jsonl",
+            ),
+        ):
+            result = watch_and_evaluate(watch_config)
 
-        submissions = watch_checkpoints(
-            config=config,
-            watch_dir=tmp_path / "checkpoints",
-            once=True,
-            state_file=state_file,
-        )
-
-        assert len(submissions) == 2
         assert mock_run_eval.call_count == 2
-        assert submissions[0].invocation_id == "inv-001"
+        assert len(result) == 2
 
-    @patch("nemo_evaluator_launcher.api.watch.run_eval")
-    def test_skips_already_submitted(self, mock_run_eval, tmp_path):
-        mock_run_eval.return_value = "inv-002"
-        cp1 = _make_checkpoint(tmp_path / "checkpoints", "step_1")
-        _make_checkpoint(tmp_path / "checkpoints", "step_2")
+    @patch("nemo_evaluator_launcher.watcher.run.run_eval")
+    def test_skips_already_submitted_checkpoints(self, mock_run_eval, tmp_path):
+        mock_run_eval.return_value = "inv-new"
+        state_file = tmp_path / "state.jsonl"
 
-        state_file = tmp_path / "state.yaml"
-        # Pre-populate state with step_1
-        state = WatchState(
-            submitted=[
+        # Pre-populate state with step_1 already submitted
+        from nemo_evaluator_launcher.watcher.watchdb import WatchStateDB
+
+        with patch(
+            "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE", state_file
+        ):
+            db = WatchStateDB()
+            db.append(
                 SubmittedCheckpoint(
-                    checkpoint=str(cp1),
-                    invocation_id="old-inv",
-                    timestamp="2026-01-01T00:00:00+00:00",
+                    checkpoint="/checkpoints/step_1",
+                    session_id="old-session",
+                    invocation_id="inv-old",
+                    timestamp="t",
+                    watch_config={},
+                    eval_config={},
                 )
-            ]
-        )
-        state.save(state_file)
-
-        config = _sample_config()
-        submissions = watch_checkpoints(
-            config=config,
-            watch_dir=tmp_path / "checkpoints",
-            once=True,
-            state_file=state_file,
-        )
-
-        assert len(submissions) == 1
-        assert "step_2" in submissions[0].checkpoint
-        assert mock_run_eval.call_count == 1
-
-    @patch("nemo_evaluator_launcher.api.watch.run_eval")
-    def test_overrides_checkpoint_field(self, mock_run_eval, tmp_path):
-        mock_run_eval.return_value = "inv-003"
-        cp = _make_checkpoint(tmp_path / "checkpoints", "step_1")
-
-        config = _sample_config()
-        submissions = watch_checkpoints(
-            config=config,
-            watch_dir=tmp_path / "checkpoints",
-            checkpoint_field="deployment.hf_model_handle",
-            once=True,
-            state_file=tmp_path / "state.yaml",
-        )
-
-        assert len(submissions) == 1
-        call_cfg = mock_run_eval.call_args[0][0]
-        assert call_cfg.deployment.hf_model_handle == str(cp)
-
-    @patch("nemo_evaluator_launcher.api.watch.run_eval")
-    def test_persists_state_after_submission(self, mock_run_eval, tmp_path):
-        mock_run_eval.return_value = "inv-004"
-        _make_checkpoint(tmp_path / "checkpoints", "step_1")
-
-        state_file = tmp_path / "state.yaml"
-        config = _sample_config()
-
-        watch_checkpoints(
-            config=config,
-            watch_dir=tmp_path / "checkpoints",
-            once=True,
-            state_file=state_file,
-        )
-
-        loaded = WatchState.load(state_file)
-        assert len(loaded.submitted) == 1
-        assert loaded.submitted[0].invocation_id == "inv-004"
-
-    @patch("nemo_evaluator_launcher.api.watch.run_eval")
-    def test_no_new_checkpoints_returns_empty(self, mock_run_eval, tmp_path):
-        config = _sample_config()
-        watch_dir = tmp_path / "checkpoints"
-        watch_dir.mkdir()
-
-        submissions = watch_checkpoints(
-            config=config,
-            watch_dir=watch_dir,
-            once=True,
-            state_file=tmp_path / "state.yaml",
-        )
-
-        assert submissions == []
-        mock_run_eval.assert_not_called()
-
-    @patch("nemo_evaluator_launcher.api.watch.run_eval")
-    def test_handles_submission_failure(self, mock_run_eval, tmp_path):
-        mock_run_eval.side_effect = RuntimeError("API error")
-        _make_checkpoint(tmp_path / "checkpoints", "step_1")
-        _make_checkpoint(tmp_path / "checkpoints", "step_2")
-
-        config = _sample_config()
-        submissions = watch_checkpoints(
-            config=config,
-            watch_dir=tmp_path / "checkpoints",
-            once=True,
-            state_file=tmp_path / "state.yaml",
-        )
-
-        assert len(submissions) == 0
-        assert mock_run_eval.call_count == 2
-
-    @patch("nemo_evaluator_launcher.api.watch.run_eval")
-    def test_state_includes_watch_dir(self, mock_run_eval, tmp_path):
-        """State records include the watch_dir field."""
-        mock_run_eval.return_value = "inv-005"
-        _make_checkpoint(tmp_path / "checkpoints", "step_1")
-
-        config = _sample_config()
-        state_file = tmp_path / "state.yaml"
-
-        submissions = watch_checkpoints(
-            config=config,
-            watch_dir=tmp_path / "checkpoints",
-            once=True,
-            state_file=state_file,
-        )
-
-        assert len(submissions) == 1
-        assert submissions[0].watch_dir == str(tmp_path / "checkpoints")
-
-        loaded = WatchState.load(state_file)
-        assert loaded.submitted[0].watch_dir == str(tmp_path / "checkpoints")
-
-
-# ---------------------------------------------------------------------------
-# watch_checkpoints — dry-run mode
-# ---------------------------------------------------------------------------
-
-
-class TestWatchCheckpointsDryRun:
-    @patch("nemo_evaluator_launcher.api.watch.run_eval")
-    def test_dry_run_does_not_call_run_eval(self, mock_run_eval, tmp_path):
-        _make_checkpoint(tmp_path / "checkpoints", "step_1")
-
-        config = _sample_config()
-        submissions = watch_checkpoints(
-            config=config,
-            watch_dir=tmp_path / "checkpoints",
-            dry_run=True,
-            once=True,
-            state_file=tmp_path / "state.yaml",
-        )
-
-        assert len(submissions) == 1
-        assert submissions[0].invocation_id is None
-        mock_run_eval.assert_not_called()
-
-    @patch("nemo_evaluator_launcher.api.watch.run_eval")
-    def test_dry_run_does_not_persist_state(self, mock_run_eval, tmp_path):
-        _make_checkpoint(tmp_path / "checkpoints", "step_1")
-
-        state_file = tmp_path / "state.yaml"
-        config = _sample_config()
-
-        watch_checkpoints(
-            config=config,
-            watch_dir=tmp_path / "checkpoints",
-            dry_run=True,
-            once=True,
-            state_file=state_file,
-        )
-
-        assert not state_file.exists()
-
-
-# ---------------------------------------------------------------------------
-# Processing order
-# ---------------------------------------------------------------------------
-
-
-class TestProcessingOrder:
-    @patch("nemo_evaluator_launcher.api.watch.run_eval")
-    def test_newest_first(self, mock_run_eval, tmp_path):
-        """With order='newest', highest step numbers are processed first."""
-        mock_run_eval.return_value = "inv"
-        _make_checkpoint(tmp_path / "checkpoints", "step_1")
-        _make_checkpoint(tmp_path / "checkpoints", "step_10")
-        _make_checkpoint(tmp_path / "checkpoints", "step_2")
-
-        config = _sample_config()
-        submissions = watch_checkpoints(
-            config=config,
-            watch_dir=tmp_path / "checkpoints",
-            order="newest",
-            once=True,
-            state_file=tmp_path / "state.yaml",
-        )
-
-        names = [Path(s.checkpoint).name for s in submissions]
-        assert names == ["step_10", "step_2", "step_1"]
-
-    @patch("nemo_evaluator_launcher.api.watch.run_eval")
-    def test_oldest_first(self, mock_run_eval, tmp_path):
-        """With order='oldest', lowest step numbers are processed first."""
-        mock_run_eval.return_value = "inv"
-        _make_checkpoint(tmp_path / "checkpoints", "step_1")
-        _make_checkpoint(tmp_path / "checkpoints", "step_10")
-        _make_checkpoint(tmp_path / "checkpoints", "step_2")
-
-        config = _sample_config()
-        submissions = watch_checkpoints(
-            config=config,
-            watch_dir=tmp_path / "checkpoints",
-            order="oldest",
-            once=True,
-            state_file=tmp_path / "state.yaml",
-        )
-
-        names = [Path(s.checkpoint).name for s in submissions]
-        assert names == ["step_1", "step_2", "step_10"]
-
-
-# ---------------------------------------------------------------------------
-# Watch config file (multi-dir)
-# ---------------------------------------------------------------------------
-
-
-class TestWatchConfig:
-    def test_load_watch_config(self, tmp_path):
-        config_file = tmp_path / "watch.yaml"
-        config_file.write_text(
-            yaml.dump(
-                {
-                    "watch_dirs": [
-                        {
-                            "checkpoint_dir": "/lustre/run-42/checkpoints",
-                            "output_dir": "/lustre/run-42/evals",
-                            "checkpoint_field": "deployment.hf_model_handle",
-                        },
-                        {
-                            "checkpoint_dir": "/lustre/run-43/checkpoints",
-                            "output_dir": "/lustre/run-43/evals",
-                        },
-                    ],
-                    "checkpoint_field": "deployment.hf_model_handle",
-                }
             )
+
+        checkpoints = [Path("/checkpoints/step_1"), Path("/checkpoints/step_2")]
+        watch_config = _make_watch_config(directories=["/checkpoints"])
+
+        with (
+            patch(
+                "nemo_evaluator_launcher.watcher.run.master_connection",
+                side_effect=_noop_master_connection,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.run.discover_checkpoints",
+                return_value=checkpoints,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE", state_file
+            ),
+        ):
+            result = watch_and_evaluate(watch_config)
+
+        assert mock_run_eval.call_count == 1
+        assert result[0].checkpoint == "/checkpoints/step_2"
+
+    @patch("nemo_evaluator_launcher.watcher.run.run_eval")
+    def test_no_checkpoints_returns_empty(self, mock_run_eval, tmp_path):
+        watch_config = _make_watch_config(directories=["/checkpoints"])
+
+        with (
+            patch(
+                "nemo_evaluator_launcher.watcher.run.master_connection",
+                side_effect=_noop_master_connection,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.run.discover_checkpoints",
+                return_value=[],
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE",
+                tmp_path / "state.jsonl",
+            ),
+        ):
+            result = watch_and_evaluate(watch_config)
+
+        assert result == []
+        mock_run_eval.assert_not_called()
+
+    @patch("nemo_evaluator_launcher.watcher.run.run_eval")
+    def test_run_eval_failure_does_not_add_to_results(self, mock_run_eval, tmp_path):
+        mock_run_eval.side_effect = RuntimeError("API error")
+        watch_config = _make_watch_config(directories=["/checkpoints"])
+
+        with (
+            patch(
+                "nemo_evaluator_launcher.watcher.run.master_connection",
+                side_effect=_noop_master_connection,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.run.discover_checkpoints",
+                return_value=[Path("/checkpoints/step_1")],
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE",
+                tmp_path / "state.jsonl",
+            ),
+        ):
+            result = watch_and_evaluate(watch_config)
+
+        assert result == []
+
+    @patch("nemo_evaluator_launcher.watcher.run.run_eval")
+    def test_order_last_processes_newest_first(self, mock_run_eval, tmp_path):
+        """With order='last', highest step name is processed first."""
+        mock_run_eval.return_value = "inv"
+        # discover_checkpoints returns paths in natural (ascending) order
+        checkpoints = [
+            Path("/checkpoints/step_1"),
+            Path("/checkpoints/step_2"),
+            Path("/checkpoints/step_10"),
+        ]
+        watch_config = _make_watch_config(directories=["/checkpoints"])
+        watch_config.monitoring_config.order = "last"
+
+        with (
+            patch(
+                "nemo_evaluator_launcher.watcher.run.master_connection",
+                side_effect=_noop_master_connection,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.run.discover_checkpoints",
+                return_value=checkpoints,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE",
+                tmp_path / "state.jsonl",
+            ),
+        ):
+            result = watch_and_evaluate(watch_config)
+
+        submitted_names = [Path(r.checkpoint).name for r in result]
+        assert submitted_names == ["step_10", "step_2", "step_1"]
+
+    @patch("nemo_evaluator_launcher.watcher.run.run_eval")
+    def test_order_first_processes_oldest_first(self, mock_run_eval, tmp_path):
+        """With order='first', lowest step name is processed first."""
+        mock_run_eval.return_value = "inv"
+        checkpoints = [
+            Path("/checkpoints/step_1"),
+            Path("/checkpoints/step_2"),
+            Path("/checkpoints/step_10"),
+        ]
+        watch_config = _make_watch_config(directories=["/checkpoints"])
+        watch_config.monitoring_config.order = "first"
+
+        with (
+            patch(
+                "nemo_evaluator_launcher.watcher.run.master_connection",
+                side_effect=_noop_master_connection,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.run.discover_checkpoints",
+                return_value=checkpoints,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE",
+                tmp_path / "state.jsonl",
+            ),
+        ):
+            result = watch_and_evaluate(watch_config)
+
+        submitted_names = [Path(r.checkpoint).name for r in result]
+        assert submitted_names == ["step_1", "step_2", "step_10"]
+
+    @patch("nemo_evaluator_launcher.watcher.run.run_eval")
+    def test_checkpoint_field_is_set_in_eval_config(self, mock_run_eval, tmp_path):
+        """The discovered checkpoint path is set in evaluation config before submission."""
+        mock_run_eval.return_value = "inv-001"
+        watch_config = _make_watch_config(directories=["/checkpoints"])
+
+        with (
+            patch(
+                "nemo_evaluator_launcher.watcher.run.master_connection",
+                side_effect=_noop_master_connection,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.run.discover_checkpoints",
+                return_value=[Path("/checkpoints/step_1")],
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE",
+                tmp_path / "state.jsonl",
+            ),
+        ):
+            watch_and_evaluate(watch_config)
+
+        call_cfg = mock_run_eval.call_args[0][0]
+        assert OmegaConf.select(call_cfg, CHECKPOINT_FIELD) == "/checkpoints/step_1"
+
+    @patch("nemo_evaluator_launcher.watcher.run.run_eval")
+    def test_persists_state_after_submission(self, mock_run_eval, tmp_path):
+        mock_run_eval.return_value = "inv-persist"
+        state_file = tmp_path / "state.jsonl"
+        watch_config = _make_watch_config(directories=["/checkpoints"])
+
+        with (
+            patch(
+                "nemo_evaluator_launcher.watcher.run.master_connection",
+                side_effect=_noop_master_connection,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.run.discover_checkpoints",
+                return_value=[Path("/checkpoints/step_1")],
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE", state_file
+            ),
+        ):
+            watch_and_evaluate(watch_config)
+
+        assert state_file.exists()
+        with patch(
+            "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE", state_file
+        ):
+            db = WatchStateDB()
+        assert "/checkpoints/step_1" in db.submitted_paths()
+
+    @patch("nemo_evaluator_launcher.watcher.run.run_eval")
+    def test_watches_multiple_directories(self, mock_run_eval, tmp_path):
+        mock_run_eval.return_value = "inv"
+        watch_config = _make_watch_config(
+            directories=["/run1/checkpoints", "/run2/checkpoints"]
         )
 
-        watch_dirs, global_field = _load_watch_config(config_file)
-        assert len(watch_dirs) == 2
-        assert watch_dirs[0].checkpoint_dir == Path("/lustre/run-42/checkpoints")
-        assert watch_dirs[0].output_dir == Path("/lustre/run-42/evals")
-        assert watch_dirs[0].checkpoint_field == "deployment.hf_model_handle"
-        assert watch_dirs[1].checkpoint_dir == Path("/lustre/run-43/checkpoints")
-        assert watch_dirs[1].checkpoint_field is None
-        assert global_field == "deployment.hf_model_handle"
+        call_count = [0]
 
-    @patch("nemo_evaluator_launcher.api.watch.run_eval")
-    def test_multi_dir_watches_all_dirs(self, mock_run_eval, tmp_path):
-        """Multi-dir mode discovers checkpoints from all dirs."""
-        mock_run_eval.return_value = "inv-multi"
+        def fake_discover(watch_dir, *args, **kwargs):
+            call_count[0] += 1
+            if "run1" in str(watch_dir):
+                return [Path("/run1/checkpoints/step_1")]
+            return [Path("/run2/checkpoints/step_2")]
 
-        dir1 = tmp_path / "run1" / "checkpoints"
-        dir2 = tmp_path / "run2" / "checkpoints"
-        out1 = tmp_path / "run1" / "evals"
-        out2 = tmp_path / "run2" / "evals"
-        out1.mkdir(parents=True)
-        out2.mkdir(parents=True)
+        with (
+            patch(
+                "nemo_evaluator_launcher.watcher.run.master_connection",
+                side_effect=_noop_master_connection,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.run.discover_checkpoints",
+                side_effect=fake_discover,
+            ),
+            patch(
+                "nemo_evaluator_launcher.watcher.watchdb.WATCH_STATE_FILE",
+                tmp_path / "state.jsonl",
+            ),
+        ):
+            result = watch_and_evaluate(watch_config)
 
-        _make_checkpoint(dir1, "step_100")
-        _make_checkpoint(dir2, "step_200")
-
-        config = _sample_config()
-        state_file = tmp_path / "state.yaml"
-
-        submissions = watch_checkpoints(
-            config=config,
-            watch_dirs=[
-                WatchDirConfig(checkpoint_dir=dir1, output_dir=out1),
-                WatchDirConfig(checkpoint_dir=dir2, output_dir=out2),
-            ],
-            once=True,
-            state_file=state_file,
-        )
-
-        assert len(submissions) == 2
+        assert call_count[0] == 2
         assert mock_run_eval.call_count == 2
-        checkpoint_names = {Path(s.checkpoint).name for s in submissions}
-        assert checkpoint_names == {"step_100", "step_200"}
-
-    @patch("nemo_evaluator_launcher.api.watch.run_eval")
-    def test_multi_dir_per_dir_checkpoint_field(self, mock_run_eval, tmp_path):
-        """Per-dir checkpoint_field overrides the global one."""
-        mock_run_eval.return_value = "inv"
-
-        dir1 = tmp_path / "checkpoints1"
-        _make_checkpoint(dir1, "step_1")
-
-        config = _sample_config()
-
-        submissions = watch_checkpoints(
-            config=config,
-            watch_dirs=[
-                WatchDirConfig(
-                    checkpoint_dir=dir1,
-                    checkpoint_field="deployment.type",
-                ),
-            ],
-            checkpoint_field="deployment.hf_model_handle",
-            once=True,
-            state_file=tmp_path / "state.yaml",
-        )
-
-        assert len(submissions) == 1
-        call_cfg = mock_run_eval.call_args[0][0]
-        # The per-dir field should have been used
-        assert call_cfg.deployment.type == str(dir1 / "step_1")
-
-    @patch("nemo_evaluator_launcher.api.watch.run_eval")
-    def test_multi_dir_state_tracks_watch_dir(self, mock_run_eval, tmp_path):
-        """State records track which watch_dir each submission came from."""
-        mock_run_eval.return_value = "inv"
-
-        dir1 = tmp_path / "run1" / "checkpoints"
-        dir2 = tmp_path / "run2" / "checkpoints"
-        _make_checkpoint(dir1, "step_1")
-        _make_checkpoint(dir2, "step_2")
-
-        config = _sample_config()
-        state_file = tmp_path / "state.yaml"
-
-        submissions = watch_checkpoints(
-            config=config,
-            watch_dirs=[
-                WatchDirConfig(checkpoint_dir=dir1),
-                WatchDirConfig(checkpoint_dir=dir2),
-            ],
-            once=True,
-            state_file=state_file,
-        )
-
-        assert submissions[0].watch_dir == str(dir1)
-        assert submissions[1].watch_dir == str(dir2)
-
-    @patch("nemo_evaluator_launcher.api.watch.run_eval")
-    def test_multi_dir_output_dir_override(self, mock_run_eval, tmp_path):
-        """When a watch_dir entry has output_dir, it overrides config output_dir."""
-        mock_run_eval.return_value = "inv"
-
-        dir1 = tmp_path / "checkpoints"
-        out1 = tmp_path / "custom_output"
-        _make_checkpoint(dir1, "step_1")
-
-        config = _sample_config()
-
-        watch_checkpoints(
-            config=config,
-            watch_dirs=[
-                WatchDirConfig(checkpoint_dir=dir1, output_dir=out1),
-            ],
-            once=True,
-            state_file=tmp_path / "state.yaml",
-        )
-
-        call_cfg = mock_run_eval.call_args[0][0]
-        assert call_cfg.execution.output_dir == str(out1)
-
-
-# ---------------------------------------------------------------------------
-# Checkpoint patterns with discover_checkpoints
-# ---------------------------------------------------------------------------
-
-
-class TestCheckpointPatterns:
-    def test_default_patterns(self, tmp_path):
-        """Default patterns match iter_* and step_*."""
-        _make_checkpoint(tmp_path, "iter_100")
-        _make_checkpoint(tmp_path, "step_200")
-        _make_checkpoint(tmp_path, "checkpoint_300")
-
-        result = discover_checkpoints(
-            tmp_path,
-            DEFAULT_READY_MARKERS,
-            checkpoint_patterns=DEFAULT_CHECKPOINT_PATTERNS,
-        )
-        assert len(result) == 2
-        names = {p.name for p in result}
-        assert names == {"iter_100", "step_200"}
-
-    def test_custom_pattern(self, tmp_path):
-        """Custom pattern filters appropriately."""
-        _make_checkpoint(tmp_path, "ckpt-100")
-        _make_checkpoint(tmp_path, "ckpt-200")
-        _make_checkpoint(tmp_path, "step_300")
-
-        result = discover_checkpoints(
-            tmp_path,
-            DEFAULT_READY_MARKERS,
-            checkpoint_patterns=["ckpt-*"],
-        )
-        assert len(result) == 2
-        assert all("ckpt-" in p.name for p in result)
-
-    def test_multiple_patterns(self, tmp_path):
-        """Multiple patterns match different naming conventions."""
-        _make_checkpoint(tmp_path, "iter_100")
-        _make_checkpoint(tmp_path, "ckpt-200")
-        _make_checkpoint(tmp_path, "other_300")
-
-        result = discover_checkpoints(
-            tmp_path,
-            DEFAULT_READY_MARKERS,
-            checkpoint_patterns=["iter_*", "ckpt-*"],
-        )
-        assert len(result) == 2
-        names = {p.name for p in result}
-        assert names == {"iter_100", "ckpt-200"}
+        checkpoint_names = {Path(r.checkpoint).name for r in result}
+        assert checkpoint_names == {"step_1", "step_2"}
