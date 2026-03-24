@@ -231,6 +231,18 @@ def get_parser():
         help="Number of parallel requests to send to server. Default: use default for the task.",
     )
     parser.add_argument(
+        "--tokenizer_path",
+        type=str,
+        default=None,
+        help="Path to the tokenizer. Default: None",
+    )
+    parser.add_argument(
+        "--tokenizer_backend",
+        type=str,
+        default="huggingface",
+        help="Backend to use for the tokenizer. Default: huggingface",
+    )
+    parser.add_argument(
         "--request_timeout",
         type=int,
         default=1000,
@@ -484,11 +496,16 @@ def main():
         model_id="megatron_model",
     )
     eval_target = run.Config(EvaluationTarget, api_endpoint=api_endpoint)
+    extra = {}
+    if args.tokenizer_path:
+        extra["tokenizer"] = args.tokenizer_path
+        extra["tokenizer_backend"] = args.tokenizer_backend
     eval_params = run.Config(
         ConfigParams,
         limit_samples=args.limit,
         parallelism=args.parallel_requests,
         request_timeout=args.request_timeout,
+        extra=extra,
     )
     eval_config = run.Config(
         EvaluationConfig,
