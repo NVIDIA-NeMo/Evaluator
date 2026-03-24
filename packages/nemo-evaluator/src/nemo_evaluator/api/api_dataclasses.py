@@ -25,7 +25,7 @@ from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.api.capabilities import BENCHMARK_CAPABILITIES
 from nemo_evaluator.core.utils import get_jinja2_environment
 
-SAMPLE_OUTPUTS_DIR: str = "nemo-evaluator-sample-outputs"
+SAMPLE_OUTPUTS_DIR: str = "nemo-evaluator-per-sample-outputs"
 
 # NOTE: For ApiEndpoint, EvaluationTarget, ConfigParams, and EvaluationConfig all fields
 #       are Optional and default=None, because depending on the command run (run_eval or
