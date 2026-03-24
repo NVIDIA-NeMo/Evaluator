@@ -33,11 +33,11 @@ class WatchCmd:
         metadata={"help": "Path to the watch config YAML file."},
     )
     # TODO: add cli parameters: directories, output_dir, ready_markers, checkpoint_patterns
-    interval: int | None = field(
+    interval: str | None = field(
         default=None,
         alias=["--interval"],
         metadata={
-            "help": "Polling interval in seconds. Use null to scan once and exit."
+            "help": "Polling interval in seconds. Use 'null' to scan once and exit."
         },
     )
     order: str | None = field(
@@ -90,9 +90,15 @@ class WatchCmd:
             watch_config.monitoring_config.order = self.order
 
         if self.interval is not None:
-            watch_config.monitoring_config.interval = (
-                self.interval if self.interval > 0 else None
-            )
+            if self.interval == "null":
+                watch_config.monitoring_config.interval = None
+            else:
+                try:
+                    watch_config.monitoring_config.interval = int(self.interval)
+                except ValueError:
+                    raise ValueError(
+                        f"--interval must be an integer, got '{self.interval}'."
+                    )
 
         logger.info(
             "Starting watch mode",
