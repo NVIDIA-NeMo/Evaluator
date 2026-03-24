@@ -166,6 +166,13 @@ class StatelessSandbox:
         self._agent_sandbox = await self._ctx.sandbox_mgr.acquire(
             spec, outside_endpoints=self._ctx.outside_endpoints,
         )
+        # TODO: Move to a benchmark-provided pre_agent_cmd so the strategy
+        # layer stays generic (currently only Harbor's capture_cmd reads this).
+        await self._agent_sandbox.exec(
+            "_h=$(cd /testbed 2>/dev/null && git rev-parse HEAD 2>/dev/null) && "
+            "echo $_h > /tmp/_nel_base_commit || true",
+            timeout_sec=10,
+        )
         return self._agent_sandbox
 
     async def transition_to_verify(

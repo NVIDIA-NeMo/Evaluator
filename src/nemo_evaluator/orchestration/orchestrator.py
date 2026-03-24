@@ -209,12 +209,14 @@ def _make_solver(
 
         svc = config.get_service(solver_cfg.service)
         container_env = getattr(solver_cfg, "container_env", {})
+        run_timeout = getattr(solver_cfg, "run_timeout", None)
         return HarborSolver(
             harbor_agent=solver_cfg.agent,
             harbor_agent_kwargs=solver_cfg.agent_kwargs,
             model_url=model_url,
             model_id=model_id,
             timeout=getattr(sb, "timeout", 1800.0),
+            run_timeout=run_timeout,
             api_key=api_key,
             container_env=container_env,
             max_input_tokens=getattr(svc, "max_input_tokens", None),

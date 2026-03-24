@@ -34,7 +34,7 @@ services:
       - "--attention-backend=TRITON_ATTN"
       - "--gpu-memory-utilization=0.9"
       - "--enable-chunked-prefill"
-      - "--max-num-seqs=512"
+      - "--max-num-seqs=256"
       - "--enable-auto-tool-choice"
       - "--tool-call-parser=qwen3_coder"
       - "--reasoning-parser-plugin=/tmp/super_v3_reasoning_parser.py"
@@ -64,6 +64,7 @@ benchmarks:
       type: harbor
       service: nemotron
       agent: openhands-sdk
+      run_timeout: 5400.0  # 1.5h hard cap — tasks stuck on unreachable LLM get retried
       agent_kwargs:
         max_iterations: 100
         temperature: 1.0

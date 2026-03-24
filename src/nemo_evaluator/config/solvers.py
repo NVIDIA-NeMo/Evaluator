@@ -32,6 +32,14 @@ class HarborSolverConfig(BaseModel):
     agent: str
     agent_kwargs: dict[str, Any] = Field(default_factory=dict)
     container_env: dict[str, str] = Field(default_factory=dict)
+    run_timeout: float | None = Field(
+        default=None,
+        description=(
+            "Wall-clock timeout (seconds) for the agent.run() call. "
+            "When the agent hangs (e.g. unreachable LLM), this prevents "
+            "wasting the full benchmark timeout. Defaults to sandbox timeout."
+        ),
+    )
 
 
 class AgentSolverConfig(BaseModel):
