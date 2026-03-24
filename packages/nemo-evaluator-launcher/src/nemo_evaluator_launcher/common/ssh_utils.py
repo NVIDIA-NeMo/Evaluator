@@ -75,13 +75,11 @@ def close_master_connection(
     """
     if socket is None:
         return
-    ssh_command = f"ssh -O exit -S {socket} {username}@{hostname}"
-    completed_process = subprocess.run(args=shlex.split(ssh_command))
+    ssh_command = ["ssh", "-O", "exit", "-S", socket, f"{username}@{hostname}"]
+    completed_process = subprocess.run(args=ssh_command)
     if completed_process.returncode != 0:
-        raise RuntimeError(
-            "failed to close the master connection\n{}".format(
-                completed_process.stderr.decode("utf-8")
-            )
+        logger.error(
+            "Failed to close the master connection", code=completed_process.returncode
         )
 
 
