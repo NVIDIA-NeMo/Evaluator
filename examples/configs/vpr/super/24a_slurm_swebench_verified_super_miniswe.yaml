@@ -6,8 +6,8 @@
 # Prerequisites: same as 24_slurm_swebench_verified_super.yaml
 #
 # Run:
-#   nel eval run examples/configs/24a_slurm_swebench_verified_super_miniswe.yaml --dry-run
-#   nel eval run examples/configs/24a_slurm_swebench_verified_super_miniswe.yaml
+#   nel eval run examples/configs/vpr/super/24a_slurm_swebench_verified_super_miniswe.yaml --dry-run
+#   nel eval run examples/configs/vpr/super/24a_slurm_swebench_verified_super_miniswe.yaml
 
 defaults:
   - _base_: 24_slurm_swebench_verified_super

@@ -801,7 +801,7 @@ class TestMultinodeRay:
         script, _, _ = generate_sbatch(cfg)
         assert "MASTER_IP=" in script
         assert "scontrol show hostname" in script
-        assert "export MASTER_IP ALL_NODE_IPS" in script
+        assert "export MASTER_IP" in script
 
     def test_singlenode_no_ray(self):
         cfg = EvalConfig.model_validate(

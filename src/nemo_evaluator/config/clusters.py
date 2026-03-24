@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, field_validator
@@ -82,7 +83,17 @@ class SlurmCluster(BaseModel):
         return v
 
     sbatch_comment: str | None = None
-    sbatch_extra_flags: dict[str, Any] = Field(default_factory=dict)
+    sbatch_extra_flags: dict[str, str | int | float | bool] = Field(default_factory=dict)
+
+    @field_validator("sbatch_extra_flags")
+    @classmethod
+    def _validate_sbatch_flags(cls, v: dict) -> dict:
+        for key, val in v.items():
+            if not re.match(r"^[a-zA-Z][a-zA-Z0-9_-]*$", key):
+                raise ValueError(f"Invalid sbatch flag key: {key!r}")
+            if isinstance(val, str) and "\n" in val:
+                raise ValueError(f"sbatch flag value for {key!r} must not contain newlines")
+        return v
 
     hostname: str | None = None
     username: str | None = None

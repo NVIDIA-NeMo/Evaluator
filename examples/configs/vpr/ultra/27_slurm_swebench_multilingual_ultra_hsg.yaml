@@ -1,0 +1,122 @@
+# SLURM + vLLM Ray (Nemotron Ultra V3) + SWE-bench Multilingual + ECS Fargate
+# HSG cluster — multi-node (2 nodes × 4 GPUs = tp=8 via Ray)
+#
+# Deploys vLLM across 2 HSG nodes using Ray, evaluates swebench-multilingual
+# with the OpenHands-SDK agent. ECS Fargate provides sandboxed envs.
+#
+# Prerequisites:
+#   - HSG SLURM cluster access (oci-hsg-cs-001)
+#   - AWS credentials: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+#   - HF_TOKEN for dataset access
+#   - pip install nemo-evaluator[harbor]
+#
+# Run:
+#   nel eval run examples/configs/vpr/ultra/27_slurm_swebench_multilingual_ultra_hsg.yaml --dry-run
+#   nel eval run examples/configs/vpr/ultra/27_slurm_swebench_multilingual_ultra_hsg.yaml
+
+services:
+  nemotron-ultra:
+    type: vllm
+    model: /lustre/fsw/portfolios/llmservice/users/soumyes/sft-runs/eval_and_sleep/ultra-v3-sft-bf16-hybridep-ep64-cp32-bindpcie-recompute-offload-mar13-blend-512k-filt-1e-5/iter_0001900/hf
+    protocol: chat_completions
+    port: 5000
+    tensor_parallel_size: 8
+    data_parallel_size: 1
+    num_nodes: 2
+    image: /lustre/fsw/portfolios/llmservice/users/dmosallanezh/containers/vllm-hsg-03-16.sqsh
+    startup_timeout: 3600.0
+    extra_args:
+      - "--enable-prefix-caching"
+      - "--enable-log-requests"
+      - "--trust-remote-code"
+      - "--dtype=bfloat16"
+      - "--kv-cache-dtype=fp8"
+      - "--enable-auto-tool-choice"
+      - "--tool-call-parser=qwen3_coder"
+      - "--reasoning-parser-plugin=/reasoning/ultra_v3_reasoning_parser.py"
+      - "--reasoning-parser=ultra_v3"
+      - "--enable-expert-parallel"
+      - "--max-num-seqs=256"
+      - "--gpu-memory-utilization=0.95"
+      - "--model-loader-extra-config={\"enable_multithread_load\":true,\"num_threads\":96}"
+      - "--compilation-config={\"pass_config\":{\"fuse_allreduce_rms\":false}}"
+    extra_env:
+      VLLM_CACHE_ROOT: /cache/vllm
+      VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+      VLLM_ENGINE_READY_TIMEOUT_S: "3600"
+      RAY_raylet_start_wait_time_s: "120"
+      VLLM_FLASHINFER_ALLREDUCE_BACKEND: trtllm
+      VLLM_ALLREDUCE_USE_SYMM_MEM: "0"
+      FLASHINFER_WORKSPACE_BASE: /tmp
+    container_mounts:
+      - /lustre/fsw/portfolios/llmservice/users/${USER}/cache/huggingface:/cache/huggingface
+      - /lustre/fsw/portfolios/llmservice/users/${USER}/cache/vllm:/cache/vllm
+      - /lustre/fsw/portfolios/llmservice/users/gchlebus/evals:/reasoning
+      - /lustre/fsw/portfolios/llmservice/users/soumyes/sft-runs:/lustre/fsw/portfolios/llmservice/users/soumyes/sft-runs
+    generation:
+      temperature: 1.0
+      top_p: 0.95
+      max_tokens: 16384
+    interceptors:
+      - name: turn_counter
+        config:
+          max_turns: 100
+    proxy_verbose: false
+    node_pool: gpu
+
+benchmarks:
+  - name: swebench-multilingual
+    max_concurrent: 50
+    timeout: 3600.0
+    # max_problems: 5  # uncomment for smoke-testing
+    solver:
+      type: harbor
+      service: nemotron-ultra
+      agent: openhands-sdk
+      run_timeout: 7200.0
+      agent_kwargs:
+        max_iterations: 30
+        temperature: 1.0
+    sandbox:
+      type: ecs_fargate
+      region: us-west-1
+      cpu: "4096"
+      memory: "8192"
+      ephemeral_storage_gib: 50
+      max_task_lifetime_sec: 14400
+      log_stream_prefix: swebench-ml-ultra
+      ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
+      timeout: 3600.0
+      concurrency: 50
+
+cluster:
+  type: slurm
+  hostname: oci-hsg-cs-001-login-01.nvidia.com
+  account: llmservice_nemotron_ultra
+  walltime: "04:00:00"
+  eval_image: gitlab-master.nvidia.com:5005/dl/JoC/competitive_evaluation/nemo-evaluator-next:latest-harbor
+  sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
+  sbatch_extra_flags:
+    switches: 1
+    exclusive: true
+  container_mounts:
+    - /lustre/fsw/portfolios/llmservice/users/${USER}/cache/huggingface:/cache/huggingface
+  container_env:
+    HF_TOKEN: ${HF_TOKEN}
+    HF_HOME: /cache/huggingface
+    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    AWS_DEFAULT_REGION: us-west-2
+    LLM_API_KEY: "no-key-needed"
+  mount_home: false
+  auto_resume: true
+  max_retries: 3
+  node_pools:
+    gpu:
+      partition: batch
+      nodes: 2
+      ntasks_per_node: 1
+      gpus_per_node: 4
+
+output:
+  dir: /lustre/fsw/portfolios/llmservice/users/${USER}/nemo-evaluator-rundirs/ultra-v3/nemotron-ultra-v3-sft-mar13-iter1900/swebench-multilingual

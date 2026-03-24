@@ -6,8 +6,8 @@
 # Prerequisites: same as 25_slurm_swebench_multilingual_super.yaml
 #
 # Run:
-#   nel eval run examples/configs/25a_slurm_swebench_multilingual_super_miniswe.yaml --dry-run
-#   nel eval run examples/configs/25a_slurm_swebench_multilingual_super_miniswe.yaml
+#   nel eval run examples/configs/vpr/super/25a_slurm_swebench_multilingual_super_miniswe.yaml --dry-run
+#   nel eval run examples/configs/vpr/super/25a_slurm_swebench_multilingual_super_miniswe.yaml
 
 defaults:
   - _base_: 25_slurm_swebench_multilingual_super

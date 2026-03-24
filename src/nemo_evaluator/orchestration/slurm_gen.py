@@ -183,11 +183,9 @@ ln -sf "server-{name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/server-{name}.log"
 
 _MULTINODE_IP_DISCOVERY = """\
 # Multi-node IP discovery
-MASTER_IP=$(scontrol show hostname "$SLURM_JOB_NODELIST" | head -n 1)
-ALL_NODE_IPS=$(scontrol show hostname "$SLURM_JOB_NODELIST" | tr '\\n' ',' | sed 's/,$//')
+MASTER_IP=$(scontrol show hostname "${nodelist_var}" | head -n 1)
 echo "Master IP: $MASTER_IP"
-echo "All nodes: $ALL_NODE_IPS"
-export MASTER_IP ALL_NODE_IPS
+export MASTER_IP
 """
 
 _RAY_MULTINODE_SERVICE = """\
@@ -196,25 +194,51 @@ echo "Starting multi-node Ray {svc_type} server: {name}..."
 echo "  Logs: $OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log"
 
 RAY_PORT={ray_port}
-RAY_HEAD_ADDR="$MASTER_IP:$RAY_PORT"
+_GPUS_PER_NODE=${{SLURM_GPUS_ON_NODE:-$(nvidia-smi -L 2>/dev/null | wc -l)}}
+if [ "$_GPUS_PER_NODE" -eq 0 ] 2>/dev/null || [ -z "$_GPUS_PER_NODE" ]; then
+    echo "FATAL: Cannot determine GPU count for Ray. Set gpus_per_node in cluster config."
+    exit 1
+fi
+export RAY_ADDRESS="localhost:$RAY_PORT"
 
 # Start Ray head on first node, workers on remaining nodes
 {srun_prefix}bash -c '
+set -uo pipefail
+trap "kill 0 2>/dev/null" EXIT
+_GPUS='"$_GPUS_PER_NODE"'
+_MASTER='"$MASTER_IP"'
+_RAY_PORT='"$RAY_PORT"'
 PROC_ID=$SLURM_PROCID
 if [ "$PROC_ID" -eq 0 ]; then
-    echo "[Ray head] Starting on $(hostname)"
-    ray start --head --port='"$RAY_PORT"' --num-gpus={gpus_per_node} --block &
+    echo "[Ray head] Starting on $(hostname) with $_GPUS GPUs"
+    ray start --head --port=$_RAY_PORT --num-gpus=$_GPUS --block &
     RAY_HEAD_PID=$!
-    sleep 10
+    for _i in $(seq 1 120); do
+        ray status 2>/dev/null && break
+        sleep 2
+    done
     echo "[Ray head] Launching {svc_type}..."
+    export RAY_ADDRESS="localhost:$_RAY_PORT"
     {service_cmd}
+    _SVC_RC=$?
+    if [ $_SVC_RC -ne 0 ]; then
+        echo "[Ray head] {svc_type} exited with code $_SVC_RC"
+        ray stop 2>/dev/null; kill $RAY_HEAD_PID 2>/dev/null
+        exit $_SVC_RC
+    fi
     wait $RAY_HEAD_PID
 else
-    echo "[Ray worker $PROC_ID] Joining $MASTER_IP:'"$RAY_PORT"'"
+    echo "[Ray worker $PROC_ID] Joining $_MASTER:$_RAY_PORT with $_GPUS GPUs"
+    _joined=0
     for _i in $(seq 1 60); do
-        ray start --address="$MASTER_IP:'"$RAY_PORT"'" --num-gpus={gpus_per_node} --block && break
+        ray start --address="$_MASTER:$_RAY_PORT" --num-gpus=$_GPUS --block && {{ _joined=1; break; }}
+        echo "[Ray worker $PROC_ID] Retry $_i/60..."
         sleep 5
     done
+    if [ "$_joined" -eq 0 ]; then
+        echo "[Ray worker $PROC_ID] FATAL: Failed to join Ray cluster after 60 attempts"
+        exit 1
+    fi
 fi
 ' >> "$OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log" 2>&1 &
 {name_upper}_PID=$!
@@ -531,7 +555,7 @@ def _build_srun_prefix(
         return ""
 
     svc_mounts = getattr(svc, "container_mounts", [])
-    all_mounts = cluster_mounts + svc_mounts
+    all_mounts = list(dict.fromkeys(cluster_mounts + svc_mounts))
     mount_parts = [f"--container-mounts={m}" for m in all_mounts]
     if mount_home:
         mount_parts.append("--container-mounts=$HOME:$HOME")
@@ -542,8 +566,13 @@ def _build_srun_prefix(
 
     num_nodes = getattr(svc, "num_nodes", 1)
     ntasks = num_nodes if num_nodes > 1 else 1
+    label_flag = " --label" if num_nodes > 1 else ""
+    if num_nodes > 1:
+        for extra_key in ("MASTER_IP", "RAY_ADDRESS"):
+            if f"--container-env={extra_key}" not in env_parts:
+                env_parts.append(f"--container-env={extra_key}")
     return (
-        f"srun --mpi=pmix --overlap --nodes {num_nodes} --ntasks {ntasks}{het_flag} "
+        f"srun --mpi=pmix --overlap --nodes {num_nodes} --ntasks {ntasks}{label_flag}{het_flag} "
         f"--container-image {deploy_image} "
         f"{' '.join(mount_parts)} {' '.join(env_parts)} "
     )
@@ -600,8 +629,11 @@ def _service_block(
         reexport_block = f"{reexport_cmds}\n" if reexport_cmds else ""
 
         if num_nodes > 1:
-            ray_service_cmd = f"{main_cmd}--distributed-executor-backend ray "
-            gpus = getattr(svc, "tensor_parallel_size", 8) or 8
+            ray_main = f"{main_cmd}--distributed-executor-backend ray "
+            if setup_list:
+                ray_service_cmd = " && ".join(setup_list) + " && " + ray_main
+            else:
+                ray_service_cmd = ray_main
             return reexport_block + _RAY_MULTINODE_SERVICE.format(
                 name=name,
                 name_upper=upper,
@@ -610,7 +642,6 @@ def _service_block(
                 model=svc.model or "",
                 port=svc.port,
                 num_nodes=num_nodes,
-                gpus_per_node=gpus,
                 ray_port=6379,
                 srun_prefix=srun_prefix,
             )
@@ -792,19 +823,21 @@ def _any_multinode_service(config: EvalConfig) -> bool:
 
 
 def _compute_pool_nodes(config: EvalConfig, pool_name: str) -> int:
-    """Compute total nodes needed for a pool, accounting for multi-node services."""
+    """Compute total nodes needed for a pool, accounting for multi-node services.
+
+    Returns the max of the pool's declared nodes and any service's num_nodes
+    requirement, so that the SBATCH header always requests enough.
+    """
     cluster = config.cluster
     if not isinstance(cluster, SlurmCluster):
         return 1
     base = cluster.node_pools[pool_name].nodes
-    extra = 0
+    svc_max = 0
     for svc in config.services.values():
         svc_pool = getattr(svc, "node_pool", None)
         if svc_pool == pool_name:
-            num = getattr(svc, "num_nodes", 1)
-            if num > 1:
-                extra = max(extra, num - 1)
-    return max(base, base + extra)
+            svc_max = max(svc_max, getattr(svc, "num_nodes", 1))
+    return max(base, svc_max)
 
 
 def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEnvResult]:
@@ -923,7 +956,15 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
         parts.append(_SECRETS_SOURCE)
 
     if _any_multinode_service(config):
-        parts.append(_MULTINODE_IP_DISCOVERY)
+        nodelist_var = "$SLURM_JOB_NODELIST"
+        if use_het:
+            for svc in config.services.values():
+                if getattr(svc, "num_nodes", 1) > 1:
+                    svc_pool = getattr(svc, "node_pool", None)
+                    if svc_pool and svc_pool in pool_to_het:
+                        nodelist_var = f"$SLURM_JOB_NODELIST_HET_GROUP_{pool_to_het[svc_pool]}"
+                    break
+        parts.append(_MULTINODE_IP_DISCOVERY.format(nodelist_var=nodelist_var))
 
     if is_sharded:
         parts.append(_SHARD_SETUP)

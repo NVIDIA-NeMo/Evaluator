@@ -12,8 +12,8 @@
 #   - pip install nemo-evaluator[harbor]
 #
 # Run:
-#   nel eval run examples/configs/26_slurm_terminalbench_v1_super.yaml --dry-run
-#   nel eval run examples/configs/26_slurm_terminalbench_v1_super.yaml
+#   nel eval run examples/configs/vpr/super/26_slurm_terminalbench_v1_super.yaml --dry-run
+#   nel eval run examples/configs/vpr/super/26_slurm_terminalbench_v1_super.yaml
 
 services:
   nemotron:

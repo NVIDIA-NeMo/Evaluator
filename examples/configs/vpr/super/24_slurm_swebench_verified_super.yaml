@@ -11,8 +11,8 @@
 #   - pip install nemo-evaluator[harbor]
 #
 # Run:
-#   nel eval run examples/configs/24_slurm_swebench_verified_super.yaml --dry-run
-#   nel eval run examples/configs/24_slurm_swebench_verified_super.yaml
+#   nel eval run examples/configs/vpr/super/24_slurm_swebench_verified_super.yaml --dry-run
+#   nel eval run examples/configs/vpr/super/24_slurm_swebench_verified_super.yaml
 
 services:
   nemotron:
@@ -59,7 +59,7 @@ benchmarks:
   - name: harbor://swebench-verified@1.0
     max_concurrent: 50
     timeout: 10800.0
-    #max_problems: 5  # uncomment for smoke-testing
+    max_problems: 50  # uncomment for smoke-testing
     solver:
       type: harbor
       service: nemotron

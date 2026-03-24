@@ -11,8 +11,8 @@
 #   - pip install nemo-evaluator[harbor]
 #
 # Run:
-#   nel eval run examples/configs/25_slurm_swebench_multilingual_super.yaml --dry-run
-#   nel eval run examples/configs/25_slurm_swebench_multilingual_super.yaml
+#   nel eval run examples/configs/vpr/super/25_slurm_swebench_multilingual_super.yaml --dry-run
+#   nel eval run examples/configs/vpr/super/25_slurm_swebench_multilingual_super.yaml
 
 services:
   nemotron:
