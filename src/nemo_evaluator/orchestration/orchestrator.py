@@ -1,4 +1,5 @@
 """Local suite runner."""
+
 from __future__ import annotations
 
 import asyncio
@@ -39,6 +40,7 @@ def _drain_pipe_to_file(pipe: IO[bytes], log_path: Path) -> threading.Thread:
 
     Prevents pipe buffer deadlocks and creates per-service log files.
     """
+
     def _worker() -> None:
         try:
             with open(log_path, "wb") as f:
@@ -189,7 +191,9 @@ def _make_solver(
 
             gen = _resolve_generation(config, solver_cfg)
             return CompletionSolver(
-                base_url=model_url, model=model_id, api_key=api_key,
+                base_url=model_url,
+                model=model_id,
+                api_key=api_key,
                 temperature=gen.temperature,
                 max_tokens=gen.max_tokens,
             )
@@ -197,8 +201,7 @@ def _make_solver(
         if solver_cfg.image_detail != "auto":
             from nemo_evaluator.solvers import VLMSolver
 
-            return VLMSolver(client, system_prompt=solver_cfg.system_prompt,
-                             image_detail=solver_cfg.image_detail)
+            return VLMSolver(client, system_prompt=solver_cfg.system_prompt, image_detail=solver_cfg.image_detail)
 
         from nemo_evaluator.solvers import ChatSolver
 
@@ -335,13 +338,9 @@ def _start_model_service(svc: Any, cluster_env: dict[str, str] | None = None):
 
     if svc.tensor_parallel_size:
         if svc.type == "vllm":
-            deploy_cfg.extra_args.extend(
-                ["--tensor-parallel-size", str(svc.tensor_parallel_size)]
-            )
+            deploy_cfg.extra_args.extend(["--tensor-parallel-size", str(svc.tensor_parallel_size)])
         elif svc.type == "sglang":
-            deploy_cfg.extra_args.extend(
-                ["--tp-size", str(svc.tensor_parallel_size)]
-            )
+            deploy_cfg.extra_args.extend(["--tp-size", str(svc.tensor_parallel_size)])
 
     deployment = get_deployment(deploy_cfg)
     url = deployment.start()
@@ -381,24 +380,26 @@ class _NatServiceHandle:
         cmd = f"nat serve --config_file {self._config_file} --port {self.port} --host 0.0.0.0"
         logger.info("Starting NAT agent: %s", cmd)
         self._process = subprocess.Popen(
-            cmd, shell=True,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            cmd,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             env={**os.environ},
         )
         deadline = time.monotonic() + startup_timeout
         while time.monotonic() < deadline:
             if self._process.poll() is not None:
-                raise RuntimeError(
-                    f"NAT server exited with code {self._process.returncode} during startup"
-                )
+                raise RuntimeError(f"NAT server exited with code {self._process.returncode} during startup")
             try:
                 with urllib.request.urlopen(
-                    f"{self.endpoint}/health", timeout=2.0,
+                    f"{self.endpoint}/health",
+                    timeout=2.0,
                 ) as r:
                     if r.status == 200:
                         logger.info(
                             "NAT agent ready at %s (pid=%d)",
-                            self.endpoint, self._process.pid,
+                            self.endpoint,
+                            self._process.pid,
                         )
                         return
             except (urllib.error.URLError, OSError):
@@ -425,7 +426,10 @@ class _NatServiceHandle:
 
 class _ServiceHandle:
     def __init__(
-        self, name: str, svc: Any, log_dir: Path | None = None,
+        self,
+        name: str,
+        svc: Any,
+        log_dir: Path | None = None,
         cluster_env: dict[str, str] | None = None,
     ) -> None:
         self.name = name
@@ -466,7 +470,8 @@ class _ServiceHandle:
 
         if isinstance(self.svc, NatAgentService):
             self._nat = _NatServiceHandle(
-                self.svc.port, self.svc.nat_config_file,
+                self.svc.port,
+                self.svc.nat_config_file,
             )
             self._nat.start(startup_timeout=self.svc.startup_timeout)
             self.url = self._nat.endpoint
@@ -475,7 +480,8 @@ class _ServiceHandle:
 
         if isinstance(self.svc, _MODEL_SERVICE_TYPES) and self.svc.is_managed:
             self._deployment, self.url = _start_model_service(
-                self.svc, cluster_env=self._cluster_env,
+                self.svc,
+                cluster_env=self._cluster_env,
             )
             self._setup_log_drain()
             return self.url
@@ -507,7 +513,8 @@ def _resolve_verifier_url(
 
 
 def _resolve_reasoning_pattern(
-    config: EvalConfig, service_name: str | None,
+    config: EvalConfig,
+    service_name: str | None,
 ) -> str | None:
     if service_name is None:
         return None
@@ -597,8 +604,11 @@ def _make_judge_client(
     mid = config.get_model_id(judge_name)
     api_key = config.get_api_key(judge_name)
     return ModelClient(
-        base_url=url, model=mid, api_key=api_key,
-        temperature=0.0, max_tokens=2048,
+        base_url=url,
+        model=mid,
+        api_key=api_key,
+        temperature=0.0,
+        max_tokens=2048,
     )
 
 
@@ -639,7 +649,9 @@ async def _run_single_benchmark(
         from nemo_evaluator.orchestration.proxy import start_proxy
 
         proxy_handle = start_proxy(
-            model_url, model_id, api_key,
+            model_url,
+            model_id,
+            api_key,
             interceptors=_serialize_interceptors(svc.interceptors),
             verbose=getattr(svc, "proxy_verbose", False),
         )
@@ -647,7 +659,8 @@ async def _run_single_benchmark(
 
     try:
         env = get_environment(
-            bench.name, num_examples=bench.max_problems,
+            bench.name,
+            num_examples=bench.max_problems,
             num_fewshot=bench.fewshot,
         )
 
@@ -663,22 +676,27 @@ async def _run_single_benchmark(
         concurrency = bench.max_concurrent
 
         _MANAGES_OWN_CLIENT = (
-            GymDelegationSolverConfig, ToolCallingSolverConfig,
-            HarborSolverConfig, AgentSolverConfig,
-            NatSolverConfig, OpenClawSolverConfig,
+            GymDelegationSolverConfig,
+            ToolCallingSolverConfig,
+            HarborSolverConfig,
+            AgentSolverConfig,
+            NatSolverConfig,
+            OpenClawSolverConfig,
             ContainerSolverConfig,
         )
 
         if isinstance(solver_cfg, _MANAGES_OWN_CLIENT):
             client = None
             solver = _make_solver(
-                bench, config, client, model_url, model_id, api_key,
+                bench,
+                config,
+                client,
+                model_url,
+                model_id,
+                api_key,
             )
         else:
-            gen = (
-                _resolve_generation(config, solver_cfg)
-                if service_name else GenerationConfig()
-            )
+            gen = _resolve_generation(config, solver_cfg) if service_name else GenerationConfig()
             client = ModelClient(
                 base_url=model_url,
                 model=model_id,
@@ -689,21 +707,29 @@ async def _run_single_benchmark(
                 reasoning_pattern=reasoning_pat,
             )
             solver = _make_solver(
-                bench, config, client, model_url, model_id, api_key,
+                bench,
+                config,
+                client,
+                model_url,
+                model_id,
+                api_key,
             )
 
         from nemo_evaluator.engine.sharding import shard_from_env
+
         shard_info = shard_from_env()
 
         batch_config: dict[str, Any] = {
-            "base_url": model_url, "model": model_id, "api_key": api_key,
+            "base_url": model_url,
+            "model": model_id,
+            "api_key": api_key,
         }
         if isinstance(solver_cfg, ContainerSolverConfig):
             from nemo_evaluator.environments.container import _NEL_PROTOCOL_TO_LEGACY_TYPE
+
             protocol = getattr(svc, "protocol", "chat_completions") if svc else "chat_completions"
-            batch_config["endpoint_type"] = (
-                solver_cfg.endpoint_type
-                or _NEL_PROTOCOL_TO_LEGACY_TYPE.get(protocol, "chat")
+            batch_config["endpoint_type"] = solver_cfg.endpoint_type or _NEL_PROTOCOL_TO_LEGACY_TYPE.get(
+                protocol, "chat"
             )
             if solver_cfg.params:
                 batch_config["params"] = solver_cfg.params
@@ -714,7 +740,9 @@ async def _run_single_benchmark(
                 logger.warning(
                     "Shard env vars detected (idx=%d, total=%d) but benchmark "
                     "'%s' uses run_batch() which is not shardable.",
-                    shard_info[0], shard_info[1], bench.name,
+                    shard_info[0],
+                    shard_info[1],
+                    bench.name,
                 )
             for _key in ("api_key", "api-key"):
                 batch_result.get("config", {}).pop(_key, None)
@@ -731,7 +759,9 @@ async def _run_single_benchmark(
         for metric in bench.scoring.metrics:
             if isinstance(metric, JudgeMetric):
                 judge_client = _make_judge_client(
-                    config, metric.service, handles,
+                    config,
+                    metric.service,
+                    handles,
                 )
                 break
 
@@ -742,10 +772,7 @@ async def _run_single_benchmark(
         task_dir = output_dir / safe
         task_dir.mkdir(parents=True, exist_ok=True)
 
-        scorer_names = [
-            m.name for m in bench.scoring.metrics
-            if getattr(m, "type", None) == "scorer"
-        ]
+        scorer_names = [m.name for m in bench.scoring.metrics if getattr(m, "type", None) == "scorer"]
 
         run_config: dict[str, Any] = {
             "benchmark": bench_name,
@@ -757,7 +784,8 @@ async def _run_single_benchmark(
         }
 
         bundle = await run_evaluation(
-            env, solver,
+            env,
+            solver,
             n_repeats=bench.repeats,
             max_problems=bench.max_problems,
             max_concurrent=concurrency,
@@ -793,7 +821,9 @@ def _load_prior_bundle(task_dir: str) -> dict[str, Any]:
 
 
 def run_local(
-    config: EvalConfig, *, resume: bool = False,
+    config: EvalConfig,
+    *,
+    resume: bool = False,
 ) -> list[dict[str, Any]]:
     import click
 
@@ -821,7 +851,10 @@ def run_local(
     for name, svc in config.services.items():
         if svc.is_managed:
             handles[name] = _ServiceHandle(
-                name, svc, log_dir=log_dir, cluster_env=cluster_env,
+                name,
+                svc,
+                log_dir=log_dir,
+                cluster_env=cluster_env,
             )
 
     try:
@@ -832,9 +865,7 @@ def run_local(
 
         for i, bench in enumerate(config.benchmarks):
             n = len(config.benchmarks)
-            click.echo(
-                f"\n{'='*60}\n  Benchmark {i+1}/{n}: {bench.name}\n{'='*60}"
-            )
+            click.echo(f"\n{'=' * 60}\n  Benchmark {i + 1}/{n}: {bench.name}\n{'=' * 60}")
 
             if ckpt.is_completed(bench.name):
                 prior = ckpt.get_completed_result(bench.name)
@@ -845,16 +876,18 @@ def run_local(
             if resume and ckpt.has_partial_progress(bench.name):
                 progress = ckpt.get_progress(bench.name)
                 if progress:
-                    click.echo(
-                        f"  Resuming ({progress['verified']} verified, "
-                        f"{progress['inferred']} inferred)"
-                    )
+                    click.echo(f"  Resuming ({progress['verified']} verified, {progress['inferred']} inferred)")
 
             try:
-                bundle = asyncio.run(_run_single_benchmark(
-                    bench, config, handles, output_dir,
-                    resume=resume,
-                ))
+                bundle = asyncio.run(
+                    _run_single_benchmark(
+                        bench,
+                        config,
+                        handles,
+                        output_dir,
+                        resume=resume,
+                    )
+                )
 
                 bench_name = bundle.get("benchmark", {}).get("name", bench.name)
                 task_dir = output_dir / _safe_name(bench_name)
@@ -874,22 +907,28 @@ def run_local(
 
             except Exception as exc:
                 logger.error(
-                    "Benchmark %s failed: %s", bench.name, exc, exc_info=True,
+                    "Benchmark %s failed: %s",
+                    bench.name,
+                    exc,
+                    exc_info=True,
                 )
                 ckpt.mark_failed(bench.name, str(exc))
                 click.echo(f"  FAILED: {exc}", err=True)
-                bundles.append({
-                    "benchmark": {"name": bench.name, "samples": 0},
-                    "_failed": True,
-                    "_error": str(exc),
-                })
+                bundles.append(
+                    {
+                        "benchmark": {"name": bench.name, "samples": 0},
+                        "_failed": True,
+                        "_error": str(exc),
+                    }
+                )
 
         summary = ckpt.summary
         completed, failed = summary["completed"], summary["failed"]
         if failed > 0:
             click.echo(f"\n{completed} completed, {failed} failed", err=True)
             click.echo(
-                "Re-run with --resume to retry failed benchmarks.", err=True,
+                "Re-run with --resume to retry failed benchmarks.",
+                err=True,
             )
 
         _generate_reports(config, output_dir, in_memory_bundles=bundles)
@@ -929,8 +968,11 @@ def _generate_reports(
     table = _build_table(bundles)
 
     extensions = {
-        "markdown": "md", "html": "html", "csv": "csv",
-        "json": "json", "latex": "tex",
+        "markdown": "md",
+        "html": "html",
+        "csv": "csv",
+        "json": "json",
+        "latex": "tex",
     }
 
     for fmt in config.output.report:
@@ -950,11 +992,13 @@ def _generate_reports(
             from nemo_evaluator.engine.exporters import get_exporter
 
             exporter_kwargs = config.output.export_config.get(
-                exporter_name, {},
+                exporter_name,
+                {},
             )
             exporter = get_exporter(exporter_name, **exporter_kwargs)
             exporter.export(
-                export_bundles, config={"output_dir": str(output_dir)},
+                export_bundles,
+                config={"output_dir": str(output_dir)},
             )
             click.echo(f"Exported to: {exporter_name}")
         except Exception as exc:

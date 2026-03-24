@@ -1,4 +1,5 @@
 """Core evaluation loop: seed -> solve -> verify, with async parallelism."""
+
 from __future__ import annotations
 
 import asyncio
@@ -58,17 +59,21 @@ async def run_evaluation(
     name = env.name
     ds_size = await env.dataset_size()
     if ds_size < 0:
-        raise ValueError(f"Environment {name!r} returned invalid dataset_size={ds_size}. "
-                         "Ensure the environment is reachable and has a valid dataset.")
+        raise ValueError(
+            f"Environment {name!r} returned invalid dataset_size={ds_size}. "
+            "Ensure the environment is reachable and has a valid dataset."
+        )
     if max_problems is not None:
         ds_size = min(ds_size, max_problems)
 
     if shard_info and not problem_range:
         from nemo_evaluator.engine.sharding import get_shard_range
+
         shard_idx, total_shards = shard_info
         problem_range = get_shard_range(ds_size, shard_idx, total_shards)
         config["shard"] = {
-            "idx": shard_idx, "total": total_shards,
+            "idx": shard_idx,
+            "total": total_shards,
             "range": list(problem_range),
         }
 
@@ -106,7 +111,8 @@ async def run_evaluation(
                 logger.warning(
                     "Config changed since last run (old=%s new=%s). "
                     "Inference cache invalidated; verified cache retained.",
-                    old_meta.get("config_hash", "?"), cfg_hash,
+                    old_meta.get("config_hash", "?"),
+                    cfg_hash,
                 )
                 verified_cache = verified_log.load()
                 if verified_cache:
@@ -126,11 +132,9 @@ async def run_evaluation(
                 verified_log.open()
 
             n_from_cache = len(verified_cache)
-            n_verify_only = len(inferred_cache) - len(
-                set(inferred_cache) & set(verified_cache))
+            n_verify_only = len(inferred_cache) - len(set(inferred_cache) & set(verified_cache))
             if n_from_cache or n_verify_only:
-                logger.info("resume: %d fully cached, %d verify-only, rest from scratch",
-                            n_from_cache, n_verify_only)
+                logger.info("resume: %d fully cached, %d verify-only, rest from scratch", n_from_cache, n_verify_only)
         else:
             inference_log.open(truncate=True)
             inference_log.write_meta({"config_hash": cfg_hash})
@@ -141,19 +145,29 @@ async def run_evaluation(
 
     n_problems = end - start
     pg.on_start(name, n_problems, n_repeats)
-    logger.info("eval start: %s problems=%d [%d:%d] repeats=%d concurrency=%d",
-                name, n_problems, start, end, n_repeats, max_concurrent)
+    logger.info(
+        "eval start: %s problems=%d [%d:%d] repeats=%d concurrency=%d",
+        name,
+        n_problems,
+        start,
+        end,
+        n_repeats,
+        max_concurrent,
+    )
 
     if n_problems == 0:
         logger.warning("0 problems to evaluate — dataset may be missing or empty")
         pg.on_done(0, 0, 0.0, 0)
         return build_artifact_bundle(
-            benchmark_name=name, results=[], metrics={
+            benchmark_name=name,
+            results=[],
+            metrics={
                 "summary": summary_stats([]),
                 "runtime": ArtifactCollector().build(0.0).runtime.to_dict(),
                 "failures": ArtifactCollector().build(0.0).failures.to_dict(),
             },
-            config=config, categories=None,
+            config=config,
+            categories=None,
         )
 
     results: list[dict[str, Any]] = []
@@ -174,14 +188,14 @@ async def run_evaluation(
                 reward = cached_verified.get("reward", 0.0)
                 tokens = cached_verified.get("tokens", 0)
                 result_dict = {
-                    "problem_idx": idx, "repeat": rep,
+                    "problem_idx": idx,
+                    "repeat": rep,
                     "reward": reward,
                     "model_response": cached_verified.get("response", ""),
                     "extracted_answer": cached_verified.get("extracted_answer"),
                     "expected_answer": seed_result.expected_answer,
                     "scoring_details": cached_verified.get("scoring_details", {}),
-                    "metadata": {**seed_result.metadata,
-                                 **cached_verified.get("scoring_metadata", {})},
+                    "metadata": {**seed_result.metadata, **cached_verified.get("scoring_metadata", {})},
                     "tokens": tokens,
                     "latency_ms": cached_verified.get("latency_ms", 0),
                 }
@@ -191,12 +205,12 @@ async def run_evaluation(
                         cum_correct += 1
                     cum_total += 1
                     problem_correct.setdefault(idx, []).append(reward)
-                pg.on_step(idx - start, rep, n_problems, n_repeats,
-                           reward, tokens, 0)
+                pg.on_step(idx - start, rep, n_problems, n_repeats, reward, tokens, 0)
                 return
 
             step = StepRecord(
-                problem_idx=idx, repeat=rep,
+                problem_idx=idx,
+                repeat=rep,
                 prompt=seed_result.prompt,
                 expected_answer=seed_result.expected_answer,
                 seed_metadata=seed_result.metadata,
@@ -208,6 +222,7 @@ async def run_evaluation(
             outside_eps: list[OutsideEndpoint] = []
             if model_url:
                 from nemo_evaluator.sandbox.base import OutsideEndpoint as OE
+
                 outside_eps.append(OE(url=model_url, env_var="MODEL_BASE_URL"))
 
             sandbox_cfg = config.get("_sandbox_config")
@@ -254,8 +269,7 @@ async def run_evaluation(
                                 step.model_response = solve_result.model_response
                                 step.model_ms = solve_result.model_response.latency_ms
                             if solve_result.error:
-                                logger.warning("solve error p%d r%d (graceful): %s",
-                                               idx, rep, solve_result.error)
+                                logger.warning("solve error p%d r%d (graceful): %s", idx, rep, solve_result.error)
                                 step.model_error = solve_result.error
                         except GracefulError as e:
                             step.model_error = str(e)
@@ -264,14 +278,24 @@ async def run_evaluation(
                             raise  # system error — outer loop will retry
 
                         response_text = solve_result.response if solve_result else ""
-                        tokens = solve_result.model_response.total_tokens if solve_result and solve_result.model_response else 0
-                        latency_ms = solve_result.model_response.latency_ms if solve_result and solve_result.model_response else 0
+                        tokens = (
+                            solve_result.model_response.total_tokens
+                            if solve_result and solve_result.model_response
+                            else 0
+                        )
+                        latency_ms = (
+                            solve_result.model_response.latency_ms
+                            if solve_result and solve_result.model_response
+                            else 0
+                        )
 
                         if inference_log is not None:
                             inf_record = {
-                                "problem_idx": idx, "repeat": rep,
+                                "problem_idx": idx,
+                                "repeat": rep,
                                 "response": response_text,
-                                "tokens": tokens, "latency_ms": latency_ms,
+                                "tokens": tokens,
+                                "latency_ms": latency_ms,
                                 "prompt": seed_result.prompt,
                                 "expected_answer": seed_result.expected_answer,
                                 "seed_metadata": seed_result.metadata,
@@ -292,11 +316,13 @@ async def run_evaluation(
                         )
                         logger.info(
                             "p%d r%d: solver failed — grading 0.0 (skipping verify)",
-                            idx, rep,
+                            idx,
+                            rep,
                         )
                     else:
                         await lifecycle.transition_to_verify(
-                            response_text, solver_modified=(sandbox is not None),
+                            response_text,
+                            solver_modified=(sandbox is not None),
                         )
                         pg.on_phase(idx - start, rep, n_problems, n_repeats, "verifying")
                     tv = time.monotonic()
@@ -309,8 +335,10 @@ async def run_evaluation(
                     elif not _solve_failed:
                         verify_sandbox = await lifecycle.get_verify_sandbox()
                         vr = await env.verify(
-                            response_text, seed_result.expected_answer,
-                            sandbox=verify_sandbox, **seed_result.metadata,
+                            response_text,
+                            seed_result.expected_answer,
+                            sandbox=verify_sandbox,
+                            **seed_result.metadata,
                         )
                     break  # success — exit retry loop
 
@@ -318,7 +346,9 @@ async def run_evaluation(
                     await lifecycle.teardown()
                     logger.warning(
                         "p%d r%d: graceful error, grading 0.0: %s",
-                        idx, rep, e,
+                        idx,
+                        rep,
+                        e,
                     )
                     vr = VerifyResult(
                         reward=0.0,
@@ -335,15 +365,22 @@ async def run_evaluation(
                     if _attempt < max_system_retries:
                         delay = min(30, 5 * (2 ** (_attempt - 1)))
                         logger.warning(
-                            "p%d r%d: system error (attempt %d/%d), "
-                            "retrying in %ds: %s",
-                            idx, rep, _attempt, max_system_retries, delay, e,
+                            "p%d r%d: system error (attempt %d/%d), retrying in %ds: %s",
+                            idx,
+                            rep,
+                            _attempt,
+                            max_system_retries,
+                            delay,
+                            e,
                         )
                         await asyncio.sleep(delay)
                         continue
                     logger.error(
                         "p%d r%d: system error exhausted %d retries: %s",
-                        idx, rep, max_system_retries, e,
+                        idx,
+                        rep,
+                        max_system_retries,
+                        e,
                     )
                     if not skip_failed:
                         raise
@@ -369,6 +406,7 @@ async def run_evaluation(
                 extra_scorers = (config or {}).get("scorers", [])
                 if extra_scorers:
                     from nemo_evaluator.scoring import get_scorer, ScorerInput
+
                     for scorer_name in extra_scorers:
                         try:
                             sfn = get_scorer(scorer_name)
@@ -388,6 +426,7 @@ async def run_evaluation(
                     pg.on_phase(idx - start, rep, n_problems, n_repeats, "judging")
                     try:
                         from nemo_evaluator.scoring.judge import judge_score
+
                         judge_result = await judge_score(
                             instruction=seed_result.prompt,
                             response=response_text,
@@ -403,13 +442,15 @@ async def run_evaluation(
 
                 if verified_log is not None:
                     ver_record = {
-                        "problem_idx": idx, "repeat": rep,
+                        "problem_idx": idx,
+                        "repeat": rep,
                         "reward": vr.reward,
                         "extracted_answer": vr.extracted_answer,
                         "scoring_details": vr.scoring_details,
                         "scoring_metadata": vr.metadata,
                         "response": response_text,
-                        "tokens": tokens, "latency_ms": latency_ms,
+                        "tokens": tokens,
+                        "latency_ms": latency_ms,
                     }
                     await verified_log.append(ver_record)
 
@@ -419,7 +460,8 @@ async def run_evaluation(
                         scorer_rewards[sk] = sv.get("reward", 0.0)
 
                 result_dict = {
-                    "problem_idx": idx, "repeat": rep,
+                    "problem_idx": idx,
+                    "repeat": rep,
                     "reward": vr.reward,
                     "scorer_rewards": scorer_rewards,
                     "model_response": response_text,
@@ -461,7 +503,8 @@ async def run_evaluation(
             if exc is None:
                 continue
             logger.error(
-                "Step failed (retries exhausted, will abort run): %s", exc,
+                "Step failed (retries exhausted, will abort run): %s",
+                exc,
             )
             if first_error is None:
                 first_error = exc
@@ -524,16 +567,10 @@ async def run_evaluation(
     elapsed = time.monotonic() - t0
 
     if first_error is not None:
-        raise RuntimeError(
-            f"Evaluation aborted (skip_failed=False): {first_error}"
-        ) from first_error
+        raise RuntimeError(f"Evaluation aborted (skip_failed=False): {first_error}") from first_error
 
     all_rewards = [r["reward"] for r in results]
-    per_problem_means = [
-        sum(rewards) / len(rewards)
-        for rewards in problem_correct.values()
-        if rewards
-    ]
+    per_problem_means = [sum(rewards) / len(rewards) for rewards in problem_correct.values() if rewards]
     has_fractional = any(r not in (0, 0.0, 1, 1.0) for r in all_rewards)
 
     metrics: dict[str, Any] = {}
@@ -546,15 +583,16 @@ async def run_evaluation(
         }
 
     overall_mean = metrics["mean_reward"]["value"] if "mean_reward" in metrics else None
-    pg.on_done(cum_correct, cum_total, elapsed, sum(
-        s.model_response.total_tokens for s in collector.steps if s.model_response),
-        mean_reward=overall_mean)
+    pg.on_done(
+        cum_correct,
+        cum_total,
+        elapsed,
+        sum(s.model_response.total_tokens for s in collector.steps if s.model_response),
+        mean_reward=overall_mean,
+    )
 
     # pass@k: useful for binary-scored benchmarks (code generation, etc.)
-    problem_list = [
-        (n_repeats, sum(1 for r in rewards if r > 0))
-        for rewards in problem_correct.values()
-    ]
+    problem_list = [(n_repeats, sum(1 for r in rewards if r > 0)) for rewards in problem_correct.values()]
     for k in [1] + ([n_repeats] if n_repeats > 1 else []):
         if k <= n_repeats and problem_list:
             pak = aggregate_pass_at_k(problem_list, k)
@@ -570,17 +608,24 @@ async def run_evaluation(
     cats = None
     if results and "category" in results[0].get("metadata", {}):
         cat_results = category_breakdown(results, "category")
-        cats = [{"category": c.category, "n_samples": c.n_samples,
-                 "mean_reward": round(c.mean_reward, 4)} for c in cat_results]
+        cats = [
+            {"category": c.category, "n_samples": c.n_samples, "mean_reward": round(c.mean_reward, 4)}
+            for c in cat_results
+        ]
 
     sd_breakdowns = scoring_details_breakdown(results)
     if sd_breakdowns:
         metrics["breakdowns"] = {
-            field: [{"group": c.category, "n": c.n_samples,
-                     "mean_reward": round(c.mean_reward, 4),
-                     "ci_lower": round(c.ci.ci_lower, 4),
-                     "ci_upper": round(c.ci.ci_upper, 4)}
-                    for c in groups]
+            field: [
+                {
+                    "group": c.category,
+                    "n": c.n_samples,
+                    "mean_reward": round(c.mean_reward, 4),
+                    "ci_lower": round(c.ci.ci_lower, 4),
+                    "ci_upper": round(c.ci.ci_upper, 4),
+                }
+                for c in groups
+            ]
             for field, groups in sd_breakdowns.items()
         }
 
@@ -614,8 +659,11 @@ async def run_evaluation(
     metrics["failures"] = artifacts.failures.to_dict()
 
     bundle = build_artifact_bundle(
-        benchmark_name=name, results=results, metrics=metrics,
-        config=config, categories=cats,
+        benchmark_name=name,
+        results=results,
+        metrics=metrics,
+        config=config,
+        categories=cats,
     )
     bundle["_results"] = results
     bundle["_artifacts"] = artifacts
@@ -625,6 +673,7 @@ async def run_evaluation(
 def _solver_accepts_sandbox(solver: Any) -> bool:
     """Check if a solver's solve() method accepts a 'sandbox' keyword argument."""
     import inspect
+
     try:
         sig = inspect.signature(solver.solve)
         return "sandbox" in sig.parameters

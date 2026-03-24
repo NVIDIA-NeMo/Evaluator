@@ -20,12 +20,20 @@ def _fmt_duration(seconds: float) -> str:
 
 class ProgressTracker(Protocol):
     def on_start(self, benchmark: str, total_problems: int, total_repeats: int) -> None: ...
-    def on_step(self, problem: int, repeat: int, total_problems: int, total_repeats: int,
-                reward: float, tokens: int, latency_ms: float) -> None: ...
-    def on_phase(self, problem: int, repeat: int, total_problems: int, total_repeats: int,
-                 phase: str) -> None: ...
-    def on_done(self, correct: int, total: int, elapsed: float, total_tokens: int,
-                mean_reward: float | None = None) -> None: ...
+    def on_step(
+        self,
+        problem: int,
+        repeat: int,
+        total_problems: int,
+        total_repeats: int,
+        reward: float,
+        tokens: int,
+        latency_ms: float,
+    ) -> None: ...
+    def on_phase(self, problem: int, repeat: int, total_problems: int, total_repeats: int, phase: str) -> None: ...
+    def on_done(
+        self, correct: int, total: int, elapsed: float, total_tokens: int, mean_reward: float | None = None
+    ) -> None: ...
 
 
 class ConsoleProgress:
@@ -57,13 +65,21 @@ class ConsoleProgress:
         self._total = total_problems * total_repeats
         msg = f"{benchmark} | {total_problems} problems x {total_repeats} repeats = {self._total} steps"
         if self._is_tty:
-            sys.stderr.write(f"\n{'='*60}\n  {msg}\n{'='*60}\n\n")
+            sys.stderr.write(f"\n{'=' * 60}\n  {msg}\n{'=' * 60}\n\n")
             sys.stderr.flush()
         else:
             logger.info(msg)
 
-    def on_step(self, problem: int, repeat: int, total_problems: int, total_repeats: int,
-                reward: float, tokens: int, latency_ms: float) -> None:
+    def on_step(
+        self,
+        problem: int,
+        repeat: int,
+        total_problems: int,
+        total_repeats: int,
+        reward: float,
+        tokens: int,
+        latency_ms: float,
+    ) -> None:
         self._tokens += tokens
         self._steps += 1
         if reward > 0:
@@ -84,16 +100,21 @@ class ConsoleProgress:
                 elapsed_str = _fmt_duration(elapsed)
                 acc = self._correct / self._steps if self._steps else 0
                 logger.info(
-                    "progress: %d/%d (%.1f%%) | pass@1=%.1f%% (%d/%d) | "
-                    "%.1f/s | %s elapsed | ETA %s | %d tok",
-                    self._steps, total, pct,
-                    100 * acc, self._correct, self._steps,
-                    rate, elapsed_str, eta_str, self._tokens,
+                    "progress: %d/%d (%.1f%%) | pass@1=%.1f%% (%d/%d) | %.1f/s | %s elapsed | ETA %s | %d tok",
+                    self._steps,
+                    total,
+                    pct,
+                    100 * acc,
+                    self._correct,
+                    self._steps,
+                    rate,
+                    elapsed_str,
+                    eta_str,
+                    self._tokens,
                 )
                 self._last_log = now
 
-    def on_phase(self, problem: int, repeat: int, total_problems: int, total_repeats: int,
-                 phase: str) -> None:
+    def on_phase(self, problem: int, repeat: int, total_problems: int, total_repeats: int, phase: str) -> None:
         self._phases[(problem, repeat)] = self._PHASE_ORDER.get(phase, 1)
         if not self._is_tty:
             return
@@ -130,34 +151,45 @@ class ConsoleProgress:
             parts.append(f"{n_wait} wait")
         counts = ", ".join(parts)
 
-        line = (
-            f"\r  [{bar}] {pct:5.1f}% | "
-            f"{counts} | "
-            f"{rate:.1f}/s | "
-            f"{self._tokens:,} tok ({tok_rate:.0f}/s)"
-        )
+        line = f"\r  [{bar}] {pct:5.1f}% | {counts} | {rate:.1f}/s | {self._tokens:,} tok ({tok_rate:.0f}/s)"
         pad = max(0, self._line_len - len(line))
         sys.stderr.write(line + " " * pad)
         sys.stderr.flush()
         self._line_len = len(line)
 
-    def on_done(self, correct: int, total: int, elapsed: float, total_tokens: int,
-                mean_reward: float | None = None) -> None:
+    def on_done(
+        self, correct: int, total: int, elapsed: float, total_tokens: int, mean_reward: float | None = None
+    ) -> None:
         mr = f" | mean_reward={mean_reward:.4f}" if mean_reward is not None else ""
         acc = correct / total if total else 0
         msg = f"Done {elapsed:.1f}s | pass@1={acc:.1%} ({correct}/{total}){mr} | {total_tokens:,} tok"
         if self._is_tty:
-            sys.stderr.write(f"\n\n{'='*60}\n  {msg}\n{'='*60}\n\n")
+            sys.stderr.write(f"\n\n{'=' * 60}\n  {msg}\n{'=' * 60}\n\n")
             sys.stderr.flush()
         else:
             logger.info(msg)
 
 
 class NoOpProgress:
-    def on_start(self, benchmark: str, total_problems: int, total_repeats: int) -> None: pass
-    def on_step(self, problem: int, repeat: int, total_problems: int, total_repeats: int,
-                reward: float, tokens: int, latency_ms: float) -> None: pass
-    def on_phase(self, problem: int, repeat: int, total_problems: int, total_repeats: int,
-                 phase: str) -> None: pass
-    def on_done(self, correct: int, total: int, elapsed: float, total_tokens: int,
-                mean_reward: float | None = None) -> None: pass
+    def on_start(self, benchmark: str, total_problems: int, total_repeats: int) -> None:
+        pass
+
+    def on_step(
+        self,
+        problem: int,
+        repeat: int,
+        total_problems: int,
+        total_repeats: int,
+        reward: float,
+        tokens: int,
+        latency_ms: float,
+    ) -> None:
+        pass
+
+    def on_phase(self, problem: int, repeat: int, total_problems: int, total_repeats: int, phase: str) -> None:
+        pass
+
+    def on_done(
+        self, correct: int, total: int, elapsed: float, total_tokens: int, mean_reward: float | None = None
+    ) -> None:
+        pass

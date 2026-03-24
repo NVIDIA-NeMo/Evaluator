@@ -1,4 +1,5 @@
 """NeMo Skills benchmarks as EvalEnvironments."""
+
 from __future__ import annotations
 
 import json
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 def _require_skills():
     try:
         from nemo_skills.dataset import utils as ds_utils
+
         return ds_utils
     except ImportError:
         raise ImportError(
@@ -37,7 +39,9 @@ def _prepare_dataset(benchmark: str) -> None:
     logger.info("Dataset for %s not found, preparing automatically...", benchmark)
     result = subprocess.run(
         [sys.executable, "-m", "nemo_skills.dataset.prepare", benchmark],
-        capture_output=True, text=True, timeout=300,
+        capture_output=True,
+        text=True,
+        timeout=300,
     )
     if result.returncode != 0:
         raise RuntimeError(f"Failed to prepare dataset {benchmark!r}: {result.stderr[-500:]}")
@@ -83,6 +87,7 @@ def _load_dataset(benchmark: str, split: str | None, data_dir: str | None) -> li
 def _get_evaluator(eval_type: str):
     try:
         from nemo_skills.evaluation.evaluator import get_evaluator_class
+
         return get_evaluator_class(eval_type, config={})
     except (ImportError, KeyError, ValueError, TypeError):
         return None
@@ -140,7 +145,9 @@ class SkillsEnvironment(EvalEnvironment):
             prompt = self._prompt_template.format(problem=prompt, question=prompt)
 
         meta: dict[str, Any] = {
-            "source": "nemo_skills", "benchmark": self._benchmark, "eval_type": self._eval_type,
+            "source": "nemo_skills",
+            "benchmark": self._benchmark,
+            "eval_type": self._eval_type,
         }
         for k in ("category", "subject", "difficulty", "level", "type", "domain", "subset"):
             if k in sample:
@@ -149,8 +156,7 @@ class SkillsEnvironment(EvalEnvironment):
             meta["choices"] = sample["choices"]
         return SeedResult(prompt=prompt, expected_answer=expected, metadata=meta)
 
-    async def verify(self, response: str, expected: str,
-                     sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
+    async def verify(self, response: str, expected: str, sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
         reward, details = self._score(response, expected, meta)
         return VerifyResult(
             reward=reward,
@@ -171,6 +177,7 @@ class SkillsEnvironment(EvalEnvironment):
 
     def _score_math(self, response: str, expected: str, meta: dict[str, Any] = None) -> tuple[float, dict]:
         from nemo_skills.evaluation.evaluator.math_grader import extract_answer, math_equal
+
         extracted = extract_answer(response)
         correct = math_equal(extracted, expected)
         return (1.0 if correct else 0.0, {"method": "skills_math_equal", "extracted": extracted, "match": correct})
@@ -178,6 +185,7 @@ class SkillsEnvironment(EvalEnvironment):
     def _score_multichoice(self, response: str, expected: str, meta: dict[str, Any]) -> tuple[float, dict]:
         try:
             from nemo_skills.evaluation.evaluator.math_grader import extract_answer
+
             extracted = extract_answer(response)
         except ImportError:
             extracted = response.strip().upper()[:1]
@@ -227,5 +235,7 @@ def list_skills_benchmarks(data_dir: str | None = None) -> list[dict[str, str]]:
                     except (ImportError, KeyError, ValueError, AttributeError):
                         pass
                     metrics_type = getattr(module, "METRICS_TYPE", "unknown") if module else "unknown"
-                    benchmarks.append({"benchmark": p.name, "splits": [f.stem for f in jsonls], "metrics_type": metrics_type})
+                    benchmarks.append(
+                        {"benchmark": p.name, "splits": [f.stem for f in jsonls], "metrics_type": metrics_type}
+                    )
     return benchmarks

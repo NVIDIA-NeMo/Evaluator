@@ -154,7 +154,6 @@ class TestAutoresumePrologue:
         script, _, _ = generate_sbatch(cfg)
         assert "Infra retry limit (5)" in script
 
-
     def test_cancelled_handling_in_script(self):
         cfg = _make_slurm_config(auto_resume=True)
         script, _, _ = generate_sbatch(cfg)
@@ -298,7 +297,7 @@ class TestPerServiceLogFiles:
             }
         )
         script, _, _ = generate_sbatch(cfg)
-        assert 'logs/server-model.log' in script
+        assert "logs/server-model.log" in script
 
 
 class TestSidecarConfigGeneration:

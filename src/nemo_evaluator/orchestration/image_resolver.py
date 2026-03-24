@@ -1,4 +1,5 @@
 """Resolve container images from ``containers.toml`` for SLURM and Docker execution."""
+
 from __future__ import annotations
 
 import tomllib
@@ -9,6 +10,7 @@ from typing import Any
 @lru_cache(maxsize=1)
 def _load_mapping() -> dict[str, Any]:
     from nemo_evaluator.resources import containers_toml_path
+
     return tomllib.loads(containers_toml_path().read_text(encoding="utf-8"))
 
 
@@ -59,5 +61,3 @@ def resolve_deployment_image(deploy_type: str) -> str:
 def default_base_image(base_override: str | None = None) -> str:
     """Return the base eval image."""
     return base_override or _default_base()
-
-

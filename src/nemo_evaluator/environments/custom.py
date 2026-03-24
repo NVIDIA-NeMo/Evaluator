@@ -21,6 +21,7 @@ Dataset specs:
   - "path/to/data.jsonl"                  (local JSONL)
   - callable returning list[dict]         (programmatic)
 """
+
 from __future__ import annotations
 
 import json
@@ -42,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 
 # ── Data types ────────────────────────────────────────────────────────────
+
 
 @dataclass
 class BenchmarkDefinition:
@@ -65,9 +67,11 @@ _BYOB_REGISTRY: dict[str, BenchmarkDefinition] = {}
 
 # ── Dataset loading ───────────────────────────────────────────────────────
 
+
 def _load_dataset_from_spec(spec: str | Callable, num_examples: int | None = None) -> list[dict[str, Any]]:
     if callable(spec):
         import inspect
+
         sig = inspect.signature(spec)
         if "num_examples" in sig.parameters:
             rows = spec(num_examples=num_examples)
@@ -99,6 +103,7 @@ def _load_dataset_from_spec(spec: str | Callable, num_examples: int | None = Non
 
 def _load_csv(path: Path, delimiter: str = ",") -> list[dict[str, Any]]:
     import csv
+
     with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter=delimiter)
         return [dict(row) for row in reader]
@@ -146,6 +151,7 @@ def _format_prompt(template: str, row: dict, field_mapping: dict | None = None) 
 
 # ── Environment class ─────────────────────────────────────────────────────
 
+
 class ByobEnvironment(EvalEnvironment):
     """Auto-generated from @benchmark + @scorer."""
 
@@ -168,10 +174,7 @@ class ByobEnvironment(EvalEnvironment):
             return None
         result = self._defn.image_builder_fn(self._dataset)
         if not isinstance(result, ImageBuildRequest):
-            raise TypeError(
-                f"@image_builder must return ImageBuildRequest, "
-                f"got {type(result).__name__}"
-            )
+            raise TypeError(f"@image_builder must return ImageBuildRequest, got {type(result).__name__}")
         return [result]
 
     async def sandbox_specs(self) -> list[SandboxSpec] | None:
@@ -203,21 +206,24 @@ class ByobEnvironment(EvalEnvironment):
         if self._defn.system_prompt:
             messages.insert(0, {"role": "system", "content": self._defn.system_prompt})
 
-        return SeedResult(prompt=prompt, expected_answer=target, messages=messages,
-                          system=self._defn.system_prompt, metadata=meta)
+        return SeedResult(
+            prompt=prompt, expected_answer=target, messages=messages, system=self._defn.system_prompt, metadata=meta
+        )
 
-    async def verify(self, response: str, expected: str,
-                     sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
+    async def verify(self, response: str, expected: str, sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
         if self._defn.scorer_fn is None:
             correct = response.strip().lower() == expected.strip().lower()
-            return VerifyResult(reward=1.0 if correct else 0.0,
-                                extracted_answer=response.strip()[:200],
-                                scoring_details={"method": "default_exact_match"})
+            return VerifyResult(
+                reward=1.0 if correct else 0.0,
+                extracted_answer=response.strip()[:200],
+                scoring_details={"method": "default_exact_match"},
+            )
 
         import asyncio
 
-        sample = ScorerInput(response=response, target=expected, metadata=meta,
-                             config=self._defn.extra, sandbox=sandbox)
+        sample = ScorerInput(
+            response=response, target=expected, metadata=meta, config=self._defn.extra, sandbox=sandbox
+        )
         scores = self._defn.scorer_fn(sample)
         if asyncio.iscoroutine(scores):
             scores = await scores
@@ -231,6 +237,7 @@ class ByobEnvironment(EvalEnvironment):
 
 
 # ── Decorators ────────────────────────────────────────────────────────────
+
 
 def benchmark(
     name: str,
@@ -248,11 +255,17 @@ def benchmark(
 ):
     """Register a benchmark. Decorate a scorer function."""
     defn = BenchmarkDefinition(
-        name=name, dataset=dataset, prompt=prompt,
-        target_field=target_field, endpoint_type=endpoint_type,
-        system_prompt=system_prompt, field_mapping=field_mapping,
-        extra={**(extra or {}), **kwargs}, requirements=requirements,
-        prepare_row=prepare_row, seed_fn=seed_fn,
+        name=name,
+        dataset=dataset,
+        prompt=prompt,
+        target_field=target_field,
+        endpoint_type=endpoint_type,
+        system_prompt=system_prompt,
+        field_mapping=field_mapping,
+        extra={**(extra or {}), **kwargs},
+        requirements=requirements,
+        prepare_row=prepare_row,
+        seed_fn=seed_fn,
     )
 
     def decorator(fn):
@@ -293,7 +306,9 @@ def image_builder(builder_fn: Callable[[list[dict]], ImageBuildRequest]):
         @scorer
         async def score(sample): ...
     """
+
     def decorator(fn):
         fn._image_builder_fn = builder_fn  # type: ignore[attr-defined]
         return fn
+
     return decorator

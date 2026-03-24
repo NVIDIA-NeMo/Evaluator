@@ -5,6 +5,7 @@ giving full observability over every turn.  Works with Gym Resource Server
 tools (``HttpToolBackend``), sandbox tools (``SandboxToolBackend``), or
 both (``CompositeToolBackend``).
 """
+
 from __future__ import annotations
 
 import logging
@@ -81,7 +82,9 @@ class ReActSolver:
         self._response_mode = response_mode
 
     async def solve(
-        self, task: SeedResult, sandbox: Sandbox | None = None,
+        self,
+        task: SeedResult,
+        sandbox: Sandbox | None = None,
     ) -> SolveResult:
         t0 = time.monotonic()
 
@@ -117,24 +120,26 @@ class ReActSolver:
                 total_completion_tokens += tcr.model_response.completion_tokens
 
                 # 4b. Record ATIF agent step
-                atif_steps.append({
-                    "source": "agent",
-                    "message": tcr.content or "",
-                    "model_name": tcr.model_response.model,
-                    "tool_calls": [
-                        {
-                            "function_name": tc.name,
-                            "arguments": tc.arguments,
-                            "tool_call_id": tc.id,
-                        }
-                        for tc in tcr.tool_calls
-                    ],
-                    "metrics": {
-                        "prompt_tokens": tcr.model_response.prompt_tokens,
-                        "completion_tokens": tcr.model_response.completion_tokens,
-                        "latency_ms": tcr.model_response.latency_ms,
-                    },
-                })
+                atif_steps.append(
+                    {
+                        "source": "agent",
+                        "message": tcr.content or "",
+                        "model_name": tcr.model_response.model,
+                        "tool_calls": [
+                            {
+                                "function_name": tc.name,
+                                "arguments": tc.arguments,
+                                "tool_call_id": tc.id,
+                            }
+                            for tc in tcr.tool_calls
+                        ],
+                        "metrics": {
+                            "prompt_tokens": tcr.model_response.prompt_tokens,
+                            "completion_tokens": tcr.model_response.completion_tokens,
+                            "latency_ms": tcr.model_response.latency_ms,
+                        },
+                    }
+                )
 
                 # 4c. No tool calls → model is done
                 if not tcr.tool_calls:
@@ -149,32 +154,36 @@ class ReActSolver:
                     truncated = self._truncate(result.content)
 
                     # Record ATIF observation
-                    atif_steps.append({
-                        "source": "system",
-                        "message": truncated,
-                        "observation": {
-                            "results": [{
-                                "source_call_id": tc.id,
-                                "content": truncated,
-                                "is_error": result.is_error,
-                            }],
-                        },
-                    })
+                    atif_steps.append(
+                        {
+                            "source": "system",
+                            "message": truncated,
+                            "observation": {
+                                "results": [
+                                    {
+                                        "source_call_id": tc.id,
+                                        "content": truncated,
+                                        "is_error": result.is_error,
+                                    }
+                                ],
+                            },
+                        }
+                    )
 
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc.id,
-                        "content": truncated,
-                    })
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "content": truncated,
+                        }
+                    )
 
                 # 4f. Context management
                 messages = self._manage_context(messages)
 
             # 5. Extract response
             if last_tcr and last_tcr.tool_calls and turn >= self._max_turns - 1:
-                raise GracefulError(
-                    f"max_turns_exhausted ({self._max_turns} turns)"
-                )
+                raise GracefulError(f"max_turns_exhausted ({self._max_turns} turns)")
 
             if self._response_mode == "sandbox_artifact":
                 final_text = ""
@@ -215,7 +224,8 @@ class ReActSolver:
             return SolveResult(
                 response="",
                 model_response=ModelResponse(
-                    content="", model=self._client.model,
+                    content="",
+                    model=self._client.model,
                     total_tokens=total_prompt_tokens + total_completion_tokens,
                     latency_ms=round(latency_ms, 2),
                 ),
@@ -298,11 +308,7 @@ class ReActSolver:
         if len(text) <= self._max_output_chars:
             return text
         half = self._max_output_chars // 2
-        return (
-            text[:half]
-            + f"\n\n... [truncated {len(text) - self._max_output_chars} chars] ...\n\n"
-            + text[-half:]
-        )
+        return text[:half] + f"\n\n... [truncated {len(text) - self._max_output_chars} chars] ...\n\n" + text[-half:]
 
     def _manage_context(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Drop middle turns to keep context size manageable.
@@ -319,22 +325,25 @@ class ReActSolver:
             return messages
 
         keep_start = 2  # system + first user
-        keep_end = 10   # recent messages
+        keep_end = 10  # recent messages
         if len(messages) <= keep_start + keep_end:
             return messages
 
         head = messages[:keep_start]
         tail = messages[-keep_end:]
         dropped = len(messages) - keep_start - keep_end
-        head.append({
-            "role": "system",
-            "content": f"[{dropped} earlier messages omitted to manage context length]",
-        })
+        head.append(
+            {
+                "role": "system",
+                "content": f"[{dropped} earlier messages omitted to manage context length]",
+            }
+        )
         return head + tail
 
     @staticmethod
     def _extract_last_text(
-        messages: list[dict[str, Any]], last_tcr: ToolCallingResponse | None,
+        messages: list[dict[str, Any]],
+        last_tcr: ToolCallingResponse | None,
     ) -> str:
         if last_tcr and last_tcr.content:
             return last_tcr.content

@@ -1,4 +1,5 @@
 """nel list — unified benchmark discovery across all sources."""
+
 from __future__ import annotations
 
 import click
@@ -6,7 +7,8 @@ import click
 
 @click.command("list")
 @click.option(
-    "--source", "-s",
+    "--source",
+    "-s",
     type=click.Choice(["all", "builtin", "skills", "lm-eval"]),
     default="all",
     help="Filter benchmarks by source",
@@ -37,6 +39,7 @@ def list_cmd(source, data_dir):
 
 def _list_builtin() -> list[str]:
     from nemo_evaluator.environments.registry import list_environments
+
     names = list_environments()
     return [f"{name:30s} nel eval run --bench {name}" for name in names]
 
@@ -54,15 +57,14 @@ def _list_skills(data_dir: str | None) -> list[str]:
     items = []
     for b in benchmarks:
         splits = ", ".join(b["splits"])
-        items.append(
-            f"skills://{b['benchmark']:25s} type={b['metrics_type']:15s} splits=[{splits}]"
-        )
+        items.append(f"skills://{b['benchmark']:25s} type={b['metrics_type']:15s} splits=[{splits}]")
     return items
 
 
 def _list_lm_eval() -> list[str]:
     try:
         from lm_eval.tasks import TaskManager
+
         tm = TaskManager()
         all_tasks = sorted(tm.all_tasks)
     except ImportError:

@@ -1,4 +1,5 @@
 """Local executor: in-process or background fork."""
+
 from __future__ import annotations
 
 import logging
@@ -39,10 +40,10 @@ def _pid_alive(pid: int) -> bool:
 class LocalExecutor(Executor):
     name = "local"
 
-    def run(self, config, *, dry_run=False, resume=False,
-            background=False, submit=False) -> None:
+    def run(self, config, *, dry_run=False, resume=False, background=False, submit=False) -> None:
         if dry_run:
             import click
+
             click.echo(f"Dry-run: would run {len(config.benchmarks)} benchmark(s) locally")
             for b in config.benchmarks:
                 click.echo(f"  - {b.name} (repeats={b.repeats})")
@@ -122,6 +123,7 @@ class LocalExecutor(Executor):
 
         try:
             from nemo_evaluator.orchestration.orchestrator import run_local
+
             run_local(config, resume=resume)
         finally:
             pid_file = Path(config.output.dir) / "nel.pid"
@@ -157,13 +159,10 @@ class LocalExecutor(Executor):
     def resume_run(self, run_meta, **kwargs) -> None:
         import click
 
-
         output_dir = run_meta.output_dir
         config_path = Path(output_dir) / "_docker_config.json"
         if not config_path.exists():
-            raise click.ClickException(
-                f"Cannot resume local run: no saved config in {output_dir}"
-            )
+            raise click.ClickException(f"Cannot resume local run: no saved config in {output_dir}")
 
         import json
 

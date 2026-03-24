@@ -1,4 +1,5 @@
 """VLMSolver: vision-language model solver."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -13,8 +14,7 @@ class VLMSolver:
     """Vision-language model solver. Uses vlm_chat() when images are present,
     falls back to regular chat() for text-only tasks."""
 
-    def __init__(self, client: Any, system_prompt: str | None = None,
-                 image_detail: str = "auto") -> None:
+    def __init__(self, client: Any, system_prompt: str | None = None, image_detail: str = "auto") -> None:
         self._client = client
         self._system = system_prompt
         self._detail = image_detail
@@ -23,15 +23,19 @@ class VLMSolver:
         effective_system = self._system or task.system
         if task.images:
             resp = await self._client.vlm_chat(
-                prompt=task.prompt, images=task.images,
-                system=effective_system, detail=self._detail,
+                prompt=task.prompt,
+                images=task.images,
+                system=effective_system,
+                detail=self._detail,
             )
         elif task.messages:
             resp = await self._client.chat(messages=task.messages)
         else:
             resp = await self._client.chat(task.prompt, system=effective_system)
         trajectory = build_single_turn_atif(
-            task.prompt, resp.content, system=effective_system,
+            task.prompt,
+            resp.content,
+            system=effective_system,
             model_name=getattr(resp, "model", None),
             prompt_tokens=getattr(resp, "prompt_tokens", 0) or 0,
             completion_tokens=getattr(resp, "completion_tokens", 0) or 0,

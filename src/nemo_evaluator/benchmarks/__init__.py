@@ -3,6 +3,7 @@
 These are first-party benchmarks that ship with nemo-evaluator. External users
 use the exact same API to define their own benchmarks.
 """
+
 # Import triggers @register() for each benchmark
 import nemo_evaluator.benchmarks.drop  # noqa: F401
 import nemo_evaluator.benchmarks.gpqa  # noqa: F401

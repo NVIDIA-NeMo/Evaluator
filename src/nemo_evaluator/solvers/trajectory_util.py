@@ -3,6 +3,7 @@
 Produces trajectories conforming to Harbor ATIF-v1.6
 (Agent Trajectory Interchange Format, RFC 0001).
 """
+
 from __future__ import annotations
 
 import uuid
@@ -81,11 +82,13 @@ def build_single_turn_atif(
     if system:
         steps.append({"source": "system", "message": system})
     steps.append({"source": "user", "message": prompt})
-    steps.append({
-        "source": "agent",
-        "message": response,
-        "model_name": model_name,
-    })
+    steps.append(
+        {
+            "source": "agent",
+            "message": response,
+            "model_name": model_name,
+        }
+    )
     return build_atif_trajectory(
         steps,
         model_name=model_name,

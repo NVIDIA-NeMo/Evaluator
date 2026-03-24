@@ -5,6 +5,7 @@ or evaluation. It starts a container, provides exec/upload/download, and
 cleans up. Whether we exec a Python script or start a multi-turn agent is
 the solver's decision.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -120,8 +121,12 @@ class Sandbox(Protocol):
     async def stop(self) -> None: ...
 
     async def exec(
-        self, command: str, timeout_sec: float = 180,
-        *, cwd: str | None = None, env: dict[str, str] | None = None,
+        self,
+        command: str,
+        timeout_sec: float = 180,
+        *,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
     ) -> ExecResult: ...
 
     async def upload(self, local_path: Path, remote_path: str) -> None: ...

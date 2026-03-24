@@ -281,10 +281,7 @@ def _preflight_image_checks(config: EvalConfig, cluster: SlurmCluster) -> str:
     if not images:
         return ""
 
-    checks = [
-        _IMAGE_CHECK_LINE.format(label=label, image=img)
-        for label, img in images.items()
-    ]
+    checks = [_IMAGE_CHECK_LINE.format(label=label, image=img) for label, img in images.items()]
     return _PREFLIGHT_IMAGE_CHECK.format(checks="\n".join(checks))
 
 
@@ -533,11 +530,7 @@ def _service_block(
             cuda = f"CUDA_VISIBLE_DEVICES={','.join(str(g) for g in svc.gpus)} "
 
         model_flag_part = f" {model_flag} {svc.model}" if model_flag else f" {svc.model}" if svc.model else ""
-        main_cmd = (
-            f"{cmd}{model_flag_part}"
-            f" --port {svc.port}"
-            f" {tp_flag}{dp_flag}{extra} "
-        )
+        main_cmd = f"{cmd}{model_flag_part} --port {svc.port} {tp_flag}{dp_flag}{extra} "
 
         setup_list = getattr(svc, "setup_commands", []) or []
         if setup_list:
@@ -1037,11 +1030,11 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
     for name, svc in config.services.items():
         if not isinstance(svc, ExternalApiService):
             upper = _safe(name).upper()
-            kill_cmds.append(f"    [ -n \"${{{upper}_PID:-}}\" ] && kill ${upper}_PID 2>/dev/null || true")
+            kill_cmds.append(f'    [ -n "${{{upper}_PID:-}}" ] && kill ${upper}_PID 2>/dev/null || true')
     for name, svc in config.services.items():
         if not isinstance(svc, ExternalApiService):
             upper = _safe(name).upper()
-            kill_cmds.append(f"    [ -n \"${{{upper}_PID:-}}\" ] && wait ${upper}_PID 2>/dev/null || true")
+            kill_cmds.append(f'    [ -n "${{{upper}_PID:-}}" ] && wait ${upper}_PID 2>/dev/null || true')
 
     if not is_sharded and cluster.auto_resume:
         max_walltime_check = ""
@@ -1066,10 +1059,6 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
     return "\n".join(parts), sidecar_configs, secrets_result
 
 
-
-
-
-
 def stamp_output_dir(config: EvalConfig) -> None:
     """Append a timestamped run-ID subdirectory to config.output.dir.
 
@@ -1078,10 +1067,7 @@ def stamp_output_dir(config: EvalConfig) -> None:
     running inside a SLURM job (NEL_INNER_EXECUTION=1) or when the user
     has opted out (output.timestamped=false).
     """
-    if (
-        not config.output.timestamped
-        or os.environ.get("NEL_INNER_EXECUTION") == "1"
-    ):
+    if not config.output.timestamped or os.environ.get("NEL_INNER_EXECUTION") == "1":
         return
     from nemo_evaluator.run_store import generate_run_id
 
@@ -1089,7 +1075,10 @@ def stamp_output_dir(config: EvalConfig) -> None:
 
 
 def write_sbatch(
-    config: EvalConfig, output_dir: str | Path | None = None, *, dry_run: bool = False,
+    config: EvalConfig,
+    output_dir: str | Path | None = None,
+    *,
+    dry_run: bool = False,
 ) -> tuple[Path, list[Path]]:
     """Write sbatch script + sidecar config YAMLs + .secrets.env.
 
@@ -1116,6 +1105,7 @@ def write_sbatch(
 
         if dry_run:
             import click
+
             click.echo("\n.secrets.env (redacted):")
             click.echo(redact_secrets_env_content(secrets_result.secrets_content))
 

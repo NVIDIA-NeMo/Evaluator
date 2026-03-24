@@ -24,6 +24,7 @@ Usage in NEL config:
           type: container
           service: nemotron
 """
+
 from __future__ import annotations
 
 import json
@@ -94,8 +95,9 @@ class ContainerEnvironment(EvalEnvironment):
     async def seed(self, idx: int) -> SeedResult:
         raise NotImplementedError("ContainerEnvironment uses run_batch()")
 
-    async def verify(self, response: str, expected: str,
-                     sandbox: Sandbox | None = None, **metadata: Any) -> VerifyResult:
+    async def verify(
+        self, response: str, expected: str, sandbox: Sandbox | None = None, **metadata: Any
+    ) -> VerifyResult:
         raise NotImplementedError("ContainerEnvironment uses run_batch()")
 
     # ------------------------------------------------------------------
@@ -116,7 +118,10 @@ class ContainerEnvironment(EvalEnvironment):
             results_dir.mkdir()
 
             run_config = self._build_legacy_run_config(
-                model_url, model_id, endpoint_type, extra_params,
+                model_url,
+                model_id,
+                endpoint_type,
+                extra_params,
             )
             config_path = Path(tmpdir) / "run_config.yaml"
             config_path.write_text(yaml.dump(run_config, sort_keys=False), encoding="utf-8")
@@ -136,15 +141,20 @@ class ContainerEnvironment(EvalEnvironment):
             if self._pre_cmd:
                 cmd.extend(["bash", "-c", self._pre_cmd])
             else:
-                cmd.extend([
-                    "run_eval",
-                    "--run_config", _CONTAINER_CONFIG_PATH,
-                    "--output_dir", _CONTAINER_RESULTS_DIR,
-                ])
+                cmd.extend(
+                    [
+                        "run_eval",
+                        "--run_config",
+                        _CONTAINER_CONFIG_PATH,
+                        "--output_dir",
+                        _CONTAINER_RESULTS_DIR,
+                    ]
+                )
 
             logger.info("Running container: %s", " ".join(cmd[:12]) + " ...")
 
             import asyncio as _aio
+
             proc = await _aio.create_subprocess_exec(
                 *cmd,
                 stdout=_aio.subprocess.PIPE,
@@ -158,8 +168,7 @@ class ContainerEnvironment(EvalEnvironment):
                 stderr = b"timeout"
 
             if proc.returncode != 0:
-                logger.error("Container failed (exit %d): %s",
-                             proc.returncode, (stderr or b"").decode()[:2000])
+                logger.error("Container failed (exit %d): %s", proc.returncode, (stderr or b"").decode()[:2000])
 
             return self._parse_results(results_dir, proc.returncode or 0)
 
@@ -204,9 +213,13 @@ class ContainerEnvironment(EvalEnvironment):
 
     def _build_docker_cmd(self, results_dir: Path, config_path: Path) -> list[str]:
         cmd = [
-            "docker", "run", "--rm",
-            "-v", f"{results_dir}:{_CONTAINER_RESULTS_DIR}",
-            "-v", f"{config_path}:{_CONTAINER_CONFIG_PATH}:ro",
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{results_dir}:{_CONTAINER_RESULTS_DIR}",
+            "-v",
+            f"{config_path}:{_CONTAINER_CONFIG_PATH}:ro",
         ]
         for mount in self._extra_mounts:
             cmd.extend(["-v", mount])

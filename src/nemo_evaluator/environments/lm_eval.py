@@ -5,6 +5,7 @@ Supports both single tasks (e.g. ``lm-eval://gsm8k``) and task groups
 leaf subtasks, and each item tracks its originating subtask for correct
 scoring dispatch.
 """
+
 from __future__ import annotations
 
 import logging
@@ -18,8 +19,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _REWARD_METRIC_KEYS = (
-    "exact_match", "acc", "em", "score", "bleu", "rouge1",
-    "prompt_level_strict_acc", "prompt_level_loose_acc",
+    "exact_match",
+    "acc",
+    "em",
+    "score",
+    "bleu",
+    "rouge1",
+    "prompt_level_strict_acc",
+    "prompt_level_loose_acc",
 )
 
 
@@ -86,8 +93,7 @@ class LMEvalEnvironment(EvalEnvironment):
         self._task_idx: list[int] = []
         self._build_items(limit)
         self._dataset = self._docs
-        logger.info("Loaded lm-eval://%s: %d items across %d subtask(s)",
-                     task_name, len(self._docs), len(self._tasks))
+        logger.info("Loaded lm-eval://%s: %d items across %d subtask(s)", task_name, len(self._docs), len(self._tasks))
 
     def _build_items(self, limit: int | None) -> None:
         per_task_limit = limit
@@ -96,8 +102,7 @@ class LMEvalEnvironment(EvalEnvironment):
             if hasattr(task, "config") and task.config.num_fewshot is not None:
                 fewshot = task.config.num_fewshot
 
-            task_name = getattr(task, "task_name",
-                                getattr(getattr(task, "config", None), "task", self.task_name))
+            task_name = getattr(task, "task_name", getattr(getattr(task, "config", None), "task", self.task_name))
 
             for doc_id, doc in task.doc_iterator(rank=0, limit=per_task_limit, world_size=1):
                 try:
@@ -105,8 +110,7 @@ class LMEvalEnvironment(EvalEnvironment):
                 except (TypeError, ValueError, KeyError):
                     ctx = ""
                 try:
-                    inst = task.construct_requests(
-                        doc=doc, ctx=ctx, metadata=(task_name, doc_id, 1))
+                    inst = task.construct_requests(doc=doc, ctx=ctx, metadata=(task_name, doc_id, 1))
                     if isinstance(inst, list):
                         inst = inst[0]
                     prompt = inst.args[0] if hasattr(inst, "args") else str(ctx)
@@ -136,8 +140,7 @@ class LMEvalEnvironment(EvalEnvironment):
             metadata={"_idx": idx, "_task": self.task_name, "_gen_kwargs": self._gen_kwargs[idx]},
         )
 
-    async def verify(self, response: str, expected: str,
-                     sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
+    async def verify(self, response: str, expected: str, sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
         idx = meta.get("_idx", 0)
         doc = self._docs[idx] if idx < len(self._docs) else {}
         gen_kwargs = meta.get("_gen_kwargs", {})
@@ -146,7 +149,7 @@ class LMEvalEnvironment(EvalEnvironment):
         text = response
         for stop in gen_kwargs.get("until", []):
             if stop in text:
-                text = text[:text.index(stop)]
+                text = text[: text.index(stop)]
 
         try:
             metrics = task.process_results(doc, [text])
@@ -165,6 +168,7 @@ class LMEvalEnvironment(EvalEnvironment):
                     break
 
         return VerifyResult(
-            reward=reward, extracted_answer=text[:500],
+            reward=reward,
+            extracted_answer=text[:500],
             scoring_details={"method": f"lm-eval://{self.task_name}", "lm_eval_metrics": metrics},
         )

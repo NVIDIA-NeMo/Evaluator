@@ -6,6 +6,7 @@ Supports two modes:
   2. Legacy fallback — if no sandbox is provided, ``docker run`` is spawned
      directly (original behavior, for backward compatibility).
 """
+
 from __future__ import annotations
 
 import re
@@ -39,17 +40,31 @@ def code_sandbox(sample: ScorerInput) -> dict[str, Any]:
     try:
         result = subprocess.run(
             [
-                "docker", "run", "--rm", "-i",
-                "--network", "none",
-                "--memory", "256m",
-                "--cpus", "1",
-                "--pids-limit", "64",
+                "docker",
+                "run",
+                "--rm",
+                "-i",
+                "--network",
+                "none",
+                "--memory",
+                "256m",
+                "--cpus",
+                "1",
+                "--pids-limit",
+                "64",
                 "--read-only",
-                "--tmpfs", "/tmp:size=64m",
-                "--security-opt", "no-new-privileges",
-                "python:3.12-slim", "python", "-",
+                "--tmpfs",
+                "/tmp:size=64m",
+                "--security-opt",
+                "no-new-privileges",
+                "python:3.12-slim",
+                "python",
+                "-",
             ],
-            input=code, capture_output=True, text=True, timeout=30,
+            input=code,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         passed = result.returncode == 0
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):

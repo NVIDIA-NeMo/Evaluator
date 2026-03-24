@@ -33,12 +33,14 @@ def category_breakdown(
     for cat in sorted(groups):
         scores = groups[cat]
         ci = bootstrap_ci(scores)
-        breakdown.append(CategoryResult(
-            category=cat,
-            n_samples=len(scores),
-            mean_reward=ci.mean,
-            ci=ci,
-        ))
+        breakdown.append(
+            CategoryResult(
+                category=cat,
+                n_samples=len(scores),
+                mean_reward=ci.mean,
+                ci=ci,
+            )
+        )
     return breakdown
 
 
@@ -83,12 +85,14 @@ def scoring_details_breakdown(
         for cat in sorted(groups):
             scores = groups[cat]
             ci = bootstrap_ci(scores)
-            cats.append(CategoryResult(
-                category=cat,
-                n_samples=len(scores),
-                mean_reward=ci.mean,
-                ci=ci,
-            ))
+            cats.append(
+                CategoryResult(
+                    category=cat,
+                    n_samples=len(scores),
+                    mean_reward=ci.mean,
+                    ci=ci,
+                )
+            )
         breakdowns[field_name] = cats
 
     return breakdowns

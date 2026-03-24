@@ -35,8 +35,10 @@ def regression_cmd(baseline, candidate, output, threshold, strict):
             marker = "+ "
 
         overlap = "overlap" if delta.get("ci_overlap") else "NO overlap"
-        click.echo(f"{marker}{metric}: {delta['baseline']:.4f} -> {delta['candidate']:.4f}  "
-                    f"(delta={d:+.4f}, {delta['relative_pct']:+.1f}%, CI {overlap})")
+        click.echo(
+            f"{marker}{metric}: {delta['baseline']:.4f} -> {delta['candidate']:.4f}  "
+            f"(delta={d:+.4f}, {delta['relative_pct']:+.1f}%, CI {overlap})"
+        )
 
     rt = report.get("runtime_deltas", {})
     if rt:

@@ -1,4 +1,5 @@
 """DROP -- reading comprehension requiring discrete reasoning (few-shot)."""
+
 import random
 
 from nemo_evaluator.environments.base import SeedResult
@@ -6,13 +7,9 @@ from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput, fuzzy_match
 
 _HEADER = (
-    "You will be asked to read a passage and answer a question. "
-    "Some examples of passages and Q&A are provided below."
+    "You will be asked to read a passage and answer a question. Some examples of passages and Q&A are provided below."
 )
-_FOOTER = (
-    '\nThink step by step, then write a line of the form '
-    '"Answer: $ANSWER" at the end of your response.\n'
-)
+_FOOTER = '\nThink step by step, then write a line of the form "Answer: $ANSWER" at the end of your response.\n'
 
 # DROP data comes from HF but needs special parsing
 _TRAIN_CACHE: list[dict] = []
@@ -23,22 +20,27 @@ def _load_drop():
     if _TEST_CACHE:
         return
     from datasets import load_dataset
+
     ds = load_dataset("ucinlp/drop", split="validation")
     train_ds = load_dataset("ucinlp/drop", split="train")
 
     for row in train_ds:
-        _TRAIN_CACHE.append({
-            "context": row["passage"],
-            "completion": row["answers_spans"]["spans"][0] if row["answers_spans"]["spans"] else "",
-        })
+        _TRAIN_CACHE.append(
+            {
+                "context": row["passage"],
+                "completion": row["answers_spans"]["spans"][0] if row["answers_spans"]["spans"] else "",
+            }
+        )
 
     for row in ds:
         answers = list(row["answers_spans"]["spans"]) if row["answers_spans"]["spans"] else [""]
-        _TEST_CACHE.append({
-            "passage": row["passage"],
-            "question": row["question"],
-            "answers": answers,
-        })
+        _TEST_CACHE.append(
+            {
+                "passage": row["passage"],
+                "question": row["question"],
+                "answers": answers,
+            }
+        )
 
 
 def _seed_drop(row, idx):
@@ -53,7 +55,8 @@ def _seed_drop(row, idx):
     parts.append(_FOOTER)
     prompt = "".join(parts)
     return SeedResult(
-        prompt=prompt, expected_answer=row["answers"][0],
+        prompt=prompt,
+        expected_answer=row["answers"][0],
         messages=[{"role": "user", "content": prompt}],
         metadata={"correct_answers": row["answers"]},
     )
@@ -64,8 +67,7 @@ def _load_drop_data():
     return list(_TEST_CACHE)
 
 
-@benchmark(name="drop", dataset=_load_drop_data, target_field="answers",
-           prompt="", seed_fn=_seed_drop)
+@benchmark(name="drop", dataset=_load_drop_data, target_field="answers", prompt="", seed_fn=_seed_drop)
 @scorer
 def drop_scorer(sample: ScorerInput) -> dict:
     return fuzzy_match(sample)

@@ -16,6 +16,7 @@ Configuration (via YAML)::
               enum: [low, medium, high]
               description: "Task priority"
 """
+
 from __future__ import annotations
 
 import copy
@@ -83,9 +84,11 @@ class Interceptor(CustomLogger):
     def _log_change(self, n: int, model: str) -> None:
         if n and not self._logged_once:
             logger.info(
-                "modify_tools: applied %d change(s) to tool schemas "
-                "(model=%s, strip=%s, add=%s)",
-                n, model, sorted(self._strip), sorted(self._add),
+                "modify_tools: applied %d change(s) to tool schemas (model=%s, strip=%s, add=%s)",
+                n,
+                model,
+                sorted(self._strip),
+                sorted(self._add),
             )
             self._logged_once = True
 

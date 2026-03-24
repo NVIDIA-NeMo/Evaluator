@@ -2,6 +2,7 @@
 
 Useful for development and testing where Docker is unavailable.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -36,8 +37,12 @@ class LocalSandbox:
             self._workdir = None
 
     async def exec(
-        self, command: str, timeout_sec: float = 180,
-        *, cwd: str | None = None, env: dict[str, str] | None = None,
+        self,
+        command: str,
+        timeout_sec: float = 180,
+        *,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
     ) -> ExecResult:
         if not self._workdir:
             raise RuntimeError("Sandbox not started")
@@ -55,7 +60,8 @@ class LocalSandbox:
         )
         try:
             stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout_sec,
+                proc.communicate(),
+                timeout=timeout_sec,
             )
         except asyncio.TimeoutError:
             proc.kill()

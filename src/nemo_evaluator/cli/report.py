@@ -1,4 +1,5 @@
 """nel report -- aggregate multiple evaluation bundles into comparison tables."""
+
 from __future__ import annotations
 
 import json
@@ -73,8 +74,9 @@ def _render_markdown(table: dict[str, Any]) -> str:
 
     for name, row in sorted(table["benchmarks"].items()):
         samples = row.get("samples", "-")
-        scorer_metrics = {k: v for k, v in row.items()
-                         if k.startswith("scorer:") and isinstance(v, dict) and "value" in v}
+        scorer_metrics = {
+            k: v for k, v in row.items() if k.startswith("scorer:") and isinstance(v, dict) and "value" in v
+        }
 
         metric_name, metric = _primary_metric(row)
         if metric:
@@ -161,8 +163,9 @@ def _render_html(table: dict[str, Any]) -> str:
 
     rows_html = []
     for name, row in sorted(table["benchmarks"].items()):
-        scorer_metrics = {k: v for k, v in row.items()
-                         if k.startswith("scorer:") and isinstance(v, dict) and "value" in v}
+        scorer_metrics = {
+            k: v for k, v in row.items() if k.startswith("scorer:") and isinstance(v, dict) and "value" in v
+        }
 
         metric_name, metric = _primary_metric(row)
         tokens = row.get("total_tokens", "")
@@ -213,9 +216,9 @@ def _render_html(table: dict[str, Any]) -> str:
                 n_samples = info.get("n", info.get("n_samples", "&mdash;"))
                 cat_rows.append(f"<tr><td>{cat}</td><td>{score}</td><td>{n_samples}</td></tr>")
             extra_sections.append(
-                f'<h2>{name} &mdash; Category Breakdown</h2>'
-                f'<table><thead><tr><th>Category</th><th>Score</th><th>N</th></tr></thead>'
-                f'<tbody>{"".join(cat_rows)}</tbody></table>'
+                f"<h2>{name} &mdash; Category Breakdown</h2>"
+                f"<table><thead><tr><th>Category</th><th>Score</th><th>N</th></tr></thead>"
+                f"<tbody>{''.join(cat_rows)}</tbody></table>"
             )
 
     return f"""\

@@ -4,6 +4,7 @@ Enables BYOB benchmarks (which handle data loading) to delegate
 verification to a remote environment (e.g. a Gym server running
 a judge model) without either side knowing about the other's format.
 """
+
 from __future__ import annotations
 
 import logging
@@ -38,11 +39,17 @@ class CompositeEnvironment(EvalEnvironment):
         return await self._seed_env.seed(idx)
 
     async def verify(
-        self, response: str, expected: str,
-        sandbox: Sandbox | None = None, **metadata: Any,
+        self,
+        response: str,
+        expected: str,
+        sandbox: Sandbox | None = None,
+        **metadata: Any,
     ) -> VerifyResult:
         return await self._verify_env.verify(
-            response, expected, sandbox=sandbox, **metadata,
+            response,
+            expected,
+            sandbox=sandbox,
+            **metadata,
         )
 
     async def dataset_size(self) -> int:

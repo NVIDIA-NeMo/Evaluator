@@ -1,4 +1,5 @@
 """Unified run store: track evaluations across all executors."""
+
 from __future__ import annotations
 
 import hashlib
@@ -46,8 +47,7 @@ class RunMeta:
             out.mkdir(parents=True, exist_ok=True)
             (out / _RUN_META).write_text(data, encoding="utf-8")
         except OSError:
-            logger.debug("Could not write %s to output dir %s (remote path?)",
-                         _RUN_META, self.output_dir)
+            logger.debug("Could not write %s to output dir %s (remote path?)", _RUN_META, self.output_dir)
 
         store_dir = _runs_store() / self.run_id
         store_dir.mkdir(parents=True, exist_ok=True)

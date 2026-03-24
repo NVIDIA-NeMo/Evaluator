@@ -1,4 +1,5 @@
 """Sandbox lifecycle manager: concurrency, pre-pull, emergency cleanup."""
+
 from __future__ import annotations
 
 import asyncio
@@ -113,8 +114,7 @@ class SandboxManager:
         unique = {s.image for s in specs if s.image} - self._pulled
         if not unique:
             return
-        logger.info("Pre-pulling %d sandbox images (concurrency=%d)",
-                     len(unique), self._concurrency)
+        logger.info("Pre-pulling %d sandbox images (concurrency=%d)", len(unique), self._concurrency)
         pull_sem = asyncio.Semaphore(self._concurrency)
 
         async def _pull_one(img: str) -> None:
@@ -154,33 +154,31 @@ class SandboxManager:
                 )
                 continue
 
-            missing = [
-                s for s in req.specs
-                if not await self._image_available(s.image)
-            ]
+            missing = [s for s in req.specs if not await self._image_available(s.image)]
             if not missing:
-                logger.info("All %d images already available for %s backend",
-                            len(req.specs), self._backend)
+                logger.info("All %d images already available for %s backend", len(req.specs), self._backend)
                 continue
 
-            logger.info("Provisioning %d images (%d cached) for %s backend",
-                        len(missing), len(req.specs) - len(missing), self._backend)
+            logger.info(
+                "Provisioning %d images (%d cached) for %s backend",
+                len(missing),
+                len(req.specs) - len(missing),
+                self._backend,
+            )
 
             if req.docker_build_fn:
                 if await self._docker_daemon_available():
-                    docker_missing = [
-                        s for s in missing
-                        if not await self._docker_exists_async(s.image)
-                    ]
+                    docker_missing = [s for s in missing if not await self._docker_exists_async(s.image)]
                     if docker_missing:
                         loop = asyncio.get_running_loop()
                         await loop.run_in_executor(
-                            None, req.docker_build_fn, docker_missing,
+                            None,
+                            req.docker_build_fn,
+                            docker_missing,
                         )
                 else:
                     logger.info(
-                        "Docker daemon not available — skipping Docker build, "
-                        "backend will pull from registry directly"
+                        "Docker daemon not available — skipping Docker build, backend will pull from registry directly"
                     )
 
             sem = asyncio.Semaphore(self._concurrency)
@@ -192,7 +190,9 @@ class SandboxManager:
             await asyncio.gather(*[_convert(s.image) for s in missing])
 
     async def _provision_ecs_codebuild(
-        self, req: ImageBuildRequest, ecs_cfg: Any,
+        self,
+        req: ImageBuildRequest,
+        ecs_cfg: Any,
     ) -> None:
         """Build missing images via CodeBuild and push to ECR."""
         from dataclasses import replace as _dc_replace
@@ -217,7 +217,10 @@ class SandboxManager:
 
         loop = asyncio.get_running_loop()
         existing_tags = await loop.run_in_executor(
-            None, ImageBuilder.list_ecr_tags, ecr_repo, ecs_cfg.region,
+            None,
+            ImageBuilder.list_ecr_tags,
+            ecr_repo,
+            ecs_cfg.region,
         )
         logger.info("ECR repo has %d existing tags; checking %d candidates", len(existing_tags), len(candidates))
 
@@ -234,7 +237,8 @@ class SandboxManager:
 
         logger.info(
             "Building %d/%d images via CodeBuild → ECR for ecs_fargate backend",
-            len(to_build), len(req.specs),
+            len(to_build),
+            len(req.specs),
         )
         parallelism = min(self._concurrency, getattr(ecs_cfg, "build_parallelism", 50))
         sem = asyncio.Semaphore(parallelism)
@@ -244,8 +248,8 @@ class SandboxManager:
                 per_task_cfg = _dc_replace(ecs_cfg, environment_dir=env_dir)
                 await loop.run_in_executor(
                     None,
-                    lambda cfg=per_task_cfg, name=_sanitize_id(spec.image): (
-                        ImageBuilder.ensure_image_built(cfg=cfg, environment_name=name)
+                    lambda cfg=per_task_cfg, name=_sanitize_id(spec.image): ImageBuilder.ensure_image_built(
+                        cfg=cfg, environment_name=name
                     ),
                 )
 
@@ -266,7 +270,10 @@ class SandboxManager:
     @staticmethod
     async def _docker_exists_async(image: str) -> bool:
         proc = await asyncio.create_subprocess_exec(
-            "docker", "image", "inspect", image,
+            "docker",
+            "image",
+            "inspect",
+            image,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )
@@ -277,7 +284,8 @@ class SandboxManager:
     async def _docker_daemon_available() -> bool:
         try:
             proc = await asyncio.create_subprocess_exec(
-                "docker", "info",
+                "docker",
+                "info",
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
@@ -287,10 +295,7 @@ class SandboxManager:
             return False
 
     def _sif_path(self, image: str) -> Path:
-        cache_dir = Path(
-            self._sif_cache_dir
-            or os.environ.get("APPTAINER_CACHEDIR", "/tmp/nel_sif_cache")
-        )
+        cache_dir = Path(self._sif_cache_dir or os.environ.get("APPTAINER_CACHEDIR", "/tmp/nel_sif_cache"))
         safe = image.replace("/", "_").replace(":", "__")
         return cache_dir / f"{safe}.sif"
 
@@ -317,7 +322,10 @@ class SandboxManager:
 
         logger.info("Building SIF: %s -> %s", source, sif)
         proc = await asyncio.create_subprocess_exec(
-            "apptainer", "build", str(sif), source,
+            "apptainer",
+            "build",
+            str(sif),
+            source,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -340,7 +348,8 @@ class SandboxManager:
         conflicts = set(self._global_env) & set(spec_env)
         if conflicts:
             logger.debug(
-                "Sandbox global_env keys %s overridden by seed env", sorted(conflicts),
+                "Sandbox global_env keys %s overridden by seed env",
+                sorted(conflicts),
             )
         return {**self._global_env, **spec_env}
 
@@ -370,9 +379,9 @@ class SandboxManager:
                 image = self._image_template.format_map(seed.metadata)
             except KeyError as exc:
                 logger.warning(
-                    "image_template placeholder %s not in seed metadata keys %s; "
-                    "falling back to spec image",
-                    exc, sorted(seed.metadata),
+                    "image_template placeholder %s not in seed metadata keys %s; falling back to spec image",
+                    exc,
+                    sorted(seed.metadata),
                 )
                 image = base.image if base else None
             if image:
@@ -436,7 +445,10 @@ class SandboxManager:
         logger.info("Pulling image: %s", image)
         if self._backend == "docker":
             inspect = await asyncio.create_subprocess_exec(
-                "docker", "image", "inspect", image,
+                "docker",
+                "image",
+                "inspect",
+                image,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
@@ -445,7 +457,9 @@ class SandboxManager:
                 logger.debug("Image %s already local, skipping pull", image)
                 return
             proc = await asyncio.create_subprocess_exec(
-                "docker", "pull", image,
+                "docker",
+                "pull",
+                image,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -456,22 +470,24 @@ class SandboxManager:
             het_group = self._backend_kwargs.get("het_group")
             for node in self._slurm_nodes:
                 srun_args = [
-                    "srun", "--overlap", f"--nodelist={node}",
+                    "srun",
+                    "--overlap",
+                    f"--nodelist={node}",
                     "--ntasks=1",
                 ]
                 if het_group is not None:
                     srun_args.append(f"--het-group={het_group}")
                 proc = await asyncio.create_subprocess_exec(
                     *srun_args,
-                    "enroot", "import", f"docker://{image}",
+                    "enroot",
+                    "import",
+                    f"docker://{image}",
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
                 _, stderr = await proc.communicate()
                 if proc.returncode != 0:
-                    raise RuntimeError(
-                        f"enroot import {image} on {node} failed: {stderr.decode()[:500]}"
-                    )
+                    raise RuntimeError(f"enroot import {image} on {node} failed: {stderr.decode()[:500]}")
         elif self._backend == "apptainer":
             if image.endswith(".sif") and Path(image).exists():
                 return
@@ -520,18 +536,22 @@ class SandboxManager:
     def _create(self, spec: SandboxSpec) -> Any:
         if self._backend == "docker":
             from nemo_evaluator.sandbox.docker import DockerSandbox
+
             return DockerSandbox(spec, **self._backend_kwargs)
         elif self._backend == "slurm":
             from nemo_evaluator.sandbox.slurm import SlurmSandbox
+
             node, slot = self._allocate_slot()
             het_group = self._backend_kwargs.get("het_group")
             filtered = {k: v for k, v in self._backend_kwargs.items() if k != "het_group"}
             return SlurmSandbox(spec, node=node, slot=slot, het_group=het_group, **filtered)
         elif self._backend == "ecs_fargate":
             from nemo_evaluator.sandbox.ecs_fargate import EcsFargateSandbox
+
             return EcsFargateSandbox(spec, **self._backend_kwargs)
         elif self._backend == "apptainer":
             from nemo_evaluator.sandbox.apptainer import ApptainerSandbox
+
             node = None
             if self._slurm_nodes:
                 node, _ = self._allocate_slot()
@@ -546,6 +566,7 @@ class SandboxManager:
             )
         else:
             from nemo_evaluator.sandbox.local import LocalSandbox
+
             return LocalSandbox(spec)
 
     # ------------------------------------------------------------------
@@ -556,8 +577,7 @@ class SandboxManager:
         """Round-robin across SLURM nodes, multiple slots per node."""
         if not self._slurm_nodes:
             raise RuntimeError(
-                "SlurmSandbox requires slurm_nodes list. "
-                "Set sandbox.sandbox_nodes in config or pass --sandbox-nodes."
+                "SlurmSandbox requires slurm_nodes list. Set sandbox.sandbox_nodes in config or pass --sandbox-nodes."
             )
         total_slots = len(self._slurm_nodes) * self._slots_per_node
         idx = self._slot_idx % total_slots
@@ -575,6 +595,7 @@ class SandboxManager:
         self._sync_cleanup()
         try:
             from nemo_evaluator.sandbox.ecs_fargate import _emergency_cleanup
+
             _emergency_cleanup()
         except Exception:
             pass
@@ -587,13 +608,15 @@ class SandboxManager:
                 if hasattr(sb, "_container_id") and sb._container_id:
                     subprocess.run(
                         ["docker", "rm", "-f", sb._container_id],
-                        capture_output=True, timeout=5,
+                        capture_output=True,
+                        timeout=5,
                     )
                 elif hasattr(sb, "_instance_name") and hasattr(sb, "_running") and sb._running:
                     cmd = ["apptainer", "instance", "stop", sb._instance_name]
                     if hasattr(sb, "_node") and sb._node:
                         srun_cmd = [
-                            "srun", "--overlap",
+                            "srun",
+                            "--overlap",
                             f"--nodelist={sb._node}",
                             "--ntasks=1",
                         ]
@@ -605,7 +628,8 @@ class SandboxManager:
                     sb._sync_stop()
                 elif hasattr(sb, "_container_name") and hasattr(sb, "_running") and sb._running:
                     srun_cmd = [
-                        "srun", "--overlap",
+                        "srun",
+                        "--overlap",
                         f"--nodelist={sb._node}",
                         "--ntasks=1",
                     ]
@@ -615,9 +639,11 @@ class SandboxManager:
                         [
                             *srun_cmd,
                             f"--container-name={sb._container_name}",
-                            "kill", "1",
+                            "kill",
+                            "1",
                         ],
-                        capture_output=True, timeout=10,
+                        capture_output=True,
+                        timeout=10,
                     )
             except Exception:
                 pass

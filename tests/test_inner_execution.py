@@ -1,4 +1,5 @@
 """Tests for NEL_INNER_EXECUTION env-var mechanism that prevents recursive dispatch."""
+
 from __future__ import annotations
 
 import os
@@ -151,5 +152,4 @@ class TestSlurmHeaderFlag:
         config = _make_config("slurm", bench="gsm8k")
 
         script, _, _ = generate_sbatch(config)
-        assert "export PYTHONUNBUFFERED=1" in script, \
-            "PYTHONUNBUFFERED must be set for real-time log output in SLURM"
+        assert "export PYTHONUNBUFFERED=1" in script, "PYTHONUNBUFFERED must be set for real-time log output in SLURM"

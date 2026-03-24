@@ -1,4 +1,5 @@
 """Tests for sandbox lifecycle strategies: NoSandbox, StatefulSandbox, StatelessSandbox."""
+
 from __future__ import annotations
 
 import pytest
@@ -26,8 +27,8 @@ def _make_seed(**overrides) -> SeedResult:
 # NoSandbox
 # ---------------------------------------------------------------------------
 
-class TestNoSandbox:
 
+class TestNoSandbox:
     @pytest.mark.asyncio
     async def test_all_methods_return_none(self):
         lc = NoSandbox()
@@ -42,8 +43,8 @@ class TestNoSandbox:
 # StatefulSandbox
 # ---------------------------------------------------------------------------
 
-class TestStatefulSandbox:
 
+class TestStatefulSandbox:
     @pytest.mark.asyncio
     async def test_lazy_acquisition(self):
         """Sandbox is only acquired on first get_agent_sandbox or get_verify_sandbox."""
@@ -101,8 +102,8 @@ class TestStatefulSandbox:
 # StatelessSandbox
 # ---------------------------------------------------------------------------
 
-class TestStatelessSandbox:
 
+class TestStatelessSandbox:
     def _make_ctx(self, mgr=None, capture_cmd=None, apply_cmd=None):
         mgr = mgr or MockSandboxManager()
         return LifecycleContext(
@@ -186,8 +187,8 @@ class TestStatelessSandbox:
 # pick_lifecycle
 # ---------------------------------------------------------------------------
 
-class TestPickLifecycle:
 
+class TestPickLifecycle:
     def test_no_sandbox_when_no_manager(self):
         seed = _make_seed()
         lc = pick_lifecycle(seed, sandbox_mgr=None)

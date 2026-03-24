@@ -6,7 +6,7 @@ workflow:
     - if: $CI_PIPELINE_SOURCE == "schedule"
 
 default:
-  image: python:3.12-slim
+  image: python:3.12
   tags:
     - nv-core-evals-x86
 
@@ -27,9 +27,9 @@ variables:
 lint:
   stage: lint
   before_script:
-    - pip install --quiet ruff
+    - pip install --quiet pre-commit
   script:
-    - ruff check src/ tests/
+    - pre-commit run --all-files
 
 test-offline:
   stage: test

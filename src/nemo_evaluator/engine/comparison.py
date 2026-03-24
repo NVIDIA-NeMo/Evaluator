@@ -79,7 +79,11 @@ def compare_runs(baseline_path: str | Path, candidate_path: str | Path) -> dict[
     c_cats = cand.get("benchmark", {}).get("categories", {})
     if b_cats or c_cats:
         cat_deltas = {}
-        all_cats = set(list(b_cats.keys()) + list(c_cats.keys())) if isinstance(b_cats, dict) and isinstance(c_cats, dict) else set()
+        all_cats = (
+            set(list(b_cats.keys()) + list(c_cats.keys()))
+            if isinstance(b_cats, dict) and isinstance(c_cats, dict)
+            else set()
+        )
         for cat in all_cats:
             bm = b_cats.get(cat, {}).get("mean_reward", 0)
             cm = c_cats.get(cat, {}).get("mean_reward", 0)

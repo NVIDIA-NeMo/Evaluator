@@ -1,4 +1,5 @@
 """Example interceptor: log token usage per LLM call."""
+
 from __future__ import annotations
 
 import logging
@@ -29,6 +30,9 @@ class Interceptor(CustomLogger):
         elapsed_ms = (end_time - start_time).total_seconds() * 1000
         logger.info(
             "[log_tokens] model=%s  prompt=%d  completion=%d  total=%d  elapsed=%.0fms",
-            model, prompt_tokens, completion_tokens,
-            prompt_tokens + completion_tokens, elapsed_ms,
+            model,
+            prompt_tokens,
+            completion_tokens,
+            prompt_tokens + completion_tokens,
+            elapsed_ms,
         )

@@ -1,4 +1,5 @@
 """Filesystem response cache keyed by request hash."""
+
 from __future__ import annotations
 
 import hashlib
@@ -15,9 +16,9 @@ DEFAULT_MAX_SIZE_MB = 2048
 
 
 class ResponseCache:
-    def __init__(self, cache_dir: str | Path, *,
-                 max_entries: int = DEFAULT_MAX_ENTRIES,
-                 max_size_mb: int = DEFAULT_MAX_SIZE_MB) -> None:
+    def __init__(
+        self, cache_dir: str | Path, *, max_entries: int = DEFAULT_MAX_ENTRIES, max_size_mb: int = DEFAULT_MAX_SIZE_MB
+    ) -> None:
         self.root = Path(cache_dir)
         self.root.mkdir(parents=True, exist_ok=True)
         self.max_entries = max_entries
@@ -26,28 +27,39 @@ class ResponseCache:
         self._misses = 0
 
     @staticmethod
-    def _key(model: str, prompt: str, system: str | None,
-             temperature: float, max_tokens: int,
-             top_p: float | None = None, seed: int | None = None,
-             messages: list[dict] | None = None) -> str:
+    def _key(
+        model: str,
+        prompt: str,
+        system: str | None,
+        temperature: float,
+        max_tokens: int,
+        top_p: float | None = None,
+        seed: int | None = None,
+        messages: list[dict] | None = None,
+    ) -> str:
         if messages:
             content = json.dumps(messages, sort_keys=True, default=str)
         else:
             content = prompt
-        parts = [model, content, system or "",
-                 str(temperature), str(max_tokens),
-                 str(top_p or ""), str(seed or "")]
+        parts = [model, content, system or "", str(temperature), str(max_tokens), str(top_p or ""), str(seed or "")]
         return hashlib.sha256("|".join(parts).encode()).hexdigest()
 
     def _path(self, key: str) -> Path:
         return self.root / key[:2] / f"{key}.json"
 
-    def get(self, model: str, prompt: str, system: str | None,
-            temperature: float, max_tokens: int, *,
-            top_p: float | None = None, seed: int | None = None,
-            messages: list[dict] | None = None) -> dict[str, Any] | None:
-        key = self._key(model, prompt, system, temperature, max_tokens,
-                        top_p, seed, messages)
+    def get(
+        self,
+        model: str,
+        prompt: str,
+        system: str | None,
+        temperature: float,
+        max_tokens: int,
+        *,
+        top_p: float | None = None,
+        seed: int | None = None,
+        messages: list[dict] | None = None,
+    ) -> dict[str, Any] | None:
+        key = self._key(model, prompt, system, temperature, max_tokens, top_p, seed, messages)
         p = self._path(key)
         if p.exists():
             self._hits += 1
@@ -59,14 +71,22 @@ class ResponseCache:
         self._misses += 1
         return None
 
-    def put(self, model: str, prompt: str, system: str | None,
-            temperature: float, max_tokens: int, response: dict[str, Any], *,
-            top_p: float | None = None, seed: int | None = None,
-            messages: list[dict] | None = None) -> None:
+    def put(
+        self,
+        model: str,
+        prompt: str,
+        system: str | None,
+        temperature: float,
+        max_tokens: int,
+        response: dict[str, Any],
+        *,
+        top_p: float | None = None,
+        seed: int | None = None,
+        messages: list[dict] | None = None,
+    ) -> None:
         if temperature > 0:
             return
-        key = self._key(model, prompt, system, temperature, max_tokens,
-                        top_p, seed, messages)
+        key = self._key(model, prompt, system, temperature, max_tokens, top_p, seed, messages)
         p = self._path(key)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(response, default=str), encoding="utf-8")

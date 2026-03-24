@@ -1,5 +1,6 @@
 """Tests for environment seed/verify using golden fixtures (offline)
 and real HF dataset loading (network, marked)."""
+
 from __future__ import annotations
 
 import pytest
@@ -10,6 +11,7 @@ from tests.conftest import AVAILABLE_FIXTURES, FixturedEnvironment, load_fixture
 # ---------------------------------------------------------------------------
 # Offline: seed/verify round-trip from fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("bench", AVAILABLE_FIXTURES)
 @pytest.mark.asyncio
@@ -35,9 +37,7 @@ async def test_fixture_verify_with_golden_response(bench: str):
         if not row["model_response"]:
             continue
         vr = await env.verify(row["model_response"], row["expected_answer"])
-        assert vr.reward == row["reward"], (
-            f"{bench}[{row['idx']}]: expected reward={row['reward']}, got {vr.reward}"
-        )
+        assert vr.reward == row["reward"], f"{bench}[{row['idx']}]: expected reward={row['reward']}, got {vr.reward}"
 
 
 # ---------------------------------------------------------------------------
@@ -66,6 +66,7 @@ def test_scorer_determinism(bench: str):
         pytest.skip("no model response")
 
     from nemo_evaluator.environments.registry import get_environment
+
     env = get_environment(bench, num_examples=5)
 
     sample = ScorerInput(

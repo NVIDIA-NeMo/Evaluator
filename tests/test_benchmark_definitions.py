@@ -1,6 +1,12 @@
 """Golden tests: verify benchmark scorers produce correct results on known data."""
+
 from nemo_evaluator.scoring import (
-    ScorerInput, answer_line, exact_match, fuzzy_match, multichoice_regex, numeric_match,
+    ScorerInput,
+    answer_line,
+    exact_match,
+    fuzzy_match,
+    multichoice_regex,
+    numeric_match,
 )
 
 
@@ -65,13 +71,13 @@ class TestNumericMatch:
 
 class TestFuzzyMatch:
     def test_substring_match(self):
-        s = ScorerInput(response="The Battle of Gettysburg", target="Gettysburg",
-                        metadata={"correct_answers": ["Gettysburg"]})
+        s = ScorerInput(
+            response="The Battle of Gettysburg", target="Gettysburg", metadata={"correct_answers": ["Gettysburg"]}
+        )
         assert fuzzy_match(s)["correct"] is True
 
     def test_no_match(self):
-        s = ScorerInput(response="Paris", target="London",
-                        metadata={"correct_answers": ["London"]})
+        s = ScorerInput(response="Paris", target="London", metadata={"correct_answers": ["London"]})
         assert fuzzy_match(s)["correct"] is False
 
 
@@ -90,30 +96,36 @@ class TestBenchmarkScorerImport:
 
     def test_mmlu_scorer(self):
         from nemo_evaluator.benchmarks.mmlu import mmlu_scorer
+
         s = ScorerInput(response="Answer: C", target="C")
         assert mmlu_scorer(s)["correct"] is True
 
     def test_mmlu_pro_scorer(self):
         from nemo_evaluator.benchmarks.mmlu_pro import mmlu_pro_scorer
+
         s = ScorerInput(response="Answer: F", target="F")
         assert mmlu_pro_scorer(s)["correct"] is True
 
     def test_math500_scorer(self):
         from nemo_evaluator.benchmarks.math500 import math500_scorer
+
         s = ScorerInput(response="Answer: 42", target="42")
         assert math500_scorer(s)["correct"] is True
 
     def test_gpqa_scorer(self):
         from nemo_evaluator.benchmarks.gpqa import gpqa_scorer
+
         s = ScorerInput(response="Answer: A", target="A")
         assert gpqa_scorer(s)["correct"] is True
 
     def test_gsm8k_scorer(self):
         from nemo_evaluator.benchmarks.gsm8k import gsm8k_scorer
+
         s = ScorerInput(response="The answer is 42", target="42")
         assert gsm8k_scorer(s)["correct"] is True
 
     def test_mgsm_scorer(self):
         from nemo_evaluator.benchmarks.mgsm import mgsm_scorer
+
         s = ScorerInput(response="The result is 15", target="15")
         assert mgsm_scorer(s)["correct"] is True

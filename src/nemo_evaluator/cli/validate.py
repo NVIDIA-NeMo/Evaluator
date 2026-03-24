@@ -34,14 +34,15 @@ def validate_cmd(benchmark, samples, model_url, model_id, api_key, verbose):
     client = ModelClient(base_url=model_url, model=model_id, api_key=api_key)
     solver = ChatSolver(client)
 
-    bundle = asyncio.run(run_evaluation(
-        env, solver, n_repeats=1, max_problems=samples, progress=ConsoleProgress()))
+    bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1, max_problems=samples, progress=ConsoleProgress()))
     results = bundle.get("_results", [])
 
     correct = sum(1 for r in results if r["reward"] > 0)
     click.echo(f"\n{correct}/{len(results)} correct")
     for r in results:
         s = "PASS" if r["reward"] > 0 else "FAIL"
-        click.echo(f"  [{s}] p{r['problem_idx']}: "
-                    f"expected={r['expected_answer']!r} got={r.get('extracted_answer','?')!r} "
-                    f"({r.get('latency_ms',0):.0f}ms {r.get('tokens',0)}tok)")
+        click.echo(
+            f"  [{s}] p{r['problem_idx']}: "
+            f"expected={r['expected_answer']!r} got={r.get('extracted_answer', '?')!r} "
+            f"({r.get('latency_ms', 0):.0f}ms {r.get('tokens', 0)}tok)"
+        )

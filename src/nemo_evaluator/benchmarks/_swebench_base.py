@@ -1,4 +1,5 @@
 """SWE-bench shared logic for Verified and Multilingual variants."""
+
 from __future__ import annotations
 
 import logging
@@ -92,12 +93,18 @@ def _build_swebench_docker(
     # get_test_specs_from_dataset passes instance_image_tag where
     # make_test_spec expects base_image_tag; None triggers an assertion.
     build_env_images(
-        client=client, dataset=dataset, max_workers=4,
-        instance_image_tag="latest", env_image_tag="latest",
+        client=client,
+        dataset=dataset,
+        max_workers=4,
+        instance_image_tag="latest",
+        env_image_tag="latest",
     )
     build_instance_images(
-        client=client, dataset=dataset, max_workers=4,
-        tag="latest", env_image_tag="latest",
+        client=client,
+        dataset=dataset,
+        max_workers=4,
+        tag="latest",
+        env_image_tag="latest",
     )
 
     for iid in missing_ids:
@@ -106,7 +113,9 @@ def _build_swebench_docker(
         if local_name != hub_name:
             subprocess.run(
                 ["docker", "tag", local_name, hub_name],
-                check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
 
 
@@ -130,6 +139,7 @@ def _ensure_str(val: Any) -> str:
     """Coerce list-typed fields (common in HF datasets) to JSON strings."""
     if isinstance(val, list):
         import json
+
         return json.dumps(val)
     return val if isinstance(val, str) else str(val)
 
@@ -213,9 +223,7 @@ async def swebench_score(sample: ScorerInput) -> dict[str, Any]:
     if not test_cmd:
         return {"correct": 0.0, "error": "no_test_cmd"}
 
-    test_files = sorted({
-        t.split("::")[0] for t in (*fail_to_pass, *pass_to_pass) if "::" in t
-    })
+    test_files = sorted({t.split("::")[0] for t in (*fail_to_pass, *pass_to_pass) if "::" in t})
     full_cmd = test_cmd + (" " + " ".join(test_files) if test_files else "")
 
     result = await sandbox.exec(
@@ -256,6 +264,7 @@ def _parse_test_list(raw: str) -> list[str]:
     raw = raw.strip()
     if raw.startswith("["):
         import json
+
         try:
             return json.loads(raw)
         except json.JSONDecodeError:

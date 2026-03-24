@@ -14,8 +14,18 @@ from nemo_evaluator.observability.types import RunArtifacts
 
 def _config_hash(config: dict[str, Any]) -> str:
     """Deterministic config hash covering model, temperature, system prompt, and dataset."""
-    keys_to_hash = ["model", "model_url", "temperature", "max_tokens", "top_p",
-                    "seed", "system_prompt", "benchmark", "repeats", "max_problems"]
+    keys_to_hash = [
+        "model",
+        "model_url",
+        "temperature",
+        "max_tokens",
+        "top_p",
+        "seed",
+        "system_prompt",
+        "benchmark",
+        "repeats",
+        "max_problems",
+    ]
     subset = {k: config.get(k) for k in keys_to_hash if config.get(k) is not None}
     return hashlib.sha256(json.dumps(subset, sort_keys=True).encode()).hexdigest()
 
@@ -45,8 +55,7 @@ def build_artifact_bundle(
     }
     if categories:
         bundle["benchmark"]["categories"] = {
-            c["category"]: {"mean_reward": c["mean_reward"], "n": c["n_samples"]}
-            for c in categories
+            c["category"]: {"mean_reward": c["mean_reward"], "n": c["n_samples"]} for c in categories
         }
     return bundle
 
@@ -57,8 +66,7 @@ def write_all(bundle: dict[str, Any], output_dir: str | Path) -> dict[str, Path]
     paths: dict[str, Path] = {}
 
     if "run_id" not in bundle:
-        safe_name = re.sub(r"[^a-zA-Z0-9_.-]", "_",
-                           bundle.get("benchmark", {}).get("name", "unknown"))
+        safe_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", bundle.get("benchmark", {}).get("name", "unknown"))
         bundle["run_id"] = f"eval-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{safe_name}"
         bundle.setdefault("sdk_version", __version__)
         bundle.setdefault("timestamp", datetime.now(timezone.utc).isoformat())

@@ -1,4 +1,5 @@
 """Tests for SandboxManager: resolve_spec merge logic, image template rendering."""
+
 from __future__ import annotations
 
 
@@ -16,10 +17,11 @@ def _make_seed(**overrides) -> SeedResult:
 # resolve_spec merge logic
 # ---------------------------------------------------------------------------
 
-class TestResolveSpec:
 
+class TestResolveSpec:
     def _make_manager(self, image_template=None, default_image=None):
         from nemo_evaluator.sandbox.manager import SandboxManager
+
         return SandboxManager(
             backend="local",
             image_template=image_template,
@@ -88,8 +90,8 @@ class TestResolveSpec:
 # SandboxSpec fields
 # ---------------------------------------------------------------------------
 
-class TestSandboxSpec:
 
+class TestSandboxSpec:
     def test_defaults(self):
         spec = SandboxSpec(image="python:3.12")
         assert spec.workdir == "/workspace"

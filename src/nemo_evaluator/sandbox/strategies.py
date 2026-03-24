@@ -9,6 +9,7 @@ Three strategies control how sandboxes are managed during a single eval step:
   State is transferred via a pluggable ``WorkspaceTransfer`` strategy
   (host volumes, EFS, direct copy, or exec-based tar/untar).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 # -- Context passed to lifecycle constructors --------------------------------
 
+
 @dataclass
 class LifecycleContext:
     sandbox_mgr: SandboxManager
@@ -39,6 +41,7 @@ class LifecycleContext:
 
 # -- Protocol ----------------------------------------------------------------
 
+
 class SandboxLifecycle(Protocol):
     """Manages sandbox(es) for a single eval step."""
 
@@ -47,7 +50,9 @@ class SandboxLifecycle(Protocol):
     async def get_agent_sandbox(self) -> Sandbox | None: ...
 
     async def transition_to_verify(
-        self, response_text: str, solver_modified: bool,
+        self,
+        response_text: str,
+        solver_modified: bool,
     ) -> None: ...
 
     async def get_verify_sandbox(self) -> Sandbox | None: ...
@@ -56,6 +61,7 @@ class SandboxLifecycle(Protocol):
 
 
 # -- Strategies --------------------------------------------------------------
+
 
 class NoSandbox:
     """No container needed (text-only benchmarks)."""
@@ -67,7 +73,9 @@ class NoSandbox:
         return None
 
     async def transition_to_verify(
-        self, response_text: str, solver_modified: bool,
+        self,
+        response_text: str,
+        solver_modified: bool,
     ) -> None:
         pass
 
@@ -104,7 +112,8 @@ class StatefulSandbox:
     async def _ensure_sandbox(self) -> Sandbox:
         if self._sandbox is None:
             self._sandbox = await self._mgr.acquire(
-                self._spec, outside_endpoints=self._outside_eps,
+                self._spec,
+                outside_endpoints=self._outside_eps,
             )
         return self._sandbox
 
@@ -112,7 +121,9 @@ class StatefulSandbox:
         return await self._ensure_sandbox()
 
     async def transition_to_verify(
-        self, response_text: str, solver_modified: bool,
+        self,
+        response_text: str,
+        solver_modified: bool,
     ) -> None:
         pass
 
@@ -159,12 +170,11 @@ class StatelessSandbox:
         if self._agent_sandbox is not None:
             return self._agent_sandbox
         if self._ctx.agent_spec is None:
-            raise RuntimeError(
-                "StatelessSandbox: no agent_spec but get_agent_sandbox called"
-            )
+            raise RuntimeError("StatelessSandbox: no agent_spec but get_agent_sandbox called")
         spec = self._transfer.prepare_agent_spec(self._ctx.agent_spec)
         self._agent_sandbox = await self._ctx.sandbox_mgr.acquire(
-            spec, outside_endpoints=self._ctx.outside_endpoints,
+            spec,
+            outside_endpoints=self._ctx.outside_endpoints,
         )
         # TODO: Move to a benchmark-provided pre_agent_cmd so the strategy
         # layer stays generic (currently only Harbor's capture_cmd reads this).
@@ -176,7 +186,9 @@ class StatelessSandbox:
         return self._agent_sandbox
 
     async def transition_to_verify(
-        self, response_text: str, solver_modified: bool,
+        self,
+        response_text: str,
+        solver_modified: bool,
     ) -> None:
         async with self._lock:
             if self._torn_down:
@@ -184,10 +196,12 @@ class StatelessSandbox:
             if self._agent_sandbox and self._ctx.capture_cmd and solver_modified:
                 try:
                     await self._agent_sandbox.exec(
-                        "mkdir -p /output /input", timeout_sec=10,
+                        "mkdir -p /output /input",
+                        timeout_sec=10,
                     )
                     cap_result = await self._agent_sandbox.exec(
-                        self._ctx.capture_cmd, timeout_sec=300,
+                        self._ctx.capture_cmd,
+                        timeout_sec=300,
                     )
                     if cap_result.return_code != 0:
                         logger.error(
@@ -219,8 +233,7 @@ class StatelessSandbox:
                 try:
                     await self._ctx.sandbox_mgr.release(self._agent_sandbox)
                 except Exception:
-                    logger.debug("StatelessSandbox: agent release failed",
-                                 exc_info=True)
+                    logger.debug("StatelessSandbox: agent release failed", exc_info=True)
                 self._agent_sandbox = None
 
     async def get_verify_sandbox(self) -> Sandbox:
@@ -252,7 +265,8 @@ class StatelessSandbox:
             if result.return_code != 0:
                 logger.error(
                     "StatelessSandbox: apply_cmd FAILED (rc=%d): %s",
-                    result.return_code, (result.stderr or "")[:500],
+                    result.return_code,
+                    (result.stderr or "")[:500],
                 )
         return self._verify_sandbox
 
@@ -274,6 +288,7 @@ class StatelessSandbox:
 
 # -- Factory -----------------------------------------------------------------
 
+
 def pick_lifecycle(
     seed: Any,
     sandbox_mgr: SandboxManager | None,
@@ -292,9 +307,13 @@ def pick_lifecycle(
 
     if seed.verify_sandbox_spec is not None and sandbox_mgr is not None:
         agent_spec = sandbox_mgr.resolve_spec(seed) or seed.sandbox_spec
-        verify_spec = sandbox_mgr.resolve_spec(
-            seed, base_override=seed.verify_sandbox_spec,
-        ) or seed.verify_sandbox_spec
+        verify_spec = (
+            sandbox_mgr.resolve_spec(
+                seed,
+                base_override=seed.verify_sandbox_spec,
+            )
+            or seed.verify_sandbox_spec
+        )
 
         transfer = sandbox_mgr.get_transfer_strategy()
 

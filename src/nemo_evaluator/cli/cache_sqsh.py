@@ -31,20 +31,30 @@ def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
 @click.argument("host")
 @click.argument("output_path")
 @click.option(
-    "--registry", "-r", default=_DEFAULT_REGISTRY,
+    "--registry",
+    "-r",
+    default=_DEFAULT_REGISTRY,
     help="Docker registry to push NEL images to.",
 )
 @click.option(
-    "--tag", "-t", default="local",
+    "--tag",
+    "-t",
+    default="local",
     help="Tag for the pushed image (default: local).",
 )
 @click.option(
-    "--filename", "-f", default=None,
+    "--filename",
+    "-f",
+    default=None,
     help="Output .sqsh filename (default: derived from target).",
 )
 def cache_sqsh_cmd(
-    target: str, host: str, output_path: str,
-    registry: str, tag: str, filename: str | None,
+    target: str,
+    host: str,
+    output_path: str,
+    registry: str,
+    tag: str,
+    filename: str | None,
 ) -> None:
     """Build/pull a Docker image and create a .sqsh on a SLURM cluster.
 
@@ -92,12 +102,17 @@ def cache_sqsh_cmd(
     if is_local_build:
         step += 1
         click.secho(f"\n[{step}/{steps}] Building {target} from {dockerfile} ...", bold=True)
-        _run([
-            "docker", "build",
-            "-f", str(project_root / dockerfile),
-            "-t", remote_image,
-            str(project_root),
-        ])
+        _run(
+            [
+                "docker",
+                "build",
+                "-f",
+                str(project_root / dockerfile),
+                "-t",
+                remote_image,
+                str(project_root),
+            ]
+        )
 
         step += 1
         click.secho(f"[{step}/{steps}] Pushing to {remote_image} ...", bold=True)
@@ -107,15 +122,18 @@ def cache_sqsh_cmd(
     enroot_uri = f"docker://{remote_image}" if "://" not in remote_image else remote_image
     sqsh_path = f"{output_path}/{filename}"
     click.secho(f"[{step}/{steps}] Creating sqsh on {host} ...", bold=True)
-    _run([
-        "ssh", host,
-        f"mkdir -p '{output_path}' && "
-        f"enroot import -o '{sqsh_path}' -- '{enroot_uri}'",
-    ])
+    _run(
+        [
+            "ssh",
+            host,
+            f"mkdir -p '{output_path}' && enroot import -o '{sqsh_path}' -- '{enroot_uri}'",
+        ]
+    )
 
     size = subprocess.run(
         ["ssh", host, f"du -h '{sqsh_path}' | cut -f1"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if size.returncode == 0:
         click.echo(f"  sqsh size: {size.stdout.strip()}")

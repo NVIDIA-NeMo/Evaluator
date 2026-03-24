@@ -1,4 +1,5 @@
 """Executor abstraction: run/status/stop/logs/resume for each execution backend."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -42,8 +43,7 @@ class Executor(ABC):
     @abstractmethod
     def detect(output_dir: str | Path) -> bool: ...
 
-    def logs(self, output_dir: str | Path, *, follow: bool = False,
-             tail: int | None = None) -> str | None:
+    def logs(self, output_dir: str | Path, *, follow: bool = False, tail: int | None = None) -> str | None:
         """Return log content. Default: read nel_eval.log."""
         log = Path(output_dir) / "nel_eval.log"
         if not log.exists():
@@ -70,12 +70,15 @@ def _ensure_loaded() -> None:
     _loaded = True
 
     from nemo_evaluator.executors.local_executor import LocalExecutor
+
     _REGISTRY["local"] = LocalExecutor()
 
     from nemo_evaluator.executors.docker_executor import DockerExecutor
+
     _REGISTRY["docker"] = DockerExecutor()
 
     from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+
     _REGISTRY["slurm"] = SlurmExecutor()
 
 

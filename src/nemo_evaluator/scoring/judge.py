@@ -1,4 +1,5 @@
 """LLM-as-judge scoring for open-ended evaluation."""
+
 from __future__ import annotations
 
 import json
@@ -57,7 +58,7 @@ def build_judge_prompt(
 
 
 _SCORE_RE = re.compile(r'"score"\s*:\s*(\d+(?:\.\d+)?)')
-_BARE_SCORE_RE = re.compile(r'\b(\d+)\s*/\s*\d+\b')
+_BARE_SCORE_RE = re.compile(r"\b(\d+)\s*/\s*\d+\b")
 
 
 def parse_judge_response(text: str, max_score: int = 5) -> dict[str, Any]:

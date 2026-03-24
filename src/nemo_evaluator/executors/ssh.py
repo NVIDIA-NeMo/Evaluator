@@ -97,8 +97,7 @@ def _ssh(target: str, remote_cmd: str, timeout: float = 30.0) -> str:
     return _run(["ssh", *_ssh_opts(target), target, remote_cmd], timeout=timeout)
 
 
-def ssh_run(hostname: str, remote_cmd: str, username: str | None = None,
-            timeout: float = 30.0) -> str:
+def ssh_run(hostname: str, remote_cmd: str, username: str | None = None, timeout: float = 30.0) -> str:
     """Public API: run a command on a remote host via SSH."""
     target = f"{username}@{hostname}" if username else hostname
     return _ssh(target, remote_cmd, timeout=timeout)

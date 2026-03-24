@@ -19,6 +19,7 @@ Prerequisites (local mode only):
   - ``openclaw`` binary in PATH (or custom path via ``openclaw_bin``)
   - ``tools.fs.workspaceOnly`` must NOT be ``true`` in openclaw config
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -110,12 +111,33 @@ def _build_openclaw_config(
     }
 
 
-_TEXT_EXTENSIONS = frozenset({
-    ".txt", ".md", ".py", ".js", ".ts", ".json", ".yaml", ".yml",
-    ".csv", ".html", ".css", ".ics", ".xml", ".toml", ".cfg", ".ini",
-    ".sh", ".bash", ".log", ".rst", ".tex",
-})
+_TEXT_EXTENSIONS = frozenset(
+    {
+        ".txt",
+        ".md",
+        ".py",
+        ".js",
+        ".ts",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".csv",
+        ".html",
+        ".css",
+        ".ics",
+        ".xml",
+        ".toml",
+        ".cfg",
+        ".ini",
+        ".sh",
+        ".bash",
+        ".log",
+        ".rst",
+        ".tex",
+    }
+)
 _MAX_FILE_SIZE = 50_000
+
 
 def _read_workspace_files(
     workspace: Path,
@@ -172,13 +194,13 @@ def _check_prerequisites(openclaw_bin: str) -> None:
         )
     try:
         version_out = subprocess.check_output(
-            [node, "--version"], text=True, timeout=10,
+            [node, "--version"],
+            text=True,
+            timeout=10,
         ).strip()
         major = int(version_out.lstrip("v").split(".")[0])
         if major < 22:
-            raise RuntimeError(
-                f"OpenClawSolver requires Node.js >= 22 but found {version_out}."
-            )
+            raise RuntimeError(f"OpenClawSolver requires Node.js >= 22 but found {version_out}.")
     except (subprocess.SubprocessError, ValueError) as exc:
         raise RuntimeError(f"Failed to check Node.js version: {exc}") from exc
 
@@ -216,11 +238,7 @@ def _extract_json(raw: str) -> dict[str, Any]:
 def _parse_response(output: dict[str, Any]) -> tuple[str, ModelResponse, list[dict[str, Any]]]:
     """Extract response text, model response, and trajectory from openclaw JSON output."""
     payloads = output.get("payloads") or []
-    response_text = "\n".join(
-        p.get("text", "").strip()
-        for p in payloads
-        if p.get("text")
-    )
+    response_text = "\n".join(p.get("text", "").strip() for p in payloads if p.get("text"))
     meta = output.get("meta", {})
     duration_ms = meta.get("durationMs", 0)
     agent_meta = meta.get("agentMeta", {})
@@ -288,16 +306,18 @@ def _parse_session_jsonl(raw: str) -> list[dict[str, Any]]:
             content = record.get("content", [])
             text_parts: list[str] = []
             tool_calls: list[dict[str, Any]] = []
-            for block in (content if isinstance(content, list) else []):
+            for block in content if isinstance(content, list) else []:
                 btype = block.get("type", "")
                 if btype == "text" and block.get("text"):
                     text_parts.append(block["text"])
                 elif btype == "tool_use":
-                    tool_calls.append({
-                        "tool_call_id": block.get("id", f"call_{len(steps)}"),
-                        "function_name": block.get("name", ""),
-                        "arguments": block.get("input", {}),
-                    })
+                    tool_calls.append(
+                        {
+                            "tool_call_id": block.get("id", f"call_{len(steps)}"),
+                            "function_name": block.get("name", ""),
+                            "arguments": block.get("input", {}),
+                        }
+                    )
             step: dict[str, Any] = {
                 "source": "agent",
                 "message": "\n".join(text_parts),
@@ -309,21 +329,23 @@ def _parse_session_jsonl(raw: str) -> list[dict[str, Any]]:
         elif role == "tool":
             content = record.get("content", "")
             if isinstance(content, list):
-                content = "\n".join(
-                    b.get("text", "") for b in content if isinstance(b, dict)
-                )
+                content = "\n".join(b.get("text", "") for b in content if isinstance(b, dict))
             if steps and steps[-1].get("source") == "agent":
                 steps[-1].setdefault("observation", {"results": []})
-                steps[-1]["observation"]["results"].append({
-                    "content": str(content)[:2000],
-                    "source_call_id": record.get("tool_use_id"),
-                })
+                steps[-1]["observation"]["results"].append(
+                    {
+                        "content": str(content)[:2000],
+                        "source_call_id": record.get("tool_use_id"),
+                    }
+                )
             else:
-                steps.append({
-                    "source": "system",
-                    "message": str(content)[:2000],
-                    "extra": {"tool_use_id": record.get("tool_use_id", "")},
-                })
+                steps.append(
+                    {
+                        "source": "system",
+                        "message": str(content)[:2000],
+                        "extra": {"tool_use_id": record.get("tool_use_id", "")},
+                    }
+                )
     return steps
 
 
@@ -369,14 +391,14 @@ class OpenClawSolver:
         self._top_p = top_p
         self._config_path = Path(config_path) if config_path else None
         if self._config_path and not self._config_path.is_file():
-            raise FileNotFoundError(
-                f"openclaw_config points to {self._config_path} which does not exist"
-            )
+            raise FileNotFoundError(f"openclaw_config points to {self._config_path} which does not exist")
         if not skip_preflight:
             _check_prerequisites(openclaw_bin)
 
     async def solve(
-        self, task: SeedResult, sandbox: Sandbox | None = None,
+        self,
+        task: SeedResult,
+        sandbox: Sandbox | None = None,
     ) -> SolveResult:
         if sandbox is not None:
             return await self._solve_sandbox(task, sandbox)
@@ -399,9 +421,7 @@ class OpenClawSolver:
         if workspace_path and Path(workspace_path).is_dir():
             await self._upload_workspace(sandbox, Path(workspace_path))
             pre_existing_files = {
-                str(p.relative_to(workspace_path))
-                for p in Path(workspace_path).rglob("*")
-                if p.is_file()
+                str(p.relative_to(workspace_path)) for p in Path(workspace_path).rglob("*") if p.is_file()
             }
 
         effective_prompt = self._build_prompt(task.prompt, _CONTAINER_WORKSPACE if workspace_path else None)
@@ -439,7 +459,8 @@ class OpenClawSolver:
                 response="",
                 trajectory=build_atif_trajectory(
                     [{"source": "system", "message": result.stderr[:2000]}],
-                    agent_name="openclaw", status="error",
+                    agent_name="openclaw",
+                    status="error",
                     extra={"exit_code": result.return_code},
                 ),
                 error=err_msg,
@@ -453,7 +474,8 @@ class OpenClawSolver:
                 response=result.stdout[:5000],
                 trajectory=build_atif_trajectory(
                     [{"source": "system", "message": result.stderr[:2000] or "no JSON output"}],
-                    agent_name="openclaw", status="error",
+                    agent_name="openclaw",
+                    status="error",
                 ),
                 error=err_msg,
             )
@@ -480,7 +502,10 @@ class OpenClawSolver:
 
         logger.info(
             "OpenClawSolver[sandbox]: %s completed in %dms, %d tok, %d steps",
-            task_id, model_response.latency_ms, model_response.total_tokens, len(steps),
+            task_id,
+            model_response.latency_ms,
+            model_response.total_tokens,
+            len(steps),
         )
         return SolveResult(
             response=response_text,
@@ -489,7 +514,9 @@ class OpenClawSolver:
         )
 
     async def _read_session_transcript(
-        self, sandbox: Sandbox, session_id: str,
+        self,
+        sandbox: Sandbox,
+        session_id: str,
     ) -> list[dict[str, Any]]:
         """Read the OpenClaw session JSONL from the container."""
         import base64
@@ -554,11 +581,10 @@ class OpenClawSolver:
         """
         import base64
 
-        listing = await sandbox.exec(
-            f"find {_CONTAINER_WORKSPACE} -type f 2>/dev/null || true"
-        )
+        listing = await sandbox.exec(f"find {_CONTAINER_WORKSPACE} -type f 2>/dev/null || true")
         remote_files = [
-            line.strip() for line in listing.stdout.splitlines()
+            line.strip()
+            for line in listing.stdout.splitlines()
             if line.strip() and line.strip().startswith(_CONTAINER_WORKSPACE)
         ]
         if not remote_files:
@@ -567,15 +593,13 @@ class OpenClawSolver:
                 _CONTAINER_WORKSPACE,
             )
         for remote_path in remote_files:
-            rel = remote_path[len(_CONTAINER_WORKSPACE) + 1:]
+            rel = remote_path[len(_CONTAINER_WORKSPACE) + 1 :]
             if not rel:
                 continue
             local_path = host_workspace / rel
             local_path.parent.mkdir(parents=True, exist_ok=True)
             try:
-                result = await sandbox.exec(
-                    f"base64 {shlex.quote(remote_path)}"
-                )
+                result = await sandbox.exec(f"base64 {shlex.quote(remote_path)}")
                 if result.return_code == 0 and result.stdout.strip():
                     data = base64.b64decode(result.stdout.strip())
                     local_path.write_bytes(data)
@@ -609,17 +633,13 @@ class OpenClawSolver:
         chunk_size = OpenClawSolver._WRITE_CHUNK_SIZE
         if len(raw) <= chunk_size:
             b64 = base64.b64encode(raw).decode()
-            await sandbox.exec(
-                f"echo {shlex.quote(b64)} | base64 -d > {shlex.quote(remote_path)}"
-            )
+            await sandbox.exec(f"echo {shlex.quote(b64)} | base64 -d > {shlex.quote(remote_path)}")
             return
 
         for i in range(0, len(raw), chunk_size):
             chunk_b64 = base64.b64encode(raw[i : i + chunk_size]).decode()
             op = ">" if i == 0 else ">>"
-            await sandbox.exec(
-                f"echo {shlex.quote(chunk_b64)} | base64 -d {op} {shlex.quote(remote_path)}"
-            )
+            await sandbox.exec(f"echo {shlex.quote(chunk_b64)} | base64 -d {op} {shlex.quote(remote_path)}")
 
     # ------------------------------------------------------------------
     # Local path: run as a host subprocess (original behavior)
@@ -635,10 +655,12 @@ class OpenClawSolver:
         if self._config_path is None:
             return None
         import tempfile
+
         tmp = Path(tempfile.mkdtemp(prefix="nel-openclaw-"))
         dest = tmp / ".openclaw"
         dest.mkdir()
         import shutil
+
         shutil.copy2(self._config_path, dest / "openclaw.json")
         env["HOME"] = str(tmp)
         return tmp
@@ -651,17 +673,18 @@ class OpenClawSolver:
         pre_existing_files: set[str] = set()
         if workspace_path and Path(workspace_path).is_dir():
             pre_existing_files = {
-                str(p.relative_to(workspace_path))
-                for p in Path(workspace_path).rglob("*")
-                if p.is_file()
+                str(p.relative_to(workspace_path)) for p in Path(workspace_path).rglob("*") if p.is_file()
             }
 
         effective_prompt = self._build_prompt(task.prompt, workspace_path)
 
         cmd = [
-            self._bin, "agent",
-            "--message", effective_prompt,
-            "--session-id", session_id,
+            self._bin,
+            "agent",
+            "--message",
+            effective_prompt,
+            "--session-id",
+            session_id,
             "--json",
             "--local",
         ]
@@ -686,7 +709,8 @@ class OpenClawSolver:
 
         try:
             stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                process.communicate(), timeout=self._timeout,
+                process.communicate(),
+                timeout=self._timeout,
             )
         except asyncio.TimeoutError:
             process.kill()
@@ -697,7 +721,8 @@ class OpenClawSolver:
                 response="",
                 trajectory=build_atif_trajectory(
                     [{"source": "system", "message": err_msg}],
-                    agent_name="openclaw", status="error",
+                    agent_name="openclaw",
+                    status="error",
                 ),
                 error=err_msg,
             )
@@ -712,7 +737,8 @@ class OpenClawSolver:
                 response="",
                 trajectory=build_atif_trajectory(
                     [{"source": "system", "message": stderr[:2000]}],
-                    agent_name="openclaw", status="error",
+                    agent_name="openclaw",
+                    status="error",
                     extra={"exit_code": process.returncode},
                 ),
                 error=err_msg,
@@ -726,7 +752,8 @@ class OpenClawSolver:
                 response=stdout[:5000],
                 trajectory=build_atif_trajectory(
                     [{"source": "system", "message": stderr[:2000] or "no JSON output"}],
-                    agent_name="openclaw", status="error",
+                    agent_name="openclaw",
+                    status="error",
                 ),
                 error=err_msg,
             )
@@ -754,7 +781,10 @@ class OpenClawSolver:
 
         logger.info(
             "OpenClawSolver[local]: %s completed in %dms, %d tok, %d steps",
-            task_id, model_response.latency_ms, model_response.total_tokens, len(steps),
+            task_id,
+            model_response.latency_ms,
+            model_response.total_tokens,
+            len(steps),
         )
         return SolveResult(
             response=response_text,
@@ -768,7 +798,8 @@ class OpenClawSolver:
 
     @staticmethod
     def _read_local_session_transcript(
-        home: str, session_id: str,
+        home: str,
+        session_id: str,
     ) -> list[dict[str, Any]]:
         """Read a session transcript from the local filesystem."""
         sessions_dir = Path(home) / ".openclaw" / "agents" / "main" / "sessions"

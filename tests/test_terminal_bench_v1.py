@@ -114,6 +114,7 @@ class TestEnsureDataset:
 class TestRegistration:
     def test_registered_as_builtin(self):
         from nemo_evaluator.environments.registry import _REGISTRY
+
         assert "terminal-bench-v1" in _REGISTRY
         assert _REGISTRY["terminal-bench-v1"] is TerminalBenchV1
 

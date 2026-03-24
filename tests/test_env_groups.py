@@ -24,10 +24,12 @@ class TestGenerateSecretsEnv:
         assert "_SVC_MODEL" in r.disambiguated_name
 
     def test_different_groups_same_key(self):
-        result = generate_secrets_env({
-            "svc_a": {"HF_TOKEN": "token_a"},
-            "svc_b": {"HF_TOKEN": "token_b"},
-        })
+        result = generate_secrets_env(
+            {
+                "svc_a": {"HF_TOKEN": "token_a"},
+                "svc_b": {"HF_TOKEN": "token_b"},
+            }
+        )
         assert "token_a" in result.secrets_content
         assert "token_b" in result.secrets_content
         a_name = result.group_remappings["svc_a"][0].disambiguated_name
@@ -35,10 +37,12 @@ class TestGenerateSecretsEnv:
         assert a_name != b_name
 
     def test_disambiguated_names_are_unique(self):
-        result = generate_secrets_env({
-            "g1": {"X": "v1", "Y": "v2"},
-            "g2": {"X": "v3", "Z": "v4"},
-        })
+        result = generate_secrets_env(
+            {
+                "g1": {"X": "v1", "Y": "v2"},
+                "g2": {"X": "v3", "Z": "v4"},
+            }
+        )
         all_names = set()
         for remappings in result.group_remappings.values():
             for r in remappings:
@@ -47,7 +51,7 @@ class TestGenerateSecretsEnv:
 
     def test_escapes_double_quotes(self):
         result = generate_secrets_env({"g": {"K": 'val"with"quotes'}})
-        assert r'val\"with\"quotes' in result.secrets_content
+        assert r"val\"with\"quotes" in result.secrets_content
 
     def test_escapes_backslashes(self):
         result = generate_secrets_env({"g": {"K": r"path\to\thing"}})
@@ -56,9 +60,11 @@ class TestGenerateSecretsEnv:
 
 class TestBuildReexportCommands:
     def test_generates_exports(self):
-        result = generate_secrets_env({
-            "svc_x": {"HF_TOKEN": "tok", "AWS_KEY": "key"},
-        })
+        result = generate_secrets_env(
+            {
+                "svc_x": {"HF_TOKEN": "tok", "AWS_KEY": "key"},
+            }
+        )
         cmds = build_reexport_commands("svc_x", result)
         assert 'export HF_TOKEN="$' in cmds
         assert 'export AWS_KEY="$' in cmds
@@ -71,9 +77,11 @@ class TestBuildReexportCommands:
 
 class TestReexportKeys:
     def test_returns_original_names(self):
-        result = generate_secrets_env({
-            "g": {"HF_TOKEN": "v1", "AWS_KEY": "v2"},
-        })
+        result = generate_secrets_env(
+            {
+                "g": {"HF_TOKEN": "v1", "AWS_KEY": "v2"},
+            }
+        )
         keys = reexport_keys("g", result)
         assert "HF_TOKEN" in keys
         assert "AWS_KEY" in keys
@@ -96,7 +104,7 @@ class TestRedactSecretsEnvContent:
         assert '"***"' in redacted
 
     def test_non_export_lines_unchanged(self):
-        content = "# comment line\nexport K=\"secret\"\n"
+        content = '# comment line\nexport K="secret"\n'
         redacted = redact_secrets_env_content(content)
         assert "# comment line" in redacted
 

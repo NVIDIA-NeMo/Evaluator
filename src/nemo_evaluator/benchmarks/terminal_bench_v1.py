@@ -17,6 +17,7 @@ Config usage::
           type: ecs_fargate
           ...
 """
+
 from __future__ import annotations
 
 import logging
@@ -37,12 +38,18 @@ _DATASET_DIR_NAME = "terminal-bench@1.0"
 def _git(cmd: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
-            cmd, text=True, encoding="utf-8",
-            check=True, capture_output=True, **kwargs,
+            cmd,
+            text=True,
+            encoding="utf-8",
+            check=True,
+            capture_output=True,
+            **kwargs,
         )
     except subprocess.CalledProcessError as exc:
         logger.error(
-            "git failed: %s\nstderr: %s", " ".join(cmd), exc.stderr,
+            "git failed: %s\nstderr: %s",
+            " ".join(cmd),
+            exc.stderr,
         )
         raise
 
@@ -50,10 +57,7 @@ def _git(cmd: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
 def _find_tasks_dir(repo: Path) -> Path | None:
     """Locate the directory containing v1 tasks (subdirs with ``task.yaml``)."""
     for candidate in [repo, repo / "tasks", repo / "benchmarks"]:
-        if candidate.is_dir() and any(
-            (d / "task.yaml").exists()
-            for d in candidate.iterdir() if d.is_dir()
-        ):
+        if candidate.is_dir() and any((d / "task.yaml").exists() for d in candidate.iterdir() if d.is_dir()):
             return candidate
     return None
 
@@ -67,8 +71,7 @@ def _ensure_dataset(datasets_dir: str | None = None) -> Path:
     marker = output_dir / ".tbv1_mapped"
 
     if marker.exists():
-        n = sum(1 for d in output_dir.iterdir()
-                if d.is_dir() and (d / "instruction.md").exists())
+        n = sum(1 for d in output_dir.iterdir() if d.is_dir() and (d / "instruction.md").exists())
         logger.info("terminal-bench-v1: %d cached tasks", n)
         return output_dir
 
@@ -81,13 +84,10 @@ def _ensure_dataset(datasets_dir: str | None = None) -> Path:
 
         tasks_root = _find_tasks_dir(clone_dir)
         if tasks_root is None:
-            raise RuntimeError(
-                f"No terminal-bench v1 task directories found in {clone_dir}"
-            )
+            raise RuntimeError(f"No terminal-bench v1 task directories found in {clone_dir}")
 
         all_tasks = sorted(
-            (d for d in tasks_root.iterdir()
-             if d.is_dir() and (d / "task.yaml").exists()),
+            (d for d in tasks_root.iterdir() if d.is_dir() and (d / "task.yaml").exists()),
             key=lambda d: d.name,
         )
 
@@ -108,7 +108,9 @@ def _ensure_dataset(datasets_dir: str | None = None) -> Path:
                 failed += 1
 
         logger.info(
-            "terminal-bench-v1: mapped %d tasks (%d failed)", mapped, failed,
+            "terminal-bench-v1: mapped %d tasks (%d failed)",
+            mapped,
+            failed,
         )
         marker.touch()
 

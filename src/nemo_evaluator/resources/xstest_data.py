@@ -9,6 +9,7 @@ Usage:
 
 Skips download if the output file already exists.
 """
+
 from __future__ import annotations
 
 import csv
@@ -18,10 +19,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-XSTEST_CSV_URL = (
-    "https://raw.githubusercontent.com/paul-rottger/exaggerated-safety/"
-    "main/xstest_v2_prompts.csv"
-)
+XSTEST_CSV_URL = "https://raw.githubusercontent.com/paul-rottger/exaggerated-safety/main/xstest_v2_prompts.csv"
 
 EXPECTED_PROMPTS = 450
 
@@ -57,9 +55,7 @@ def download_and_convert(output_path: str) -> None:
 
     print(f"[xstest_data] Wrote {count} prompts to {output_path}")
     if count != EXPECTED_PROMPTS:
-        print(
-            f"[xstest_data] WARNING: expected {EXPECTED_PROMPTS} prompts, got {count}"
-        )
+        print(f"[xstest_data] WARNING: expected {EXPECTED_PROMPTS} prompts, got {count}")
 
 
 def main() -> None:

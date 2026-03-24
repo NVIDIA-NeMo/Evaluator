@@ -1,4 +1,5 @@
 """MLflow exporter: log evaluation results to MLflow tracking."""
+
 from __future__ import annotations
 
 import json
@@ -11,8 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class MLflowExporter:
-    def __init__(self, tracking_uri: str | None = None,
-                 experiment_name: str = "nemo-evaluator", **kwargs: Any) -> None:
+    def __init__(self, tracking_uri: str | None = None, experiment_name: str = "nemo-evaluator", **kwargs: Any) -> None:
         self._tracking_uri = tracking_uri
         self._experiment_name = experiment_name
 

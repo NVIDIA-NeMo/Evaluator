@@ -1,4 +1,5 @@
 """Tests for ECS config auto-discovery via SSM Parameter Store."""
+
 import json
 from unittest.mock import MagicMock, patch
 
@@ -35,9 +36,7 @@ SSM_CONFIG = {
 def _mock_ssm_client(param_value: dict):
     """Create a mock boto3 SSM client that returns param_value as JSON."""
     mock_ssm = MagicMock()
-    mock_ssm.get_parameter.return_value = {
-        "Parameter": {"Value": json.dumps(param_value)}
-    }
+    mock_ssm.get_parameter.return_value = {"Parameter": {"Value": json.dumps(param_value)}}
     return mock_ssm
 
 
@@ -52,12 +51,14 @@ def _mock_boto3(ssm_client):
 def _clear_ssm_cache():
     """Clear the SSM config cache before each test."""
     from nemo_evaluator.sandbox.ecs_fargate import _ssm_config_cache
+
     _ssm_config_cache.clear()
     yield
     _ssm_config_cache.clear()
 
 
 # ── resolve_ecs_config_from_ssm tests ─────────────────────────────────
+
 
 class TestResolveEcsConfigFromSsm:
     def test_basic_resolution(self):
@@ -72,9 +73,7 @@ class TestResolveEcsConfigFromSsm:
 
         assert result["cluster"] == "harbor-cluster"
         assert result["subnets"] == ["subnet-aaa", "subnet-bbb"]
-        ssm_client.get_parameter.assert_called_once_with(
-            Name="/harbor/ecs-sandbox/config"
-        )
+        ssm_client.get_parameter.assert_called_once_with(Name="/harbor/ecs-sandbox/config")
 
     def test_custom_project_name(self):
         from nemo_evaluator.sandbox.ecs_fargate import resolve_ecs_config_from_ssm
@@ -86,9 +85,7 @@ class TestResolveEcsConfigFromSsm:
             mock_aws.return_value = (mock_boto, MagicMock(), type("CE", (Exception,), {}))
             resolve_ecs_config_from_ssm("eu-west-1", "myproject")
 
-        ssm_client.get_parameter.assert_called_once_with(
-            Name="/myproject/ecs-sandbox/config"
-        )
+        ssm_client.get_parameter.assert_called_once_with(Name="/myproject/ecs-sandbox/config")
 
     def test_caching(self):
         from nemo_evaluator.sandbox.ecs_fargate import resolve_ecs_config_from_ssm
@@ -120,12 +117,15 @@ class TestResolveEcsConfigFromSsm:
     def test_parameter_not_found_raises(self):
         from nemo_evaluator.sandbox.ecs_fargate import resolve_ecs_config_from_ssm
 
-        ClientError = type("ClientError", (Exception,), {
-            "__init__": lambda self, **kw: (
-                setattr(self, "response", kw.get("response", {})) or
-                Exception.__init__(self, "not found")
-            ),
-        })
+        ClientError = type(
+            "ClientError",
+            (Exception,),
+            {
+                "__init__": lambda self, **kw: (
+                    setattr(self, "response", kw.get("response", {})) or Exception.__init__(self, "not found")
+                ),
+            },
+        )
         ssm_client = MagicMock()
         err = ClientError(response={"Error": {"Code": "ParameterNotFound"}})
         ssm_client.get_parameter.side_effect = err
@@ -140,9 +140,7 @@ class TestResolveEcsConfigFromSsm:
         from nemo_evaluator.sandbox.ecs_fargate import resolve_ecs_config_from_ssm
 
         ssm_client = MagicMock()
-        ssm_client.get_parameter.return_value = {
-            "Parameter": {"Value": "not-json{"}
-        }
+        ssm_client.get_parameter.return_value = {"Parameter": {"Value": "not-json{"}}
         mock_boto = _mock_boto3(ssm_client)
 
         with patch("nemo_evaluator.sandbox.ecs_fargate._require_aws_sdks") as mock_aws:
@@ -152,6 +150,7 @@ class TestResolveEcsConfigFromSsm:
 
 
 # ── Config model tests ────────────────────────────────────────────────
+
 
 class TestEcsFargateSandboxModel:
     def test_cluster_optional(self):
@@ -182,9 +181,11 @@ class TestEcsFargateSandboxModel:
 
 # ── SSM merge logic tests (via _build_ecs_sandbox_config) ─────────────
 
+
 class TestBuildEcsSandboxConfigWithSsm:
     def _build(self, cfg: EcsFargateSandbox):
         from nemo_evaluator.orchestration.orchestrator import _build_ecs_sandbox_config
+
         return _build_ecs_sandbox_config(cfg)
 
     def test_full_autodiscovery(self):

@@ -14,6 +14,7 @@ One helper:
 - ``GymDataset``: Loads Gym JSONL task files.  Provides ``__len__`` and
   ``__getitem__`` for task data without mixing file I/O into the HTTP client.
 """
+
 from __future__ import annotations
 
 import json
@@ -55,6 +56,7 @@ def _find_free_port() -> int:
 # GymDataset -- JSONL loader, separate from the HTTP client
 # ---------------------------------------------------------------------------
 
+
 class GymDataset:
     """Loads a Gym-format JSONL file (responses_create_params + metadata per row).
 
@@ -85,6 +87,7 @@ class GymDataset:
 # ---------------------------------------------------------------------------
 # GymEnvironment -- unified HTTP client
 # ---------------------------------------------------------------------------
+
 
 class GymEnvironment(EvalEnvironment):
     """HTTP client for Gym-compatible servers.
@@ -147,9 +150,13 @@ class GymEnvironment(EvalEnvironment):
         # Clean metadata: exclude bulky/internal fields that should not
         # be serialized into step logs.  The original row is kept in
         # self._dataset and looked up by problem_idx at verify time.
-        meta = {k: v for k, v in row.items()
-                if k not in ("responses_create_params", "expected_answer")
-                and not isinstance(v, (list, dict)) or k in ("verifier_metadata",)}
+        meta = {
+            k: v
+            for k, v in row.items()
+            if k not in ("responses_create_params", "expected_answer")
+            and not isinstance(v, (list, dict))
+            or k in ("verifier_metadata",)
+        }
 
         return SeedResult(
             prompt=prompt,
@@ -166,18 +173,20 @@ class GymEnvironment(EvalEnvironment):
         sandbox_spec = None
         if d.get("sandbox_spec"):
             from nemo_evaluator.sandbox.base import SandboxSpec
+
             sandbox_spec = SandboxSpec(**d["sandbox_spec"])
         return SeedResult(
-            prompt=d.get("prompt", ""), expected_answer=d.get("expected_answer", ""),
+            prompt=d.get("prompt", ""),
+            expected_answer=d.get("expected_answer", ""),
             metadata=d.get("metadata", {}),
-            messages=d.get("messages"), system=d.get("system"),
+            messages=d.get("messages"),
+            system=d.get("system"),
             sandbox_spec=sandbox_spec,
         )
 
     # -- verify -------------------------------------------------------------
 
-    async def verify(self, response: str, expected: str,
-                     sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
+    async def verify(self, response: str, expected: str, sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
         if self.protocol == "native":
             return await self._verify_native(response, expected, **meta)
         return await self._verify_evaluator(response, expected, **meta)
@@ -229,9 +238,7 @@ class GymEnvironment(EvalEnvironment):
         # from the eval-loop metadata so gym servers can read their fields.
         if "verifier_metadata" not in body:
             _INTERNAL = {"source", "benchmark", "problem_idx", "prompt", "verifier_metadata"}
-            body["verifier_metadata"] = {
-                k: v for k, v in meta.items() if k not in _INTERNAL
-            }
+            body["verifier_metadata"] = {k: v for k, v in meta.items() if k not in _INTERNAL}
 
         # Also forward any metadata the eval loop passed that isn't already set
         for k, v in meta.items():
@@ -244,8 +251,7 @@ class GymEnvironment(EvalEnvironment):
         return VerifyResult(
             reward=float(d.get("reward", 0.0)),
             extracted_answer=d.get("extracted_sql") or d.get("extracted_answer"),
-            scoring_details={k: v for k, v in d.items()
-                            if k not in ("reward", "responses_create_params", "response")},
+            scoring_details={k: v for k, v in d.items() if k not in ("reward", "responses_create_params", "response")},
             metadata=d.get("metadata", {}),
         )
 
@@ -272,6 +278,7 @@ class GymEnvironment(EvalEnvironment):
 # ---------------------------------------------------------------------------
 # ManagedGymEnvironment -- subprocess lifecycle
 # ---------------------------------------------------------------------------
+
 
 class ManagedGymEnvironment(EvalEnvironment):
     """Starts a subprocess server, delegates to GymEnvironment, tears it down.
@@ -323,7 +330,11 @@ class ManagedGymEnvironment(EvalEnvironment):
         logger.info("Starting managed Gym server: %s", " ".join(cmd) if isinstance(cmd, list) else cmd)
         env = {**os.environ, "PORT": str(self._port)}
         self._process = subprocess.Popen(
-            cmd, shell=isinstance(cmd, str), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env,
+            cmd,
+            shell=isinstance(cmd, str),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
         )
         self._wait_for_health()
         self._inner = GymEnvironment(
@@ -338,11 +349,29 @@ class ManagedGymEnvironment(EvalEnvironment):
         if self._server_cmd:
             return self._server_cmd
         if self._server_module:
-            return [sys.executable, "-m", "uvicorn", f"{self._server_module}:app",
-                    "--host", self._host, "--port", str(self._port)]
+            return [
+                sys.executable,
+                "-m",
+                "uvicorn",
+                f"{self._server_module}:app",
+                "--host",
+                self._host,
+                "--port",
+                str(self._port),
+            ]
         if self._nel_benchmark:
-            return [sys.executable, "-m", "nemo_evaluator.cli.main", "serve",
-                    "--benchmark", self._nel_benchmark, "--port", str(self._port), "--host", self._host]
+            return [
+                sys.executable,
+                "-m",
+                "nemo_evaluator.cli.main",
+                "serve",
+                "--benchmark",
+                self._nel_benchmark,
+                "--port",
+                str(self._port),
+                "--host",
+                self._host,
+            ]
         raise ValueError("ManagedGymEnvironment requires one of: server_cmd, server_module, or nel_benchmark")
 
     def _wait_for_health(self) -> None:
@@ -359,12 +388,12 @@ class ManagedGymEnvironment(EvalEnvironment):
                 if self._process.stdout:
                     output = self._process.stdout.read().decode(errors="replace")
                 raise RuntimeError(
-                    f"Server exited with code {self._process.returncode} during startup.\n"
-                    f"Output:\n{output}"
+                    f"Server exited with code {self._process.returncode} during startup.\nOutput:\n{output}"
                 )
             try:
                 with urllib.request.urlopen(
-                    f"{self.endpoint}/health", timeout=2.0,
+                    f"{self.endpoint}/health",
+                    timeout=2.0,
                 ) as r:
                     if r.status == 200:
                         return
@@ -373,7 +402,8 @@ class ManagedGymEnvironment(EvalEnvironment):
             else:
                 try:
                     with urllib.request.urlopen(
-                        f"{self.endpoint}/openapi.json", timeout=2.0,
+                        f"{self.endpoint}/openapi.json",
+                        timeout=2.0,
                     ) as r2:
                         if r2.status == 200:
                             return
@@ -400,8 +430,7 @@ class ManagedGymEnvironment(EvalEnvironment):
             self.start()
         return await self._inner.seed(idx)
 
-    async def verify(self, response: str, expected: str,
-                     sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
+    async def verify(self, response: str, expected: str, sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
         if self._inner is None:
             self.start()
         return await self._inner.verify(response, expected, sandbox=sandbox, **meta)

@@ -8,7 +8,11 @@ from pathlib import Path
 import numpy as np
 
 from nemo_evaluator.observability.types import (
-    FailureRecord, FailureReport, RunArtifacts, RuntimeStats, StepRecord,
+    FailureRecord,
+    FailureReport,
+    RunArtifacts,
+    RuntimeStats,
+    StepRecord,
 )
 
 DEFAULT_REFUSAL_PATTERNS = [
@@ -60,8 +64,7 @@ class ArtifactCollector:
     def _compute_runtime(self, elapsed: float) -> RuntimeStats:
         latencies = [s.model_ms for s in self.steps if s.model_response]
         finish_reasons = Counter(
-            s.model_response.finish_reason
-            for s in self.steps if s.model_response and s.model_response.finish_reason
+            s.model_response.finish_reason for s in self.steps if s.model_response and s.model_response.finish_reason
         )
 
         stats = RuntimeStats(
@@ -105,8 +108,7 @@ class ArtifactCollector:
                 count=len(items),
                 percentage=len(items) / len(self.steps) if self.steps else 0,
                 exemplars=[
-                    {"problem_idx": s.problem_idx, "repeat": s.repeat,
-                     "error": s.model_error or s.failure_category}
+                    {"problem_idx": s.problem_idx, "repeat": s.repeat, "error": s.model_error or s.failure_category}
                     for s in items[:5]
                 ],
             )

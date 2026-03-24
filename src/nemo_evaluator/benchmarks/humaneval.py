@@ -1,4 +1,5 @@
 """HumanEval -- code generation with Docker-sandboxed test execution."""
+
 from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput, code_sandbox
 
@@ -10,12 +11,16 @@ _PROMPT = (
 
 
 def _prepare(row, idx, rng):
-    return {**row, "_prompt": row["prompt"], "_test": row["test"],
-            "_entry_point": row["entry_point"]}
+    return {**row, "_prompt": row["prompt"], "_test": row["test"], "_entry_point": row["entry_point"]}
 
 
-@benchmark(name="humaneval", dataset="hf://openai/openai_humaneval?split=test",
-           prompt=_PROMPT, target_field="entry_point", prepare_row=_prepare)
+@benchmark(
+    name="humaneval",
+    dataset="hf://openai/openai_humaneval?split=test",
+    prompt=_PROMPT,
+    target_field="entry_point",
+    prepare_row=_prepare,
+)
 @scorer
 def humaneval_scorer(sample: ScorerInput) -> dict:
     return code_sandbox(sample)

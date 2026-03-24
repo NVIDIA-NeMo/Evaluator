@@ -1,4 +1,5 @@
 """Tests for nel report command."""
+
 import json
 from click.testing import CliRunner
 

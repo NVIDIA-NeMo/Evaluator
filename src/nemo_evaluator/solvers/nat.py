@@ -11,6 +11,7 @@ SSE protocol (``/generate/full``):
   - ``intermediate_data: <json>`` -- raw IntermediateStep events
   - ``data: <json>``             -- final result payload
 """
+
 from __future__ import annotations
 
 import json
@@ -56,7 +57,7 @@ def _parse_sse_lines(raw: str) -> list[_SSEEvent]:
             continue
         for prefix in ("intermediate_data:", "data:", "observability_trace:"):
             if line.startswith(prefix):
-                body = line[len(prefix):].strip()
+                body = line[len(prefix) :].strip()
                 try:
                     obj = json.loads(body)
                 except json.JSONDecodeError:
@@ -105,10 +106,12 @@ def _convert_trajectory(events: list[_SSEEvent]) -> list[dict[str, Any]]:
                 output_text = str(data.get("output", data.get("chunk", "")))
             elif isinstance(data, str):
                 output_text = data
-            steps.append({
-                "source": "agent",
-                "message": output_text,
-            })
+            steps.append(
+                {
+                    "source": "agent",
+                    "message": output_text,
+                }
+            )
 
         elif step_type == "TOOL_START":
             tool_name = p.get("name", "unknown_tool")
@@ -121,11 +124,13 @@ def _convert_trajectory(events: list[_SSEEvent]) -> list[dict[str, Any]]:
             if steps and steps[-1].get("source") == "agent":
                 steps[-1].setdefault("tool_calls", []).append(tool_call)
             else:
-                steps.append({
-                    "source": "agent",
-                    "message": "",
-                    "tool_calls": [tool_call],
-                })
+                steps.append(
+                    {
+                        "source": "agent",
+                        "message": "",
+                        "tool_calls": [tool_call],
+                    }
+                )
 
         elif step_type == "TOOL_END":
             tool_output = ""
@@ -136,10 +141,12 @@ def _convert_trajectory(events: list[_SSEEvent]) -> list[dict[str, Any]]:
             if steps and steps[-1].get("source") == "agent":
                 steps[-1]["observation"] = {"results": [{"content": tool_output}]}
             else:
-                steps.append({
-                    "source": "system",
-                    "message": tool_output,
-                })
+                steps.append(
+                    {
+                        "source": "system",
+                        "message": tool_output,
+                    }
+                )
 
     return steps
 
@@ -181,7 +188,9 @@ class NatSolver:
         self._health_checked = True
 
     async def solve(
-        self, task: SeedResult, sandbox: Sandbox | None = None,
+        self,
+        task: SeedResult,
+        sandbox: Sandbox | None = None,
     ) -> SolveResult:
         await self._ensure_health()
 
@@ -247,8 +256,7 @@ class NatSolver:
             completion_tokens=total_tokens,
         )
 
-        logger.info("NatSolver: %.0fms, %d events, %d chars response",
-                     latency, len(events), len(final_text))
+        logger.info("NatSolver: %.0fms, %d events, %d chars response", latency, len(events), len(final_text))
 
         return SolveResult(
             response=final_text,

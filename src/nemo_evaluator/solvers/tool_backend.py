@@ -11,6 +11,7 @@ Three implementations:
 All backends conform to the ``ToolBackend`` protocol so ``ReActSolver`` is
 backend-agnostic.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -258,7 +259,9 @@ class SandboxToolBackend:
         cmd_with_cwd = f"{command} ; echo '{_CWD_MARKER}='$(pwd)"
         try:
             result = await self._sandbox.exec(
-                cmd_with_cwd, timeout_sec=self._timeout, cwd=self._cwd,
+                cmd_with_cwd,
+                timeout_sec=self._timeout,
+                cwd=self._cwd,
             )
         except Exception as exc:
             raise ToolInfraError(f"Sandbox exec failed: {exc}") from exc
@@ -288,7 +291,7 @@ class SandboxToolBackend:
         marker = f"{_CWD_MARKER}="
         for line in reversed(stdout.splitlines()):
             if line.startswith(marker):
-                new_cwd = line[len(marker):].strip()
+                new_cwd = line[len(marker) :].strip()
                 if new_cwd:
                     self._cwd = new_cwd
                 return
@@ -420,10 +423,7 @@ class CompositeToolBackend:
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> ToolResult:
         backend = self._route.get(name)
         if backend is None:
-            raise ToolInfraError(
-                f"Tool {name!r} not found in any backend. "
-                f"Available: {sorted(self._route.keys())}"
-            )
+            raise ToolInfraError(f"Tool {name!r} not found in any backend. Available: {sorted(self._route.keys())}")
         return await backend.call_tool(name, arguments)
 
     async def close(self) -> None:
@@ -460,20 +460,23 @@ def _openapi_to_tools(spec: dict[str, Any]) -> list[dict[str, Any]]:
 
         parameters = _extract_parameters(post, components_schemas)
 
-        tools.append({
-            "type": "function",
-            "function": {
-                "name": name,
-                "description": description,
-                "parameters": parameters,
-            },
-        })
+        tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": description,
+                    "parameters": parameters,
+                },
+            }
+        )
 
     return tools
 
 
 def _extract_parameters(
-    operation: dict[str, Any], schemas: dict[str, Any],
+    operation: dict[str, Any],
+    schemas: dict[str, Any],
 ) -> dict[str, Any]:
     """Extract JSON Schema parameters from an OpenAPI POST operation."""
     body = operation.get("requestBody", {})
@@ -502,10 +505,7 @@ def _resolve_refs(schema: dict[str, Any], schemas: dict[str, Any]) -> dict[str, 
 
     result = dict(schema)
     if "properties" in result:
-        result["properties"] = {
-            k: _resolve_refs(v, schemas)
-            for k, v in result["properties"].items()
-        }
+        result["properties"] = {k: _resolve_refs(v, schemas) for k, v in result["properties"].items()}
     if "items" in result:
         result["items"] = _resolve_refs(result["items"], schemas)
     for key in ("allOf", "anyOf", "oneOf"):

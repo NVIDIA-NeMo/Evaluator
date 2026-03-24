@@ -1,4 +1,5 @@
 """MGSM -- Multilingual Grade School Math (11 languages)."""
+
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput, numeric_match
@@ -22,6 +23,7 @@ _INSTRUCTIONS = {
 
 def _load_mgsm():
     from datasets import load_dataset
+
     rows = []
     for lang in _LANGS:
         ds = load_dataset("juletxara/mgsm", lang, split="test", trust_remote_code=True)
@@ -36,14 +38,14 @@ def _seed_mgsm(row, idx):
     template = _INSTRUCTIONS.get(lang, _INSTRUCTIONS["en"])
     prompt = template.format(input=row["question"])
     return SeedResult(
-        prompt=prompt, expected_answer=row["answer"],
+        prompt=prompt,
+        expected_answer=row["answer"],
         messages=[{"role": "user", "content": prompt}],
         metadata={"category": lang},
     )
 
 
-@benchmark(name="mgsm", dataset=_load_mgsm, target_field="answer",
-           prompt="", seed_fn=_seed_mgsm)
+@benchmark(name="mgsm", dataset=_load_mgsm, target_field="answer", prompt="", seed_fn=_seed_mgsm)
 @scorer
 def mgsm_scorer(sample: ScorerInput) -> dict:
     return numeric_match(sample)

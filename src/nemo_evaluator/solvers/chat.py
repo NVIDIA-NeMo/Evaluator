@@ -1,4 +1,5 @@
 """ChatSolver: single model call. Default for standard benchmarks."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -23,7 +24,9 @@ class ChatSolver:
         else:
             resp = await self._client.chat(task.prompt, system=effective_system)
         trajectory = build_single_turn_atif(
-            task.prompt, resp.content, system=effective_system,
+            task.prompt,
+            resp.content,
+            system=effective_system,
             model_name=getattr(resp, "model", None),
             prompt_tokens=getattr(resp, "prompt_tokens", 0) or 0,
             completion_tokens=getattr(resp, "completion_tokens", 0) or 0,

@@ -33,6 +33,7 @@ def register(name: str):
         _REGISTRY[name.lower()] = cls
         cls.name = name
         return cls
+
     return wrapper
 
 
@@ -76,6 +77,7 @@ def load_benchmark_file(file_path: str) -> list[str]:
 
 # --- URI scheme factories (scheme://rest) ---
 
+
 def _make_gym(rest: str, **kwargs: Any) -> "EvalEnvironment":
     from nemo_evaluator.environments.gym import GymDataset, GymEnvironment, ManagedGymEnvironment
 
@@ -107,6 +109,7 @@ def _make_gym(rest: str, **kwargs: Any) -> "EvalEnvironment":
 
 def _make_skills(rest: str, **kwargs: Any) -> "EvalEnvironment":
     from nemo_evaluator.environments.skills import SkillsEnvironment
+
     return SkillsEnvironment(
         rest,
         split=kwargs.get("split"),
@@ -118,18 +121,21 @@ def _make_skills(rest: str, **kwargs: Any) -> "EvalEnvironment":
 
 def _make_lm_eval(rest: str, **kwargs: Any) -> "EvalEnvironment":
     from nemo_evaluator.environments.lm_eval import LMEvalEnvironment
+
     limit = kwargs.get("limit") or kwargs.get("num_examples")
     return LMEvalEnvironment(task_name=rest, num_fewshot=kwargs.get("num_fewshot"), limit=limit)
 
 
 def _make_vlmevalkit(rest: str, **kwargs: Any) -> "EvalEnvironment":
     from nemo_evaluator.environments.vlmevalkit import VLMEvalKitEnvironment
+
     limit = kwargs.get("limit") or kwargs.get("num_examples")
     return VLMEvalKitEnvironment(dataset_name=rest, limit=limit)
 
 
 def _make_container(rest: str, **kwargs: Any) -> "EvalEnvironment":
     from nemo_evaluator.environments.container import ContainerEnvironment
+
     if "#" in rest:
         image, task = rest.rsplit("#", 1)
     else:
@@ -149,10 +155,7 @@ def _make_harbor(rest: str, **kwargs: Any) -> "EvalEnvironment":
     limit = kwargs.get("num_examples")
     if not auto_prepare(rest, dataset_path, limit=limit):
         if not dataset_path.is_dir():
-            raise KeyError(
-                f"Harbor dataset {rest!r} not found in registry and "
-                f"{dataset_path} does not exist on disk."
-            )
+            raise KeyError(f"Harbor dataset {rest!r} not found in registry and {dataset_path} does not exist on disk.")
 
     return HarborEnvironment(
         dataset_path=dataset_path,
@@ -174,7 +177,7 @@ def _resolve_uri(uri: str, **kwargs: Any) -> "EvalEnvironment | None":
     for scheme, factory in _URI_FACTORIES.items():
         prefix = f"{scheme}://"
         if uri.startswith(prefix):
-            return factory(uri[len(prefix):], **kwargs)
+            return factory(uri[len(prefix) :], **kwargs)
     return None
 
 
@@ -199,15 +202,19 @@ def _resolve_file_bench(name: str) -> str | None:
 
     if explicit_name:
         if explicit_name.lower() not in _REGISTRY:
-            raise KeyError(f"Benchmark {explicit_name!r} not found after loading {file_path}. "
-                           f"Registered: {', '.join(new_names) or '(none)'}")
+            raise KeyError(
+                f"Benchmark {explicit_name!r} not found after loading {file_path}. "
+                f"Registered: {', '.join(new_names) or '(none)'}"
+            )
         return explicit_name
 
     if len(new_names) == 1:
         return new_names[0]
     if len(new_names) > 1:
-        raise KeyError(f"{file_path} registered {len(new_names)} benchmarks "
-                       f"({', '.join(new_names)}). Specify one: {file_path}:<name>")
+        raise KeyError(
+            f"{file_path} registered {len(new_names)} benchmarks "
+            f"({', '.join(new_names)}). Specify one: {file_path}:<name>"
+        )
 
     after = set(_REGISTRY)
     if after == before:
@@ -215,8 +222,7 @@ def _resolve_file_bench(name: str) -> str | None:
         if stem in _REGISTRY:
             return stem
 
-    raise KeyError(f"{file_path} registered no new benchmarks. "
-                   f"Make sure it uses @benchmark + @scorer.")
+    raise KeyError(f"{file_path} registered no new benchmarks. Make sure it uses @benchmark + @scorer.")
 
 
 def get_environment(name: str, **kwargs: Any) -> "EvalEnvironment":

@@ -22,6 +22,7 @@ Usage:
         --port 9100 --prepare-data \
         -c spider2_lite_dir=resources_servers/spider2_lite/.spider2_lite
 """
+
 from __future__ import annotations
 
 import argparse
@@ -41,8 +42,7 @@ def _download_from_gitlab(gl_id: dict, output_path: str) -> None:
     tracking_token = os.environ.get("MLFLOW_TRACKING_TOKEN")
     if not tracking_uri or not tracking_token:
         raise EnvironmentError(
-            "MLFLOW_TRACKING_URI and MLFLOW_TRACKING_TOKEN must be set "
-            "to download datasets from GitLab MLflow."
+            "MLFLOW_TRACKING_URI and MLFLOW_TRACKING_TOKEN must be set to download datasets from GitLab MLflow."
         )
 
     from mlflow import MlflowClient
@@ -55,7 +55,8 @@ def _download_from_gitlab(gl_id: dict, output_path: str) -> None:
     model_version = client.get_model_version(gl_id["dataset_name"], gl_id["version"])
     run_id = model_version.run_id
     repo = get_artifact_repository(
-        artifact_uri=f"runs:/{run_id}", tracking_uri=tracking_uri,
+        artifact_uri=f"runs:/{run_id}",
+        tracking_uri=tracking_uri,
     )
     artifact_uri = repo.repo.artifact_uri
     download_link = f"{artifact_uri.rstrip('/')}/{gl_id['artifact_fpath'].lstrip('/')}"
@@ -136,16 +137,17 @@ def _prepare_datasets(config_path: str) -> None:
                 print(f"[gym_launcher] Downloading from HuggingFace: {hf_id['repo_id']}")
                 _download_from_hf(hf_id, fpath)
             elif gl_id:
-                print(f"[gym_launcher] Downloading from GitLab MLflow: "
-                      f"{gl_id['dataset_name']} v{gl_id['version']}")
+                print(f"[gym_launcher] Downloading from GitLab MLflow: {gl_id['dataset_name']} v{gl_id['version']}")
                 _download_from_gitlab(gl_id, fpath)
             else:
                 print(f"[gym_launcher] WARNING: No download identifier for {fpath}")
                 continue
         except Exception as exc:
             print(f"[gym_launcher] WARNING: Could not download {fpath}: {exc}")
-            print("[gym_launcher]   Provide the dataset manually or set "
-                  "MLFLOW_TRACKING_URI / MLFLOW_TRACKING_TOKEN / HF_TOKEN.")
+            print(
+                "[gym_launcher]   Provide the dataset manually or set "
+                "MLFLOW_TRACKING_URI / MLFLOW_TRACKING_TOKEN / HF_TOKEN."
+            )
             continue
 
         if Path(fpath).exists():
@@ -165,11 +167,13 @@ def main() -> None:
     parser.add_argument("--head-port", type=int, default=None, help="Head server port (default: port - 1)")
     parser.add_argument("--config", "-c", action="append", default=[], help="Extra config key=value pairs")
     parser.add_argument(
-        "--prepare-data", action="store_true",
+        "--prepare-data",
+        action="store_true",
         help="Download missing datasets before starting",
     )
     parser.add_argument(
-        "--gym-config", default=None,
+        "--gym-config",
+        default=None,
         help="Path to the Gym resource server YAML config (for --prepare-data)",
     )
     args = parser.parse_args()

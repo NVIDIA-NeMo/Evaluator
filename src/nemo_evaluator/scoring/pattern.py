@@ -1,4 +1,5 @@
 """Pattern-based scorers: regex extraction and numeric matching."""
+
 from __future__ import annotations
 
 import re

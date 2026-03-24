@@ -8,8 +8,7 @@ import click
 @click.option("--host", default="0.0.0.0")
 @click.option("--port", "-p", default=9090, type=int)
 @click.option("--gym-compat", is_flag=True, help="Accept NeMoGymResponse in /verify")
-@click.option("--export-data", type=click.Path(), default=None,
-              help="Export JSONL for ng_collect_rollouts")
+@click.option("--export-data", type=click.Path(), default=None, help="Export JSONL for ng_collect_rollouts")
 def serve_cmd(benchmark, host, port, gym_compat, export_data):
     """Serve a benchmark as HTTP environment."""
     from nemo_evaluator.environments.registry import get_environment
@@ -23,4 +22,5 @@ def serve_cmd(benchmark, host, port, gym_compat, export_data):
     click.echo(f"  size={len(env)}  endpoints: /seed_session /verify /health")
 
     import uvicorn
+
     uvicorn.run(app, host=host, port=port, log_level="info")
