@@ -336,7 +336,6 @@ class SampleRecord(BaseModel):
     query: Optional[str | dict] = Field(default=None, description="Input question text or payload")
     answer: Optional[Any] = Field(default=None, description="Extracted predicted answer (None if not available)")
     ground_truth: Optional[Any] = Field(default=None, description="Correct reference answer (None if not available)")
-    query_hash: Optional[str] = Field(default=None, description="SHA-256 hex digest (16 chars) for stable cross-run matching")
 
 
 class EvaluationResult(BaseModel):
