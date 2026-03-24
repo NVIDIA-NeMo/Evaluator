@@ -43,5 +43,4 @@ Learn how to check compliance of llm against custom rules.
 reasoning
 local-to-slurm
 compliance-integrity
-continuous-checkpoint-evaluation
 :::
