@@ -27,6 +27,14 @@ Deploy models and run evaluations using NeMo Framework container.
 
 :::
 
+:::{grid-item-card} {octicon}`iterations;1.5em;sd-mr-1` Continuous Checkpoint Evaluation
+:link: continuous-checkpoint-evaluation
+:link-type: ref
+
+Automatically evaluate training checkpoints as they appear using `nel-watch`.
+
+:::
+
 ::::
 
 

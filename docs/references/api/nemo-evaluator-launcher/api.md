@@ -179,7 +179,7 @@ print(f"Output directory: {status['data']['output_dir']}")
 ## Watching Checkpoints
 
 The watcher module provides continuous checkpoint discovery and evaluation submission.
-See {ref}`how-to-continuous-checkpoint-evaluation` for a full walkthrough.
+See {ref}`continuous-checkpoint-evaluation` for a full walkthrough.
 
 ### Running the Watcher
 

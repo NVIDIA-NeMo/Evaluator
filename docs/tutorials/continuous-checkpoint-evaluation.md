@@ -1,12 +1,12 @@
-(how-to-continuous-checkpoint-evaluation)=
+(continuous-checkpoint-evaluation)=
 # Continuous Checkpoint Evaluation
 
-During model training, you often want to evaluate checkpoints as they appear — without manually kicking off each run. The `nel-watch` command polls a directory for new checkpoint subdirectories and automatically submits evaluation jobs using your existing launcher config.
+During model training, you often want to evaluate checkpoints as they appear - without manually kicking off each run. The `nel-watch` command polls a directory for new checkpoint subdirectories and automatically submits evaluation jobs using your existing launcher config.
 
 This is especially useful for:
 
 - **Long training runs** where checkpoints land every few hours and you want evaluation results as early as possible.
-- **Overnight / unattended campaigns** where waiting until morning to start evals wastes GPU time.
+- **Overnight / unattended campaigns** where you do not want to wait until morning to start evals.
 - **Choosing the best checkpoint** by evaluating all of them and comparing scores afterward.
 
 :::{note}
@@ -20,7 +20,7 @@ Ensure you have:
 - NeMo Evaluator Launcher installed (`pip install nemo-evaluator-launcher[all]`).
 - A working eval config with SLURM execution (`nel run --config <eval-config.yaml> --dry-run` completes without errors).
 - SSH access to the cluster login node from where you run `nel-watch`.
-- Checkpoints saved with a recognizable naming pattern (e.g. `step_1000/`, `iter_500/`).
+- Good understanding of your checkpoint naming pattern (e.g. `step_1000/`, `iter_500/`) and directory structure (to configure directory readiness markers).
 
 ## Quick Start
 
@@ -34,9 +34,13 @@ A minimal watch config looks like this:
 
 ```yaml
 # my-watch-config.yaml
+defaults:
+  - cluster_config: default
+  - monitoring_config: default
+  - _self_
+
 cluster_config:
   hostname: my-cluster-login.example.com
-  username: myuser
   account: my-slurm-account
   output_dir: /shared/results/watch-run
 
@@ -98,28 +102,17 @@ monitoring_config:
 
 ### `conversion_config` (optional)
 
-If your training checkpoints are in Megatron format and your evaluation requires HuggingFace format, add a conversion step. A conversion SLURM job is submitted first; the evaluation job is held with `afterok` dependency until it completes.
+If you would like to evaluate your checkpoints in a different format than the one used for training, add a conversion step. A conversion SLURM job is submitted first; the evaluation job is held with `afterok` dependency until it completes.
 
 ```yaml
 conversion_config:
-  container: /path/to/conversion.sqsh
-  mounts:
-    - source: /path/to/hf-reference-weights
-      target: /path/to/hf-reference-weights
-  command_params:
-    hf_model: /path/to/hf-reference-weights
-    tp: 8
-    pp: 1
-    ep: 1
-    etp: 1
-  command_pattern: >-
-    bash -lc '
-    python /opt/Megatron-Bridge/examples/conversion/convert_checkpoints.py export
-    --megatron-path {{ input_path }}
-    --hf-path {{ output_path }}
-    --hf-model {{ hf_model }}
-    --tp {{ tp }} --pp {{ pp }} --ep {{ ep }} --etp {{ etp }}'
+  container: my-training-container:latest
+  command_pattern: "convert -i {{ input_path }} -o {{ output_path }}"
 ```
+
+:::{note}
+`command_pattern` must contain {{ input_path }} and {{ output_path }} placeholders.
+:::
 
 Omit `conversion_config` (or set it to `null`) to use the raw checkpoint path directly in the evaluation.
 
@@ -127,7 +120,7 @@ See the Hydra config group templates in `configs/watcher/conversion_config/` for
 
 ### `evaluation_configs`
 
-A list of paths to standard NEL evaluation config files. Each config is run for every discovered checkpoint. `nel-watch` automatically sets `deployment.checkpoint_path` and `execution.output_dir` in each config before submission — do not pre-define `execution.output_dir` in your eval configs.
+A list of paths to standard NEL evaluation config files. Each config is run for every discovered checkpoint. `nel-watch` automatically sets `deployment.checkpoint_path` and `execution.output_dir` in each config before submission and there is no need to pre-define them.
 
 ```yaml
 evaluation_configs:
@@ -144,7 +137,7 @@ Watch config fields can be factored out using Hydra defaults lists. The package 
 defaults:
   - cluster_config: default
   - monitoring_config: default
-  - conversion_config: mbridge   # uses the Megatron-Bridge preset
+  - conversion_config: mbridge   # conversion template for Megatron-Bridge -> Hugging Face
   - _self_
 
 cluster_config:
@@ -166,107 +159,6 @@ evaluation_configs:
   - /path/to/eval.yaml
 ```
 
-## CLI Reference
-
-```text
-nel-watch --config WATCH_CONFIG [options]
-```
-
-```{list-table}
-:header-rows: 1
-:widths: 35 15 50
-
-* - Option
-  - Default
-  - Description
-* - `--config`
-  - *(required)*
-  - Path to the watch config YAML file.
-* - `--interval`
-  - *(from config)*
-  - Override the polling interval (seconds). Pass `0` to scan once and exit.
-* - `--order`
-  - *(from config)*
-  - Override processing order: `last` (highest step first) or `first` (lowest step first).
-* - `--resubmit-previous-sessions`
-  - `false`
-  - Re-evaluate checkpoints that were already submitted in earlier watcher sessions.
-* - `-n`, `--dry-run`
-  - `false`
-  - Show what would be submitted without actually submitting.
-* - `-o`, `--override`
-  - —
-  - Hydra-style override for the watch config (e.g. `-o cluster_config.account=other`). Repeatable. Overrides to individual `evaluation_configs` entries are not supported.
-```
-
-## Examples
-
-### Preview Before Running
-
-```bash
-nel-watch --config my-watch-config.yaml --dry-run
-```
-
-### Scan Once and Exit
-
-Set `interval: null` in `monitoring_config`, or pass `--interval 0` on the command line:
-
-```bash
-nel-watch --config my-watch-config.yaml --interval 0
-```
-
-### Re-evaluate Previous Checkpoints
-
-```bash
-nel-watch --config my-watch-config.yaml --resubmit-previous-sessions
-```
-
-### Override Config Values at the Command Line
-
-```bash
-nel-watch --config my-watch-config.yaml \
-  -o cluster_config.account=other-account \
-  -o monitoring_config.interval=60
-```
-
-### Process Oldest Checkpoints First
-
-```bash
-nel-watch --config my-watch-config.yaml --order first
-```
-
-## State Persistence
-
-`nel-watch` records every submission in an append-only JSONL log:
-
-```
-~/.nemo-evaluator/watch-state/watch-state.v1.jsonl
-```
-
-Each line is a JSON record containing the checkpoint path, invocation ID, session ID, and the resolved configs used at submission time. If you restart `nel-watch`, already-submitted checkpoints are automatically skipped. Use `--resubmit-previous-sessions` to reprocess them.
-
-To use a custom location, set the `NEMO_EVALUATOR_WATCH_STATE_FILE` environment variable.
-
-## Python API
-
-```python
-from pathlib import Path
-
-from nemo_evaluator_launcher.watcher.configs import WatchConfig
-from nemo_evaluator_launcher.watcher.run import watch_and_evaluate
-
-watch_config = WatchConfig.from_hydra(path=Path("my-watch-config.yaml"))
-
-submissions = watch_and_evaluate(
-    watch_config=watch_config,
-    resubmit_previous_sessions=False,
-    dry_run=False,
-)
-
-for s in submissions:
-    print(f"Checkpoint: {s.checkpoint} -> Invocation: {s.invocation_id}")
-```
-
 ## Troubleshooting
 
 **No checkpoints found:** Verify that subdirectories match `checkpoint_patterns` and contain at least one `ready_markers` file. Run with `--dry-run` to see what the watcher detects.
@@ -280,4 +172,5 @@ for s in submissions:
 ## See Also
 
 - {ref}`launcher-cli-dry-run` — Preview resolved configuration before running.
-- [Python API](../../references/api/nemo-evaluator-launcher/api.md) — Programmatic access to launcher functionality.
+- [Python API](../references/api/nemo-evaluator-launcher/api.md) — Programmatic access to launcher functionality.
+- [CLI](../references/api/nemo-evaluator-launcher/cli.md) — Commandline interface.

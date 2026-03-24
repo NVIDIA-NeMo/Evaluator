@@ -443,7 +443,7 @@ nel-watch --config my-watch-config.yaml --dry-run
 nel-watch --config my-watch-config.yaml --interval 60
 
 # Scan once and exit (no polling loop)
-nel-watch --config my-watch-config.yaml --interval 0
+nel-watch --config my-watch-config.yaml --interval null
 ```
 
 ### nel-watch Options
@@ -460,7 +460,7 @@ nel-watch --config my-watch-config.yaml --interval 0
   - Path to the watch config YAML file (see format below).
 * - `--interval`
   - *(from config)*
-  - Override polling interval in seconds. Pass `0` to scan once and exit.
+  - Override polling interval in seconds. Pass `"null"` to scan once and exit.
 * - `--order`
   - *(from config)*
   - Override processing order: `last` (highest step first) or `first` (lowest step first).
@@ -481,6 +481,14 @@ nel-watch --config my-watch-config.yaml --interval 0
 
 ```yaml
 # my-watch-config.yaml
+
+defaults:
+  - cluster_config: default
+  - monitoring_config: default
+  - conversion_config: mbridge  # convert Megatron-Bridge checkpoint to Hugging Face format
+  - _self_
+
+
 cluster_config:
   hostname: my-cluster-login.example.com  # 'localhost' when running on the login node
   username: ${oc.env:USER}
@@ -500,24 +508,21 @@ monitoring_config:
   order: last                  # 'last' = highest step first
 
 # conversion_config is optional — omit to use raw checkpoint paths
+# in this example we use conversion template for Megatron-Bridge -> Hugging Face
 conversion_config:
   container: /path/to/conversion.sqsh
   command_params:
     hf_model: /path/to/reference-hf-model
     tp: 8
     pp: 1
-    ep: 1
+    ep: 16
     etp: 1
-  command_pattern: >-
-    bash -lc 'python /opt/converter/convert.py
-    --input {{ input_path }} --output {{ output_path }}
-    --hf-model {{ hf_model }} --tp {{ tp }}'
 
 evaluation_configs:
   - /path/to/eval-config.yaml
 ```
 
-See the {ref}`how-to-continuous-checkpoint-evaluation` guide for a full walkthrough, including Hydra config group templates and conversion presets.
+See the {ref}`continuous-checkpoint-evaluation` guide for a full walkthrough, including Hydra config group templates and conversion presets.
 
 ## Environment Variables
 
