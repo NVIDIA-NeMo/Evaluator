@@ -11,7 +11,7 @@ pip install -e ".[ray]"
 ## CLI
 
 ```bash
-ray job submit --working-dir . -- python -m nemo_evaluator.runner.ray_launcher \
+ray job submit --working-dir . -- python -m nemo_evaluator.engine.ray_launcher \
     --bench gsm8k --shards 8 --repeats 5 \
     --model-url https://inference-api.nvidia.com/v1 \
     --model-id azure/openai/gpt-5.2 \
@@ -40,7 +40,7 @@ Each shard runs as a `@ray.remote` task. The head node collects all results and 
 
 ```python
 import ray
-from nemo_evaluator.runner.ray_launcher import run_shard
+from nemo_evaluator.engine.ray_launcher import run_shard
 
 ray.init()
 

@@ -8,7 +8,7 @@ from nemo_evaluator.benchmarks._swebench_base import (
     swebench_score,
     swebench_seed_fn,
 )
-from nemo_evaluator.environments.byob import benchmark, image_builder, scorer
+from nemo_evaluator.environments.custom import benchmark, image_builder, scorer
 from nemo_evaluator.scoring.types import ScorerInput
 
 MULTILINGUAL_IMAGE_TEMPLATE = "swebench/sweb.eval.x86_64.{instance_id}:latest"

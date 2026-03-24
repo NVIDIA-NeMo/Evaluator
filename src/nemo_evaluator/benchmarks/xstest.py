@@ -16,7 +16,7 @@ import csv
 import io
 import urllib.request
 
-from nemo_evaluator.environments.byob import benchmark, scorer
+from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput
 
 _XSTEST_CSV_URL = (

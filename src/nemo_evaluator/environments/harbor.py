@@ -608,11 +608,31 @@ class HarborEnvironment(EvalEnvironment):
                 environment_dir=str(env_dir) if env_dir.is_dir() else None,
             )
             capture_cmd = (
-                "cd /testbed && tar cf /output/workspace.tar --exclude=.git ."
+                "cd /testbed && mkdir -p /output && "
+                "if [ -d .git ] && git rev-parse HEAD >/dev/null 2>&1; then "
+                "_NEL_BASE=$(cat /tmp/_nel_base_commit 2>/dev/null || git rev-parse HEAD); "
+                "git add -A 2>/dev/null; "
+                "git diff --cached --binary $_NEL_BASE > /output/_nel_patch.diff 2>/dev/null && "
+                "echo git-diff > /output/_nel_mode && "
+                "cd /output && tar cf workspace.tar _nel_patch.diff _nel_mode || "
+                "{ cd /testbed && tar cf /output/workspace.tar --exclude=.git .; }; "
+                "else "
+                "tar cf /output/workspace.tar --exclude=.git .; "
+                "fi"
             )
             apply_cmd = (
+                "mkdir -p /tmp/_nel_ws && "
                 "if [ -f /input/workspace.tar ]; then "
-                "tar xf /input/workspace.tar -C /testbed; fi"
+                "tar xf /input/workspace.tar -C /tmp/_nel_ws 2>/dev/null; "
+                "if [ -f /tmp/_nel_ws/_nel_patch.diff ]; then "
+                "if [ -s /tmp/_nel_ws/_nel_patch.diff ]; then "
+                "cd /testbed && git apply --binary /tmp/_nel_ws/_nel_patch.diff 2>/dev/null || "
+                "git apply --binary --reject /tmp/_nel_ws/_nel_patch.diff; "
+                "fi; "
+                "else "
+                "tar xf /input/workspace.tar -C /testbed; "
+                "fi; "
+                "fi"
             )
 
         metadata: dict[str, Any] = {
@@ -706,7 +726,7 @@ class HarborEnvironment(EvalEnvironment):
             reward_text = reward_path.read_text(encoding="utf-8").strip()
             reward = float(reward_text)
             reward_details["reward_raw"] = reward_text
-        except (FileNotFoundError, OSError):
+        except (FileNotFoundError, OSError, RuntimeError):
             try:
                 with _tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
                     reward_path = Path(f.name)
@@ -714,7 +734,7 @@ class HarborEnvironment(EvalEnvironment):
                 reward_text = reward_path.read_text(encoding="utf-8").strip()
                 reward = float(reward_text)
                 reward_details["reward_raw"] = reward_text
-            except (FileNotFoundError, OSError, ValueError):
+            except (FileNotFoundError, OSError, RuntimeError, ValueError):
                 reward = 1.0 if result.return_code == 0 else 0.0
                 reward_details["reward_source"] = "exit_code_fallback"
         except ValueError:

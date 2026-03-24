@@ -3,7 +3,7 @@ import asyncio
 
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
-from nemo_evaluator.runner.eval_loop import run_evaluation
+from nemo_evaluator.engine.eval_loop import run_evaluation
 from nemo_evaluator.solvers import SolveResult
 
 

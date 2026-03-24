@@ -1,6 +1,7 @@
 """HarborSolver: runs Harbor-compatible agents inside a nel Sandbox."""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -83,8 +84,28 @@ def _ensure_env(api_key: str | None, model_url: str | None, model_id: str | None
 # Agent log download
 # ---------------------------------------------------------------------------
 
-async def _download_agent_logs(sandbox: "Sandbox", dest: Path) -> None:
-    """Download ``/logs/agent/`` from the container into *dest*."""
+async def _download_agent_logs(
+    sandbox: "Sandbox", dest: Path, *, max_retries: int = 3, timeout: float = 180.0,
+) -> None:
+    """Download ``/logs/agent/`` from the container into *dest*.
+
+    Retries on transient failures and enforces a wall-clock timeout so a
+    hung exec server cannot block the solver indefinitely.
+    """
+    try:
+        async with asyncio.timeout(timeout):
+            await _download_agent_logs_inner(sandbox, dest, max_retries=max_retries)
+    except TimeoutError:
+        logger.warning(
+            "Agent log download timed out after %.0fs — trajectory may be incomplete", timeout,
+        )
+    except Exception:
+        logger.error("Agent log download failed", exc_info=True)
+
+
+async def _download_agent_logs_inner(
+    sandbox: "Sandbox", dest: Path, *, max_retries: int = 3,
+) -> None:
     ls = await sandbox.exec(
         "find /logs/agent -type f 2>/dev/null | head -80", timeout_sec=15,
     )
@@ -105,14 +126,29 @@ async def _download_agent_logs(sandbox: "Sandbox", dest: Path) -> None:
     import tarfile
     local_tar = Path(tempfile.mktemp(suffix=".tar.gz"))
     try:
-        await sandbox.download(remote_tar, local_tar)
-        dest.mkdir(parents=True, exist_ok=True)
-        with tarfile.open(local_tar, "r:gz") as tar:
-            tar.extractall(dest)
-        logger.info("Downloaded %d files to %s",
-                     len(list(dest.rglob("*"))), dest)
-    except Exception:
-        logger.error("Agent log download failed", exc_info=True)
+        last_err: Exception | None = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                await sandbox.download(remote_tar, local_tar)
+                dest.mkdir(parents=True, exist_ok=True)
+                with tarfile.open(local_tar, "r:gz") as tar:
+                    tar.extractall(dest)
+                logger.info("Downloaded %d files to %s",
+                             len(list(dest.rglob("*"))), dest)
+                return
+            except Exception as exc:
+                last_err = exc
+                if attempt < max_retries:
+                    logger.warning(
+                        "Agent log download attempt %d/%d failed: %s",
+                        attempt, max_retries, exc,
+                    )
+                    await asyncio.sleep(2.0 * attempt)
+                else:
+                    logger.error(
+                        "Agent log download failed after %d attempts: %s",
+                        max_retries, last_err,
+                    )
     finally:
         local_tar.unlink(missing_ok=True)
         try:
@@ -312,6 +348,7 @@ class HarborSolver:
         model_url: str = "",
         model_id: str = "",
         timeout: float = 1800.0,
+        run_timeout: float | None = None,
         api_key: str | None = None,
         container_env: dict[str, str] | None = None,
         max_input_tokens: int | None = None,
@@ -323,6 +360,7 @@ class HarborSolver:
         self._model_url = model_url
         self._model_id = model_id
         self._timeout = timeout
+        self._run_timeout = run_timeout or timeout
         self._container_env = dict(container_env or {})
         self._container_env.setdefault("LITELLM_LOG", "ERROR")
         self._container_env.setdefault("LITELLM_TELEMETRY", "false")
@@ -442,14 +480,33 @@ class HarborSolver:
 
             await agent.setup(adapter)
             context = AgentContext()
-            await agent.run(task.prompt, adapter, context)
+
+            agent_timed_out = False
+            try:
+                await asyncio.wait_for(
+                    agent.run(task.prompt, adapter, context),
+                    timeout=self._run_timeout,
+                )
+            except (asyncio.TimeoutError, TimeoutError):
+                elapsed = time.monotonic() - t0
+                logger.warning(
+                    "HarborSolver: agent.run() timed out after %.0fs "
+                    "(run_timeout=%.0fs) — collecting partial results",
+                    elapsed, self._run_timeout,
+                )
+                agent_timed_out = True
 
             # Capture git diff before downloading logs (agent may have
             # modified /testbed in SWE-bench and similar tasks).
-            workspace_diff = await _capture_workspace_diff(sandbox)
+            workspace_diff = ""
+            if sandbox.is_running:
+                try:
+                    workspace_diff = await _capture_workspace_diff(sandbox)
+                except Exception:
+                    logger.debug("workspace diff capture failed", exc_info=True)
 
             # Download container-side logs (no-op when host-mounted)
-            if not adapter.is_mounted:
+            if not adapter.is_mounted and sandbox.is_running:
                 await _download_agent_logs(sandbox, agent_logs_dir)
 
             # Let agent parse its own logs into context
@@ -501,11 +558,23 @@ class HarborSolver:
 
             latency_ms = (time.monotonic() - t0) * 1000
 
-            # Detect silent agent failure: no response and no tokens produced.
-            # Kept as SolveResult.error (not a raise) to preserve the full
-            # trajectory / context already collected above.
+            # Timeout with zero progress → raise so the eval loop retries
+            # on a fresh sandbox (the model may have been temporarily down).
+            # Timeout WITH partial work → return normally for verification.
+            if agent_timed_out and not workspace_diff and prompt_tokens + completion_tokens == 0:
+                raise RuntimeError(
+                    f"Agent made no progress before run_timeout "
+                    f"({self._run_timeout:.0f}s). Model may be unreachable."
+                )
+
             error = None
-            if not response and prompt_tokens + completion_tokens == 0:
+            if agent_timed_out and workspace_diff:
+                logger.info(
+                    "HarborSolver: agent timed out after %.0fs but produced "
+                    "workspace changes — submitting for verification",
+                    self._run_timeout,
+                )
+            elif not response and prompt_tokens + completion_tokens == 0:
                 error = (
                     "Agent produced no output (0 tokens, empty response). "
                     "Check agent logs for details."
@@ -529,11 +598,13 @@ class HarborSolver:
             logger.warning("HarborSolver: graceful failure: %s", exc)
             latency_ms = (time.monotonic() - t0) * 1000
 
+            workspace_diff = ""
             try:
                 if sandbox.is_running:
+                    workspace_diff = await _capture_workspace_diff(sandbox)
                     await _download_agent_logs(sandbox, agent_logs_dir)
             except Exception:
-                logger.debug("Post-failure log download failed", exc_info=True)
+                logger.debug("Post-failure recovery failed", exc_info=True)
 
             recovered = _recover_from_logs(agent_logs_dir)
             trajectory = recovered["trajectory"] or build_atif_trajectory(
@@ -542,11 +613,22 @@ class HarborSolver:
                 status="error",
             )
 
+            if trajectory and workspace_diff:
+                doc = trajectory[0] if isinstance(trajectory, list) and trajectory else None
+                if isinstance(doc, dict):
+                    fm = doc.setdefault("final_metrics", {})
+                    fm["workspace_diff_preview"] = workspace_diff[:100_000]
+
+            response = recovered["response"]
+            if not response or _is_prompt_echo(response, ""):
+                response = "[workspace modified]" if workspace_diff else ""
+
             return SolveResult(
-                response="",
+                response=response,
                 model_response=ModelResponse(
-                    content="", model=self._model_id,
-                    total_tokens=0, completion_tokens=0,
+                    content=response, model=self._model_id,
+                    total_tokens=recovered["prompt_tokens"] + recovered["completion_tokens"],
+                    completion_tokens=recovered["completion_tokens"],
                     latency_ms=round(latency_ms, 2),
                 ),
                 trajectory=trajectory,

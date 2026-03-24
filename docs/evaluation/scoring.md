@@ -8,7 +8,7 @@ Each benchmark defines its own scorer via the `@scorer` decorator. The `scoring/
 |--------|---------|
 | `scoring/text.py` | `exact_match`, `fuzzy_match` -- text comparison |
 | `scoring/pattern.py` | `multichoice_regex`, `answer_line`, `numeric_match` -- pattern extraction |
-| `scoring/sandbox.py` | `code_sandbox` -- Docker-sandboxed code execution |
+| `scoring/code_execution.py` | `code_sandbox` -- Docker-sandboxed code execution |
 | `scoring/judge.py` | `needs_judge`, `judge_score` -- LLM-as-judge pipeline |
 | `scoring/json_schema.py` | `extract_json`, `validate_json_schema` -- structured output validation |
 | `scoring/types.py` | `ScorerInput` -- input dataclass for all scorers |

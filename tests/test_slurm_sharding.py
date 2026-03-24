@@ -1,7 +1,7 @@
 """Tests for SLURM array job generation and eval_loop shard_info."""
 
-from nemo_evaluator.eval.config import EvalConfig
-from nemo_evaluator.eval.slurm_gen import generate_sbatch
+from nemo_evaluator.config import EvalConfig
+from nemo_evaluator.orchestration.slurm_gen import generate_sbatch
 
 
 def _make_slurm_config(shards=None, auto_resume=False):
@@ -396,12 +396,55 @@ class TestSidecarConfigGeneration:
                 },
             }
         )
-        script, _, secrets_env = generate_sbatch(cfg)
+        script, _, secrets_result = generate_sbatch(cfg)
         assert "hf_SUPERSECRET1234" not in script
         assert "wJalrXUtnFEMI/K7MDENG" not in script
         assert "source" in script and ".secrets.env" in script
-        assert secrets_env["HF_TOKEN"] == "hf_SUPERSECRET1234"
-        assert secrets_env["AWS_SECRET_ACCESS_KEY"] == "wJalrXUtnFEMI/K7MDENG"
+        assert "hf_SUPERSECRET1234" in secrets_result.secrets_content
+        assert "wJalrXUtnFEMI/K7MDENG" in secrets_result.secrets_content
+
+    def test_per_service_env_isolation(self):
+        """Different services with same env var name get disambiguated keys."""
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "svc_a": {
+                        "type": "vllm",
+                        "model": "model-a",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                        "extra_env": {"HF_TOKEN": "token_for_a"},
+                    },
+                    "svc_b": {
+                        "type": "vllm",
+                        "model": "model-b",
+                        "protocol": "chat_completions",
+                        "port": 8001,
+                        "extra_env": {"HF_TOKEN": "token_for_b"},
+                    },
+                },
+                "benchmarks": [
+                    {
+                        "name": "gsm8k",
+                        "solver": {"type": "simple", "service": "svc_a"},
+                    }
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"}},
+                },
+            }
+        )
+        script, _, secrets_result = generate_sbatch(cfg)
+        # Both values in .secrets.env under disambiguated names
+        assert "token_for_a" in secrets_result.secrets_content
+        assert "token_for_b" in secrets_result.secrets_content
+        # Neither plaintext value appears in the script
+        assert "token_for_a" not in script
+        assert "token_for_b" not in script
+        # Re-export commands present before srun
+        assert 'export HF_TOKEN="$' in script
 
     def test_shards_plus_sidecar_rejected(self):
         """Sharding with complex benchmarks must raise at generation time."""
@@ -440,7 +483,7 @@ class TestShardInfoComputation:
     """Test that shard_info correctly computes problem_range via get_shard_range."""
 
     def test_shard_info_computes_range(self):
-        from nemo_evaluator.runner.sharding import get_shard_range
+        from nemo_evaluator.engine.sharding import get_shard_range
 
         ds_size = 100
         shard_idx, total_shards = 0, 4
@@ -448,7 +491,7 @@ class TestShardInfoComputation:
         assert problem_range == (0, 25)
 
     def test_shard_info_with_max_problems(self):
-        from nemo_evaluator.runner.sharding import get_shard_range
+        from nemo_evaluator.engine.sharding import get_shard_range
 
         ds_size = 1000
         max_problems = 50
@@ -458,7 +501,7 @@ class TestShardInfoComputation:
 
     def test_shard_info_respects_effective_size(self):
         """Sharding must use min(ds_size, max_problems), not raw ds_size."""
-        from nemo_evaluator.runner.sharding import get_shard_range
+        from nemo_evaluator.engine.sharding import get_shard_range
 
         ranges = [get_shard_range(50, i, 4) for i in range(4)]
         all_indices = set()

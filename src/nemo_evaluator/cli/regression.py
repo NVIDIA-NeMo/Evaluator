@@ -16,7 +16,7 @@ def regression_cmd(baseline, candidate, output, threshold, strict):
 
     BASELINE and CANDIDATE are paths to eval-*.json bundle files.
     """
-    from nemo_evaluator.runner.regression import compare_runs, write_regression
+    from nemo_evaluator.engine.comparison import compare_runs, write_regression
 
     report = compare_runs(baseline, candidate)
 

@@ -15,7 +15,7 @@ class CompletionSolver:
 
     def __init__(self, base_url: str, model: str, api_key: str | None = None,
                  temperature: float | None = None, max_tokens: int | None = None) -> None:
-        from nemo_evaluator.runner.model_client import ModelClient
+        from nemo_evaluator.engine.model_client import ModelClient
         self._model_client = ModelClient(
             base_url=base_url.rstrip("/"), model=model, api_key=api_key,
             temperature=temperature, max_tokens=max_tokens,

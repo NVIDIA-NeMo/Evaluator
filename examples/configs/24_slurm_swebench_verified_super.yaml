@@ -1,6 +1,6 @@
 # SLURM + vLLM (Nemotron-3-Super-FP8) + Harbor SWE-bench Verified + ECS Fargate
 #
-# Deploys vLLM on a GPU node (tp=2, dp=4), evaluates harbor://swebench-verified@1.0
+# Deploys vLLM on a GPU node (tp=4, dp=2), evaluates harbor://swebench-verified@1.0
 # with the OpenHands-SDK agent. ECS Fargate provides sandboxed envs.
 #
 # Prerequisites:
@@ -20,23 +20,21 @@ services:
     model: nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8
     protocol: chat_completions
     port: 5000
-    tensor_parallel_size: 2
-    data_parallel_size: 4
+    tensor_parallel_size: 4
+    data_parallel_size: 2
     image: vllm/vllm-openai:v0.18.0-cu130
     startup_timeout: 1800.0
     setup_commands:
-      - 'wget -q "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8/resolve/main/super_v3_reasoning_parser.py" -O /tmp/super_v3_reasoning_parser.py'
+      - 'curl -sSL -o /tmp/super_v3_reasoning_parser.py https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8/resolve/main/super_v3_reasoning_parser.py'
     extra_args:
       - "--async-scheduling"
       - "--dtype=auto"
       - "--kv-cache-dtype=fp8"
-      - "--swap-space=0"
       - "--trust-remote-code"
       - "--attention-backend=TRITON_ATTN"
       - "--gpu-memory-utilization=0.9"
       - "--enable-chunked-prefill"
-      - "--max-num-seqs=512"
-      - "--served-model-name=nemotron"
+      - "--max-num-seqs=256"
       - "--enable-auto-tool-choice"
       - "--tool-call-parser=qwen3_coder"
       - "--reasoning-parser-plugin=/tmp/super_v3_reasoning_parser.py"
@@ -59,34 +57,35 @@ services:
 
 benchmarks:
   - name: harbor://swebench-verified@1.0
-    max_concurrent: 30
-    timeout: 3600.0
+    max_concurrent: 50
+    timeout: 10800.0
     #max_problems: 5  # uncomment for smoke-testing
     solver:
       type: harbor
       service: nemotron
       agent: openhands-sdk
+      run_timeout: 5400.0  # 1.5h hard cap — tasks stuck on unreachable LLM get retried
       agent_kwargs:
-        max_iterations: 30
+        max_iterations: 100
         temperature: 1.0
     sandbox:
       type: ecs_fargate
       region: us-west-1
-      cpu: "4096"
-      memory: "8192"
+      cpu: "8192"
+      memory: "16384"
       ephemeral_storage_gib: 50
       max_task_lifetime_sec: 14400
       log_stream_prefix: swebench-super
       ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
-      timeout: 3600.0
-      concurrency: 30
+      timeout: 10800.0
+      concurrency: 50
 
 cluster:
   type: slurm
   hostname: cw-dfw-cs-001-login-01
   account: coreai_dlalgo_compeval
   walltime: "04:00:00"
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260323-130110-b6f1a7e2-harbor-amd64
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:20260323-0750150700-7d31f036-harbor-amd64
   container_mounts:
     - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
   container_env:

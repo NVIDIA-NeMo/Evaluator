@@ -80,7 +80,7 @@ Available scorers:
 |--------|-----------|
 | `scoring/text.py` | `exact_match`, `fuzzy_match` |
 | `scoring/pattern.py` | `multichoice_regex`, `answer_line`, `numeric_match` |
-| `scoring/sandbox.py` | `code_sandbox` |
+| `scoring/code_execution.py` | `code_sandbox` |
 | `scoring/judge.py` | `needs_judge`, `judge_score` |
 | `scoring/json_schema.py` | `extract_json`, `validate_json_schema` |
 

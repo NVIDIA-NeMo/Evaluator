@@ -2,11 +2,11 @@
 
 import click
 
-from nemo_evaluator.cli.cache_sqsh_cmd import cache_sqsh_cmd
-from nemo_evaluator.cli.config_cmd import config_cmd
-from nemo_evaluator.cli.eval_cmd import eval_cmd
-from nemo_evaluator.cli.list_cmd import list_cmd
-from nemo_evaluator.cli.package_cmd import package_cmd
+from nemo_evaluator.cli.cache_sqsh import cache_sqsh_cmd
+from nemo_evaluator.cli.settings import config_cmd
+from nemo_evaluator.cli.eval import eval_cmd
+from nemo_evaluator.cli.list import list_cmd
+from nemo_evaluator.cli.package import package_cmd
 from nemo_evaluator.cli.regression import regression_cmd
 from nemo_evaluator.cli.report import report_cmd
 from nemo_evaluator.cli.serve import serve_cmd

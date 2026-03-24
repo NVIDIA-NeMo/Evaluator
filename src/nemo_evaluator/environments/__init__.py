@@ -1,5 +1,5 @@
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
-from nemo_evaluator.environments.byob import benchmark, scorer
+from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.environments.registry import get_environment, list_environments, register
 
 __all__ = [

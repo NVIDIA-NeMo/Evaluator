@@ -213,7 +213,7 @@ nel eval run --bench vlmevalkit://MMBench_DEV_EN --repeats 1 --max-problems 50
 
 ```python
 from nemo_evaluator.environments.vlmevalkit import VLMEvalKitEnvironment
-from nemo_evaluator.runner import run_evaluation, ModelClient
+from nemo_evaluator.engine import run_evaluation, ModelClient
 from nemo_evaluator.solvers import VLMSolver
 
 env = VLMEvalKitEnvironment("MMBench_DEV_EN")
@@ -292,7 +292,7 @@ JSONL row format (matches `ng_collect_rollouts` input spec):
 **What:** Two run bundles → score deltas with CI overlap check, Mann-Whitney U p-values, per-category deltas, runtime deltas.
 
 ```python
-from nemo_evaluator.runner.regression import compare_runs, write_regression
+from nemo_evaluator.engine.comparison import compare_runs, write_regression
 
 report = compare_runs("results/v1/eval-*.json", "results/v2/eval-*.json")
 write_regression(report, "results/regression.json")
@@ -542,7 +542,7 @@ Files: `deploy/k8s/eval-job.yaml`, `deploy/k8s/eval-indexed-job.yaml`, `deploy/k
 
 ```bash
 # Submit as a Ray job
-ray job submit --working-dir . -- python -m nemo_evaluator.runner.ray_launcher \
+ray job submit --working-dir . -- python -m nemo_evaluator.engine.ray_launcher \
     --bench gsm8k --shards 8 --repeats 5 \
     --model-url https://inference-api.nvidia.com/v1 \
     --model-id azure/openai/gpt-5.2 \
@@ -557,7 +557,7 @@ results = ray.get(futures)
 
 Each `run_shard` is a Ray remote task that runs `run_evaluation()` with a computed `problem_range`. Results are merged locally after all tasks complete. Works on existing Ray clusters used by Gym training.
 
-File: `src/nemo_evaluator/runner/ray_launcher.py`
+File: `src/nemo_evaluator/engine/ray_launcher.py`
 
 ---
 

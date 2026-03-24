@@ -16,7 +16,7 @@ from nemo_evaluator.scoring.judge import (
 )
 from nemo_evaluator.scoring.json_schema import extract_json, validate_json_schema
 from nemo_evaluator.scoring.pattern import answer_line, multichoice_regex, numeric_match
-from nemo_evaluator.scoring.sandbox import code_sandbox, code_sandbox_async
+from nemo_evaluator.scoring.code_execution import code_sandbox, code_sandbox_async
 from nemo_evaluator.scoring.text import exact_match, extract_mcq_letter, fuzzy_match
 from nemo_evaluator.scoring.types import ScorerInput
 

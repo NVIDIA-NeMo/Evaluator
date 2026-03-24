@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from nemo_evaluator.runner.regression import compare_runs, write_regression
+from nemo_evaluator.engine.comparison import compare_runs, write_regression
 
 
 def _write_bundle(path: Path, run_id: str, scores: dict, categories=None):

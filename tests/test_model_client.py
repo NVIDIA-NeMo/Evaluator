@@ -1,7 +1,7 @@
 import pytest
 
-from nemo_evaluator.models import RetryConfig
-from nemo_evaluator.runner.model_client import ModelClient
+from nemo_evaluator.schemas import RetryConfig
+from nemo_evaluator.engine.model_client import ModelClient
 
 
 class TestModelClient:

@@ -9,7 +9,7 @@ import pytest
 
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.observability.types import ModelResponse
-from nemo_evaluator.runner.model_client import ToolCallInfo, ToolCallingResponse
+from nemo_evaluator.engine.model_client import ToolCallInfo, ToolCallingResponse
 from nemo_evaluator.solvers.base import SolveResult
 from nemo_evaluator.solvers.tool_backend import (
     CompositeToolBackend,
@@ -599,7 +599,7 @@ class TestReActSolver:
 
 class TestToolCallingSolverConfig:
     def test_requires_at_least_one_tool_source(self):
-        from nemo_evaluator.eval.config import ToolCallingSolverConfig
+        from nemo_evaluator.config import ToolCallingSolverConfig
 
         with pytest.raises(Exception, match="at least one tool source"):
             ToolCallingSolverConfig(
@@ -610,7 +610,7 @@ class TestToolCallingSolverConfig:
             )
 
     def test_resource_service_only(self):
-        from nemo_evaluator.eval.config import ToolCallingSolverConfig
+        from nemo_evaluator.config import ToolCallingSolverConfig
 
         cfg = ToolCallingSolverConfig(
             type="tool_calling",
@@ -621,7 +621,7 @@ class TestToolCallingSolverConfig:
         assert not cfg.sandbox_tools
 
     def test_sandbox_tools_only(self):
-        from nemo_evaluator.eval.config import ToolCallingSolverConfig
+        from nemo_evaluator.config import ToolCallingSolverConfig
 
         cfg = ToolCallingSolverConfig(
             type="tool_calling",
@@ -632,7 +632,7 @@ class TestToolCallingSolverConfig:
         assert cfg.resource_service is None
 
     def test_both_tools_ok(self):
-        from nemo_evaluator.eval.config import ToolCallingSolverConfig
+        from nemo_evaluator.config import ToolCallingSolverConfig
 
         cfg = ToolCallingSolverConfig(
             type="tool_calling",
@@ -644,7 +644,7 @@ class TestToolCallingSolverConfig:
         assert cfg.sandbox_tools
 
     def test_sandbox_tools_requires_sandbox(self):
-        from nemo_evaluator.eval.config import (
+        from nemo_evaluator.config import (
             BenchmarkConfig,
             EvalConfig,
             ExternalApiService,
@@ -673,7 +673,7 @@ class TestToolCallingSolverConfig:
             )
 
     def test_resource_service_validated(self):
-        from nemo_evaluator.eval.config import (
+        from nemo_evaluator.config import (
             BenchmarkConfig,
             EvalConfig,
             ExternalApiService,
@@ -702,7 +702,7 @@ class TestToolCallingSolverConfig:
             )
 
     def test_defaults(self):
-        from nemo_evaluator.eval.config import ToolCallingSolverConfig
+        from nemo_evaluator.config import ToolCallingSolverConfig
 
         cfg = ToolCallingSolverConfig(
             type="tool_calling",
@@ -721,7 +721,7 @@ class TestToolCallingSolverConfig:
 class TestChatWithTools:
     @pytest.mark.asyncio
     async def test_parses_tool_calls(self):
-        from nemo_evaluator.runner.model_client import ModelClient
+        from nemo_evaluator.engine.model_client import ModelClient
 
         api_response = {
             "choices": [
@@ -763,7 +763,7 @@ class TestChatWithTools:
 
     @pytest.mark.asyncio
     async def test_no_tool_calls(self):
-        from nemo_evaluator.runner.model_client import ModelClient
+        from nemo_evaluator.engine.model_client import ModelClient
 
         api_response = {
             "choices": [
@@ -789,7 +789,7 @@ class TestChatWithTools:
 
     @pytest.mark.asyncio
     async def test_malformed_arguments_handled(self):
-        from nemo_evaluator.runner.model_client import ModelClient
+        from nemo_evaluator.engine.model_client import ModelClient
 
         api_response = {
             "choices": [

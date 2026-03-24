@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from nemo_evaluator.eval.config import EvalConfig
-    from nemo_evaluator.executors.run_store import RunMeta
+    from nemo_evaluator.config import EvalConfig
+    from nemo_evaluator.run_store import RunMeta
 
 
 @dataclass
@@ -69,13 +69,13 @@ def _ensure_loaded() -> None:
         return
     _loaded = True
 
-    from nemo_evaluator.executors.local import LocalExecutor
+    from nemo_evaluator.executors.local_executor import LocalExecutor
     _REGISTRY["local"] = LocalExecutor()
 
-    from nemo_evaluator.executors.docker import DockerExecutor
+    from nemo_evaluator.executors.docker_executor import DockerExecutor
     _REGISTRY["docker"] = DockerExecutor()
 
-    from nemo_evaluator.executors.slurm import SlurmExecutor
+    from nemo_evaluator.executors.slurm_executor import SlurmExecutor
     _REGISTRY["slurm"] = SlurmExecutor()
 
 

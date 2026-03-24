@@ -63,7 +63,7 @@ Async client for OpenAI-compatible endpoints.
 | `max_concurrent` | `int` | `8` | Max parallel requests |
 
 ```python
-from nemo_evaluator.runner import ModelClient
+from nemo_evaluator.engine import ModelClient
 
 client = ModelClient(
     base_url="https://inference-api.nvidia.com/v1",
@@ -113,7 +113,7 @@ Returns a bundle dict containing metrics, results, config, and artifacts.
 Write all artifacts to disk.
 
 ```python
-from nemo_evaluator.runner import write_all
+from nemo_evaluator.engine import write_all
 
 write_all(bundle, "./eval_results")
 ```
@@ -125,7 +125,7 @@ Writes: `eval-*.json` (bundle), `results.jsonl`, `trajectories.jsonl`, `runtime_
 Compare two evaluation bundles for regression.
 
 ```python
-from nemo_evaluator.runner import compare_runs
+from nemo_evaluator.engine import compare_runs
 
 report = compare_runs("baseline/eval-*.json", "candidate/eval-*.json")
 ```

@@ -41,7 +41,7 @@ SKIP_BENCHMARKS: set[str] = set()
 
 async def generate_for_benchmark(bench_name: str, api_key: str) -> list[dict[str, Any]]:
     from nemo_evaluator.environments.registry import get_environment
-    from nemo_evaluator.runner.model_client import ModelClient
+    from nemo_evaluator.engine.model_client import ModelClient
 
     logger.info("=== %s: loading environment (num_examples=%d) ===", bench_name, N_SAMPLES)
     env = get_environment(bench_name, num_examples=N_SAMPLES)

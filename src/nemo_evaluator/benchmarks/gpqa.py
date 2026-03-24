@@ -1,5 +1,5 @@
 """GPQA Diamond -- graduate-level science QA with shuffled choices."""
-from nemo_evaluator.environments.byob import benchmark, scorer
+from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput, multichoice_regex
 
 _PROMPT = (

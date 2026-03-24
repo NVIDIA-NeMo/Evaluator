@@ -5,7 +5,7 @@ import os
 from unittest.mock import MagicMock, patch
 
 
-from nemo_evaluator.eval.config import (
+from nemo_evaluator.config import (
     BenchmarkConfig,
     DockerCluster,
     EvalConfig,
@@ -104,26 +104,28 @@ class TestDockerEnvFlag:
     """Docker executor must pass NEL_INNER_EXECUTION=1 into the container."""
 
     def test_dryrun_includes_inner_execution_env(self, tmp_path, capsys):
-        from nemo_evaluator.executors.docker import DockerExecutor
+        from nemo_evaluator.executors.docker_executor import DockerExecutor
 
         config = _make_config("docker")
         config.output.dir = str(tmp_path / "out")
 
-        with patch("nemo_evaluator.executors.docker._build_local_image", return_value="nemo-evaluator:local"):
+        with patch("nemo_evaluator.executors.docker_executor._build_local_image", return_value="nemo-evaluator:local"):
             DockerExecutor().run(config, dry_run=True)
 
         captured = capsys.readouterr()
         assert "NEL_INNER_EXECUTION=1" in captured.out
+        assert "PYTHONUNBUFFERED=1" in captured.out
+        assert "--env-file" in captured.out
 
     def test_config_not_mutated(self, tmp_path):
         import json
-        from nemo_evaluator.executors.docker import DockerExecutor
+        from nemo_evaluator.executors.docker_executor import DockerExecutor
 
         config = _make_config("docker")
         config.output.dir = str(tmp_path / "out")
 
-        with patch("nemo_evaluator.executors.docker._build_local_image", return_value="nemo-evaluator:local"):
-            with patch("nemo_evaluator.executors.docker.subprocess") as sub_mock:
+        with patch("nemo_evaluator.executors.docker_executor._build_local_image", return_value="nemo-evaluator:local"):
+            with patch("nemo_evaluator.executors.docker_executor.subprocess") as sub_mock:
                 sub_mock.run.return_value = MagicMock(returncode=0, stdout="abc123\n")
                 DockerExecutor().run(config)
 
@@ -136,7 +138,7 @@ class TestSlurmHeaderFlag:
     """Generated sbatch scripts must contain the inner execution export."""
 
     def test_header_contains_export(self):
-        from nemo_evaluator.eval.slurm_gen import generate_sbatch
+        from nemo_evaluator.orchestration.slurm_gen import generate_sbatch
 
         config = _make_config("slurm", bench="gsm8k")
 
@@ -144,7 +146,7 @@ class TestSlurmHeaderFlag:
         assert "export NEL_INNER_EXECUTION=1" in script
 
     def test_unbuffered_python(self):
-        from nemo_evaluator.eval.slurm_gen import generate_sbatch
+        from nemo_evaluator.orchestration.slurm_gen import generate_sbatch
 
         config = _make_config("slurm", bench="gsm8k")
 
