@@ -6,7 +6,7 @@ workflow:
     - if: $CI_PIPELINE_SOURCE == "schedule"
 
 default:
-  image: python:3.12-slim
+  image: python:3.12
   tags:
     - nv-core-evals-x86
 
