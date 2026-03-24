@@ -244,7 +244,7 @@ def _convert_and_evaluate(
         )
         OmegaConf.update(
             cfg_copy,
-            "execution.sbatch_dependency",
+            "execution.sbatch_extra_flags.dependency",
             f"afterok:{conversion_slurm_id}",
         )
         OmegaConf.update(cfg_copy, CHECKPOINT_FIELD, str(converted_checkpoint_path))
