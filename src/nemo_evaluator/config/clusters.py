@@ -30,6 +30,8 @@ class LocalCluster(BaseModel):
 
 
 class DockerCluster(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     type: Literal["docker"] = "docker"
     image: str | None = None
     container_mounts: list[str] = Field(default_factory=list)
