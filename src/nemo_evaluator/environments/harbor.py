@@ -706,7 +706,7 @@ class HarborEnvironment(EvalEnvironment):
             reward_text = reward_path.read_text(encoding="utf-8").strip()
             reward = float(reward_text)
             reward_details["reward_raw"] = reward_text
-        except (FileNotFoundError, OSError):
+        except (FileNotFoundError, OSError, RuntimeError):
             try:
                 with _tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
                     reward_path = Path(f.name)
@@ -714,7 +714,7 @@ class HarborEnvironment(EvalEnvironment):
                 reward_text = reward_path.read_text(encoding="utf-8").strip()
                 reward = float(reward_text)
                 reward_details["reward_raw"] = reward_text
-            except (FileNotFoundError, OSError, ValueError):
+            except (FileNotFoundError, OSError, RuntimeError, ValueError):
                 reward = 1.0 if result.return_code == 0 else 0.0
                 reward_details["reward_source"] = "exit_code_fallback"
         except ValueError:
