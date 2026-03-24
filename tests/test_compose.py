@@ -10,7 +10,6 @@ import yaml
 
 from nemo_evaluator.config.compose import (
     _deep_merge,
-    _load_and_compose,
     _prune_nulls,
     _resolve_self_refs,
     compose_config,
