@@ -385,7 +385,7 @@ def watch_and_evaluate(
                         for eval_config in watch_config.evaluation_configs:
                             invocation_id, resolved_eval_config = _convert_and_evaluate(
                                 output_dir=Path(watch_config.cluster_config.output_dir)
-                                / session_id,
+                                / f"{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{session_id}",
                                 checkpoint=cp,
                                 conversion_config=watch_config.conversion_config,
                                 evaluation_config=eval_config,
