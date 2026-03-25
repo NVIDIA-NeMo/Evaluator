@@ -339,6 +339,7 @@ def _check_harbor_installed() -> None:
         raise ImportError(
             "Harbor agent integration requires the harbor package. Install with: pip install nemo-evaluator[harbor]"
         ) from None
+    logging.getLogger("harbor").setLevel(logging.INFO)
 
 
 class HarborSolver:
