@@ -968,13 +968,13 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
         parts.append(_SECRETS_SOURCE)
 
     if _any_multinode_service(config):
-        nodelist_var = "$SLURM_JOB_NODELIST"
+        nodelist_var = "SLURM_JOB_NODELIST"
         if use_het:
             for svc in config.services.values():
                 if getattr(svc, "num_nodes", 1) > 1:
                     svc_pool = getattr(svc, "node_pool", None)
                     if svc_pool and svc_pool in pool_to_het:
-                        nodelist_var = f"$SLURM_JOB_NODELIST_HET_GROUP_{pool_to_het[svc_pool]}"
+                        nodelist_var = f"SLURM_JOB_NODELIST_HET_GROUP_{pool_to_het[svc_pool]}"
                     break
         parts.append(_MULTINODE_IP_DISCOVERY.format(nodelist_var=nodelist_var))
 
