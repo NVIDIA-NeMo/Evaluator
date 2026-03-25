@@ -34,7 +34,6 @@ python -c 'from megatron.bridge import AutoBridge; AutoBridge.import_ckpt("Qwen/
 Deploy the model using the multimodal deployment script included in the NeMo Framework container. Open a terminal inside the container:
 
 ```bash
-
 python /opt/Export-Deploy/scripts/deploy/multimodal/deploy_ray_inframework.py \
   --megatron_checkpoint /workspace/qwen2_5_vl_3b_instruct/ \
   --host 0.0.0.0 \
@@ -82,8 +81,6 @@ For example, a typical request message content looks like:
 ```
 
 The model's text response is compared against the ground-truth answer and scored using string matching.
-
-### Install the nvidia-vlmeval package
 
 
 ### Run the Evaluation
