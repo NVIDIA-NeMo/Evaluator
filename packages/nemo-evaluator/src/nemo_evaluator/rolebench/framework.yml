@@ -1,0 +1,139 @@
+framework:
+  name: rolebench
+  pkg_name: rolebench
+defaults:
+  command: |
+    set -euo pipefail
+    pip install --quiet -e "{{config.params.extra.opencompass_repo}}" 2>&1 | tail -10
+    pip install --quiet rouge-score jieba 2>&1 | tail -5
+
+    python3 << 'PYSCRIPT'
+    import os, sys
+
+    subset = "{{config.params.extra.subset}}"
+    rolebench_data = "{{config.params.extra.rolebench_data}}"
+    model_id = "{{target.api_endpoint.model_id}}"
+    api_url = "{{target.api_endpoint.url}}"
+    max_workers = {{config.params.parallelism}}
+    max_out_len = {{config.params.extra.max_out_len}}
+    output_dir = "{{config.output_dir}}"
+
+    SUBSET_MAP = {
+        "instruction_eng": ("instruction_generalization_eng", "instruction_generalization_eng_datasets"),
+        "instruction_zh": ("instruction_generalization_zh", "instruction_generalization_zh_datasets"),
+        "role_eng": ("role_generalization_eng", "role_generalization_eng_datasets"),
+    }
+
+    if subset not in SUBSET_MAP:
+        print(f"ERROR: Unknown subset '{subset}'. Valid: {list(SUBSET_MAP.keys())}")
+        sys.exit(1)
+
+    module_name, datasets_var = SUBSET_MAP[subset]
+
+    config = f"""from mmengine.config import read_base
+    from opencompass.models import OpenAI
+    from opencompass.partitioners import NaivePartitioner
+    from opencompass.runners import LocalRunner
+    from opencompass.tasks import OpenICLInferTask, OpenICLEvalTask
+
+    with read_base():
+        from opencompass.configs.datasets.rolebench.{module_name} import {datasets_var}
+
+    for ds in {datasets_var}:
+        if isinstance(ds, dict) and ds.get('path', '').startswith('ZenMoore'):
+            ds['path'] = '{rolebench_data}'
+
+    datasets = {datasets_var}
+
+    api_meta_template = dict(
+        round=[
+            dict(role='HUMAN', api_role='HUMAN'),
+            dict(role='BOT', api_role='BOT', generate=True),
+        ],
+    )
+
+    models = [
+        dict(
+            abbr='{model_id}',
+            type=OpenAI,
+            path='{model_id}',
+            openai_api_base='{api_url}',
+            key='EMPTY',
+            meta_template=api_meta_template,
+            query_per_second={max_workers},
+            max_out_len={max_out_len},
+            max_seq_len=4096,
+            batch_size={max_workers},
+            max_workers={max_workers},
+        ),
+    ]
+
+    infer = dict(
+        partitioner=dict(type=NaivePartitioner),
+        runner=dict(type=LocalRunner, max_num_workers={max_workers}, task=dict(type=OpenICLInferTask)),
+    )
+
+    eval = dict(
+        partitioner=dict(type=NaivePartitioner),
+        runner=dict(type=LocalRunner, max_num_workers={max_workers}, task=dict(type=OpenICLEvalTask)),
+    )
+    """
+
+    import textwrap
+    config = textwrap.dedent(config)
+
+    os.makedirs("/tmp/rolebench_configs", exist_ok=True)
+    config_path = "/tmp/rolebench_configs/eval_rolebench.py"
+    with open(config_path, "w") as f:
+        f.write(config)
+    print(f"OpenCompass config written to {config_path}")
+    PYSCRIPT
+
+    python3 "{{config.params.extra.opencompass_repo}}/run.py" \
+        /tmp/rolebench_configs/eval_rolebench.py \
+        --work-dir "{{config.output_dir}}"
+  config:
+    params:
+      parallelism: 16
+      extra:
+        opencompass_repo: null
+        rolebench_data: null
+        max_out_len: 512
+        subset: null
+    supported_endpoint_types:
+      - chat
+  target:
+    api_endpoint: {}
+evaluations:
+  - name: rolebench_instruction_eng
+    description: RoleBench instruction generalization (English) - ROUGE-L on unseen instructions for 95 known English characters
+    defaults:
+      config:
+        type: rolebench_instruction_eng
+        supported_endpoint_types:
+          - chat
+        params:
+          extra:
+            subset: instruction_eng
+
+  - name: rolebench_instruction_zh
+    description: RoleBench instruction generalization (Chinese) - ROUGE-L on unseen instructions for known Chinese characters
+    defaults:
+      config:
+        type: rolebench_instruction_zh
+        supported_endpoint_types:
+          - chat
+        params:
+          extra:
+            subset: instruction_zh
+
+  - name: rolebench_role_eng
+    description: RoleBench role generalization (English) - ROUGE-L on entirely new characters not seen during training
+    defaults:
+      config:
+        type: rolebench_role_eng
+        supported_endpoint_types:
+          - chat
+        params:
+          extra:
+            subset: role_eng
