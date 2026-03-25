@@ -111,7 +111,7 @@ conversion_config:
 ```
 
 :::{note}
-`command_pattern` must contain {{ input_path }} and {{ output_path }} placeholders.
+`command_pattern` must contain \{\{ input_path \}\} and \{\{ output_path \}\} placeholders.
 :::
 
 Omit `conversion_config` (or set it to `null`) to use the raw checkpoint path directly in the evaluation.
