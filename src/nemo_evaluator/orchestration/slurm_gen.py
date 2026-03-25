@@ -616,11 +616,11 @@ def _service_block(
                 cluster_mounts=cluster_mounts or [],
                 env_keys=env_keys or [],
                 mount_home=mount_home,
-                extra_mounts=model_mount,
+                extra_mounts=model_mount + ["$OUTPUT_DIR:$OUTPUT_DIR"],
             )
         tp_flag = f"{tp_flag_name} {svc.tensor_parallel_size} " if svc.tensor_parallel_size else ""
         dp_flag = f"{dp_flag_name} {svc.data_parallel_size} " if svc.data_parallel_size else ""
-        extra = " ".join(a.replace('"', '\\"') for a in svc.extra_args)
+        extra = " ".join(svc.extra_args)
         cuda = ""
         if svc.gpus and isinstance(svc.gpus, list):
             cuda = f"CUDA_VISIBLE_DEVICES={','.join(str(g) for g in svc.gpus)} "
@@ -628,45 +628,61 @@ def _service_block(
         model_flag_part = (
             f" {model_flag} {model_for_cmd}" if model_flag else f" {model_for_cmd}" if model_for_cmd else ""
         )
-        main_cmd = f"{cmd}{model_flag_part} --port {svc.port} {tp_flag}{dp_flag}{extra} "
+        main_cmd = f"{cmd}{model_flag_part} --port {svc.port} {tp_flag}{dp_flag}{extra}"
 
         setup_list = getattr(svc, "setup_commands", []) or []
-        if setup_list:
-            inner = " && ".join(setup_list) + " && " + main_cmd
-            service_cmd = f"bash -c {shlex.quote(inner)} "
-        else:
-            service_cmd = f"{main_cmd}"
-
         num_nodes = getattr(svc, "num_nodes", 1)
+        safe_name = _safe(name)
+
+        if num_nodes > 1:
+            full_cmd = f"{main_cmd} --distributed-executor-backend ray"
+        else:
+            full_cmd = main_cmd
+
+        script_lines = ["set -euo pipefail"] + list(setup_list) + [full_cmd]
+        script_file = f"_svc_{safe_name}_cmd_$SLURM_JOB_ID.sh"
+        script_heredoc = (
+            f"cat > \"$OUTPUT_DIR/logs/{script_file}\" <<'_NEMO_SVC_CMD_EOF_'\n"
+            + "\n".join(script_lines)
+            + "\n_NEMO_SVC_CMD_EOF_\n"
+        )
+
         reexport_block = f"{reexport_cmds}\n" if reexport_cmds else ""
 
         if num_nodes > 1:
-            ray_main = f"{main_cmd}--distributed-executor-backend ray "
-            if setup_list:
-                ray_service_cmd = " && ".join(setup_list) + " && " + ray_main
-            else:
-                ray_service_cmd = ray_main
-            return reexport_block + _RAY_MULTINODE_SERVICE.format(
+            # Inside the template's bash -c '...' block, break out of single
+            # quotes to expand $OUTPUT_DIR, then re-enter single quotes.
+            ray_service_cmd = f"""bash '"$OUTPUT_DIR"'/logs/{script_file}"""
+            return (
+                reexport_block
+                + script_heredoc
+                + _RAY_MULTINODE_SERVICE.format(
+                    name=name,
+                    name_upper=upper,
+                    svc_type=svc.type,
+                    service_cmd=ray_service_cmd,
+                    model=svc.model or "",
+                    port=svc.port,
+                    num_nodes=num_nodes,
+                    ray_port=6379,
+                    srun_prefix=srun_prefix,
+                )
+            )
+
+        service_cmd = f'bash "$OUTPUT_DIR/logs/{script_file}" '
+        return (
+            reexport_block
+            + script_heredoc
+            + _MODEL_SERVICE.format(
                 name=name,
                 name_upper=upper,
                 svc_type=svc.type,
-                service_cmd=ray_service_cmd,
+                service_cmd=service_cmd,
                 model=svc.model or "",
                 port=svc.port,
-                num_nodes=num_nodes,
-                ray_port=6379,
+                cuda_prefix=cuda,
                 srun_prefix=srun_prefix,
             )
-
-        return reexport_block + _MODEL_SERVICE.format(
-            name=name,
-            name_upper=upper,
-            svc_type=svc.type,
-            service_cmd=service_cmd,
-            model=svc.model or "",
-            port=svc.port,
-            cuda_prefix=cuda,
-            srun_prefix=srun_prefix,
         )
 
     if isinstance(svc, NatAgentService):
