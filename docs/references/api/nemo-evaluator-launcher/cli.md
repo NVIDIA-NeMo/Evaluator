@@ -31,6 +31,8 @@ nemo-evaluator-launcher --version                 # Show version information
   - Export evaluation results to various destinations
 * - `version`
   - Show version information
+* - `nel-watch`
+  - Continuously evaluate new training checkpoints (separate entrypoint)
 ```
 
 ## run - Run Evaluations
@@ -423,6 +425,104 @@ nemo-evaluator-launcher version
 # Alternative
 nemo-evaluator-launcher --version
 ```
+
+## nel-watch - Continuous Checkpoint Evaluation
+
+`nel-watch` is a standalone command that polls checkpoint directories on a SLURM cluster and automatically submits evaluation jobs for each new checkpoint. It is installed as a separate entrypoint alongside `nel`.
+
+### nel-watch Basic Usage
+
+```bash
+# Watch directories defined in a watch config file
+nel-watch --config my-watch-config.yaml
+
+# Dry run — preview what would be submitted
+nel-watch --config my-watch-config.yaml --dry-run
+
+# Override polling interval at the command line
+nel-watch --config my-watch-config.yaml --interval 60
+
+# Scan once and exit (no polling loop)
+nel-watch --config my-watch-config.yaml --interval null
+```
+
+### nel-watch Options
+
+```{list-table}
+:header-rows: 1
+:widths: 35 15 50
+
+* - Option
+  - Default
+  - Description
+* - `--config`
+  - *(required)*
+  - Path to the watch config YAML file (see format below).
+* - `--interval`
+  - *(from config)*
+  - Override polling interval in seconds. Pass `"null"` to scan once and exit.
+* - `--order`
+  - *(from config)*
+  - Override processing order: `last` (highest step first) or `first` (lowest step first).
+* - `--resubmit-previous-sessions`
+  - `false`
+  - Re-evaluate checkpoints submitted in earlier watcher sessions.
+* - `-n`, `--dry-run`
+  - `false`
+  - Preview without submitting.
+* - `-o`, `--override`
+  - —
+  - Hydra-style override for the watch config (e.g. `-o cluster_config.account=x`). Repeatable. Overrides to individual `evaluation_configs` entries are not supported.
+```
+
+### Watch Config File Format
+
+`nel-watch` is driven by a watch config YAML that defines cluster access, monitoring behaviour, an optional conversion step, and the evaluation configs to run:
+
+```yaml
+# my-watch-config.yaml
+
+defaults:
+  - cluster_config: default
+  - monitoring_config: default
+  - conversion_config: mbridge  # convert Megatron-Bridge checkpoint to Hugging Face format
+  - _self_
+
+
+cluster_config:
+  hostname: my-cluster-login.example.com  # 'localhost' when running on the login node
+  username: ${oc.env:USER}
+  account: my-slurm-account
+  partition: batch
+  output_dir: /shared/results/watch-run
+  sbatch_extra_flags:          # additional #SBATCH flags applied to every job
+    gres: "gpu:8"
+    time: "04:00:00"
+
+monitoring_config:
+  directories:
+    - /path/to/training/checkpoints
+  interval: 300                # seconds; null = scan once and exit
+  ready_markers: [metadata.json, config.yaml, config.json]
+  checkpoint_patterns: ["iter_*", "step_*"]
+  order: last                  # 'last' = highest step first
+
+# conversion_config is optional — omit to use raw checkpoint paths
+# in this example we use conversion template for Megatron-Bridge -> Hugging Face
+conversion_config:
+  container: /path/to/conversion.sqsh
+  command_params:
+    hf_model: /path/to/reference-hf-model
+    tp: 8
+    pp: 1
+    ep: 16
+    etp: 1
+
+evaluation_configs:
+  - /path/to/eval-config.yaml
+```
+
+See the {ref}`continuous-checkpoint-evaluation` guide for a full walkthrough, including Hydra config group templates and conversion presets.
 
 ## Environment Variables
 

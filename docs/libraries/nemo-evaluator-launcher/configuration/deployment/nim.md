@@ -171,4 +171,3 @@ Refer to `packages/nemo-evaluator-launcher/examples/lepton_nim.yaml` for a compl
 ## Reference
 
 - [NIM Documentation](https://docs.nvidia.com/nim/)
-- [NIM Deployment Guide](https://docs.nvidia.com/nim/large-language-models/latest/deployment-guide.html)
