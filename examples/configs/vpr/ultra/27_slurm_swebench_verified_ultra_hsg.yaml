@@ -17,13 +17,13 @@
 services:
   nemotron-ultra:
     type: vllm
-    model: /lustre/fsw/portfolios/llmservice/users/soumyes/sft-runs/eval_and_sleep/ultra-v3-sft-bf16-hybridep-ep64-cp32-bindpcie-recompute-offload-mar13-blend-512k-filt-1e-5/iter_0001900/hf
+    model: /lustre/fsw/portfolios/coreai/users/gchlebus/shared/ultra-v3-sft-bf16-hybridep-ep64-cp32-bindpcie-recompute-offload-mar13-blend-512k-filt-1e-5-iter_0001900-hf
     protocol: chat_completions
     port: 5000
     tensor_parallel_size: 8
     data_parallel_size: 1
     num_nodes: 2
-    image: /lustre/fsw/portfolios/llmservice/users/dmosallanezh/containers/vllm-hsg-03-16.sqsh
+    image: /lustre/fsw/portfolios/coreai/users/gchlebus/shared/vllm-hsg-03-16.sqsh
     startup_timeout: 3600.0
     extra_args:
       - "--enable-prefix-caching"
@@ -49,10 +49,9 @@ services:
       VLLM_ALLREDUCE_USE_SYMM_MEM: "0"
       FLASHINFER_WORKSPACE_BASE: /tmp
     container_mounts:
-      - /lustre/fsw/portfolios/llmservice/users/${USER}/cache/huggingface:/cache/huggingface
-      - /lustre/fsw/portfolios/llmservice/users/${USER}/cache/vllm:/cache/vllm
-      - /lustre/fsw/portfolios/llmservice/users/gchlebus/evals:/reasoning
-      - /lustre/fsw/portfolios/llmservice/users/soumyes/sft-runs:/lustre/fsw/portfolios/llmservice/users/soumyes/sft-runs
+      - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
+      - /lustre/fsw/portfolios/coreai/users/${USER}/cache/vllm:/cache/vllm
+      - /lustre/fsw/portfolios/coreai/users/gchlebus/shared/evals:/reasoning
     generation:
       temperature: 1.0
       top_p: 0.95
@@ -84,7 +83,7 @@ benchmarks:
       ephemeral_storage_gib: 50
       max_task_lifetime_sec: 14400
       codebuild_build_timeout: 60
-      log_stream_prefix: swebench-verified-ultra
+      log_stream_prefix: swebench-verified
       ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
       timeout: 10800.0
       concurrency: 50
@@ -94,13 +93,13 @@ cluster:
   hostname: oci-hsg-cs-001-login-01.nvidia.com
   account: llmservice_nemotron_ultra
   walltime: "04:00:00"
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260324-194843-dad5bc91-harbor-amd64
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260325-123645-37b37853-harbor-arm64
   sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
   sbatch_extra_flags:
     switches: 1
     exclusive: true
   container_mounts:
-    - /lustre/fsw/portfolios/llmservice/users/${USER}/cache/huggingface:/cache/huggingface
+    - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
   container_env:
     HF_TOKEN: ${HF_TOKEN}
     HF_HOME: /cache/huggingface
@@ -119,4 +118,4 @@ cluster:
       gpus_per_node: 4
 
 output:
-  dir: /lustre/fsw/portfolios/llmservice/users/${USER}/nemo-evaluator-rundirs/ultra-v3/nemotron-ultra-v3-sft-mar13-iter1900/swebench-verified
+  dir: /lustre/fsw/portfolios/coreai/users/${USER}/nemo-evaluator-rundirs/ultra-v3/nemotron-ultra-v3-sft-mar13-iter1900/swebench-verified
