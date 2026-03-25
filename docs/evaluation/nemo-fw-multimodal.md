@@ -82,7 +82,6 @@ For example, a typical request message content looks like:
 
 The model's text response is compared against the ground-truth answer and scored using string matching.
 
-
 ### Run the Evaluation
 
 ```{literalinclude} _snippets/vlmeval_ocrbench.py
