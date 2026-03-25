@@ -218,7 +218,7 @@ class StatelessSandbox:
                             "StatelessSandbox: capture complete — %s",
                             (verify_result.stdout or "").strip()[:200],
                         )
-                    await self._transfer.post_capture(self._agent_sandbox)
+                        await self._transfer.post_capture(self._agent_sandbox)
                 except Exception:
                     logger.error(
                         "StatelessSandbox: capture_cmd / post_capture FAILED",

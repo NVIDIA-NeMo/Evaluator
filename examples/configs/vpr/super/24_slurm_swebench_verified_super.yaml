@@ -88,7 +88,7 @@ cluster:
   hostname: cw-dfw-cs-001-login-01
   account: coreai_dlalgo_compeval
   walltime: "04:00:00"
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260325-125911-fd2470eb-harbor-amd64
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:20260325-0741390700-d50c0234-harbor-amd64
   container_mounts:
     - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
   container_env:

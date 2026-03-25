@@ -338,7 +338,11 @@ class EvalConfig(BaseModel):
 
     def get_model_id(self, service_name: str) -> str:
         svc = self.get_service(service_name)
-        return getattr(svc, "model", None) or ""
+        if getattr(svc, "served_model_name", None):
+            return svc.served_model_name
+        if getattr(svc, "is_managed", False):
+            return service_name
+        return getattr(svc, "model", None) or service_name
 
     def get_api_key(self, service_name: str) -> str | None:
         svc = self.get_service(service_name)

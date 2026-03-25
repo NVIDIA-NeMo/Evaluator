@@ -149,7 +149,7 @@ echo "  Logs: $OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log"
 {name_upper}_PID=$!
 ln -sf "server-{name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/server-{name}.log"
 {name_upper}_URL="http://localhost:{port}/v1"
-{name_upper}_MODEL="{model}"
+{name_upper}_MODEL={model}
 """
 
 _GYM_SERVICE = """\
@@ -244,7 +244,7 @@ fi
 {name_upper}_PID=$!
 ln -sf "server-{name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/server-{name}.log"
 {name_upper}_URL="http://localhost:{port}/v1"
-{name_upper}_MODEL="{model}"
+{name_upper}_MODEL={model}
 """
 
 _HEALTH_WAIT = """\
@@ -607,7 +607,7 @@ def _service_block(
             model_for_cmd = "/model"
             model_mount = [f"{svc.model}:/model:ro"]
 
-        model_api_name = getattr(svc, "model_name", None) or name
+        model_api_name = getattr(svc, "served_model_name", None) or name
 
         srun_prefix = ""
         if use_containers:
@@ -664,7 +664,7 @@ def _service_block(
                     name_upper=upper,
                     svc_type=svc.type,
                     service_cmd=ray_service_cmd,
-                    model=model_api_name or "",
+                    model=shlex.quote(model_api_name or ""),
                     port=svc.port,
                     num_nodes=num_nodes,
                     ray_port=6379,
@@ -681,7 +681,7 @@ def _service_block(
                 name_upper=upper,
                 svc_type=svc.type,
                 service_cmd=service_cmd,
-                model=model_api_name or "",
+                model=shlex.quote(model_api_name or ""),
                 port=svc.port,
                 cuda_prefix=cuda,
                 srun_prefix=srun_prefix,
@@ -727,14 +727,15 @@ def _service_block(
         return (
             f"# Service: {name} (external API)\n"
             f'{upper}_URL="{svc.url or ""}"\n'
-            f'{upper}_MODEL="{svc.model or ""}"\n'
+            f"{upper}_MODEL={shlex.quote(svc.model or '')}\n"
             f'{upper}_PID=""\n'
         )
 
+    fallback_model = getattr(svc, "served_model_name", None) or name
     return (
         f"# Service: {name} ({svc.type})\n"
         f'{upper}_URL="http://localhost:{getattr(svc, "port", 8000)}/v1"\n'
-        f'{upper}_MODEL="{getattr(svc, "model", "") or ""}"\n'
+        f"{upper}_MODEL={shlex.quote(fallback_model)}\n"
         f'{upper}_PID=""\n'
     )
 
