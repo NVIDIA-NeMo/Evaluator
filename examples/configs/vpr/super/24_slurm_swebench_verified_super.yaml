@@ -42,7 +42,10 @@ services:
     extra_env:
       VLLM_CACHE_ROOT: /cache/vllm
       VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+      HF_HOME: /cache/huggingface
+      HF_TOKEN: ${HF_TOKEN}
     container_mounts:
+      - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
       - /lustre/fsw/portfolios/coreai/users/${USER}/cache/vllm:/cache/vllm
     generation:
       temperature: 1.0
@@ -85,7 +88,7 @@ cluster:
   hostname: cw-dfw-cs-001-login-01
   account: coreai_dlalgo_compeval
   walltime: "04:00:00"
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260325-121235-6bd93de9-harbor-amd64
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260325-125911-fd2470eb-harbor-amd64
   container_mounts:
     - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
   container_env:
