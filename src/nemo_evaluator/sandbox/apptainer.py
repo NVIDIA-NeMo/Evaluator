@@ -206,9 +206,12 @@ class ApptainerSandbox:
         *,
         cwd: str | None = None,
         env: dict[str, str] | None = None,
+        user: str | int | None = None,
     ) -> ExecResult:
         if not self._running:
             raise RuntimeError("Sandbox not started")
+        if user is not None:
+            logger.warning("ApptainerSandbox does not support user switching; ignoring user=%r", user)
         shell_cmd = command
         if env:
             exports = " ".join(f"{k}={v}" for k, v in env.items())

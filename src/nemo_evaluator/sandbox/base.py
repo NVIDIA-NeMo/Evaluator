@@ -134,6 +134,7 @@ class Sandbox(Protocol):
         *,
         cwd: str | None = None,
         env: dict[str, str] | None = None,
+        user: str | int | None = None,
     ) -> ExecResult: ...
 
     async def upload(self, local_path: Path, remote_path: str) -> None: ...

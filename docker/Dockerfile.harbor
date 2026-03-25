@@ -13,7 +13,7 @@ RUN apt-get update \
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir "litellm[proxy]"
+RUN pip install --no-cache-dir "litellm[proxy]<=1.82.6"
 RUN pip install --no-cache-dir ".[scoring,stats,harbor]"
 
 CMD ["nel", "--help"]

@@ -1168,6 +1168,7 @@ class EcsFargateSandbox:
         *,
         cwd: str | None = None,
         env: dict[str, str] | None = None,
+        user: str | int | None = None,
     ) -> ExecResult:
         self._require_exec_client()
         shell_cmd = command
@@ -1176,6 +1177,11 @@ class EcsFargateSandbox:
             shell_cmd = f"export {exports} && {shell_cmd}"
         if cwd:
             shell_cmd = f"cd {cwd} && {shell_cmd}"
+        if user is not None:
+            if isinstance(user, int):
+                shell_cmd = f'su -s /bin/bash "$(getent passwd {user} | cut -d: -f1)" -c {shlex.quote(shell_cmd)}'
+            else:
+                shell_cmd = f"su -s /bin/bash {shlex.quote(str(user))} -c {shlex.quote(shell_cmd)}"
         return await asyncio.to_thread(self._exec_client.exec, shell_cmd, timeout=int(timeout_sec))  # type: ignore[union-attr]
 
     async def upload(self, local_path: Path, remote_path: str) -> None:

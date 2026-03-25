@@ -120,10 +120,13 @@ class DockerSandbox:
         *,
         cwd: str | None = None,
         env: dict[str, str] | None = None,
+        user: str | int | None = None,
     ) -> ExecResult:
         if not self._container_id:
             raise RuntimeError("Sandbox not started")
         cmd: list[str] = ["docker", "exec"]
+        if user is not None:
+            cmd.extend(["-u", str(user)])
         if cwd:
             cmd.extend(["-w", cwd])
         if env:
