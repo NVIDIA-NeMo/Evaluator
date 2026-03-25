@@ -509,3 +509,348 @@ class TestShardInfoComputation:
         assert len(all_indices) == 50
         assert min(all_indices) == 0
         assert max(all_indices) == 49
+
+
+class TestSbatchExtraFlags:
+    """sbatch_extra_flags and sbatch_comment support."""
+
+    def test_sbatch_extra_flags_in_header(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "http://x/v1/chat/completions",
+                        "protocol": "chat_completions",
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "sbatch_extra_flags": {"switches": 1, "exclusive": True},
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "#SBATCH --switches=1" in script
+        assert "#SBATCH --exclusive" in script
+
+    def test_sbatch_comment_in_header(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "http://x/v1/chat/completions",
+                        "protocol": "chat_completions",
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "sbatch_comment": "my eval run",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "#SBATCH --comment=" in script
+        assert "my eval run" in script
+
+    def test_no_requeue_always_present(self):
+        cfg = _make_slurm_config()
+        script, _, _ = generate_sbatch(cfg)
+        assert "#SBATCH --no-requeue" in script
+
+    def test_sbatch_false_flag_omitted(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "http://x/v1/chat/completions",
+                        "protocol": "chat_completions",
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "sbatch_extra_flags": {"exclusive": False},
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "#SBATCH --exclusive" not in script
+
+
+class TestLogPersistence:
+    """Log filenames contain $SLURM_JOB_ID and have symlinks."""
+
+    def test_service_log_contains_job_id(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "vllm",
+                        "model": "m",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "server-model-$SLURM_JOB_ID.log" in script
+        assert 'ln -sf "server-model-$SLURM_JOB_ID.log"' in script
+
+    def test_eval_log_contains_job_id(self):
+        cfg = _make_slurm_config()
+        script, _, _ = generate_sbatch(cfg)
+        assert "eval-gsm8k-$SLURM_JOB_ID.log" in script
+        assert 'ln -sf "eval-gsm8k-$SLURM_JOB_ID.log"' in script
+
+    def test_eval_log_uses_append(self):
+        cfg = _make_slurm_config()
+        script, _, _ = generate_sbatch(cfg)
+        assert "tee -a" in script
+
+    def test_service_log_uses_append(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "vllm",
+                        "model": "m",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert ">>" in script
+
+
+class TestMpiPmix:
+    """All srun commands include --mpi=pmix."""
+
+    def test_service_srun_has_mpi_pmix(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "vllm",
+                        "model": "m",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                        "image": "vllm/vllm:latest",
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "--mpi=pmix" in script
+
+    def test_eval_srun_has_mpi_pmix(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "http://x/v1/chat/completions",
+                        "protocol": "chat_completions",
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "eval_image": "nel:latest",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "--mpi=pmix" in script
+
+
+class TestGpusPerNode:
+    """gpus_per_node on NodePool generates the #SBATCH --gpus-per-node directive."""
+
+    def test_gpus_per_node_in_header(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "http://x/v1/chat/completions",
+                        "protocol": "chat_completions",
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1, "gpus_per_node": 8}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "#SBATCH --gpus-per-node=8" in script
+
+    def test_gpus_per_node_absent_when_none(self):
+        cfg = _make_slurm_config()
+        script, _, _ = generate_sbatch(cfg)
+        assert "--gpus-per-node" not in script
+
+
+class TestMultinodeRay:
+    """Multi-node Ray deployment templates."""
+
+    def test_multinode_vllm_generates_ray_template(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "vllm",
+                        "model": "nvidia/model",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                        "tensor_parallel_size": 8,
+                        "num_nodes": 2,
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "04:00:00",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 2, "gres": "gpu:8"}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "multi-node Ray" in script
+        assert "ray start --head" in script
+        assert "ray start --address" in script
+        assert "--distributed-executor-backend ray" in script
+
+    def test_multinode_ip_discovery(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "vllm",
+                        "model": "nvidia/model",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                        "tensor_parallel_size": 8,
+                        "num_nodes": 2,
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "04:00:00",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 2, "gres": "gpu:8"}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "MASTER_IP=" in script
+        assert "scontrol show hostname" in script
+        assert "export MASTER_IP" in script
+
+    def test_singlenode_no_ray(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "vllm",
+                        "model": "m",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "ray start" not in script
+        assert "MASTER_IP" not in script
+
+    def test_multinode_srun_ntasks_matches_nodes(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "vllm",
+                        "model": "nvidia/model",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                        "tensor_parallel_size": 8,
+                        "num_nodes": 4,
+                        "image": "vllm:latest",
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "04:00:00",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 4, "gres": "gpu:8"}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "--ntasks 4" in script

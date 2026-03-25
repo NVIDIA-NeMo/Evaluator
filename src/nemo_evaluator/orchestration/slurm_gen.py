@@ -42,9 +42,13 @@ _HEADER = """\
 #SBATCH --time={walltime}
 #SBATCH --nodes={nodes}
 #SBATCH --ntasks-per-node={ntasks_per_node}
+#SBATCH --no-requeue
 {gres_line}
+{gpus_per_node_line}
 {partition_line}
 {account_line}
+{sbatch_comment_line}
+{sbatch_extra_lines}
 {array_line}
 
 set -uo pipefail
@@ -89,6 +93,7 @@ _HEADER_HETJOB_POOL = """\
 #SBATCH --nodes={nodes}
 #SBATCH --ntasks-per-node={ntasks_per_node}
 {gres_line}
+{gpus_per_node_line}
 {partition_line}
 """
 
@@ -101,7 +106,10 @@ _HEADER_HETJOB_FOOTER = """\
 #SBATCH --output={output_dir}/logs/slurm-%j.log
 #SBATCH --error={output_dir}/logs/slurm-%j.log
 #SBATCH --time={walltime}
+#SBATCH --no-requeue
 {account_line}
+{sbatch_comment_line}
+{sbatch_extra_lines}
 
 set -uo pipefail
 export NEL_INNER_EXECUTION=1
@@ -136,9 +144,10 @@ source /opt/anaconda3/bin/activate {conda_env}
 _MODEL_SERVICE = """\
 # Service: {name} ({svc_type})
 echo "Starting {svc_type} server: {name}..."
-echo "  Logs: $OUTPUT_DIR/logs/server-{name}.log"
-{srun_prefix}{cuda_prefix}{service_cmd}> "$OUTPUT_DIR/logs/server-{name}.log" 2>&1 &
+echo "  Logs: $OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log"
+{srun_prefix}{cuda_prefix}{service_cmd}>> "$OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log" 2>&1 &
 {name_upper}_PID=$!
+ln -sf "server-{name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/server-{name}.log"
 {name_upper}_URL="http://localhost:{port}/v1"
 {name_upper}_MODEL="{model}"
 """
@@ -146,27 +155,96 @@ echo "  Logs: $OUTPUT_DIR/logs/server-{name}.log"
 _GYM_SERVICE = """\
 # Service: {name} (gym)
 echo "Starting benchmark server: {name}..."
-echo "  Logs: $OUTPUT_DIR/logs/server-{name}.log"
-nel serve -b {benchmark} --host 0.0.0.0 -p {port} > "$OUTPUT_DIR/logs/server-{name}.log" 2>&1 &
+echo "  Logs: $OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log"
+nel serve -b {benchmark} --host 0.0.0.0 -p {port} >> "$OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log" 2>&1 &
 {name_upper}_PID=$!
+ln -sf "server-{name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/server-{name}.log"
 """
 
 _GYM_CMD_SERVICE = """\
 # Service: {name} (gym / custom server)
 echo "Starting server: {name}..."
-echo "  Logs: $OUTPUT_DIR/logs/server-{name}.log"
-({server_cmd}) > "$OUTPUT_DIR/logs/server-{name}.log" 2>&1 &
+echo "  Logs: $OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log"
+({server_cmd}) >> "$OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log" 2>&1 &
 {name_upper}_PID=$!
+ln -sf "server-{name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/server-{name}.log"
 """
 
 _NAT_SERVICE = """\
 # Service: {name} (nat agent)
 echo "Starting NAT agent server: {name}..."
-echo "  Logs: $OUTPUT_DIR/logs/server-{name}.log"
-{srun_prefix}nat serve --config_file {config_file} --port {port} --host 0.0.0.0 > "$OUTPUT_DIR/logs/server-{name}.log" 2>&1 &
+echo "  Logs: $OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log"
+{srun_prefix}nat serve --config_file {config_file} --port {port} --host 0.0.0.0 >> "$OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log" 2>&1 &
 {name_upper}_PID=$!
+ln -sf "server-{name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/server-{name}.log"
 {name_upper}_URL="http://localhost:{port}"
 {name_upper}_MODEL="nat-agent"
+"""
+
+_MULTINODE_IP_DISCOVERY = """\
+# Multi-node IP discovery
+MASTER_IP=$(scontrol show hostname "${nodelist_var}" | head -n 1)
+echo "Master IP: $MASTER_IP"
+export MASTER_IP
+"""
+
+_RAY_MULTINODE_SERVICE = """\
+# Service: {name} ({svc_type}, multi-node Ray: {num_nodes} nodes)
+echo "Starting multi-node Ray {svc_type} server: {name}..."
+echo "  Logs: $OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log"
+
+RAY_PORT={ray_port}
+_GPUS_PER_NODE=${{SLURM_GPUS_ON_NODE:-$(nvidia-smi -L 2>/dev/null | wc -l)}}
+if [ "$_GPUS_PER_NODE" -eq 0 ] 2>/dev/null || [ -z "$_GPUS_PER_NODE" ]; then
+    echo "FATAL: Cannot determine GPU count for Ray. Set gpus_per_node in cluster config."
+    exit 1
+fi
+export RAY_ADDRESS="localhost:$RAY_PORT"
+
+# Start Ray head on first node, workers on remaining nodes
+{srun_prefix}bash -c '
+set -uo pipefail
+trap "kill 0 2>/dev/null" EXIT
+_GPUS='"$_GPUS_PER_NODE"'
+_MASTER='"$MASTER_IP"'
+_RAY_PORT='"$RAY_PORT"'
+PROC_ID=$SLURM_PROCID
+if [ "$PROC_ID" -eq 0 ]; then
+    echo "[Ray head] Starting on $(hostname) with $_GPUS GPUs"
+    ray start --head --port=$_RAY_PORT --num-gpus=$_GPUS --block &
+    RAY_HEAD_PID=$!
+    for _i in $(seq 1 120); do
+        ray status 2>/dev/null && break
+        sleep 2
+    done
+    echo "[Ray head] Launching {svc_type}..."
+    export RAY_ADDRESS="localhost:$_RAY_PORT"
+    {service_cmd}
+    _SVC_RC=$?
+    if [ $_SVC_RC -ne 0 ]; then
+        echo "[Ray head] {svc_type} exited with code $_SVC_RC"
+        ray stop 2>/dev/null; kill $RAY_HEAD_PID 2>/dev/null
+        exit $_SVC_RC
+    fi
+    wait $RAY_HEAD_PID
+else
+    echo "[Ray worker $PROC_ID] Joining $_MASTER:$_RAY_PORT with $_GPUS GPUs"
+    _joined=0
+    for _i in $(seq 1 60); do
+        ray start --address="$_MASTER:$_RAY_PORT" --num-gpus=$_GPUS --block && {{ _joined=1; break; }}
+        echo "[Ray worker $PROC_ID] Retry $_i/60..."
+        sleep 5
+    done
+    if [ "$_joined" -eq 0 ]; then
+        echo "[Ray worker $PROC_ID] FATAL: Failed to join Ray cluster after 60 attempts"
+        exit 1
+    fi
+fi
+' >> "$OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log" 2>&1 &
+{name_upper}_PID=$!
+ln -sf "server-{name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/server-{name}.log"
+{name_upper}_URL="http://localhost:{port}/v1"
+{name_upper}_MODEL="{model}"
 """
 
 _HEALTH_WAIT = """\
@@ -219,14 +297,15 @@ echo ""
 echo "============================================================"
 echo "  Benchmark {idx}/{total}: {bench_name} (repeats={repeats})"
 echo "============================================================"
-echo "  Logs: $OUTPUT_DIR/logs/eval-{safe_name}.log"
+echo "  Logs: $OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log"
 {run_prefix}nel eval run \\
     --bench "{bench_name}" \\
     --model-url "${model_url_var}" \\
     --model-id "${model_id_var}" \\
     --repeats {repeats} \\
     {extra_flags}\\
-    -o "$OUTPUT_DIR/{safe_name}" 2>&1 | stdbuf -oL tee "$OUTPUT_DIR/logs/eval-{safe_name}.log"
+    -o "$OUTPUT_DIR/{safe_name}" 2>&1 | stdbuf -oL tee -a "$OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log"
+ln -sf "eval-{safe_name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/eval-{safe_name}.log"
 _EVAL_RC=${{PIPESTATUS[0]}}
 if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
 """
@@ -237,12 +316,13 @@ echo ""
 echo "============================================================"
 echo "  Benchmark {idx}/{total}: {bench_name} (repeats={repeats})"
 echo "============================================================"
-echo "  Logs: $OUTPUT_DIR/logs/eval-{safe_name}.log"
+echo "  Logs: $OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log"
 export {svc_url_var}="${{{model_url_bash}}}"
 export {svc_model_var}="${{{model_id_bash}}}"
 export NEL_OUTPUT_DIR="$OUTPUT_DIR/{safe_name}"
 mkdir -p "$NEL_OUTPUT_DIR"
-{run_prefix}nel eval run "$OUTPUT_DIR/config_{safe_name}.yaml" {extra_flags}2>&1 | stdbuf -oL tee "$OUTPUT_DIR/logs/eval-{safe_name}.log"
+{run_prefix}nel eval run "$OUTPUT_DIR/config_{safe_name}.yaml" {extra_flags}2>&1 | stdbuf -oL tee -a "$OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log"
+ln -sf "eval-{safe_name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/eval-{safe_name}.log"
 _EVAL_RC=${{PIPESTATUS[0]}}
 if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
 """
@@ -464,6 +544,7 @@ def _build_srun_prefix(
     cluster_mounts: list[str],
     env_keys: list[str],
     mount_home: bool,
+    extra_mounts: list[str] | None = None,
 ) -> str:
     """Build a per-service srun command with merged mounts and env.
 
@@ -475,20 +556,25 @@ def _build_srun_prefix(
         return ""
 
     svc_mounts = getattr(svc, "container_mounts", [])
-    all_mounts = cluster_mounts + svc_mounts
-    mount_parts = [f"--container-mounts={m}" for m in all_mounts]
+    all_mounts = list(dict.fromkeys(cluster_mounts + svc_mounts + (extra_mounts or [])))
     if mount_home:
-        mount_parts.append("--container-mounts=$HOME:$HOME")
-    else:
-        mount_parts.append("--no-container-mount-home")
+        all_mounts.append("$HOME:$HOME")
+    mount_flag = f"--container-mounts={','.join(all_mounts)} " if all_mounts else ""
+    home_flag = "" if mount_home else "--no-container-mount-home "
 
     env_parts = [f"--container-env={k}" for k in env_keys]
 
     num_nodes = getattr(svc, "num_nodes", 1)
+    ntasks = num_nodes if num_nodes > 1 else 1
+    label_flag = " --label" if num_nodes > 1 else ""
+    if num_nodes > 1:
+        for extra_key in ("MASTER_IP", "RAY_ADDRESS"):
+            if f"--container-env={extra_key}" not in env_parts:
+                env_parts.append(f"--container-env={extra_key}")
     return (
-        f"srun --overlap --nodes {num_nodes} --ntasks 1{het_flag} "
+        f"srun --mpi=pmix --overlap --nodes {num_nodes} --ntasks {ntasks}{label_flag}{het_flag} "
         f"--container-image {deploy_image} "
-        f"{' '.join(mount_parts)} {' '.join(env_parts)} "
+        f"{mount_flag}{home_flag}{' '.join(env_parts)} "
     )
 
 
@@ -512,6 +598,17 @@ def _service_block(
     if svc.type in _MODEL_CMD:
         cmd, model_flag, tp_flag_name, dp_flag_name = _MODEL_CMD[svc.type]
         deploy_image = _resolve_service_image(svc)
+
+        # Auto-mount local model paths into the container at /model (read-only),
+        # mirroring the checkpoint_path:/checkpoint pattern from nemo-evaluator-launcher.
+        model_for_cmd = svc.model
+        model_mount: list[str] = []
+        if svc.model and svc.model.startswith("/") and use_containers:
+            model_for_cmd = "/model"
+            model_mount = [f"{svc.model}:/model:ro"]
+
+        model_api_name = getattr(svc, "model_name", None) or model_for_cmd
+
         srun_prefix = ""
         if use_containers:
             srun_prefix = _build_srun_prefix(
@@ -521,34 +618,76 @@ def _service_block(
                 cluster_mounts=cluster_mounts or [],
                 env_keys=env_keys or [],
                 mount_home=mount_home,
+                extra_mounts=model_mount + ["$OUTPUT_DIR:$OUTPUT_DIR"],
             )
         tp_flag = f"{tp_flag_name} {svc.tensor_parallel_size} " if svc.tensor_parallel_size else ""
         dp_flag = f"{dp_flag_name} {svc.data_parallel_size} " if svc.data_parallel_size else ""
-        extra = " ".join(svc.extra_args)
+        extra = " ".join(shlex.quote(a) for a in svc.extra_args)
         cuda = ""
         if svc.gpus and isinstance(svc.gpus, list):
             cuda = f"CUDA_VISIBLE_DEVICES={','.join(str(g) for g in svc.gpus)} "
 
-        model_flag_part = f" {model_flag} {svc.model}" if model_flag else f" {svc.model}" if svc.model else ""
-        main_cmd = f"{cmd}{model_flag_part} --port {svc.port} {tp_flag}{dp_flag}{extra} "
+        model_flag_part = (
+            f" {model_flag} {model_for_cmd}" if model_flag else f" {model_for_cmd}" if model_for_cmd else ""
+        )
+        served_name_flag = (
+            f" --served-model-name {shlex.quote(model_api_name)}" if model_api_name != model_for_cmd else ""
+        )
+        main_cmd = f"{cmd}{model_flag_part} --port {svc.port} {tp_flag}{dp_flag}{served_name_flag}{extra}"
 
         setup_list = getattr(svc, "setup_commands", []) or []
-        if setup_list:
-            inner = " && ".join(setup_list) + " && " + main_cmd
-            service_cmd = f"bash -c {shlex.quote(inner)} "
+        num_nodes = getattr(svc, "num_nodes", 1)
+        safe_name = _safe(name)
+
+        if num_nodes > 1:
+            full_cmd = f"{main_cmd} --distributed-executor-backend ray"
         else:
-            service_cmd = f"{main_cmd}"
+            full_cmd = main_cmd
+
+        script_lines = ["set -euo pipefail"] + list(setup_list) + [full_cmd]
+        script_file = f"_svc_{safe_name}_cmd_$SLURM_JOB_ID.sh"
+        script_heredoc = (
+            f"cat > \"$OUTPUT_DIR/logs/{script_file}\" <<'_NEMO_SVC_CMD_EOF_'\n"
+            + "\n".join(script_lines)
+            + "\n_NEMO_SVC_CMD_EOF_\n"
+        )
 
         reexport_block = f"{reexport_cmds}\n" if reexport_cmds else ""
-        return reexport_block + _MODEL_SERVICE.format(
-            name=name,
-            name_upper=upper,
-            svc_type=svc.type,
-            service_cmd=service_cmd,
-            model=svc.model or "",
-            port=svc.port,
-            cuda_prefix=cuda,
-            srun_prefix=srun_prefix,
+
+        if num_nodes > 1:
+            # Inside the template's bash -c '...' block, break out of single
+            # quotes to expand $OUTPUT_DIR, then re-enter single quotes.
+            ray_service_cmd = f"""bash '"$OUTPUT_DIR"'/logs/{script_file}"""
+            return (
+                reexport_block
+                + script_heredoc
+                + _RAY_MULTINODE_SERVICE.format(
+                    name=name,
+                    name_upper=upper,
+                    svc_type=svc.type,
+                    service_cmd=ray_service_cmd,
+                    model=model_api_name or "",
+                    port=svc.port,
+                    num_nodes=num_nodes,
+                    ray_port=6379,
+                    srun_prefix=srun_prefix,
+                )
+            )
+
+        service_cmd = f'bash "$OUTPUT_DIR/logs/{script_file}" '
+        return (
+            reexport_block
+            + script_heredoc
+            + _MODEL_SERVICE.format(
+                name=name,
+                name_upper=upper,
+                svc_type=svc.type,
+                service_cmd=service_cmd,
+                model=model_api_name or "",
+                port=svc.port,
+                cuda_prefix=cuda,
+                srun_prefix=srun_prefix,
+            )
         )
 
     if isinstance(svc, NatAgentService):
@@ -700,6 +839,40 @@ def _extract_bench_config(config: EvalConfig, bench_idx: int, svc_url_var: str, 
     }
 
 
+def _format_sbatch_extra_flags(flags: dict) -> str:
+    """Format sbatch_extra_flags dict into #SBATCH lines."""
+    lines = []
+    for key, val in flags.items():
+        if val is True:
+            lines.append(f"#SBATCH --{key}")
+        elif val is not False and val is not None:
+            lines.append(f"#SBATCH --{key}={val}")
+    return "\n".join(lines)
+
+
+def _any_multinode_service(config: EvalConfig) -> bool:
+    """Return True if any service requests multiple nodes."""
+    return any(getattr(svc, "num_nodes", 1) > 1 for svc in config.services.values())
+
+
+def _compute_pool_nodes(config: EvalConfig, pool_name: str) -> int:
+    """Compute total nodes needed for a pool, accounting for multi-node services.
+
+    Returns the max of the pool's declared nodes and any service's num_nodes
+    requirement, so that the SBATCH header always requests enough.
+    """
+    cluster = config.cluster
+    if not isinstance(cluster, SlurmCluster):
+        return 1
+    base = cluster.node_pools[pool_name].nodes
+    svc_max = 0
+    for svc in config.services.values():
+        svc_pool = getattr(svc, "node_pool", None)
+        if svc_pool == pool_name:
+            svc_max = max(svc_max, getattr(svc, "num_nodes", 1))
+    return max(base, svc_max)
+
+
 def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEnvResult]:
     """Generate sbatch script content, sidecar configs, and secrets env.
 
@@ -713,6 +886,8 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
     output_dir = config.output.dir
     job_name = _safe(config.benchmarks[0].name) if len(config.benchmarks) == 1 else "multi"
     account_line = f"#SBATCH --account={cluster.account}" if cluster.account else ""
+    sbatch_comment_line = f"#SBATCH --comment={shlex.quote(cluster.sbatch_comment)}" if cluster.sbatch_comment else ""
+    sbatch_extra_lines = _format_sbatch_extra_flags(cluster.sbatch_extra_flags)
 
     used_pools = _collect_used_pools(config)
     use_het = len(used_pools) > 1
@@ -741,15 +916,18 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
         parts.append(_HEADER_HETJOB_PREAMBLE)
         for i, pool_name in enumerate(used_pools):
             pool = cluster.node_pools[pool_name]
+            effective_nodes = _compute_pool_nodes(config, pool_name)
             gres_line = f"#SBATCH --gres={pool.gres}" if pool.gres else ""
+            gpus_per_node_line = f"#SBATCH --gpus-per-node={pool.gpus_per_node}" if pool.gpus_per_node else ""
             partition_line = f"#SBATCH --partition={pool.partition}" if pool.partition else ""
             parts.append(
                 _HEADER_HETJOB_POOL.format(
                     het_idx=i,
                     pool_name=pool_name,
-                    nodes=pool.nodes,
+                    nodes=effective_nodes,
                     ntasks_per_node=pool.ntasks_per_node,
                     gres_line=gres_line,
+                    gpus_per_node_line=gpus_per_node_line,
                     partition_line=partition_line,
                 )
             )
@@ -765,12 +943,16 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
                 output_dir=output_dir,
                 walltime=cluster.walltime,
                 account_line=account_line,
+                sbatch_comment_line=sbatch_comment_line,
+                sbatch_extra_lines=sbatch_extra_lines,
                 het_echo_lines=het_echo_lines,
             )
         )
     else:
         pool = cluster.node_pools[used_pools[0]]
+        effective_nodes = _compute_pool_nodes(config, used_pools[0])
         gres_line = f"#SBATCH --gres={pool.gres}" if pool.gres else ""
+        gpus_per_node_line = f"#SBATCH --gpus-per-node={pool.gpus_per_node}" if pool.gpus_per_node else ""
         partition_line = f"#SBATCH --partition={pool.partition}" if pool.partition else ""
         array_line = f"#SBATCH --array=0-{cluster.shards - 1}" if cluster.shards else ""
         parts.append(
@@ -778,11 +960,14 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
                 job_name=job_name,
                 output_dir=output_dir,
                 walltime=cluster.walltime,
-                nodes=pool.nodes,
+                nodes=effective_nodes,
                 ntasks_per_node=pool.ntasks_per_node,
                 gres_line=gres_line,
+                gpus_per_node_line=gpus_per_node_line,
                 partition_line=partition_line,
                 account_line=account_line,
+                sbatch_comment_line=sbatch_comment_line,
+                sbatch_extra_lines=sbatch_extra_lines,
                 array_line=array_line,
             )
         )
@@ -802,6 +987,17 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
     has_secrets = bool(secrets_result.secrets_content.strip())
     if has_secrets:
         parts.append(_SECRETS_SOURCE)
+
+    if _any_multinode_service(config):
+        nodelist_var = "SLURM_JOB_NODELIST"
+        if use_het:
+            for svc in config.services.values():
+                if getattr(svc, "num_nodes", 1) > 1:
+                    svc_pool = getattr(svc, "node_pool", None)
+                    if svc_pool and svc_pool in pool_to_het:
+                        nodelist_var = f"SLURM_JOB_NODELIST_HET_GROUP_{pool_to_het[svc_pool]}"
+                    break
+        parts.append(_MULTINODE_IP_DISCOVERY.format(nodelist_var=nodelist_var))
 
     if is_sharded:
         parts.append(_SHARD_SETUP)
@@ -910,18 +1106,17 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
         group_name = f"eval_{_safe(bench_name)}"
         eval_env_keys = reexport_keys(group_name, secrets_result) + _IMPLICIT_KEYS
         eval_env_keys = list(dict.fromkeys(eval_env_keys))
-        _mounts = [f"--container-mounts={m}" for m in cluster.container_mounts]
-        _mounts.append(f"--container-mounts={output_dir}:{output_dir}")
+        _all_mounts = list(cluster.container_mounts) + [f"{output_dir}:{output_dir}"]
         if cluster.mount_home:
-            _mounts.append("--container-mounts=$HOME:$HOME")
-        else:
-            _mounts.append("--no-container-mount-home")
+            _all_mounts.append("$HOME:$HOME")
+        _mount_flag = f"--container-mounts={','.join(_all_mounts)} " if _all_mounts else ""
+        _home_flag = "" if cluster.mount_home else "--no-container-mount-home "
         _envs = [f"--container-env={k}" for k in eval_env_keys]
         reexport = build_reexport_commands(group_name, secrets_result)
         prefix = (
-            f"srun --overlap --unbuffered --nodes 1 --ntasks 1 "
+            f"srun --mpi=pmix --overlap --unbuffered --nodes 1 --ntasks 1 "
             f"--container-image {image} "
-            f"{' '.join(_mounts)} {' '.join(_envs)} \\\n    "
+            f"{_mount_flag}{_home_flag}{' '.join(_envs)} \\\n    "
         )
         return f"{reexport}\n{prefix}" if reexport else prefix
 
@@ -1056,7 +1251,9 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
 
     parts.append(_FOOTER)
 
-    return "\n".join(parts), sidecar_configs, secrets_result
+    script = "\n".join(parts)
+    script = re.sub(r"\n{3,}", "\n\n", script)
+    return script, sidecar_configs, secrets_result
 
 
 def stamp_output_dir(config: EvalConfig) -> None:

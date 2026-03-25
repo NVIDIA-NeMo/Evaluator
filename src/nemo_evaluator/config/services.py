@@ -53,6 +53,7 @@ class _ModelServerBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     model: str
+    model_name: str = "model"
     port: int = 8000
     protocol: Protocol
     tensor_parallel_size: int | None = None

@@ -11,8 +11,8 @@
 #   - pip install nemo-evaluator[harbor]
 #
 # Run:
-#   nel eval run examples/configs/24_slurm_swebench_verified_super.yaml --dry-run
-#   nel eval run examples/configs/24_slurm_swebench_verified_super.yaml
+#   nel eval run examples/configs/vpr/super/24_slurm_swebench_verified_super.yaml --dry-run
+#   nel eval run examples/configs/vpr/super/24_slurm_swebench_verified_super.yaml
 
 services:
   nemotron:
@@ -42,7 +42,10 @@ services:
     extra_env:
       VLLM_CACHE_ROOT: /cache/vllm
       VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+      HF_HOME: /cache/huggingface
+      HF_TOKEN: ${HF_TOKEN}
     container_mounts:
+      - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
       - /lustre/fsw/portfolios/coreai/users/${USER}/cache/vllm:/cache/vllm
     generation:
       temperature: 1.0
@@ -51,41 +54,41 @@ services:
     interceptors:
       - name: turn_counter
         config:
-          max_turns: 100
+          max_turns: 200
     proxy_verbose: false
     node_pool: gpu
 
 benchmarks:
-  - name: harbor://swebench-verified@1.0
-    max_concurrent: 50
+  - name: harbor://swebenchpro@1.0
+    max_concurrent: 30
     timeout: 10800.0
-    #max_problems: 5  # uncomment for smoke-testing
     solver:
       type: harbor
       service: nemotron
       agent: openhands-sdk
       run_timeout: 5400.0  # 1.5h hard cap — tasks stuck on unreachable LLM get retried
       agent_kwargs:
-        max_iterations: 100
+        max_iterations: 200
         temperature: 1.0
     sandbox:
       type: ecs_fargate
       region: us-west-1
-      cpu: "8192"
-      memory: "16384"
+      cpu: "4096"
+      memory: "8192"
       ephemeral_storage_gib: 50
       max_task_lifetime_sec: 14400
-      log_stream_prefix: swebench-super
+      codebuild_build_timeout: 60
+      log_stream_prefix: swebench-pro
       ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
       timeout: 10800.0
-      concurrency: 50
+      concurrency: 30
 
 cluster:
   type: slurm
   hostname: cw-dfw-cs-001-login-01
   account: coreai_dlalgo_compeval
   walltime: "04:00:00"
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:20260323-0750150700-7d31f036-harbor-amd64
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260325-125911-fd2470eb-harbor-amd64
   container_mounts:
     - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
   container_env:
@@ -94,6 +97,7 @@ cluster:
     AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
     AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     AWS_DEFAULT_REGION: us-west-2
+  sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
   mount_home: false
   node_pools:
     gpu:
@@ -103,4 +107,4 @@ cluster:
       gres: "gpu:8"
 
 output:
-  dir: /lustre/fsw/portfolios/coreai/users/${USER}/nemo-evaluator-rundirs/super-fp8/swebench-verified
+  dir: /lustre/fsw/portfolios/coreai/users/${USER}/nemo-evaluator-rundirs/super-fp8/swebench-pro

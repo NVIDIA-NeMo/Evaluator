@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, field_validator
@@ -49,6 +50,7 @@ class NodePool(BaseModel):
     nodes: int = 1
     ntasks_per_node: int = 1
     gres: str | None = None
+    gpus_per_node: int | None = None
 
 
 class SlurmCluster(BaseModel):
@@ -78,6 +80,19 @@ class SlurmCluster(BaseModel):
             _parse_walltime(v)
         except (ValueError, TypeError):
             raise ValueError(f"max_walltime must be in SLURM time format (HH:MM:SS or D-HH:MM:SS), got: {v!r}")
+        return v
+
+    sbatch_comment: str | None = None
+    sbatch_extra_flags: dict[str, str | int | float | bool] = Field(default_factory=dict)
+
+    @field_validator("sbatch_extra_flags")
+    @classmethod
+    def _validate_sbatch_flags(cls, v: dict) -> dict:
+        for key, val in v.items():
+            if not re.match(r"^[a-zA-Z][a-zA-Z0-9_-]*$", key):
+                raise ValueError(f"Invalid sbatch flag key: {key!r}")
+            if isinstance(val, str) and "\n" in val:
+                raise ValueError(f"sbatch flag value for {key!r} must not contain newlines")
         return v
 
     hostname: str | None = None

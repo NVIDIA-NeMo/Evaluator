@@ -8,6 +8,7 @@ a HarborSolver is actually instantiated.
 from __future__ import annotations
 
 import logging
+import shlex
 import tarfile
 import tempfile
 from pathlib import Path
@@ -27,6 +28,8 @@ class SandboxEnvironmentAdapter:
     container lifecycle.
     """
 
+    default_user: str | int | None
+
     def __init__(
         self,
         sandbox: Sandbox,
@@ -45,6 +48,7 @@ class SandboxEnvironmentAdapter:
         self.logger = logger
         self._persistent_env: dict[str, str] = dict(persistent_env or {})
         self.task_env_config = TaskEnvConfig()
+        self.default_user = None
 
     # -- Properties Harbor agents inspect ------------------------------------
 
@@ -60,6 +64,19 @@ class SandboxEnvironmentAdapter:
     def can_disable_internet(self) -> bool:
         return False
 
+    # -- User / env resolution (mirrors BaseEnvironment) ---------------------
+
+    def _resolve_user(self, user: str | int | None) -> str | int | None:
+        return user if user is not None else self.default_user
+
+    def _merge_env(self, env: dict[str, str] | None) -> dict[str, str] | None:
+        if not self._persistent_env and not env:
+            return None
+        merged = {**self._persistent_env}
+        if env:
+            merged.update(env)
+        return merged or None
+
     # -- exec ----------------------------------------------------------------
 
     async def exec(
@@ -68,21 +85,35 @@ class SandboxEnvironmentAdapter:
         cwd: str | None = None,
         env: dict[str, str] | None = None,
         timeout_sec: int | None = None,
+        user: str | int | None = None,
     ):
         from harbor.environments.base import ExecResult as HarborExecResult
 
-        merged_env = {**self._persistent_env, **(env or {})}
+        user = self._resolve_user(user)
+        env = self._merge_env(env)
+
         nel_result = await self._sandbox.exec(
             command,
-            timeout_sec=float(timeout_sec) if timeout_sec else self._default_timeout,
+            timeout_sec=float(timeout_sec) if timeout_sec is not None else self._default_timeout,
             cwd=cwd,
-            env=merged_env or None,
+            env=env,
+            user=user,
         )
         return HarborExecResult(
             stdout=nel_result.stdout or None,
             stderr=nel_result.stderr or None,
             return_code=nel_result.return_code,
         )
+
+    # -- Filesystem queries --------------------------------------------------
+
+    async def is_dir(self, path: str, user: str | int | None = None) -> bool:
+        result = await self.exec(f"test -d {shlex.quote(path)}", timeout_sec=10, user=user)
+        return result.return_code == 0
+
+    async def is_file(self, path: str, user: str | int | None = None) -> bool:
+        result = await self.exec(f"test -f {shlex.quote(path)}", timeout_sec=10, user=user)
+        return result.return_code == 0
 
     # -- File transfer -------------------------------------------------------
 
@@ -103,8 +134,9 @@ class SandboxEnvironmentAdapter:
                         tar.add(str(child), arcname=str(child.relative_to(src)))
             remote_tar = f"/tmp/_nel_upload_{archive.stem}.tar.gz"
             await self._sandbox.upload(archive, remote_tar)
+            q_dir = shlex.quote(target_dir)
             await self._sandbox.exec(
-                f"mkdir -p {target_dir} && tar xzf {remote_tar} -C {target_dir} && rm -f {remote_tar}",
+                f"mkdir -p {q_dir} && tar xzf {remote_tar} -C {q_dir} && rm -f {remote_tar}",
                 timeout_sec=120,
             )
         finally:
@@ -115,7 +147,7 @@ class SandboxEnvironmentAdapter:
         dst.mkdir(parents=True, exist_ok=True)
         remote_tar = f"/tmp/_nel_download_{dst.name}.tar.gz"
         await self._sandbox.exec(
-            f"tar czf {remote_tar} -C {source_dir} .",
+            f"tar czf {remote_tar} -C {shlex.quote(source_dir)} .",
             timeout_sec=120,
         )
         with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as f:

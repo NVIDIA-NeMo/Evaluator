@@ -6,12 +6,15 @@ Useful for development and testing where Docker is unavailable.
 from __future__ import annotations
 
 import asyncio
+import logging
 import shutil
 import tempfile
 from pathlib import Path
 from typing import Self
 
 from nemo_evaluator.sandbox.base import ExecResult, OutsideEndpoint, SandboxSpec
+
+logger = logging.getLogger(__name__)
 
 
 class LocalSandbox:
@@ -43,9 +46,12 @@ class LocalSandbox:
         *,
         cwd: str | None = None,
         env: dict[str, str] | None = None,
+        user: str | int | None = None,
     ) -> ExecResult:
         if not self._workdir:
             raise RuntimeError("Sandbox not started")
+        if user is not None:
+            logger.warning("LocalSandbox does not support user switching; ignoring user=%r", user)
 
         merged_env = dict(self._spec.env) if self._spec.env else None
         if env:

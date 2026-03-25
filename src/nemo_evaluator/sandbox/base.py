@@ -43,10 +43,17 @@ class ImageBuildRequest:
     ``docker_build_fn`` receives the **missing** subset of specs so it has
     full structured data (no reverse-engineering image names). It must raise
     on failure; the manager gates the call on Docker daemon availability.
+
+    ``codebuild_buildspec_fn`` is an optional fallback for ECS Fargate when
+    the local Docker daemon is unavailable (e.g. on SLURM).  It receives
+    ``(missing_specs, ecr_repo, ecr_region, dockerhub_secret_arn)`` and
+    returns a CodeBuild buildspec YAML string that builds the images and
+    pushes them to ECR.
     """
 
     specs: list[ImageSpec]
     docker_build_fn: Callable[[list[ImageSpec]], None] | None = None
+    codebuild_buildspec_fn: Callable[[list[ImageSpec], str, str | None, str | None], str] | None = None
 
 
 @dataclass
@@ -127,6 +134,7 @@ class Sandbox(Protocol):
         *,
         cwd: str | None = None,
         env: dict[str, str] | None = None,
+        user: str | int | None = None,
     ) -> ExecResult: ...
 
     async def upload(self, local_path: Path, remote_path: str) -> None: ...

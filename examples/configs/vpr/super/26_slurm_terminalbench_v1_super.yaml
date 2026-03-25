@@ -12,8 +12,8 @@
 #   - pip install nemo-evaluator[harbor]
 #
 # Run:
-#   nel eval run examples/configs/26_slurm_terminalbench_v1_super.yaml --dry-run
-#   nel eval run examples/configs/26_slurm_terminalbench_v1_super.yaml
+#   nel eval run examples/configs/vpr/super/26_slurm_terminalbench_v1_super.yaml --dry-run
+#   nel eval run examples/configs/vpr/super/26_slurm_terminalbench_v1_super.yaml
 
 services:
   nemotron:
@@ -87,6 +87,7 @@ cluster:
     AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     AWS_DEFAULT_REGION: us-west-2
     LLM_API_KEY: "no-key-needed"
+  sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
   mount_home: false
   node_pools:
     gpu:

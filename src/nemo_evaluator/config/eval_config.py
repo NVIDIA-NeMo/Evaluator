@@ -191,6 +191,27 @@ class EvalConfig(BaseModel):
                             f"but node_pool {pool_ref!r} only has {pool.gres}"
                         )
 
+        multinode_by_pool: dict[str, list[str]] = {}
+        for name, svc in self.services.items():
+            num_nodes = getattr(svc, "num_nodes", 1)
+            if num_nodes > 1:
+                pool_ref = getattr(svc, "node_pool", None)
+                if pool_ref:
+                    multinode_by_pool.setdefault(pool_ref, []).append(name)
+                    pool = self.cluster.node_pools.get(pool_ref)
+                    if pool and pool.nodes < num_nodes:
+                        errors.append(
+                            f"services.{name}.num_nodes={num_nodes} exceeds "
+                            f"node_pools.{pool_ref}.nodes={pool.nodes}. "
+                            f"Set pool nodes >= service num_nodes."
+                        )
+        for pool_ref, svc_names in multinode_by_pool.items():
+            if len(svc_names) > 1:
+                errors.append(
+                    f"Multiple multi-node services {svc_names} in pool {pool_ref!r}. "
+                    f"Use separate node_pools or a het-job."
+                )
+
         for sb_name, sb in self.sandboxes.items():
             pool_ref = getattr(sb, "node_pool", None)
             if pool_ref and pool_ref not in pools:

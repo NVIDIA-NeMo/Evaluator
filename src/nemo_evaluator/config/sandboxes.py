@@ -74,6 +74,8 @@ class EcsFargateSandbox(_SandboxBase):
     ecr_repository: str | None = None
     codebuild_project: str | None = None
     codebuild_service_role: str | None = None
+    codebuild_build_timeout: int | None = None
+    codebuild_compute_type: str | None = None
     dockerhub_secret_arn: str | None = None
     efs_filesystem_id: str | None = None
     efs_access_point_id: str | None = None

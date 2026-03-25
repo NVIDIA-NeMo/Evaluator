@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+import random
 import tempfile
 import time
 from pathlib import Path
@@ -339,6 +340,7 @@ def _check_harbor_installed() -> None:
         raise ImportError(
             "Harbor agent integration requires the harbor package. Install with: pip install nemo-evaluator[harbor]"
         ) from None
+    logging.getLogger("harbor").setLevel(logging.INFO)
 
 
 class HarborSolver:
@@ -488,17 +490,20 @@ class HarborSolver:
             context = AgentContext()
 
             agent_timed_out = False
+            jitter = random.uniform(0, min(120.0, self._run_timeout * 0.02))
+            effective_timeout = self._run_timeout + jitter
             try:
                 await asyncio.wait_for(
                     agent.run(task.prompt, adapter, context),
-                    timeout=self._run_timeout,
+                    timeout=effective_timeout,
                 )
             except (asyncio.TimeoutError, TimeoutError):
                 elapsed = time.monotonic() - t0
                 logger.warning(
-                    "HarborSolver: agent.run() timed out after %.0fs (run_timeout=%.0fs) — collecting partial results",
+                    "HarborSolver: agent.run() timed out after %.0fs (run_timeout=%.0fs+%.0fs jitter) — collecting partial results",
                     elapsed,
                     self._run_timeout,
+                    jitter,
                 )
                 agent_timed_out = True
 
