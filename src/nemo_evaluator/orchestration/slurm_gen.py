@@ -607,7 +607,7 @@ def _service_block(
             model_for_cmd = "/model"
             model_mount = [f"{svc.model}:/model:ro"]
 
-        model_api_name = getattr(svc, "model_name", None) or model_for_cmd
+        model_api_name = getattr(svc, "model_name", None) or name
 
         srun_prefix = ""
         if use_containers:
@@ -630,9 +630,7 @@ def _service_block(
         model_flag_part = (
             f" {model_flag} {model_for_cmd}" if model_flag else f" {model_for_cmd}" if model_for_cmd else ""
         )
-        served_name_flag = (
-            f"--served-model-name {shlex.quote(model_api_name)} " if model_api_name != model_for_cmd else ""
-        )
+        served_name_flag = f"--served-model-name {shlex.quote(model_api_name)} "
         main_cmd = f"{cmd}{model_flag_part} --port {svc.port} {tp_flag}{dp_flag}{served_name_flag}{extra}"
 
         setup_list = getattr(svc, "setup_commands", []) or []
