@@ -544,6 +544,7 @@ def _build_srun_prefix(
     cluster_mounts: list[str],
     env_keys: list[str],
     mount_home: bool,
+    extra_mounts: list[str] | None = None,
 ) -> str:
     """Build a per-service srun command with merged mounts and env.
 
@@ -555,12 +556,11 @@ def _build_srun_prefix(
         return ""
 
     svc_mounts = getattr(svc, "container_mounts", [])
-    all_mounts = list(dict.fromkeys(cluster_mounts + svc_mounts))
-    mount_parts = [f"--container-mounts={m}" for m in all_mounts]
+    all_mounts = list(dict.fromkeys(cluster_mounts + svc_mounts + (extra_mounts or [])))
     if mount_home:
-        mount_parts.append("--container-mounts=$HOME:$HOME")
-    else:
-        mount_parts.append("--no-container-mount-home")
+        all_mounts.append("$HOME:$HOME")
+    mount_flag = f"--container-mounts={','.join(all_mounts)} " if all_mounts else ""
+    home_flag = "" if mount_home else "--no-container-mount-home "
 
     env_parts = [f"--container-env={k}" for k in env_keys]
 
@@ -574,7 +574,7 @@ def _build_srun_prefix(
     return (
         f"srun --mpi=pmix --overlap --nodes {num_nodes} --ntasks {ntasks}{label_flag}{het_flag} "
         f"--container-image {deploy_image} "
-        f"{' '.join(mount_parts)} {' '.join(env_parts)} "
+        f"{mount_flag}{home_flag}{' '.join(env_parts)} "
     )
 
 
@@ -598,6 +598,15 @@ def _service_block(
     if svc.type in _MODEL_CMD:
         cmd, model_flag, tp_flag_name, dp_flag_name = _MODEL_CMD[svc.type]
         deploy_image = _resolve_service_image(svc)
+
+        # Auto-mount local model paths into the container at /model (read-only),
+        # mirroring the checkpoint_path:/checkpoint pattern from nemo-evaluator-launcher.
+        model_for_cmd = svc.model
+        model_mount: list[str] = []
+        if svc.model and svc.model.startswith("/") and use_containers:
+            model_for_cmd = "/model"
+            model_mount = [f"{svc.model}:/model:ro"]
+
         srun_prefix = ""
         if use_containers:
             srun_prefix = _build_srun_prefix(
@@ -607,6 +616,7 @@ def _service_block(
                 cluster_mounts=cluster_mounts or [],
                 env_keys=env_keys or [],
                 mount_home=mount_home,
+                extra_mounts=model_mount,
             )
         tp_flag = f"{tp_flag_name} {svc.tensor_parallel_size} " if svc.tensor_parallel_size else ""
         dp_flag = f"{dp_flag_name} {svc.data_parallel_size} " if svc.data_parallel_size else ""
@@ -615,7 +625,9 @@ def _service_block(
         if svc.gpus and isinstance(svc.gpus, list):
             cuda = f"CUDA_VISIBLE_DEVICES={','.join(str(g) for g in svc.gpus)} "
 
-        model_flag_part = f" {model_flag} {svc.model}" if model_flag else f" {svc.model}" if svc.model else ""
+        model_flag_part = (
+            f" {model_flag} {model_for_cmd}" if model_flag else f" {model_for_cmd}" if model_for_cmd else ""
+        )
         main_cmd = f"{cmd}{model_flag_part} --port {svc.port} {tp_flag}{dp_flag}{extra} "
 
         setup_list = getattr(svc, "setup_commands", []) or []
@@ -1073,18 +1085,17 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
         group_name = f"eval_{_safe(bench_name)}"
         eval_env_keys = reexport_keys(group_name, secrets_result) + _IMPLICIT_KEYS
         eval_env_keys = list(dict.fromkeys(eval_env_keys))
-        _mounts = [f"--container-mounts={m}" for m in cluster.container_mounts]
-        _mounts.append(f"--container-mounts={output_dir}:{output_dir}")
+        _all_mounts = list(cluster.container_mounts) + [f"{output_dir}:{output_dir}"]
         if cluster.mount_home:
-            _mounts.append("--container-mounts=$HOME:$HOME")
-        else:
-            _mounts.append("--no-container-mount-home")
+            _all_mounts.append("$HOME:$HOME")
+        _mount_flag = f"--container-mounts={','.join(_all_mounts)} " if _all_mounts else ""
+        _home_flag = "" if cluster.mount_home else "--no-container-mount-home "
         _envs = [f"--container-env={k}" for k in eval_env_keys]
         reexport = build_reexport_commands(group_name, secrets_result)
         prefix = (
             f"srun --mpi=pmix --overlap --unbuffered --nodes 1 --ntasks 1 "
             f"--container-image {image} "
-            f"{' '.join(_mounts)} {' '.join(_envs)} \\\n    "
+            f"{_mount_flag}{_home_flag}{' '.join(_envs)} \\\n    "
         )
         return f"{reexport}\n{prefix}" if reexport else prefix
 

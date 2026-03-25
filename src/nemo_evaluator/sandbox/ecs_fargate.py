@@ -533,7 +533,7 @@ EXEC_SERVER_SCRIPT = r'''#!/usr/bin/env python3
 """Zero-dependency HTTP exec server for sandbox containers."""
 from __future__ import annotations
 import base64, json, os, subprocess
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 _PORT = int(os.environ.get("TB_EXEC_PORT", "19542"))
 _BIND = os.environ.get("TB_EXEC_BIND", "127.0.0.1")
@@ -605,7 +605,7 @@ class _H(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(p)))
         self.end_headers(); self.wfile.write(p)
 if __name__ == "__main__":
-    s = HTTPServer((_BIND, _PORT), _H)
+    s = ThreadingHTTPServer((_BIND, _PORT), _H)
     print(f"exec_server on {_BIND}:{_PORT}", flush=True)
     try: s.serve_forever()
     except KeyboardInterrupt: pass
