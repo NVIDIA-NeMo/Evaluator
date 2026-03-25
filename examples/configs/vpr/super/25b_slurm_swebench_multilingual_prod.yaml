@@ -56,8 +56,8 @@ services:
     node_pool: gpu
 
 benchmarks:
-  - name: harbor://swebench-verified@1.0
-    max_concurrent: 50
+  - name: swebench-multilingual
+    max_concurrent: 30
     timeout: 10800.0
     #max_problems: 50  # uncomment for smoke-testing
     solver:
@@ -78,7 +78,7 @@ benchmarks:
       log_stream_prefix: swebench-super
       ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
       timeout: 10800.0
-      concurrency: 50
+      concurrency: 30
 
 cluster:
   type: slurm

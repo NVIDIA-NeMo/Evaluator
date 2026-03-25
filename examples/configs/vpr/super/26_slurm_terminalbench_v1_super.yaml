@@ -87,6 +87,7 @@ cluster:
     AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     AWS_DEFAULT_REGION: us-west-2
     LLM_API_KEY: "no-key-needed"
+  sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
   mount_home: false
   node_pools:
     gpu:

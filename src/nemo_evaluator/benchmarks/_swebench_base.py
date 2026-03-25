@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import subprocess
@@ -43,6 +44,131 @@ def _instance_id_to_image(instance_id: str, template: str = SWEBENCH_IMAGE_TEMPL
     return template.format(instance_id=safe_id)
 
 
+def swebench_codebuild_buildspec(
+    specs: list[ImageSpec],
+    ecr_repo: str,
+    ecr_region: str | None,
+    dockerhub_secret_arn: str | None = None,
+    *,
+    dataset_name: str = "SWE-bench/SWE-bench",
+) -> str:
+    """Generate a CodeBuild buildspec that builds swebench images and pushes to ECR.
+
+    Used as a fallback when the local Docker daemon is unavailable (e.g. SLURM).
+    CodeBuild runs in privileged mode so the swebench harness can build Docker
+    images remotely.
+    """
+    instance_ids = [s.source["instance_id"] for s in specs]
+    ids_json = json.dumps(instance_ids)
+    ecr_registry = ecr_repo.split("/")[0]
+
+    region_flag = ecr_region or "$AWS_DEFAULT_REGION"
+    pre_build_cmds = [
+        f"aws ecr get-login-password --region {region_flag}"
+        f" | docker login --username AWS --password-stdin {ecr_registry}",
+    ]
+    if dockerhub_secret_arn:
+        pre_build_cmds.append(
+            f"DOCKERHUB_CREDS=$(aws secretsmanager get-secret-value"
+            f" --secret-id {dockerhub_secret_arn}"
+            f" --query SecretString --output text --region $AWS_DEFAULT_REGION)"
+            f' && DH_USER=$(echo "$DOCKERHUB_CREDS" | python3 -c'
+            """ "import sys,json;print(json.load(sys.stdin)['username'])")"""
+            f' && if [ -n "$DH_USER" ]; then echo "$DOCKERHUB_CREDS" | python3 -c'
+            """ "import sys,json;print(json.load(sys.stdin)['password'])" """
+            f'| docker login -u "$DH_USER" --password-stdin; fi'
+            f' || echo "Docker Hub login failed — continuing without auth"'
+        )
+
+    pre_yaml = "\n".join(f"      - {c}" for c in pre_build_cmds)
+
+    # The build script is a self-contained Python program that:
+    # 1. Builds env + instance images via the swebench harness
+    # 2. Tags each with the _sanitize_id ECR convention
+    # 3. Pushes to ECR
+    build_script = f"""\
+import json, re, subprocess, sys
+
+instance_ids = json.loads('''{ids_json}''')
+ecr_repo = '{ecr_repo}'
+dataset_name = '{dataset_name}'
+
+def sanitize(s, max_len=100):
+    return re.sub(r'[^a-zA-Z0-9-]+', '-', s).strip('-')[:max_len] or 'task'
+
+def image_name(iid):
+    safe = iid.replace('/', '__').replace(':', '_')
+    return f'swebench/sweb.eval.x86_64.{{safe}}:latest'
+
+print(f'Building {{len(instance_ids)}} SWE-bench images from {{dataset_name}}', flush=True)
+
+try:
+    import docker
+    from swebench.harness.docker_build import build_env_images, build_instance_images
+    from swebench.harness.utils import load_swebench_dataset
+except ImportError:
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'swebench', 'docker', 'datasets'])
+    import docker
+    from swebench.harness.docker_build import build_env_images, build_instance_images
+    from swebench.harness.utils import load_swebench_dataset
+
+client = docker.from_env()
+dataset = load_swebench_dataset(name=dataset_name, instance_ids=instance_ids)
+
+print('Building env images...', flush=True)
+build_env_images(client=client, dataset=dataset, max_workers=4,
+                 instance_image_tag='latest', env_image_tag='latest')
+print('Building instance images...', flush=True)
+build_instance_images(client=client, dataset=dataset, max_workers=4,
+                      tag='latest', env_image_tag='latest')
+
+# Re-tag from swebench local names to hub-style names
+for iid in instance_ids:
+    safe = iid.replace('/', '__').replace(':', '_')
+    local = f'sweb.eval.x86_64.{{safe}}:latest'
+    hub = f'swebench/sweb.eval.x86_64.{{safe}}:latest'
+    subprocess.run(['docker', 'tag', local, hub], check=False,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+# Tag and push to ECR
+failed = 0
+for i, iid in enumerate(instance_ids, 1):
+    local = image_name(iid)
+    tag = sanitize(local)
+    ecr_url = f'{{ecr_repo}}:{{tag}}'
+    print(f'  [{{i}}/{{len(instance_ids)}}] {{iid}} -> {{tag}}', flush=True)
+    subprocess.run(['docker', 'tag', local, ecr_url], check=True)
+    r = subprocess.run(['docker', 'push', ecr_url], capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f'    FAILED: {{r.stderr.strip()[:200]}}')
+        failed += 1
+
+if failed:
+    print(f'WARNING: {{failed}}/{{len(instance_ids)}} pushes failed')
+    sys.exit(1)
+print(f'Done: {{len(instance_ids)}} images pushed to ECR')
+"""
+
+    # Base64-encode the script to avoid YAML/shell escaping issues
+    import base64
+
+    encoded_script = base64.b64encode(build_script.encode()).decode()
+
+    return (
+        "version: 0.2\n"
+        "phases:\n"
+        "  install:\n"
+        "    commands:\n"
+        "      - pip3 install swebench docker datasets\n"
+        "  pre_build:\n"
+        "    commands:\n"
+        f"{pre_yaml}\n"
+        "  build:\n"
+        "    commands:\n"
+        f"      - echo '{encoded_script}' | base64 -d | python3\n"
+    )
+
+
 def swebench_image_build_request(
     rows: list[dict[str, Any]],
     *,
@@ -60,7 +186,25 @@ def swebench_image_build_request(
     def _docker_build(specs: list[ImageSpec]) -> None:
         _build_swebench_docker(specs, dataset_name=dataset_name)
 
-    return ImageBuildRequest(specs=specs, docker_build_fn=_docker_build)
+    def _codebuild_buildspec(
+        specs: list[ImageSpec],
+        ecr_repo: str,
+        ecr_region: str,
+        dockerhub_secret_arn: str | None = None,
+    ) -> str:
+        return swebench_codebuild_buildspec(
+            specs,
+            ecr_repo,
+            ecr_region,
+            dockerhub_secret_arn,
+            dataset_name=dataset_name,
+        )
+
+    return ImageBuildRequest(
+        specs=specs,
+        docker_build_fn=_docker_build,
+        codebuild_buildspec_fn=_codebuild_buildspec,
+    )
 
 
 def _build_swebench_docker(

@@ -94,7 +94,7 @@ cluster:
   hostname: oci-hsg-cs-001-login-01.nvidia.com
   account: llmservice_nemotron_ultra
   walltime: "04:00:00"
-  eval_image: gitlab-master.nvidia.com:5005/dl/JoC/competitive_evaluation/nemo-evaluator-next:latest-harbor
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260324-194843-dad5bc91-harbor-amd64
   sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
   sbatch_extra_flags:
     switches: 1

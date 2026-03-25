@@ -93,7 +93,11 @@ def resolve_ecs_config_from_ssm(
     ssm = boto3.client("ssm", region_name=region)
     param_name = f"/{project}/ecs-sandbox/config"
     try:
-        resp = ssm.get_parameter(Name=param_name)
+        resp = _retry_with_backoff(
+            lambda: ssm.get_parameter(Name=param_name),
+            operation_name="ssm.get_parameter",
+            max_retries=5,
+        )
     except ClientError as exc:
         code = (exc.response.get("Error") or {}).get("Code", "")
         if code == "ParameterNotFound":
@@ -267,7 +271,11 @@ def download_secret_to_file(secret_arn: str, region: str | None = None) -> str:
 def download_secret_to_string(secret_arn: str, region: str | None = None) -> str:
     boto3, *_ = _require_aws_sdks()
     sm = boto3.client("secretsmanager", region_name=region)
-    return sm.get_secret_value(SecretId=secret_arn)["SecretString"]
+    return _retry_with_backoff(
+        lambda: sm.get_secret_value(SecretId=secret_arn)["SecretString"],
+        operation_name="secretsmanager.get_secret_value",
+        max_retries=5,
+    )
 
 
 # ── SSH tunnel ───────────────────────────────────────────────────────
@@ -753,7 +761,11 @@ class ImageBuilder:
         ecr = boto3.client("ecr", region_name=ecr_region)
         repo_name = ecr_repository.split("/", 1)[1] if "/" in ecr_repository else ecr_repository
         try:
-            ecr.describe_images(repositoryName=repo_name, imageIds=[{"imageTag": tag}])
+            _retry_with_backoff(
+                lambda: ecr.describe_images(repositoryName=repo_name, imageIds=[{"imageTag": tag}]),
+                operation_name="ecr.describe_images",
+                max_retries=5,
+            )
             return True
         except ClientError as exc:
             code = exc.response.get("Error", {}).get("Code", "")
@@ -781,8 +793,9 @@ class ImageBuilder:
         ecr_region = ImageBuilder._ecr_region(ecr_repository, fallback=region)
         ecr = boto3.client("ecr", region_name=ecr_region)
         repo_name = ecr_repository.split("/", 1)[1] if "/" in ecr_repository else ecr_repository
-        tags: set[str] = set()
-        try:
+
+        def _fetch_all_tags() -> set[str]:
+            tags: set[str] = set()
             paginator = ecr.get_paginator("list_images")
             for page in paginator.paginate(
                 repositoryName=repo_name,
@@ -791,11 +804,37 @@ class ImageBuilder:
                 for img_id in page.get("imageIds", []):
                     if tag := img_id.get("imageTag"):
                         tags.add(tag)
+            return tags
+
+        try:
+            return _retry_with_backoff(_fetch_all_tags, operation_name="ecr.list_images", max_retries=5)
         except ClientError as exc:
             if exc.response.get("Error", {}).get("Code") == "RepositoryNotFoundException":
                 return set()
             raise
-        return tags
+
+    @staticmethod
+    def ecr_docker_login(ecr_repository: str, region: str | None = None) -> None:
+        """Authenticate the local Docker daemon against an ECR registry."""
+        ecr_region = ImageBuilder._ecr_region(ecr_repository, fallback=region)
+        registry = ecr_repository.split("/")[0]
+        region_flag = f" --region {ecr_region}" if ecr_region else ""
+        cmd = f"aws ecr get-login-password{region_flag} | docker login --username AWS --password-stdin {registry}"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"ECR docker login failed: {result.stderr.strip()}")
+        logger.info("ECR docker login succeeded for %s", registry)
+
+    @staticmethod
+    def docker_push_to_ecr(local_image: str, ecr_repository: str, tag: str) -> str:
+        """Tag a local Docker image and push it to ECR. Returns the ECR URL."""
+        ecr_url = f"{ecr_repository}:{tag}"
+        subprocess.run(["docker", "tag", local_image, ecr_url], check=True, capture_output=True)
+        result = subprocess.run(["docker", "push", ecr_url], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"docker push {ecr_url} failed: {result.stderr.strip()}")
+        logger.info("Pushed %s -> %s", local_image, ecr_url)
+        return ecr_url
 
     @classmethod
     def ensure_image_built(cls, *, cfg: EcsFargateConfig, environment_name: str, force_build: bool = False) -> str:
@@ -854,7 +893,12 @@ class ImageBuilder:
         s3 = boto3.client("s3", region_name=cfg.region)
         s3_prefix = cfg.s3_prefix or "ecs-sandbox"
         s3_key = f"{s3_prefix}/codebuild/{environment_name}-{nonce}.zip"
-        s3.put_object(Bucket=cfg.s3_bucket, Key=s3_key, Body=buf.read())
+        body = buf.read()
+        _retry_with_backoff(
+            lambda: s3.put_object(Bucket=cfg.s3_bucket, Key=s3_key, Body=body),
+            operation_name="s3.put_object(build_context)",
+            max_retries=5,
+        )
         return s3_key
 
     @staticmethod
@@ -866,18 +910,22 @@ class ImageBuilder:
             raise RuntimeError("codebuild_project or codebuild_service_role is required")
         project_name = f"ecs-sandbox-build-{nonce}"
         try:
-            cb.create_project(
-                name=project_name,
-                source={"type": "NO_SOURCE", "buildspec": "version: 0.2"},
-                artifacts={"type": "NO_ARTIFACTS"},
-                environment={
-                    "type": "LINUX_CONTAINER",
-                    "image": "aws/codebuild/amazonlinux-x86_64-standard:5.0",
-                    "computeType": cfg.codebuild_compute_type,
-                    "privilegedMode": True,
-                },
-                serviceRole=cfg.codebuild_service_role,
-                timeoutInMinutes=cfg.codebuild_build_timeout,
+            _retry_with_backoff(
+                lambda: cb.create_project(
+                    name=project_name,
+                    source={"type": "NO_SOURCE", "buildspec": "version: 0.2"},
+                    artifacts={"type": "NO_ARTIFACTS"},
+                    environment={
+                        "type": "LINUX_CONTAINER",
+                        "image": "aws/codebuild/amazonlinux-x86_64-standard:5.0",
+                        "computeType": cfg.codebuild_compute_type,
+                        "privilegedMode": True,
+                    },
+                    serviceRole=cfg.codebuild_service_role,
+                    timeoutInMinutes=cfg.codebuild_build_timeout,
+                ),
+                operation_name="codebuild.create_project",
+                max_retries=5,
             )
         except ClientError as e:
             if "already exists" not in str(e).lower():
@@ -919,8 +967,14 @@ class ImageBuilder:
     @staticmethod
     def _poll_codebuild(cb: Any, build_id: str, image_url: str) -> None:
         while True:
-            time.sleep(10)
-            build = cb.batch_get_builds(ids=[build_id])["builds"][0]
+            time.sleep(10 + random.uniform(0, 5))
+            build = _retry_with_backoff(
+                lambda: cb.batch_get_builds(ids=[build_id])["builds"][0],
+                operation_name=f"BatchGetBuilds({build_id})",
+                max_retries=8,
+                base_delay=2.0,
+                max_delay=120.0,
+            )
             status = build["buildStatus"]
             if status == "SUCCEEDED":
                 logger.info("CodeBuild succeeded: %s", build_id)
@@ -943,20 +997,65 @@ class ImageBuilder:
         cb = boto3.client("codebuild", region_name=cfg.region)
         project_name = cls._resolve_codebuild_project(cfg, cb, nonce)
         buildspec = cls._generate_buildspec(cfg, repo_name, tag, image_url)
-        resp = cb.start_build(
-            projectName=project_name,
-            sourceTypeOverride="S3",
-            sourceLocationOverride=f"{cfg.s3_bucket}/{s3_key}",
-            buildspecOverride=buildspec,
-            timeoutInMinutesOverride=cfg.codebuild_build_timeout,
-            privilegedModeOverride=True,
-            environmentTypeOverride="LINUX_CONTAINER",
-            imageOverride="aws/codebuild/amazonlinux-x86_64-standard:5.0",
-            computeTypeOverride=cfg.codebuild_compute_type,
+        resp = _retry_with_backoff(
+            lambda: cb.start_build(
+                projectName=project_name,
+                sourceTypeOverride="S3",
+                sourceLocationOverride=f"{cfg.s3_bucket}/{s3_key}",
+                buildspecOverride=buildspec,
+                timeoutInMinutesOverride=cfg.codebuild_build_timeout,
+                privilegedModeOverride=True,
+                environmentTypeOverride="LINUX_CONTAINER",
+                imageOverride="aws/codebuild/amazonlinux-x86_64-standard:5.0",
+                computeTypeOverride=cfg.codebuild_compute_type,
+            ),
+            operation_name="codebuild.start_build",
+            max_retries=5,
         )
         build_id = resp["build"]["id"]
         logger.info("CodeBuild started: %s", build_id)
         cls._poll_codebuild(cb, build_id, image_url)
+
+    @classmethod
+    def run_buildspec_via_codebuild(
+        cls,
+        *,
+        cfg: EcsFargateConfig,
+        buildspec: str,
+        job_label: str = "harness-build",
+        timeout_minutes: int | None = None,
+    ) -> None:
+        """Run an arbitrary buildspec via CodeBuild (privileged mode for DinD).
+
+        Unlike :meth:`_build_and_push` which uploads a Dockerfile context to S3,
+        this method uses ``NO_SOURCE`` — the buildspec is fully self-contained
+        (e.g. it installs packages and runs a harness that builds Docker images
+        internally).
+        """
+        boto3, *_ = _require_aws_sdks()
+        nonce = uuid.uuid4().hex[:8]
+        cb = boto3.client("codebuild", region_name=cfg.region)
+        project_name = cls._resolve_codebuild_project(cfg, cb, nonce)
+        timeout = timeout_minutes or cfg.codebuild_build_timeout
+
+        logger.info("Starting CodeBuild harness build: %s (timeout=%dm)", job_label, timeout)
+        resp = _retry_with_backoff(
+            lambda: cb.start_build(
+                projectName=project_name,
+                sourceTypeOverride="NO_SOURCE",
+                buildspecOverride=buildspec,
+                timeoutInMinutesOverride=timeout,
+                privilegedModeOverride=True,
+                environmentTypeOverride="LINUX_CONTAINER",
+                imageOverride="aws/codebuild/amazonlinux-x86_64-standard:5.0",
+                computeTypeOverride=cfg.codebuild_compute_type,
+            ),
+            operation_name="codebuild.start_build(harness)",
+            max_retries=5,
+        )
+        build_id = resp["build"]["id"]
+        logger.info("CodeBuild harness build started: %s (build=%s)", job_label, build_id)
+        cls._poll_codebuild(cb, build_id, job_label)
 
 
 # ── Core sandbox ─────────────────────────────────────────────────────
@@ -1215,6 +1314,8 @@ class EcsFargateSandbox:
                     f"metadata) instead of ecs.image_template for task-specific "
                     f"placeholders like {{task_id}}."
                 ) from exc
+        if cfg.ecr_repository and self._spec.image:
+            return f"{cfg.ecr_repository}:{_sanitize_id(self._spec.image)}"
         if self._spec.image:
             return self._spec.image
         if not cfg.task_definition:
@@ -1254,7 +1355,11 @@ class EcsFargateSandbox:
         s3 = boto3.client("s3", region_name=cfg.region)
         prefix = cfg.s3_prefix or "ecs-sandbox"
         key = f"{prefix}/{self._run_id}-{_PROCESS_NONCE}/_exec_server/exec_server.py"
-        s3.put_object(Bucket=cfg.s3_bucket, Key=key, Body=EXEC_SERVER_SCRIPT.encode())
+        _retry_with_backoff(
+            lambda: s3.put_object(Bucket=cfg.s3_bucket, Key=key, Body=EXEC_SERVER_SCRIPT.encode()),
+            operation_name="s3.put_object(exec_server)",
+            max_retries=5,
+        )
         url = s3.generate_presigned_url("get_object", Params={"Bucket": cfg.s3_bucket, "Key": key}, ExpiresIn=21600)
         _exec_server_url_cache[cache_key] = url
         logger.info("Uploaded exec server → s3://%s/%s", cfg.s3_bucket, key)
@@ -1331,7 +1436,11 @@ class EcsFargateSandbox:
         base: dict[str, Any] | None = None
         if cfg.task_definition:
             try:
-                base = self._ecs.describe_task_definition(taskDefinition=cfg.task_definition)["taskDefinition"]
+                base = _retry_with_backoff(
+                    lambda: self._ecs.describe_task_definition(taskDefinition=cfg.task_definition)["taskDefinition"],
+                    operation_name="ecs.describe_task_definition",
+                    max_retries=5,
+                )
             except ClientError as exc:
                 if exc.response.get("Error", {}).get("Code") == "ClientException":
                     logger.warning("Base task definition %s not found, registering from scratch", cfg.task_definition)
@@ -1777,7 +1886,12 @@ class EcsFargateSandbox:
         prefix = cfg.s3_prefix or "ecs-sandbox"
         nonce = uuid.uuid4().hex[:12]
         key = f"{prefix}/{self._run_id}/upload-{nonce}.tar.gz"
-        s3.put_object(Bucket=cfg.s3_bucket, Key=key, Body=buf.read())
+        body = buf.read()
+        _retry_with_backoff(
+            lambda: s3.put_object(Bucket=cfg.s3_bucket, Key=key, Body=body),
+            operation_name="s3.put_object(upload)",
+            max_retries=5,
+        )
         url = s3.generate_presigned_url("get_object", Params={"Bucket": cfg.s3_bucket, "Key": key}, ExpiresIn=21600)
         dl_cmd = (
             f"mkdir -p {shlex.quote(dest_dir)} && TGZ=/tmp/_upload_$$.tar.gz && "

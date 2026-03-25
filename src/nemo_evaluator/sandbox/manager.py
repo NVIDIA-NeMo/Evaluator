@@ -145,7 +145,22 @@ class SandboxManager:
             if self._backend == "ecs_fargate":
                 ecs_cfg = self._backend_kwargs.get("ecs_config")
                 if ecs_cfg and getattr(ecs_cfg, "ecr_repository", None):
-                    await self._provision_ecs_codebuild(req, ecs_cfg)
+                    codebuild_specs = [s for s in req.specs if s.source.get("task_dir")]
+                    fallback_specs = [s for s in req.specs if not s.source.get("task_dir")]
+                    if codebuild_specs:
+                        await self._provision_ecs_codebuild(
+                            ImageBuildRequest(specs=codebuild_specs),
+                            ecs_cfg,
+                        )
+                    if fallback_specs:
+                        await self._provision_ecs_local_push(
+                            ImageBuildRequest(
+                                specs=fallback_specs,
+                                docker_build_fn=req.docker_build_fn,
+                                codebuild_buildspec_fn=req.codebuild_buildspec_fn,
+                            ),
+                            ecs_cfg,
+                        )
                     continue
                 logger.info(
                     "All %d images assumed available for ecs_fargate backend "
@@ -205,7 +220,6 @@ class SandboxManager:
         for spec in req.specs:
             task_dir = spec.source.get("task_dir")
             if not task_dir:
-                logger.warning("ImageSpec %s has no task_dir in source — skipping ECR build", spec.image)
                 continue
             env_dir = str(Path(task_dir) / "environment")
             if not Path(env_dir).is_dir():
@@ -254,6 +268,181 @@ class SandboxManager:
                 )
 
         await asyncio.gather(*[_build_one(s, d) for s, d in to_build])
+
+    async def _provision_ecs_local_push(
+        self,
+        req: ImageBuildRequest,
+        ecs_cfg: Any,
+    ) -> None:
+        """Build images locally via docker_build_fn and push to ECR.
+
+        Mirrors the non-ECS provisioning flow (docker_build_fn → format
+        conversion) but targets ECR as the destination.  Used for benchmarks
+        like SWE-bench that build Docker images programmatically rather than
+        from a task_dir/Dockerfile.
+        """
+        from nemo_evaluator.sandbox.ecs_fargate import ImageBuilder, _sanitize_id
+
+        ecr_repo: str = ecs_cfg.ecr_repository
+        loop = asyncio.get_running_loop()
+
+        tag_map: dict[str, str] = {spec.image: _sanitize_id(spec.image) for spec in req.specs}
+
+        existing_tags = await loop.run_in_executor(
+            None,
+            ImageBuilder.list_ecr_tags,
+            ecr_repo,
+            ecs_cfg.region,
+        )
+
+        missing = [s for s in req.specs if tag_map[s.image] not in existing_tags]
+        cached = len(req.specs) - len(missing)
+        if cached:
+            logger.info("ECR cache hit for %d/%d images (local-push path)", cached, len(req.specs))
+
+        if not missing:
+            logger.info("All %d images cached in ECR — no build needed", len(req.specs))
+            return
+
+        if not req.docker_build_fn:
+            logger.info(
+                "%d images have no task_dir and no docker_build_fn — assuming they exist in a public registry",
+                len(missing),
+            )
+            return
+
+        if not await self._docker_daemon_available():
+            if req.codebuild_buildspec_fn:
+                await self._provision_ecs_codebuild_harness(
+                    ImageBuildRequest(
+                        specs=missing,
+                        codebuild_buildspec_fn=req.codebuild_buildspec_fn,
+                    ),
+                    ecs_cfg,
+                )
+                return
+            raise RuntimeError(
+                f"Docker daemon required to build {len(missing)} images "
+                f"locally before pushing to ECR, but is not available. "
+                f"Hint: provide codebuild_buildspec_fn on ImageBuildRequest "
+                f"to enable remote building via CodeBuild."
+            )
+
+        logger.info("Building %d images locally via docker_build_fn", len(missing))
+        docker_missing = [s for s in missing if not await self._docker_exists_async(s.image)]
+        if docker_missing:
+            await loop.run_in_executor(None, req.docker_build_fn, docker_missing)
+
+        logger.info("Logging into ECR %s", ecr_repo.split("/")[0])
+        await loop.run_in_executor(
+            None,
+            ImageBuilder.ecr_docker_login,
+            ecr_repo,
+            ecs_cfg.region,
+        )
+
+        logger.info("Pushing %d images to ECR", len(missing))
+        sem = asyncio.Semaphore(min(self._concurrency, 10))
+
+        async def _push_one(spec: Any) -> None:
+            async with sem:
+                tag = tag_map[spec.image]
+                try:
+                    await loop.run_in_executor(
+                        None,
+                        ImageBuilder.docker_push_to_ecr,
+                        spec.image,
+                        ecr_repo,
+                        tag,
+                    )
+                except Exception:
+                    logger.exception("Failed to push %s to ECR", spec.image)
+
+        await asyncio.gather(*[_push_one(s) for s in missing])
+
+    async def _provision_ecs_codebuild_harness(
+        self,
+        req: ImageBuildRequest,
+        ecs_cfg: Any,
+    ) -> None:
+        """Build images via CodeBuild when the local Docker daemon is unavailable.
+
+        The benchmark's ``codebuild_buildspec_fn`` generates a self-contained
+        buildspec that installs build tools, builds Docker images inside
+        CodeBuild (which has privileged/DinD support), and pushes them to ECR.
+
+        Images are batched to stay within CodeBuild timeout limits; batches
+        run in parallel up to ``build_parallelism``.
+        """
+        from nemo_evaluator.sandbox.ecs_fargate import ImageBuilder, _sanitize_id
+
+        assert req.codebuild_buildspec_fn is not None
+
+        ecr_repo: str = ecs_cfg.ecr_repository
+        ecr_region = ImageBuilder._ecr_region(ecr_repo, fallback=ecs_cfg.region)
+        dockerhub_secret_arn = getattr(ecs_cfg, "dockerhub_secret_arn", None)
+        loop = asyncio.get_running_loop()
+
+        tag_map = {s.image: _sanitize_id(s.image) for s in req.specs}
+
+        existing_tags = await loop.run_in_executor(
+            None,
+            ImageBuilder.list_ecr_tags,
+            ecr_repo,
+            ecs_cfg.region,
+        )
+
+        missing = [s for s in req.specs if tag_map[s.image] not in existing_tags]
+        cached = len(req.specs) - len(missing)
+        if cached:
+            logger.info(
+                "ECR cache hit for %d/%d images (codebuild-harness path)",
+                cached,
+                len(req.specs),
+            )
+        if not missing:
+            logger.info("All %d images cached in ECR — no CodeBuild needed", len(req.specs))
+            return
+
+        batch_size = 15
+        batches = [missing[i : i + batch_size] for i in range(0, len(missing), batch_size)]
+        parallelism = min(
+            len(batches),
+            getattr(ecs_cfg, "build_parallelism", 50),
+        )
+        logger.info(
+            "Building %d images via CodeBuild harness (%d batches, parallelism=%d)",
+            len(missing),
+            len(batches),
+            parallelism,
+        )
+
+        sem = asyncio.Semaphore(parallelism)
+
+        async def _build_batch(batch_idx: int, specs: list) -> None:
+            async with sem:
+                buildspec = req.codebuild_buildspec_fn(
+                    specs,
+                    ecr_repo,
+                    ecr_region,
+                    dockerhub_secret_arn,
+                )
+                label = f"harness-batch-{batch_idx + 1}-of-{len(batches)}"
+                await loop.run_in_executor(
+                    None,
+                    lambda bs=buildspec, lb=label: ImageBuilder.run_buildspec_via_codebuild(
+                        cfg=ecs_cfg,
+                        buildspec=bs,
+                        job_label=lb,
+                    ),
+                )
+
+        await asyncio.gather(*[_build_batch(i, batch) for i, batch in enumerate(batches)])
+        logger.info(
+            "CodeBuild harness provisioning complete: %d images across %d batches",
+            len(missing),
+            len(batches),
+        )
 
     # ------------------------------------------------------------------
     # Image availability checks (async — safe for the event loop)
