@@ -161,6 +161,8 @@ def _build_ecs_sandbox_config(cfg: EcsFargateSandbox) -> Any:
         ecr_repository=ecr_repository,
         codebuild_project=cfg.codebuild_project,
         codebuild_service_role=codebuild_service_role,
+        codebuild_build_timeout=cfg.codebuild_build_timeout or 60,
+        codebuild_compute_type=cfg.codebuild_compute_type or "BUILD_GENERAL1_MEDIUM",
         dockerhub_secret_arn=dockerhub_secret_arn,
         efs_filesystem_id=efs_filesystem_id,
         efs_access_point_id=efs_access_point_id,

@@ -184,7 +184,7 @@ class EcsFargateConfig:
     codebuild_project: str | None = None
     codebuild_service_role: str | None = None
     codebuild_compute_type: str = "BUILD_GENERAL1_MEDIUM"
-    codebuild_build_timeout: int = 30
+    codebuild_build_timeout: int = 60
     dockerhub_secret_arn: str | None = None
     build_parallelism: int = 50
     efs_filesystem_id: str | None = None
@@ -559,7 +559,7 @@ class _H(BaseHTTPRequestHandler):
         if not cmd: self._err(400, "missing 'cmd'"); return
         t = b.get("timeout", 300)
         try:
-            cp = subprocess.run(cmd, shell=True, capture_output=True, timeout=t)
+            cp = subprocess.run(cmd, shell=True, executable="/bin/bash", capture_output=True, timeout=t)
             self._ok({"stdout": cp.stdout.decode("utf-8", errors="replace"),
                        "stderr": cp.stderr.decode("utf-8", errors="replace"),
                        "rc": cp.returncode})

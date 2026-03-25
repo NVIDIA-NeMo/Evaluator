@@ -74,6 +74,7 @@ benchmarks:
       memory: "8192"
       ephemeral_storage_gib: 50
       max_task_lifetime_sec: 14400
+      codebuild_build_timeout: 60
       log_stream_prefix: swebench-pro
       ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
       timeout: 10800.0
@@ -84,7 +85,7 @@ cluster:
   hostname: cw-dfw-cs-001-login-01
   account: coreai_dlalgo_compeval
   walltime: "04:00:00"
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260325-112812-74ae697c-harbor-amd64
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260325-121235-6bd93de9-harbor-amd64
   container_mounts:
     - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
   container_env:
