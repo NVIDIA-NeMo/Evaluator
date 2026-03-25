@@ -1883,7 +1883,7 @@ class TestSlurmExecutorSystemCalls:
             cmd = " ".join(cmd_list) if isinstance(cmd_list, list) else str(cmd_list)
 
             # Mock SSH master connection failure
-            if "ssh -MNf -S" in cmd:
+            if "ControlMaster=auto" in cmd:
                 return Mock(returncode=1)  # Connection failed
 
             # Mock sbatch command (even though SSH failed, we still need to handle sbatch calls)
@@ -2312,7 +2312,7 @@ class TestSlurmExecutorSystemCalls:
                 username="testuser", hostname="slurm.example.com", socket="/tmp/socket"
             )
 
-    def test_close_master_connection_failure(self):
+    def test_close_master_connection_failure(self, caplog):
         """Test close_master_connection with failed connection close."""
         from nemo_evaluator_launcher.common.ssh_utils import close_master_connection
 
@@ -2321,14 +2321,14 @@ class TestSlurmExecutorSystemCalls:
             return Mock(returncode=1, stderr=b"ssh: connection failed\n")
 
         with patch("subprocess.run", side_effect=mock_subprocess_run):
-            with pytest.raises(
-                RuntimeError, match="failed to close the master connection"
-            ):
-                close_master_connection(
-                    username="testuser",
-                    hostname="slurm.example.com",
-                    socket="/tmp/socket",
-                )
+            # close_master_connection logs an error but does not raise on failure
+            close_master_connection(
+                username="testuser",
+                hostname="slurm.example.com",
+                socket="/tmp/socket",
+            )
+
+        assert "Failed to close the master connection" in caplog.text
 
     def test_close_master_connection_none_socket(self):
         """Test close_master_connection with None socket (should do nothing)."""
