@@ -631,7 +631,7 @@ def _service_block(
             f" {model_flag} {model_for_cmd}" if model_flag else f" {model_for_cmd}" if model_for_cmd else ""
         )
         served_name_flag = (
-            f" --served-model-name {shlex.quote(model_api_name)}" if model_api_name != model_for_cmd else ""
+            f"--served-model-name {shlex.quote(model_api_name)} " if model_api_name != model_for_cmd else ""
         )
         main_cmd = f"{cmd}{model_flag_part} --port {svc.port} {tp_flag}{dp_flag}{served_name_flag}{extra}"
 
