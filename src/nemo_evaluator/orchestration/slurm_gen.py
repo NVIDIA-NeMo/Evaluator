@@ -610,7 +610,7 @@ def _service_block(
             )
         tp_flag = f"{tp_flag_name} {svc.tensor_parallel_size} " if svc.tensor_parallel_size else ""
         dp_flag = f"{dp_flag_name} {svc.data_parallel_size} " if svc.data_parallel_size else ""
-        extra = " ".join(svc.extra_args)
+        extra = " ".join(a.replace('"', '\\"') for a in svc.extra_args)
         cuda = ""
         if svc.gpus and isinstance(svc.gpus, list):
             cuda = f"CUDA_VISIBLE_DEVICES={','.join(str(g) for g in svc.gpus)} "
