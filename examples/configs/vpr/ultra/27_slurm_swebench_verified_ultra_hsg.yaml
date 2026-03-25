@@ -18,6 +18,7 @@ services:
   nemotron-ultra:
     type: vllm
     model: /lustre/fsw/portfolios/coreai/users/gchlebus/shared/ultra-v3-sft-bf16-hybridep-ep64-cp32-bindpcie-recompute-offload-mar13-blend-512k-filt-1e-5-iter_0001900-hf
+    model_name: nemotron-ultra
     protocol: chat_completions
     port: 5000
     tensor_parallel_size: 8

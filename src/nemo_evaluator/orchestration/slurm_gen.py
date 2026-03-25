@@ -607,6 +607,8 @@ def _service_block(
             model_for_cmd = "/model"
             model_mount = [f"{svc.model}:/model:ro"]
 
+        model_api_name = getattr(svc, "model_name", None) or model_for_cmd
+
         srun_prefix = ""
         if use_containers:
             srun_prefix = _build_srun_prefix(
@@ -628,7 +630,10 @@ def _service_block(
         model_flag_part = (
             f" {model_flag} {model_for_cmd}" if model_flag else f" {model_for_cmd}" if model_for_cmd else ""
         )
-        main_cmd = f"{cmd}{model_flag_part} --port {svc.port} {tp_flag}{dp_flag}{extra}"
+        served_name_flag = (
+            f" --served-model-name {shlex.quote(model_api_name)}" if model_api_name != model_for_cmd else ""
+        )
+        main_cmd = f"{cmd}{model_flag_part} --port {svc.port} {tp_flag}{dp_flag}{served_name_flag}{extra}"
 
         setup_list = getattr(svc, "setup_commands", []) or []
         num_nodes = getattr(svc, "num_nodes", 1)
@@ -661,7 +666,7 @@ def _service_block(
                     name_upper=upper,
                     svc_type=svc.type,
                     service_cmd=ray_service_cmd,
-                    model=model_for_cmd or "",
+                    model=model_api_name or "",
                     port=svc.port,
                     num_nodes=num_nodes,
                     ray_port=6379,
@@ -678,7 +683,7 @@ def _service_block(
                 name_upper=upper,
                 svc_type=svc.type,
                 service_cmd=service_cmd,
-                model=model_for_cmd or "",
+                model=model_api_name or "",
                 port=svc.port,
                 cuda_prefix=cuda,
                 srun_prefix=srun_prefix,
