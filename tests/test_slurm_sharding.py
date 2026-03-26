@@ -1113,6 +1113,154 @@ class TestShardedStatus:
 
 
 # ---------------------------------------------------------------------------
+# Eval progress
+# ---------------------------------------------------------------------------
+
+
+class TestFetchEvalProgress:
+    def test_parse_wc_output_sharded(self):
+        from nemo_evaluator.executors.slurm_executor import _fetch_eval_progress
+
+        ssh_output = (
+            "  45 /run/shard_0/bench/verified_log.jsonl\n"
+            " 100 /run/shard_1/bench/verified_log.jsonl\n"
+            "   0 /run/shard_2/bench/verified_log.jsonl\n"
+            " 145 total\n"
+            "---\n"
+            "eval start: bench problems=100 [0:100] repeats=1 concurrency=30\n"
+        )
+        with patch("nemo_evaluator.executors.ssh.ssh_run", return_value=ssh_output):
+            result = _fetch_eval_progress("host", "/run", shard_count=3, username="u")
+
+        assert result["shard_0"] == (45, 100)
+        assert result["shard_1"] == (100, 100)
+        assert result["shard_2"] == (0, 100)
+
+    def test_no_verified_log_yet(self):
+        from nemo_evaluator.executors.slurm_executor import _fetch_eval_progress
+
+        with patch("nemo_evaluator.executors.ssh.ssh_run", return_value="---\n"):
+            result = _fetch_eval_progress("host", "/run", shard_count=2, username="u")
+
+        assert result == {}
+
+    def test_non_sharded(self):
+        from nemo_evaluator.executors.slurm_executor import _fetch_eval_progress
+
+        ssh_output = (
+            "  42 /run/bench/verified_log.jsonl\n---\neval start: bench problems=500 [0:500] repeats=1 concurrency=30\n"
+        )
+        with patch("nemo_evaluator.executors.ssh.ssh_run", return_value=ssh_output):
+            result = _fetch_eval_progress("host", "/run", username="u")
+
+        assert result == {"root": (42, 500)}
+
+    def test_no_log_yet(self):
+        from nemo_evaluator.executors.slurm_executor import _fetch_eval_progress
+
+        ssh_output = "  15 /run/shard_0/bench/verified_log.jsonl\n---\n\n"
+        with patch("nemo_evaluator.executors.ssh.ssh_run", return_value=ssh_output):
+            result = _fetch_eval_progress("host", "/run", shard_count=1, username="u")
+
+        assert result["shard_0"] == (15, None)
+
+
+class TestProgressLabel:
+    def test_with_expected(self):
+        from nemo_evaluator.executors.slurm_executor import _progress_label
+
+        assert _progress_label(45, 100) == "45/100 (45%)"
+        assert _progress_label(100, 100) == "100/100 (100%)"
+        assert _progress_label(0, 100) == "0/100 (0%)"
+
+    def test_without_expected(self):
+        from nemo_evaluator.executors.slurm_executor import _progress_label
+
+        assert _progress_label(42, None) == "42 verified"
+
+    def test_rounding(self):
+        from nemo_evaluator.executors.slurm_executor import _progress_label
+
+        assert _progress_label(1, 3) == "1/3 (33%)"
+        assert _progress_label(2, 3) == "2/3 (67%)"
+
+
+class TestStatusWithProgress:
+    def _make_meta(self, job_ids):
+        return {
+            "job_id": job_ids[0],
+            "job_ids": job_ids,
+            "hostname": "login01",
+            "remote_dir": "/run/parent",
+            "username": "user",
+            "is_sharded": True,
+        }
+
+    @patch("nemo_evaluator.executors.slurm_executor._read_meta")
+    @patch("nemo_evaluator.executors.slurm_executor._resolve_shard_latest_ids")
+    @patch("nemo_evaluator.executors.ssh.batch_check_job_status")
+    @patch("nemo_evaluator.executors.slurm_executor._fetch_eval_progress")
+    @patch("nemo_evaluator.executors.ssh.ssh_run", return_value="PENDING")
+    def test_sharded_status_shows_progress(self, mock_ssh, mock_progress, mock_batch, mock_latest, mock_meta):
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+
+        job_ids = ["100", "101"]
+        mock_meta.return_value = self._make_meta(job_ids)
+        mock_latest.return_value = job_ids
+        mock_batch.return_value = {
+            "100": {"job_id": "100", "state": "RUNNING", "time": "1:00:00"},
+            "101": {"job_id": "101", "state": "RUNNING", "time": "0:30:00"},
+        }
+        mock_progress.return_value = {
+            "shard_0": (45, 100),
+            "shard_1": (12, 100),
+        }
+
+        state = SlurmExecutor().status("/run/parent")
+
+        assert "progress: 45/100 (45%)" in state.details["shard_0"]
+        assert "progress: 12/100 (12%)" in state.details["shard_1"]
+        assert "progress: 57/200 (28%)" in state.details["shards"]
+
+    @patch("nemo_evaluator.executors.slurm_executor._read_meta")
+    @patch("nemo_evaluator.executors.slurm_executor._resolve_shard_latest_ids")
+    @patch("nemo_evaluator.executors.ssh.batch_check_job_status")
+    @patch("nemo_evaluator.executors.slurm_executor._fetch_eval_progress")
+    @patch("nemo_evaluator.executors.ssh.ssh_run", return_value="PENDING")
+    def test_progress_unavailable_does_not_break_status(
+        self, mock_ssh, mock_progress, mock_batch, mock_latest, mock_meta
+    ):
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+
+        job_ids = ["100", "101"]
+        mock_meta.return_value = self._make_meta(job_ids)
+        mock_latest.return_value = job_ids
+        mock_batch.return_value = {
+            "100": {"job_id": "100", "state": "PENDING"},
+            "101": {"job_id": "101", "state": "PENDING"},
+        }
+        mock_progress.side_effect = Exception("SSH timeout")
+
+        state = SlurmExecutor().status("/run/parent")
+
+        assert "shard_0" in state.details
+        assert "progress" not in state.details["shard_0"]
+
+    @patch("nemo_evaluator.executors.slurm_executor._read_meta")
+    @patch("nemo_evaluator.executors.ssh.check_job_status")
+    @patch("nemo_evaluator.executors.slurm_executor._fetch_eval_progress")
+    def test_non_sharded_status_shows_progress(self, mock_progress, mock_check, mock_meta):
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+
+        mock_meta.return_value = {"job_id": "100", "hostname": "h", "username": ""}
+        mock_check.return_value = {"job_id": "100", "state": "RUNNING"}
+        mock_progress.return_value = {"root": (42, 500)}
+
+        state = SlurmExecutor().status("/out")
+        assert state.details.get("progress") == "42/500 (8%)"
+
+
+# ---------------------------------------------------------------------------
 # Sharded stop
 # ---------------------------------------------------------------------------
 

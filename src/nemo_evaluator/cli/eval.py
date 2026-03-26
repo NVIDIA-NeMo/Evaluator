@@ -253,29 +253,52 @@ def _get_executor_for_run(run_meta):
 @click.option("--output-dir", "-o", default=None)
 @click.option("--job-id", default=None, help="SLURM job ID (legacy)")
 @click.option("--host", default=None, help="SLURM login hostname (legacy)")
-def eval_status(run_id, output_dir, job_id, host):
+@click.option("--watch", "-w", is_flag=True, default=False, help="Refresh every 10s until Ctrl+C")
+def eval_status(run_id, output_dir, job_id, host, watch):
     """Check evaluation status."""
-    if run_id or output_dir or job_id:
-        run_meta = _resolve_run_or_fail(run_id, output_dir, job_id, host)
-        ex = _get_executor_for_run(run_meta)
-        state = ex.status(run_meta.output_dir)
-        click.echo(f"Run:      {run_meta.run_id}")
-        click.echo(f"Executor: {state.executor}")
-        click.echo(f"Running:  {state.running}")
+    import time
+
+    def _fetch_status():
+        if run_id or output_dir or job_id:
+            run_meta = _resolve_run_or_fail(run_id, output_dir, job_id, host)
+            ex = _get_executor_for_run(run_meta)
+            state = ex.status(run_meta.output_dir)
+            lines = [f"Run:      {run_meta.run_id}"]
+        else:
+            from nemo_evaluator.executors import detect_executor
+
+            ex = detect_executor("./eval_results")
+            if ex is None:
+                raise click.ClickException("No evaluation metadata found. Use -r <run_id> or -o <dir>.")
+            state = ex.status("./eval_results")
+            lines = []
+
+        lines += [
+            f"Executor: {state.executor}",
+            f"Running:  {state.running}",
+        ]
         for k, v in state.details.items():
-            click.echo(f"  {k}: {v}")
+            lines.append(f"  {k}: {v}")
+        return state.running, "\n".join(lines)
+
+    if not watch:
+        _, text = _fetch_status()
+        click.echo(text)
         return
 
-    from nemo_evaluator.executors import detect_executor
-
-    ex = detect_executor("./eval_results")
-    if ex is None:
-        raise click.ClickException("No evaluation metadata found. Use -r <run_id> or -o <dir>.")
-    state = ex.status("./eval_results")
-    click.echo(f"Executor: {state.executor}")
-    click.echo(f"Running:  {state.running}")
-    for k, v in state.details.items():
-        click.echo(f"  {k}: {v}")
+    try:
+        while True:
+            still_running, text = _fetch_status()
+            ts = time.strftime("%H:%M:%S")
+            click.clear()
+            click.echo(text)
+            click.echo(f"\n[{ts}] Refreshing in 60s... (Ctrl+C to stop)")
+            if not still_running:
+                click.echo("Run finished.")
+                break
+            time.sleep(60)
+    except KeyboardInterrupt:
+        click.echo()
 
 
 # ---------------------------------------------------------------------------

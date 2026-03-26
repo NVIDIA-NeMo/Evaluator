@@ -110,6 +110,74 @@ def _update_aggregate_meta(remote_dir: str, new_job_ids: list[str]) -> None:
             continue
 
 
+def _fetch_eval_progress(
+    hostname: str,
+    rdir: str,
+    shard_count: int | None = None,
+    username: str | None = None,
+) -> dict[str, tuple[int, int | None]]:
+    """Count verified samples vs expected for each shard via one SSH call."""
+    import re as _re
+
+    from nemo_evaluator.executors.ssh import ssh_run
+
+    qdir = shlex.quote(rdir)
+    if shard_count:
+        glob = f"{qdir}/shard_*"
+    else:
+        glob = qdir
+    cmd = (
+        f"wc -l {glob}/*/*/verified_log.jsonl 2>/dev/null;"
+        f"echo '---';"
+        f"grep -m1 'problems=' {glob}/logs/slurm-*.log 2>/dev/null | head -1"
+    )
+    output = ssh_run(hostname, cmd, username=username, timeout=15.0)
+    sections = output.split("---")
+    wc_out = sections[0] if sections else ""
+    log_out = sections[1].strip() if len(sections) > 1 else ""
+
+    result: dict[str, tuple[int, int | None]] = {}
+    for line in wc_out.strip().splitlines():
+        line = line.strip()
+        if not line or "total" in line:
+            continue
+        parts = line.split(None, 1)
+        if len(parts) < 2:
+            continue
+        try:
+            count = int(parts[0])
+        except ValueError:
+            continue
+        path = parts[1]
+        if shard_count:
+            m = _re.search(r"shard_(\d+)", path)
+            if m:
+                result[f"shard_{m.group(1)}"] = (count, None)
+        else:
+            result["root"] = (count, None)
+
+    per_shard_expected: int | None = None
+    if log_out:
+        m_p = _re.search(r"problems=(\d+)", log_out)
+        m_r = _re.search(r"repeats=(\d+)", log_out)
+        if m_p:
+            per_shard_expected = int(m_p.group(1)) * (int(m_r.group(1)) if m_r else 1)
+
+    if per_shard_expected and per_shard_expected > 0:
+        for key in result:
+            done, _ = result[key]
+            result[key] = (done, per_shard_expected)
+
+    return result
+
+
+def _progress_label(done: int, expected: int | None) -> str:
+    if expected and expected > 0:
+        pct = round(100 * done / expected)
+        return f"{done}/{expected} ({pct}%)"
+    return f"{done} verified"
+
+
 class SlurmExecutor(Executor):
     name = "slurm"
 
@@ -283,6 +351,13 @@ class SlurmExecutor(Executor):
             latest_id = _resolve_latest_job_id(hostname, rdir, job_ids[0] if job_ids else "", username)
             info = check_job_status(hostname=hostname, job_id=latest_id, username=username)
             running = info.get("state", "") in _RUNNING_STATES
+            try:
+                progress = _fetch_eval_progress(hostname, rdir, username=username)
+                if "root" in progress:
+                    done, expected = progress["root"]
+                    info["progress"] = _progress_label(done, expected)
+            except Exception as exc:
+                logger.debug("progress fetch failed: %s", exc)
             return ProcessState("slurm", running, info)
 
         rdir = meta.get("remote_dir", str(output_dir))
@@ -311,7 +386,22 @@ class SlurmExecutor(Executor):
         counts = Counter(states)
         completed = counts.get("COMPLETED", 0)
         summary_parts = [f"{cnt} {st}" for st, cnt in sorted(counts.items())]
-        details = {"shards": f"{completed}/{len(job_ids)} COMPLETED, {', '.join(summary_parts)}", **details}
+        shards_summary = f"{completed}/{len(job_ids)} COMPLETED, {', '.join(summary_parts)}"
+
+        try:
+            progress = _fetch_eval_progress(hostname, rdir, shard_count=len(job_ids), username=username)
+            if progress:
+                for shard_key, (done, expected) in progress.items():
+                    if shard_key in details:
+                        details[shard_key] = f"{details[shard_key]}, progress: {_progress_label(done, expected)}"
+                total_done = sum(d for d, _ in progress.values())
+                exp_vals = [e for _, e in progress.values() if e is not None]
+                total_exp = sum(exp_vals) if exp_vals else None
+                shards_summary += f", progress: {_progress_label(total_done, total_exp)}"
+        except Exception as exc:
+            logger.debug("progress fetch failed: %s", exc)
+
+        details = {"shards": shards_summary, **details}
 
         try:
             from nemo_evaluator.executors.ssh import ssh_run
