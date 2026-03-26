@@ -44,12 +44,21 @@ services:
     generation:
       temperature: 1.0
       top_p: 0.95
-      max_tokens: 131072
     proxy:
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: true
+        skip_special_tokens: false
       interceptors:
         - name: turn_counter
           config:
             max_turns: 100
+        - name: drop_params
+          config:
+            params:
+              - max_tokens
+              - max_completion_tokens
+    max_output_tokens: 131072
     node_pool: gpu
 
 benchmarks:

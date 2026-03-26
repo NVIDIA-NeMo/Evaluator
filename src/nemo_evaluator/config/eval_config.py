@@ -230,7 +230,7 @@ class EvalConfig(BaseModel):
 
     @model_validator(mode="after")
     def _validate_shards(self) -> EvalConfig:
-        """SLURM --array is incompatible with heterogeneous jobs."""
+        """Sharding requires a single node pool (incompatible with het-jobs)."""
         if not isinstance(self.cluster, SlurmCluster):
             return self
         if self.cluster.shards is None:
@@ -254,11 +254,6 @@ class EvalConfig(BaseModel):
                 f"but {len(pool_refs)} distinct pools are referenced: "
                 f"{sorted(pool_refs)}. SLURM --array is incompatible with "
                 f"heterogeneous jobs."
-            )
-        if self.cluster.auto_resume:
-            raise ValueError(
-                "shards and auto_resume cannot be used together. "
-                "Use SLURM --requeue for per-task retries in array mode."
             )
         return self
 

@@ -51,22 +51,31 @@ services:
       temperature: 1.0
       top_p: 0.95
     proxy:
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: true
+        skip_special_tokens: false
       interceptors:
         - name: turn_counter
           config:
             max_turns: 200
+        - name: drop_params
+          config:
+            params:
+              - max_tokens
+              - max_completion_tokens
     max_output_tokens: 131072
     node_pool: gpu
 
 benchmarks:
   - name: harbor://swebench-verified@1.0
-    max_concurrent: 100
+    max_concurrent: 30
     timeout: 10800.0
     solver:
       type: harbor
       service: nemotron
       agent: openhands-sdk
-      run_timeout: 5400.0  # 1.5h hard cap — tasks stuck on unreachable LLM get retried
+      run_timeout: 7200.0
       agent_kwargs:
         max_iterations: 200
         temperature: 1.0
@@ -81,14 +90,16 @@ benchmarks:
       log_stream_prefix: swebench-super
       ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
       timeout: 10800.0
-      concurrency: 100
+      concurrency: 30
 
 cluster:
   type: slurm
   hostname: cw-dfw-cs-001-login-01
   account: coreai_dlalgo_compeval
   walltime: "04:00:00"
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260325-191433-9a795a31-harbor-amd64
+  auto_resume: true
+  shards: 5
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260326-102045-33a32d5b-harbor-amd64
   container_mounts:
     - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
   container_env:

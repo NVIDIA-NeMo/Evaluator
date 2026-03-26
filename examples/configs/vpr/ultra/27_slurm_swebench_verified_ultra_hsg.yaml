@@ -75,7 +75,7 @@ services:
 
 benchmarks:
   - name: harbor://swebench-verified@1.0
-    max_concurrent: 50
+    max_concurrent: 20
     timeout: 10800.0
     solver:
       type: harbor
@@ -96,14 +96,15 @@ benchmarks:
       log_stream_prefix: swebench-verified
       ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
       timeout: 10800.0
-      concurrency: 50
+      concurrency: 20
 
 cluster:
   type: slurm
   hostname: oci-hsg-cs-001-login-01.nvidia.com
   account: llmservice_nemotron_ultra
   walltime: "04:00:00"
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260325-191433-9a795a31-harbor-arm64
+  shards: 5
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260326-102045-33a32d5b-harbor-arm64
   sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
   sbatch_extra_flags:
     switches: 1

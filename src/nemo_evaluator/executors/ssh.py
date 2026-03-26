@@ -208,6 +208,66 @@ def _sacct_status(target: str, job_id: str) -> dict[str, str]:
     return {"job_id": job_id, "state": "UNKNOWN"}
 
 
+def batch_check_job_status(
+    hostname: str,
+    job_ids: list[str],
+    username: str | None = None,
+) -> dict[str, dict[str, str]]:
+    """Check multiple SLURM jobs in one squeue + sacct round-trip."""
+    if not job_ids:
+        return {}
+    target = _ssh_target(hostname, username)
+    ids_str = ",".join(shlex.quote(j) for j in job_ids)
+
+    results: dict[str, dict[str, str]] = {}
+    try:
+        output = _ssh(
+            target,
+            f"squeue --jobs {ids_str} --noheader --format=%i|%j|%T|%M|%N",
+            timeout=15.0,
+        )
+        for line in output.strip().splitlines():
+            if not line.strip():
+                continue
+            fields = line.strip().split("|")
+            if len(fields) >= 5:
+                results[fields[0]] = {
+                    "job_id": fields[0],
+                    "name": fields[1],
+                    "state": fields[2],
+                    "time": fields[3],
+                    "node": fields[4],
+                }
+    except SSHError:
+        pass
+
+    missing = [jid for jid in job_ids if jid not in results]
+    if missing:
+        sacct_ids = ",".join(shlex.quote(j) for j in missing)
+        try:
+            output = _ssh(
+                target,
+                f"sacct -j {sacct_ids} --noheader --parsable2 --format=JobID,State,ExitCode -n",
+                timeout=15.0,
+            )
+            for line in output.strip().splitlines():
+                fields = line.split("|")
+                if len(fields) >= 3 and fields[0] in missing:
+                    results[fields[0]] = {
+                        "job_id": fields[0],
+                        "state": fields[1],
+                        "exit_code": fields[2],
+                    }
+        except SSHError:
+            pass
+
+    for jid in job_ids:
+        if jid not in results:
+            results[jid] = {"job_id": jid, "state": "UNKNOWN"}
+
+    return results
+
+
 def cancel_job(
     hostname: str,
     job_id: str,
