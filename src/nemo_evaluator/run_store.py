@@ -131,7 +131,7 @@ def resolve_run(
                 try:
                     data = json.loads(meta_path.read_text(encoding="utf-8"))
                     details = data.get("details", {})
-                    if details.get("job_id") == job_id:
+                    if details.get("job_id") == job_id or job_id in details.get("job_ids", []):
                         if host and details.get("hostname") != host:
                             continue
                         return RunMeta(**data)

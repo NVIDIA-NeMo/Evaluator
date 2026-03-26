@@ -53,6 +53,7 @@ dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
     "pytest-xdist>=3.0",
+    "pytest-cov>=4.0",
     "ruff>=0.1",
     "pre-commit>=3.0",
     "nemo-evaluator[scoring,stats,lm-eval,harbor]",
@@ -75,6 +76,18 @@ markers = [
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["nemo_evaluator"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ ==",
 ]
 
 [tool.ruff]

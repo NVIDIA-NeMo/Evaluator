@@ -647,15 +647,18 @@ async def _run_single_benchmark(
         svc = config.get_service(service_name)
 
     proxy_handle = None
-    if svc and hasattr(svc, "interceptors") and svc.interceptors:
+    proxy_cfg = getattr(svc, "proxy", None) if svc else None
+    if proxy_cfg is not None and proxy_cfg.needs_proxy:
         from nemo_evaluator.orchestration.proxy import start_proxy
 
         proxy_handle = start_proxy(
             model_url,
             model_id,
             api_key,
-            interceptors=_serialize_interceptors(svc.interceptors),
-            verbose=getattr(svc, "proxy_verbose", False),
+            interceptors=_serialize_interceptors(proxy_cfg.interceptors),
+            verbose=proxy_cfg.verbose,
+            extra_body=proxy_cfg.extra_body or None,
+            litellm_settings=proxy_cfg.litellm_settings or None,
         )
         model_url = proxy_handle.url
 

@@ -559,9 +559,11 @@ class TestShardsHetJobGuard:
         with pytest.raises(ValueError, match="incompatible with heterogeneous"):
             EvalConfig.model_validate(raw)
 
-    def test_shards_with_auto_resume_raises(self):
-        with pytest.raises(ValueError, match="auto_resume"):
-            EvalConfig.model_validate(_slurm_config(shards=4, auto_resume=True))
+    def test_shards_with_auto_resume_allowed(self):
+        """Shards + auto_resume is valid: each shard is an independent job with its own resume chain."""
+        cfg = EvalConfig.model_validate(_slurm_config(shards=4, auto_resume=True))
+        assert cfg.cluster.shards == 4
+        assert cfg.cluster.auto_resume is True
 
 
 class TestApplyOverrideNull:

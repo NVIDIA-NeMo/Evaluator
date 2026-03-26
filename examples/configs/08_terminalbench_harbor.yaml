@@ -21,9 +21,10 @@ services:
     protocol: chat_completions
     model: nvidia/nemotron-3-super-120b-a12b
     api_key: ${NVIDIA_API_KEY}
-    proxy_verbose: true
-    interceptors:
-      - name: turn_counter
+    proxy:
+      verbose: true
+      interceptors:
+        - name: turn_counter
 
 output:
   export: [inspect]

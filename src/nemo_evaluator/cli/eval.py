@@ -253,29 +253,52 @@ def _get_executor_for_run(run_meta):
 @click.option("--output-dir", "-o", default=None)
 @click.option("--job-id", default=None, help="SLURM job ID (legacy)")
 @click.option("--host", default=None, help="SLURM login hostname (legacy)")
-def eval_status(run_id, output_dir, job_id, host):
+@click.option("--watch", "-w", is_flag=True, default=False, help="Refresh every 10s until Ctrl+C")
+def eval_status(run_id, output_dir, job_id, host, watch):
     """Check evaluation status."""
-    if run_id or output_dir or job_id:
-        run_meta = _resolve_run_or_fail(run_id, output_dir, job_id, host)
-        ex = _get_executor_for_run(run_meta)
-        state = ex.status(run_meta.output_dir)
-        click.echo(f"Run:      {run_meta.run_id}")
-        click.echo(f"Executor: {state.executor}")
-        click.echo(f"Running:  {state.running}")
+    import time
+
+    def _fetch_status():
+        if run_id or output_dir or job_id:
+            run_meta = _resolve_run_or_fail(run_id, output_dir, job_id, host)
+            ex = _get_executor_for_run(run_meta)
+            state = ex.status(run_meta.output_dir)
+            lines = [f"Run:      {run_meta.run_id}"]
+        else:
+            from nemo_evaluator.executors import detect_executor
+
+            ex = detect_executor("./eval_results")
+            if ex is None:
+                raise click.ClickException("No evaluation metadata found. Use -r <run_id> or -o <dir>.")
+            state = ex.status("./eval_results")
+            lines = []
+
+        lines += [
+            f"Executor: {state.executor}",
+            f"Running:  {state.running}",
+        ]
         for k, v in state.details.items():
-            click.echo(f"  {k}: {v}")
+            lines.append(f"  {k}: {v}")
+        return state.running, "\n".join(lines)
+
+    if not watch:
+        _, text = _fetch_status()
+        click.echo(text)
         return
 
-    from nemo_evaluator.executors import detect_executor
-
-    ex = detect_executor("./eval_results")
-    if ex is None:
-        raise click.ClickException("No evaluation metadata found. Use -r <run_id> or -o <dir>.")
-    state = ex.status("./eval_results")
-    click.echo(f"Executor: {state.executor}")
-    click.echo(f"Running:  {state.running}")
-    for k, v in state.details.items():
-        click.echo(f"  {k}: {v}")
+    try:
+        while True:
+            still_running, text = _fetch_status()
+            ts = time.strftime("%H:%M:%S")
+            click.clear()
+            click.echo(text)
+            click.echo(f"\n[{ts}] Refreshing in 60s... (Ctrl+C to stop)")
+            if not still_running:
+                click.echo("Run finished.")
+                break
+            time.sleep(60)
+    except KeyboardInterrupt:
+        click.echo()
 
 
 # ---------------------------------------------------------------------------
@@ -288,13 +311,18 @@ def eval_status(run_id, output_dir, job_id, host):
 @click.option("--output-dir", "-o", default=None)
 @click.option("--job-id", default=None, help="SLURM job ID (legacy)")
 @click.option("--host", default=None, help="SLURM login hostname (legacy)")
-def eval_stop(run_id, output_dir, job_id, host):
+@click.option("--shard", "-s", "shard_idx", type=int, default=None, help="Cancel specific shard (0-indexed)")
+def eval_stop(run_id, output_dir, job_id, host, shard_idx):
     """Stop/cancel a running evaluation."""
     if run_id or output_dir or job_id:
         run_meta = _resolve_run_or_fail(run_id, output_dir, job_id, host)
         ex = _get_executor_for_run(run_meta)
-        if ex.stop(run_meta.output_dir):
-            click.echo(f"Stopped run {run_meta.run_id} ({run_meta.executor})")
+        if shard_idx is not None and run_meta.executor != "slurm":
+            raise click.ClickException("--shard is only supported for SLURM runs.")
+        stop_kwargs = {"shard_idx": shard_idx} if shard_idx is not None else {}
+        if ex.stop(run_meta.output_dir, **stop_kwargs):
+            label = f" shard {shard_idx}" if shard_idx is not None else ""
+            click.echo(f"Stopped{label} run {run_meta.run_id} ({run_meta.executor})")
         else:
             click.echo("Could not stop (may already be finished).", err=True)
         return
@@ -327,7 +355,7 @@ def eval_jobs(offline):
         click.echo("No tracked runs.")
         return
 
-    header = f"{'RUN_ID':<26} {'EXECUTOR':<10} {'STATE':<12} {'BENCHMARKS':<30} {'OUTPUT_DIR'}"
+    header = f"{'RUN_ID':<26} {'EXECUTOR':<10} {'STATE':<20} {'BENCHMARKS':<30} {'OUTPUT_DIR'}"
     click.echo(header)
     click.echo("-" * len(header))
 
@@ -341,6 +369,8 @@ def eval_jobs(offline):
                 st = ps.details.get("state") or ps.details.get("status")
                 if st:
                     state = str(st)
+                elif ps.details.get("shards"):
+                    state = str(ps.details["shards"]).split(",")[0]
             except Exception:
                 state = "ERR"
 
@@ -356,7 +386,9 @@ def eval_jobs(offline):
         if len(odir) > 60:
             odir = "..." + odir[-57:]
 
-        click.echo(f"{run.run_id:<26} {run.executor:<10} {state:<12} {summary:<30} {odir}")
+        if len(state) > 18:
+            state = state[:15] + "..."
+        click.echo(f"{run.run_id:<26} {run.executor:<10} {state:<20} {summary:<30} {odir}")
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +403,8 @@ def eval_jobs(offline):
 @click.option("--host", default=None, help="SLURM login hostname (legacy)")
 @click.option("--follow", "-f", is_flag=True, help="Stream logs (tail -f)")
 @click.option("--tail", "-n", "tail_lines", type=int, default=None, help="Last N lines")
-def eval_logs(run_id, output_dir, job_id, host, follow, tail_lines):
+@click.option("--shard", "-s", "shard_idx", type=int, default=None, help="Shard index for sharded runs")
+def eval_logs(run_id, output_dir, job_id, host, follow, tail_lines, shard_idx):
     """View evaluation logs."""
     run_meta = _resolve_run_or_fail(run_id, output_dir, job_id, host)
     ex = _get_executor_for_run(run_meta)
@@ -384,10 +417,55 @@ def eval_logs(run_id, output_dir, job_id, host, follow, tail_lines):
         hostname = details.get("hostname", "")
         username = details.get("username") or None
         rdir = details.get("remote_dir", run_meta.output_dir)
-        from nemo_evaluator.executors.slurm_executor import _resolve_latest_job_id_from_meta
+        job_ids = details.get("job_ids", [])
+        is_sharded_run = len(job_ids) > 1
 
-        latest_id = _resolve_latest_job_id_from_meta(details)
-        log_file = f"{rdir}/logs/slurm-{latest_id}.log"
+        if is_sharded_run and shard_idx is None:
+            from nemo_evaluator.executors.slurm_executor import (
+                _RUNNING_STATES,
+                _resolve_shard_latest_ids,
+            )
+            from nemo_evaluator.executors.ssh import batch_check_job_status
+
+            latest_ids = _resolve_shard_latest_ids(hostname, rdir, job_ids, username)
+            all_status = batch_check_job_status(hostname, latest_ids, username)
+            running_shards = []
+            for i, lid in enumerate(latest_ids):
+                info = all_status.get(lid, {})
+                state = info.get("state", "UNKNOWN")
+                click.echo(f"  shard {i}: {state} (job {lid})", err=True)
+                if state in _RUNNING_STATES:
+                    running_shards.append(i)
+
+            if len(running_shards) == 1:
+                shard_idx = running_shards[0]
+                click.echo(f"\nAuto-selected shard {shard_idx} (only running shard).", err=True)
+            elif len(running_shards) == 0:
+                click.echo("\nNo shards currently running. Use --shard N to view a completed shard.", err=True)
+                return
+            else:
+                click.echo(
+                    f"\nMultiple running shards: {running_shards}. Use --shard N to pick one.",
+                    err=True,
+                )
+                return
+
+        if is_sharded_run:
+            if shard_idx < 0 or shard_idx >= len(job_ids):
+                raise click.ClickException(
+                    f"Shard index {shard_idx} out of range. This run has {len(job_ids)} shards (0-{len(job_ids) - 1})."
+                )
+            from nemo_evaluator.executors.slurm_executor import _resolve_latest_job_id
+
+            shard_rdir = f"{rdir}/shard_{shard_idx}"
+            latest_id = _resolve_latest_job_id(hostname, shard_rdir, job_ids[shard_idx], username)
+            log_file = f"{shard_rdir}/logs/slurm-{latest_id}.log"
+        else:
+            from nemo_evaluator.executors.slurm_executor import _resolve_latest_job_id_from_meta
+
+            latest_id = _resolve_latest_job_id_from_meta(details)
+            log_file = f"{rdir}/logs/slurm-{latest_id}.log"
+
         target = f"{username}@{hostname}" if username else hostname
         n_arg = f"-n {tail_lines}" if tail_lines else "-n 50"
         cmd = ["ssh", target, f"tail {n_arg} -f {log_file}"]
@@ -413,7 +491,10 @@ def eval_logs(run_id, output_dir, job_id, host, follow, tail_lines):
             sys.exit(0)
         return
 
-    content = ex.logs(run_meta.output_dir, follow=follow, tail=tail_lines)
+    log_kwargs: dict = {"follow": follow, "tail": tail_lines}
+    if shard_idx is not None:
+        log_kwargs["shard_idx"] = shard_idx
+    content = ex.logs(run_meta.output_dir, **log_kwargs)
     if content is None:
         click.echo("No logs found.", err=True)
     else:
@@ -431,12 +512,13 @@ def eval_logs(run_id, output_dir, job_id, host, follow, tail_lines):
 @click.option("--job-id", default=None, help="SLURM job ID (legacy)")
 @click.option("--host", default=None, help="SLURM login hostname (legacy)")
 @click.option("--continue-attempts", is_flag=True, help="Keep existing retry counter (default: reset)")
-def eval_resume(run_id, output_dir, job_id, host, continue_attempts):
+@click.option("--shard", "-s", "shard_idx", type=int, default=None, help="Resume specific shard only")
+def eval_resume(run_id, output_dir, job_id, host, continue_attempts, shard_idx):
     """Resume a failed/timed-out evaluation."""
     run_meta = _resolve_run_or_fail(run_id, output_dir, job_id, host)
     ex = _get_executor_for_run(run_meta)
     click.echo(f"Resuming run {run_meta.run_id} ({run_meta.executor})")
-    ex.resume_run(run_meta, continue_attempts=continue_attempts)
+    ex.resume_run(run_meta, continue_attempts=continue_attempts, shard_idx=shard_idx)
 
 
 # ---------------------------------------------------------------------------

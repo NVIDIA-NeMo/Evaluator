@@ -104,6 +104,8 @@ def _build_config(
     callbacks: list[Any],
     *,
     verbose: bool = False,
+    extra_body: dict[str, Any] | None = None,
+    litellm_settings: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a LiteLLM proxy config dict."""
     litellm_params: dict[str, Any] = {
@@ -111,6 +113,8 @@ def _build_config(
         "api_base": _strip_chat_completions(model_url),
         "api_key": api_key or "no-key-needed",
     }
+    if extra_body:
+        litellm_params["extra_body"] = extra_body
 
     cfg: dict[str, Any] = {
         "model_list": [
@@ -121,14 +125,16 @@ def _build_config(
         ],
     }
 
-    litellm_settings: dict[str, Any] = {}
+    merged_settings: dict[str, Any] = {}
     string_callbacks = [c for c in callbacks if isinstance(c, str)]
     if string_callbacks:
-        litellm_settings["callbacks"] = string_callbacks
+        merged_settings["callbacks"] = string_callbacks
     if verbose:
-        litellm_settings["set_verbose"] = True
+        merged_settings["set_verbose"] = True
     if litellm_settings:
-        cfg["litellm_settings"] = litellm_settings
+        merged_settings.update(litellm_settings)
+    if merged_settings:
+        cfg["litellm_settings"] = merged_settings
 
     return cfg
 
@@ -185,6 +191,8 @@ def start_proxy(
     port: int = 4000,
     interceptors: list[str | dict[str, Any]] | None = None,
     verbose: bool = False,
+    extra_body: dict[str, Any] | None = None,
+    litellm_settings: dict[str, Any] | None = None,
 ) -> ProxyHandle:
     """Start a local LiteLLM proxy and return a handle.
 
@@ -205,14 +213,23 @@ def start_proxy(
     custom_objects = [cb for cb in resolved if not isinstance(cb, str)]
     all_callbacks = [cb for cb in resolved if isinstance(cb, str)]
 
-    cfg = _build_config(model_url, model_id, api_key, all_callbacks, verbose=verbose)
+    cfg = _build_config(
+        model_url,
+        model_id,
+        api_key,
+        all_callbacks,
+        verbose=verbose,
+        extra_body=extra_body,
+        litellm_settings=litellm_settings,
+    )
     config_path = _write_temp_config(cfg)
 
     logger.info(
-        "Starting LiteLLM proxy on port %d → %s (interceptors: %s)",
+        "Starting LiteLLM proxy on port %d → %s (interceptors: %s, extra_body: %s)",
         port,
         model_url,
         interceptors or [],
+        extra_body or {},
     )
 
     env = {**os.environ, "CONFIG_FILE_PATH": str(config_path)}

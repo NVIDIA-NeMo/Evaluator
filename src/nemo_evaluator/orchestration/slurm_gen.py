@@ -49,7 +49,6 @@ _HEADER = """\
 {account_line}
 {sbatch_comment_line}
 {sbatch_extra_lines}
-{array_line}
 
 set -uo pipefail
 export NEL_INNER_EXECUTION=1
@@ -66,22 +65,49 @@ echo "Node: $(hostname)"
 echo "Start: $(date -Iseconds)"
 """
 
-_SHARD_SETUP = """\
-# Sharded execution (array task $SLURM_ARRAY_TASK_ID of $SLURM_ARRAY_TASK_COUNT)
-export NEL_SHARD_IDX=$SLURM_ARRAY_TASK_ID
-export NEL_TOTAL_SHARDS=$SLURM_ARRAY_TASK_COUNT
-OUTPUT_DIR="$OUTPUT_DIR/shard_$SLURM_ARRAY_TASK_ID"
-mkdir -p "$OUTPUT_DIR"
+_SHARD_ENV = """\
+# Shard {shard_idx} of {total_shards} (independent job)
+export NEL_SHARD_IDX={shard_idx}
+export NEL_TOTAL_SHARDS={total_shards}
+rm -f "$OUTPUT_DIR/.shard_done"
 echo "Shard: $NEL_SHARD_IDX / $NEL_TOTAL_SHARDS  (output: $OUTPUT_DIR)"
 """
 
-_SHARD_MERGE_HINT = """\
-# All array tasks write to separate shard_N/ directories.
-# After all tasks complete, merge results:
-#   nel eval merge "{parent_output_dir}"
-echo ""
-echo "Shard $SLURM_ARRAY_TASK_ID complete. Merge after all tasks finish:"
-echo "  nel eval merge {parent_output_dir}"
+_SHARD_FINISH = """\
+# Mark this shard as complete and auto-merge if last
+_PARENT_DIR="{parent_output_dir}"
+if [[ $NEL_EXIT_CODE -eq 0 ]]; then
+    touch "$OUTPUT_DIR/.shard_done"
+    _DONE=0
+    for _s in $(seq 0 $(({total_shards} - 1))); do
+        [[ -f "$_PARENT_DIR/shard_$_s/.shard_done" ]] && _DONE=$((_DONE + 1))
+    done
+    echo "Shard {shard_idx} complete ($_DONE/{total_shards} shards done)."
+    if [[ $_DONE -eq {total_shards} ]]; then
+        # Remove stale lock from a previously failed merge attempt
+        if [[ -d "$_PARENT_DIR/.merge_lock" ]] && [[ ! -f "$_PARENT_DIR/.merge_lock/.done" ]]; then
+            rm -rf "$_PARENT_DIR/.merge_lock"
+        fi
+        if mkdir "$_PARENT_DIR/.merge_lock" 2>/dev/null; then
+            echo ""
+            echo "=== All {total_shards} shards complete — running merge ==="
+            {merge_prefix}nel eval merge "$_PARENT_DIR"
+            _MERGE_RC=$?
+            if [[ $_MERGE_RC -ne 0 ]]; then
+                echo "ERROR: Merge failed (exit $_MERGE_RC). To retry:"
+                echo "  rmdir '{parent_output_dir}/.merge_lock' 2>/dev/null; nel eval merge '{parent_output_dir}'"
+                rm -rf "$_PARENT_DIR/.merge_lock"
+                NEL_EXIT_CODE=1
+            else
+                touch "$_PARENT_DIR/.merge_lock/.done"
+                {report_commands}
+            fi
+        fi
+    fi
+else
+    echo "Shard {shard_idx} failed (exit $NEL_EXIT_CODE). Skipping completion marker."
+    echo "  Manual merge: nel eval merge $_PARENT_DIR"
+fi
 """
 
 _HEADER_HETJOB_PREAMBLE = """\
@@ -149,7 +175,7 @@ echo "  Logs: $OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log"
 {name_upper}_PID=$!
 ln -sf "server-{name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/server-{name}.log"
 {name_upper}_URL="http://localhost:{port}/v1"
-{name_upper}_MODEL="{model}"
+{name_upper}_MODEL={model}
 """
 
 _GYM_SERVICE = """\
@@ -244,7 +270,7 @@ fi
 {name_upper}_PID=$!
 ln -sf "server-{name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/server-{name}.log"
 {name_upper}_URL="http://localhost:{port}/v1"
-{name_upper}_MODEL="{model}"
+{name_upper}_MODEL={model}
 """
 
 _HEALTH_WAIT = """\
@@ -607,7 +633,7 @@ def _service_block(
             model_for_cmd = "/model"
             model_mount = [f"{svc.model}:/model:ro"]
 
-        model_api_name = getattr(svc, "model_name", None) or model_for_cmd
+        model_api_name = getattr(svc, "served_model_name", None) or name
 
         srun_prefix = ""
         if use_containers:
@@ -630,9 +656,7 @@ def _service_block(
         model_flag_part = (
             f" {model_flag} {model_for_cmd}" if model_flag else f" {model_for_cmd}" if model_for_cmd else ""
         )
-        served_name_flag = (
-            f"--served-model-name {shlex.quote(model_api_name)} " if model_api_name != model_for_cmd else ""
-        )
+        served_name_flag = f"--served-model-name {shlex.quote(model_api_name)} "
         main_cmd = f"{cmd}{model_flag_part} --port {svc.port} {tp_flag}{dp_flag}{served_name_flag}{extra}"
 
         setup_list = getattr(svc, "setup_commands", []) or []
@@ -666,7 +690,7 @@ def _service_block(
                     name_upper=upper,
                     svc_type=svc.type,
                     service_cmd=ray_service_cmd,
-                    model=model_api_name or "",
+                    model=shlex.quote(model_api_name or ""),
                     port=svc.port,
                     num_nodes=num_nodes,
                     ray_port=6379,
@@ -683,7 +707,7 @@ def _service_block(
                 name_upper=upper,
                 svc_type=svc.type,
                 service_cmd=service_cmd,
-                model=model_api_name or "",
+                model=shlex.quote(model_api_name or ""),
                 port=svc.port,
                 cuda_prefix=cuda,
                 srun_prefix=srun_prefix,
@@ -729,14 +753,15 @@ def _service_block(
         return (
             f"# Service: {name} (external API)\n"
             f'{upper}_URL="{svc.url or ""}"\n'
-            f'{upper}_MODEL="{svc.model or ""}"\n'
+            f"{upper}_MODEL={shlex.quote(svc.model or '')}\n"
             f'{upper}_PID=""\n'
         )
 
+    fallback_model = getattr(svc, "served_model_name", None) or name
     return (
         f"# Service: {name} ({svc.type})\n"
         f'{upper}_URL="http://localhost:{getattr(svc, "port", 8000)}/v1"\n'
-        f'{upper}_MODEL="{getattr(svc, "model", "") or ""}"\n'
+        f"{upper}_MODEL={shlex.quote(fallback_model)}\n"
         f'{upper}_PID=""\n'
     )
 
@@ -820,13 +845,13 @@ def _extract_bench_config(config: EvalConfig, bench_idx: int, svc_url_var: str, 
         api_key = getattr(svc, "api_key", None)
         if api_key:
             svc_dict["api_key"] = api_key
-        if hasattr(svc, "interceptors") and svc.interceptors:
-            svc_dict["interceptors"] = [ic.model_dump(exclude_none=True) for ic in svc.interceptors]
+        proxy = getattr(svc, "proxy", None)
+        if proxy is not None:
+            svc_dict["proxy"] = proxy.model_dump(exclude_none=True, exclude_defaults=True)
         if hasattr(svc, "generation"):
             gen = svc.generation.model_dump(exclude_none=True)
             if gen:
                 svc_dict["generation"] = gen
-        svc_dict["proxy_verbose"] = getattr(svc, "proxy_verbose", False)
         services[svc_name] = svc_dict
 
     bench_dict = bench.model_dump(exclude_none=True)
@@ -873,8 +898,17 @@ def _compute_pool_nodes(config: EvalConfig, pool_name: str) -> int:
     return max(base, svc_max)
 
 
-def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEnvResult]:
+def generate_sbatch(
+    config: EvalConfig,
+    *,
+    shard_idx: int | None = None,
+    total_shards: int | None = None,
+) -> tuple[str, dict[str, dict], SecretsEnvResult]:
     """Generate sbatch script content, sidecar configs, and secrets env.
+
+    When *shard_idx* and *total_shards* are given the generated script is a
+    standalone per-shard job (no ``--array``).  Each shard gets its own
+    output sub-directory (``shard_N/``) and auto-resume chain.
 
     Returns:
         (script_text, sidecar_configs, secrets_result)
@@ -883,7 +917,8 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
     if not isinstance(cluster, SlurmCluster):
         raise ValueError(f"generate_sbatch requires a SlurmCluster, got {type(cluster).__name__}")
 
-    output_dir = config.output.dir
+    parent_output_dir = config.output.dir
+    output_dir = f"{parent_output_dir}/shard_{shard_idx}" if shard_idx is not None else parent_output_dir
     job_name = _safe(config.benchmarks[0].name) if len(config.benchmarks) == 1 else "multi"
     account_line = f"#SBATCH --account={cluster.account}" if cluster.account else ""
     sbatch_comment_line = f"#SBATCH --comment={shlex.quote(cluster.sbatch_comment)}" if cluster.sbatch_comment else ""
@@ -908,7 +943,7 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
 
     secrets_result = generate_secrets_env(env_groups)
 
-    _IMPLICIT_KEYS = ["PYTHONUNBUFFERED", "NEL_INNER_EXECUTION"]
+    _IMPLICIT_KEYS = ["PYTHONUNBUFFERED", "NEL_INNER_EXECUTION", "NEL_SHARD_IDX", "NEL_TOTAL_SHARDS"]
 
     parts: list[str] = []
 
@@ -954,7 +989,6 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
         gres_line = f"#SBATCH --gres={pool.gres}" if pool.gres else ""
         gpus_per_node_line = f"#SBATCH --gpus-per-node={pool.gpus_per_node}" if pool.gpus_per_node else ""
         partition_line = f"#SBATCH --partition={pool.partition}" if pool.partition else ""
-        array_line = f"#SBATCH --array=0-{cluster.shards - 1}" if cluster.shards else ""
         parts.append(
             _HEADER.format(
                 job_name=job_name,
@@ -968,21 +1002,16 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
                 account_line=account_line,
                 sbatch_comment_line=sbatch_comment_line,
                 sbatch_extra_lines=sbatch_extra_lines,
-                array_line=array_line,
             )
         )
 
-    is_sharded = cluster.shards is not None
+    is_shard_script = shard_idx is not None
 
-    if is_sharded:
-        for bench in config.benchmarks:
-            if _needs_full_config(bench):
-                raise ValueError(
-                    f"Sharding (shards={cluster.shards}) is incompatible with "
-                    f"benchmark '{bench.name}' which requires a sidecar config "
-                    f"(solver type '{bench.solver.type}' or sandbox type "
-                    f"'{bench.sandbox.type}'). Remove shards or use a simple solver."
-                )
+    if cluster.shards is not None and not is_shard_script:
+        raise ValueError(
+            "generate_sbatch must not be called directly with cluster.shards set. "
+            "Use write_sbatch which generates per-shard scripts."
+        )
 
     has_secrets = bool(secrets_result.secrets_content.strip())
     if has_secrets:
@@ -999,8 +1028,8 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
                     break
         parts.append(_MULTINODE_IP_DISCOVERY.format(nodelist_var=nodelist_var))
 
-    if is_sharded:
-        parts.append(_SHARD_SETUP)
+    if is_shard_script:
+        parts.append(_SHARD_ENV.format(shard_idx=shard_idx, total_shards=total_shards))
 
     _any_service_has_image = any(getattr(s, "image", None) for s in config.services.values())
     use_containers = (
@@ -1151,7 +1180,7 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
                 svc_model_var=model_id_var,
             )
             sidecar_configs[safe_name] = sidecar
-            config_extra_flags = "--resume " if cluster.auto_resume else ""
+            config_extra_flags = "--resume " if (cluster.auto_resume or is_shard_script) else ""
             parts.append(
                 _TASK_CONFIG.format(
                     idx=i,
@@ -1179,7 +1208,7 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
                 extra_flags += f"--max-tokens {gen.max_tokens} "
             if bench.max_problems is not None:
                 extra_flags += f"--max-problems {bench.max_problems} "
-            if cluster.auto_resume:
+            if cluster.auto_resume or is_shard_script:
                 extra_flags += "--resume "
 
             parts.append(
@@ -1196,8 +1225,29 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
                 )
             )
 
-    if is_sharded:
-        parts.append(_SHARD_MERGE_HINT.format(parent_output_dir=output_dir))
+    if is_shard_script:
+        report_lines = []
+        ext_map = {
+            "markdown": "md",
+            "html": "html",
+            "csv": "csv",
+            "json": "json",
+            "latex": "tex",
+        }
+        for fmt in config.output.report:
+            ext = ext_map.get(fmt, fmt)
+            report_lines.append(
+                f'{eval_run_prefix}nel eval report "$_PARENT_DIR" -f {fmt} -o "$_PARENT_DIR/report.{ext}"'
+            )
+        parts.append(
+            _SHARD_FINISH.format(
+                shard_idx=shard_idx,
+                total_shards=total_shards,
+                parent_output_dir=parent_output_dir,
+                merge_prefix=eval_run_prefix,
+                report_commands="\n            ".join(report_lines) if report_lines else "",
+            )
+        )
     else:
         report_cmds = []
         ext_map = {
@@ -1231,7 +1281,7 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
             upper = _safe(name).upper()
             kill_cmds.append(f'    [ -n "${{{upper}_PID:-}}" ] && wait ${upper}_PID 2>/dev/null || true')
 
-    if not is_sharded and cluster.auto_resume:
+    if cluster.auto_resume:
         max_walltime_check = ""
         if cluster.max_walltime is not None:
             max_walltime_seconds = _parse_walltime(cluster.max_walltime)
@@ -1246,7 +1296,7 @@ def generate_sbatch(config: EvalConfig) -> tuple[str, dict[str, dict], SecretsEn
         parts.insert(1, prologue)
 
     cleanup_body = "\n".join(kill_cmds) if kill_cmds else "    echo 'No managed services.'"
-    cleanup_idx = 2 if (not is_sharded and cluster.auto_resume) else 1
+    cleanup_idx = 2 if cluster.auto_resume else 1
     parts.insert(cleanup_idx, _CLEANUP_FUNC.format(kill_commands=cleanup_body))
 
     parts.append(_FOOTER)
@@ -1271,23 +1321,18 @@ def stamp_output_dir(config: EvalConfig) -> None:
     config.output.dir = str(Path(config.output.dir) / generate_run_id(config))
 
 
-def write_sbatch(
-    config: EvalConfig,
-    output_dir: str | Path | None = None,
+def _write_single_script(
+    out: Path,
+    script: str,
+    sidecar_configs: dict[str, dict],
+    secrets_result: SecretsEnvResult,
     *,
     dry_run: bool = False,
 ) -> tuple[Path, list[Path]]:
-    """Write sbatch script + sidecar config YAMLs + .secrets.env.
-
-    Returns (sbatch_path, list_of_extra_paths).
-    The extra paths include sidecar configs and .secrets.env, all of
-    which must be copied alongside the sbatch script for SSH submission.
-    """
-    out = Path(output_dir or config.output.dir)
+    """Write one sbatch script + its sidecar/secrets into *out*."""
     out.mkdir(parents=True, exist_ok=True)
     (out / "logs").mkdir(exist_ok=True)
 
-    script, sidecar_configs, secrets_result = generate_sbatch(config)
     path = out / "nel_eval.sbatch"
     path.write_text(script, encoding="utf-8")
     path.chmod(0o755)
@@ -1312,3 +1357,54 @@ def write_sbatch(
         extra_paths.append(cfg_path)
 
     return path, extra_paths
+
+
+def write_sbatch(
+    config: EvalConfig,
+    output_dir: str | Path | None = None,
+    *,
+    dry_run: bool = False,
+) -> tuple[list[Path], list[Path]]:
+    """Write sbatch script(s) + sidecar config YAMLs + .secrets.env.
+
+    When ``cluster.shards`` is set, generates N independent per-shard
+    scripts under ``shard_0/``, ``shard_1/``, etc.  Each shard is a
+    standalone SLURM job with its own auto-resume chain.
+
+    Returns ``(script_paths, extra_paths)`` where *script_paths* has one
+    entry per shard (or a single entry when not sharded).
+    """
+    out = Path(output_dir or config.output.dir)
+    cluster = config.cluster
+    n_shards = getattr(cluster, "shards", None) if isinstance(cluster, SlurmCluster) else None
+
+    if n_shards:
+        script_paths: list[Path] = []
+        all_extras: list[Path] = []
+        for i in range(n_shards):
+            script, sidecars, secrets = generate_sbatch(
+                config,
+                shard_idx=i,
+                total_shards=n_shards,
+            )
+            shard_dir = out / f"shard_{i}"
+            path, extras = _write_single_script(
+                shard_dir,
+                script,
+                sidecars,
+                secrets,
+                dry_run=dry_run,
+            )
+            script_paths.append(path)
+            all_extras.extend(extras)
+        return script_paths, all_extras
+
+    script, sidecar_configs, secrets_result = generate_sbatch(config)
+    path, extras = _write_single_script(
+        out,
+        script,
+        sidecar_configs,
+        secrets_result,
+        dry_run=dry_run,
+    )
+    return [path], extras

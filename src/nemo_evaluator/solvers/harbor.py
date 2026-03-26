@@ -340,7 +340,20 @@ def _check_harbor_installed() -> None:
         raise ImportError(
             "Harbor agent integration requires the harbor package. Install with: pip install nemo-evaluator[harbor]"
         ) from None
-    logging.getLogger("harbor").setLevel(logging.INFO)
+    _silence_harbor_debug()
+
+
+def _silence_harbor_debug(level: int = logging.INFO) -> None:
+    """Override harbor's per-module DEBUG levels.
+
+    Harbor's ``setup_logger`` hardcodes ``setLevel(DEBUG)`` on every logger
+    it creates, which overrides any parent-level setting.  We walk the
+    logger registry and reset all ``harbor.*`` loggers.
+    """
+    logging.getLogger("harbor").setLevel(level)
+    for name in list(logging.Logger.manager.loggerDict):
+        if name.startswith("harbor"):
+            logging.getLogger(name).setLevel(level)
 
 
 class HarborSolver:
@@ -435,6 +448,8 @@ class HarborSolver:
 
         from harbor.models.agent.context import AgentContext
         from nemo_evaluator.solvers.harbor_adapter import SandboxEnvironmentAdapter
+
+        _silence_harbor_debug()
 
         t0 = time.monotonic()
         logs_dir = Path(tempfile.mkdtemp(prefix="nel_harbor_"))

@@ -199,15 +199,30 @@ class StatelessSandbox:
                         "mkdir -p /output /input",
                         timeout_sec=10,
                     )
+                    try:
+                        pre_diag = await self._agent_sandbox.exec(
+                            "echo '=== base commit ===' && cat /tmp/_nel_base_commit 2>/dev/null || echo 'NOT SET'; "
+                            "echo '=== current HEAD ===' && cd /testbed 2>/dev/null && git log --oneline -1 2>/dev/null; "
+                            "echo '=== git status ===' && git status --short 2>/dev/null | head -30; "
+                            "echo '=== cwd ===' && pwd",
+                            timeout_sec=15,
+                        )
+                        logger.info(
+                            "StatelessSandbox: pre-capture agent diagnostics:\n%s",
+                            (pre_diag.stdout or "")[:2000],
+                        )
+                    except Exception:
+                        logger.debug("StatelessSandbox: pre-capture diagnostics failed", exc_info=True)
                     cap_result = await self._agent_sandbox.exec(
                         self._ctx.capture_cmd,
                         timeout_sec=300,
                     )
                     if cap_result.return_code != 0:
                         logger.error(
-                            "StatelessSandbox: capture_cmd FAILED (rc=%d): %s",
+                            "StatelessSandbox: capture_cmd FAILED (rc=%d):\nSTDERR: %s\nSTDOUT: %s",
                             cap_result.return_code,
-                            (cap_result.stderr or "")[:500],
+                            (cap_result.stderr or "")[:1000],
+                            (cap_result.stdout or "")[:500],
                         )
                     else:
                         verify_result = await self._agent_sandbox.exec(
@@ -218,7 +233,7 @@ class StatelessSandbox:
                             "StatelessSandbox: capture complete — %s",
                             (verify_result.stdout or "").strip()[:200],
                         )
-                    await self._transfer.post_capture(self._agent_sandbox)
+                        await self._transfer.post_capture(self._agent_sandbox)
                 except Exception:
                     logger.error(
                         "StatelessSandbox: capture_cmd / post_capture FAILED",
@@ -258,15 +273,36 @@ class StatelessSandbox:
                 "Verify results will be against unmodified base image.",
             )
         if self._ctx.apply_cmd:
+            try:
+                diag = await self._verify_sandbox.exec(
+                    "echo '=== git HEAD ===' && cd /testbed && git log --oneline -1 2>/dev/null; "
+                    "echo '=== patch stat ===' && "
+                    "git apply --stat /tmp/_nel_ws/_nel_patch.diff 2>&1 | head -30; "
+                    "echo '=== patch header ===' && head -40 /tmp/_nel_ws/_nel_patch.diff 2>/dev/null; "
+                    "echo '=== patch files vs working tree ===' && "
+                    r"grep '^diff --git' /tmp/_nel_ws/_nel_patch.diff 2>/dev/null | "
+                    r"sed 's|diff --git a/\(.*\) b/.*|\1|' | while read f; do "
+                    '[ -f "$f" ] && echo "  OK  $f" || echo "  MISS $f"; done || true',
+                    timeout_sec=30,
+                )
+                if diag.return_code == 0 or diag.stdout:
+                    logger.info(
+                        "StatelessSandbox: pre-apply diagnostics:\n%s",
+                        (diag.stdout or "")[:3000],
+                    )
+            except Exception:
+                logger.debug("StatelessSandbox: pre-apply diagnostics failed", exc_info=True)
+
             result = await self._verify_sandbox.exec(
                 self._ctx.apply_cmd,
                 timeout_sec=self._ctx.verify_timeout,
             )
             if result.return_code != 0:
                 logger.error(
-                    "StatelessSandbox: apply_cmd FAILED (rc=%d): %s",
+                    "StatelessSandbox: apply_cmd FAILED (rc=%d):\nSTDERR: %s\nSTDOUT: %s",
                     result.return_code,
-                    (result.stderr or "")[:500],
+                    (result.stderr or "")[:2000],
+                    (result.stdout or "")[:1000],
                 )
         return self._verify_sandbox
 
