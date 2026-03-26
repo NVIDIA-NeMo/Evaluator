@@ -94,6 +94,85 @@ def _resolve_shard_latest_ids(
     return list(job_ids)
 
 
+def _find_pending_successors(
+    hostname: str,
+    job_ids: list[str],
+    username: str | None = None,
+    remote_dir: str | None = None,
+) -> dict[str, tuple[str, str]]:
+    """Find PENDING/RUNNING SLURM successor jobs for terminal shards.
+
+    Matches by script path (``squeue %o``) rather than by the dependency
+    field, because SLURM clears ``%E`` once the dependency is satisfied.
+    For each shard directory, we look for a queued/running job whose
+    command points to the same ``nel_eval.sbatch`` script — that is the
+    auto-resume successor.
+
+    Returns {parent_job_id: (successor_job_id, successor_state)}.
+    """
+    if not job_ids or not remote_dir:
+        return {}
+    try:
+        from nemo_evaluator.executors.ssh import ssh_run
+
+        output = ssh_run(
+            hostname,
+            "squeue -u $USER -h -o '%i %T %o' -t PENDING,RUNNING 2>/dev/null",
+            username=username,
+            timeout=15.0,
+        ).strip()
+    except Exception:
+        logger.debug("successor detection via squeue failed", exc_info=True)
+        return {}
+
+    if not output:
+        logger.debug("squeue returned no pending/running jobs")
+        return {}
+
+    # Build a lookup: script_path → (job_id, state) for all queued jobs.
+    # %o may include trailing arguments (e.g. "nel_eval.sbatch 12345"),
+    # so we key by the first whitespace-delimited token of the command.
+    queued: dict[str, tuple[str, str]] = {}
+    for line in output.splitlines():
+        parts = line.strip().split(None, 2)
+        if len(parts) < 3:
+            continue
+        q_id, q_state, q_cmd = parts
+        script = q_cmd.strip().split()[0] if q_cmd.strip() else ""
+        if script:
+            queued[script] = (q_id, q_state)
+
+    logger.debug(
+        "successor scan: %d queued jobs, looking in remote_dir=%s",
+        len(queued),
+        remote_dir,
+    )
+
+    id_set = set(job_ids)
+    result: dict[str, tuple[str, str]] = {}
+    for i, orig_id in enumerate(job_ids):
+        # Sharded: {rdir}/shard_{i}/nel_eval.sbatch
+        # Non-sharded (single job): {rdir}/nel_eval.sbatch
+        candidates = [f"{remote_dir}/shard_{i}/nel_eval.sbatch"]
+        if len(job_ids) == 1:
+            candidates.append(f"{remote_dir}/nel_eval.sbatch")
+        for script_path in candidates:
+            if script_path in queued:
+                succ_id, succ_state = queued[script_path]
+                if succ_id != orig_id and succ_id not in id_set:
+                    result[orig_id] = (succ_id, succ_state)
+                    break
+
+    if result:
+        logger.debug("found successors: %s", result)
+    else:
+        logger.debug(
+            "no successors found; sample queued paths: %s",
+            list(queued.keys())[:5],
+        )
+    return result
+
+
 def _update_aggregate_meta(remote_dir: str, new_job_ids: list[str]) -> None:
     """Find and update the sharded aggregate meta by remote_dir match."""
     jobs_dir = _jobs_store()
@@ -394,7 +473,20 @@ class SlurmExecutor(Executor):
             rdir = meta.get("remote_dir", str(output_dir))
             latest_id = _resolve_latest_job_id(hostname, rdir, job_ids[0] if job_ids else "", username)
             info = check_job_status(hostname=hostname, job_id=latest_id, username=username)
-            running = info.get("state", "") in _RUNNING_STATES
+            state = info.get("state", "")
+            running = state in _RUNNING_STATES
+            if not running and state in _RESUMABLE_STATES:
+                succs = _find_pending_successors(
+                    hostname,
+                    [latest_id],
+                    username,
+                    remote_dir=rdir,
+                )
+                if latest_id in succs:
+                    succ_id, succ_state = succs[latest_id]
+                    info["state"] = succ_state
+                    info["job_id"] = succ_id
+                    running = succ_state in _RUNNING_STATES
             try:
                 progress = _fetch_eval_progress(hostname, rdir, username=username)
                 if "root" in progress:
@@ -410,18 +502,32 @@ class SlurmExecutor(Executor):
 
         all_status = batch_check_job_status(hostname, latest_ids, username)
 
+        # For shards in terminal states, check if SLURM has pending
+        # auto-resume successors by matching script paths in squeue.
+        has_terminal = any(all_status.get(lid, {}).get("state", "UNKNOWN") in _RESUMABLE_STATES for lid in latest_ids)
+        successors: dict[str, tuple[str, str]] = {}
+        if has_terminal:
+            successors = _find_pending_successors(hostname, latest_ids, username, remote_dir=rdir)
+
         details: dict[str, object] = {}
         any_running = False
         states: list[str] = []
         for i, (orig_id, latest_id) in enumerate(zip(job_ids, latest_ids)):
-            info = all_status.get(latest_id, {"job_id": latest_id, "state": "UNKNOWN"})
-            state = info.get("state", "UNKNOWN")
+            succ_id, succ_state = successors.get(latest_id, (None, None))
+            if succ_id:
+                # Auto-resume successor found — show the successor status
+                state = succ_state or "PENDING"
+                label = f"{state} (job {succ_id})"
+                latest_ids[i] = succ_id
+            else:
+                info = all_status.get(latest_id, {"job_id": latest_id, "state": "UNKNOWN"})
+                state = info.get("state", "UNKNOWN")
+                elapsed = info.get("time", "")
+                attempt = f", chain {latest_id}" if latest_id != orig_id else ""
+                label = f"{state} (job {latest_id}{attempt})"
+                if elapsed and state in _RUNNING_STATES:
+                    label += f" {elapsed} elapsed"
             states.append(state)
-            elapsed = info.get("time", "")
-            attempt = f", chain {latest_id}" if latest_id != orig_id else ""
-            label = f"{state} (job {latest_id}{attempt})"
-            if elapsed and state in _RUNNING_STATES:
-                label += f" {elapsed} elapsed"
             details[f"shard_{i}"] = label
             if state in _RUNNING_STATES:
                 any_running = True
@@ -593,6 +699,12 @@ class SlurmExecutor(Executor):
             m = re.search(r"(\d+)", output)
             if m:
                 new_id = m.group(1)
+                ssh_run(
+                    hostname,
+                    f"echo {new_id} >> {shlex_mod.quote(rdir + '/.nel_job_chain')}",
+                    username=username,
+                    timeout=10.0,
+                )
                 run_meta.update_details(job_id=new_id, job_ids=[new_id])
                 new_meta_dir = _jobs_store() / new_id
                 new_meta_dir.mkdir(parents=True, exist_ok=True)
@@ -650,6 +762,12 @@ class SlurmExecutor(Executor):
                 m = re.search(r"(\d+)", output)
                 if m:
                     new_job_ids[i] = m.group(1)
+                    ssh_run(
+                        hostname,
+                        f"echo {new_job_ids[i]} >> {shlex_mod.quote(shard_dir + '/.nel_job_chain')}",
+                        username=username,
+                        timeout=10.0,
+                    )
             except Exception as e:
                 click.echo(f"  shard_{i}: FAILED — {e}", err=True)
                 failed_shards.append(i)
