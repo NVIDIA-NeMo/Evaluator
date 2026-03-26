@@ -1119,6 +1119,7 @@ class TestShardedStatus:
 
 class TestFetchEvalProgress:
     def test_parse_wc_output_sharded(self):
+        import pytest
         from nemo_evaluator.executors.slurm_executor import _fetch_eval_progress
 
         ssh_output = (
@@ -1128,61 +1129,84 @@ class TestFetchEvalProgress:
             " 145 total\n"
             "---\n"
             "eval start: bench problems=100 [0:100] repeats=1 concurrency=30\n"
+            "---\n"
+            "/run/shard_0/bench/verified_log.jsonl 45 22.500000\n"
+            "/run/shard_1/bench/verified_log.jsonl 100 61.000000\n"
         )
         with patch("nemo_evaluator.executors.ssh.ssh_run", return_value=ssh_output):
             result = _fetch_eval_progress("host", "/run", shard_count=3, username="u")
 
-        assert result["shard_0"] == (45, 100)
-        assert result["shard_1"] == (100, 100)
-        assert result["shard_2"] == (0, 100)
+        assert result["shard_0"].done == 45
+        assert result["shard_0"].expected == 100
+        assert result["shard_0"].avg_reward == pytest.approx(0.5)
+        assert result["shard_1"].done == 100
+        assert result["shard_1"].expected == 100
+        assert result["shard_1"].avg_reward == pytest.approx(0.61)
+        assert result["shard_2"].done == 0
+        assert result["shard_2"].expected == 100
+        assert result["shard_2"].avg_reward is None
 
     def test_no_verified_log_yet(self):
         from nemo_evaluator.executors.slurm_executor import _fetch_eval_progress
 
-        with patch("nemo_evaluator.executors.ssh.ssh_run", return_value="---\n"):
+        with patch("nemo_evaluator.executors.ssh.ssh_run", return_value="---\n---\n"):
             result = _fetch_eval_progress("host", "/run", shard_count=2, username="u")
 
         assert result == {}
 
     def test_non_sharded(self):
+        import pytest
         from nemo_evaluator.executors.slurm_executor import _fetch_eval_progress
 
         ssh_output = (
-            "  42 /run/bench/verified_log.jsonl\n---\neval start: bench problems=500 [0:500] repeats=1 concurrency=30\n"
+            "  42 /run/bench/verified_log.jsonl\n"
+            "---\n"
+            "eval start: bench problems=500 [0:500] repeats=1 concurrency=30\n"
+            "---\n"
+            "/run/bench/verified_log.jsonl 42 12.600000\n"
         )
         with patch("nemo_evaluator.executors.ssh.ssh_run", return_value=ssh_output):
             result = _fetch_eval_progress("host", "/run", username="u")
 
-        assert result == {"root": (42, 500)}
+        assert result["root"].done == 42
+        assert result["root"].expected == 500
+        assert result["root"].avg_reward == pytest.approx(0.3)
 
     def test_no_log_yet(self):
         from nemo_evaluator.executors.slurm_executor import _fetch_eval_progress
 
-        ssh_output = "  15 /run/shard_0/bench/verified_log.jsonl\n---\n\n"
+        ssh_output = "  15 /run/shard_0/bench/verified_log.jsonl\n---\n\n---\n\n"
         with patch("nemo_evaluator.executors.ssh.ssh_run", return_value=ssh_output):
             result = _fetch_eval_progress("host", "/run", shard_count=1, username="u")
 
-        assert result["shard_0"] == (15, None)
+        assert result["shard_0"].done == 15
+        assert result["shard_0"].expected is None
 
 
 class TestProgressLabel:
     def test_with_expected(self):
-        from nemo_evaluator.executors.slurm_executor import _progress_label
+        from nemo_evaluator.executors.slurm_executor import _ShardProgress, _progress_label
 
-        assert _progress_label(45, 100) == "45/100 (45%)"
-        assert _progress_label(100, 100) == "100/100 (100%)"
-        assert _progress_label(0, 100) == "0/100 (0%)"
+        assert _progress_label(_ShardProgress(45, 100)) == "45/100 (45%)"
+        assert _progress_label(_ShardProgress(100, 100)) == "100/100 (100%)"
+        assert _progress_label(_ShardProgress(0, 100)) == "0/100 (0%)"
 
     def test_without_expected(self):
-        from nemo_evaluator.executors.slurm_executor import _progress_label
+        from nemo_evaluator.executors.slurm_executor import _ShardProgress, _progress_label
 
-        assert _progress_label(42, None) == "42 verified"
+        assert _progress_label(_ShardProgress(42, None)) == "42 verified"
 
     def test_rounding(self):
-        from nemo_evaluator.executors.slurm_executor import _progress_label
+        from nemo_evaluator.executors.slurm_executor import _ShardProgress, _progress_label
 
-        assert _progress_label(1, 3) == "1/3 (33%)"
-        assert _progress_label(2, 3) == "2/3 (67%)"
+        assert _progress_label(_ShardProgress(1, 3)) == "1/3 (33%)"
+        assert _progress_label(_ShardProgress(2, 3)) == "2/3 (67%)"
+
+    def test_with_reward(self):
+        from nemo_evaluator.executors.slurm_executor import _ShardProgress, _progress_label
+
+        assert _progress_label(_ShardProgress(45, 100, 22.5, 45)) == "45/100 (45%), avg_reward=0.5000"
+        assert _progress_label(_ShardProgress(10, None, 3.0, 10)) == "10 verified, avg_reward=0.3000"
 
 
 class TestStatusWithProgress:
@@ -1202,7 +1226,7 @@ class TestStatusWithProgress:
     @patch("nemo_evaluator.executors.slurm_executor._fetch_eval_progress")
     @patch("nemo_evaluator.executors.ssh.ssh_run", return_value="PENDING")
     def test_sharded_status_shows_progress(self, mock_ssh, mock_progress, mock_batch, mock_latest, mock_meta):
-        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+        from nemo_evaluator.executors.slurm_executor import _ShardProgress, SlurmExecutor
 
         job_ids = ["100", "101"]
         mock_meta.return_value = self._make_meta(job_ids)
@@ -1212,15 +1236,15 @@ class TestStatusWithProgress:
             "101": {"job_id": "101", "state": "RUNNING", "time": "0:30:00"},
         }
         mock_progress.return_value = {
-            "shard_0": (45, 100),
-            "shard_1": (12, 100),
+            "shard_0": _ShardProgress(45, 100, 22.5, 45),
+            "shard_1": _ShardProgress(12, 100, 3.6, 12),
         }
 
         state = SlurmExecutor().status("/run/parent")
 
-        assert "progress: 45/100 (45%)" in state.details["shard_0"]
-        assert "progress: 12/100 (12%)" in state.details["shard_1"]
-        assert "progress: 57/200 (28%)" in state.details["shards"]
+        assert "progress: 45/100 (45%), avg_reward=0.5000" in state.details["shard_0"]
+        assert "progress: 12/100 (12%), avg_reward=0.3000" in state.details["shard_1"]
+        assert "progress: 57/200 (28%), avg_reward=0.4579" in state.details["shards"]
 
     @patch("nemo_evaluator.executors.slurm_executor._read_meta")
     @patch("nemo_evaluator.executors.slurm_executor._resolve_shard_latest_ids")
@@ -1250,14 +1274,14 @@ class TestStatusWithProgress:
     @patch("nemo_evaluator.executors.ssh.check_job_status")
     @patch("nemo_evaluator.executors.slurm_executor._fetch_eval_progress")
     def test_non_sharded_status_shows_progress(self, mock_progress, mock_check, mock_meta):
-        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+        from nemo_evaluator.executors.slurm_executor import _ShardProgress, SlurmExecutor
 
         mock_meta.return_value = {"job_id": "100", "hostname": "h", "username": ""}
         mock_check.return_value = {"job_id": "100", "state": "RUNNING"}
-        mock_progress.return_value = {"root": (42, 500)}
+        mock_progress.return_value = {"root": _ShardProgress(42, 500, 12.6, 42)}
 
         state = SlurmExecutor().status("/out")
-        assert state.details.get("progress") == "42/500 (8%)"
+        assert state.details.get("progress") == "42/500 (8%), avg_reward=0.3000"
 
 
 # ---------------------------------------------------------------------------
