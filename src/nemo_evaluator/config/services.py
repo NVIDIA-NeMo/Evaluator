@@ -46,6 +46,34 @@ class InterceptorConfig(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class ProxyConfig(BaseModel):
+    """LiteLLM proxy settings for a service.
+
+    All proxy-related configuration lives here so each service can
+    independently configure its proxy sidecar.  The key is optional on
+    the service — omit it entirely when no proxy is needed.
+
+    ``extra_body`` is merged into ``litellm_params.extra_body`` in the
+    generated proxy YAML config — use it for provider-specific fields
+    (e.g. ``chat_template_kwargs``, ``skip_special_tokens``).
+
+    ``litellm_settings`` is merged into the top-level ``litellm_settings``
+    block — use it for any LiteLLM knobs (``num_retries``, etc.).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    interceptors: list[InterceptorConfig] = Field(default_factory=list)
+    verbose: bool = False
+    extra_body: dict[str, Any] = Field(default_factory=dict)
+    litellm_settings: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def needs_proxy(self) -> bool:
+        """Whether any proxy-relevant config is present."""
+        return bool(self.interceptors or self.extra_body or self.litellm_settings or self.verbose)
+
+
 class _ModelServerBase(BaseModel):
     """Shared fields for locally-deployed model servers (vllm, sglang,
     nim, docker_model).  NEL starts these servers and knows their URL."""
@@ -72,8 +100,7 @@ class _ModelServerBase(BaseModel):
     max_input_tokens: int | None = None
     max_output_tokens: int | None = None
     generation: GenerationConfig = Field(default_factory=GenerationConfig)
-    interceptors: list[InterceptorConfig] = Field(default_factory=list)
-    proxy_verbose: bool = False
+    proxy: ProxyConfig | None = None
     depends_on: list[str] = Field(default_factory=list)
     node_pool: str | None = None
 
@@ -124,8 +151,7 @@ class ExternalApiService(BaseModel):
     max_input_tokens: int | None = None
     max_output_tokens: int | None = None
     generation: GenerationConfig = Field(default_factory=GenerationConfig)
-    interceptors: list[InterceptorConfig] = Field(default_factory=list)
-    proxy_verbose: bool = False
+    proxy: ProxyConfig | None = None
 
     @property
     def is_model_server(self) -> bool:

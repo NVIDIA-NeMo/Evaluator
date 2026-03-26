@@ -31,9 +31,9 @@ nemotron:
     temperature: 1.0
     top_p: 0.95
     max_tokens: 16384
-  interceptors:
-    - name: turn_counter
-      config:
-        max_turns: 100
-  proxy_verbose: false
+  proxy:
+    interceptors:
+      - name: turn_counter
+        config:
+          max_turns: 100
   node_pool: gpu

@@ -29,7 +29,7 @@ _REGISTRY: dict[str, str] = {
     "log_tokens": "nemo_evaluator.interceptors.log_tokens",
     "modify_tools": "nemo_evaluator.interceptors.modify_tools",
     "turn_counter": "nemo_evaluator.interceptors.turn_counter",
-    "enable_reasoning": "nemo_evaluator.interceptors.enable_reasoning",
+    "drop_params": "nemo_evaluator.interceptors.drop_params",
 }
 """Maps interceptor short-names to their fully-qualified module paths.
 Each module must expose an ``Interceptor`` class attribute."""

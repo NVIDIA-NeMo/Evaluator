@@ -50,17 +50,17 @@ services:
     generation:
       temperature: 1.0
       top_p: 0.95
-      max_tokens: 16384
-    interceptors:
-      - name: turn_counter
-        config:
-          max_turns: 200
-    proxy_verbose: false
+    proxy:
+      interceptors:
+        - name: turn_counter
+          config:
+            max_turns: 200
+    max_output_tokens: 131072
     node_pool: gpu
 
 benchmarks:
   - name: harbor://swebench-verified@1.0
-    max_concurrent: 30
+    max_concurrent: 100
     timeout: 10800.0
     solver:
       type: harbor
@@ -81,14 +81,14 @@ benchmarks:
       log_stream_prefix: swebench-super
       ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
       timeout: 10800.0
-      concurrency: 30
+      concurrency: 100
 
 cluster:
   type: slurm
   hostname: cw-dfw-cs-001-login-01
   account: coreai_dlalgo_compeval
   walltime: "04:00:00"
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:20260325-0741390700-d50c0234-harbor-amd64
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260325-191433-9a795a31-harbor-amd64
   container_mounts:
     - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
   container_env:

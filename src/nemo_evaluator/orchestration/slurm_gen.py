@@ -819,13 +819,13 @@ def _extract_bench_config(config: EvalConfig, bench_idx: int, svc_url_var: str, 
         api_key = getattr(svc, "api_key", None)
         if api_key:
             svc_dict["api_key"] = api_key
-        if hasattr(svc, "interceptors") and svc.interceptors:
-            svc_dict["interceptors"] = [ic.model_dump(exclude_none=True) for ic in svc.interceptors]
+        proxy = getattr(svc, "proxy", None)
+        if proxy is not None:
+            svc_dict["proxy"] = proxy.model_dump(exclude_none=True, exclude_defaults=True)
         if hasattr(svc, "generation"):
             gen = svc.generation.model_dump(exclude_none=True)
             if gen:
                 svc_dict["generation"] = gen
-        svc_dict["proxy_verbose"] = getattr(svc, "proxy_verbose", False)
         services[svc_name] = svc_dict
 
     bench_dict = bench.model_dump(exclude_none=True)

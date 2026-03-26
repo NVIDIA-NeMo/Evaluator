@@ -57,18 +57,20 @@ services:
     generation:
       temperature: 1.0
       top_p: 1.0
-    interceptors:
-      - name: turn_counter
-        config:
-          max_turns: 200
-      - name: enable_reasoning
-        config:
+    proxy:
+      extra_body:
+        chat_template_kwargs:
           enable_thinking: true
-          skip_special_tokens: false
-          drop_params:
-            - max_tokens
-            - max_completion_tokens
-    proxy_verbose: false
+        skip_special_tokens: false
+      interceptors:
+        - name: turn_counter
+          config:
+            max_turns: 200
+        - name: drop_params
+          config:
+            params:
+              - max_tokens
+              - max_completion_tokens
     node_pool: gpu
 
 benchmarks:
@@ -101,7 +103,7 @@ cluster:
   hostname: oci-hsg-cs-001-login-01.nvidia.com
   account: llmservice_nemotron_ultra
   walltime: "04:00:00"
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260325-145247-b0b1cf67-harbor-arm64
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260325-191433-9a795a31-harbor-arm64
   sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
   sbatch_extra_flags:
     switches: 1
