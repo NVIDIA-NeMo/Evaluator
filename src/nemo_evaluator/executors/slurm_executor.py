@@ -110,33 +110,52 @@ def _update_aggregate_meta(remote_dir: str, new_job_ids: list[str]) -> None:
             continue
 
 
+class _ShardProgress:
+    __slots__ = ("done", "expected", "reward_sum", "reward_count")
+
+    def __init__(self, done: int = 0, expected: int | None = None, reward_sum: float = 0.0, reward_count: int = 0):
+        self.done = done
+        self.expected = expected
+        self.reward_sum = reward_sum
+        self.reward_count = reward_count
+
+    @property
+    def avg_reward(self) -> float | None:
+        return self.reward_sum / self.reward_count if self.reward_count else None
+
+
 def _fetch_eval_progress(
     hostname: str,
     rdir: str,
     shard_count: int | None = None,
     username: str | None = None,
-) -> dict[str, tuple[int, int | None]]:
-    """Count verified samples vs expected for each shard via one SSH call."""
+) -> dict[str, _ShardProgress]:
+    """Count verified samples, expected total, and avg reward per shard via one SSH call."""
     import re as _re
 
     from nemo_evaluator.executors.ssh import ssh_run
 
     qdir = shlex.quote(rdir)
-    if shard_count:
-        glob = f"{qdir}/shard_*"
-    else:
-        glob = qdir
+    glob = f"{qdir}/shard_*" if shard_count else qdir
+    awk_reward = (
+        r"""awk -F'"reward":' 'NF>1{split($2,a,/[,}]/);s+=a[1];n++}"""
+        r"""END{if(n>0)printf "%s %d %.6f\n",FILENAME,n,s}' """
+    )
     cmd = (
         f"wc -l {glob}/*/*/verified_log.jsonl 2>/dev/null;"
         f"echo '---';"
-        f"grep -m1 'problems=' {glob}/logs/slurm-*.log 2>/dev/null | head -1"
+        f"grep -m1 'problems=' {glob}/logs/slurm-*.log 2>/dev/null | head -1;"
+        f"echo '---';"
+        f"for f in {glob}/*/*/verified_log.jsonl; do "
+        f'[ -f "$f" ] && {awk_reward}"$f"; done 2>/dev/null'
     )
     output = ssh_run(hostname, cmd, username=username, timeout=15.0)
     sections = output.split("---")
     wc_out = sections[0] if sections else ""
     log_out = sections[1].strip() if len(sections) > 1 else ""
+    reward_out = sections[2].strip() if len(sections) > 2 else ""
 
-    result: dict[str, tuple[int, int | None]] = {}
+    result: dict[str, _ShardProgress] = {}
     for line in wc_out.strip().splitlines():
         line = line.strip()
         if not line or "total" in line:
@@ -152,9 +171,9 @@ def _fetch_eval_progress(
         if shard_count:
             m = _re.search(r"shard_(\d+)", path)
             if m:
-                result[f"shard_{m.group(1)}"] = (count, None)
+                result[f"shard_{m.group(1)}"] = _ShardProgress(done=count)
         else:
-            result["root"] = (count, None)
+            result["root"] = _ShardProgress(done=count)
 
     per_shard_expected: int | None = None
     if log_out:
@@ -164,18 +183,43 @@ def _fetch_eval_progress(
             per_shard_expected = int(m_p.group(1)) * (int(m_r.group(1)) if m_r else 1)
 
     if per_shard_expected and per_shard_expected > 0:
-        for key in result:
-            done, _ = result[key]
-            result[key] = (done, per_shard_expected)
+        for sp in result.values():
+            sp.expected = per_shard_expected
+
+    for line in reward_out.splitlines():
+        parts = line.strip().split()
+        if len(parts) < 3:
+            continue
+        path, count_s, sum_s = parts[0], parts[1], parts[2]
+        try:
+            r_count, r_sum = int(count_s), float(sum_s)
+        except ValueError:
+            continue
+        if shard_count:
+            m = _re.search(r"shard_(\d+)", path)
+            if m:
+                key = f"shard_{m.group(1)}"
+                if key in result:
+                    result[key].reward_sum = r_sum
+                    result[key].reward_count = r_count
+        elif "root" in result:
+            result["root"].reward_sum = r_sum
+            result["root"].reward_count = r_count
 
     return result
 
 
-def _progress_label(done: int, expected: int | None) -> str:
-    if expected and expected > 0:
-        pct = round(100 * done / expected)
-        return f"{done}/{expected} ({pct}%)"
-    return f"{done} verified"
+def _progress_label(sp: _ShardProgress) -> str:
+    parts = []
+    if sp.expected and sp.expected > 0:
+        pct = round(100 * sp.done / sp.expected)
+        parts.append(f"{sp.done}/{sp.expected} ({pct}%)")
+    else:
+        parts.append(f"{sp.done} verified")
+    avg = sp.avg_reward
+    if avg is not None:
+        parts.append(f"avg_reward={avg:.4f}")
+    return ", ".join(parts)
 
 
 class SlurmExecutor(Executor):
@@ -354,8 +398,7 @@ class SlurmExecutor(Executor):
             try:
                 progress = _fetch_eval_progress(hostname, rdir, username=username)
                 if "root" in progress:
-                    done, expected = progress["root"]
-                    info["progress"] = _progress_label(done, expected)
+                    info["progress"] = _progress_label(progress["root"])
             except Exception as exc:
                 logger.debug("progress fetch failed: %s", exc)
             return ProcessState("slurm", running, info)
@@ -391,13 +434,16 @@ class SlurmExecutor(Executor):
         try:
             progress = _fetch_eval_progress(hostname, rdir, shard_count=len(job_ids), username=username)
             if progress:
-                for shard_key, (done, expected) in progress.items():
+                for shard_key, sp in progress.items():
                     if shard_key in details:
-                        details[shard_key] = f"{details[shard_key]}, progress: {_progress_label(done, expected)}"
-                total_done = sum(d for d, _ in progress.values())
-                exp_vals = [e for _, e in progress.values() if e is not None]
-                total_exp = sum(exp_vals) if exp_vals else None
-                shards_summary += f", progress: {_progress_label(total_done, total_exp)}"
+                        details[shard_key] = f"{details[shard_key]}, progress: {_progress_label(sp)}"
+                total = _ShardProgress(
+                    done=sum(sp.done for sp in progress.values()),
+                    expected=sum(sp.expected for sp in progress.values() if sp.expected is not None) or None,
+                    reward_sum=sum(sp.reward_sum for sp in progress.values()),
+                    reward_count=sum(sp.reward_count for sp in progress.values()),
+                )
+                shards_summary += f", progress: {_progress_label(total)}"
         except Exception as exc:
             logger.debug("progress fetch failed: %s", exc)
 
