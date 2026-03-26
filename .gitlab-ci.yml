@@ -36,10 +36,17 @@ test-offline:
   before_script:
     - pip install --quiet -e ".[dev]"
   script:
-    - pytest tests/ -m "not network" -v --tb=short -x -n auto --junitxml=report-offline.xml
+    - >-
+      pytest tests/ -m "not network" -v --tb=short -x -n auto
+      --junitxml=report-offline.xml
+      --cov --cov-report=term --cov-report=xml:coverage.xml
+  coverage: '/(?i)total.*?(\d+(?:\.\d+)?\%)/'
   artifacts:
     reports:
       junit: report-offline.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
     when: always
 
 test-network:
