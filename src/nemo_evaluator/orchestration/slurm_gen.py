@@ -514,7 +514,6 @@ echo "$SLURM_JOB_ID" >> "$OUTPUT_DIR/.nel_job_chain"
 _next_output=$(sbatch --dependency=afternotok:$SLURM_JOB_ID "$_this_script" $SLURM_JOB_ID 2>&1) && {{
     _next_id=$(echo "$_next_output" | grep -oE '[0-9]+')
     if [[ -n "$_next_id" ]]; then
-        echo "$_next_id" >> "$OUTPUT_DIR/.nel_job_chain"
         echo "Auto-resume follow-up queued: $_next_id (afternotok:$SLURM_JOB_ID)"
     fi
 }} || echo "WARNING: Failed to submit auto-resume follow-up. Chain will NOT continue on failure."

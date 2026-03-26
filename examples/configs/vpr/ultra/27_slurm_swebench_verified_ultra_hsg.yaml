@@ -104,7 +104,7 @@ cluster:
   account: llmservice_nemotron_ultra
   walltime: "04:00:00"
   shards: 5
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260326-125929-4a8bd0fa-harbor-arm64
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:0.13.1-harbor-arm64
   sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
   sbatch_extra_flags:
     switches: 1
