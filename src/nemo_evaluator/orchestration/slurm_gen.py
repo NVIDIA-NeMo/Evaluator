@@ -91,7 +91,7 @@ if [[ $NEL_EXIT_CODE -eq 0 ]]; then
         if mkdir "$_PARENT_DIR/.merge_lock" 2>/dev/null; then
             echo ""
             echo "=== All {total_shards} shards complete — running merge ==="
-            {merge_prefix}nel eval merge "$_PARENT_DIR"
+            nel eval merge "$_PARENT_DIR"
             _MERGE_RC=$?
             if [[ $_MERGE_RC -ne 0 ]]; then
                 echo "ERROR: Merge failed (exit $_MERGE_RC). To retry:"
@@ -511,8 +511,13 @@ if [[ "$_prev_slurm_job_id" != "" ]]; then
 fi
 
 echo "$SLURM_JOB_ID" >> "$OUTPUT_DIR/.nel_job_chain"
-sbatch --dependency=afternotok:$SLURM_JOB_ID "$_this_script" $SLURM_JOB_ID \\
-    || echo "WARNING: Failed to submit auto-resume follow-up. Chain will NOT continue on failure."
+_next_output=$(sbatch --dependency=afternotok:$SLURM_JOB_ID "$_this_script" $SLURM_JOB_ID 2>&1) && {{
+    _next_id=$(echo "$_next_output" | grep -oE '[0-9]+')
+    if [[ -n "$_next_id" ]]; then
+        echo "$_next_id" >> "$OUTPUT_DIR/.nel_job_chain"
+        echo "Auto-resume follow-up queued: $_next_id (afternotok:$SLURM_JOB_ID)"
+    fi
+}} || echo "WARNING: Failed to submit auto-resume follow-up. Chain will NOT continue on failure."
 """
 
 _MAX_WALLTIME_CHECK = """\
@@ -1236,15 +1241,12 @@ def generate_sbatch(
         }
         for fmt in config.output.report:
             ext = ext_map.get(fmt, fmt)
-            report_lines.append(
-                f'{eval_run_prefix}nel eval report "$_PARENT_DIR" -f {fmt} -o "$_PARENT_DIR/report.{ext}"'
-            )
+            report_lines.append(f'nel eval report "$_PARENT_DIR" -f {fmt} -o "$_PARENT_DIR/report.{ext}"')
         parts.append(
             _SHARD_FINISH.format(
                 shard_idx=shard_idx,
                 total_shards=total_shards,
                 parent_output_dir=parent_output_dir,
-                merge_prefix=eval_run_prefix,
                 report_commands="\n            ".join(report_lines) if report_lines else "",
             )
         )

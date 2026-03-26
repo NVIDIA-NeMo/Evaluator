@@ -687,9 +687,8 @@ def eval_merge(output_dir, repeats):
 
     benchmarks: dict[str, list[Path]] = {}
     for sd in shard_dirs:
-        for bench_dir in sorted(sd.iterdir()):
-            if bench_dir.is_dir() and (bench_dir / "results.jsonl").exists():
-                benchmarks.setdefault(bench_dir.name, []).append(bench_dir)
+        for results_file in sd.rglob("results.jsonl"):
+            benchmarks.setdefault(results_file.parent.name, []).append(results_file.parent)
 
     if not benchmarks:
         raise click.ClickException("No benchmark results (results.jsonl) found in any shard directory.")
