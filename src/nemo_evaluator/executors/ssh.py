@@ -86,7 +86,7 @@ def _ensure_master(target: str) -> None:
     logger.info("Opening SSH connection to %s ...", target)
     result = subprocess.run(
         ["ssh", *opts, target, "true"],
-        timeout=30,
+        timeout=60,
     )
     if result.returncode != 0:
         raise SSHError(f"Failed to open SSH connection to {target}")

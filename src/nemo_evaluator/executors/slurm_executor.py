@@ -699,12 +699,6 @@ class SlurmExecutor(Executor):
             m = re.search(r"(\d+)", output)
             if m:
                 new_id = m.group(1)
-                ssh_run(
-                    hostname,
-                    f"echo {new_id} >> {shlex_mod.quote(rdir + '/.nel_job_chain')}",
-                    username=username,
-                    timeout=10.0,
-                )
                 run_meta.update_details(job_id=new_id, job_ids=[new_id])
                 new_meta_dir = _jobs_store() / new_id
                 new_meta_dir.mkdir(parents=True, exist_ok=True)
@@ -762,12 +756,6 @@ class SlurmExecutor(Executor):
                 m = re.search(r"(\d+)", output)
                 if m:
                     new_job_ids[i] = m.group(1)
-                    ssh_run(
-                        hostname,
-                        f"echo {new_job_ids[i]} >> {shlex_mod.quote(shard_dir + '/.nel_job_chain')}",
-                        username=username,
-                        timeout=10.0,
-                    )
             except Exception as e:
                 click.echo(f"  shard_{i}: FAILED — {e}", err=True)
                 failed_shards.append(i)
