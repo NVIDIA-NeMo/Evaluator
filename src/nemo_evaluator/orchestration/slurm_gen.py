@@ -91,7 +91,7 @@ if [[ $NEL_EXIT_CODE -eq 0 ]]; then
         if mkdir "$_PARENT_DIR/.merge_lock" 2>/dev/null; then
             echo ""
             echo "=== All {total_shards} shards complete — running merge ==="
-            nel eval merge "$_PARENT_DIR"
+            {merge_prefix}nel eval merge "$_PARENT_DIR"
             _MERGE_RC=$?
             if [[ $_MERGE_RC -ne 0 ]]; then
                 echo "ERROR: Merge failed (exit $_MERGE_RC). To retry:"
@@ -1154,9 +1154,22 @@ def generate_sbatch(
         return f"{reexport}\n{prefix}" if reexport else prefix
 
     eval_run_prefix = ""
+    merge_run_prefix = ""
     if use_containers and base_override:
         eval_run_prefix = _eval_srun_prefix(
             config.benchmarks[0].name if config.benchmarks else "_report", base_override
+        )
+        # Merge/report need access to the PARENT output dir (all shards),
+        # not just a single shard directory.
+        _merge_mounts = list(cluster.container_mounts) + [f"{parent_output_dir}:{parent_output_dir}"]
+        if cluster.mount_home:
+            _merge_mounts.append("$HOME:$HOME")
+        _merge_mount_flag = f"--container-mounts={','.join(_merge_mounts)} " if _merge_mounts else ""
+        _merge_home_flag = "" if cluster.mount_home else "--no-container-mount-home "
+        merge_run_prefix = (
+            f"srun --mpi=pmix --overlap --unbuffered --nodes 1 --ntasks 1 "
+            f"--container-image {base_override} "
+            f"{_merge_mount_flag}{_merge_home_flag}\\\n    "
         )
 
     for i, bench in enumerate(config.benchmarks, 1):
@@ -1240,12 +1253,15 @@ def generate_sbatch(
         }
         for fmt in config.output.report:
             ext = ext_map.get(fmt, fmt)
-            report_lines.append(f'nel eval report "$_PARENT_DIR" -f {fmt} -o "$_PARENT_DIR/report.{ext}"')
+            report_lines.append(
+                f'{merge_run_prefix}nel eval report "$_PARENT_DIR" -f {fmt} -o "$_PARENT_DIR/report.{ext}"'
+            )
         parts.append(
             _SHARD_FINISH.format(
                 shard_idx=shard_idx,
                 total_shards=total_shards,
                 parent_output_dir=parent_output_dir,
+                merge_prefix=merge_run_prefix,
                 report_commands="\n            ".join(report_lines) if report_lines else "",
             )
         )
