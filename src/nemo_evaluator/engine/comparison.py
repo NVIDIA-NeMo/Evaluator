@@ -1,34 +1,186 @@
+"""Paired regression analysis: McNemar test, flip report, and verdict logic.
+
+Public API
+----------
+- ``compare_runs``  — compare two eval bundles (file paths)
+- ``compare_results`` — compare pre-loaded records (in-memory)
+- ``build_flip_report`` — 2x2 contingency table + per-sample flips
+- ``mcnemar_test`` — one-sided McNemar's exact test for degradation
+- ``write_regression`` — serialize report to JSON
+"""
+
 from __future__ import annotations
 
 import json
 import logging
+import math
+import os
+from collections import Counter
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 _SIGNIFICANCE_THRESHOLD = 0.05
+_MIN_EFFECT_SIZE = 0.005  # 0.5% practical threshold
+_REPORT_VERSION = 1
 
 
-def compare_runs(baseline_path: str | Path, candidate_path: str | Path) -> dict[str, Any]:
-    """Compare two eval run bundles. Returns regression report with deltas and significance."""
+# ── Dataclasses (public API) ──────────────────────────────────────────
+
+
+@dataclass
+class McNemarResult:
+    p_value: float | None = None
+    significant: bool | None = None
+    method: str | None = None
+    n_discordant: int = 0
+    effect_size: float | None = None  # (b - c) / n_paired
+    ci_lower: float | None = None  # 95% CI on regression rate difference
+    ci_upper: float | None = None
+    hypothesis: str = "one-sided (degradation)"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {k: v for k, v in asdict(self).items() if v is not None}
+
+
+@dataclass
+class FlipEntry:
+    problem_idx: int
+    repeat: int
+    expected_answer: str | None = None
+    baseline_reward: float = 0.0
+    candidate_reward: float = 0.0
+    category: str | None = None
+    baseline_response: str | None = None
+    candidate_response: str | None = None
+    scoring_details: dict[str, Any] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        return {k: v for k, v in d.items() if v is not None}
+
+
+@dataclass
+class FlipSummary:
+    n_paired: int = 0
+    n_regressions: int = 0
+    n_improvements: int = 0
+    n_stable_correct: int = 0
+    n_stable_wrong: int = 0
+    regression_rate: float | None = None  # n_regressions / n_paired
+    improvement_rate: float | None = None
+    category_breakdown: dict[str, dict[str, int]] | None = None
+
+
+@dataclass
+class FlipReport:
+    contingency: dict[str, int] = field(default_factory=dict)
+    regressions: list[FlipEntry] = field(default_factory=list)
+    improvements: list[FlipEntry] = field(default_factory=list)
+    summary: FlipSummary = field(default_factory=FlipSummary)
+
+
+@dataclass
+class RegressionReport:
+    """Typed regression report. Use .to_dict() for JSON serialization."""
+    report_version: int = _REPORT_VERSION
+    baseline: dict[str, Any] = field(default_factory=dict)
+    candidate: dict[str, Any] = field(default_factory=dict)
+    score_deltas: dict[str, Any] = field(default_factory=dict)
+    runtime_deltas: dict[str, Any] = field(default_factory=dict)
+    category_deltas: dict[str, Any] | None = None
+    flip_report: FlipReport | None = None
+    mcnemar: McNemarResult | None = None
+    verdict: str | None = None  # PASS / WARN / BLOCK / INCONCLUSIVE
+    verdict_reasons: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+    def is_regression(self, alpha: float = _SIGNIFICANCE_THRESHOLD) -> bool:
+        if self.mcnemar and self.mcnemar.significant:
+            s = self.flip_report.summary if self.flip_report else None
+            if s and s.n_regressions > s.n_improvements:
+                return True
+        return False
+
+    def worst_category(self) -> str | None:
+        if not self.category_deltas:
+            return None
+        return min(self.category_deltas, key=lambda c: self.category_deltas[c].get("delta", 0))
+
+    def flip_list(self, direction: str = "regressions") -> list[FlipEntry]:
+        if not self.flip_report:
+            return []
+        return self.flip_report.regressions if direction == "regressions" else self.flip_report.improvements
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
+            "report_version": self.report_version,
+            "baseline": self.baseline,
+            "candidate": self.candidate,
+            "score_deltas": self.score_deltas,
+            "runtime_deltas": self.runtime_deltas,
+            "verdict": self.verdict,
+            "verdict_reasons": self.verdict_reasons,
+        }
+        if self.warnings:
+            d["warnings"] = self.warnings
+        if self.category_deltas:
+            d["category_deltas"] = self.category_deltas
+        if self.flip_report:
+            d["flip_report"] = {
+                "contingency": self.flip_report.contingency,
+                "regressions": [f.to_dict() for f in self.flip_report.regressions],
+                "improvements": [f.to_dict() for f in self.flip_report.improvements],
+                "summary": asdict(self.flip_report.summary),
+            }
+        if self.mcnemar:
+            d["mcnemar"] = self.mcnemar.to_dict()
+        return d
+
+
+# ── Public API ─────────────────────────────────────────────────────────
+
+
+def compare_runs(
+    baseline_path: str | Path,
+    candidate_path: str | Path,
+    reward_threshold: float = 0.0,
+    alpha: float = _SIGNIFICANCE_THRESHOLD,
+    min_effect: float = _MIN_EFFECT_SIZE,
+) -> dict[str, Any]:
+    """Compare two eval run bundles. Returns regression report as dict.
+
+    Parameters
+    ----------
+    baseline_path, candidate_path:
+        Paths to eval-*.json bundle files.
+    reward_threshold:
+        Reward above this value counts as 'correct' for flip analysis.
+    alpha:
+        Significance level for McNemar test (default 0.05).
+    min_effect:
+        Minimum practical effect size for BLOCK verdict (default 0.005 = 0.5%).
+    """
     base = _load_bundle(baseline_path)
     cand = _load_bundle(candidate_path)
 
-    base_rewards = _load_rewards(Path(baseline_path).parent)
-    cand_rewards = _load_rewards(Path(candidate_path).parent)
+    report = RegressionReport(
+        baseline={"run_id": base.get("run_id", "unknown"), "config": base.get("config", {})},
+        candidate={"run_id": cand.get("run_id", "unknown"), "config": cand.get("config", {})},
+    )
 
-    report: dict[str, Any] = {
-        "baseline": {"run_id": base.get("run_id", "unknown"), "config": base.get("config", {})},
-        "candidate": {"run_id": cand.get("run_id", "unknown"), "config": cand.get("config", {})},
-        "score_deltas": {},
-        "runtime_deltas": {},
-    }
+    # Benchmark name validation (#17)
+    b_name = base.get("benchmark", {}).get("name")
+    c_name = cand.get("benchmark", {}).get("name")
+    if b_name and c_name and b_name != c_name:
+        report.warnings.append(f"Benchmark mismatch: baseline={b_name!r}, candidate={c_name!r}")
 
+    # Score deltas (remove Mann-Whitney — item #5, replaced by McNemar)
     b_scores = base.get("benchmark", {}).get("scores", {})
     c_scores = cand.get("benchmark", {}).get("scores", {})
-
-    for metric in set(list(b_scores.keys()) + list(c_scores.keys())):
+    for metric in sorted(set(list(b_scores.keys()) + list(c_scores.keys()))):
         bv = b_scores.get(metric, {})
         cv = c_scores.get(metric, {})
         if not (isinstance(bv, dict) and isinstance(cv, dict)):
@@ -44,30 +196,22 @@ def compare_runs(baseline_path: str | Path, candidate_path: str | Path) -> dict[
             continue
 
         delta = c_val - b_val
-        entry: dict[str, Any] = {
+        report.score_deltas[metric] = {
             "baseline": b_val,
             "candidate": c_val,
             "delta": round(delta, 4),
             "relative_pct": round(100 * delta / b_val, 2) if b_val != 0 else 0,
             "ci_overlap": _ci_overlap(bv, cv),
-            "p_value": None,
-            "significant": None,
         }
 
-        p = _mann_whitney_p(base_rewards, cand_rewards)
-        if p is not None:
-            entry["p_value"] = round(p, 6)
-            entry["significant"] = p < _SIGNIFICANCE_THRESHOLD
-
-        report["score_deltas"][metric] = entry
-
+    # Runtime deltas
     b_rt = b_scores.get("runtime", {})
     c_rt = c_scores.get("runtime", {})
     if isinstance(b_rt, dict) and isinstance(c_rt, dict):
         for k in ["total_tokens", "steps_per_second", "tokens_per_second"]:
             if k in b_rt and k in c_rt:
                 try:
-                    report["runtime_deltas"][k] = {
+                    report.runtime_deltas[k] = {
                         "baseline": b_rt[k],
                         "candidate": c_rt[k],
                         "delta": round(float(c_rt[k]) - float(b_rt[k]), 2),
@@ -75,6 +219,7 @@ def compare_runs(baseline_path: str | Path, candidate_path: str | Path) -> dict[
                 except (TypeError, ValueError):
                     pass
 
+    # Category deltas
     b_cats = base.get("benchmark", {}).get("categories", {})
     c_cats = cand.get("benchmark", {}).get("categories", {})
     if b_cats or c_cats:
@@ -88,9 +233,214 @@ def compare_runs(baseline_path: str | Path, candidate_path: str | Path) -> dict[
             bm = b_cats.get(cat, {}).get("mean_reward", 0)
             cm = c_cats.get(cat, {}).get("mean_reward", 0)
             cat_deltas[cat] = {"baseline": bm, "candidate": cm, "delta": round(cm - bm, 4)}
-        report["category_deltas"] = cat_deltas
+        report.category_deltas = cat_deltas
 
-    return report
+    # Paired analysis (#2: warn when missing)
+    base_dir = Path(baseline_path).parent
+    cand_dir = Path(candidate_path).parent
+    base_has_results = (base_dir / "results.jsonl").exists()
+    cand_has_results = (cand_dir / "results.jsonl").exists()
+
+    if not base_has_results or not cand_has_results:
+        missing = []
+        if not base_has_results:
+            missing.append(f"baseline ({base_dir / 'results.jsonl'})")
+        if not cand_has_results:
+            missing.append(f"candidate ({cand_dir / 'results.jsonl'})")
+        report.warnings.append(
+            f"Per-sample results missing: {', '.join(missing)}. "
+            "McNemar paired test and flip analysis skipped. "
+            "Only aggregate score deltas are available."
+        )
+    else:
+        base_records = load_paired_records(base_dir)
+        cand_records = load_paired_records(cand_dir)
+        if base_records and cand_records:
+            report.flip_report = build_flip_report(
+                base_records, cand_records, threshold=reward_threshold,
+            )
+            report.mcnemar = mcnemar_test(report.flip_report.contingency, report.flip_report.summary.n_paired)
+
+    # Verdict logic (#4: effect size gating, #27: INCONCLUSIVE)
+    report.verdict, report.verdict_reasons = _compute_verdict(report, alpha, min_effect)
+
+    return report.to_dict()
+
+
+def compare_results(
+    baseline_records: dict[tuple[int, int], dict[str, Any]],
+    candidate_records: dict[tuple[int, int], dict[str, Any]],
+    reward_threshold: float = 0.0,
+    alpha: float = _SIGNIFICANCE_THRESHOLD,
+    min_effect: float = _MIN_EFFECT_SIZE,
+) -> dict[str, Any]:
+    """Compare pre-loaded paired records in memory (no file I/O).
+
+    Parameters are the same as ``compare_runs`` but accept dicts keyed by
+    ``(problem_idx, repeat)`` instead of file paths.  Useful for library
+    integration (e.g. ``modelopt[eval]``).
+    """
+    report = RegressionReport()
+    flip = build_flip_report(baseline_records, candidate_records, threshold=reward_threshold)
+    report.flip_report = flip
+    report.mcnemar = mcnemar_test(flip.contingency, flip.summary.n_paired)
+    report.verdict, report.verdict_reasons = _compute_verdict(report, alpha, min_effect)
+    return report.to_dict()
+
+
+def load_paired_records(task_dir: Path) -> dict[tuple[int, int], dict[str, Any]]:
+    """Load results.jsonl preserving the (problem_idx, repeat) pairing key."""
+    results_path = task_dir / "results.jsonl"
+    if not results_path.exists():
+        return {}
+    records: dict[tuple[int, int], dict[str, Any]] = {}
+    for line in results_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+            pid = record.get("problem_idx")
+            rep = record.get("repeat", 0)
+            if pid is not None:
+                records[(int(pid), int(rep))] = record
+        except (json.JSONDecodeError, TypeError, ValueError):
+            continue
+    return records
+
+
+def build_flip_report(
+    base_records: dict[tuple[int, int], dict[str, Any]],
+    cand_records: dict[tuple[int, int], dict[str, Any]],
+    threshold: float = 0.0,
+) -> FlipReport:
+    """Build a 2x2 contingency table and per-sample flip lists from paired results."""
+    paired_keys = sorted(set(base_records) & set(cand_records))
+
+    both_correct = 0
+    baseline_only = 0
+    candidate_only = 0
+    both_wrong = 0
+    regressions: list[FlipEntry] = []
+    improvements: list[FlipEntry] = []
+    cat_regressions: Counter = Counter()
+    cat_improvements: Counter = Counter()
+
+    for key in paired_keys:
+        br = base_records[key]
+        cr = cand_records[key]
+        b_ok = float(br.get("reward", 0)) > threshold
+        c_ok = float(cr.get("reward", 0)) > threshold
+
+        entry = _make_flip_entry(key, br, cr)
+
+        if b_ok and c_ok:
+            both_correct += 1
+        elif b_ok and not c_ok:
+            baseline_only += 1
+            regressions.append(entry)
+            if entry.category:
+                cat_regressions[entry.category] += 1
+        elif not b_ok and c_ok:
+            candidate_only += 1
+            improvements.append(entry)
+            if entry.category:
+                cat_improvements[entry.category] += 1
+        else:
+            both_wrong += 1
+
+    n_paired = len(paired_keys)
+
+    # Category breakdown (#13)
+    all_cats = sorted(set(list(cat_regressions.keys()) + list(cat_improvements.keys())))
+    cat_breakdown = {
+        cat: {"regressions": cat_regressions.get(cat, 0), "improvements": cat_improvements.get(cat, 0)}
+        for cat in all_cats
+    } if all_cats else None
+
+    return FlipReport(
+        contingency={
+            "both_correct": both_correct,
+            "baseline_only_correct": baseline_only,
+            "candidate_only_correct": candidate_only,
+            "both_wrong": both_wrong,
+        },
+        regressions=regressions,
+        improvements=improvements,
+        summary=FlipSummary(
+            n_paired=n_paired,
+            n_regressions=baseline_only,
+            n_improvements=candidate_only,
+            n_stable_correct=both_correct,
+            n_stable_wrong=both_wrong,
+            regression_rate=round(baseline_only / n_paired, 4) if n_paired else None,
+            improvement_rate=round(candidate_only / n_paired, 4) if n_paired else None,
+            category_breakdown=cat_breakdown,
+        ),
+    )
+
+
+def mcnemar_test(
+    contingency: dict[str, int],
+    n_paired: int = 0,
+) -> McNemarResult:
+    """One-sided McNemar's test for degradation (H1: regressions > improvements).
+
+    Uses exact binomial test for all sample sizes (item #24: drop chi-squared).
+    """
+    b = contingency["baseline_only_correct"]  # regressions
+    c = contingency["candidate_only_correct"]  # improvements
+    n_discordant = b + c
+
+    # Effect size: net regression rate over all paired samples (#3 from statistician)
+    effect_size = round((b - c) / n_paired, 6) if n_paired > 0 else None
+
+    # 95% CI on effect size using Wald interval (#25)
+    ci_lower = ci_upper = None
+    if n_paired > 0 and n_discordant > 0:
+        p_b = b / n_paired
+        p_c = c / n_paired
+        se = math.sqrt((p_b + p_c - (p_b - p_c) ** 2) / n_paired) if n_paired > 1 else 0
+        if se > 0:
+            ci_lower = round((p_b - p_c) - 1.96 * se, 6)
+            ci_upper = round((p_b - p_c) + 1.96 * se, 6)
+
+    result = McNemarResult(
+        n_discordant=n_discordant,
+        effect_size=effect_size,
+        ci_lower=ci_lower,
+        ci_upper=ci_upper,
+    )
+
+    if n_discordant == 0:
+        result.p_value = 1.0
+        result.significant = False
+        result.method = "exact"
+        return result
+
+    try:
+        # Item #1: one-sided test (alternative="greater") per RFC-0004
+        # Item #24: use exact binomial for all n (drop chi-squared branch)
+        from scipy.stats import binomtest
+
+        res = binomtest(b, n_discordant, 0.5, alternative="greater")
+        result.p_value = round(float(res.pvalue), 6)
+        result.method = "exact_binomial"
+        result.significant = result.p_value < _SIGNIFICANCE_THRESHOLD
+    except ImportError:
+        logger.debug("scipy not installed; skipping McNemar test (pip install nemo-evaluator[stats])")
+
+    return result
+
+
+def write_regression(report: dict[str, Any], output_path: str | Path) -> Path:
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
+    return path
+
+
+# ── Private helpers ────────────────────────────────────────────────────
 
 
 def _load_bundle(path: str | Path) -> dict[str, Any]:
@@ -112,48 +462,79 @@ def _ci_overlap(a: dict, b: dict) -> bool:
     b_lo = b.get("ci_lower")
     b_hi = b.get("ci_upper")
     if any(v is None for v in (a_lo, a_hi, b_lo, b_hi)):
-        return True  # Cannot determine, assume overlap
+        return True
     return a_lo <= b_hi and b_lo <= a_hi
 
 
-def _load_rewards(task_dir: Path) -> list[float]:
-    """Load per-sample reward values from results.jsonl in the given directory."""
-    results_path = task_dir / "results.jsonl"
-    if not results_path.exists():
-        return []
-    rewards = []
-    for line in results_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            record = json.loads(line)
-            r = record.get("reward")
-            if r is not None:
-                rewards.append(float(r))
-        except (json.JSONDecodeError, TypeError, ValueError):
-            continue
-    return rewards
+def _make_flip_entry(
+    key: tuple[int, int],
+    base_record: dict[str, Any],
+    cand_record: dict[str, Any],
+) -> FlipEntry:
+    meta = base_record.get("metadata", {})
+    category = meta.get("category") or base_record.get("scoring_details", {}).get("category")
+
+    # Item #23: include truncated model response
+    base_resp = base_record.get("model_response") or base_record.get("extracted_answer")
+    cand_resp = cand_record.get("model_response") or cand_record.get("extracted_answer")
+    if isinstance(base_resp, str) and len(base_resp) > 80:
+        base_resp = base_resp[:77] + "..."
+    if isinstance(cand_resp, str) and len(cand_resp) > 80:
+        cand_resp = cand_resp[:77] + "..."
+
+    return FlipEntry(
+        problem_idx=key[0],
+        repeat=key[1],
+        expected_answer=base_record.get("expected_answer"),
+        baseline_reward=float(base_record.get("reward", 0)),
+        candidate_reward=float(cand_record.get("reward", 0)),
+        category=category,
+        baseline_response=base_resp if isinstance(base_resp, str) else None,
+        candidate_response=cand_resp if isinstance(cand_resp, str) else None,
+        scoring_details=base_record.get("scoring_details"),
+    )
 
 
-def _mann_whitney_p(base_rewards: list[float], cand_rewards: list[float]) -> float | None:
-    """Compute Mann-Whitney U two-sided p-value. Returns None if scipy is unavailable or data insufficient."""
-    if len(base_rewards) < 2 or len(cand_rewards) < 2:
-        return None
-    try:
-        from scipy.stats import mannwhitneyu
-    except ImportError:
-        logger.debug("scipy not installed; skipping p-value computation (pip install nemo-evaluator[stats])")
-        return None
-    try:
-        _, p = mannwhitneyu(base_rewards, cand_rewards, alternative="two-sided")
-        return float(p)
-    except ValueError:
-        return None
+def _compute_verdict(
+    report: RegressionReport,
+    alpha: float,
+    min_effect: float,
+) -> tuple[str, list[str]]:
+    """Compute PASS / WARN / BLOCK / INCONCLUSIVE verdict.
 
+    Item #4: BLOCK requires p < alpha AND |effect| > min_effect
+    Item #27: INCONCLUSIVE when test lacks power to detect min_effect
+    """
+    reasons: list[str] = []
+    m = report.mcnemar
+    s = report.flip_report.summary if report.flip_report else None
 
-def write_regression(report: dict[str, Any], output_path: str | Path) -> Path:
-    path = Path(output_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
-    return path
+    if m is None or s is None:
+        return "PASS", ["no paired data available"]
+
+    if m.p_value is None:
+        return "PASS", ["scipy not installed; statistical test skipped"]
+
+    # Power check: can the suite detect regressions of size min_effect?
+    # MDE at 80% power ≈ 2.8 / sqrt(n_discordant) for one-sided binomial
+    mde = 2.8 / math.sqrt(max(1, m.n_discordant)) if m.n_discordant > 0 else 1.0
+    underpowered = mde > min_effect * 10  # MDE > 10x the practical threshold
+
+    if m.significant and m.effect_size is not None and abs(m.effect_size) > min_effect:
+        if s.n_regressions > s.n_improvements:
+            reasons.append(f"McNemar p={m.p_value:.4f}, effect={m.effect_size:.4f} > {min_effect}")
+            return "BLOCK", reasons
+
+    if m.significant:
+        reasons.append(f"McNemar p={m.p_value:.4f} (significant) but effect below practical threshold")
+        return "WARN", reasons
+
+    if underpowered and s.n_paired > 0:
+        reasons.append(
+            f"Test underpowered: {m.n_discordant} discordant pairs can detect "
+            f"~{mde * 100:.1f}% regression at 80% power, but practical threshold is {min_effect * 100:.1f}%"
+        )
+        return "INCONCLUSIVE", reasons
+
+    reasons.append(f"McNemar p={m.p_value:.4f} (not significant)")
+    return "PASS", reasons
