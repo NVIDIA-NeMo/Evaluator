@@ -145,123 +145,38 @@ Pyxis/Enroot-based execution with auto-selected container images per URI scheme.
 
 ## Regression Analysis
 
-Compare two evaluation runs with paired statistical testing. Detects which specific problems regressed, not just whether the overall score dropped.
-
-### Quick start
+Paired statistical testing that detects *which specific problems* regressed, not just whether the overall score dropped. Uses one-sided McNemar's exact test on per-sample outcome flips.
 
 ```bash
-# Terminal dashboard — verdict + capability profile + flip summary
-nel regression ./baseline/eval-base.json ./candidate/eval-cand.json
-
-# Full investigation document with per-problem tables and model responses
-nel regression ./baseline/eval-base.json ./candidate/eval-cand.json \
-  --show-flips --report regression_report.md
-
-# CI/CD gate — exit 1 on BLOCK, exit 2 on WARN
-nel regression ./baseline/eval-base.json ./candidate/eval-cand.json --strict
-
-# Compact for Slack (4 lines)
-nel regression ./baseline/eval-base.json ./candidate/eval-cand.json --compact
-
-# Machine-parseable JSON to stdout
-nel regression ./baseline/eval-base.json ./candidate/eval-cand.json --format json
+nel regression baseline/eval-base.json candidate/eval-cand.json                # terminal dashboard
+nel regression baseline/eval-base.json candidate/eval-cand.json --show-flips   # + per-problem flip list
+nel regression baseline/eval-base.json candidate/eval-cand.json --report r.md  # full Markdown report
+nel regression baseline/eval-base.json candidate/eval-cand.json --strict       # CI gate (exit 1=BLOCK, 2=WARN)
+nel regression baseline/eval-base.json candidate/eval-cand.json --compact      # 4-line Slack summary
+nel regression baseline/eval-base.json candidate/eval-cand.json --format json  # structured JSON to stdout
 ```
 
-### What it does
+**Verdicts** (based on significance + practical effect size):
 
-Both runs must evaluate the **same benchmark** (same `problem_idx` values). The tool:
+| Verdict | Meaning | `--strict` exit |
+|---------|---------|-----------------|
+| **PASS** | No evidence of regression | 0 |
+| **WARN** | Significant but below practical threshold | 2 |
+| **BLOCK** | Significant and practically meaningful | 1 |
+| **INCONCLUSIVE** | Not enough data to detect small regressions | 2 |
 
-1. **Pairs samples** by `(problem_idx, repeat)` across the two `results.jsonl` files
-2. **Classifies each pair** into a 2×2 contingency table:
-   - Both correct (stable) — both models got it right
-   - Baseline only correct (regression) — baseline right, candidate wrong
-   - Candidate only correct (improvement) — baseline wrong, candidate right
-   - Both wrong (stable) — both models got it wrong
-3. **Runs McNemar's exact binomial test** (one-sided, testing for degradation) on the discordant pairs
-4. **Computes a verdict**: PASS / WARN / BLOCK / INCONCLUSIVE based on statistical significance AND practical effect size
+**Key options:** `--max-drop 0.01` (tighter threshold for quant), `--correct-above 0.5` (for judge scores), `--verbose` (show p-values).
 
-### Verdicts
-
-| Verdict | Condition | Meaning | Exit code (`--strict`) |
-|---------|-----------|---------|------------------------|
-| **PASS** | p ≥ α | No evidence of regression | 0 |
-| **WARN** | p < α, effect ≤ ε | Significant but below practical threshold | 2 |
-| **BLOCK** | p < α, effect > ε | Significant and practically meaningful | 1 |
-| **INCONCLUSIVE** | Too few discordant pairs | Not enough data to detect small regressions | 2 |
-
-Default thresholds: α = 0.05, ε = 0.05 (5% absolute drop). Override with `--max-drop`.
-
-### Output modes
-
-**Terminal** (default) — color-coded Capability Impact Profile with bar charts:
-```
-PASS — 1 regressions, 0 improvements out of 100 paired samples — not significant
-
-CAPABILITY IMPACT PROFILE
-────────────────────────────────────────────────────────────
-  code_generation    ███████████████░░░░░   75.0% →  75.0%  (+0.0%)  HELD
-  long_context_128k  █████████████░░░░░░░   70.0% →  65.0%  (-5.0%)  HELD
-  math_reasoning     ████████████████████  100.0% → 100.0%  (+0.0%)  HELD
-
-FLIP SUMMARY  (100 paired samples)
-────────────────────────────────────────────────────────────
-  Stable correct:    79  ████████████████████████  (both got it right)
-  Stable wrong:      20  ░░░░░░  (both got it wrong)
-  Regressions:        1  ▓  (baseline right, candidate wrong) (1.0%)
-  Improvements:       0    (baseline wrong, candidate right)
-```
-
-**Markdown report** (`--report report.md`) — full investigation document with:
-- Executive summary with emoji indicators
-- Capability impact table
-- Full McNemar statistical details and 2×2 contingency table
-- Category breakdown of regressions
-- Per-problem flip tables showing expected answer, model response, and category
-- Investigation guidance and suggested next steps
-
-**Compact** (`--compact`) — 4 lines for Slack or CI logs.
-
-**JSON** (`--format json`) — structured report to stdout for downstream tooling.
-
-### Options
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--max-drop` / `-t` | 0.05 | Maximum allowed absolute drop in any metric (0–1 scale). |
-| `--correct-above` | 0.0 | Reward above this = correct. Use `0.5` for judge scores. |
-| `--strict` | off | Exit 1 on BLOCK, exit 2 on WARN/INCONCLUSIVE. |
-| `--show-flips` | off | Show per-sample flip list in terminal. |
-| `--report PATH` | — | Write full Markdown investigation report. |
-| `--compact` | off | Short output for Slack / CI (~4 lines). |
-| `--format` | text | `text` or `json` (JSON to stdout). |
-| `--verbose` | off | Show p-values, test method, confidence intervals. |
-| `--output` / `-o` | — | Write raw JSON report to file. |
-
-### Python API
+**Python API:**
 
 ```python
-from nemo_evaluator.engine import compare_runs, compare_results, build_flip_report, mcnemar_test
+from nemo_evaluator.engine import compare_runs, build_flip_report, mcnemar_test
 
-# From files
 report = compare_runs("baseline/eval-base.json", "candidate/eval-cand.json")
-print(report["verdict"])  # "PASS" / "WARN" / "BLOCK" / "INCONCLUSIVE"
-
-# In-memory (for library integration)
-report = compare_results(baseline_records, candidate_records)
-
-# Individual components
-flip = build_flip_report(base_records, cand_records, threshold=0.5)
-result = mcnemar_test(flip.contingency, flip.summary.n_paired)
+print(report["verdict"])  # PASS / WARN / BLOCK / INCONCLUSIVE
 ```
 
-### Statistical methodology
-
-- **McNemar's exact binomial test** (one-sided) on paired binary outcomes, following the ICLR 2026 methodology ("When LLMs get significantly worse")
-- **Clustered standard errors** per Miller 2024 ("Adding Error Bars to Evals") — accounts for within-group score correlation in benchmarks like MMLU
-- **Effect size**: net regression rate `(b - c) / N` with 95% Wald CI
-- **Power-aware verdicts**: INCONCLUSIVE when the test cannot detect regressions below the practical threshold
-
-Requires `pip install nemo-evaluator[stats]` for p-values. Degrades gracefully without scipy.
+**Methodology:** McNemar's exact binomial test (one-sided) per ICLR 2026 "When LLMs get significantly worse." Clustered standard errors per Miller 2024 "Adding Error Bars to Evals." Requires `pip install nemo-evaluator[stats]`.
 
 ## Examples
 
