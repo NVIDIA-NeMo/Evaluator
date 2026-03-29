@@ -37,6 +37,25 @@ def _cap_verdict(delta: float, threshold: float, mcnemar_sig: bool | None) -> tu
     return "HELD", "green"
 
 
+def _resolve_bundle(path_str: str) -> str:
+    """Accept a directory or a bundle .json file. If directory, find the eval-*.json inside."""
+    from pathlib import Path
+    p = Path(path_str)
+    if p.is_file():
+        return str(p)
+    if p.is_dir():
+        bundles = sorted(p.glob("eval-*.json"))
+        if len(bundles) == 1:
+            return str(bundles[0])
+        if len(bundles) > 1:
+            raise click.BadParameter(
+                f"Directory {p} contains {len(bundles)} eval-*.json bundles. "
+                f"Specify one: {', '.join(b.name for b in bundles[:3])}"
+            )
+        raise click.BadParameter(f"No eval-*.json bundle found in {p}")
+    raise click.BadParameter(f"Path {p} does not exist")
+
+
 @click.command("regression")
 @click.argument("baseline", type=click.Path(exists=True))
 @click.argument("candidate", type=click.Path(exists=True))
@@ -56,27 +75,36 @@ def _cap_verdict(delta: float, threshold: float, mcnemar_sig: bool | None) -> tu
               help="Output format. 'json' writes structured JSON to stdout.")
 @click.option("--verbose", is_flag=True, help="Show statistical details (p-values, methods, power).")
 @click.option("--report", "report_path", type=click.Path(), default=None,
-              help="Write a full Markdown investigation report to this file.")
-def regression_cmd(baseline, candidate, output, threshold, strict, reward_threshold, show_flips, compact, fmt, verbose, report_path):
-    """Compare two evaluation bundles and report regressions.
+              help="Write Markdown report to this path (default: auto-generated next to candidate bundle).")
+@click.option("--no-report", is_flag=True, help="Suppress auto-generated Markdown report.")
+def regression_cmd(baseline, candidate, output, threshold, strict, reward_threshold, show_flips, compact, fmt, verbose, report_path, no_report):
+    """Compare two evaluation runs and report regressions.
 
-    BASELINE and CANDIDATE are paths to eval-*.json bundle files
-    (produced by 'nel eval run').
+    BASELINE and CANDIDATE can be eval-*.json bundle files OR directories
+    containing one (produced by 'nel eval run').
 
     \b
     Examples:
-      nel regression ./base/eval-base.json ./cand/eval-cand.json
-      nel regression ./base/eval-base.json ./cand/eval-cand.json --show-flips
-      nel regression ./base/eval-base.json ./cand/eval-cand.json --strict --max-drop 0.01
-      nel regression ./base/eval-base.json ./cand/eval-cand.json --format json
+      nel regression ./baseline/ ./candidate/
+      nel regression ./baseline/ ./candidate/ --show-flips
+      nel regression ./baseline/ ./candidate/ --strict --max-drop 0.01
+      nel regression ./baseline/eval-base.json ./cand/eval-cand.json
     """
+    from pathlib import Path
     from nemo_evaluator.engine.comparison import compare_runs, write_regression
+
+    baseline = _resolve_bundle(baseline)
+    candidate = _resolve_bundle(candidate)
 
     report = compare_runs(
         baseline, candidate,
         reward_threshold=reward_threshold,
         min_effect=threshold,
     )
+
+    # Item #4: auto-generate Markdown report next to candidate bundle
+    if report_path is None and not no_report:
+        report_path = str(Path(candidate).parent / "regression_report.md")
 
     # Item #9: --format json writes to stdout
     if fmt == "json":
@@ -279,6 +307,12 @@ def regression_cmd(baseline, candidate, output, threshold, strict, reward_thresh
         rp = write_report(report, report_path)
         click.echo(f"Markdown report written to: {rp}")
 
+    # ── Summary sentence (item #5) ───────────────────────────────
+    summary_sentence = _build_summary_sentence(verdict, s, cats, threshold)
+    if summary_sentence:
+        click.echo()
+        click.echo(_style(f"Summary: {summary_sentence}", bold=True))
+
     click.echo()
     # Item #3: clarify "no regressions" vs flip count
     if verdict == "BLOCK":
@@ -368,6 +402,45 @@ def _plain_english_verdict(verdict: str, s: dict, mcnemar: dict | None) -> str:
 def _broke_categories(report: dict, threshold: float, mcnemar_sig: bool | None) -> list[str]:
     cats = report.get("category_deltas", {})
     return [cat for cat, v in sorted(cats.items()) if v["delta"] < -threshold and mcnemar_sig]
+
+
+def _build_summary_sentence(verdict: str, s: dict, cats: dict, threshold: float) -> str | None:
+    """Generate a one-sentence narrative for Slack copy-paste."""
+    if not s.get("n_paired"):
+        return None
+
+    n_reg = s.get("n_regressions", 0)
+    n_paired = s.get("n_paired", 0)
+
+    if not cats:
+        if n_reg == 0:
+            return "No regressions detected across all problems."
+        return None  # no categories to narrate
+
+    held = [c for c, v in sorted(cats.items()) if v["delta"] >= -threshold]
+    broke = [c for c, v in sorted(cats.items()) if v["delta"] < -threshold]
+
+    if not broke and n_reg == 0:
+        return f"All capabilities held ({', '.join(held)})."
+
+    if not broke and n_reg > 0:
+        return (f"All capabilities held. {n_reg} problem(s) flipped but within normal variation "
+                f"for {n_paired} samples.")
+
+    # Build the narrative: what's safe, what broke
+    parts = []
+    if held:
+        parts.append(f"Safe for {', '.join(held)}.")
+
+    for cat in broke:
+        v = cats[cat]
+        delta_pct = abs(v["delta"]) * 100
+        # Find regressed problem IDs in this category from category_breakdown
+        cat_bd = s.get("category_breakdown", {})
+        cat_reg = cat_bd.get(cat, {}).get("regressions", 0)
+        parts.append(f"{cat} regresses {delta_pct:.1f}% ({cat_reg} problems).")
+
+    return " ".join(parts) if parts else None
 
 
 def _exit_strict(strict: bool, verdict: str):

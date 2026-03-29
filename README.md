@@ -148,13 +148,15 @@ Pyxis/Enroot-based execution with auto-selected container images per URI scheme.
 Paired statistical testing that detects *which specific problems* regressed, not just whether the overall score dropped. Uses one-sided McNemar's exact test on per-sample outcome flips.
 
 ```bash
-nel regression baseline/eval-base.json candidate/eval-cand.json                # terminal dashboard
-nel regression baseline/eval-base.json candidate/eval-cand.json --show-flips   # + per-problem flip list
-nel regression baseline/eval-base.json candidate/eval-cand.json --report r.md  # full Markdown report
-nel regression baseline/eval-base.json candidate/eval-cand.json --strict       # CI gate (exit 1=BLOCK, 2=WARN)
-nel regression baseline/eval-base.json candidate/eval-cand.json --compact      # 4-line Slack summary
-nel regression baseline/eval-base.json candidate/eval-cand.json --format json  # structured JSON to stdout
+nel regression baseline/ candidate/                  # accepts directories or bundle files
+nel regression baseline/ candidate/ --show-flips     # + per-problem flip list in terminal
+nel regression baseline/ candidate/ --strict         # CI gate (exit 1=BLOCK, 2=WARN)
+nel regression baseline/ candidate/ --compact        # 4-line Slack summary
+nel regression baseline/ candidate/ --format json    # structured JSON to stdout
+nel regression baseline/ candidate/ --no-report      # suppress auto-generated Markdown report
 ```
+
+A Markdown investigation report with side-by-side model responses is auto-generated in the candidate directory (`regression_report.md`).
 
 **Verdicts** (based on significance + practical effect size):
 

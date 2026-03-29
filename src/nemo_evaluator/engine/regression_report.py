@@ -89,6 +89,12 @@ def generate_report(report: dict[str, Any]) -> str:
                    f"but this is within normal variation for {n_paired} samples.")
             else:
                 _w("**No regressions detected.** Both models produce identical outcomes on all paired samples.")
+
+    # Summary sentence
+    summary = _build_summary(verdict, s, cats)
+    if summary:
+        _w("")
+        _w(f"> **{summary}**")
     _w("")
 
     # ── Capability Impact Profile ──────────────────────────────────
@@ -174,43 +180,16 @@ def generate_report(report: dict[str, Any]) -> str:
         _w("")
         _w("These problems were answered correctly by the baseline but incorrectly by the candidate.")
         _w("")
-        _w("| # | Problem | Category | Expected | Baseline | Candidate | Candidate Response |")
-        _w("|---|---|---|---|---|---|---|")
         for f_entry in regressions:
-            pid = f_entry.get("problem_idx", "?")
-            cat = f_entry.get("category") or ""
-            exp = f_entry.get("expected_answer") or ""
-            if len(exp) > 40:
-                exp = exp[:37] + "..."
-            b_r = f_entry.get("baseline_reward", 0)
-            c_r = f_entry.get("candidate_reward", 0)
-            c_resp = f_entry.get("candidate_response") or ""
-            if len(c_resp) > 60:
-                c_resp = c_resp[:57] + "..."
-            # Escape pipe characters in table cells
-            exp = exp.replace("|", "\\|")
-            c_resp = c_resp.replace("|", "\\|")
-            _w(f"| {pid} | #{pid} | {cat} | `{exp}` | {b_r:.1f} | {c_r:.1f} | {c_resp} |")
-        _w("")
+            _render_flip_detail(_w, f_entry)
 
     if improvements:
         _w(f"## Improved Problems ({len(improvements)})")
         _w("")
         _w("These problems were answered incorrectly by the baseline but correctly by the candidate.")
         _w("")
-        _w("| # | Problem | Category | Expected | Baseline | Candidate |")
-        _w("|---|---|---|---|---|---|")
         for f_entry in improvements:
-            pid = f_entry.get("problem_idx", "?")
-            cat = f_entry.get("category") or ""
-            exp = f_entry.get("expected_answer") or ""
-            if len(exp) > 40:
-                exp = exp[:37] + "..."
-            exp = exp.replace("|", "\\|")
-            b_r = f_entry.get("baseline_reward", 0)
-            c_r = f_entry.get("candidate_reward", 0)
-            _w(f"| {pid} | #{pid} | {cat} | `{exp}` | {b_r:.1f} | {c_r:.1f} |")
-        _w("")
+            _render_flip_detail(_w, f_entry)
 
     # ── Investigation Guidance ─────────────────────────────────────
     if regressions:
@@ -257,6 +236,60 @@ def write_report(report: dict[str, Any], output_path: str | Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(generate_report(report), encoding="utf-8")
     return path
+
+
+def _build_summary(verdict: str, s: dict, cats: dict, threshold: float = 0.05) -> str | None:
+    """One-sentence narrative for the executive summary."""
+    if not s.get("n_paired"):
+        return None
+    n_reg = s.get("n_regressions", 0)
+    n_paired = s.get("n_paired", 0)
+    if not cats:
+        if n_reg == 0:
+            return "No regressions detected."
+        return None
+    held = [c for c, v in sorted(cats.items()) if v["delta"] >= -threshold]
+    broke = [c for c, v in sorted(cats.items()) if v["delta"] < -threshold]
+    if not broke and n_reg == 0:
+        return f"All capabilities held ({', '.join(held)})."
+    if not broke:
+        return f"All capabilities held. {n_reg} flip(s) within normal variation for {n_paired} samples."
+    parts = []
+    if held:
+        parts.append(f"Safe for {', '.join(held)}.")
+    cat_bd = s.get("category_breakdown", {})
+    for cat in broke:
+        delta_pct = abs(cats[cat]["delta"]) * 100
+        cat_reg = cat_bd.get(cat, {}).get("regressions", 0)
+        parts.append(f"{cat} regresses {delta_pct:.1f}% ({cat_reg} problems).")
+    return " ".join(parts) if parts else None
+
+
+def _render_flip_detail(
+    _w,
+    f_entry: dict[str, Any],
+) -> None:
+    """Render a single flipped problem with side-by-side model responses."""
+    pid = f_entry.get("problem_idx", "?")
+    cat = f_entry.get("category") or "uncategorized"
+    exp = f_entry.get("expected_answer") or ""
+    b_resp = f_entry.get("baseline_response") or "(not captured)"
+    c_resp = f_entry.get("candidate_response") or "(not captured)"
+
+    # Escape pipe chars for markdown tables
+    exp_safe = exp.replace("|", "\\|")
+    b_safe = b_resp.replace("|", "\\|")
+    c_safe = c_resp.replace("|", "\\|")
+
+    _w(f"### Problem #{pid} — {cat}")
+    _w("")
+    _w(f"**Expected:** `{exp_safe}`")
+    _w("")
+    _w("| Baseline | Candidate |")
+    _w("|---|---|")
+    _w(f"| {f_entry.get('baseline_reward', 0):.1f} (reward) | {f_entry.get('candidate_reward', 0):.1f} (reward) |")
+    _w(f"| {b_safe} | {c_safe} |")
+    _w("")
 
 
 def _mde_estimate(mcnemar: dict[str, Any]) -> float:
