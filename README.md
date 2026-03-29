@@ -7,6 +7,7 @@ LLM evaluation framework: benchmark environments, pluggable solvers, multi-forma
 ```bash
 pip install -e .                   # core
 pip install -e ".[scoring]"        # + sympy
+pip install -e ".[stats]"          # + scipy (regression analysis)
 pip install -e ".[scoring,stats]"  # + sympy + scipy
 pip install -e ".[harbor]"         # + Harbor agents
 pip install -e ".[proxy]"          # + LiteLLM proxy
@@ -178,7 +179,7 @@ report = compare_runs("baseline/eval-base.json", "candidate/eval-cand.json")
 print(report["verdict"])  # PASS / WARN / BLOCK / INCONCLUSIVE
 ```
 
-**Methodology:** McNemar's exact binomial test (one-sided) per ICLR 2026 "When LLMs get significantly worse." Clustered standard errors per Miller 2024 "Adding Error Bars to Evals." Requires `pip install nemo-evaluator[stats]`.
+**Methodology:** McNemar's exact binomial test (one-sided) per ICLR 2026 "When LLMs get significantly worse." Clustered standard errors per Miller 2024 "Adding Error Bars to Evals."
 
 ## Examples
 
