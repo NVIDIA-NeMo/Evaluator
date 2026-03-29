@@ -55,7 +55,9 @@ def _cap_verdict(delta: float, threshold: float, mcnemar_sig: bool | None) -> tu
 @click.option("--format", "fmt", type=click.Choice(["text", "json"]), default="text",
               help="Output format. 'json' writes structured JSON to stdout.")
 @click.option("--verbose", is_flag=True, help="Show statistical details (p-values, methods, power).")
-def regression_cmd(baseline, candidate, output, threshold, strict, reward_threshold, show_flips, compact, fmt, verbose):
+@click.option("--report", "report_path", type=click.Path(), default=None,
+              help="Write a full Markdown investigation report to this file.")
+def regression_cmd(baseline, candidate, output, threshold, strict, reward_threshold, show_flips, compact, fmt, verbose, report_path):
     """Compare two evaluation bundles and report regressions.
 
     BASELINE and CANDIDATE are paths to eval-*.json bundle files
@@ -80,6 +82,10 @@ def regression_cmd(baseline, candidate, output, threshold, strict, reward_thresh
     if fmt == "json":
         import json as _json
         click.echo(_json.dumps(report, indent=2, default=str))
+        if report_path:
+            from nemo_evaluator.engine.regression_report import write_report
+            write_report(report, report_path)
+            click.echo(f"Report written to: {report_path}", err=True)
         return
 
     mcnemar = report.get("mcnemar")
@@ -266,7 +272,12 @@ def regression_cmd(baseline, candidate, output, threshold, strict, reward_thresh
     # ── Output / exit ──────────────────────────────────────────────
     if output:
         write_regression(report, output)
-        click.echo(f"\nReport written to: {output}")
+        click.echo(f"\nJSON report written to: {output}")
+
+    if report_path:
+        from nemo_evaluator.engine.regression_report import write_report
+        rp = write_report(report, report_path)
+        click.echo(f"Markdown report written to: {rp}")
 
     click.echo()
     # Item #3: clarify "no regressions" vs flip count
