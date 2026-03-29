@@ -142,7 +142,7 @@ class SshSidecarConfig:
     """
 
     sshd_port: int = 2222
-    ssh_ready_timeout_sec: float = 120.0
+    ssh_ready_timeout_sec: float = 300.0
     public_key_secret_arn: str = ""
     private_key_secret_arn: str = ""
     image: str | None = None
@@ -364,7 +364,7 @@ class SshTunnel:
     def close(self) -> None:
         self._kill()
 
-    def wait_ready(self, *, health_url: str | None = None, timeout: float = 120.0) -> None:
+    def wait_ready(self, *, health_url: str | None = None, timeout: float = 300.0) -> None:
         if health_url:
             self._poll_health(health_url, timeout)
         elif self._local_port:
