@@ -57,7 +57,7 @@ gsm8k
 ```bash
 nel eval run --bench gsm8k --repeats 4 -o ./results/candidate
 
-nel regression ./results/baseline/eval-*.json ./results/candidate/eval-*.json --strict
+nel compare ./results/baseline/eval-*.json ./results/candidate/eval-*.json --strict
 ```
 
 Output:

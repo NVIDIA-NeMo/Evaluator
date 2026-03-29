@@ -176,6 +176,14 @@ deployment/ci-regression
 :::
 
 :::{toctree}
+:caption: Regression
+:hidden:
+
+regression/run-regressions
+regression/quality-gate
+:::
+
+:::{toctree}
 :caption: Patterns
 :hidden:
 

@@ -235,7 +235,7 @@ Complete record for one seed → model → verify cycle.
 | `nel serve` | Start HTTP server for an environment |
 | `nel validate` | Quick validation of a benchmark |
 | `nel list` | Show available benchmarks and environments |
-| `nel regression` | Compare two evaluation bundles |
+| `nel compare` | Compare two evaluation bundles |
 | `nel config` | Persistent user config |
 | `nel package` | Containerize BYOB benchmark |
 
@@ -298,10 +298,10 @@ nel eval merge OUTPUT_DIR
     --repeats, -n INT        Override n_repeats (auto-detected if omitted)
 ```
 
-### `nel regression`
+### `nel compare`
 
 ```
-nel regression BASELINE CANDIDATE
+nel compare BASELINE CANDIDATE
     --threshold FLOAT        Max acceptable drop [0.05]
     --strict                 Exit non-zero on regression
     --output TEXT             Write JSON report

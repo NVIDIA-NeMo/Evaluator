@@ -9,7 +9,7 @@ flowchart TB
         SERVE["nel serve"]
         VALIDATE["nel validate"]
         REPORT["nel eval report"]
-        REGRESSION["nel regression"]
+        REGRESSION["nel compare"]
     end
 
     subgraph ENVS["Environments"]
@@ -123,7 +123,7 @@ flowchart TB
 | `scoring/` | Verification scorers, judge pipeline, JSON schema | `exact_match`, `code_sandbox`, `needs_judge` |
 | `observability/` | Rich telemetry capture | `StepRecord`, `ModelResponse`, `RuntimeStats`, `ArtifactCollector` |
 | `metrics/` | Statistical aggregation | `pass_at_k()`, `bootstrap_ci()`, `category_breakdown()` |
-| `cli/` | CLI commands | `nel eval run`, `nel eval report`, `nel eval merge`, `nel serve`, `nel validate`, `nel list`, `nel regression`, `nel config`, `nel package` |
+| `cli/` | CLI commands | `nel eval run`, `nel eval report`, `nel eval merge`, `nel serve`, `nel validate`, `nel list`, `nel compare`, `nel config`, `nel package` |
 
 ## Environment Abstraction
 

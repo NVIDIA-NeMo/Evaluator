@@ -140,91 +140,18 @@ Pyxis/Enroot-based execution with auto-selected container images per URI scheme.
 | `nel list` | List benchmarks |
 | `nel serve -b <name>` | Serve as HTTP endpoint |
 | `nel validate -b <name>` | Sanity check |
-| `nel regression` | Paired regression analysis |
+| `nel compare` | Paired run comparison |
 | `nel config` | Persistent user config |
 | `nel package` | Containerize BYOB benchmark |
 
-## Regression Analysis
+## Regression And Quality Gate
 
-Paired statistical testing that detects *which specific problems* regressed, not just whether the overall score dropped. Uses one-sided McNemar's exact test on per-sample outcome flips.
+Use `nel compare` when you want to investigate whether one benchmark run got worse and which problems flipped. Use the quality gate when you want a multi-benchmark `GO / NO-GO / INCONCLUSIVE` decision from an explicit policy.
 
-```bash
-nel regression baseline/ candidate/                  # accepts directories or bundle files
-nel regression baseline/ candidate/ --show-flips     # + per-problem flip list in terminal
-nel regression baseline/ candidate/ --strict         # CI gate (exit 1=BLOCK, 2=WARN)
-nel regression baseline/ candidate/ --compact        # 4-line Slack summary
-nel regression baseline/ candidate/ --format json    # structured JSON to stdout
-nel regression baseline/ candidate/ --no-report      # suppress auto-generated Markdown report
-```
+- Regression guide: [`docs/regression/run-regressions.md`](docs/regression/run-regressions.md)
+- Quality gate guide: [`docs/regression/quality-gate.md`](docs/regression/quality-gate.md)
 
-A Markdown investigation report with side-by-side model responses is auto-generated in the candidate directory (`regression_report.md`).
-
-**Verdicts** (based on significance + practical effect size):
-
-| Verdict | Meaning | `--strict` exit |
-|---------|---------|-----------------|
-| **PASS** | No evidence of regression | 0 |
-| **WARN** | Significant but below practical threshold | 2 |
-| **BLOCK** | Significant and practically meaningful | 1 |
-| **INCONCLUSIVE** | Not enough data to detect small regressions | 2 |
-
-**Key options:** `--max-drop 0.01` (tighter threshold for quant), `--correct-above 0.5` (for judge scores), `--verbose` (show p-values).
-
-**Python API:**
-
-```python
-from nemo_evaluator.engine import compare_runs, build_flip_report, mcnemar_test
-
-report = compare_runs("baseline/eval-base.json", "candidate/eval-cand.json")
-print(report["verdict"])  # PASS / WARN / BLOCK / INCONCLUSIVE
-```
-
-**Methodology:** McNemar's exact binomial test (one-sided) per ICLR 2026 "When LLMs get significantly worse." Clustered standard errors per Miller 2024 "Adding Error Bars to Evals."
-
-## Quality Gate
-
-`nel regression` is an investigation tool. The release-quality gate is the multi-benchmark policy engine in `nemo_evaluator.engine.gate`, which evaluates benchmark-specific thresholds from the selected metric rather than from McNemar significance.
-
-Current public API:
-
-```python
-from nemo_evaluator.config import load_gate_policy
-from nemo_evaluator.engine import gate_runs, write_gate_report
-
-policy = load_gate_policy("gate_policy.yaml")
-report = gate_runs("baseline/", "candidate/", policy)
-
-print(report.verdict)  # GO / NO-GO / INCONCLUSIVE
-write_gate_report(report, "candidate/gate_report.json")
-```
-
-Example policy:
-
-```yaml
-version: 1
-defaults:
-  tier: supporting
-  metric: mean_reward
-  max_drop: 0.015
-benchmarks:
-  mmlu_pro:
-    tier: critical
-    metric: mean_reward
-    max_drop: 0.01
-  humaneval:
-    tier: supporting
-    metric: pass@1
-    max_drop: 0.015
-```
-
-Usage notes:
-
-- Required benchmarks (`critical` and `supporting`) must resolve to an explicit supported metric. Today the gate supports `mean_reward` and `pass@1` for deterministic thresholding.
-- The gate computes decisions from the selected metric's paired per-problem delta and confidence interval when `results.jsonl` is available.
-- If paired records are missing, the gate falls back to bundle score entries and their `ci_lower` / `ci_upper` bounds when present.
-- If a required benchmark only has point estimates and no usable interval evidence, the result is `INSUFFICIENT_EVIDENCE`, not `PASS`.
-- Relative-drop guardrails are directional and only apply to regressions. Improvements never trigger a breach.
-- `regression_report` is attached to each benchmark result as supporting evidence (flip report, McNemar, category breakdowns), but it does not drive the gate verdict.
+The quality gate is currently exposed as a Python API (`nemo_evaluator.engine.gate`), not a `nel gate` CLI command.
 
 ## Examples
 

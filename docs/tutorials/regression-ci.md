@@ -73,7 +73,7 @@ regression:check:
   image: $NEL_IMAGE
   needs: [eval:candidate, eval:baseline]
   script:
-    - nel regression results/baseline/eval-*.json results/candidate/eval-*.json
+    - nel compare results/baseline/eval-*.json results/candidate/eval-*.json
         --output results/regression.json --threshold 0.05 --strict
   artifacts:
     paths: [results/regression.json]
@@ -87,7 +87,7 @@ regression:check:
 ### Compare two bundles
 
 ```bash
-nel regression ./baseline/eval-*.json ./candidate/eval-*.json
+nel compare ./baseline/eval-*.json ./candidate/eval-*.json
 ```
 
 ### Output

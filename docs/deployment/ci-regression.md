@@ -45,7 +45,7 @@ regression:check:
   image: nemo-evaluator:latest
   needs: [eval:candidate, eval:baseline]
   script:
-    - nel regression results/baseline/eval-*.json results/candidate/eval-*.json --threshold 0.05 --strict
+    - nel compare results/baseline/eval-*.json results/candidate/eval-*.json --threshold 0.05 --strict
   artifacts:
     paths: [results/regression.json]
   rules:
@@ -116,5 +116,5 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
       - run: pip install -e ".[scoring]"
-      - run: nel regression baseline/eval-*.json candidate/eval-*.json --strict
+      - run: nel compare baseline/eval-*.json candidate/eval-*.json --strict
 ```

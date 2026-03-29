@@ -15,7 +15,7 @@ ci-regression
 
 | Environment | Sharding | Live Serve | Regression Gate | Effort |
 |-------------|----------|------------|-----------------|--------|
-| Local | Manual via env vars | `nel serve` | `nel regression` | Minimal |
+| Local | Manual via env vars | `nel serve` | `nel compare` | Minimal |
 | Docker Compose | Per-container env vars | docker-compose service | Script | Low |
 | SLURM | `nel eval run` with executor config | `nel serve` | sbatch chain | Medium |
 | Kubernetes | Indexed Job | Deployment + Service | CI pipeline | Medium |

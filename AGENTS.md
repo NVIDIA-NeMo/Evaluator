@@ -18,7 +18,7 @@ src/nemo_evaluator/
   serving/            # FastAPI HTTP server (nel serve)
   metrics/            # Aggregation, confidence intervals, pass@k
   scoring/            # Scoring primitives (fuzzy_match, numeric_match, judge, ...)
-  cli/                # Click CLI (nel eval run, nel serve, nel regression, ...)
+  cli/                # Click CLI (nel eval run, nel serve, nel compare, ...)
 tests/                # Offline + network test suites
 examples/             # Getting started guide, example configs, integration scripts
 docs/                 # Architecture, tutorials, API reference, deployment guides

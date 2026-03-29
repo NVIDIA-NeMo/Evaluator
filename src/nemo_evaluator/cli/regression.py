@@ -56,7 +56,7 @@ def _resolve_bundle(path_str: str) -> str:
     raise click.BadParameter(f"Path {p} does not exist")
 
 
-@click.command("regression")
+@click.command("compare")
 @click.argument("baseline", type=click.Path(exists=True))
 @click.argument("candidate", type=click.Path(exists=True))
 @click.option("--output", "-o", type=click.Path(), default=None, help="Write full report JSON to file.")
@@ -77,7 +77,7 @@ def _resolve_bundle(path_str: str) -> str:
 @click.option("--report", "report_path", type=click.Path(), default=None,
               help="Write Markdown report to this path (default: auto-generated next to candidate bundle).")
 @click.option("--no-report", is_flag=True, help="Suppress auto-generated Markdown report.")
-def regression_cmd(baseline, candidate, output, threshold, strict, reward_threshold, show_flips, compact, fmt, verbose, report_path, no_report):
+def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold, show_flips, compact, fmt, verbose, report_path, no_report):
     """Compare two evaluation runs and report regressions.
 
     BASELINE and CANDIDATE can be eval-*.json bundle files OR directories
@@ -85,10 +85,10 @@ def regression_cmd(baseline, candidate, output, threshold, strict, reward_thresh
 
     \b
     Examples:
-      nel regression ./baseline/ ./candidate/
-      nel regression ./baseline/ ./candidate/ --show-flips
-      nel regression ./baseline/ ./candidate/ --strict --max-drop 0.01
-      nel regression ./baseline/eval-base.json ./cand/eval-cand.json
+      nel compare ./baseline/ ./candidate/
+      nel compare ./baseline/ ./candidate/ --show-flips
+      nel compare ./baseline/ ./candidate/ --strict --max-drop 0.01
+      nel compare ./baseline/eval-base.json ./cand/eval-cand.json
     """
     from pathlib import Path
     from nemo_evaluator.engine.comparison import compare_runs, write_regression
