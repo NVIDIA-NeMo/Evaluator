@@ -1,0 +1,475 @@
+import json
+from pathlib import Path
+
+import pytest
+
+from nemo_evaluator.config.gate_policy import GatePolicy
+from nemo_evaluator.engine.gate import (
+    BenchmarkGateResult,
+    GateReport,
+    _aggregate_repeats,
+    _aggregate_verdict,
+    _discover_bundles,
+    _is_regression,
+    _paired_delta_ci,
+    gate_runs,
+    write_gate_report,
+)
+from nemo_evaluator.config.gate_policy import Direction
+
+
+# ── Helpers ───────────────────────────────────────────────────────────
+
+
+def _write_bundle(path: Path, name: str, scores: dict | None = None):
+    bundle = {
+        "run_id": f"run-{name}",
+        "config": {"model": "test-model"},
+        "benchmark": {
+            "name": name,
+            "samples": 100,
+            "scores": scores or {"mean_reward": {"value": 0.7}},
+        },
+    }
+    path.write_text(json.dumps(bundle))
+
+
+def _write_results(path: Path, records: list[dict]):
+    with path.open("w") as f:
+        for r in records:
+            f.write(json.dumps(r) + "\n")
+
+
+def _record(pid, reward, repeat=0):
+    return {"problem_idx": pid, "repeat": repeat, "reward": reward, "expected_answer": "ans"}
+
+
+def _make_gate_dirs(tmp_path, benchmarks: dict):
+    """Create nested baseline/candidate dirs.
+
+    benchmarks: {name: (base_records, cand_records, base_scores, cand_scores)}
+    """
+    base_dir = tmp_path / "baseline"
+    cand_dir = tmp_path / "candidate"
+    for name, (base_recs, cand_recs, base_sc, cand_sc) in benchmarks.items():
+        bd = base_dir / name
+        cd = cand_dir / name
+        bd.mkdir(parents=True)
+        cd.mkdir(parents=True)
+        _write_bundle(bd / f"eval-{name}.json", name, base_sc)
+        _write_bundle(cd / f"eval-{name}.json", name, cand_sc)
+        _write_results(bd / "results.jsonl", base_recs)
+        _write_results(cd / "results.jsonl", cand_recs)
+    return base_dir, cand_dir
+
+
+def _simple_records(n, reward):
+    """Create n records all with the same reward."""
+    return [_record(i, reward) for i in range(n)]
+
+
+def _scores(value):
+    return {"mean_reward": {"value": value}}
+
+
+# ── TestDiscoverBundles ───────────────────────────────────────────────
+
+
+class TestDiscoverBundles:
+    def test_nested_layout(self, tmp_path):
+        sub = tmp_path / "mmlu"
+        sub.mkdir()
+        _write_bundle(sub / "eval-mmlu.json", "mmlu")
+        bundles = _discover_bundles(tmp_path)
+        assert "mmlu" in bundles
+
+    def test_flat_layout(self, tmp_path):
+        _write_bundle(tmp_path / "eval-mmlu.json", "mmlu")
+        bundles = _discover_bundles(tmp_path)
+        assert "mmlu" in bundles
+
+    def test_duplicate_benchmark_fails(self, tmp_path):
+        # Two bundles with same benchmark name in different locations
+        _write_bundle(tmp_path / "eval-a.json", "mmlu")
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        _write_bundle(sub / "eval-b.json", "mmlu")
+        with pytest.raises(ValueError, match="Duplicate benchmark"):
+            _discover_bundles(tmp_path)
+
+    def test_empty_dir(self, tmp_path):
+        bundles = _discover_bundles(tmp_path)
+        assert bundles == {}
+
+
+# ── TestGateVerdicts ──────────────────────────────────────────────────
+
+
+class TestGateVerdicts:
+    def _policy(self, benchmarks: dict | None = None, **defaults):
+        raw = {"version": 1, "defaults": {"tier": "critical", "max_drop": 0.01, **defaults}}
+        if benchmarks:
+            raw["benchmarks"] = benchmarks
+        return GatePolicy.model_validate(raw)
+
+    def test_all_pass(self, tmp_path):
+        """All benchmarks within threshold → GO."""
+        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
+            "mmlu": (_simple_records(50, 0.8), _simple_records(50, 0.795), _scores(0.8), _scores(0.795)),
+        })
+        policy = self._policy(benchmarks={"mmlu": {}})
+        report = gate_runs(base_dir, cand_dir, policy)
+        assert report.verdict == "GO"
+        assert report.benchmarks[0].status == "PASS"
+
+    def test_critical_breach(self, tmp_path):
+        """Critical benchmark exceeds threshold → NO-GO."""
+        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
+            "mmlu": (_simple_records(50, 1.0), _simple_records(50, 0.95), _scores(1.0), _scores(0.95)),
+        })
+        policy = self._policy(benchmarks={"mmlu": {"tier": "critical"}})
+        report = gate_runs(base_dir, cand_dir, policy)
+        assert report.verdict == "NO-GO"
+        mmlu = report.benchmarks[0]
+        assert mmlu.status == "BREACH"
+        assert mmlu.absolute_breached
+
+    def test_supporting_breach_is_nogo(self, tmp_path):
+        """Supporting benchmark breach also blocks (not just a warning)."""
+        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
+            "triviaqa": (_simple_records(50, 1.0), _simple_records(50, 0.9), _scores(1.0), _scores(0.9)),
+        })
+        policy = self._policy(benchmarks={"triviaqa": {"tier": "supporting", "max_drop": 0.015}})
+        report = gate_runs(base_dir, cand_dir, policy)
+        assert report.verdict == "NO-GO"
+
+    def test_advisory_breach_is_go(self, tmp_path):
+        """Advisory benchmark breach does NOT affect verdict."""
+        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
+            "ifeval": (_simple_records(50, 1.0), _simple_records(50, 0.5), _scores(1.0), _scores(0.5)),
+        })
+        policy = GatePolicy.model_validate({
+            "version": 1,
+            "benchmarks": {"ifeval": {"tier": "advisory"}},
+        })
+        report = gate_runs(base_dir, cand_dir, policy)
+        assert report.verdict == "GO"
+
+    def test_missing_required_in_candidate(self, tmp_path):
+        """Policy requires benchmark but not found in candidate → NO-GO."""
+        base_dir = tmp_path / "baseline" / "mmlu"
+        base_dir.mkdir(parents=True)
+        _write_bundle(base_dir / "eval-mmlu.json", "mmlu")
+        _write_results(base_dir / "results.jsonl", _simple_records(20, 0.8))
+
+        cand_dir = tmp_path / "candidate"
+        cand_dir.mkdir(parents=True)
+
+        policy = self._policy(benchmarks={"mmlu": {"tier": "critical"}})
+        report = gate_runs(tmp_path / "baseline", cand_dir, policy)
+        assert report.verdict == "NO-GO"
+        assert "mmlu" in report.missing
+
+    def test_missing_required_in_baseline(self, tmp_path):
+        """Policy requires benchmark but not found in baseline → NO-GO."""
+        base_dir = tmp_path / "baseline"
+        base_dir.mkdir(parents=True)
+
+        cand_dir = tmp_path / "candidate" / "mmlu"
+        cand_dir.mkdir(parents=True)
+        _write_bundle(cand_dir / "eval-mmlu.json", "mmlu")
+        _write_results(cand_dir / "results.jsonl", _simple_records(20, 0.8))
+
+        policy = self._policy(benchmarks={"mmlu": {"tier": "critical"}})
+        report = gate_runs(base_dir, tmp_path / "candidate", policy)
+        assert report.verdict == "NO-GO"
+        assert "mmlu" in report.missing
+
+    def test_relative_drop_breach(self, tmp_path):
+        """Low baseline + relative drop exceeded → BREACH."""
+        # Baseline at 10%, candidate at 8%: absolute drop 2pp is within 1.5pp? No, 0.02 > 0.015.
+        # But let's test relative specifically: baseline 15%, candidate 13%.
+        # Absolute: 0.02 drop > 0.015 threshold → would breach anyway.
+        # Better: baseline 10%, candidate 9.5%. Absolute drop = 0.005 < 0.015. Relative = 5% > 2%.
+        base_recs = _simple_records(50, 0.10)
+        cand_recs = _simple_records(50, 0.095)
+        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
+            "hle": (base_recs, cand_recs, _scores(0.10), _scores(0.095)),
+        })
+        policy = self._policy(benchmarks={
+            "hle": {
+                "tier": "critical",
+                "max_drop": 0.015,  # absolute: 0.005 < 0.015, passes
+                "max_relative_drop": 0.02,  # relative: 5% > 2%, breaches
+                "relative_guard_below": 0.20,
+            },
+        })
+        report = gate_runs(base_dir, cand_dir, policy)
+        hle = next(b for b in report.benchmarks if b.benchmark == "hle")
+        assert hle.relative_breached
+        assert hle.status == "BREACH"
+
+    def test_relative_guard_skips_high_baseline(self, tmp_path):
+        """Relative check skipped when baseline is above guard threshold."""
+        # Baseline 80%, candidate 76%: absolute 4pp > 1.5pp → BREACH on absolute.
+        # But if we set max_drop high to avoid absolute breach:
+        base_recs = _simple_records(50, 0.80)
+        cand_recs = _simple_records(50, 0.76)
+        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
+            "mmlu": (base_recs, cand_recs, _scores(0.80), _scores(0.76)),
+        })
+        policy = self._policy(benchmarks={
+            "mmlu": {
+                "max_drop": 0.05,  # absolute: 0.04 < 0.05, passes
+                "max_relative_drop": 0.02,  # relative: 5% > 2%, BUT...
+                "relative_guard_below": 0.20,  # baseline 0.80 > 0.20, skip relative
+            },
+        })
+        report = gate_runs(base_dir, cand_dir, policy)
+        mmlu = next(b for b in report.benchmarks if b.benchmark == "mmlu")
+        assert not mmlu.relative_breached
+        assert mmlu.status == "PASS"
+
+    def test_improvement_does_not_breach(self, tmp_path):
+        """Positive improvement must NOT trigger BREACH (direction-aware)."""
+        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
+            "mmlu": (_simple_records(50, 0.7), _simple_records(50, 0.9), _scores(0.7), _scores(0.9)),
+        })
+        policy = self._policy(benchmarks={"mmlu": {}})
+        report = gate_runs(base_dir, cand_dir, policy)
+        mmlu = report.benchmarks[0]
+        assert mmlu.status == "PASS"
+        assert not mmlu.absolute_breached
+        assert not mmlu.relative_breached
+
+    def test_lower_is_better_increase_is_regression(self, tmp_path):
+        """For lower-is-better metrics, an increase is a regression."""
+        # PPL goes from 5.0 to 5.5 → regression
+        base_recs = _simple_records(50, 5.0)
+        cand_recs = _simple_records(50, 5.5)
+        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
+            "ppl": (base_recs, cand_recs, _scores(5.0), _scores(5.5)),
+        })
+        policy = self._policy(
+            benchmarks={"ppl": {"direction": "lower_is_better", "max_drop": 0.3}},
+        )
+        report = gate_runs(base_dir, cand_dir, policy)
+        ppl = report.benchmarks[0]
+        assert ppl.status == "BREACH"
+        assert ppl.absolute_breached
+
+    def test_lower_is_better_decrease_is_improvement(self, tmp_path):
+        """For lower-is-better, a decrease is improvement → PASS."""
+        base_recs = _simple_records(50, 5.0)
+        cand_recs = _simple_records(50, 4.5)
+        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
+            "ppl": (base_recs, cand_recs, _scores(5.0), _scores(4.5)),
+        })
+        policy = self._policy(
+            benchmarks={"ppl": {"direction": "lower_is_better", "max_drop": 0.3}},
+        )
+        report = gate_runs(base_dir, cand_dir, policy)
+        assert report.benchmarks[0].status == "PASS"
+
+    def test_per_benchmark_thresholds(self, tmp_path):
+        """Different max_drop per benchmark honored."""
+        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
+            # mmlu: drop 0.02 > 0.01 threshold → BREACH
+            "mmlu": (_simple_records(50, 0.8), _simple_records(50, 0.78), _scores(0.8), _scores(0.78)),
+            # gpqa: drop 0.02 < 0.05 threshold → PASS
+            "gpqa": (_simple_records(50, 0.5), _simple_records(50, 0.48), _scores(0.5), _scores(0.48)),
+        })
+        policy = GatePolicy.model_validate({
+            "version": 1,
+            "benchmarks": {
+                "mmlu": {"tier": "critical", "max_drop": 0.01},
+                "gpqa": {"tier": "critical", "max_drop": 0.05},
+            },
+        })
+        report = gate_runs(base_dir, cand_dir, policy)
+        mmlu = next(b for b in report.benchmarks if b.benchmark == "mmlu")
+        gpqa = next(b for b in report.benchmarks if b.benchmark == "gpqa")
+        assert mmlu.status == "BREACH"
+        assert gpqa.status == "PASS"
+        assert report.verdict == "NO-GO"
+
+    def test_insufficient_evidence_no_results(self, tmp_path):
+        """Missing results.jsonl → INSUFFICIENT_EVIDENCE."""
+        base_dir = tmp_path / "baseline" / "mmlu"
+        cand_dir = tmp_path / "candidate" / "mmlu"
+        base_dir.mkdir(parents=True)
+        cand_dir.mkdir(parents=True)
+        _write_bundle(base_dir / "eval-mmlu.json", "mmlu")
+        _write_bundle(cand_dir / "eval-mmlu.json", "mmlu")
+        # No results.jsonl written
+
+        policy = GatePolicy.model_validate({
+            "version": 1,
+            "benchmarks": {"mmlu": {"tier": "critical", "max_drop": 0.01}},
+        })
+        report = gate_runs(tmp_path / "baseline", tmp_path / "candidate", policy)
+        assert report.benchmarks[0].status == "INSUFFICIENT_EVIDENCE"
+        assert report.verdict == "INCONCLUSIVE"
+
+    def test_insufficient_evidence_few_items(self, tmp_path):
+        """< 10 paired items → INSUFFICIENT_EVIDENCE."""
+        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
+            "mmlu": (
+                _simple_records(5, 0.8),
+                _simple_records(5, 0.7),
+                _scores(0.8),
+                _scores(0.7),
+            ),
+        })
+        policy = GatePolicy.model_validate({
+            "version": 1,
+            "benchmarks": {"mmlu": {"tier": "critical", "max_drop": 0.01}},
+        })
+        report = gate_runs(base_dir, cand_dir, policy)
+        assert report.benchmarks[0].status == "INSUFFICIENT_EVIDENCE"
+
+
+# ── TestRepeatAggregation ─────────────────────────────────────────────
+
+
+class TestRepeatAggregation:
+    def test_mean_aggregation(self, tmp_path):
+        """3 repeats averaged correctly."""
+        base_recs = [_record(i, 0.8, repeat=r) for i in range(20) for r in range(3)]
+        cand_recs = [_record(i, 0.75, repeat=r) for i in range(20) for r in range(3)]
+
+        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
+            "mmlu": (base_recs, cand_recs, _scores(0.8), _scores(0.75)),
+        })
+        policy = GatePolicy.model_validate({
+            "version": 1,
+            "defaults": {"repeats_aggregation": "mean"},
+            "benchmarks": {"mmlu": {"tier": "critical", "max_drop": 0.01}},
+        })
+        report = gate_runs(base_dir, cand_dir, policy)
+        mmlu = report.benchmarks[0]
+        # After aggregation: 20 paired items (not 60)
+        assert mmlu.n_paired == 20
+        assert mmlu.status == "BREACH"  # 0.05 drop > 0.01
+
+    def test_mean_preserves_signal(self):
+        """Majority vote would erase this; mean preserves it."""
+        records = {
+            (0, 0): {"problem_idx": 0, "repeat": 0, "reward": 1.0},
+            (0, 1): {"problem_idx": 0, "repeat": 1, "reward": 1.0},
+            (0, 2): {"problem_idx": 0, "repeat": 2, "reward": 0.0},
+        }
+        agg = _aggregate_repeats(records)
+        # Mean: (1+1+0)/3 = 0.667, not 1.0 (majority would say "correct")
+        assert abs(agg[(0, 0)]["reward"] - 2 / 3) < 0.01
+
+
+# ── TestPairedDeltaCI ─────────────────────────────────────────────────
+
+
+class TestPairedDeltaCI:
+    def test_basic_ci(self):
+        deltas = [0.1] * 100  # All identical → very tight CI
+        lo, hi = _paired_delta_ci(deltas)
+        assert lo is not None and hi is not None
+        assert abs(lo - 0.1) < 0.01
+        assert abs(hi - 0.1) < 0.01
+
+    def test_wide_ci_small_n(self):
+        deltas = [0.5, -0.5, 0.3, -0.3, 0.1]
+        lo, hi = _paired_delta_ci(deltas)
+        assert lo is not None and hi is not None
+        assert lo < 0  # CI crosses zero
+        assert hi > 0
+
+    def test_single_item_returns_none(self):
+        lo, hi = _paired_delta_ci([0.5])
+        assert lo is None and hi is None
+
+
+# ── TestIsRegression ──────────────────────────────────────────────────
+
+
+class TestIsRegression:
+    def test_higher_is_better_negative_delta(self):
+        assert _is_regression(-0.05, Direction.higher_is_better) is True
+
+    def test_higher_is_better_positive_delta(self):
+        assert _is_regression(0.05, Direction.higher_is_better) is False
+
+    def test_lower_is_better_positive_delta(self):
+        assert _is_regression(0.05, Direction.lower_is_better) is True
+
+    def test_lower_is_better_negative_delta(self):
+        assert _is_regression(-0.05, Direction.lower_is_better) is False
+
+    def test_zero_delta_not_regression(self):
+        assert _is_regression(0.0, Direction.higher_is_better) is False
+        assert _is_regression(0.0, Direction.lower_is_better) is False
+
+
+# ── TestAggregateVerdict ──────────────────────────────────────────────
+
+
+class TestAggregateVerdict:
+    def test_all_pass(self):
+        benchmarks = [
+            BenchmarkGateResult(benchmark="a", tier="critical", status="PASS"),
+            BenchmarkGateResult(benchmark="b", tier="supporting", status="PASS"),
+        ]
+        verdict, _ = _aggregate_verdict(benchmarks, [])
+        assert verdict == "GO"
+
+    def test_critical_breach(self):
+        benchmarks = [
+            BenchmarkGateResult(benchmark="a", tier="critical", status="BREACH"),
+        ]
+        verdict, reasons = _aggregate_verdict(benchmarks, [])
+        assert verdict == "NO-GO"
+        assert "BREACH" in reasons[0]
+
+    def test_missing_is_nogo(self):
+        benchmarks = [
+            BenchmarkGateResult(benchmark="a", tier="critical", status="MISSING"),
+        ]
+        verdict, _ = _aggregate_verdict(benchmarks, ["a"])
+        assert verdict == "NO-GO"
+
+    def test_insufficient_evidence_is_inconclusive(self):
+        benchmarks = [
+            BenchmarkGateResult(benchmark="a", tier="critical", status="INSUFFICIENT_EVIDENCE"),
+        ]
+        verdict, _ = _aggregate_verdict(benchmarks, [])
+        assert verdict == "INCONCLUSIVE"
+
+    def test_advisory_ignored(self):
+        benchmarks = [
+            BenchmarkGateResult(benchmark="a", tier="advisory", status="BREACH"),
+        ]
+        verdict, _ = _aggregate_verdict(benchmarks, [])
+        assert verdict == "GO"
+
+    def test_breach_takes_precedence_over_insufficient(self):
+        benchmarks = [
+            BenchmarkGateResult(benchmark="a", tier="critical", status="BREACH"),
+            BenchmarkGateResult(benchmark="b", tier="critical", status="INSUFFICIENT_EVIDENCE"),
+        ]
+        verdict, _ = _aggregate_verdict(benchmarks, [])
+        assert verdict == "NO-GO"
+
+
+# ── TestWriteGateReport ───────────────────────────────────────────────
+
+
+class TestWriteGateReport:
+    def test_round_trip(self, tmp_path):
+        report = GateReport(
+            verdict="GO",
+            verdict_reasons=["All passed"],
+            benchmarks=[BenchmarkGateResult(benchmark="mmlu", tier="critical", status="PASS")],
+        )
+        path = write_gate_report(report, tmp_path / "gate.json")
+        loaded = json.loads(path.read_text())
+        assert loaded["verdict"] == "GO"
+        assert len(loaded["benchmarks"]) == 1
+        assert loaded["benchmarks"][0]["benchmark"] == "mmlu"
