@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 _MIN_PAIRED_ITEMS = 10
 _GATE_REPORT_VERSION = 1
+_SUPPORTED_GATED_METRICS = frozenset({"mean_reward", "pass@1"})
 
 
 # ── Dataclasses ───────────────────────────────────────────────────────
@@ -66,9 +67,7 @@ class BenchmarkGateResult:
     regression_report: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        d = asdict(self)
-        d.pop("regression_report", None)
-        return d
+        return asdict(self)
 
 
 @dataclass
@@ -117,6 +116,7 @@ def gate_runs(
     """
     baseline_dir = Path(baseline_dir)
     candidate_dir = Path(candidate_dir)
+    policy.validate_for_gate(set(_SUPPORTED_GATED_METRICS))
 
     base_bundles = _discover_bundles(baseline_dir)
     cand_bundles = _discover_bundles(candidate_dir)
@@ -269,17 +269,21 @@ def _evaluate_benchmark(
     if not base_records or not cand_records:
         result.status = "INSUFFICIENT_EVIDENCE"
         result.reasons.append("Per-sample results (results.jsonl) missing or empty")
-        # Fall back to bundle-level score_deltas for informational purposes
-        _populate_from_score_deltas(result, reg_report, policy)
+        _populate_from_bundle_scores(result, base_path, cand_path, reg_report, policy)
         return result
 
-    # Aggregate repeats if requested
-    if policy.repeats_aggregation == "mean":
-        base_records = _aggregate_repeats(base_records)
-        cand_records = _aggregate_repeats(cand_records)
+    metric = policy.metric or _select_metric(reg_report)
+    result.metric = metric
 
-    # Pair items
-    paired_keys = sorted(set(base_records) & set(cand_records))
+    base_values = _metric_problem_values(base_records, metric)
+    cand_values = _metric_problem_values(cand_records, metric)
+    if base_values is None or cand_values is None:
+        result.status = "INSUFFICIENT_EVIDENCE"
+        result.reasons.append(f"Metric {metric!r} is not supported for paired gating")
+        _populate_from_bundle_scores(result, base_path, cand_path, reg_report, policy)
+        return result
+
+    paired_keys = sorted(set(base_values) & set(cand_values))
     result.n_paired = len(paired_keys)
 
     if result.n_paired < _MIN_PAIRED_ITEMS:
@@ -287,21 +291,16 @@ def _evaluate_benchmark(
         result.reasons.append(
             f"Only {result.n_paired} paired items (minimum {_MIN_PAIRED_ITEMS})"
         )
-        _populate_from_score_deltas(result, reg_report, policy)
+        _populate_from_bundle_scores(result, base_path, cand_path, reg_report, policy)
         return result
 
-    # Select metric and compute scores from per-item data
-    metric = policy.metric or _select_metric(reg_report)
-    result.metric = metric
+    base_metric = [base_values[k] for k in paired_keys]
+    cand_metric = [cand_values[k] for k in paired_keys]
 
-    base_rewards = [float(base_records[k].get("reward", 0)) for k in paired_keys]
-    cand_rewards = [float(cand_records[k].get("reward", 0)) for k in paired_keys]
+    result.baseline_score = round(float(np.mean(base_metric)), 6)
+    result.candidate_score = round(float(np.mean(cand_metric)), 6)
 
-    result.baseline_score = float(np.mean(base_rewards))
-    result.candidate_score = float(np.mean(cand_rewards))
-
-    # Compute paired deltas and CI
-    deltas = [c - b for b, c in zip(base_rewards, cand_rewards)]
+    deltas = [c - b for b, c in zip(base_metric, cand_metric)]
     delta_mean = float(np.mean(deltas))
     result.delta = round(delta_mean, 6)
 
@@ -313,46 +312,7 @@ def _evaluate_benchmark(
     result.delta_ci_lower = ci[0]
     result.delta_ci_upper = ci[1]
 
-    # Apply direction: determine if this is a regression
-    is_regression = _is_regression(delta_mean, policy.direction)
-
-    if not is_regression:
-        result.status = "PASS"
-        result.reasons.append("No regression detected (metric improved or unchanged)")
-        return result
-
-    # Regression magnitude (always positive for threshold comparison)
-    regression_magnitude = abs(delta_mean)
-
-    # Absolute threshold check
-    if regression_magnitude > policy.max_drop:
-        result.absolute_breached = True
-        result.reasons.append(
-            f"Absolute drop {regression_magnitude:.4f} exceeds threshold {policy.max_drop}"
-        )
-
-    # Relative threshold check (direction-aware, only on regressions)
-    if policy.max_relative_drop is not None and result.baseline_score is not None:
-        apply_relative = (
-            policy.relative_guard_below is None
-            or result.baseline_score < policy.relative_guard_below
-        )
-        if apply_relative and result.baseline_score != 0:
-            relative_drop = regression_magnitude / abs(result.baseline_score)
-            if relative_drop > policy.max_relative_drop:
-                result.relative_breached = True
-                result.reasons.append(
-                    f"Relative drop {relative_drop * 100:.1f}% exceeds threshold "
-                    f"{policy.max_relative_drop * 100:.1f}% "
-                    f"(baseline {result.baseline_score:.4f} < guard {policy.relative_guard_below})"
-                )
-
-    if result.absolute_breached or result.relative_breached:
-        result.status = "BREACH"
-    else:
-        result.status = "PASS"
-        result.reasons.append("Regression within tolerance")
-
+    _apply_thresholds(result, policy, allow_point_estimate=False)
     return result
 
 
@@ -382,6 +342,31 @@ def _paired_delta_ci(
     return round(mean - z * se, 6), round(mean + z * se, 6)
 
 
+def _metric_problem_values(
+    records: dict[tuple[int, int], dict[str, Any]],
+    metric: str,
+) -> dict[int, float] | None:
+    """Return per-problem values for a supported gated metric."""
+    by_problem: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for (pid, _repeat), record in records.items():
+        by_problem[pid].append(record)
+
+    values: dict[int, float] = {}
+    if metric == "mean_reward":
+        for pid, reps in by_problem.items():
+            rewards = [float(r.get("reward", 0.0)) for r in reps]
+            values[pid] = float(np.mean(rewards))
+        return values
+
+    if metric == "pass@1":
+        for pid, reps in by_problem.items():
+            successes = sum(1 for r in reps if float(r.get("reward", 0.0)) > 0)
+            values[pid] = successes / len(reps) if reps else 0.0
+        return values
+
+    return None
+
+
 def _select_metric(reg_report: dict[str, Any] | None) -> str:
     """Auto-detect primary metric from score_deltas keys.
 
@@ -400,22 +385,170 @@ def _select_metric(reg_report: dict[str, Any] | None) -> str:
     return "mean_reward"
 
 
+def _load_bundle_score(bundle_path: Path, metric: str) -> dict[str, Any] | None:
+    try:
+        data = json.loads(bundle_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning("Failed to read bundle %s: %s", bundle_path, e)
+        return None
+    score = data.get("benchmark", {}).get("scores", {}).get(metric)
+    return score if isinstance(score, dict) else None
+
+
+def _populate_from_bundle_scores(
+    result: BenchmarkGateResult,
+    base_path: Path,
+    cand_path: Path,
+    reg_report: dict[str, Any] | None,
+    policy: ResolvedBenchmarkPolicy,
+) -> None:
+    metric = policy.metric or _select_metric(reg_report)
+    result.metric = metric
+    base_score = _load_bundle_score(base_path, metric)
+    cand_score = _load_bundle_score(cand_path, metric)
+
+    if not base_score or not cand_score:
+        _populate_from_score_deltas(result, reg_report, policy)
+        return
+
+    result.baseline_score = base_score.get("value")
+    result.candidate_score = cand_score.get("value")
+    if result.baseline_score is None or result.candidate_score is None:
+        _populate_from_score_deltas(result, reg_report, policy)
+        return
+
+    result.delta = round(float(result.candidate_score) - float(result.baseline_score), 6)
+    if result.baseline_score != 0:
+        result.relative_drop_pct = round(100 * result.delta / result.baseline_score, 2)
+
+    base_lo = base_score.get("ci_lower")
+    base_hi = base_score.get("ci_upper")
+    cand_lo = cand_score.get("ci_lower")
+    cand_hi = cand_score.get("ci_upper")
+    if None not in (base_lo, base_hi, cand_lo, cand_hi):
+        result.delta_ci_lower = round(float(cand_lo) - float(base_hi), 6)
+        result.delta_ci_upper = round(float(cand_hi) - float(base_lo), 6)
+
+    allow_point_estimate = result.tier == "advisory"
+    _apply_thresholds(result, policy, allow_point_estimate=allow_point_estimate)
+
+
 def _populate_from_score_deltas(
     result: BenchmarkGateResult,
     reg_report: dict[str, Any] | None,
     policy: ResolvedBenchmarkPolicy,
 ) -> None:
-    """Best-effort: fill result fields from bundle-level score deltas."""
+    """Final fallback when bundle score entries are unavailable."""
     if reg_report is None:
         return
     metric = policy.metric or _select_metric(reg_report)
     result.metric = metric
     sd = reg_report.get("score_deltas", {}).get(metric, {})
-    if sd:
-        result.baseline_score = sd.get("baseline")
-        result.candidate_score = sd.get("candidate")
-        result.delta = sd.get("delta")
-        result.relative_drop_pct = sd.get("relative_pct")
+    if not sd:
+        return
+    result.baseline_score = sd.get("baseline")
+    result.candidate_score = sd.get("candidate")
+    result.delta = sd.get("delta")
+    result.relative_drop_pct = sd.get("relative_pct")
+    allow_point_estimate = result.tier == "advisory"
+    _apply_thresholds(result, policy, allow_point_estimate=allow_point_estimate)
+
+
+def _damage_from_delta(delta: float, direction: Direction) -> float:
+    return -delta if direction == Direction.higher_is_better else delta
+
+
+def _damage_interval(
+    delta_ci_lower: float | None,
+    delta_ci_upper: float | None,
+    direction: Direction,
+) -> tuple[float | None, float | None]:
+    if delta_ci_lower is None or delta_ci_upper is None:
+        return None, None
+    if direction == Direction.higher_is_better:
+        return round(-delta_ci_upper, 6), round(-delta_ci_lower, 6)
+    return delta_ci_lower, delta_ci_upper
+
+
+def _apply_thresholds(
+    result: BenchmarkGateResult,
+    policy: ResolvedBenchmarkPolicy,
+    *,
+    allow_point_estimate: bool,
+) -> None:
+    """Apply absolute and relative thresholds to the selected metric evidence."""
+    if result.delta is None:
+        if not result.reasons:
+            result.reasons.append("No metric delta available for gate decision")
+        return
+
+    damage = _damage_from_delta(float(result.delta), policy.direction)
+    damage_ci_lower, damage_ci_upper = _damage_interval(
+        result.delta_ci_lower,
+        result.delta_ci_upper,
+        policy.direction,
+    )
+
+    if (
+        policy.max_relative_drop is not None
+        and result.baseline_score not in (None, 0)
+        and damage > 0
+    ):
+        apply_relative = (
+            policy.relative_guard_below is None
+            or float(result.baseline_score) < policy.relative_guard_below
+        )
+        if apply_relative:
+            relative_drop = damage / abs(float(result.baseline_score))
+            if relative_drop > policy.max_relative_drop:
+                result.relative_breached = True
+                result.status = "BREACH"
+                result.reasons.append(
+                    f"Relative drop {relative_drop * 100:.1f}% exceeds threshold "
+                    f"{policy.max_relative_drop * 100:.1f}%"
+                )
+                return
+
+    if damage_ci_lower is not None and damage_ci_upper is not None:
+        if damage_ci_lower > policy.max_drop:
+            result.absolute_breached = True
+            result.status = "BREACH"
+            result.reasons.append(
+                f"95% CI on damage [{damage_ci_lower:.4f}, {damage_ci_upper:.4f}] "
+                f"exceeds threshold {policy.max_drop:.4f}"
+            )
+            return
+        if damage_ci_upper <= policy.max_drop:
+            result.status = "PASS"
+            result.reasons.append(
+                f"95% CI on damage [{damage_ci_lower:.4f}, {damage_ci_upper:.4f}] "
+                f"is within threshold {policy.max_drop:.4f}"
+            )
+            return
+        result.status = "INSUFFICIENT_EVIDENCE"
+        result.reasons.append(
+            f"95% CI on damage [{damage_ci_lower:.4f}, {damage_ci_upper:.4f}] "
+            f"straddles threshold {policy.max_drop:.4f}"
+        )
+        return
+
+    if not allow_point_estimate:
+        result.status = "INSUFFICIENT_EVIDENCE"
+        result.reasons.append("No confidence interval available for required benchmark")
+        return
+
+    if damage > policy.max_drop:
+        result.absolute_breached = True
+        result.status = "BREACH"
+        result.reasons.append(
+            f"Point estimate damage {damage:.4f} exceeds threshold {policy.max_drop:.4f}"
+        )
+        return
+
+    result.status = "PASS"
+    result.reasons.append(
+        f"Point estimate damage {damage:.4f} is within threshold {policy.max_drop:.4f}"
+    )
 
 
 # ── Repeat aggregation ────────────────────────────────────────────────

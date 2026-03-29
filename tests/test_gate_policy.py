@@ -148,6 +148,40 @@ class TestRequiredBenchmarks:
         assert p.required_benchmarks() == set()
 
 
+class TestGateValidation:
+    def test_validate_for_gate_accepts_supported_required_metrics(self):
+        p = GatePolicy.model_validate({
+            "version": 1,
+            "defaults": {"metric": "mean_reward"},
+            "benchmarks": {"mmlu": {"tier": "critical"}},
+        })
+        p.validate_for_gate({"mean_reward", "pass@1"})
+
+    def test_validate_for_gate_rejects_missing_metric(self):
+        p = GatePolicy.model_validate({
+            "version": 1,
+            "benchmarks": {"mmlu": {"tier": "critical"}},
+        })
+        with pytest.raises(ValueError, match="explicit metric"):
+            p.validate_for_gate({"mean_reward", "pass@1"})
+
+    def test_validate_for_gate_rejects_unsupported_metric(self):
+        p = GatePolicy.model_validate({
+            "version": 1,
+            "defaults": {"metric": "scorer:rouge"},
+            "benchmarks": {"mmlu": {"tier": "critical"}},
+        })
+        with pytest.raises(ValueError, match="unsupported metric"):
+            p.validate_for_gate({"mean_reward", "pass@1"})
+
+    def test_validate_for_gate_ignores_advisory_without_metric(self):
+        p = GatePolicy.model_validate({
+            "version": 1,
+            "benchmarks": {"triviaqa": {"tier": "advisory"}},
+        })
+        p.validate_for_gate({"mean_reward", "pass@1"})
+
+
 class TestLoadFromFile:
     def test_round_trip(self, tmp_path):
         policy_yaml = tmp_path / "policy.yaml"

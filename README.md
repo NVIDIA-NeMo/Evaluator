@@ -181,6 +181,51 @@ print(report["verdict"])  # PASS / WARN / BLOCK / INCONCLUSIVE
 
 **Methodology:** McNemar's exact binomial test (one-sided) per ICLR 2026 "When LLMs get significantly worse." Clustered standard errors per Miller 2024 "Adding Error Bars to Evals."
 
+## Quality Gate
+
+`nel regression` is an investigation tool. The release-quality gate is the multi-benchmark policy engine in `nemo_evaluator.engine.gate`, which evaluates benchmark-specific thresholds from the selected metric rather than from McNemar significance.
+
+Current public API:
+
+```python
+from nemo_evaluator.config import load_gate_policy
+from nemo_evaluator.engine import gate_runs, write_gate_report
+
+policy = load_gate_policy("gate_policy.yaml")
+report = gate_runs("baseline/", "candidate/", policy)
+
+print(report.verdict)  # GO / NO-GO / INCONCLUSIVE
+write_gate_report(report, "candidate/gate_report.json")
+```
+
+Example policy:
+
+```yaml
+version: 1
+defaults:
+  tier: supporting
+  metric: mean_reward
+  max_drop: 0.015
+benchmarks:
+  mmlu_pro:
+    tier: critical
+    metric: mean_reward
+    max_drop: 0.01
+  humaneval:
+    tier: supporting
+    metric: pass@1
+    max_drop: 0.015
+```
+
+Usage notes:
+
+- Required benchmarks (`critical` and `supporting`) must resolve to an explicit supported metric. Today the gate supports `mean_reward` and `pass@1` for deterministic thresholding.
+- The gate computes decisions from the selected metric's paired per-problem delta and confidence interval when `results.jsonl` is available.
+- If paired records are missing, the gate falls back to bundle score entries and their `ci_lower` / `ci_upper` bounds when present.
+- If a required benchmark only has point estimates and no usable interval evidence, the result is `INSUFFICIENT_EVIDENCE`, not `PASS`.
+- Relative-drop guardrails are directional and only apply to regressions. Improvements never trigger a breach.
+- `regression_report` is attached to each benchmark result as supporting evidence (flip report, McNemar, category breakdowns), but it does not drive the gate verdict.
+
 ## Examples
 
 See [`examples/configs/`](examples/configs/) for 25 end-to-end configs covering all solver types, verification methods, and execution backends.

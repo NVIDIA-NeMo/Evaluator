@@ -169,6 +169,25 @@ class GatePolicy(BaseModel):
                 required.add(name)
         return required
 
+    def validate_for_gate(self, supported_metrics: set[str]) -> None:
+        """Validate that required benchmarks can be gated deterministically."""
+        errors: list[str] = []
+        for name in sorted(self.required_benchmarks()):
+            resolved = self.resolve(name)
+            if not resolved.metric:
+                errors.append(
+                    f"{name}: required benchmark must resolve to an explicit metric"
+                )
+                continue
+            if resolved.metric not in supported_metrics:
+                supported = ", ".join(sorted(supported_metrics))
+                errors.append(
+                    f"{name}: unsupported metric {resolved.metric!r}; "
+                    f"supported metrics: {supported}"
+                )
+        if errors:
+            raise ValueError("Invalid gate policy:\n" + "\n".join(errors))
+
 
 def load_gate_policy(path: str | Path) -> GatePolicy:
     """Load and validate a gate policy YAML file."""
