@@ -6,10 +6,12 @@ from nemo_evaluator.engine.comparison import (
     McNemarResult,
     RegressionReport,
     build_flip_report,
+    build_summary_sentence,
     compare_results,
     compare_runs,
     load_paired_records,
     mcnemar_test,
+    mde_estimate,
     write_regression,
 )
 
@@ -23,6 +25,8 @@ __all__ = [
     "mcnemar_test",
     "load_paired_records",
     "write_regression",
+    "build_summary_sentence",
+    "mde_estimate",
     "RegressionReport",
     "FlipReport",
     "McNemarResult",

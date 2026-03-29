@@ -16,6 +16,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from nemo_evaluator.engine.comparison import build_summary_sentence, mde_estimate
+
 
 def generate_report(report: dict[str, Any]) -> str:
     """Generate a full Markdown regression report from a comparison dict."""
@@ -32,6 +34,7 @@ def generate_report(report: dict[str, Any]) -> str:
     cats = report.get("category_deltas", {})
     scores = report.get("score_deltas", {})
     s = flip.get("summary", {}) if flip else {}
+    threshold = report.get("threshold", 0.05)
 
     # ── Header ─────────────────────────────────────────────────────
     _w(f"# Regression Report: {verdict}")
@@ -82,7 +85,7 @@ def generate_report(report: dict[str, Any]) -> str:
         elif verdict == "INCONCLUSIVE":
             _w(f"**Not enough data to rule out small regressions.** With only {mcnemar.get('n_discordant', 0)} "
                f"discordant pairs, this evaluation cannot reliably detect regressions below "
-               f"~{_mde_estimate(mcnemar) * 100:.1f}%. Consider adding more evaluation samples.")
+               f"~{mde_estimate(mcnemar.get('n_discordant', 0)) * 100:.1f}%. Consider adding more evaluation samples.")
         else:
             if n_reg > 0:
                 _w(f"**No significant regression detected.** {n_reg} problem(s) flipped, "
@@ -91,7 +94,7 @@ def generate_report(report: dict[str, Any]) -> str:
                 _w("**No regressions detected.** Both models produce identical outcomes on all paired samples.")
 
     # Summary sentence
-    summary = _build_summary(verdict, s, cats)
+    summary = build_summary_sentence(verdict, s, cats, threshold)
     if summary:
         _w("")
         _w(f"> **{summary}**")
@@ -107,7 +110,7 @@ def generate_report(report: dict[str, Any]) -> str:
             b = v["baseline"]
             c = v["candidate"]
             d = v["delta"]
-            status = "🔴 BROKE" if d < -0.05 else ("🟡 WARN" if d < -0.01 else "🟢 HELD")
+            status = "🔴 BROKE" if d < -threshold else ("🟡 WARN" if d < -threshold / 5 else "🟢 HELD")
             _w(f"| {cat} | {b * 100:.1f}% | {c * 100:.1f}% | {d * 100:+.1f}% | {status} |")
         _w("")
 
@@ -238,33 +241,6 @@ def write_report(report: dict[str, Any], output_path: str | Path) -> Path:
     return path
 
 
-def _build_summary(verdict: str, s: dict, cats: dict, threshold: float = 0.05) -> str | None:
-    """One-sentence narrative for the executive summary."""
-    if not s.get("n_paired"):
-        return None
-    n_reg = s.get("n_regressions", 0)
-    n_paired = s.get("n_paired", 0)
-    if not cats:
-        if n_reg == 0:
-            return "No regressions detected."
-        return None
-    held = [c for c, v in sorted(cats.items()) if v["delta"] >= -threshold]
-    broke = [c for c, v in sorted(cats.items()) if v["delta"] < -threshold]
-    if not broke and n_reg == 0:
-        return f"All capabilities held ({', '.join(held)})."
-    if not broke:
-        return f"All capabilities held. {n_reg} flip(s) within normal variation for {n_paired} samples."
-    parts = []
-    if held:
-        parts.append(f"Safe for {', '.join(held)}.")
-    cat_bd = s.get("category_breakdown", {})
-    for cat in broke:
-        delta_pct = abs(cats[cat]["delta"]) * 100
-        cat_reg = cat_bd.get(cat, {}).get("regressions", 0)
-        parts.append(f"{cat} regresses {delta_pct:.1f}% ({cat_reg} problems).")
-    return " ".join(parts) if parts else None
-
-
 def _render_flip_detail(
     _w,
     f_entry: dict[str, Any],
@@ -292,10 +268,3 @@ def _render_flip_detail(
     _w("")
 
 
-def _mde_estimate(mcnemar: dict[str, Any]) -> float:
-    """Rough MDE at 80% power from discordant pair count."""
-    import math
-    nd = mcnemar.get("n_discordant", 0)
-    if nd <= 0:
-        return 1.0
-    return 2.8 / math.sqrt(nd)

@@ -308,7 +308,8 @@ def regression_cmd(baseline, candidate, output, threshold, strict, reward_thresh
         click.echo(f"Markdown report written to: {rp}")
 
     # ── Summary sentence (item #5) ───────────────────────────────
-    summary_sentence = _build_summary_sentence(verdict, s, cats, threshold)
+    from nemo_evaluator.engine.comparison import build_summary_sentence
+    summary_sentence = build_summary_sentence(verdict, s, cats, threshold)
     if summary_sentence:
         click.echo()
         click.echo(_style(f"Summary: {summary_sentence}", bold=True))
@@ -402,45 +403,6 @@ def _plain_english_verdict(verdict: str, s: dict, mcnemar: dict | None) -> str:
 def _broke_categories(report: dict, threshold: float, mcnemar_sig: bool | None) -> list[str]:
     cats = report.get("category_deltas", {})
     return [cat for cat, v in sorted(cats.items()) if v["delta"] < -threshold and mcnemar_sig]
-
-
-def _build_summary_sentence(verdict: str, s: dict, cats: dict, threshold: float) -> str | None:
-    """Generate a one-sentence narrative for Slack copy-paste."""
-    if not s.get("n_paired"):
-        return None
-
-    n_reg = s.get("n_regressions", 0)
-    n_paired = s.get("n_paired", 0)
-
-    if not cats:
-        if n_reg == 0:
-            return "No regressions detected across all problems."
-        return None  # no categories to narrate
-
-    held = [c for c, v in sorted(cats.items()) if v["delta"] >= -threshold]
-    broke = [c for c, v in sorted(cats.items()) if v["delta"] < -threshold]
-
-    if not broke and n_reg == 0:
-        return f"All capabilities held ({', '.join(held)})."
-
-    if not broke and n_reg > 0:
-        return (f"All capabilities held. {n_reg} problem(s) flipped but within normal variation "
-                f"for {n_paired} samples.")
-
-    # Build the narrative: what's safe, what broke
-    parts = []
-    if held:
-        parts.append(f"Safe for {', '.join(held)}.")
-
-    for cat in broke:
-        v = cats[cat]
-        delta_pct = abs(v["delta"]) * 100
-        # Find regressed problem IDs in this category from category_breakdown
-        cat_bd = s.get("category_breakdown", {})
-        cat_reg = cat_bd.get(cat, {}).get("regressions", 0)
-        parts.append(f"{cat} regresses {delta_pct:.1f}% ({cat_reg} problems).")
-
-    return " ".join(parts) if parts else None
 
 
 def _exit_strict(strict: bool, verdict: str):

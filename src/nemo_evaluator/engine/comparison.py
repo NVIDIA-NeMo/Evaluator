@@ -96,6 +96,7 @@ class RegressionReport:
     verdict: str | None = None  # PASS / WARN / BLOCK / INCONCLUSIVE
     verdict_reasons: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    threshold: float = _MIN_EFFECT_SIZE  # user's --max-drop value
 
     def is_regression(self, alpha: float = _SIGNIFICANCE_THRESHOLD) -> bool:
         if self.mcnemar and self.mcnemar.significant:
@@ -123,6 +124,7 @@ class RegressionReport:
             "runtime_deltas": self.runtime_deltas,
             "verdict": self.verdict,
             "verdict_reasons": self.verdict_reasons,
+            "threshold": self.threshold,
         }
         if self.warnings:
             d["warnings"] = self.warnings
@@ -169,6 +171,7 @@ def compare_runs(
     report = RegressionReport(
         baseline={"run_id": base.get("run_id", "unknown"), "config": base.get("config", {})},
         candidate={"run_id": cand.get("run_id", "unknown"), "config": cand.get("config", {})},
+        threshold=min_effect,
     )
 
     # Benchmark name validation (#17)
@@ -433,6 +436,54 @@ def mcnemar_test(
     return result
 
 
+def mde_estimate(n_discordant: int) -> float:
+    """Minimum detectable effect at 80% power for one-sided binomial."""
+    if n_discordant <= 0:
+        return 1.0
+    return 2.8 / math.sqrt(max(1, n_discordant))
+
+
+def build_summary_sentence(
+    verdict: str,
+    summary: dict[str, Any],
+    category_deltas: dict[str, Any],
+    threshold: float = 0.05,
+) -> str | None:
+    """One-sentence narrative for Slack copy-paste / executive summary."""
+    n_paired = summary.get("n_paired")
+    if not n_paired:
+        return None
+
+    n_reg = summary.get("n_regressions", 0)
+
+    if not category_deltas:
+        if n_reg == 0:
+            return "No regressions detected across all problems."
+        return None
+
+    held = [c for c, v in sorted(category_deltas.items()) if v["delta"] >= -threshold]
+    broke = [c for c, v in sorted(category_deltas.items()) if v["delta"] < -threshold]
+
+    if not broke and n_reg == 0:
+        return f"All capabilities held ({', '.join(held)})."
+
+    if not broke and n_reg > 0:
+        return (f"All capabilities held. {n_reg} problem(s) flipped but within normal variation "
+                f"for {n_paired} samples.")
+
+    parts = []
+    if held:
+        parts.append(f"Safe for {', '.join(held)}.")
+
+    cat_bd = summary.get("category_breakdown", {})
+    for cat in broke:
+        delta_pct = abs(category_deltas[cat]["delta"]) * 100
+        cat_reg = cat_bd.get(cat, {}).get("regressions", 0)
+        parts.append(f"{cat} regresses {delta_pct:.1f}% ({cat_reg} problems).")
+
+    return " ".join(parts) if parts else None
+
+
 def write_regression(report: dict[str, Any], output_path: str | Path) -> Path:
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -516,8 +567,7 @@ def _compute_verdict(
         return "PASS", ["scipy not installed; statistical test skipped"]
 
     # Power check: can the suite detect regressions of size min_effect?
-    # MDE at 80% power ≈ 2.8 / sqrt(n_discordant) for one-sided binomial
-    mde = 2.8 / math.sqrt(max(1, m.n_discordant)) if m.n_discordant > 0 else 1.0
+    mde = mde_estimate(m.n_discordant)
     underpowered = mde > min_effect * 10  # MDE > 10x the practical threshold
 
     if m.significant and m.effect_size is not None and abs(m.effect_size) > min_effect:
