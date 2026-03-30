@@ -1,178 +1,224 @@
-# Compare Runs
+# Comparing Evaluation Runs
 
-Use `nel compare` when you want to answer a focused question:
+## The Problem
 
-- did this benchmark get worse?
-- which exact problems regressed?
-- is the observed change likely to be real or just noise?
+You trained a new model, changed a prompt, or quantized a checkpoint.  The headline score moved by a fraction of a percent.  Is the change real, or is it noise?
 
-This command is for investigation. It compares one benchmark run against another and gives you both score-level and problem-level evidence.
+A single average score hides critical information:
 
-If you need one release decision across many benchmarks, use [`quality-gate.md`](quality-gate.md) instead.
+- A candidate can **swap** improvements on some problems for regressions on others and keep the same headline.
+- A small benchmark (HumanEval: 164 items) can fluctuate by several percentage points between runs just from sampling noise.
+- A regression on an important subset (math word problems, long-context retrieval) can be invisible in the aggregate.
 
-## What Problem This Solves
+Eyeballing two numbers and declaring "it went down 0.3 points" is not a measurement.  It is a guess.
 
-A single average score is often not enough.
+## The Approach
 
-- A candidate can lose a small amount overall but fail on an important subset of problems.
-- A candidate can keep the same headline score while swapping improvements on some questions for regressions on others.
-- Small benchmarks are noisy, so a raw delta does not tell you whether the change is meaningful.
+`nel compare` treats the comparison as a **paired statistical test**.  It evaluates the same problems with both models and analyzes what changed at the individual problem level:
 
-`nel compare` keeps the comparison paired at the problem level and reports:
+1. **Pair** results by `(problem_idx, repeat)` across baseline and candidate.
+2. **Classify** each pair: did the problem flip from correct to incorrect (regression), incorrect to correct (improvement), or stay the same?
+3. **Test** whether the regression count is significantly larger than would occur by chance, using McNemar's exact binomial test.
+4. **Report** the effect size, confidence interval, and a human-readable verdict.
 
-- score deltas
-- per-problem regressions and improvements
-- paired flip statistics
-- a Markdown investigation report
+This is the same methodology described in "When LLMs Get Significantly Worse" (ICLR 2026).  The key insight is that paired analysis dramatically reduces noise compared to comparing two independent averages, because the difficulty of each problem is "controlled for" -- you are measuring the *change in behavior* on the same inputs.
 
-## Step 1: Run A Baseline And A Candidate
+### Why McNemar and Not a t-test
 
-Start with two evaluation outputs produced by `nel eval run`.
+McNemar's test focuses on **discordant pairs** -- problems where the two models disagree.  It ignores the (often vast majority of) problems both models get right or both get wrong.  This makes it far more sensitive to targeted regressions than a t-test on overall accuracy, which dilutes the signal with concordant pairs.
 
-Example:
+### What the Verdicts Mean
+
+| Verdict | Meaning | What to do |
+|---------|---------|------------|
+| **PASS** | No evidence of a meaningful regression | Proceed |
+| **WARN** | Statistically significant change, but below the practical threshold | Inspect the flipped problems; decide whether the affected areas matter for your use case |
+| **BLOCK** | Significant regression that exceeds the configured tolerance | Investigate the regressed problems; fix the candidate or reject it |
+| **INCONCLUSIVE** | Not enough paired data to detect regressions at the configured threshold | Re-run with more problems, or use a larger benchmark |
+
+## Walkthrough
+
+### Step 1: Produce Baseline and Candidate Evaluations
+
+Run the same benchmark with the same configuration against both models:
 
 ```bash
+# Baseline
 nel eval run --bench mmlu_pro \
   --model-url https://integrate.api.nvidia.com/v1 \
   --model-id baseline-model \
   --repeats 1 \
-  --max-problems 200 \
-  --output-dir ./results/baseline
+  --max-problems 500 \
+  -o ./results/baseline
 
+# Candidate
 nel eval run --bench mmlu_pro \
   --model-url https://integrate.api.nvidia.com/v1 \
   --model-id candidate-model \
   --repeats 1 \
-  --max-problems 200 \
-  --output-dir ./results/candidate
+  --max-problems 500 \
+  -o ./results/candidate
 ```
 
-For the best comparison, keep the runs matched on:
+For a valid comparison, match the runs on: benchmark, dataset slice, prompt template, repeat count, and max problems.  Differences in any of these confound the comparison.
 
-- benchmark
-- dataset slice
-- prompt / config
-- repeat count
-
-## Step 2: Run `nel compare`
-
-Compare the two result directories:
+### Step 2: Run the Comparison
 
 ```bash
 nel compare ./results/baseline ./results/candidate
 ```
 
-You can also point directly at the bundle files:
+`nel compare` accepts directories (it finds the `eval-*.json` bundle inside) or direct bundle paths.
+
+The command outputs:
+
+- **Score deltas**: how each metric changed (absolute and relative)
+- **Flip summary**: how many problems regressed, improved, or stayed the same
+- **McNemar test**: p-value, effect size, and confidence interval
+- **Verdict**: PASS, WARN, BLOCK, or INCONCLUSIVE
+- **Markdown report**: auto-generated investigation document next to the candidate bundle
+
+### Step 3: Tighten the Threshold for Sensitive Comparisons
+
+The default practical threshold is 5% (0.05 on the 0-1 scale).  For quantization or fine-tuning where 1 percentage point matters:
 
 ```bash
-nel compare \
-  ./results/baseline/eval-20260330-mmlu-pro.json \
-  ./results/candidate/eval-20260331-mmlu-pro.json
+nel compare ./results/baseline ./results/candidate --max-drop 0.01
 ```
 
-## Step 3: Use The Most Important Flags
+This tells the verdict logic: "a regression is only practically meaningful if the net effect exceeds 1 pp."  Smaller effects get WARN instead of BLOCK.
 
-The most useful flags are:
+### Step 4: Inspect What Actually Changed
 
-- `--strict`
-  Exit non-zero when the comparison blocks or is inconclusive enough to matter in CI.
-- `--max-drop 0.01`
-  Tighten the practical effect threshold when 1 percentage point matters.
-- `--correct-above 0.5`
-  Use this for judge-style rewards where “correct” means a score above a threshold, not just `reward > 0`.
-- `--show-flips`
-  Print the exact regressed and improved problems.
-- `--verbose`
-  Show the statistical details behind the verdict.
-- `--output report.json`
-  Save the structured comparison JSON.
-
-Example:
+Add `--show-flips` to see the individual problems that flipped:
 
 ```bash
-nel compare ./results/baseline ./results/candidate \
-  --max-drop 0.01 \
-  --correct-above 0.5 \
-  --show-flips \
-  --verbose \
-  --strict
+nel compare ./results/baseline ./results/candidate --show-flips --verbose
 ```
 
-## Step 4: Read The Verdict
+This prints:
 
-`nel compare` returns one of these verdicts:
+- Each regressed problem: index, category, expected answer, what baseline said, what candidate said
+- Each improved problem: same detail
+- Category breakdown: which subjects or topics were hit hardest
+- Statistical detail: p-value, effect size, discordant pair count, minimum detectable effect
 
-- `PASS`
-- `WARN`
-- `BLOCK`
-- `INCONCLUSIVE`
+The `--verbose` flag adds the statistical detail.  Without it, you get the flip list and verdict but not the p-values.
 
-How to interpret them:
+### Step 5: Use the Investigation Report
 
-- `PASS`
-  No evidence of a practically meaningful regression.
-- `WARN`
-  The change is real enough to notice statistically, but still within the configured tolerance.
-- `BLOCK`
-  The candidate regressed beyond the allowed threshold.
-- `INCONCLUSIVE`
-  There is not enough evidence to confidently rule out a meaningful regression.
+By default, `nel compare` writes `regression_report.md` in the candidate's result directory.  This Markdown file contains:
 
-With `--strict`, exit codes are:
+- Side-by-side model responses for each flipped problem
+- Category-level regression rates
+- Statistical summary
+- Suggested next steps
 
-- `0` for `PASS`
-- `1` for `BLOCK`
-- `2` for `WARN` and `INCONCLUSIVE`
+This report is designed for humans reviewing a merge request or a model release.  Attach it to the MR or the model card review.
 
-## Step 5: Inspect The Investigation Report
+To write it to a specific path:
 
-By default, NEL writes a Markdown report next to the candidate bundle:
+```bash
+nel compare ./results/baseline ./results/candidate --report ./review/mmlu_comparison.md
+```
 
-- `regression_report.md`
-
-That report is useful when you need to answer:
-
-- which problems flipped?
-- which categories were hit hardest?
-- what did the baseline answer vs the candidate?
-
-If you do not want the Markdown artifact:
+To suppress it:
 
 ```bash
 nel compare ./results/baseline ./results/candidate --no-report
 ```
 
-If you want it in a specific path:
+### Step 6: Use in CI Pipelines
+
+With `--strict`, the command returns exit codes suitable for CI:
+
+| Exit code | Verdict |
+|-----------|---------|
+| 0 | PASS |
+| 1 | BLOCK |
+| 2 | WARN or INCONCLUSIVE |
 
 ```bash
-nel compare ./results/baseline ./results/candidate --report ./artifacts/mmlu_compare.md
+nel compare ./results/baseline ./results/candidate \
+  --max-drop 0.01 --strict
 ```
 
-## Step 6: Decide What To Do Next
+For machine-readable output, use `--format json`:
 
-A practical workflow is:
+```bash
+nel compare ./results/baseline ./results/candidate --format json > report.json
+```
 
-1. Run the baseline.
-2. Run the candidate.
-3. Run `nel compare`.
-4. If the verdict is `PASS`, continue.
-5. If the verdict is `WARN` or `INCONCLUSIVE`, inspect flips and decide whether you need more samples.
-6. If the verdict is `BLOCK`, inspect the regressed problems and fix the candidate or reject it.
+### Step 7: Use the Python API
 
-## Troubleshooting
+For programmatic access:
 
-### The command says there are multiple bundles in a directory
+```python
+from nemo_evaluator.engine.comparison import compare_runs, write_regression
 
-Point `nel compare` at the exact `eval-*.json` file instead of the parent directory.
+report = compare_runs("./results/baseline/eval-mmlu.json",
+                       "./results/candidate/eval-mmlu.json")
 
-### The result is `INCONCLUSIVE`
+print(report["verdict"])  # PASS / WARN / BLOCK / INCONCLUSIVE
 
-You may not have enough paired samples to detect the effect size you care about. Re-run with more problems or a larger benchmark.
+# Per-metric deltas
+for metric, d in report["score_deltas"].items():
+    print(f"{metric}: {d['baseline']:.4f} -> {d['candidate']:.4f}  "
+          f"(delta={d['delta']:+.4f}, {d['relative_pct']:+.1f}%)")
 
-### `results.jsonl` is missing or empty
+# Flip summary
+flip = report["flip_report"]["summary"]
+print(f"Regressions: {flip['n_regressions']}, "
+      f"Improvements: {flip['n_improvements']}, "
+      f"Paired: {flip['n_paired']}")
 
-NEL can still compare aggregate score deltas, but the paired flip analysis becomes weaker.
+# McNemar test
+m = report["mcnemar"]
+if m.get("p_value") is not None:
+    print(f"McNemar p={m['p_value']:.4f}, effect={m['effect_size']:.4f}")
 
-### I want a release decision across several benchmarks
+write_regression(report, "comparison.json")
+```
 
-Use [`quality-gate.md`](quality-gate.md). `nel compare` is the diagnostic tool, not the suite-level policy gate.
+## Reference: All Flags
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--max-drop` / `-t` | 0.05 | Practical effect threshold (0-1 scale) |
+| `--strict` | off | Exit non-zero on BLOCK, WARN, or INCONCLUSIVE |
+| `--correct-above` | 0.0 | Reward threshold for "correct" classification.  Use `0.5` for judge-scored benchmarks where reward is a continuous score. |
+| `--show-flips` | off | Print per-problem flip details |
+| `--verbose` | off | Show statistical details (p-values, effect sizes, power) |
+| `--compact` | off | Short output for Slack or CI logs |
+| `--format` | text | `text` or `json` |
+| `--output` / `-o` | none | Write JSON report to file |
+| `--report` | auto | Write Markdown report (default: next to candidate bundle) |
+| `--no-report` | off | Suppress Markdown report |
+
+## Understanding Sample Size and Power
+
+A common mistake is running a small benchmark and treating the result as definitive.  The comparison's statistical power depends on the number of **discordant pairs** -- problems where the two models disagree.
+
+Rule of thumb:
+
+| Discordant pairs | Minimum detectable effect (80% power) |
+|------------------|---------------------------------------|
+| 10 | ~28% |
+| 50 | ~12.5% |
+| 100 | ~8.8% |
+| 500 | ~3.9% |
+| 1000 | ~2.8% |
+
+If your benchmark has 164 items (HumanEval) and 90% concordance, you might have only ~16 discordant pairs.  That means you can reliably detect ~22% regression rates, not 1-2 point deltas.  `nel compare` reports the minimum detectable effect and will return INCONCLUSIVE when the test is underpowered.
+
+## When to Use `nel compare` vs `nel gate`
+
+| Need | Tool |
+|------|------|
+| Diagnose what changed in one benchmark | `nel compare` |
+| Investigate why a specific benchmark regressed | `nel compare --show-flips --verbose` |
+| Make a release decision across a suite of benchmarks | `nel gate` |
+| CI gate on a single benchmark | `nel compare --strict` |
+| CI gate on multiple benchmarks with per-benchmark thresholds | `nel gate --strict` |
+
+`nel compare` is the diagnostic tool.  `nel gate` is the policy enforcement tool.  A typical workflow uses `nel gate` first, then `nel compare` on any failing benchmarks to understand what went wrong.

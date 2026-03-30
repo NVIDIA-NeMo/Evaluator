@@ -75,7 +75,7 @@ sequenceDiagram
 
 ## Statistical significance
 
-With `scipy` installed (`pip install nemo-evaluator[stats]`), regression reports include Mann-Whitney U p-values for each score delta. This distinguishes meaningful regressions from noise.
+With `scipy` installed (`pip install nemo-evaluator[stats]`), `nel compare` includes McNemar significance testing, effect size confidence intervals, and power analysis.  This distinguishes meaningful regressions from benchmark noise.  See {doc}`../tutorials/compare` for details on interpreting the statistical output.
 
 ## Threshold tuning
 

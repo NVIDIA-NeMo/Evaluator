@@ -715,7 +715,8 @@ output:
 |------|-----------|
 | Write a custom benchmark | {doc}`byob` |
 | Integrate with NeMo Gym | {doc}`gym-integration` |
-| Set up CI regression gates | {doc}`regression-ci` |
+| Compare runs and detect regressions | {doc}`compare` |
+| Set up multi-benchmark quality gates | {doc}`quality-gate` |
 | Scale to large datasets | {doc}`distributed-eval` |
 | Understand the architecture | {doc}`../architecture/index` |
 | Browse all 25 configs | [`examples/configs/`](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nemo-evaluator-next/-/tree/main/examples/configs) |

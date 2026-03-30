@@ -49,7 +49,7 @@ Run your first evaluation in under 5 minutes.
 - **Pluggable solvers.** `simple`, `harbor`, `tool_calling`, `gym_delegation`, `openclaw` — swap inference strategy per benchmark via config.
 - **Cluster backends.** Run locally, in Docker, or on SLURM clusters with automatic model deployment.
 - **Resilient suites.** Per-benchmark checkpointing with failure isolation. Resume partially completed suites with `--resume`.
-- **Statistical regression.** Compare runs with confidence intervals and Mann-Whitney U p-values.
+- **Statistical regression.** Compare runs with McNemar's exact test, paired flip analysis, and confidence intervals.  Gate releases across benchmark suites with per-benchmark policy thresholds.
 - **15 built-in benchmarks.** MMLU, MMLU-Pro, MATH-500, GPQA, GSM8K, DROP, MGSM, TriviaQA, HumanEval, SimpleQA, HealthBench, PinchBench, XSTest, SWE-bench Verified, SWE-bench Multilingual.
 
 ## Tutorials
@@ -156,7 +156,6 @@ tutorials/legacy-containers
 tutorials/distributed-eval
 tutorials/compare
 tutorials/quality-gate
-tutorials/regression-ci
 tutorials/adapters
 :::
 
