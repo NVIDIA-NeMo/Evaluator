@@ -236,6 +236,7 @@ Complete record for one seed → model → verify cycle.
 | `nel validate` | Quick validation of a benchmark |
 | `nel list` | Show available benchmarks and environments |
 | `nel compare` | Compare two evaluation bundles |
+| `nel gate` | Apply a multi-benchmark gate policy |
 | `nel config` | Persistent user config |
 | `nel package` | Containerize BYOB benchmark |
 
@@ -302,7 +303,18 @@ nel eval merge OUTPUT_DIR
 
 ```
 nel compare BASELINE CANDIDATE
-    --threshold FLOAT        Max acceptable drop [0.05]
+    --max-drop FLOAT         Max acceptable drop [0.05]
     --strict                 Exit non-zero on regression
-    --output TEXT             Write JSON report
+    --output TEXT            Write JSON report
+```
+
+### `nel gate`
+
+```
+nel gate BASELINE_DIR CANDIDATE_DIR
+    --policy TEXT            Gate policy YAML file [required]
+    --output TEXT            Write JSON gate report
+    --format [text|json]     Output format [text]
+    --strict                 Exit non-zero on NO-GO or INCONCLUSIVE
+    --verbose                Show per-benchmark reasons
 ```

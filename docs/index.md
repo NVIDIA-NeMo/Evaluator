@@ -86,6 +86,18 @@ Use NeMo Skills benchmarks with full per-request observability.
 :link-type: doc
 Scale to thousands of problems with SLURM, Kubernetes, Ray, or manual sharding.
 :::
+
+:::{grid-item-card} {octicon}`git-compare;1.5em;sd-mr-1` Compare Runs
+:link: tutorials/compare
+:link-type: doc
+Diagnose what changed between two runs of the same benchmark with `nel compare`.
+:::
+
+:::{grid-item-card} {octicon}`shield-check;1.5em;sd-mr-1` Quality Gates
+:link: tutorials/quality-gate
+:link-type: doc
+Turn benchmark thresholds into a suite-level `GO / NO-GO / INCONCLUSIVE` decision with `nel gate`.
+:::
 ::::
 
 ## Architecture & Deployment
@@ -142,6 +154,8 @@ tutorials/gym-integration
 tutorials/skills-integration
 tutorials/legacy-containers
 tutorials/distributed-eval
+tutorials/compare
+tutorials/quality-gate
 tutorials/regression-ci
 tutorials/adapters
 :::
@@ -173,14 +187,6 @@ deployment/slurm
 deployment/kubernetes
 deployment/ray
 deployment/ci-regression
-:::
-
-:::{toctree}
-:caption: Regression
-:hidden:
-
-regression/run-regressions
-regression/quality-gate
 :::
 
 :::{toctree}

@@ -141,17 +141,32 @@ Pyxis/Enroot-based execution with auto-selected container images per URI scheme.
 | `nel serve -b <name>` | Serve as HTTP endpoint |
 | `nel validate -b <name>` | Sanity check |
 | `nel compare` | Paired run comparison |
+| `nel gate` | Multi-benchmark quality gate |
 | `nel config` | Persistent user config |
 | `nel package` | Containerize BYOB benchmark |
 
-## Regression And Quality Gate
+## Compare Results Between Runs
 
-Use `nel compare` when you want to investigate whether one benchmark run got worse and which problems flipped. Use the quality gate when you want a multi-benchmark `GO / NO-GO / INCONCLUSIVE` decision from an explicit policy.
+Use `nel compare` when you want to compare two runs of the same benchmark and inspect score deltas, flips, and statistical evidence.
 
-- Regression guide: [`docs/regression/run-regressions.md`](docs/regression/run-regressions.md)
-- Quality gate guide: [`docs/regression/quality-gate.md`](docs/regression/quality-gate.md)
+```bash
+nel compare ./results/baseline ./results/candidate --strict
+```
 
-The quality gate is currently exposed as a Python API (`nemo_evaluator.engine.gate`), not a `nel gate` CLI command.
+Full tutorial: [`docs/tutorials/compare.md`](docs/tutorials/compare.md)
+
+## Implement Quality Gates
+
+Use `nel gate` when you want one `GO / NO-GO / INCONCLUSIVE` decision across multiple benchmarks from an explicit policy file.
+
+```bash
+nel gate ./results/baseline ./results/candidate \
+  --policy gate_policy.yaml \
+  --strict \
+  --output gate_report.json
+```
+
+Full tutorial: [`docs/tutorials/quality-gate.md`](docs/tutorials/quality-gate.md)
 
 ## Examples
 

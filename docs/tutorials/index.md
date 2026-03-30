@@ -11,6 +11,8 @@ gym-integration
 skills-integration
 legacy-containers
 distributed-eval
+compare
+quality-gate
 regression-ci
 adapters
 ```

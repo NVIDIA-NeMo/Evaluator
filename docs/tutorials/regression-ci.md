@@ -74,7 +74,7 @@ regression:check:
   needs: [eval:candidate, eval:baseline]
   script:
     - nel compare results/baseline/eval-*.json results/candidate/eval-*.json
-        --output results/regression.json --threshold 0.05 --strict
+        --output results/regression.json --max-drop 0.05 --strict
   artifacts:
     paths: [results/regression.json]
     expire_in: 30 days
