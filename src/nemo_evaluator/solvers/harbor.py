@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -172,15 +173,28 @@ async def _download_agent_logs_inner(
             pass
 
 
-async def _disable_stuck_detection(sandbox: "Sandbox") -> None:
-    """Disable the OpenHands SDK stuck detector in the uploaded runner script.
+async def _patch_openhands_sdk(sandbox: "Sandbox") -> None:
+    """Apply runtime patches to the OpenHands SDK inside the sandbox.
 
-    The default stuck detector terminates the agent after 3+ consecutive
-    empty responses ("agent monologue").  Reasoning models that produce
-    ``<think>`` blocks without a tool call trigger this constantly,
-    killing agents at ~40 iterations instead of the configured 200.
+    1. **Disable stuck detection** in the runner script — the default
+       detector kills reasoning models that produce ``<think>`` blocks
+       without a tool call.
+
+    2. **Prevent premature FINISHED on text-only responses** in the SDK's
+       ``Agent.step()`` — when the LLM produces text without a tool call,
+       the SDK sets ``execution_status = FINISHED`` and stops.  Reasoning
+       models often produce intermediate text (summaries, status) before
+       their next tool call.  We patch this to let the loop continue until
+       the agent explicitly calls ``finish`` or hits ``max_iterations``.
+       (Upstream: OpenHands/software-agent-sdk#1349)
+
+    3. **Capture reasoning in ATIF trajectory** — the runner's event
+       serialization drops ``reasoning_content`` / ``thinking_blocks``.
+       We patch both the event→dict conversion and the ``build_trajectory``
+       step builder so reasoning appears in the output JSON.
     """
-    result = await sandbox.exec(
+    # -- Patch 1: stuck detection off in runner --------------------------
+    r1 = await sandbox.exec(
         'python3 -c "'
         "p='/installed-agent/run_agent.py';"
         "c=open(p).read();"
@@ -191,14 +205,139 @@ async def _disable_stuck_detection(sandbox: "Sandbox") -> None:
         '"',
         timeout_sec=10,
     )
-    stdout = (result.stdout or "").strip()
-    if result.return_code == 0 and "disabled" in stdout:
-        logger.info("OpenHands runner patched: %s", stdout)
-    else:
+    logger.info("Runner patch: %s", (r1.stdout or "").strip())
+
+    # -- Patch 2: don't FINISHED on text-only responses ------------------
+    # In agent.py, when the LLM produces text without a tool call the SDK
+    # sets execution_status=FINISHED and returns — killing the agent.
+    # We replace the 6-line block with a no-op so execution continues
+    # until finish() or max_iterations.  We also widen the nudge to
+    # always fire (not just for empty responses), so the model knows it
+    # must use a tool.
+    r2 = await sandbox.exec(
+        'python3 -c "'
+        "import glob;"
+        "fs=glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/agent/agent.py');"
+        "p=fs[0] if fs else '';"
+        "assert p, 'agent.py not found';"
+        "c=open(p).read();"
+        "old1=("
+        "'        # Finish conversation if LLM produced content (awaits user input)\\n'"
+        "'        # Continue if only reasoning without content (e.g., GPT-5 codex thinking)\\n'"
+        "'        if has_content:\\n'"
+        "'            logger.debug(\\\"LLM produced a message response - awaits user input\\\")\\n'"
+        "'            state.execution_status = ConversationExecutionStatus.FINISHED\\n'"
+        "'            return'"
+        ");"
+        "new1=("
+        "'        # [NEL] text-only response: continue instead of FINISHED\\n'"
+        "'        if has_content:\\n'"
+        "'            logger.debug(\\\"LLM produced text without tool call - continuing (NEL)\\\")'"
+        ");"
+        "old2='        if not has_content:';"
+        "new2='        if True:  # [NEL] always nudge when no tool call';"
+        "ok1=old1 in c;"
+        "c2=c.replace(old1,new1,1) if ok1 else c;"
+        "ok2=old2 in c2;"
+        "c3=c2.replace(old2,new2,1) if ok2 else c2;"
+        "open(p,'w').write(c3) if (ok1 or ok2) else None;"
+        "print(f'agent.py FINISHED={ok1} nudge={ok2} at {p}')"
+        '"',
+        timeout_sec=10,
+    )
+    stdout2 = (r2.stdout or "").strip()
+    logger.info("Agent.py patch: %s", stdout2)
+    if r2.return_code != 0 or "False" in stdout2:
         logger.warning(
-            "Stuck detection patch failed (rc=%d): %s",
-            result.return_code,
-            stdout or (result.stderr or "")[:200],
+            "Agent.py patch problem (rc=%d): %s",
+            r2.return_code,
+            stdout2 or (r2.stderr or "")[:300],
+        )
+
+    # -- Patch 3: capture reasoning in ATIF trajectory ---------------------
+    # The runner converts SDK events → intermediate dicts → ATIF steps but
+    # never copies reasoning_content / thinking_blocks.  We add it at both
+    # the event-conversion and the step-building stages.
+
+    _reasoning_script = """\
+import sys
+p = '/installed-agent/run_agent.py'
+c = open(p).read()
+
+# A: MessageEvent agent – extract reasoning
+old_a = (
+    '                events_list.append(entry)\\n'
+    '                last_agent_timestamp = event.timestamp\\n'
+    '        elif isinstance(event, ActionEvent):'
+)
+new_a = (
+    '                _rc = getattr(event, "reasoning_content", "") or ""\\n'
+    '                if not _rc and hasattr(event, "llm_message"):\\n'
+    '                    _rc = getattr(event.llm_message, "reasoning_content", "") or ""\\n'
+    '                if _rc:\\n'
+    '                    entry["reasoning_content"] = _rc\\n'
+    '                events_list.append(entry)\\n'
+    '                last_agent_timestamp = event.timestamp\\n'
+    '        elif isinstance(event, ActionEvent):'
+)
+
+# B: ActionEvent – extract reasoning
+old_b = (
+    '            events_list.append(entry)\\n'
+    '            last_agent_timestamp = event.timestamp\\n'
+    '        elif isinstance(event, ObservationEvent):'
+)
+new_b = (
+    '            _rc = getattr(event, "reasoning_content", "") or ""\\n'
+    '            if not _rc:\\n'
+    '                _tp = getattr(event, "thought", [])\\n'
+    '                if _tp:\\n'
+    '                    _rc = chr(10).join(getattr(c, "text", str(c)) for c in _tp if getattr(c, "text", None))\\n'
+    '            if _rc:\\n'
+    '                entry["reasoning_content"] = _rc\\n'
+    '            events_list.append(entry)\\n'
+    '            last_agent_timestamp = event.timestamp\\n'
+    '        elif isinstance(event, ObservationEvent):'
+)
+
+# C: build_trajectory – propagate to ATIF steps
+old_c = (
+    '            steps.append(step)\\n'
+    '            step_id += 1\\n'
+    '\\n'
+    '        elif event_type == "tool_result":'
+)
+new_c = (
+    '            _rc = event.get("reasoning_content", "")\\n'
+    '            if _rc:\\n'
+    '                step["reasoning_content"] = _rc\\n'
+    '            steps.append(step)\\n'
+    '            step_id += 1\\n'
+    '\\n'
+    '        elif event_type == "tool_result":'
+)
+
+ok_a = old_a in c
+c = c.replace(old_a, new_a, 1) if ok_a else c
+ok_b = old_b in c
+c = c.replace(old_b, new_b, 1) if ok_b else c
+ok_c = old_c in c
+c = c.replace(old_c, new_c, 1) if ok_c else c
+open(p, 'w').write(c)
+print(f'reasoning: msg={ok_a} action={ok_b} traj={ok_c}')
+"""
+    encoded = base64.b64encode(_reasoning_script.encode()).decode()
+    r3 = await sandbox.exec(
+        f"echo {encoded} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout3 = (r3.stdout or "").strip()
+    logger.info("Reasoning patch: %s", stdout3)
+    if r3.return_code != 0 or "False" in stdout3:
+        logger.warning(
+            "Reasoning patch problem (rc=%d): %s",
+            r3.return_code,
+            stdout3 or (r3.stderr or "")[:300],
         )
 
 
@@ -553,7 +692,7 @@ class HarborSolver:
             await agent.setup(adapter)
 
             if self._harbor_agent.lower() == "openhands-sdk":
-                await _disable_stuck_detection(sandbox)
+                await _patch_openhands_sdk(sandbox)
 
             context = AgentContext()
 
