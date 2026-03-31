@@ -481,14 +481,15 @@ class HarborSolver:
 
             # HACK: Ensure python3 >= 3.12 for openhands-sdk and install
             # stdbuf (coreutils) which the agent run command requires.
-            # Instead of pre-creating the venv (which harbor's install
-            # overwrites), we symlink a uv-managed Python 3.13 to
-            # /usr/local/bin/python3 so harbor's own venv creation uses it.
+            # We record the current `python3` location BEFORE shimming so we
+            # can overwrite it — swebench images use pyenv whose shims shadow
+            # /usr/local/bin in PATH.
             if self._harbor_agent.lower() == "openhands-sdk":
                 hack_result = await sandbox.exec(
                     "if python3 -c 'import sys; exit(0 if sys.version_info >= (3,12) else 1)' 2>/dev/null; then "
                     "  echo 'System python3 is >=3.12, no shim needed'; "
                     "else "
+                    "  OLD_PY3=$(which python3 2>/dev/null || echo '') && "
                     "  apt-get update -qq && apt-get install -y -qq curl coreutils && "
                     "  curl -LsSf https://astral.sh/uv/install.sh | sh && "
                     '  export PATH="$HOME/.local/bin:$PATH" && '
@@ -496,6 +497,9 @@ class HarborSolver:
                     "  mkdir -p /usr/local/bin && "
                     '  UV_PY=$(uv python find 3.13) && [ -n "$UV_PY" ] && '
                     '  ln -sf "$UV_PY" /usr/local/bin/python3 && '
+                    '  if [ -n "$OLD_PY3" ] && [ "$OLD_PY3" != "/usr/local/bin/python3" ]; then '
+                    '    ln -sf "$UV_PY" "$OLD_PY3"; '
+                    "  fi && "
                     "  hash -r && "
                     "  echo 'Shimmed python3 -> Python 3.13'; "
                     "fi && "
