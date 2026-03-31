@@ -2,7 +2,7 @@
 awareness into agent messages, and hard-enforces the limit.
 
 Each concurrent agent task gets its own counter, keyed by a hash of the
-first user/system message (which contains the unique task prompt).
+first user message (which contains the unique task prompt).
 
 When ``max_turns`` is set the interceptor operates in three phases:
 
@@ -41,11 +41,16 @@ _URGENT_THRESHOLD = 0.95
 def _session_key(data: dict) -> str:
     """Derive a short key that uniquely identifies a task/conversation.
 
-    Uses the content of the first message (system or user prompt) which
-    contains the per-task problem statement — unique across concurrent jobs.
+    Uses the first *user* message, which contains the per-task problem
+    statement and is unique across concurrent jobs.  System messages are
+    skipped because agents like openhands-sdk share an identical system
+    prompt across all tasks, which would collapse every session into one
+    counter.
     """
     messages = data.get("messages") or []
     for msg in messages:
+        if msg.get("role") == "system":
+            continue
         content = msg.get("content", "")
         if isinstance(content, list):
             content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
