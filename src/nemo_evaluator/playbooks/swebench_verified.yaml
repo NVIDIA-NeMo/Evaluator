@@ -7,7 +7,7 @@
 
 name: harbor://swebench-verified@1.0
 instruction_template: swebench_instruction.md
-max_concurrent: 20
+max_concurrent: 30
 timeout: 10800.0
 solver:
   type: harbor
@@ -26,4 +26,4 @@ sandbox:
   codebuild_build_timeout: 60
   log_stream_prefix: swebench-verified
   timeout: 10800.0
-  concurrency: 20
+  concurrency: 30

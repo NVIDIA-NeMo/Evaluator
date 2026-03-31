@@ -172,6 +172,36 @@ async def _download_agent_logs_inner(
             pass
 
 
+async def _disable_stuck_detection(sandbox: "Sandbox") -> None:
+    """Disable the OpenHands SDK stuck detector in the uploaded runner script.
+
+    The default stuck detector terminates the agent after 3+ consecutive
+    empty responses ("agent monologue").  Reasoning models that produce
+    ``<think>`` blocks without a tool call trigger this constantly,
+    killing agents at ~40 iterations instead of the configured 200.
+    """
+    result = await sandbox.exec(
+        'python3 -c "'
+        "p='/installed-agent/run_agent.py';"
+        "c=open(p).read();"
+        "old='conversation = Conversation(**conv_kwargs)';"
+        "new='conv_kwargs[\\\"stuck_detection\\\"]=False\\n    conversation = Conversation(**conv_kwargs)';"
+        "open(p,'w').write(c.replace(old,new,1));"
+        "print('stuck_detection disabled' if old in c else 'pattern not found')"
+        '"',
+        timeout_sec=10,
+    )
+    stdout = (result.stdout or "").strip()
+    if result.return_code == 0 and "disabled" in stdout:
+        logger.info("OpenHands runner patched: %s", stdout)
+    else:
+        logger.warning(
+            "Stuck detection patch failed (rc=%d): %s",
+            result.return_code,
+            stdout or (result.stderr or "")[:200],
+        )
+
+
 # ---------------------------------------------------------------------------
 # Trajectory / token / response recovery  (agent-agnostic)
 # ---------------------------------------------------------------------------
@@ -521,6 +551,10 @@ class HarborSolver:
                 logger.info("python3 after HACK: %s", ver_result.stdout.strip() if ver_result.stdout else "N/A")
 
             await agent.setup(adapter)
+
+            if self._harbor_agent.lower() == "openhands-sdk":
+                await _disable_stuck_detection(sandbox)
+
             context = AgentContext()
 
             agent_timed_out = False
