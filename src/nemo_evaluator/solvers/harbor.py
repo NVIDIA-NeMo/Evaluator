@@ -485,7 +485,7 @@ class HarborSolver:
             # overwrites), we symlink a uv-managed Python 3.13 to
             # /usr/local/bin/python3 so harbor's own venv creation uses it.
             if self._harbor_agent.lower() == "openhands-sdk":
-                await sandbox.exec(
+                hack_result = await sandbox.exec(
                     "if python3 -c 'import sys; exit(0 if sys.version_info >= (3,12) else 1)' 2>/dev/null; then "
                     "  echo 'System python3 is >=3.12, no shim needed'; "
                     "else "
@@ -496,12 +496,25 @@ class HarborSolver:
                     "  mkdir -p /usr/local/bin && "
                     '  UV_PY=$(uv python find 3.13) && [ -n "$UV_PY" ] && '
                     '  ln -sf "$UV_PY" /usr/local/bin/python3 && '
+                    "  hash -r && "
                     "  echo 'Shimmed python3 -> Python 3.13'; "
                     "fi && "
-                    "command -v stdbuf >/dev/null 2>&1 || "
-                    "  (apt-get update -qq 2>/dev/null && apt-get install -y -qq coreutils 2>/dev/null) || true",
+                    "command -v stdbuf >/dev/null 2>&1 || ("
+                    "  (apt-get update -qq && apt-get install -y -qq coreutils) 2>/dev/null || "
+                    "  apk add --no-cache coreutils 2>/dev/null || "
+                    "  yum install -y coreutils 2>/dev/null || "
+                    "  dnf install -y coreutils 2>/dev/null || true"
+                    ") || true",
                     timeout_sec=300,
                 )
+                logger.info(
+                    "openhands-sdk HACK (rc=%d): %s%s",
+                    hack_result.return_code,
+                    hack_result.stdout[:500] if hack_result.stdout else "",
+                    f" | stderr: {hack_result.stderr[:500]}" if hack_result.stderr else "",
+                )
+                ver_result = await sandbox.exec("python3 --version 2>&1 && which python3", timeout_sec=10)
+                logger.info("python3 after HACK: %s", ver_result.stdout.strip() if ver_result.stdout else "N/A")
 
             await agent.setup(adapter)
             context = AgentContext()

@@ -52,6 +52,7 @@ async def run_evaluation(
     skip_failed: bool = False,
     max_system_retries: int = 3,
     shard_info: tuple[int, int] | None = None,
+    instruction_template: Path | None = None,
 ) -> dict[str, Any]:
     config = config or {}
     max_system_retries = max(1, max_system_retries)
@@ -528,6 +529,17 @@ async def run_evaluation(
             ts = time.monotonic()
             seed_result = await env.seed(idx)
             seed_ms = (time.monotonic() - ts) * 1000
+
+            if instruction_template is not None:
+                from nemo_evaluator.templates import render_template
+
+                wd = seed_result.sandbox_spec.workdir if seed_result.sandbox_spec else "/testbed"
+                seed_result.prompt = render_template(
+                    instruction_template,
+                    original_prompt=seed_result.prompt,
+                    workspace_path=wd,
+                    metadata=seed_result.metadata,
+                )
 
             for rep in range(n_repeats):
                 task = asyncio.create_task(_run_step(idx, rep, seed_result, seed_ms))

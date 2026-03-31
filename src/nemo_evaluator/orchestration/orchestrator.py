@@ -788,6 +788,10 @@ async def _run_single_benchmark(
             "scorers": scorer_names or None,
         }
 
+        from nemo_evaluator.templates import resolve_template_path
+
+        resolved_template = resolve_template_path(bench.instruction_template)
+
         bundle = await run_evaluation(
             env,
             solver,
@@ -804,6 +808,7 @@ async def _run_single_benchmark(
             skip_failed=bench.skip_failed,
             max_system_retries=bench.max_system_retries,
             shard_info=shard_info,
+            instruction_template=resolved_template,
         )
 
         write_all(bundle, task_dir)
