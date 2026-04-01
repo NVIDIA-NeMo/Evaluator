@@ -183,10 +183,8 @@ def get_task_from_mapping(query: str, mapping: dict[Any, Any]) -> dict[Any, Any]
         dict: Task data.
 
     """
-    num_dots = query.count(".")
-
     # if there are no dots in query, treat it like a task name
-    if num_dots == 0:
+    if "." not in query:
         matching_keys = [key for key in mapping.keys() if key[1] == query]
         # if exactly one task matching the query has been found:
         if len(matching_keys) == 1:
@@ -206,9 +204,10 @@ def get_task_from_mapping(query: str, mapping: dict[Any, Any]) -> dict[Any, Any]
         else:
             raise ValueError(f"task {repr(query)} does not exist in the mapping")
 
-    # if there is one dot in query, treat it like "{harness_name}.{task_name}"
-    elif num_dots == 1:
-        harness_name, task_name = query.split(".")
+    # query contains dot(s): split on FIRST dot only -> "{harness_name}.{task_name}"
+    # This allows task names to contain dots (e.g. "mteb.Touche2020Retrieval.v3").
+    else:
+        harness_name, task_name = query.split(".", 1)
         matching_keys = [
             key for key in mapping.keys() if key == (harness_name, task_name)
         ]
@@ -227,13 +226,6 @@ def get_task_from_mapping(query: str, mapping: dict[Any, Any]) -> dict[Any, Any]
             raise ValueError(
                 f"harness.task {repr(query)} does not exist in the mapping"
             )
-
-    # invalid query
-    else:
-        raise ValueError(
-            f"invalid query={repr(query)} for task mapping,"
-            " it must contain exactly zero or one occurrence of '.' character"
-        )
 
 
 def _minimal_task_definition(
@@ -257,17 +249,10 @@ def _minimal_task_definition(
         - 'container': Container image
         - 'is_unlisted': True (task not in FDF)
     """
-    num_dots = task_query.count(".")
-    if num_dots == 1:
-        harness, task = task_query.split(".")
-    elif num_dots == 0:
-        harness, task = "", task_query
+    if "." in task_query:
+        harness, task = task_query.split(".", 1)
     else:
-        raise ValueError(
-            f"invalid query={repr(task_query)} for task mapping,"
-            " it must contain exactly zero or one occurrence of '.' character."
-            " Use 'task_name' or 'harness_name.task_name' format."
-        )
+        harness, task = "", task_query
 
     return {
         "task": task,
@@ -296,8 +281,8 @@ def get_task_definition_for_job(
     - 'task_query': Original query for use in EF command (when unlisted)
     """
     # Parse harness.task format
-    if task_query.count(".") == 1:
-        harness_name, _ = task_query.split(".")
+    if "." in task_query:
+        harness_name, _ = task_query.split(".", 1)
     else:
         harness_name = ""
 
