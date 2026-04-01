@@ -331,8 +331,8 @@ echo "  Logs: $OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log"
     --repeats {repeats} \\
     {extra_flags}\\
     -o "$OUTPUT_DIR/{safe_name}" 2>&1 | stdbuf -oL tee -a "$OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log"
-ln -sf "eval-{safe_name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/eval-{safe_name}.log"
 _EVAL_RC=${{PIPESTATUS[0]}}
+ln -sf "eval-{safe_name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/eval-{safe_name}.log"
 if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
 """
 
@@ -348,8 +348,8 @@ export {svc_model_var}="${{{model_id_bash}}}"
 export NEL_OUTPUT_DIR="$OUTPUT_DIR/{safe_name}"
 mkdir -p "$NEL_OUTPUT_DIR"
 {run_prefix}nel eval run "$OUTPUT_DIR/config_{safe_name}.yaml" {extra_flags}2>&1 | stdbuf -oL tee -a "$OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log"
-ln -sf "eval-{safe_name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/eval-{safe_name}.log"
 _EVAL_RC=${{PIPESTATUS[0]}}
+ln -sf "eval-{safe_name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/eval-{safe_name}.log"
 if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
 """
 

@@ -142,7 +142,7 @@ class SshSidecarConfig:
     """
 
     sshd_port: int = 2222
-    ssh_ready_timeout_sec: float = 120.0
+    ssh_ready_timeout_sec: float = 300.0
     public_key_secret_arn: str = ""
     private_key_secret_arn: str = ""
     image: str | None = None
@@ -364,7 +364,7 @@ class SshTunnel:
     def close(self) -> None:
         self._kill()
 
-    def wait_ready(self, *, health_url: str | None = None, timeout: float = 120.0) -> None:
+    def wait_ready(self, *, health_url: str | None = None, timeout: float = 300.0) -> None:
         if health_url:
             self._poll_health(health_url, timeout)
         elif self._local_port:
@@ -532,9 +532,10 @@ def build_ssh_sidecar_container(
 EXEC_SERVER_SCRIPT = r'''#!/usr/bin/env python3
 """Zero-dependency HTTP exec server for sandbox containers."""
 from __future__ import annotations
-import base64, json, os, subprocess
+import base64, json, os, shutil, subprocess
 from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
+_BASH = shutil.which("bash")
 _PORT = int(os.environ.get("TB_EXEC_PORT", "19542"))
 _BIND = os.environ.get("TB_EXEC_BIND", "127.0.0.1")
 class _H(BaseHTTPRequestHandler):
@@ -559,7 +560,7 @@ class _H(BaseHTTPRequestHandler):
         if not cmd: self._err(400, "missing 'cmd'"); return
         t = b.get("timeout", 300)
         try:
-            cp = subprocess.run(cmd, shell=True, executable="/bin/bash", capture_output=True, timeout=t)
+            cp = subprocess.run(cmd, shell=True, executable=_BASH, capture_output=True, timeout=t)
             self._ok({"stdout": cp.stdout.decode("utf-8", errors="replace"),
                        "stderr": cp.stderr.decode("utf-8", errors="replace"),
                        "rc": cp.returncode})
@@ -611,6 +612,8 @@ if __name__ == "__main__":
     except KeyboardInterrupt: pass
     finally: s.server_close()
 '''
+
+_EXEC_SERVER_B64 = base64.b64encode(EXEC_SERVER_SCRIPT.encode()).decode()
 
 _TRANSIENT_ERRORS = (
     ConnectionResetError,
@@ -1261,11 +1264,7 @@ class EcsFargateSandbox:
         if not has_exec_server:
             self._ssh_tunnel_port = self._resolve_ssh_tunnel_port()
 
-        exec_server_url: str | None = None
-        if has_exec_server:
-            exec_server_url = self._upload_exec_server()
-
-        command = self._build_container_command(exec_server_url, sidecar)
+        command = self._build_container_command(sidecar)
         env = self._build_env_vars()
         log_region = cfg.region or os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
         sidecar_def = build_ssh_sidecar_container(
@@ -1371,27 +1370,31 @@ class EcsFargateSandbox:
         logger.info("Uploaded exec server → s3://%s/%s", cfg.s3_bucket, key)
         return url
 
-    def _build_container_command(self, exec_server_url: str | None, sidecar: SshSidecarConfig) -> list[str] | None:
-        if exec_server_url is None:
+    def _build_container_command(self, sidecar: SshSidecarConfig) -> list[str] | None:
+        if sidecar.exec_server_port is None:
             return None
         exec_port = sidecar.exec_server_port or 19542
-        ttl = self._cfg.max_task_lifetime_sec
         hostname = re.sub(r"[^A-Za-z0-9._-]", "-", self._spec.image or "sandbox")[:63]
-        bootstrap = (
-            "if command -v python >/dev/null 2>&1; then :; "
-            "elif command -v python3 >/dev/null 2>&1; then "
-            '  P=$(command -v python3); ln -sf "$P" /usr/local/bin/python 2>/dev/null || true; '
-            '  ln -sf "$P" /usr/bin/python 2>/dev/null || true; fi; '
-        )
         setup = (
-            f"{bootstrap}"
             f"hostname {shlex.quote(hostname)} 2>/dev/null || true; "
-            f"python3 -c 'import urllib.request as u,sys;"
-            f'u.urlretrieve(sys.argv[1],"/tmp/_exec_server.py")\' '
-            f"{shlex.quote(exec_server_url)} && "
+            f"echo '{_EXEC_SERVER_B64}' | base64 -d > /tmp/_exec_server.py; "
+            "if ! command -v python3 >/dev/null 2>&1; then "
+            "  if command -v apt-get >/dev/null 2>&1; then "
+            "    apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 bash; "
+            "  elif command -v apk >/dev/null 2>&1; then "
+            "    apk add --no-cache python3 bash; "
+            "  elif command -v yum >/dev/null 2>&1; then "
+            "    yum install -y python3 bash; "
+            "  elif command -v dnf >/dev/null 2>&1; then "
+            "    dnf install -y python3 bash; "
+            "  fi; "
+            "fi; "
+            "if ! command -v python3 >/dev/null 2>&1; then "
+            "  echo 'FATAL: exec_server bootstrap failed — python3 not available' >&2; "
+            "  exit 1; "
+            "fi; "
             f"TB_EXEC_PORT={exec_port} TB_EXEC_BIND=127.0.0.1 "
-            f"nohup python3 /tmp/_exec_server.py >/tmp/_exec.log 2>&1 & "
-            f"sleep {ttl}"
+            "exec python3 /tmp/_exec_server.py"
         )
         return ["sh", "-lc", setup]
 

@@ -364,6 +364,21 @@ def _parse_from_image(dockerfile: Path) -> str | None:
     return None
 
 
+def _parse_workdir(dockerfile: Path, default: str = "/testbed") -> str:
+    """Extract the last ``WORKDIR`` directive from a Dockerfile."""
+    workdir = default
+    try:
+        for line in dockerfile.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped.upper().startswith("WORKDIR "):
+                parts = stripped.split(None, 1)
+                if len(parts) == 2 and not parts[1].startswith("$"):
+                    workdir = parts[1].strip()
+    except Exception:
+        pass
+    return workdir
+
+
 def _dockerfile_has_extra_layers(dockerfile: Path) -> bool:
     """True when the Dockerfile has ``RUN``/``COPY``/``ADD`` beyond the FROM."""
     try:
@@ -596,42 +611,54 @@ class HarborEnvironment(EvalEnvironment):
         apply_cmd = None
         if image:
             env_dir = task_dir / "environment"
+            dockerfile = env_dir / "Dockerfile"
+            wd = (
+                config.get("environment", {}).get("workdir")
+                or (_parse_workdir(dockerfile) if dockerfile.exists() else None)
+                or "/testbed"
+            )
             sandbox_spec = SandboxSpec(
                 image=image,
-                workdir="/testbed",
+                workdir=wd,
                 env={"HARBOR_TASK_DIR": str(task_dir)},
                 environment_dir=str(env_dir) if env_dir.is_dir() else None,
             )
             verify_sandbox_spec = SandboxSpec(
                 image=image,
-                workdir="/testbed",
+                workdir=wd,
                 environment_dir=str(env_dir) if env_dir.is_dir() else None,
             )
             capture_cmd = (
-                "cd /testbed && mkdir -p /output && "
+                f"cd {wd} && "
+                "_NEL_OUT=/output; "
+                '[ -n "$_NEL_EFS_SESSION" ] && _NEL_OUT="/output/$_NEL_EFS_SESSION"; '
+                "mkdir -p $_NEL_OUT && "
                 "if [ -d .git ] && git rev-parse HEAD >/dev/null 2>&1; then "
                 "_NEL_BASE=$(cat /tmp/_nel_base_commit 2>/dev/null || git rev-parse HEAD); "
                 "_NEL_HEAD=$(git rev-parse HEAD 2>/dev/null); "
-                'echo "base=$_NEL_BASE head=$_NEL_HEAD" > /output/_nel_capture_info.txt; '
-                "git log --oneline -3 >> /output/_nel_capture_info.txt 2>/dev/null; "
+                'echo "base=$_NEL_BASE head=$_NEL_HEAD" > $_NEL_OUT/_nel_capture_info.txt; '
+                "git log --oneline -3 >> $_NEL_OUT/_nel_capture_info.txt 2>/dev/null; "
                 "git add -A 2>/dev/null; "
-                "git diff --cached --binary $_NEL_BASE > /output/_nel_patch.diff 2>/dev/null && "
-                "echo git-diff > /output/_nel_mode && "
-                "cd /output && tar cf workspace.tar _nel_patch.diff _nel_mode _nel_capture_info.txt || "
-                "{ cd /testbed && tar cf /output/workspace.tar --exclude=.git .; }; "
+                "git diff --cached --binary $_NEL_BASE > $_NEL_OUT/_nel_patch.diff 2>/dev/null && "
+                "echo git-diff > $_NEL_OUT/_nel_mode && "
+                "cd $_NEL_OUT && tar cf workspace.tar _nel_patch.diff _nel_mode _nel_capture_info.txt || "
+                f"{{ cd {wd} && tar cf $_NEL_OUT/workspace.tar --exclude=.git .; }}; "
                 "else "
-                "tar cf /output/workspace.tar --exclude=.git .; "
+                "tar cf $_NEL_OUT/workspace.tar --exclude=.git .; "
                 "fi"
             )
             apply_cmd = (
                 "mkdir -p /tmp/_nel_ws && "
-                "if [ -f /input/workspace.tar ]; then "
-                "tar xf /input/workspace.tar -C /tmp/_nel_ws 2>/dev/null; "
+                "_NEL_TAR=/input/workspace.tar; "
+                '[ -n "$_NEL_EFS_SESSION" ] && [ -f "/input/$_NEL_EFS_SESSION/workspace.tar" ] && '
+                '_NEL_TAR="/input/$_NEL_EFS_SESSION/workspace.tar"; '
+                "if [ -f $_NEL_TAR ]; then "
+                "tar xf $_NEL_TAR -C /tmp/_nel_ws 2>/dev/null; "
                 "[ -f /tmp/_nel_ws/_nel_capture_info.txt ] && "
                 "cat /tmp/_nel_ws/_nel_capture_info.txt >&2; "
                 "if [ -f /tmp/_nel_ws/_nel_patch.diff ]; then "
                 "if [ -s /tmp/_nel_ws/_nel_patch.diff ]; then "
-                "cd /testbed && { "
+                f"cd {wd} && {{ "
                 "git apply --binary --whitespace=fix /tmp/_nel_ws/_nel_patch.diff 2>/dev/null || "
                 "git apply --binary --reject --whitespace=fix /tmp/_nel_ws/_nel_patch.diff 2>&1 || "
                 "{ echo 'NEL: --reject failed, trying 3-way merge' >&2 && "
@@ -639,7 +666,7 @@ class HarborEnvironment(EvalEnvironment):
                 "}; "
                 "fi; "
                 "else "
-                "tar xf /input/workspace.tar -C /testbed; "
+                f"tar xf $_NEL_TAR -C {wd}; "
                 "fi; "
                 "fi"
             )

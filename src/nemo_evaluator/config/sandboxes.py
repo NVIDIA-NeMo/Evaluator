@@ -32,7 +32,7 @@ class SshSidecarConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     sshd_port: int = 2222
-    ssh_ready_timeout_sec: float = 120.0
+    ssh_ready_timeout_sec: float = 300.0
     public_key_secret_arn: str
     private_key_secret_arn: str
     image: str | None = None

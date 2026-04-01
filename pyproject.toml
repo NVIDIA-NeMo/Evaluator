@@ -25,6 +25,7 @@ dependencies = [
     "click>=8.0",
     "numpy>=1.24",
     "datasets>=2.14",
+    "jinja2>=3.0",
 ]
 
 [project.optional-dependencies]
@@ -33,7 +34,7 @@ stats = ["scipy>=1.10"]
 ray = ["ray[default]>=2.9"]
 skills = ["nemo-skills @ git+https://github.com/NVIDIA-NeMo/Skills.git"]
 lm-eval = ["lm_eval>=0.4"]
-harbor = ["harbor>=0.2.0,<=0.3.0"]
+harbor = ["harbor>=0.3.0,<0.4.0"]
 proxy = ["litellm<=1.82.6"]
 proxy-full = ["litellm[proxy]<=1.82.6"]
 inspect = ["inspect_ai"]
@@ -67,6 +68,10 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nemo_evaluator"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/nemo_evaluator/templates" = "nemo_evaluator/templates"
+"src/nemo_evaluator/playbooks" = "nemo_evaluator/playbooks"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

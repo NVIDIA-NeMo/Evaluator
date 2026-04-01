@@ -176,11 +176,9 @@ class StatelessSandbox:
             spec,
             outside_endpoints=self._ctx.outside_endpoints,
         )
-        # TODO: Move to a benchmark-provided pre_agent_cmd so the strategy
-        # layer stays generic (currently only Harbor's capture_cmd reads this).
+        wd = self._ctx.agent_spec.workdir
         await self._agent_sandbox.exec(
-            "_h=$(cd /testbed 2>/dev/null && git rev-parse HEAD 2>/dev/null) && "
-            "echo $_h > /tmp/_nel_base_commit || true",
+            f"_h=$(cd {wd} 2>/dev/null && git rev-parse HEAD 2>/dev/null) && echo $_h > /tmp/_nel_base_commit || true",
             timeout_sec=10,
         )
         return self._agent_sandbox
@@ -200,9 +198,10 @@ class StatelessSandbox:
                         timeout_sec=10,
                     )
                     try:
+                        _wd = self._ctx.agent_spec.workdir
                         pre_diag = await self._agent_sandbox.exec(
                             "echo '=== base commit ===' && cat /tmp/_nel_base_commit 2>/dev/null || echo 'NOT SET'; "
-                            "echo '=== current HEAD ===' && cd /testbed 2>/dev/null && git log --oneline -1 2>/dev/null; "
+                            f"echo '=== current HEAD ===' && cd {_wd} 2>/dev/null && git log --oneline -1 2>/dev/null; "
                             "echo '=== git status ===' && git status --short 2>/dev/null | head -30; "
                             "echo '=== cwd ===' && pwd",
                             timeout_sec=15,
@@ -274,8 +273,9 @@ class StatelessSandbox:
             )
         if self._ctx.apply_cmd:
             try:
+                _vwd = self._ctx.verify_spec.workdir
                 diag = await self._verify_sandbox.exec(
-                    "echo '=== git HEAD ===' && cd /testbed && git log --oneline -1 2>/dev/null; "
+                    f"echo '=== git HEAD ===' && cd {_vwd} && git log --oneline -1 2>/dev/null; "
                     "echo '=== patch stat ===' && "
                     "git apply --stat /tmp/_nel_ws/_nel_patch.diff 2>&1 | head -30; "
                     "echo '=== patch header ===' && head -40 /tmp/_nel_ws/_nel_patch.diff 2>/dev/null; "

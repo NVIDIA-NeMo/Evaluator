@@ -392,11 +392,60 @@ def _expand_env(value: Any) -> Any:
     return value
 
 
+def _resolve_playbooks(raw: dict[str, Any]) -> dict[str, Any]:
+    """Expand ``playbook:`` references in benchmark entries.
+
+    If a benchmark entry contains ``playbook: <name>``, the named playbook
+    YAML is loaded from the built-in ``playbooks/`` directory (or a file path)
+    and deep-merged with any explicit overrides in the entry.
+    """
+    benchmarks = raw.get("benchmarks")
+    if not isinstance(benchmarks, list):
+        return raw
+
+    import yaml
+    from pathlib import Path
+
+    from nemo_evaluator.config.compose import _deep_merge
+
+    playbooks_dir = Path(__file__).resolve().parent.parent / "playbooks"
+
+    resolved = []
+    for entry in benchmarks:
+        if not isinstance(entry, dict) or "playbook" not in entry:
+            resolved.append(entry)
+            continue
+
+        ref = entry.pop("playbook")
+        pb_path = playbooks_dir / ref
+        if not pb_path.is_file():
+            for ext in (".yaml", ".yml"):
+                candidate = playbooks_dir / f"{ref}{ext}"
+                if candidate.is_file():
+                    pb_path = candidate
+                    break
+        if not pb_path.is_file():
+            pb_path = Path(ref)
+            if not pb_path.is_absolute():
+                pb_path = Path.cwd() / pb_path
+
+        if not pb_path.is_file():
+            raise FileNotFoundError(f"Playbook not found: {ref!r} (checked {playbooks_dir} and {Path.cwd()})")
+
+        base = yaml.safe_load(pb_path.read_text()) or {}
+        merged = _deep_merge(base, entry)
+        resolved.append(merged)
+
+    raw["benchmarks"] = resolved
+    return raw
+
+
 def parse_eval_config(raw: dict[str, Any]) -> EvalConfig:
     """Parse and validate a raw YAML dict, expanding env vars.
 
     This is the required entry point.  Do not call EvalConfig.model_validate()
     directly — env-var expansion would be skipped.
     """
+    raw = _resolve_playbooks(raw)
     expanded = _expand_env(raw)
     return EvalConfig.model_validate(expanded)

@@ -31,6 +31,7 @@ class BenchmarkConfig(BaseModel):
     skip_failed: bool = False
     max_system_retries: int = 3
 
+    instruction_template: str | None = None
     verifier: str | None = None
 
     sandbox: SandboxConfig = Field(default_factory=NoSandbox)
