@@ -30,7 +30,7 @@ def eval_cmd():
 @click.option("--max-problems", type=int, default=None)
 @click.option("--system-prompt", type=str, default=None)
 @click.option("--temperature", type=float, default=0.0)
-@click.option("--max-tokens", type=int, default=2048)
+@click.option("--max-tokens", type=int, default=None)
 @click.option("--output-dir", "-o", default=None, help="Output directory")
 @click.option("--dry-run", is_flag=True, help="Generate scripts without running")
 @click.option("--submit", is_flag=True, help="Submit to cluster via SSH")
