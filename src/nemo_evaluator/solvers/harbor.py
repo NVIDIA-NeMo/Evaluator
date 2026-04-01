@@ -192,6 +192,17 @@ async def _patch_openhands_sdk(sandbox: "Sandbox") -> None:
        serialization drops ``reasoning_content`` / ``thinking_blocks``.
        We patch both the event→dict conversion and the ``build_trajectory``
        step builder so reasoning appears in the output JSON.
+
+    4. **Preserve reasoning in conversation history** — vLLM's
+       ``ultra_v3`` reasoning parser can swallow ``<tool_call>`` blocks
+       that appear inside ``<think>`` tags, putting them into
+       ``reasoning_content`` instead of ``tool_calls``.  The SDK then
+       drops ``reasoning_content`` on the next serialization pass because
+       ``nemotron`` is not in ``SEND_REASONING_CONTENT_MODELS``, causing
+       the model to lose its chain-of-thought on retry.  We patch
+       ``Message.to_chat_dict()`` to wrap ``reasoning_content`` in
+       ``<think>`` tags and prepend it to the ``content`` field — the
+       same approach used by NeMo Gym's middleware.
     """
     # -- Patch 1: stuck detection off in runner --------------------------
     r1 = await sandbox.exec(
@@ -338,6 +349,67 @@ print(f'reasoning: msg={ok_a} action={ok_b} traj={ok_c}')
             "Reasoning patch problem (rc=%d): %s",
             r3.return_code,
             stdout3 or (r3.stderr or "")[:300],
+        )
+
+    # -- Patch 4: preserve reasoning_content in conversation history -------
+    # When send_reasoning_content is False (nemotron is not in the list),
+    # the SDK silently drops reasoning_content from assistant messages.
+    # We patch to_chat_dict() to wrap it in <think> tags and prepend to
+    # content — standard field that passes cleanly through LiteLLM → vLLM.
+
+    _reasoning_in_content_script = """\
+import glob, sys
+fs = glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/llm/message.py')
+p = fs[0] if fs else ''
+assert p, 'message.py not found'
+c = open(p).read()
+
+old = (
+    '        # Required for model like kimi-k2-thinking\\n'
+    '        if send_reasoning_content and self.reasoning_content:\\n'
+    '            message_dict["reasoning_content"] = self.reasoning_content\\n'
+    '\\n'
+    '        return message_dict'
+)
+
+new = (
+    '        # Required for model like kimi-k2-thinking\\n'
+    '        if send_reasoning_content and self.reasoning_content:\\n'
+    '            message_dict["reasoning_content"] = self.reasoning_content\\n'
+    '\\n'
+    '        # [NEL] Wrap reasoning_content in <think> tags in content so the\\n'
+    '        # model sees its previous chain-of-thought on retry turns.\\n'
+    '        if not send_reasoning_content and self.role == "assistant" and self.reasoning_content:\\n'
+    '            _wrapped = f"<think>{self.reasoning_content}</think>"\\n'
+    '            _c = message_dict.get("content")\\n'
+    '            if isinstance(_c, list):\\n'
+    '                _c.insert(0, {"type": "text", "text": _wrapped})\\n'
+    '            elif isinstance(_c, str):\\n'
+    '                message_dict["content"] = _wrapped + _c\\n'
+    '            else:\\n'
+    '                message_dict["content"] = _wrapped\\n'
+    '\\n'
+    '        return message_dict'
+)
+
+ok = old in c
+if ok:
+    c = c.replace(old, new, 1)
+    open(p, 'w').write(c)
+print(f'reasoning_in_content={ok} at {p}')
+"""
+    encoded4 = base64.b64encode(_reasoning_in_content_script.encode()).decode()
+    r4 = await sandbox.exec(
+        f"echo {encoded4} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout4 = (r4.stdout or "").strip()
+    logger.info("Reasoning-in-content patch: %s", stdout4)
+    if r4.return_code != 0 or "False" in stdout4:
+        logger.warning(
+            "Reasoning-in-content patch problem (rc=%d): %s",
+            r4.return_code,
+            stdout4 or (r4.stderr or "")[:300],
         )
 
 
