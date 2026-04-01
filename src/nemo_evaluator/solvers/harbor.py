@@ -176,11 +176,7 @@ async def _download_agent_logs_inner(
 async def _patch_openhands_sdk(sandbox: "Sandbox") -> None:
     """Apply runtime patches to the OpenHands SDK inside the sandbox.
 
-    1. **Disable stuck detection** in the runner script — the default
-       detector kills reasoning models that produce ``<think>`` blocks
-       without a tool call.
-
-    2. **Prevent premature FINISHED on text-only responses** in the SDK's
+    1. **Prevent premature FINISHED on text-only responses** in the SDK's
        ``Agent.step()`` — when the LLM produces text without a tool call,
        the SDK sets ``execution_status = FINISHED`` and stops.  Reasoning
        models often produce intermediate text (summaries, status) before
@@ -188,12 +184,12 @@ async def _patch_openhands_sdk(sandbox: "Sandbox") -> None:
        the agent explicitly calls ``finish`` or hits ``max_iterations``.
        (Upstream: OpenHands/software-agent-sdk#1349)
 
-    3. **Capture reasoning in ATIF trajectory** — the runner's event
+    2. **Capture reasoning in ATIF trajectory** — the runner's event
        serialization drops ``reasoning_content`` / ``thinking_blocks``.
        We patch both the event→dict conversion and the ``build_trajectory``
        step builder so reasoning appears in the output JSON.
 
-    4. **Preserve reasoning in conversation history** — vLLM's
+    3. **Preserve reasoning in conversation history** — vLLM's
        ``ultra_v3`` reasoning parser can swallow ``<tool_call>`` blocks
        that appear inside ``<think>`` tags, putting them into
        ``reasoning_content`` instead of ``tool_calls``.  The SDK then
@@ -204,21 +200,7 @@ async def _patch_openhands_sdk(sandbox: "Sandbox") -> None:
        ``<think>`` tags and prepend it to the ``content`` field — the
        same approach used by NeMo Gym's middleware.
     """
-    # -- Patch 1: stuck detection off in runner --------------------------
-    r1 = await sandbox.exec(
-        'python3 -c "'
-        "p='/installed-agent/run_agent.py';"
-        "c=open(p).read();"
-        "old='conversation = Conversation(**conv_kwargs)';"
-        "new='conv_kwargs[\\\"stuck_detection\\\"]=False\\n    conversation = Conversation(**conv_kwargs)';"
-        "open(p,'w').write(c.replace(old,new,1));"
-        "print('stuck_detection disabled' if old in c else 'pattern not found')"
-        '"',
-        timeout_sec=10,
-    )
-    logger.info("Runner patch: %s", (r1.stdout or "").strip())
-
-    # -- Patch 2: don't FINISHED on text-only responses ------------------
+    # -- Patch 1: don't FINISHED on text-only responses ------------------
     # In agent.py, when the LLM produces text without a tool call the SDK
     # sets execution_status=FINISHED and returns — killing the agent.
     # We replace the 6-line block with a no-op so execution continues
@@ -265,7 +247,7 @@ async def _patch_openhands_sdk(sandbox: "Sandbox") -> None:
             stdout2 or (r2.stderr or "")[:300],
         )
 
-    # -- Patch 3: capture reasoning in ATIF trajectory ---------------------
+    # -- Patch 2: capture reasoning in ATIF trajectory ---------------------
     # The runner converts SDK events → intermediate dicts → ATIF steps but
     # never copies reasoning_content / thinking_blocks.  We add it at both
     # the event-conversion and the step-building stages.
@@ -351,7 +333,7 @@ print(f'reasoning: msg={ok_a} action={ok_b} traj={ok_c}')
             stdout3 or (r3.stderr or "")[:300],
         )
 
-    # -- Patch 4: preserve reasoning_content in conversation history -------
+    # -- Patch 3: preserve reasoning_content in conversation history -------
     # When send_reasoning_content is False (nemotron is not in the list),
     # the SDK silently drops reasoning_content from assistant messages.
     # We patch to_chat_dict() to wrap it in <think> tags and prepend to
