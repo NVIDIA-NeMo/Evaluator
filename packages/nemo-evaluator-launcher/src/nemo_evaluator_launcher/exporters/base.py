@@ -352,7 +352,11 @@ class BaseExporter(ABC):
             return None
 
         try:
-            metrics = extract_accuracy_metrics(artifacts_dir, metric_sep=self.config.metric_sep, include_task_name=self.config.include_task_name)
+            metrics = extract_accuracy_metrics(
+                artifacts_dir,
+                metric_sep=self.config.metric_sep,
+                include_task_name=self.config.include_task_name,
+            )
             harness, task = load_benchmark_info(artifacts_dir)
             container = job_data.data.get("eval_image", None)
             model_id = get_model_id(artifacts_dir)
