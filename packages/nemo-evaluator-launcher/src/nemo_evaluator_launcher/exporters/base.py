@@ -199,7 +199,7 @@ class BaseExporter(ABC):
                     jobs_data[id] = job_data_from_dirs[invocation_id][id]
             else:
                 # get data for all jobs in invocation
-                if id not in job_data_from_dirs:
+                if id not in job_data_from_dirs or not job_data_from_dirs[id]:
                     logger.error(
                         f"Invocation {id} not found in ExecutionDB nor job directories"
                     )

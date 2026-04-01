@@ -597,7 +597,7 @@ def _extract_task_metrics(task_name: str, task_data: dict) -> Dict[str, float]:
     extracted = {}
 
     metrics_data = task_data.get("metrics", {})
-    if "groups" in task_data:
+    if "groups" in task_data and task_data["groups"] is not None:
         for group_name, group_data in task_data["groups"].items():
             group_extracted = _extract_task_metrics(
                 f"{task_name}_{group_name}", group_data
