@@ -208,6 +208,20 @@ async def _patch_openhands_sdk(sandbox: "Sandbox", *, cmd_timeout: float | None 
        300 s ceiling on every command, matching the reference setup.
 
     """
+    # -- Patch 0: disable stuck detection --------------------------------
+    r0 = await sandbox.exec(
+        'python3 -c "'
+        "p='/installed-agent/run_agent.py';"
+        "c=open(p).read();"
+        "old='conversation = Conversation(**conv_kwargs)';"
+        "new='conv_kwargs[\\\\\"stuck_detection\\\\\"]=False\\\\n    conversation = Conversation(**conv_kwargs)';"
+        "open(p,'w').write(c.replace(old,new,1));"
+        "print('stuck_detection disabled' if old in c else 'pattern not found')"
+        '"',
+        timeout_sec=10,
+    )
+    logger.info("Runner patch: %s", (r0.stdout or "").strip())
+
     # -- Patch 1: don't FINISHED on text-only responses ------------------
     # In agent.py, when the LLM produces text without a tool call the SDK
     # sets execution_status=FINISHED and returns — killing the agent.
@@ -904,11 +918,12 @@ class HarborSolver:
 
             latency_ms = (time.monotonic() - t0) * 1000
 
-            # Timeout with zero progress → raise so the eval loop retries
-            # on a fresh sandbox (the model may have been temporarily down).
-            # Timeout WITH partial work → return normally for verification.
+            # Timeout with zero progress → graceful error (reward 0, no retry).
+            # Retrying is wasteful: the same task consistently fails (likely
+            # vLLM KV-cache exhaustion or prompt-specific issue), and each
+            # retry burns another full run_timeout (5400 s) with 0 output.
             if agent_timed_out and not workspace_diff and prompt_tokens + completion_tokens == 0:
-                raise RuntimeError(
+                raise GracefulError(
                     f"Agent made no progress before run_timeout ({self._run_timeout:.0f}s). Model may be unreachable."
                 )
 
