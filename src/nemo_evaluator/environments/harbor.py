@@ -629,25 +629,31 @@ class HarborEnvironment(EvalEnvironment):
                 environment_dir=str(env_dir) if env_dir.is_dir() else None,
             )
             capture_cmd = (
-                f"cd {wd} && mkdir -p /output && "
+                f"cd {wd} && "
+                "_NEL_OUT=/output; "
+                '[ -n "$_NEL_EFS_SESSION" ] && _NEL_OUT="/output/$_NEL_EFS_SESSION"; '
+                "mkdir -p $_NEL_OUT && "
                 "if [ -d .git ] && git rev-parse HEAD >/dev/null 2>&1; then "
                 "_NEL_BASE=$(cat /tmp/_nel_base_commit 2>/dev/null || git rev-parse HEAD); "
                 "_NEL_HEAD=$(git rev-parse HEAD 2>/dev/null); "
-                'echo "base=$_NEL_BASE head=$_NEL_HEAD" > /output/_nel_capture_info.txt; '
-                "git log --oneline -3 >> /output/_nel_capture_info.txt 2>/dev/null; "
+                'echo "base=$_NEL_BASE head=$_NEL_HEAD" > $_NEL_OUT/_nel_capture_info.txt; '
+                "git log --oneline -3 >> $_NEL_OUT/_nel_capture_info.txt 2>/dev/null; "
                 "git add -A 2>/dev/null; "
-                "git diff --cached --binary $_NEL_BASE > /output/_nel_patch.diff 2>/dev/null && "
-                "echo git-diff > /output/_nel_mode && "
-                "cd /output && tar cf workspace.tar _nel_patch.diff _nel_mode _nel_capture_info.txt || "
-                f"{{ cd {wd} && tar cf /output/workspace.tar --exclude=.git .; }}; "
+                "git diff --cached --binary $_NEL_BASE > $_NEL_OUT/_nel_patch.diff 2>/dev/null && "
+                "echo git-diff > $_NEL_OUT/_nel_mode && "
+                "cd $_NEL_OUT && tar cf workspace.tar _nel_patch.diff _nel_mode _nel_capture_info.txt || "
+                f"{{ cd {wd} && tar cf $_NEL_OUT/workspace.tar --exclude=.git .; }}; "
                 "else "
-                "tar cf /output/workspace.tar --exclude=.git .; "
+                "tar cf $_NEL_OUT/workspace.tar --exclude=.git .; "
                 "fi"
             )
             apply_cmd = (
                 "mkdir -p /tmp/_nel_ws && "
-                "if [ -f /input/workspace.tar ]; then "
-                "tar xf /input/workspace.tar -C /tmp/_nel_ws 2>/dev/null; "
+                "_NEL_TAR=/input/workspace.tar; "
+                '[ -n "$_NEL_EFS_SESSION" ] && [ -f "/input/$_NEL_EFS_SESSION/workspace.tar" ] && '
+                '_NEL_TAR="/input/$_NEL_EFS_SESSION/workspace.tar"; '
+                "if [ -f $_NEL_TAR ]; then "
+                "tar xf $_NEL_TAR -C /tmp/_nel_ws 2>/dev/null; "
                 "[ -f /tmp/_nel_ws/_nel_capture_info.txt ] && "
                 "cat /tmp/_nel_ws/_nel_capture_info.txt >&2; "
                 "if [ -f /tmp/_nel_ws/_nel_patch.diff ]; then "
@@ -660,7 +666,7 @@ class HarborEnvironment(EvalEnvironment):
                 "}; "
                 "fi; "
                 "else "
-                f"tar xf /input/workspace.tar -C {wd}; "
+                f"tar xf $_NEL_TAR -C {wd}; "
                 "fi; "
                 "fi"
             )
