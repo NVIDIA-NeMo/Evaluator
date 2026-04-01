@@ -206,7 +206,26 @@ async def _patch_openhands_sdk(sandbox: "Sandbox") -> None:
        producing output (e.g. a long test run) can consume the entire
        ``run_timeout`` budget.  We patch the execution loop to impose a
        300 s ceiling on every command, matching the reference setup.
+
+    5. **Disable stuck detection** — the SDK's built-in stuck detector
+       (``AgentMonologue``, etc.) terminates agents that produce
+       consecutive text-only turns.  Reasoning models routinely do this
+       while thinking, causing premature termination.
     """
+    # -- Patch 0: stuck detection off in runner --------------------------
+    r1 = await sandbox.exec(
+        'python3 -c "'
+        "p='/installed-agent/run_agent.py';"
+        "c=open(p).read();"
+        "old='conversation = Conversation(**conv_kwargs)';"
+        "new='conv_kwargs[\\\\\"stuck_detection\\\\\"]=False\\n    conversation = Conversation(**conv_kwargs)';"
+        "open(p,'w').write(c.replace(old,new,1));"
+        "print('stuck_detection disabled' if old in c else 'pattern not found')"
+        '"',
+        timeout_sec=10,
+    )
+    logger.info("Runner patch: %s", (r1.stdout or "").strip())
+
     # -- Patch 1: don't FINISHED on text-only responses ------------------
     # In agent.py, when the LLM produces text without a tool call the SDK
     # sets execution_status=FINISHED and returns — killing the agent.
