@@ -13,7 +13,7 @@ solver:
   type: harbor
   service: model
   agent: openhands-sdk
-  run_timeout: 7200.0
+  run_timeout: 5400.0
   agent_kwargs:
     max_iterations: 200
     temperature: 1.0

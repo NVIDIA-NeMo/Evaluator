@@ -664,8 +664,8 @@ class HarborSolver:
 
         if "model_info" not in kwargs:
             kwargs["model_info"] = {
-                "max_input_tokens": self._max_input_tokens or 131072,
-                "max_output_tokens": self._max_output_tokens or 16384,
+                "max_input_tokens": self._max_input_tokens or 262144,
+                "max_output_tokens": self._max_output_tokens or 262144,
                 "input_cost_per_token": 0.0,
                 "output_cost_per_token": 0.0,
             }
