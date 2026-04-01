@@ -40,6 +40,14 @@ class HarborSolverConfig(BaseModel):
             "wasting the full benchmark timeout. Defaults to sandbox timeout."
         ),
     )
+    cmd_timeout: float | None = Field(
+        default=None,
+        description=(
+            "Hard ceiling (seconds) on any single terminal command. "
+            "Prevents a long-running command from consuming the entire "
+            "run_timeout budget. None means no ceiling (SDK default)."
+        ),
+    )
 
 
 class AgentSolverConfig(BaseModel):

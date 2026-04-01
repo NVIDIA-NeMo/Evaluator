@@ -173,7 +173,7 @@ async def _download_agent_logs_inner(
             pass
 
 
-async def _patch_openhands_sdk(sandbox: "Sandbox") -> None:
+async def _patch_openhands_sdk(sandbox: "Sandbox", *, cmd_timeout: float | None = None) -> None:
     """Apply runtime patches to the OpenHands SDK inside the sandbox.
 
     1. **Prevent premature FINISHED on text-only responses** in the SDK's
@@ -402,8 +402,9 @@ print(f'reasoning_in_content={ok} at {p}')
             stdout4 or (r4.stderr or "")[:300],
         )
 
-    # -- Patch 4: 300 s hard timeout ceiling on terminal commands ----------
-    _cmd_timeout_script = """\
+    # -- Patch 4: hard timeout ceiling on terminal commands ------------------
+    if cmd_timeout is not None and cmd_timeout > 0:
+        _cmd_timeout_script = f"""\
 import glob, sys
 fs = glob.glob(
     '/opt/openhands-sdk-venv/lib/python*/site-packages/'
@@ -412,6 +413,8 @@ fs = glob.glob(
 p = fs[0] if fs else ''
 assert p, 'terminal_session.py not found'
 c = open(p).read()
+
+_MAX = {cmd_timeout!r}
 
 old = (
     '            if action.timeout is not None:\\n'
@@ -423,12 +426,12 @@ old = (
     '                        ps1_matches=ps1_matches,\\n'
     '                        timeout=action.timeout,\\n'
     '                    )\\n'
-    '                    logger.debug(f\"RETURNING OBSERVATION (hard-timeout): {obs}\")\\n'
+    '                    logger.debug(f\\"RETURNING OBSERVATION (hard-timeout): {{obs}}\\")\\n'
     '                    return obs'
 )
 
 new = (
-    '            _NEL_MAX = 300.0  # [NEL] hard ceiling on any command\\n'
+    '            _NEL_MAX = ' + str(_MAX) + '  # [NEL] hard ceiling on any command\\n'
     '            _eff_timeout = (\\n'
     '                min(action.timeout, _NEL_MAX)\\n'
     '                if action.timeout is not None\\n'
@@ -441,7 +444,7 @@ new = (
     '                    ps1_matches=ps1_matches,\\n'
     '                    timeout=_eff_timeout,\\n'
     '                )\\n'
-    '                logger.debug(f\"RETURNING OBSERVATION (hard-timeout): {obs}\")\\n'
+    '                logger.debug(f\\"RETURNING OBSERVATION (hard-timeout): {{obs}}\\")\\n'
     '                return obs'
 )
 
@@ -449,21 +452,23 @@ ok = old in c
 if ok:
     c = c.replace(old, new, 1)
     open(p, 'w').write(c)
-print(f'cmd_timeout_300s={ok} at {p}')
+print(f'cmd_timeout_{{_MAX}}s={{ok}} at {{p}}')
 """
-    encoded5 = base64.b64encode(_cmd_timeout_script.encode()).decode()
-    r5 = await sandbox.exec(
-        f"echo {encoded5} | base64 -d | python3",
-        timeout_sec=10,
-    )
-    stdout5 = (r5.stdout or "").strip()
-    logger.info("Cmd timeout patch: %s", stdout5)
-    if r5.return_code != 0 or "False" in stdout5:
-        logger.warning(
-            "Cmd timeout patch problem (rc=%d): %s",
-            r5.return_code,
-            stdout5 or (r5.stderr or "")[:300],
+        encoded5 = base64.b64encode(_cmd_timeout_script.encode()).decode()
+        r5 = await sandbox.exec(
+            f"echo {encoded5} | base64 -d | python3",
+            timeout_sec=10,
         )
+        stdout5 = (r5.stdout or "").strip()
+        logger.info("Cmd timeout patch (%ss): %s", cmd_timeout, stdout5)
+        if r5.return_code != 0 or "False" in stdout5:
+            logger.warning(
+                "Cmd timeout patch problem (rc=%d): %s",
+                r5.return_code,
+                stdout5 or (r5.stderr or "")[:300],
+            )
+    else:
+        logger.info("Cmd timeout patch: skipped (cmd_timeout not configured)")
 
 
 # ---------------------------------------------------------------------------
@@ -672,6 +677,7 @@ class HarborSolver:
         container_env: dict[str, str] | None = None,
         max_input_tokens: int | None = None,
         max_output_tokens: int | None = None,
+        cmd_timeout: float | None = None,
     ) -> None:
         _check_harbor_installed()
         self._harbor_agent = harbor_agent
@@ -680,6 +686,7 @@ class HarborSolver:
         self._model_id = model_id
         self._timeout = timeout
         self._run_timeout = run_timeout or timeout
+        self._cmd_timeout = cmd_timeout
         self._container_env = dict(container_env or {})
         self._container_env.setdefault("PIP_INDEX_URL", "https://pypi.org/simple")
         self._container_env.setdefault("LITELLM_LOG", "ERROR")
@@ -817,7 +824,7 @@ class HarborSolver:
             await agent.setup(adapter)
 
             if self._harbor_agent.lower() == "openhands-sdk":
-                await _patch_openhands_sdk(sandbox)
+                await _patch_openhands_sdk(sandbox, cmd_timeout=self._cmd_timeout)
 
             context = AgentContext()
 
