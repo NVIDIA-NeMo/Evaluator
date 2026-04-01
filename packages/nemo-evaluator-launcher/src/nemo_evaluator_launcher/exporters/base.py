@@ -50,6 +50,8 @@ class ExportConfig(BaseModel):
     log_metrics: List[str] = Field(default_factory=list)
     log_logs: Optional[bool] = Field(default=None, exclude=True)
     log_artifacts: Optional[bool] = Field(default=None, exclude=True)
+    metric_sep: str = Field(default="_")
+    include_task_name: bool = Field(default=True)
 
     @field_validator("job_dirs", mode="after")
     @classmethod
@@ -350,7 +352,7 @@ class BaseExporter(ABC):
             return None
 
         try:
-            metrics = extract_accuracy_metrics(artifacts_dir)
+            metrics = extract_accuracy_metrics(artifacts_dir, metric_sep=self.config.metric_sep, include_task_name=self.config.include_task_name)
             harness, task = load_benchmark_info(artifacts_dir)
             container = job_data.data.get("eval_image", None)
             model_id = get_model_id(artifacts_dir)

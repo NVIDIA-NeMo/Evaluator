@@ -54,6 +54,8 @@ class WandBExporterConfig(ExportConfig):
     description: Optional[str] = Field(default=None)
     extra_metadata: Dict[str, Any] = Field(default_factory=dict)
     run_id: Optional[str] = Field(default=None)
+    metric_sep: str = Field(default="/")
+    include_task_name: bool = Field(default=False)
 
 
 @register_exporter("wandb")

@@ -143,7 +143,7 @@ NE_CONFIG_FILE = "run_config.yml"
 
 
 def extract_accuracy_metrics(
-    artifacts_dir: Path, log_metrics: List[str] = None
+    artifacts_dir: Path, log_metrics: List[str] = None, metric_sep: str = "_", include_task_name: bool = True
 ) -> Dict[str, float]:
     """Extract accuracy metrics from job results.
     artifacts_dir: Path to the artifacts directory
@@ -155,7 +155,7 @@ def extract_accuracy_metrics(
     if not artifacts_dir or not artifacts_dir.exists():
         raise RuntimeError(f"Artifacts directory {artifacts_dir} not found")
 
-    metrics = _extract_from_results_yml(artifacts_dir / RESULTS_FILE)
+    metrics = _extract_from_results_yml(artifacts_dir / RESULTS_FILE, metric_sep=metric_sep, include_task_name=include_task_name)
     if not log_metrics:
         return metrics
 
@@ -559,14 +559,14 @@ def copy_artifacts(
 # =============================================================================
 
 
-def _extract_metrics_from_results(results: dict) -> Dict[str, float]:
+def _extract_metrics_from_results(results: dict, metric_sep: str = "_", include_task_name: bool = True) -> Dict[str, float]:
     """Extract metrics from a 'results' dict (with optional 'groups'/'tasks')."""
     metrics: Dict[str, float] = {}
     for section in ["groups", "tasks"]:
         section_data = results.get(section)
         if isinstance(section_data, dict):
             for task_name, task_data in section_data.items():
-                task_metrics = _extract_task_metrics(task_name, task_data)
+                task_metrics = _extract_task_metrics(task_name, task_data, metric_sep=metric_sep, include_task_name=include_task_name)
                 _safe_update_metrics(
                     target=metrics,
                     source=task_metrics,
@@ -577,6 +577,8 @@ def _extract_metrics_from_results(results: dict) -> Dict[str, float]:
 
 def _extract_from_results_yml(
     results_yml: Path,
+    metric_sep: str = "_",
+    include_task_name: bool = True,
 ) -> Dict[str, float]:
     """Extract metrics and config from results.yml file."""
     with open(results_yml, "r", encoding="utf-8") as f:
@@ -589,10 +591,10 @@ def _extract_from_results_yml(
     if "results" not in data:
         raise ValueError(f"Failed to parse {results_yml} - no results section found")
 
-    return _extract_metrics_from_results(data["results"])
+    return _extract_metrics_from_results(data["results"], metric_sep=metric_sep, include_task_name=include_task_name)
 
 
-def _extract_task_metrics(task_name: str, task_data: dict) -> Dict[str, float]:
+def _extract_task_metrics(task_name: str, task_data: dict, metric_sep: str = "_", include_task_name: bool = True) -> Dict[str, float]:
     """Extract metrics from a task's metrics data."""
     extracted = {}
 
@@ -600,7 +602,7 @@ def _extract_task_metrics(task_name: str, task_data: dict) -> Dict[str, float]:
     if "groups" in task_data and task_data["groups"] is not None:
         for group_name, group_data in task_data["groups"].items():
             group_extracted = _extract_task_metrics(
-                f"{task_name}_{group_name}", group_data
+                f"{task_name}{metric_sep}{group_name}" if include_task_name else group_name, group_data
             )
             _safe_update_metrics(
                 target=extracted,
@@ -612,9 +614,11 @@ def _extract_task_metrics(task_name: str, task_data: dict) -> Dict[str, float]:
         try:
             for score_type, score_data in metric_data["scores"].items():
                 if score_type != metric_name:
-                    key = f"{task_name}_{metric_name}_{score_type}"
+                    key = f"{metric_name}{metric_sep}{score_type}"
                 else:
-                    key = f"{task_name}_{metric_name}"
+                    key = metric_name
+                if include_task_name:
+                    key = f"{task_name}{metric_sep}" + key
                 _safe_set_metric(
                     container=extracted,
                     key=key,
@@ -622,7 +626,7 @@ def _extract_task_metrics(task_name: str, task_data: dict) -> Dict[str, float]:
                     context=f" in task '{task_name}'",
                 )
                 for stat_name, stat_value in metric_data.get("stats", {}).items():
-                    stats_key = f"{key}_{stat_name}"
+                    stats_key = f"{key}{metric_sep}{stat_name}"
                     _safe_set_metric(
                         container=extracted,
                         key=stats_key,
