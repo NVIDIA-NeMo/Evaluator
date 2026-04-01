@@ -58,7 +58,7 @@ Async client for OpenAI-compatible endpoints.
 | `model` | `str` | `azure/openai/gpt-5.2` | Model identifier |
 | `api_key` | `str \| None` | `None` (uses `NEMO_API_KEY`) | API key |
 | `temperature` | `float` | `0.0` | Sampling temperature |
-| `max_tokens` | `int` | `2048` | Max completion tokens |
+| `max_tokens` | `int \| None` | `None` | Max completion tokens (unlimited by default) |
 | `timeout` | `float` | `120.0` | Request timeout in seconds |
 | `max_concurrent` | `int` | `8` | Max parallel requests |
 
