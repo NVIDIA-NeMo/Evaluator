@@ -1,7 +1,7 @@
-# SLURM + vLLM Ray (Nemotron Ultra V3) + SWE-bench Verified + ECS Fargate
+# SLURM + vLLM Ray (Nemotron Ultra V3) + SWE-bench Pro + ECS Fargate
 # HSG cluster — multi-node (2 nodes × 4 GPUs = tp=8 via Ray)
 #
-# Deploys vLLM across 2 HSG nodes using Ray, evaluates swebench-verified
+# Deploys vLLM across 2 HSG nodes using Ray, evaluates swebench-pro
 # with the OpenHands-SDK agent. ECS Fargate provides sandboxed envs.
 #
 # Prerequisites:
@@ -11,8 +11,8 @@
 #   - pip install nemo-evaluator[harbor]
 #
 # Run:
-#   nel eval run examples/configs/vpr/ultra/27_slurm_swebench_verified_ultra_hsg.yaml --dry-run
-#   nel eval run examples/configs/vpr/ultra/27_slurm_swebench_verified_ultra_hsg.yaml
+#   nel eval run examples/configs/vpr/ultra/29_slurm_swebench_pro_ultra_hsg.yaml --dry-run
+#   nel eval run examples/configs/vpr/ultra/29_slurm_swebench_pro_ultra_hsg.yaml
 
 services:
   nemotron-ultra:
@@ -37,7 +37,8 @@ services:
       - "--reasoning-parser-plugin=/reasoning/ultra_v3_reasoning_parser.py"
       - "--reasoning-parser=ultra_v3"
       - "--enable-expert-parallel"
-      - "--max-num-seqs=256"
+      - "--max-num-seqs=64"
+      - "--max-model-len=262144"
       - "--gpu-memory-utilization=0.95"
       - "--model-loader-extra-config={\"enable_multithread_load\":true,\"num_threads\":96}"
       - "--compilation-config={\"pass_config\":{\"fuse_allreduce_rms\":false}}"
@@ -53,7 +54,8 @@ services:
       - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
       - /lustre/fsw/portfolios/coreai/users/${USER}/cache/vllm:/cache/vllm
       - /lustre/fsw/portfolios/coreai/users/gchlebus/shared/evals:/reasoning
-    max_output_tokens: 131072
+    max_input_tokens: 262144
+    max_output_tokens: 262144
     generation:
       temperature: 1.0
       top_p: 1.0
@@ -62,6 +64,8 @@ services:
         chat_template_kwargs:
           enable_thinking: true
         skip_special_tokens: false
+      litellm_settings:
+        request_timeout: 600
       interceptors:
         - name: turn_counter
           config:
@@ -87,7 +91,7 @@ cluster:
   account: llmservice_nemotron_ultra
   walltime: "04:00:00"
   shards: 5
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260331-190612-cf3d1fde-harbor-arm64
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260401-202307-b3b7eb46-harbor-arm64
   sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
   sbatch_extra_flags:
     switches: 1

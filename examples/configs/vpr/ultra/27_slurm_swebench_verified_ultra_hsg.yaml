@@ -38,6 +38,7 @@ services:
       - "--reasoning-parser=ultra_v3"
       - "--enable-expert-parallel"
       - "--max-num-seqs=64"
+      - "--max-model-len=262144"
       - "--gpu-memory-utilization=0.95"
       - "--model-loader-extra-config={\"enable_multithread_load\":true,\"num_threads\":96}"
       - "--compilation-config={\"pass_config\":{\"fuse_allreduce_rms\":false}}"
@@ -63,6 +64,8 @@ services:
         chat_template_kwargs:
           enable_thinking: true
         skip_special_tokens: false
+      litellm_settings:
+        request_timeout: 600
       interceptors:
         - name: turn_counter
           config:
@@ -76,6 +79,7 @@ services:
 
 benchmarks:
   - playbook: swebench_verified
+    repeats: 1
     solver:
       service: nemotron-ultra
     sandbox:
@@ -88,7 +92,7 @@ cluster:
   account: llmservice_nemotron_ultra
   walltime: "04:00:00"
   shards: 5
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260401-134159-8cdcbc9b-harbor-arm64
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260401-202307-b3b7eb46-harbor-arm64
   sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
   sbatch_extra_flags:
     switches: 1

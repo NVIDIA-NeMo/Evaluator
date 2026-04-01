@@ -209,15 +209,21 @@ async def _patch_openhands_sdk(sandbox: "Sandbox", *, cmd_timeout: float | None 
 
     """
     # -- Patch 0: disable stuck detection --------------------------------
+    _stuck_script = (
+        "p = '/installed-agent/run_agent.py'\n"
+        "c = open(p).read()\n"
+        "old = 'conversation = Conversation(**conv_kwargs)'\n"
+        'new = \'conv_kwargs["stuck_detection"] = False\\n'
+        "    conversation = Conversation(**conv_kwargs)'\n"
+        "if old in c:\n"
+        "    open(p, 'w').write(c.replace(old, new, 1))\n"
+        "    print('stuck_detection disabled')\n"
+        "else:\n"
+        "    print('pattern not found')\n"
+    )
+    encoded0 = base64.b64encode(_stuck_script.encode()).decode()
     r0 = await sandbox.exec(
-        'python3 -c "'
-        "p='/installed-agent/run_agent.py';"
-        "c=open(p).read();"
-        "old='conversation = Conversation(**conv_kwargs)';"
-        "new='conv_kwargs[\\\\\"stuck_detection\\\\\"]=False\\\\n    conversation = Conversation(**conv_kwargs)';"
-        "open(p,'w').write(c.replace(old,new,1));"
-        "print('stuck_detection disabled' if old in c else 'pattern not found')"
-        '"',
+        f"echo {encoded0} | base64 -d | python3",
         timeout_sec=10,
     )
     logger.info("Runner patch: %s", (r0.stdout or "").strip())
@@ -229,35 +235,40 @@ async def _patch_openhands_sdk(sandbox: "Sandbox", *, cmd_timeout: float | None 
     # until finish() or max_iterations.  We also widen the nudge to
     # always fire (not just for empty responses), so the model knows it
     # must use a tool.
+    _agent_patch_script = """\
+import glob
+fs = glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/agent/agent.py')
+p = fs[0] if fs else ''
+assert p, 'agent.py not found'
+c = open(p).read()
+
+old1 = (
+    '        # Finish conversation if LLM produced content (awaits user input)\\n'
+    '        # Continue if only reasoning without content (e.g., GPT-5 codex thinking)\\n'
+    '        if has_content:\\n'
+    '            logger.debug("LLM produced a message response - awaits user input")\\n'
+    '            state.execution_status = ConversationExecutionStatus.FINISHED\\n'
+    '            return'
+)
+new1 = (
+    '        # [NEL] text-only response: continue instead of FINISHED\\n'
+    '        if has_content:\\n'
+    '            logger.debug("LLM produced text without tool call - continuing (NEL)")'
+)
+old2 = '        if not has_content:'
+new2 = '        if True:  # [NEL] always nudge when no tool call'
+
+ok1 = old1 in c
+c2 = c.replace(old1, new1, 1) if ok1 else c
+ok2 = old2 in c2
+c3 = c2.replace(old2, new2, 1) if ok2 else c2
+if ok1 or ok2:
+    open(p, 'w').write(c3)
+print(f'agent.py FINISHED={ok1} nudge={ok2} at {p}')
+"""
+    encoded1 = base64.b64encode(_agent_patch_script.encode()).decode()
     r2 = await sandbox.exec(
-        'python3 -c "'
-        "import glob;"
-        "fs=glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/agent/agent.py');"
-        "p=fs[0] if fs else '';"
-        "assert p, 'agent.py not found';"
-        "c=open(p).read();"
-        "old1=("
-        "'        # Finish conversation if LLM produced content (awaits user input)\\n'"
-        "'        # Continue if only reasoning without content (e.g., GPT-5 codex thinking)\\n'"
-        "'        if has_content:\\n'"
-        "'            logger.debug(\\\"LLM produced a message response - awaits user input\\\")\\n'"
-        "'            state.execution_status = ConversationExecutionStatus.FINISHED\\n'"
-        "'            return'"
-        ");"
-        "new1=("
-        "'        # [NEL] text-only response: continue instead of FINISHED\\n'"
-        "'        if has_content:\\n'"
-        "'            logger.debug(\\\"LLM produced text without tool call - continuing (NEL)\\\")'"
-        ");"
-        "old2='        if not has_content:';"
-        "new2='        if True:  # [NEL] always nudge when no tool call';"
-        "ok1=old1 in c;"
-        "c2=c.replace(old1,new1,1) if ok1 else c;"
-        "ok2=old2 in c2;"
-        "c3=c2.replace(old2,new2,1) if ok2 else c2;"
-        "open(p,'w').write(c3) if (ok1 or ok2) else None;"
-        "print(f'agent.py FINISHED={ok1} nudge={ok2} at {p}')"
-        '"',
+        f"echo {encoded1} | base64 -d | python3",
         timeout_sec=10,
     )
     stdout2 = (r2.stdout or "").strip()

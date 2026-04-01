@@ -14,6 +14,7 @@ solver:
   service: model
   agent: openhands-sdk
   run_timeout: 5400.0
+  cmd_timeout: 1800
   agent_kwargs:
     max_iterations: 200
     temperature: 1.0
