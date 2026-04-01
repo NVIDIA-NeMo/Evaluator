@@ -199,6 +199,13 @@ async def _patch_openhands_sdk(sandbox: "Sandbox") -> None:
        ``Message.to_chat_dict()`` to wrap ``reasoning_content`` in
        ``<think>`` tags and prepend it to the ``content`` field — the
        same approach used by NeMo Gym's middleware.
+
+    4. **Enforce 300 s hard timeout on terminal commands** — the SDK's
+       terminal tool only applies a hard timeout when the model explicitly
+       passes a ``timeout`` parameter.  Without it, a command that keeps
+       producing output (e.g. a long test run) can consume the entire
+       ``run_timeout`` budget.  We patch the execution loop to impose a
+       300 s ceiling on every command, matching the reference setup.
     """
     # -- Patch 1: don't FINISHED on text-only responses ------------------
     # In agent.py, when the LLM produces text without a tool call the SDK
@@ -392,6 +399,69 @@ print(f'reasoning_in_content={ok} at {p}')
             "Reasoning-in-content patch problem (rc=%d): %s",
             r4.return_code,
             stdout4 or (r4.stderr or "")[:300],
+        )
+
+    # -- Patch 4: 300 s hard timeout ceiling on terminal commands ----------
+    _cmd_timeout_script = """\
+import glob, sys
+fs = glob.glob(
+    '/opt/openhands-sdk-venv/lib/python*/site-packages/'
+    'openhands/tools/terminal/terminal/terminal_session.py'
+)
+p = fs[0] if fs else ''
+assert p, 'terminal_session.py not found'
+c = open(p).read()
+
+old = (
+    '            if action.timeout is not None:\\n'
+    '                time_since_start = time.time() - start_time\\n'
+    '                if time_since_start >= action.timeout:\\n'
+    '                    obs = self._handle_hard_timeout_command(\\n'
+    '                        command,\\n'
+    '                        terminal_content=cur_terminal_output,\\n'
+    '                        ps1_matches=ps1_matches,\\n'
+    '                        timeout=action.timeout,\\n'
+    '                    )\\n'
+    '                    logger.debug(f\"RETURNING OBSERVATION (hard-timeout): {obs}\")\\n'
+    '                    return obs'
+)
+
+new = (
+    '            _NEL_MAX = 300.0  # [NEL] hard ceiling on any command\\n'
+    '            _eff_timeout = (\\n'
+    '                min(action.timeout, _NEL_MAX)\\n'
+    '                if action.timeout is not None\\n'
+    '                else _NEL_MAX\\n'
+    '            )\\n'
+    '            if elapsed_time >= _eff_timeout:\\n'
+    '                obs = self._handle_hard_timeout_command(\\n'
+    '                    command,\\n'
+    '                    terminal_content=cur_terminal_output,\\n'
+    '                    ps1_matches=ps1_matches,\\n'
+    '                    timeout=_eff_timeout,\\n'
+    '                )\\n'
+    '                logger.debug(f\"RETURNING OBSERVATION (hard-timeout): {obs}\")\\n'
+    '                return obs'
+)
+
+ok = old in c
+if ok:
+    c = c.replace(old, new, 1)
+    open(p, 'w').write(c)
+print(f'cmd_timeout_300s={ok} at {p}')
+"""
+    encoded5 = base64.b64encode(_cmd_timeout_script.encode()).decode()
+    r5 = await sandbox.exec(
+        f"echo {encoded5} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout5 = (r5.stdout or "").strip()
+    logger.info("Cmd timeout patch: %s", stdout5)
+    if r5.return_code != 0 or "False" in stdout5:
+        logger.warning(
+            "Cmd timeout patch problem (rc=%d): %s",
+            r5.return_code,
+            stdout5 or (r5.stderr or "")[:300],
         )
 
 
