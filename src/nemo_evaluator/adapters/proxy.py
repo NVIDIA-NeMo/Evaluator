@@ -35,7 +35,12 @@ from nemo_evaluator.adapters.types import AdapterRequest, InterceptorContext
 logger = logging.getLogger(__name__)
 
 
-async def _chat_completions(request: Request) -> Response:
+async def _proxy_handler(request: Request) -> Response:
+    """Catch-all handler that forwards any POST request through the pipeline.
+
+    Matches the original Evaluator proxy behavior: all paths are forwarded
+    to upstream (chat/completions, completions, embeddings, models, etc.).
+    """
     pipeline: AdapterPipeline = request.app.state.pipeline
     model_id: str = request.app.state.model_id
 
@@ -51,8 +56,8 @@ async def _chat_completions(request: Request) -> Response:
         body.setdefault("model", model_id)
 
     adapter_req = AdapterRequest(
-        method="POST",
-        path="/v1/chat/completions",
+        method=request.method,
+        path=request.url.path,
         headers=dict(request.headers),
         body=body,
         ctx=InterceptorContext(),
@@ -78,8 +83,8 @@ async def _health(request: Request) -> Response:
 
 def _build_app(pipeline: AdapterPipeline, model_id: str) -> Starlette:
     routes = [
-        Route("/v1/chat/completions", _chat_completions, methods=["POST"]),
         Route("/health", _health, methods=["GET"]),
+        Route("/{path:path}", _proxy_handler, methods=["POST"]),
     ]
     app = Starlette(routes=routes)
     app.state.pipeline = pipeline
