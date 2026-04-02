@@ -263,6 +263,17 @@ def compare_runs(
                 base_records, cand_records, threshold=reward_threshold,
             )
             report.mcnemar = mcnemar_test(report.flip_report.contingency, report.flip_report.summary.n_paired)
+        elif not base_records or not cand_records:
+            empty = []
+            if not base_records:
+                empty.append(f"baseline ({base_dir / 'results.jsonl'})")
+            if not cand_records:
+                empty.append(f"candidate ({cand_dir / 'results.jsonl'})")
+            report.warnings.append(
+                f"Per-sample results empty or unparseable: {', '.join(empty)}. "
+                "McNemar paired test and flip analysis skipped. "
+                "Only aggregate score deltas are available."
+            )
 
     # Verdict logic (#4: effect size gating, #27: INCONCLUSIVE)
     report.verdict, report.verdict_reasons = _compute_verdict(report, alpha, min_effect)
@@ -564,7 +575,11 @@ def _compute_verdict(
         return "PASS", ["no paired data available"]
 
     if m.p_value is None:
-        return "PASS", ["scipy not installed; statistical test skipped"]
+        return "INCONCLUSIVE", ["scipy not installed; statistical test skipped (install nemo-evaluator[stats])"]
+
+    # Identical results: no discordant pairs means no signal of regression
+    if m.n_discordant == 0:
+        return "PASS", ["no discordant pairs; baseline and candidate produced identical per-sample results"]
 
     # Power check: can the suite detect regressions of size min_effect?
     mde = mde_estimate(m.n_discordant)

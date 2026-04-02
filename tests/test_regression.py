@@ -215,6 +215,7 @@ class TestPairedAnalysis:
         assert m["p_value"] == 1.0
         assert m["significant"] is False
         assert m["method"] == "exact"
+        assert report["verdict"] == "PASS"
 
     def test_mcnemar_graceful_without_scipy(self, tmp_path, monkeypatch):
         import builtins
@@ -235,6 +236,8 @@ class TestPairedAnalysis:
         m = report.get("mcnemar", {})
         # to_dict() omits None values, so p_value key may be absent
         assert m.get("p_value") is None
+        assert report["verdict"] == "INCONCLUSIVE"
+        assert any("scipy" in r for r in report["verdict_reasons"])
 
     def test_warning_when_results_missing(self, tmp_path):
         """Item #2: warn when results.jsonl is missing."""
@@ -245,6 +248,24 @@ class TestPairedAnalysis:
         report = compare_runs(b, c)
         assert report.get("warnings")
         assert any("results missing" in w.lower() or "results.jsonl" in w for w in report["warnings"])
+        assert report.get("flip_report") is None
+
+    def test_warning_when_results_empty(self, tmp_path):
+        """Empty results.jsonl should warn, not silently pass."""
+        base_dir = tmp_path / "base"
+        cand_dir = tmp_path / "cand"
+        base_dir.mkdir()
+        cand_dir.mkdir()
+        b = base_dir / "eval-base.json"
+        c = cand_dir / "eval-cand.json"
+        _write_bundle(b, "base", {"pass@1": {"value": 0.7}})
+        _write_bundle(c, "cand", {"pass@1": {"value": 0.5}})
+        # Create empty results.jsonl files (present but no records)
+        (base_dir / "results.jsonl").write_text("")
+        (cand_dir / "results.jsonl").write_text("")
+        report = compare_runs(b, c)
+        assert report.get("warnings")
+        assert any("empty" in w.lower() or "unparseable" in w.lower() for w in report["warnings"])
         assert report.get("flip_report") is None
 
     def test_partial_overlap(self, tmp_path):
