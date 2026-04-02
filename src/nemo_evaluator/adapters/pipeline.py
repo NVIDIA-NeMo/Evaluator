@@ -56,7 +56,7 @@ class AdapterPipeline:
         logger.info(
             "AdapterPipeline ready (%d interceptors: %s)",
             len(self._chain),
-            [type(i).__name__ for i in self._chain],
+            [getattr(i, "_registry_name", type(i).__name__) for i in self._chain],
         )
 
     # ------------------------------------------------------------------

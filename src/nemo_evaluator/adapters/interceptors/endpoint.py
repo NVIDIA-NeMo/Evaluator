@@ -43,7 +43,12 @@ class Interceptor(RequestToResponseInterceptor):
         retry_on_status: list[int] | None = None,
         max_concurrent: int = 64,
     ) -> None:
-        self._upstream_url = upstream_url.rstrip("/")
+        clean = upstream_url.rstrip("/")
+        for suffix in ("/chat/completions", "/completions", "/embeddings"):
+            if clean.endswith(suffix):
+                clean = clean[: -len(suffix)]
+                break
+        self._upstream_url = clean
         self._api_key = api_key
         self._extra_body = extra_body or {}
         self._timeout = aiohttp.ClientTimeout(total=request_timeout)

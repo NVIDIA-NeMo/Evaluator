@@ -23,16 +23,29 @@ from dataclasses import dataclass
 from typing import Any
 
 import uvicorn
-from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
-from starlette.routing import Route
 
 from nemo_evaluator.adapters.pipeline import AdapterPipeline
 from nemo_evaluator.adapters.registry import InterceptorRegistry
 from nemo_evaluator.adapters.types import AdapterRequest, InterceptorContext
 
 logger = logging.getLogger(__name__)
+
+_HOP_BY_HOP_HEADERS = frozenset(
+    {
+        "connection",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailers",
+        "transfer-encoding",
+        "upgrade",
+        "content-length",
+        "content-encoding",
+    }
+)
 
 
 async def _proxy_handler(request: Request) -> Response:
@@ -72,24 +85,57 @@ async def _proxy_handler(request: Request) -> Response:
             status_code=500,
         )
 
+    fwd_headers = {k: v for k, v in (resp.headers or {}).items() if k.lower() not in _HOP_BY_HOP_HEADERS}
+
     if isinstance(resp.body, bytes):
-        return Response(content=resp.body, status_code=resp.status_code)
-    return JSONResponse(content=resp.body, status_code=resp.status_code)
+        return Response(content=resp.body, status_code=resp.status_code, headers=fwd_headers)
+    return JSONResponse(content=resp.body, status_code=resp.status_code, headers=fwd_headers)
 
 
 async def _health(request: Request) -> Response:
     return JSONResponse({"status": "ok"})
 
 
-def _build_app(pipeline: AdapterPipeline, model_id: str) -> Starlette:
-    routes = [
-        Route("/health", _health, methods=["GET"]),
-        Route("/{path:path}", _proxy_handler, methods=["POST"]),
-    ]
-    app = Starlette(routes=routes)
-    app.state.pipeline = pipeline
-    app.state.model_id = model_id
-    return app
+class _ProxyApp:
+    """Minimal ASGI app — bypasses Starlette routing entirely.
+
+    GET  /health  → health check
+    POST *        → proxy handler (forwarded to pipeline)
+    everything else → 405
+    """
+
+    def __init__(self, pipeline: AdapterPipeline, model_id: str) -> None:
+        self.state = type("State", (), {"pipeline": pipeline, "model_id": model_id})()
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "lifespan":
+            while True:
+                msg = await receive()
+                if msg["type"] == "lifespan.startup":
+                    await send({"type": "lifespan.startup.complete"})
+                elif msg["type"] == "lifespan.shutdown":
+                    await send({"type": "lifespan.shutdown.complete"})
+                    return
+            return
+
+        if scope["type"] != "http":
+            return
+
+        scope["app"] = self
+        request = Request(scope, receive, send)
+
+        if request.method == "GET" and request.url.path == "/health":
+            response = await _health(request)
+        elif request.method == "POST":
+            response = await _proxy_handler(request)
+        else:
+            response = JSONResponse({"error": "Method not allowed"}, status_code=405)
+
+        await response(scope, receive, send)
+
+
+def _build_app(pipeline: AdapterPipeline, model_id: str) -> _ProxyApp:
+    return _ProxyApp(pipeline, model_id)
 
 
 def _find_free_port(preferred: int) -> int:
@@ -115,7 +161,15 @@ class ProxyHandle:
     def stop(self) -> None:
         self._server.should_exit = True
         self._thread.join(timeout=10)
-        if self._endpoint_interceptor is not None:
+        if self._endpoint_interceptor is None:
+            return
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+        if running_loop is not None:
+            running_loop.create_task(self._endpoint_interceptor.close())
+        else:
             loop = asyncio.new_event_loop()
             try:
                 loop.run_until_complete(self._endpoint_interceptor.close())
@@ -163,7 +217,8 @@ def start_adapter_proxy(
     chain_specs = request_side + [endpoint_spec] + response_side
     pipeline = AdapterPipeline.from_config(chain_specs)
 
-    endpoint_interceptor = pipeline._chain[-1]
+    endpoint_idx = len(request_side)
+    endpoint_interceptor = pipeline._chain[endpoint_idx]
 
     actual_port = _find_free_port(port)
     app = _build_app(pipeline, model_id)

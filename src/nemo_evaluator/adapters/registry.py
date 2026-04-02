@@ -89,7 +89,9 @@ class InterceptorRegistry:
     ) -> RequestInterceptor | RequestToResponseInterceptor | ResponseInterceptor:
         """Resolve *name*, instantiate with *config* kwargs, and return."""
         cls = InterceptorRegistry.resolve_class(name)
-        return cls(**(config or {}))
+        instance = cls(**(config or {}))
+        instance._registry_name = name
+        return instance
 
     @staticmethod
     def available() -> list[str]:
