@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import json
 import logging
 import os
@@ -765,6 +766,90 @@ class HarborSolver:
             return ByobInstalledAgent(agent_dir=agent_path, logs_dir=logs_dir, **kwargs)
         return AgentFactory.create_agent_from_name(name, logs_dir=logs_dir, **kwargs)
 
+    async def _wait_for_agent(
+        self,
+        agent_task: asyncio.Task[None],
+        sandbox: "Sandbox",
+        t0: float,
+        effective_timeout: float,
+        jitter: float,
+    ) -> bool:
+        """Run *agent_task* with a two-phase timeout.
+
+        Phase 1 (short): wait ``min(600, 15% of run_timeout)`` seconds.
+            If the agent has produced no log files, abort early with
+            `GracefulError` — the model is likely unreachable.
+        Phase 2 (remainder): wait the rest of ``effective_timeout``.
+
+        Returns True if the agent timed out, False if it completed.
+        Raises the agent's exception if it failed, or `GracefulError`
+        if no progress was detected.
+        """
+        no_progress_timeout = min(600.0, self._run_timeout * 0.15)
+
+        # Phase 1 — wait for first sign of life
+        done, _ = await asyncio.wait(
+            {agent_task},
+            timeout=no_progress_timeout + jitter,
+        )
+
+        if not done:
+            # Agent still running — probe sandbox for log output
+            has_progress = True
+            if sandbox.is_running:
+                try:
+                    probe = await sandbox.exec(
+                        "find /logs/agent -type f 2>/dev/null | wc -l",
+                        timeout_sec=15,
+                    )
+                    count = int(probe.stdout.strip()) if probe.stdout else 0
+                    has_progress = count > 0
+                except Exception:
+                    pass  # can't probe → assume progress
+
+            if not has_progress:
+                logger.warning(
+                    "HarborSolver: no agent progress after %.0fs — aborting early (vLLM may be unreachable)",
+                    no_progress_timeout,
+                )
+                agent_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await agent_task
+                raise GracefulError(
+                    f"Agent made no progress after {no_progress_timeout:.0f}s "
+                    f"(run_timeout={self._run_timeout:.0f}s). "
+                    "Model may be unreachable (vLLM KV-cache pressure?)."
+                )
+
+            # Phase 2 — progress confirmed, wait remaining time
+            remaining = effective_timeout - (time.monotonic() - t0)
+            done, _ = await asyncio.wait(
+                {agent_task},
+                timeout=max(0.0, remaining),
+            )
+
+        # If agent still running after both phases → timed out
+        timed_out = agent_task not in done
+        if timed_out:
+            logger.warning(
+                "HarborSolver: agent.run() timed out after %.0fs "
+                "(run_timeout=%.0fs+%.0fs jitter) — collecting partial results",
+                time.monotonic() - t0,
+                self._run_timeout,
+                jitter,
+            )
+            agent_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await agent_task
+
+        # Propagate agent exceptions (but not CancelledError from our cancel)
+        if agent_task.done() and not agent_task.cancelled():
+            exc = agent_task.exception()
+            if exc is not None:
+                raise exc
+
+        return timed_out
+
     async def solve(
         self,
         task: SeedResult,
@@ -861,20 +946,15 @@ class HarborSolver:
             agent_timed_out = False
             jitter = random.uniform(0, min(120.0, self._run_timeout * 0.02))
             effective_timeout = self._run_timeout + jitter
-            try:
-                await asyncio.wait_for(
-                    agent.run(task.prompt, adapter, context),
-                    timeout=effective_timeout,
-                )
-            except (asyncio.TimeoutError, TimeoutError):
-                elapsed = time.monotonic() - t0
-                logger.warning(
-                    "HarborSolver: agent.run() timed out after %.0fs (run_timeout=%.0fs+%.0fs jitter) — collecting partial results",
-                    elapsed,
-                    self._run_timeout,
-                    jitter,
-                )
-                agent_timed_out = True
+
+            agent_task = asyncio.create_task(agent.run(task.prompt, adapter, context))
+            agent_timed_out = await self._wait_for_agent(
+                agent_task,
+                sandbox,
+                t0,
+                effective_timeout,
+                jitter,
+            )
 
             # Capture git diff before downloading logs (agent may have
             # modified /testbed in SWE-bench and similar tasks).

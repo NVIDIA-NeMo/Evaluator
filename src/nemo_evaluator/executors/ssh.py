@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import atexit
 import logging
 import shlex
 import subprocess
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
-_control_sockets: list[tuple[str, str]] = []
 
 
 class SSHError(RuntimeError):
@@ -21,16 +18,17 @@ def _ssh_opts(target: str) -> list[str]:
     """Return SSH options that enable connection multiplexing.
 
     First call for a given target opens a ControlMaster; subsequent calls
-    reuse it — so the user authenticates only once.
+    reuse it — so the user authenticates only once.  ControlPersist handles
+    automatic teardown after the last client disconnects; we intentionally
+    do NOT register an atexit hook because that would kill the shared socket
+    while other nel processes (e.g. ``nel eval run`` + ``nel eval status``)
+    may still be using it.
     """
     socket_dir = Path.home() / ".ssh" / "nel"
     socket_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     if socket_dir.stat().st_mode & 0o077:
         socket_dir.chmod(0o700)
     control_path = str(socket_dir / "%C")
-
-    if not any(t == target for t, _ in _control_sockets):
-        _control_sockets.append((target, control_path))
 
     return [
         "-o",
@@ -40,21 +38,6 @@ def _ssh_opts(target: str) -> list[str]:
         "-o",
         "ControlPersist=120",
     ]
-
-
-def _cleanup_sockets() -> None:
-    for target, control_path in _control_sockets:
-        try:
-            subprocess.run(
-                ["ssh", "-o", f"ControlPath={control_path}", "-O", "exit", target],
-                capture_output=True,
-                timeout=5,
-            )
-        except Exception:
-            pass
-
-
-atexit.register(_cleanup_sockets)
 
 
 def _run(cmd: list[str], timeout: float = 30.0) -> str:
