@@ -37,7 +37,8 @@ services:
       - "--reasoning-parser-plugin=/reasoning/ultra_v3_reasoning_parser.py"
       - "--reasoning-parser=ultra_v3"
       - "--enable-expert-parallel"
-      - "--max-num-seqs=256"
+      - "--max-num-seqs=64"
+      - "--max-model-len=262144"
       - "--gpu-memory-utilization=0.95"
       - "--model-loader-extra-config={\"enable_multithread_load\":true,\"num_threads\":96}"
       - "--compilation-config={\"pass_config\":{\"fuse_allreduce_rms\":false}}"
@@ -53,7 +54,8 @@ services:
       - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
       - /lustre/fsw/portfolios/coreai/users/${USER}/cache/vllm:/cache/vllm
       - /lustre/fsw/portfolios/coreai/users/gchlebus/shared/evals:/reasoning
-    max_output_tokens: 131072
+    max_input_tokens: 262144
+    max_output_tokens: 262144
     generation:
       temperature: 1.0
       top_p: 1.0
@@ -62,6 +64,8 @@ services:
         chat_template_kwargs:
           enable_thinking: true
         skip_special_tokens: false
+      litellm_settings:
+        request_timeout: 600
       interceptors:
         - name: turn_counter
           config:
@@ -74,29 +78,13 @@ services:
     node_pool: gpu
 
 benchmarks:
-  - name: harbor://swebench-verified@1.0
-    max_concurrent: 20
-    timeout: 10800.0
+  - playbook: swebench_verified
+    repeats: 1
     solver:
-      type: harbor
       service: nemotron-ultra
-      agent: openhands-sdk
-      run_timeout: 7200.0
-      agent_kwargs:
-        max_iterations: 200
-        temperature: 1.0
     sandbox:
-      type: ecs_fargate
       region: us-west-1
-      cpu: "4096"
-      memory: "8192"
-      ephemeral_storage_gib: 50
-      max_task_lifetime_sec: 14400
-      codebuild_build_timeout: 60
-      log_stream_prefix: swebench-verified
       ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
-      timeout: 10800.0
-      concurrency: 20
 
 cluster:
   type: slurm
@@ -104,7 +92,7 @@ cluster:
   account: llmservice_nemotron_ultra
   walltime: "04:00:00"
   shards: 5
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:0.13.1-harbor-arm64
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260401-210552-f50ba4f1-harbor-arm64
   sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
   sbatch_extra_flags:
     switches: 1

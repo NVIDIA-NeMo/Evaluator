@@ -226,6 +226,7 @@ def _make_solver(
             container_env=container_env,
             max_input_tokens=getattr(svc, "max_input_tokens", None),
             max_output_tokens=getattr(svc, "max_output_tokens", None),
+            cmd_timeout=getattr(solver_cfg, "cmd_timeout", None),
         )
 
     if isinstance(solver_cfg, GymDelegationSolverConfig):

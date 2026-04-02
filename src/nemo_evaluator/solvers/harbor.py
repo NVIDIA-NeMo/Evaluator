@@ -173,14 +173,10 @@ async def _download_agent_logs_inner(
             pass
 
 
-async def _patch_openhands_sdk(sandbox: "Sandbox") -> None:
+async def _patch_openhands_sdk(sandbox: "Sandbox", *, cmd_timeout: float | None = None) -> None:
     """Apply runtime patches to the OpenHands SDK inside the sandbox.
 
-    1. **Disable stuck detection** in the runner script — the default
-       detector kills reasoning models that produce ``<think>`` blocks
-       without a tool call.
-
-    2. **Prevent premature FINISHED on text-only responses** in the SDK's
+    1. **Prevent premature FINISHED on text-only responses** in the SDK's
        ``Agent.step()`` — when the LLM produces text without a tool call,
        the SDK sets ``execution_status = FINISHED`` and stops.  Reasoning
        models often produce intermediate text (summaries, status) before
@@ -188,12 +184,12 @@ async def _patch_openhands_sdk(sandbox: "Sandbox") -> None:
        the agent explicitly calls ``finish`` or hits ``max_iterations``.
        (Upstream: OpenHands/software-agent-sdk#1349)
 
-    3. **Capture reasoning in ATIF trajectory** — the runner's event
+    2. **Capture reasoning in ATIF trajectory** — the runner's event
        serialization drops ``reasoning_content`` / ``thinking_blocks``.
        We patch both the event→dict conversion and the ``build_trajectory``
        step builder so reasoning appears in the output JSON.
 
-    4. **Preserve reasoning in conversation history** — vLLM's
+    3. **Preserve reasoning in conversation history** — vLLM's
        ``ultra_v3`` reasoning parser can swallow ``<tool_call>`` blocks
        that appear inside ``<think>`` tags, putting them into
        ``reasoning_content`` instead of ``tool_calls``.  The SDK then
@@ -203,57 +199,76 @@ async def _patch_openhands_sdk(sandbox: "Sandbox") -> None:
        ``Message.to_chat_dict()`` to wrap ``reasoning_content`` in
        ``<think>`` tags and prepend it to the ``content`` field — the
        same approach used by NeMo Gym's middleware.
+
+    4. **Enforce 300 s hard timeout on terminal commands** — the SDK's
+       terminal tool only applies a hard timeout when the model explicitly
+       passes a ``timeout`` parameter.  Without it, a command that keeps
+       producing output (e.g. a long test run) can consume the entire
+       ``run_timeout`` budget.  We patch the execution loop to impose a
+       300 s ceiling on every command, matching the reference setup.
+
     """
-    # -- Patch 1: stuck detection off in runner --------------------------
-    r1 = await sandbox.exec(
-        'python3 -c "'
-        "p='/installed-agent/run_agent.py';"
-        "c=open(p).read();"
-        "old='conversation = Conversation(**conv_kwargs)';"
-        "new='conv_kwargs[\\\"stuck_detection\\\"]=False\\n    conversation = Conversation(**conv_kwargs)';"
-        "open(p,'w').write(c.replace(old,new,1));"
-        "print('stuck_detection disabled' if old in c else 'pattern not found')"
-        '"',
+    # -- Patch 0: disable stuck detection --------------------------------
+    _stuck_script = (
+        "p = '/installed-agent/run_agent.py'\n"
+        "c = open(p).read()\n"
+        "old = 'conversation = Conversation(**conv_kwargs)'\n"
+        'new = \'conv_kwargs["stuck_detection"] = False\\n'
+        "    conversation = Conversation(**conv_kwargs)'\n"
+        "if old in c:\n"
+        "    open(p, 'w').write(c.replace(old, new, 1))\n"
+        "    print('stuck_detection disabled')\n"
+        "else:\n"
+        "    print('pattern not found')\n"
+    )
+    encoded0 = base64.b64encode(_stuck_script.encode()).decode()
+    r0 = await sandbox.exec(
+        f"echo {encoded0} | base64 -d | python3",
         timeout_sec=10,
     )
-    logger.info("Runner patch: %s", (r1.stdout or "").strip())
+    logger.info("Runner patch: %s", (r0.stdout or "").strip())
 
-    # -- Patch 2: don't FINISHED on text-only responses ------------------
+    # -- Patch 1: don't FINISHED on text-only responses ------------------
     # In agent.py, when the LLM produces text without a tool call the SDK
     # sets execution_status=FINISHED and returns — killing the agent.
     # We replace the 6-line block with a no-op so execution continues
     # until finish() or max_iterations.  We also widen the nudge to
     # always fire (not just for empty responses), so the model knows it
     # must use a tool.
+    _agent_patch_script = """\
+import glob
+fs = glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/agent/agent.py')
+p = fs[0] if fs else ''
+assert p, 'agent.py not found'
+c = open(p).read()
+
+old1 = (
+    '        # Finish conversation if LLM produced content (awaits user input)\\n'
+    '        # Continue if only reasoning without content (e.g., GPT-5 codex thinking)\\n'
+    '        if has_content:\\n'
+    '            logger.debug("LLM produced a message response - awaits user input")\\n'
+    '            state.execution_status = ConversationExecutionStatus.FINISHED\\n'
+    '            return'
+)
+new1 = (
+    '        # [NEL] text-only response: continue instead of FINISHED\\n'
+    '        if has_content:\\n'
+    '            logger.debug("LLM produced text without tool call - continuing (NEL)")'
+)
+old2 = '        if not has_content:'
+new2 = '        if True:  # [NEL] always nudge when no tool call'
+
+ok1 = old1 in c
+c2 = c.replace(old1, new1, 1) if ok1 else c
+ok2 = old2 in c2
+c3 = c2.replace(old2, new2, 1) if ok2 else c2
+if ok1 or ok2:
+    open(p, 'w').write(c3)
+print(f'agent.py FINISHED={ok1} nudge={ok2} at {p}')
+"""
+    encoded1 = base64.b64encode(_agent_patch_script.encode()).decode()
     r2 = await sandbox.exec(
-        'python3 -c "'
-        "import glob;"
-        "fs=glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/agent/agent.py');"
-        "p=fs[0] if fs else '';"
-        "assert p, 'agent.py not found';"
-        "c=open(p).read();"
-        "old1=("
-        "'        # Finish conversation if LLM produced content (awaits user input)\\n'"
-        "'        # Continue if only reasoning without content (e.g., GPT-5 codex thinking)\\n'"
-        "'        if has_content:\\n'"
-        "'            logger.debug(\\\"LLM produced a message response - awaits user input\\\")\\n'"
-        "'            state.execution_status = ConversationExecutionStatus.FINISHED\\n'"
-        "'            return'"
-        ");"
-        "new1=("
-        "'        # [NEL] text-only response: continue instead of FINISHED\\n'"
-        "'        if has_content:\\n'"
-        "'            logger.debug(\\\"LLM produced text without tool call - continuing (NEL)\\\")'"
-        ");"
-        "old2='        if not has_content:';"
-        "new2='        if True:  # [NEL] always nudge when no tool call';"
-        "ok1=old1 in c;"
-        "c2=c.replace(old1,new1,1) if ok1 else c;"
-        "ok2=old2 in c2;"
-        "c3=c2.replace(old2,new2,1) if ok2 else c2;"
-        "open(p,'w').write(c3) if (ok1 or ok2) else None;"
-        "print(f'agent.py FINISHED={ok1} nudge={ok2} at {p}')"
-        '"',
+        f"echo {encoded1} | base64 -d | python3",
         timeout_sec=10,
     )
     stdout2 = (r2.stdout or "").strip()
@@ -265,7 +280,7 @@ async def _patch_openhands_sdk(sandbox: "Sandbox") -> None:
             stdout2 or (r2.stderr or "")[:300],
         )
 
-    # -- Patch 3: capture reasoning in ATIF trajectory ---------------------
+    # -- Patch 2: capture reasoning in ATIF trajectory ---------------------
     # The runner converts SDK events → intermediate dicts → ATIF steps but
     # never copies reasoning_content / thinking_blocks.  We add it at both
     # the event-conversion and the step-building stages.
@@ -351,7 +366,7 @@ print(f'reasoning: msg={ok_a} action={ok_b} traj={ok_c}')
             stdout3 or (r3.stderr or "")[:300],
         )
 
-    # -- Patch 4: preserve reasoning_content in conversation history -------
+    # -- Patch 3: preserve reasoning_content in conversation history -------
     # When send_reasoning_content is False (nemotron is not in the list),
     # the SDK silently drops reasoning_content from assistant messages.
     # We patch to_chat_dict() to wrap it in <think> tags and prepend to
@@ -411,6 +426,74 @@ print(f'reasoning_in_content={ok} at {p}')
             r4.return_code,
             stdout4 or (r4.stderr or "")[:300],
         )
+
+    # -- Patch 4: hard timeout ceiling on terminal commands ------------------
+    if cmd_timeout is not None and cmd_timeout > 0:
+        _cmd_timeout_script = f"""\
+import glob, sys
+fs = glob.glob(
+    '/opt/openhands-sdk-venv/lib/python*/site-packages/'
+    'openhands/tools/terminal/terminal/terminal_session.py'
+)
+p = fs[0] if fs else ''
+assert p, 'terminal_session.py not found'
+c = open(p).read()
+
+_MAX = {cmd_timeout!r}
+
+old = (
+    '            if action.timeout is not None:\\n'
+    '                time_since_start = time.time() - start_time\\n'
+    '                if time_since_start >= action.timeout:\\n'
+    '                    obs = self._handle_hard_timeout_command(\\n'
+    '                        command,\\n'
+    '                        terminal_content=cur_terminal_output,\\n'
+    '                        ps1_matches=ps1_matches,\\n'
+    '                        timeout=action.timeout,\\n'
+    '                    )\\n'
+    '                    logger.debug(f\\"RETURNING OBSERVATION (hard-timeout): {{obs}}\\")\\n'
+    '                    return obs'
+)
+
+new = (
+    '            _NEL_MAX = ' + str(_MAX) + '  # [NEL] hard ceiling on any command\\n'
+    '            _eff_timeout = (\\n'
+    '                min(action.timeout, _NEL_MAX)\\n'
+    '                if action.timeout is not None\\n'
+    '                else _NEL_MAX\\n'
+    '            )\\n'
+    '            if elapsed_time >= _eff_timeout:\\n'
+    '                obs = self._handle_hard_timeout_command(\\n'
+    '                    command,\\n'
+    '                    terminal_content=cur_terminal_output,\\n'
+    '                    ps1_matches=ps1_matches,\\n'
+    '                    timeout=_eff_timeout,\\n'
+    '                )\\n'
+    '                logger.debug(f\\"RETURNING OBSERVATION (hard-timeout): {{obs}}\\")\\n'
+    '                return obs'
+)
+
+ok = old in c
+if ok:
+    c = c.replace(old, new, 1)
+    open(p, 'w').write(c)
+print(f'cmd_timeout_{{_MAX}}s={{ok}} at {{p}}')
+"""
+        encoded5 = base64.b64encode(_cmd_timeout_script.encode()).decode()
+        r5 = await sandbox.exec(
+            f"echo {encoded5} | base64 -d | python3",
+            timeout_sec=10,
+        )
+        stdout5 = (r5.stdout or "").strip()
+        logger.info("Cmd timeout patch (%ss): %s", cmd_timeout, stdout5)
+        if r5.return_code != 0 or "False" in stdout5:
+            logger.warning(
+                "Cmd timeout patch problem (rc=%d): %s",
+                r5.return_code,
+                stdout5 or (r5.stderr or "")[:300],
+            )
+    else:
+        logger.info("Cmd timeout patch: skipped (cmd_timeout not configured)")
 
 
 # ---------------------------------------------------------------------------
@@ -619,6 +702,7 @@ class HarborSolver:
         container_env: dict[str, str] | None = None,
         max_input_tokens: int | None = None,
         max_output_tokens: int | None = None,
+        cmd_timeout: float | None = None,
     ) -> None:
         _check_harbor_installed()
         self._harbor_agent = harbor_agent
@@ -627,6 +711,7 @@ class HarborSolver:
         self._model_id = model_id
         self._timeout = timeout
         self._run_timeout = run_timeout or timeout
+        self._cmd_timeout = cmd_timeout
         self._container_env = dict(container_env or {})
         self._container_env.setdefault("PIP_INDEX_URL", "https://pypi.org/simple")
         self._container_env.setdefault("LITELLM_LOG", "ERROR")
@@ -731,8 +816,13 @@ class HarborSolver:
                     "  echo 'System python3 is >=3.12, no shim needed'; "
                     "else "
                     "  OLD_PY3=$(which python3 2>/dev/null || echo '') && "
-                    "  apt-get update -qq && apt-get install -y -qq curl coreutils && "
-                    "  curl -LsSf https://astral.sh/uv/install.sh | sh && "
+                    "  (command -v curl >/dev/null 2>&1 || "
+                    "    (apt-get update -qq && apt-get install -y -qq curl) 2>/dev/null || "
+                    "    apk add --no-cache curl 2>/dev/null || "
+                    "    yum install -y curl 2>/dev/null || "
+                    "    dnf install -y curl 2>/dev/null || "
+                    "    true) && "
+                    "  (curl -LsSf https://astral.sh/uv/install.sh || wget -qO- https://astral.sh/uv/install.sh) | sh && "
                     '  export PATH="$HOME/.local/bin:$PATH" && '
                     "  uv python install 3.13 && "
                     "  mkdir -p /usr/local/bin && "
@@ -764,7 +854,7 @@ class HarborSolver:
             await agent.setup(adapter)
 
             if self._harbor_agent.lower() == "openhands-sdk":
-                await _patch_openhands_sdk(sandbox)
+                await _patch_openhands_sdk(sandbox, cmd_timeout=self._cmd_timeout)
 
             context = AgentContext()
 
@@ -844,11 +934,12 @@ class HarborSolver:
 
             latency_ms = (time.monotonic() - t0) * 1000
 
-            # Timeout with zero progress → raise so the eval loop retries
-            # on a fresh sandbox (the model may have been temporarily down).
-            # Timeout WITH partial work → return normally for verification.
+            # Timeout with zero progress → graceful error (reward 0, no retry).
+            # Retrying is wasteful: the same task consistently fails (likely
+            # vLLM KV-cache exhaustion or prompt-specific issue), and each
+            # retry burns another full run_timeout (5400 s) with 0 output.
             if agent_timed_out and not workspace_diff and prompt_tokens + completion_tokens == 0:
-                raise RuntimeError(
+                raise GracefulError(
                     f"Agent made no progress before run_timeout ({self._run_timeout:.0f}s). Model may be unreachable."
                 )
 
