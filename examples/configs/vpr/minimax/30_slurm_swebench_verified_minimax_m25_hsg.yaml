@@ -1,11 +1,11 @@
-# SLURM + vLLM (MiniMax M2.5) + SWE-bench Verified + ECS Fargate
-# CW-DFW cluster — single node (1 node × 8 GPUs = tp=8)
+# SLURM + vLLM Ray (MiniMax M2.5) + SWE-bench Verified + ECS Fargate
+# HSG cluster — multi-node (2 nodes × 4 GPUs = tp=8 via Ray)
 #
-# Deploys vLLM on a single CW-DFW node, evaluates swebench-verified
+# Deploys vLLM across 2 HSG nodes using Ray, evaluates swebench-verified
 # with the OpenHands-SDK agent. ECS Fargate provides sandboxed envs.
 #
 # Prerequisites:
-#   - CW-DFW SLURM cluster access
+#   - HSG SLURM cluster access (oci-hsg-cs-001)
 #   - AWS credentials: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
 #   - HF_TOKEN for model download
 #   - pip install nemo-evaluator[harbor]
@@ -21,8 +21,9 @@ services:
     served_model_name: minimax-m25
     protocol: chat_completions
     port: 5000
-    tensor_parallel_size: 8
+    tensor_parallel_size: 4
     data_parallel_size: 1
+    num_nodes: 1
     image: vllm/vllm-openai:v0.18.0-cu130
     startup_timeout: 3600.0
     extra_args:
@@ -69,18 +70,21 @@ benchmarks:
     solver:
       service: minimax-m25
     sandbox:
-      region: us-west-1
+      region: ca-central-1
       ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
 
 cluster:
   type: slurm
-  hostname: cw-dfw-cs-001-login-01
-  account: coreai_dlalgo_compeval
+  hostname: oci-hsg-cs-001-login-01.nvidia.com
+  account: llmservice_nemotron_ultra
   walltime: "04:00:00"
   shards: 5
   auto_resume: true
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260402-113114-13f3322f-harbor-amd64
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260402-192501-aa6d17a2-harbor-arm64
   sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
+  sbatch_extra_flags:
+    switches: 1
+    exclusive: true
   container_mounts:
     - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
   container_env:
@@ -95,7 +99,7 @@ cluster:
       partition: batch
       nodes: 1
       ntasks_per_node: 1
-      gres: "gpu:8"
+      gpus_per_node: 4
 
 output:
   dir: /lustre/fsw/portfolios/coreai/users/${USER}/nemo-evaluator-rundirs/minimax-m25/swebench-verified
