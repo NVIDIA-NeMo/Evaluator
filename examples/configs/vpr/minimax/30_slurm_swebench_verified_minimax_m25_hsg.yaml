@@ -66,7 +66,7 @@ services:
 
 benchmarks:
   - playbook: swebench_verified
-    repeats: 1
+    repeats: 3
     solver:
       service: minimax-m25
     sandbox:
@@ -80,7 +80,7 @@ cluster:
   walltime: "04:00:00"
   shards: 5
   auto_resume: true
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260402-192501-aa6d17a2-harbor-arm64
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:0.15.0-harbor-arm64
   sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
   sbatch_extra_flags:
     switches: 1

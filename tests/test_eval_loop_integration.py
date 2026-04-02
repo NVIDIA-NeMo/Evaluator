@@ -121,3 +121,71 @@ class TestRunEvaluationIntegration:
         solver = _MockSolver()
         asyncio.run(run_evaluation(env, solver, n_repeats=1))
         assert closed, "env.close() was not called"
+
+    def test_skip_failed_continues(self):
+        """With skip_failed=True, failing tasks don't abort the run."""
+
+        class _FailingSolver:
+            async def solve(self, task):
+                if task.expected_answer == "3":
+                    raise RuntimeError("kaboom")
+                return SolveResult(response=task.expected_answer)
+
+            async def close(self):
+                pass
+
+        env = _MockEnv()
+        solver = _FailingSolver()
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1, skip_failed=True))
+        results = bundle["_results"]
+        assert len(results) == 3
+
+    def test_problem_range(self):
+        env = _MockEnv()
+        solver = _MockSolver()
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1, problem_range=(1, 3)))
+        results = bundle["_results"]
+        assert len(results) == 2
+
+    def test_shard_info(self):
+        env = _MockEnv()
+        solver = _MockSolver()
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1, shard_info=(0, 2)))
+        results = bundle["_results"]
+        assert 0 < len(results) <= 3
+
+    def test_all_wrong_zero_score(self):
+        class _WrongSolver:
+            async def solve(self, task):
+                return SolveResult(response="wrong-always")
+
+            async def close(self):
+                pass
+
+        env = _MockEnv()
+        solver = _WrongSolver()
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1))
+        scores = bundle["benchmark"]["scores"]
+        assert scores["pass@1"]["value"] == 0.0
+
+    def test_all_correct_perfect_score(self):
+        class _PerfectSolver:
+            async def solve(self, task):
+                return SolveResult(response=task.expected_answer)
+
+            async def close(self):
+                pass
+
+        env = _MockEnv()
+        solver = _PerfectSolver()
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1))
+        scores = bundle["benchmark"]["scores"]
+        assert scores["pass@1"]["value"] == 1.0
+
+    def test_concurrent_execution(self):
+        """Multiple concurrent tasks should produce correct result count."""
+        env = _MockEnv()
+        solver = _MockSolver()
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=2, max_concurrent=8))
+        results = bundle["_results"]
+        assert len(results) == 6

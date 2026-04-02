@@ -31,6 +31,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import tempfile
 from dataclasses import dataclass, field
 
@@ -323,7 +324,9 @@ class SandboxToolBackend:
         if not path:
             return ToolResult(content="No path provided.", is_error=True)
 
-        tmp = Path(tempfile.mktemp(suffix=".download"))
+        fd, tmp_str = tempfile.mkstemp(suffix=".download")
+        os.close(fd)
+        tmp = Path(tmp_str)
         self._tmp_files.append(tmp)
         try:
             await self._sandbox.download(path, tmp)
@@ -340,7 +343,9 @@ class SandboxToolBackend:
         if not path:
             return ToolResult(content="No path provided.", is_error=True)
 
-        tmp = Path(tempfile.mktemp(suffix=".upload"))
+        fd, tmp_str = tempfile.mkstemp(suffix=".upload")
+        os.close(fd)
+        tmp = Path(tmp_str)
         self._tmp_files.append(tmp)
         try:
             tmp.write_text(content)

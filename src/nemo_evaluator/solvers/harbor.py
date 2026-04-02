@@ -152,7 +152,9 @@ async def _download_agent_logs_inner(
 
     import tarfile
 
-    local_tar = Path(tempfile.mktemp(suffix=".tar.gz"))
+    fd, _tmp = tempfile.mkstemp(suffix=".tar.gz")
+    os.close(fd)
+    local_tar = Path(_tmp)
     try:
         last_err: Exception | None = None
         for attempt in range(1, max_retries + 1):

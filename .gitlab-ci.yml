@@ -43,6 +43,8 @@ test-offline:
       --cov --cov-report=term --cov-report=xml:coverage.xml
   coverage: '/(?i)total.*?(\d+(?:\.\d+)?\%)/'
   artifacts:
+    paths:
+      - coverage.xml
     reports:
       junit: report-offline.xml
       coverage_report:

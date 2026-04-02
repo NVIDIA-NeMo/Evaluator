@@ -111,6 +111,9 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
     "network: tests that download from HF or hit external services (deselect via: -m 'not network')",
+    "integration: integration tests that wire real components together",
+    "slow: tests that take > 30s (deselect via: -m 'not slow')",
+    "e2e: end-to-end smoke tests requiring infrastructure",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
