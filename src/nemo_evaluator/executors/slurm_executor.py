@@ -324,7 +324,7 @@ class SlurmExecutor(Executor):
         from nemo_evaluator.orchestration.slurm_gen import stamp_output_dir, write_sbatch
 
         parent_dir = config.output.dir
-        stamp_output_dir(config)
+        stamped_run_id = stamp_output_dir(config)
         resolved_dir = config.output.dir  # may now include timestamped subdir
 
         is_remote = bool(config.cluster.hostname)
@@ -408,7 +408,7 @@ class SlurmExecutor(Executor):
             if not job_ids:
                 raise click.ClickException(f"No shards submitted: {submission_error}")
 
-            run_id = generate_run_id(config)
+            run_id = stamped_run_id or generate_run_id(config)
             run_meta = RunMeta(
                 run_id=run_id,
                 executor="slurm",

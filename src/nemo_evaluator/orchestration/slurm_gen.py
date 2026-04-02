@@ -1337,19 +1337,24 @@ def generate_sbatch(
     return script, sidecar_configs, secrets_result
 
 
-def stamp_output_dir(config: EvalConfig) -> None:
+def stamp_output_dir(config: EvalConfig) -> str | None:
     """Append a timestamped run-ID subdirectory to config.output.dir.
 
     Called once before write_sbatch / generate_sbatch so the timestamped
     path is baked into the sbatch script and all metadata.  Skipped when
     running inside a SLURM job (NEL_INNER_EXECUTION=1) or when the user
     has opted out (output.timestamped=false).
+
+    Returns the generated run_id so callers can reuse it (avoids a second
+    call to generate_run_id producing a different timestamp).
     """
     if not config.output.timestamped or os.environ.get("NEL_INNER_EXECUTION") == "1":
-        return
+        return None
     from nemo_evaluator.run_store import generate_run_id
 
-    config.output.dir = str(Path(config.output.dir) / generate_run_id(config))
+    rid = generate_run_id(config)
+    config.output.dir = str(Path(config.output.dir) / rid)
+    return rid
 
 
 def _write_single_script(
