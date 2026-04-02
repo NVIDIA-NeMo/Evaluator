@@ -120,7 +120,6 @@ jobs:
     needs: [pre-flight, cicd-wait-in-queue, validate-container-digests]
     runs-on: ubuntu-latest
     name: unit-tests
-    environment: nemo-ci
     if: |
       (
         success()
@@ -144,7 +143,6 @@ jobs:
     needs: [pre-flight, cicd-wait-in-queue, validate-container-digests]
     runs-on: ubuntu-latest
     name: unit-tests-launcher
-    environment: nemo-ci
     if: |
       (
         success()
@@ -165,11 +163,9 @@ jobs:
           package: nemo-evaluator-launcher
 
   cicd-e2e-tests-nemo-evaluator:
-    needs:
-      [pre-flight, cicd-unit-tests-nemo-evaluator, validate-container-digests]
+    needs: [pre-flight, cicd-unit-tests-nemo-evaluator, validate-container-digests]
     runs-on: ubuntu-latest
     name: functional-tests
-    environment: nemo-ci
     if: |
       (
         success()
@@ -278,7 +274,6 @@ jobs:
       )
       && needs.pre-flight.outputs.is_ci_workload == 'false'
       && !cancelled()
-    environment: nemo-ci
     steps:
       - name: Generate fake coverage report
         uses: actions/github-script@v8
