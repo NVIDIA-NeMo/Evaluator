@@ -1,3 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Local suite runner."""
 
 from __future__ import annotations
@@ -58,14 +72,8 @@ def _drain_pipe_to_file(pipe: IO[bytes], log_path: Path) -> threading.Thread:
     return t
 
 
-def _serialize_interceptors(interceptors: list[InterceptorConfig]) -> list:
-    result: list[str | dict] = []
-    for ic in interceptors:
-        if ic.config:
-            result.append({ic.name: ic.config})
-        else:
-            result.append(ic.name)
-    return result
+def _interceptor_specs(interceptors: list[InterceptorConfig]) -> list[dict]:
+    return [{"name": ic.name, "config": ic.config} for ic in interceptors]
 
 
 def _resolve_generation(config: EvalConfig, solver_cfg: Any) -> GenerationConfig:
@@ -650,16 +658,19 @@ async def _run_single_benchmark(
     proxy_handle = None
     proxy_cfg = getattr(svc, "proxy", None) if svc else None
     if proxy_cfg is not None and proxy_cfg.needs_proxy:
-        from nemo_evaluator.orchestration.proxy import start_proxy
+        from nemo_evaluator.adapters.proxy import start_adapter_proxy
 
-        proxy_handle = start_proxy(
-            model_url,
-            model_id,
-            api_key,
-            interceptors=_serialize_interceptors(proxy_cfg.interceptors),
+        proxy_handle = start_adapter_proxy(
+            upstream_url=model_url,
+            model_id=model_id,
+            api_key=api_key,
+            interceptor_specs=_interceptor_specs(proxy_cfg.interceptors),
             verbose=proxy_cfg.verbose,
             extra_body=proxy_cfg.extra_body or None,
-            litellm_settings=proxy_cfg.litellm_settings or None,
+            request_timeout=proxy_cfg.request_timeout,
+            max_retries=proxy_cfg.max_retries,
+            retry_on_status=proxy_cfg.retry_on_status,
+            max_concurrent_upstream=proxy_cfg.max_concurrent_upstream,
         )
         model_url = proxy_handle.url
 

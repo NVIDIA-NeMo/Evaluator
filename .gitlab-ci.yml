@@ -16,6 +16,7 @@ stages:
   - build
   - containers
   - deploy
+  - sonar
 
 variables:
   REGISTRY: "${CI_REGISTRY_IMAGE}"
@@ -353,3 +354,28 @@ container-full-arm64:
         docker tag "${REGISTRY}:${TAG}-full-arm64" "${REGISTRY}:latest-full-arm64"
         docker push "${REGISTRY}:latest-full-arm64"
       fi
+
+# ---------------------------------------------------------------------------
+# SonarQube
+# ---------------------------------------------------------------------------
+
+sonarqube:
+  stage: sonar
+  image:
+    name: sonarsource/sonar-scanner-cli:latest
+    entrypoint: [""]
+  needs:
+    - job: test-offline
+      artifacts: true
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+    GIT_DEPTH: "0"
+  cache:
+    key: sonar
+    paths:
+      - .sonar/cache
+  script:
+    - sonar-scanner
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"

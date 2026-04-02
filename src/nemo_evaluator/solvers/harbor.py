@@ -1,3 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """HarborSolver: runs Harbor-compatible agents inside a nel Sandbox."""
 
 from __future__ import annotations
@@ -62,9 +76,8 @@ def _ensure_env(api_key: str | None, model_url: str | None, model_id: str | None
     unsafe here because ``os.environ`` is process-global and concurrent
     tasks would clobber each other's cleanup.
 
-    Harbor uses litellm as its LLM layer, so ``LLM_MODEL`` gets the
-    ``openai/`` prefix when a custom ``model_url`` is set (litellm needs
-    the provider hint for OpenAI-compatible endpoints).
+    ``LLM_MODEL`` gets the ``openai/`` prefix when a custom ``model_url``
+    is set (the provider hint is needed for OpenAI-compatible endpoints).
     """
     key = _resolve_api_key(api_key)
     if not key:

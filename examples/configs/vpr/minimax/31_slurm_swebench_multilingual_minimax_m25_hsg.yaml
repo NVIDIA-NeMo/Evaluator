@@ -1,0 +1,100 @@
+# SLURM + vLLM (MiniMax M2.5) + SWE-bench Multilingual + ECS Fargate
+# CW-DFW cluster — single node (1 node × 8 GPUs = tp=8)
+#
+# Deploys vLLM on a single CW-DFW node, evaluates swebench-multilingual
+# with the OpenHands-SDK agent. ECS Fargate provides sandboxed envs.
+#
+# Prerequisites:
+#   - CW-DFW SLURM cluster access
+#   - AWS credentials: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+#   - HF_TOKEN for model download
+#   - pip install nemo-evaluator[harbor]
+#
+# Run:
+#   nel eval run examples/configs/vpr/minimax/31_slurm_swebench_multilingual_minimax_m25_hsg.yaml --dry-run
+#   nel eval run examples/configs/vpr/minimax/31_slurm_swebench_multilingual_minimax_m25_hsg.yaml
+
+services:
+  minimax-m25:
+    type: vllm
+    model: MiniMaxAI/MiniMax-M2.5
+    served_model_name: minimax-m25
+    protocol: chat_completions
+    port: 5000
+    tensor_parallel_size: 8
+    data_parallel_size: 1
+    image: vllm/vllm-openai:v0.18.0-cu130
+    startup_timeout: 3600.0
+    extra_args:
+      - "--enable-prefix-caching"
+      - "--enable-log-requests"
+      - "--trust-remote-code"
+      - "--enable-auto-tool-choice"
+      - "--tool-call-parser=minimax_m2"
+      - "--reasoning-parser=minimax_m2_append_think"
+      - "--enable-expert-parallel"
+      - "--async-scheduling"
+      - "--gpu-memory-utilization=0.9"
+      - "--seed=1"
+      - "--model-loader-extra-config={\"enable_multithread_load\":true,\"num_threads\":48}"
+    extra_env:
+      VLLM_CACHE_ROOT: /cache/vllm
+      VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+      HF_HOME: /cache/huggingface
+      HF_TOKEN: ${HF_TOKEN}
+    container_mounts:
+      - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
+      - /lustre/fsw/portfolios/coreai/users/${USER}/cache/vllm:/cache/vllm
+    generation:
+      temperature: 1.0
+      top_p: 1.0
+    proxy:
+      extra_body:
+        skip_special_tokens: false
+      request_timeout: 600
+      interceptors:
+        - name: turn_counter
+          config:
+            max_turns: 200
+        - name: drop_params
+          config:
+            params:
+              - max_tokens
+              - max_completion_tokens
+    node_pool: gpu
+
+benchmarks:
+  - playbook: swebench_multilingual
+    solver:
+      service: minimax-m25
+    sandbox:
+      region: us-west-1
+      ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
+
+cluster:
+  type: slurm
+  hostname: cw-dfw-cs-001-login-01
+  account: coreai_dlalgo_compeval
+  walltime: "04:00:00"
+  shards: 3
+  auto_resume: true
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260402-192501-aa6d17a2-harbor-arm64
+  sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
+  container_mounts:
+    - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
+  container_env:
+    HF_TOKEN: ${HF_TOKEN}
+    HF_HOME: /cache/huggingface
+    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    AWS_DEFAULT_REGION: us-west-2
+  mount_home: false
+  node_pools:
+    gpu:
+      partition: batch
+      nodes: 1
+      ntasks_per_node: 1
+      gres: "gpu:8"
+
+output:
+  dir: /lustre/fsw/portfolios/coreai/users/${USER}/nemo-evaluator-rundirs/minimax-m25/swebench-multilingual

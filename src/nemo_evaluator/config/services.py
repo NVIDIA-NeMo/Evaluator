@@ -1,3 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Service configuration schemas (vLLM, SGLang, NIM, external API, Gym, NAT, custom)."""
 
 from __future__ import annotations
@@ -38,7 +52,7 @@ class GenerationConfig(BaseModel):
 
 
 class InterceptorConfig(BaseModel):
-    """A LiteLLM interceptor attached to a service's proxy."""
+    """An interceptor attached to a service's adapter proxy."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -47,18 +61,12 @@ class InterceptorConfig(BaseModel):
 
 
 class ProxyConfig(BaseModel):
-    """LiteLLM proxy settings for a service.
+    """Adapter proxy settings for a service.
 
-    All proxy-related configuration lives here so each service can
-    independently configure its proxy sidecar.  The key is optional on
-    the service — omit it entirely when no proxy is needed.
-
-    ``extra_body`` is merged into ``litellm_params.extra_body`` in the
-    generated proxy YAML config — use it for provider-specific fields
-    (e.g. ``chat_template_kwargs``, ``skip_special_tokens``).
-
-    ``litellm_settings`` is merged into the top-level ``litellm_settings``
-    block — use it for any LiteLLM knobs (``num_retries``, etc.).
+    ``extra_body`` is merged into every outgoing request body.
+    ``request_timeout`` sets the HTTP timeout for upstream requests.
+    ``max_retries`` and ``retry_on_status`` control retry behavior.
+    ``max_concurrent_upstream`` limits concurrent requests to the upstream.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -66,12 +74,15 @@ class ProxyConfig(BaseModel):
     interceptors: list[InterceptorConfig] = Field(default_factory=list)
     verbose: bool = False
     extra_body: dict[str, Any] = Field(default_factory=dict)
-    litellm_settings: dict[str, Any] = Field(default_factory=dict)
+    request_timeout: float = 120.0
+    max_retries: int = 0
+    retry_on_status: list[int] = Field(default_factory=lambda: [429, 502, 503, 504])
+    max_concurrent_upstream: int = 64
 
     @property
     def needs_proxy(self) -> bool:
         """Whether any proxy-relevant config is present."""
-        return bool(self.interceptors or self.extra_body or self.litellm_settings or self.verbose)
+        return bool(self.interceptors or self.extra_body or self.verbose)
 
 
 class _ModelServerBase(BaseModel):
