@@ -21,7 +21,7 @@ def generate_gate_report(report_dict: dict[str, Any]) -> str:
     lines: list[str] = []
     _w = lines.append
 
-    verdict = report_dict.get("verdict", "GO")
+    verdict = report_dict.get("verdict", "ERROR")
     reasons = report_dict.get("verdict_reasons", [])
     warnings = report_dict.get("warnings", [])
     benchmarks = report_dict.get("benchmarks", [])

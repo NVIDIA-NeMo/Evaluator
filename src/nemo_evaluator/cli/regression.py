@@ -64,7 +64,7 @@ def _resolve_bundle(path_str: str) -> str:
     "--max-drop", "-t", "threshold", type=float, default=0.05,
     help="Maximum allowed absolute drop in any metric (0-1 scale, default: 0.05 = 5%%).",
 )
-@click.option("--strict", is_flag=True, help="Exit non-zero on BLOCK (exit 1) or WARN (exit 2).")
+@click.option("--strict/--no-strict", default=True, help="Exit non-zero on BLOCK (exit 1) or WARN/INCONCLUSIVE (exit 2). Default: strict. Use --no-strict for interactive exploration. For multi-benchmark policies, see 'nel gate'.")
 @click.option(
     "--correct-above", "reward_threshold", type=float, default=0.0,
     help="Reward above this counts as 'correct' for flip analysis. Use 0.5 for judge scores. Default: >0.",

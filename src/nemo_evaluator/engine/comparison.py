@@ -798,7 +798,7 @@ def _compute_verdict(
     """
     s = report.flip_report.summary if report.flip_report else None
     if s is None:
-        return "PASS", ["no paired data available"]
+        return "INCONCLUSIVE", ["no paired data available; cannot determine regression status"]
 
     # Extract p-value, significance, and effect size from whichever test was used
     p_value: float | None = None
@@ -828,7 +828,7 @@ def _compute_verdict(
         effect_size = m.effect_size
         n_discordant = m.n_discordant
     else:
-        return "PASS", ["no paired data available"]
+        return "INCONCLUSIVE", ["no test result available; cannot determine regression status"]
 
     if p_value is None:
         return "INCONCLUSIVE", ["scipy not installed; statistical test skipped (install nemo-evaluator[stats])"]
@@ -837,9 +837,9 @@ def _compute_verdict(
     if n_discordant == 0:
         return "PASS", ["no discordant pairs; baseline and candidate produced identical per-sample results"]
 
-    # Power check
+    # Power check: INCONCLUSIVE if test can't detect regressions within 2x the threshold
     mde = mde_estimate(n_discordant)
-    underpowered = mde > min_effect * 10
+    underpowered = mde > min_effect * 2
 
     reasons: list[str] = []
 
@@ -853,9 +853,12 @@ def _compute_verdict(
         return "WARN", reasons
 
     if underpowered and s.n_paired > 0:
+        n_needed = max(1, int((2.8 / min_effect) ** 2))
         reasons.append(
             f"Test underpowered: {n_discordant} discordant pairs can detect "
-            f"~{mde * 100:.1f}% regression at 80% power, but practical threshold is {min_effect * 100:.1f}%"
+            f"~{mde * 100:.1f}% regression at 80% power, but practical threshold is {min_effect * 100:.1f}%. "
+            f"Need ~{n_needed} discordant pairs to detect {min_effect * 100:.1f}%. "
+            f"Increase sample size, add repeats, or use a higher-N proxy benchmark."
         )
         return "INCONCLUSIVE", reasons
 

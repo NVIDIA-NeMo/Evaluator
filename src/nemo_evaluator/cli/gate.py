@@ -65,9 +65,9 @@ def _resolve_results_dir(path_str: str) -> Path:
     help="Output format. 'json' writes structured JSON to stdout.",
 )
 @click.option(
-    "--strict",
-    is_flag=True,
-    help="Exit non-zero on NO-GO (exit 1) or INCONCLUSIVE (exit 2).",
+    "--strict/--no-strict",
+    default=True,
+    help="Exit non-zero on NO-GO (exit 1) or INCONCLUSIVE (exit 2). Default: strict. Use --no-strict for interactive exploration.",
 )
 @click.option(
     "--verbose",
@@ -97,7 +97,11 @@ def gate_cmd(
     report_path: str | None,
     no_report: bool,
 ) -> None:
-    """Apply a multi-benchmark release policy to baseline and candidate results."""
+    """Apply a multi-benchmark release policy to baseline and candidate results.
+
+    Verdicts: GO (all pass), NO-GO (any breach/missing), INCONCLUSIVE (insufficient evidence).
+    To investigate a specific benchmark, use 'nel compare'.
+    """
     try:
         baseline_dir = _resolve_results_dir(baseline)
         candidate_dir = _resolve_results_dir(candidate)
@@ -153,6 +157,13 @@ def _render_text(
         for reason in report.verdict_reasons:
             click.echo(f"  - {reason}")
 
+    # Always show missing benchmarks (not gated by --verbose)
+    if report.missing:
+        click.echo()
+        click.echo(_style("MISSING BENCHMARKS", fg="red", bold=True))
+        for name in report.missing:
+            click.echo(f"  - {name}")
+
     if report.warnings and verbose:
         click.echo()
         click.echo(_style("WARNINGS", fg="yellow", bold=True))
@@ -165,7 +176,7 @@ def _render_text(
         click.echo("  name                 tier         status                 metric       delta")
         click.echo("  -------------------------------------------------------------------------------")
         for result in sorted(report.benchmarks, key=lambda item: item.benchmark):
-            delta = f"{result.delta:+.4f}" if result.delta is not None else "n/a"
+            delta = f"{result.delta * 100:+.1f}pp" if result.delta is not None else "n/a"
             metric = result.metric or "n/a"
             click.echo(
                 f"  {result.benchmark:<20} {result.tier:<12} {result.status:<22} "

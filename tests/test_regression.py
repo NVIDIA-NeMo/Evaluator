@@ -123,7 +123,8 @@ class TestCompareRuns:
         _write_bundle(c, "c", {"pass@1": {"value": 0.7}})
         report = compare_runs(b, c)
         assert "verdict" in report
-        assert report["verdict"] == "PASS"
+        # No results.jsonl → no paired data → INCONCLUSIVE (not PASS)
+        assert report["verdict"] == "INCONCLUSIVE"
 
 
 class TestPairedAnalysis:

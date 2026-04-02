@@ -341,15 +341,21 @@ def _paired_delta_ci(
 
             ci = clustered_ci(deltas, clusters, confidence=confidence)
             return round(ci.ci_lower, 6), round(ci.ci_upper, 6)
-        except Exception:
-            pass  # fall through to normal CI
+        except ImportError:
+            pass  # scipy not installed, fall through to normal CI
+        except (ValueError, TypeError) as exc:
+            logger.warning("Clustered CI failed: %s; falling back to normal CI", exc)
 
     arr = np.array(deltas, dtype=np.float64)
     mean = float(arr.mean())
     se = float(arr.std(ddof=1) / math.sqrt(n))
 
-    # z-value for 95% CI (avoid scipy dependency for core gate logic)
-    z = 1.96 if confidence == 0.95 else 1.645 if confidence == 0.90 else 1.96
+    # Use t-distribution when scipy is available (correct at small N), z-fallback otherwise
+    try:
+        from scipy.stats import t as t_dist
+        z = float(t_dist.ppf(1 - (1 - confidence) / 2, df=n - 1))
+    except ImportError:
+        z = 1.96 if confidence == 0.95 else 1.645 if confidence == 0.90 else 1.96
 
     return round(mean - z * se, 6), round(mean + z * se, 6)
 
@@ -649,6 +655,7 @@ def _aggregate_verdict(
     if insufficient:
         names = [f"{b.benchmark} [{b.tier}]" for b in insufficient]
         reasons.append(f"INSUFFICIENT_EVIDENCE: {', '.join(names)}")
+        reasons.append("Action: re-run with more items, add repeats, or relax thresholds for these benchmarks.")
         return "INCONCLUSIVE", reasons
 
     passed = [b for b in gated if b.status == "PASS"]
