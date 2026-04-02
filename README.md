@@ -1,14 +1,22 @@
 # NeMo Evaluator
 
-LLM evaluation framework: benchmark environments, pluggable solvers, multi-format reporting.
+[![License](https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg)](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-green)](https://www.python.org/downloads/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+
+[**Documentation**](https://docs.nvidia.com/nemo/evaluator/) | [**GitHub**](https://github.com/NVIDIA-NeMo/Evaluator) | [**Issues**](https://github.com/NVIDIA-NeMo/Evaluator/issues)
+
+LLM evaluation framework with benchmark environments, pluggable solvers, composable interceptor proxy, and multi-format reporting.
+
+---
 
 ## Install
 
 ```bash
 pip install -e .                   # core
-pip install -e ".[scoring]"        # + sympy
-pip install -e ".[scoring,stats]"  # + sympy + scipy
-pip install -e ".[harbor]"         # + Harbor agents
+pip install -e ".[scoring]"        # + sympy for symbolic math
+pip install -e ".[scoring,stats]"  # + scipy for confidence intervals
+pip install -e ".[harbor]"         # + Harbor agents (OpenHands, Terminus-2)
 pip install -e ".[inspect]"        # + Inspect AI log export
 pip install -e ".[all]"            # everything
 ```
@@ -16,13 +24,17 @@ pip install -e ".[all]"            # everything
 ## Quick Start
 
 ```bash
+# Run a benchmark from the CLI
 nel eval run --bench mmlu \
   --model-url https://integrate.api.nvidia.com/v1 \
   --model-id nvidia/nemotron-3-super-120b-a12b \
   --repeats 3 --max-problems 100
 
+# Run from a YAML config
 nel eval run config.yaml
 nel eval run config.yaml --resume
+
+# Generate a report
 nel eval report ./eval_results/ -f markdown -o report.md
 ```
 
@@ -45,7 +57,7 @@ External environments via URI schemes: `lm-eval://`, `skills://`, `vlmevalkit://
 
 ## Adapter Proxy
 
-Built-in local proxy with composable interceptor pipeline. Intercepts all agent-to-model requests for caching, logging, payload modification, turn limiting, and custom transformations. No external dependencies required.
+Built-in local interceptor proxy for LLM traffic. Intercepts all agent-to-model requests for caching, logging, payload modification, turn limiting, and custom transformations — no external dependencies required.
 
 ```yaml
 services:
@@ -67,31 +79,23 @@ services:
       verbose: true
 ```
 
-Available interceptors: `endpoint`, `drop_params`, `modify_tools`, `turn_counter`, `system_message`, `payload_modifier`, `raise_client_errors`, `caching`, `log_tokens`, `response_stats`, `reasoning`, `progress_tracking`, `logging`.
+**Available interceptors:**
 
-## Export
-
-Evaluation results can be exported to experiment trackers and compatible formats:
-
-```yaml
-output:
-  export: [inspect, wandb, mlflow]
-```
-
-- **`inspect`** -- Produces `inspect_ai`-compatible `EvalLog` JSON files. Install with `pip install -e ".[inspect]"`.
-- **`wandb`** / **`mlflow`** -- Push scores and artifacts to experiment trackers. Install with `pip install -e ".[export]"`.
-
-## BYOB
-
-```python
-from nemo_evaluator import benchmark, scorer, ScorerInput, exact_match
-
-@benchmark(name="my-bench", dataset="hf://my-org/data?split=test",
-           prompt="Q: {question}\nA:", target_field="answer")
-@scorer
-def my_scorer(sample: ScorerInput) -> dict:
-    return exact_match(sample)
-```
+| Interceptor | Stage | Description |
+|-------------|-------|-------------|
+| `endpoint` | request→response | Async HTTP forwarding with retry, backoff, connection pooling |
+| `caching` | request→response | Disk-backed SQLite cache with canonical keys |
+| `turn_counter` | request | Per-session turn counting with budget injection |
+| `drop_params` | request | Strip named parameters from requests |
+| `modify_tools` | request | Add/remove properties in tool schemas |
+| `system_message` | request | Inject/replace/prepend system messages |
+| `payload_modifier` | request | Recursive parameter add/remove/rename |
+| `raise_client_errors` | response | Convert 4xx to exceptions |
+| `log_tokens` | response | Log token usage per request |
+| `response_stats` | response | Aggregate timing and token statistics |
+| `reasoning` | response | Normalize `<think>` blocks to `reasoning_content` |
+| `progress_tracking` | response | Progress counter with optional webhook |
+| `logging` | request + response | Request/response logging with body preview |
 
 ## Solvers
 
@@ -106,23 +110,33 @@ Configured via `solver.type` in each benchmark:
 | OpenClawSolver | `openclaw` | OpenClaw CLI agent |
 | ContainerSolver | `container` | Legacy container harness |
 
-### Compatibility
+## Export
 
-| Environment | simple | harbor | tool_calling | gym_delegation | openclaw |
-|-------------|--------|--------|-------------|----------------|----------|
-| BYOB           | yes | yes | yes | yes | yes |
-| skills://      | yes | yes | yes | yes | yes |
-| lm-eval://     | yes | yes | yes | yes | yes |
-| vlmevalkit://  | yes | --  | --  | --  | --  |
-| gym://         | yes | yes | yes | yes | yes |
-| swebench-*     | yes* | yes | yes | yes | yes |
-| container://   | --  | --  | --  | --  | --  |
+Evaluation results can be exported to experiment trackers and compatible formats:
 
-`yes*` = two-container mode; `--` = incompatible.
+```yaml
+output:
+  export: [inspect, wandb, mlflow]
+```
+
+- **`inspect`** — Produces `inspect_ai`-compatible `EvalLog` JSON files. Install with `pip install -e ".[inspect]"`.
+- **`wandb`** / **`mlflow`** — Push scores and artifacts to experiment trackers. Install with `pip install -e ".[export]"`.
+
+## BYOB (Bring Your Own Benchmark)
+
+```python
+from nemo_evaluator import benchmark, scorer, ScorerInput, exact_match
+
+@benchmark(name="my-bench", dataset="hf://my-org/data?split=test",
+           prompt="Q: {question}\nA:", target_field="answer")
+@scorer
+def my_scorer(sample: ScorerInput) -> dict:
+    return exact_match(sample)
+```
 
 ## Sandboxes
 
-Per-problem Docker/SLURM sandboxes for code execution and agentic evaluation. Two modes: **stateful** (shared sandbox for solve+verify) and **stateless** (separate agent and verification containers with shared volume).
+Per-problem Docker/SLURM sandboxes for code execution and agentic evaluation. Two modes: **stateful** (shared sandbox for solve + verify) and **stateless** (separate agent and verification containers with shared volume).
 
 ## SLURM
 
@@ -151,8 +165,8 @@ Pyxis/Enroot-based execution with auto-selected container images per URI scheme.
 
 ## Examples
 
-See [`examples/configs/`](examples/configs/) for 25 end-to-end configs covering all solver types, verification methods, and execution backends.
+See [`examples/configs/`](examples/configs/) for 25+ end-to-end configs covering all solver types, verification methods, and execution backends.
 
 ## License
 
-Apache-2.0
+[Apache 2.0](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/LICENSE)

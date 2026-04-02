@@ -4,17 +4,43 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nemo-evaluator"
-version = "0.12.0"
-description = "NeMo Evaluator – benchmark environments, evaluation runner, and decision-grade scoring"
+version = "0.13.0"
+description = "NeMo Evaluator — benchmark environments, pluggable solvers, interceptor proxy, and decision-grade scoring for LLMs"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.14"
 license = "Apache-2.0"
+authors = [
+    { name = "NVIDIA" },
+    { email = "contact@nvidia.com" },
+]
+maintainers = [
+    { name = "NVIDIA" },
+    { email = "contact@nvidia.com" },
+]
+keywords = [
+    "deep learning",
+    "evaluations",
+    "benchmarks",
+    "machine learning",
+    "gpu",
+    "NLP",
+    "LLM",
+    "pytorch",
+    "NVIDIA",
+]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Testing",
 ]
 dependencies = [
     "pydantic>=2.0",
@@ -58,6 +84,13 @@ dev = [
     "pre-commit>=3.0",
     "nemo-evaluator[scoring,stats,lm-eval,harbor]",
 ]
+
+[project.urls]
+Homepage = "https://docs.nvidia.com/nemo/evaluator/"
+Repository = "https://github.com/NVIDIA-NeMo/Evaluator"
+Documentation = "https://docs.nvidia.com/nemo/evaluator/"
+Changelog = "https://github.com/NVIDIA-NeMo/Evaluator/blob/main/CHANGELOG.md"
+Issues = "https://github.com/NVIDIA-NeMo/Evaluator/issues"
 
 [project.scripts]
 nel = "nemo_evaluator.cli.main:cli"
