@@ -507,6 +507,50 @@ def _extract_test_section(stdout: str) -> str:
     return stdout[-4000:]
 
 
+_PROGRAMMING_LANGUAGES = frozenset(
+    {
+        "python",
+        "java",
+        "javascript",
+        "typescript",
+        "go",
+        "rust",
+        "c",
+        "cpp",
+        "php",
+        "ruby",
+        "scala",
+        "kotlin",
+        "swift",
+    }
+)
+
+
+def _infer_repo_language(task_dir: Path, metadata: dict[str, Any]) -> None:
+    """Populate ``metadata["repo_language"]`` from available signals.
+
+    1. ``repo_language`` / ``language`` in ``tests/config.json`` (Pro dataset).
+    2. Language-valued tag in ``task.toml [metadata] tags`` (Multilingual adapter).
+    """
+    config_json = task_dir / "tests" / "config.json"
+    if config_json.is_file():
+        try:
+            raw = json.loads(config_json.read_text(encoding="utf-8"))
+            lang = raw.get("repo_language") or raw.get("language")
+            if lang:
+                metadata["repo_language"] = lang
+                return
+        except Exception:
+            pass
+
+    tags = metadata.get("tags")
+    if isinstance(tags, list):
+        for tag in reversed(tags):
+            if isinstance(tag, str) and tag.lower() in _PROGRAMMING_LANGUAGES:
+                metadata["repo_language"] = tag
+                return
+
+
 # ---------------------------------------------------------------------------
 # HarborEnvironment
 # ---------------------------------------------------------------------------
@@ -680,6 +724,10 @@ class HarborEnvironment(EvalEnvironment):
         if task_metadata:
             metadata.update(task_metadata)
 
+        # Infer repo_language when missing from task.toml metadata.
+        if "repo_language" not in metadata:
+            _infer_repo_language(task_dir, metadata)
+
         return SeedResult(
             prompt=instruction,
             expected_answer="",
@@ -732,7 +780,13 @@ class HarborEnvironment(EvalEnvironment):
                 await sandbox.upload(test_file, f"/tests/{rel}")
 
         await sandbox.exec("chmod -R +x /tests/", timeout_sec=10)
-        result = await sandbox.exec("bash /tests/test.sh", timeout_sec=600)
+        result = await sandbox.exec(
+            'export PATH="/root/.local/bin:/root/.cargo/bin:/usr/local/go/bin'
+            ":/usr/local/cargo/bin:$HOME/.local/bin:$HOME/.cargo/bin"
+            ':$HOME/go/bin:$JAVA_HOME/bin:$PATH" && '
+            "bash /tests/test.sh",
+            timeout_sec=600,
+        )
 
         reward = 0.0
         _MAX_LOG = 50_000
