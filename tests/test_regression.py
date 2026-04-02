@@ -375,6 +375,137 @@ class TestPublicAPI:
         assert r.flip_list() == []
 
 
+class TestSignTest:
+    def test_sign_test_clear_regression(self):
+        """Mostly positive deltas (baseline > candidate) should be significant."""
+        from nemo_evaluator.engine.comparison import sign_test
+
+        # 15 regressions, 3 improvements
+        deltas = [0.3] * 15 + [-0.2] * 3
+        result = sign_test(deltas)
+        assert result.n_positive == 15
+        assert result.n_negative == 3
+        assert result.n_ties == 0
+        assert result.p_value is not None
+        assert result.p_value < 0.05
+        assert result.significant is True
+
+    def test_sign_test_no_signal(self):
+        """Equal positive and negative deltas should not be significant."""
+        from nemo_evaluator.engine.comparison import sign_test
+
+        deltas = [0.3] * 10 + [-0.3] * 10
+        result = sign_test(deltas)
+        assert result.n_positive == 10
+        assert result.n_negative == 10
+        assert result.p_value is not None
+        assert result.p_value > 0.05
+        assert result.significant is False
+
+    def test_sign_test_all_ties(self):
+        """All zero deltas → p=1.0, not significant."""
+        from nemo_evaluator.engine.comparison import sign_test
+
+        result = sign_test([0.0] * 20)
+        assert result.n_ties == 20
+        assert result.p_value == 1.0
+        assert result.significant is False
+
+
+class TestPermutationTest:
+    def test_permutation_clear_regression(self):
+        """Large positive mean diff should be significant."""
+        from nemo_evaluator.engine.comparison import permutation_test
+
+        deltas = [0.5] * 20 + [-0.1] * 5
+        result = permutation_test(deltas, seed=42)
+        assert result.observed_mean_diff > 0
+        assert result.p_value < 0.05
+        assert result.significant is True
+        assert result.effect_size is not None
+
+    def test_permutation_no_signal(self):
+        """Symmetric deltas should not be significant."""
+        from nemo_evaluator.engine.comparison import permutation_test
+
+        deltas = [0.1, -0.1] * 20
+        result = permutation_test(deltas, seed=42)
+        assert abs(result.observed_mean_diff) < 0.01
+        assert result.p_value > 0.05
+        assert result.significant is False
+
+    def test_permutation_reproducible(self):
+        """Same seed produces same p-value."""
+        from nemo_evaluator.engine.comparison import permutation_test
+
+        deltas = [0.3, 0.1, -0.2, 0.4, -0.1, 0.2, 0.0, 0.3]
+        r1 = permutation_test(deltas, seed=123)
+        r2 = permutation_test(deltas, seed=123)
+        assert r1.p_value == r2.p_value
+
+
+class TestDetectTest:
+    def test_binary_data_selects_mcnemar(self):
+        from nemo_evaluator.engine.comparison import detect_test
+
+        base = {(0, 0): {"reward": 1.0}, (1, 0): {"reward": 0.0}, (2, 0): {"reward": 1.0}}
+        cand = {(0, 0): {"reward": 1.0}, (1, 0): {"reward": 1.0}, (2, 0): {"reward": 0.0}}
+        assert detect_test(base, cand) == "mcnemar"
+
+    def test_continuous_data_selects_permutation(self):
+        from nemo_evaluator.engine.comparison import detect_test
+
+        base = {(0, 0): {"reward": 0.67}, (1, 0): {"reward": 0.33}, (2, 0): {"reward": 1.0}}
+        cand = {(0, 0): {"reward": 0.33}, (1, 0): {"reward": 0.67}, (2, 0): {"reward": 0.67}}
+        assert detect_test(base, cand) == "permutation"
+
+
+class TestAggregateRepeats:
+    def test_single_repeats_pass_through(self):
+        from nemo_evaluator.engine.comparison import aggregate_repeats
+
+        records = {(0, 0): {"reward": 1.0, "problem_idx": 0}, (1, 0): {"reward": 0.0, "problem_idx": 1}}
+        result = aggregate_repeats(records)
+        assert len(result) == 2
+        assert result[(0, 0)]["reward"] == 1.0
+
+    def test_multiple_repeats_averaged(self):
+        from nemo_evaluator.engine.comparison import aggregate_repeats
+
+        records = {
+            (0, 0): {"reward": 1.0, "problem_idx": 0},
+            (0, 1): {"reward": 1.0, "problem_idx": 0},
+            (0, 2): {"reward": 0.0, "problem_idx": 0},
+            (1, 0): {"reward": 0.0, "problem_idx": 1},
+            (1, 1): {"reward": 1.0, "problem_idx": 1},
+            (1, 2): {"reward": 0.0, "problem_idx": 1},
+        }
+        result = aggregate_repeats(records)
+        assert len(result) == 2
+        assert abs(result[(0, 0)]["reward"] - 2 / 3) < 1e-9
+        assert abs(result[(1, 0)]["reward"] - 1 / 3) < 1e-9
+        assert result[(0, 0)]["_aggregated_from_repeats"] == 3
+
+    def test_auto_detection_with_repeats(self):
+        """When repeats are aggregated, continuous scores trigger permutation test."""
+        from nemo_evaluator.engine.comparison import compare_results
+
+        base = {
+            (0, 0): {"reward": 1.0}, (0, 1): {"reward": 1.0}, (0, 2): {"reward": 1.0},
+            (1, 0): {"reward": 1.0}, (1, 1): {"reward": 0.0}, (1, 2): {"reward": 1.0},
+            (2, 0): {"reward": 0.0}, (2, 1): {"reward": 0.0}, (2, 2): {"reward": 1.0},
+        }
+        cand = {
+            (0, 0): {"reward": 1.0}, (0, 1): {"reward": 0.0}, (0, 2): {"reward": 0.0},
+            (1, 0): {"reward": 0.0}, (1, 1): {"reward": 0.0}, (1, 2): {"reward": 0.0},
+            (2, 0): {"reward": 0.0}, (2, 1): {"reward": 0.0}, (2, 2): {"reward": 0.0},
+        }
+        report = compare_results(base, cand)
+        # After repeat aggregation, rewards are 0.67, 0.33, etc. → non-binary → permutation
+        assert report["test_used"] == "permutation"
+        assert "permutation_test" in report
+
+
 class TestWriteRegression:
     def test_write(self, tmp_path):
         report = {"score_deltas": {}, "runtime_deltas": {}, "report_version": 1, "verdict": "PASS"}

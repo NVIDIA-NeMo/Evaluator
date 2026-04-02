@@ -1,11 +1,14 @@
-"""Paired regression analysis: McNemar test, flip report, and verdict logic.
+"""Paired regression analysis: McNemar test, sign test, permutation test, flip report, and verdict logic.
 
 Public API
 ----------
 - ``compare_runs``  — compare two eval bundles (file paths)
 - ``compare_results`` — compare pre-loaded records (in-memory)
 - ``build_flip_report`` — 2x2 contingency table + per-sample flips
-- ``mcnemar_test`` — one-sided McNemar's exact test for degradation
+- ``mcnemar_test`` — one-sided McNemar's exact test for degradation (N=1 binary)
+- ``sign_test`` — one-sided sign test for degradation (N>1 averaged to continuous)
+- ``permutation_test`` — permutation test on paired differences (continuous scores)
+- ``detect_test`` — auto-detect appropriate test from data shape
 - ``write_regression`` — serialize report to JSON
 """
 
@@ -18,7 +21,9 @@ import os
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +98,10 @@ class RegressionReport:
     category_deltas: dict[str, Any] | None = None
     flip_report: FlipReport | None = None
     mcnemar: McNemarResult | None = None
+    sign_test_result: SignTestResult | None = None
+    permutation_result: PermutationResult | None = None
+    test_used: str | None = None  # "mcnemar", "sign", "permutation"
+    test_reason: str | None = None  # why this test was selected
     verdict: str | None = None  # PASS / WARN / BLOCK / INCONCLUSIVE
     verdict_reasons: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -139,6 +148,14 @@ class RegressionReport:
             }
         if self.mcnemar:
             d["mcnemar"] = self.mcnemar.to_dict()
+        if self.sign_test_result:
+            d["sign_test"] = self.sign_test_result.to_dict()
+        if self.permutation_result:
+            d["permutation_test"] = self.permutation_result.to_dict()
+        if self.test_used:
+            d["test_used"] = self.test_used
+        if self.test_reason:
+            d["test_reason"] = self.test_reason
         return d
 
 
@@ -151,6 +168,7 @@ def compare_runs(
     reward_threshold: float = 0.0,
     alpha: float = _SIGNIFICANCE_THRESHOLD,
     min_effect: float = _MIN_EFFECT_SIZE,
+    test: Literal["auto", "mcnemar", "sign", "permutation"] = "auto",
 ) -> dict[str, Any]:
     """Compare two eval run bundles. Returns regression report as dict.
 
@@ -161,9 +179,12 @@ def compare_runs(
     reward_threshold:
         Reward above this value counts as 'correct' for flip analysis.
     alpha:
-        Significance level for McNemar test (default 0.05).
+        Significance level for statistical test (default 0.05).
     min_effect:
         Minimum practical effect size for BLOCK verdict (default 0.005 = 0.5%).
+    test:
+        Statistical test to use. "auto" detects from data shape:
+        binary rewards → McNemar, non-binary → permutation test.
     """
     base = _load_bundle(baseline_path)
     cand = _load_bundle(candidate_path)
@@ -259,10 +280,36 @@ def compare_runs(
         base_records = load_paired_records(base_dir)
         cand_records = load_paired_records(cand_dir)
         if base_records and cand_records:
-            report.flip_report = build_flip_report(
-                base_records, cand_records, threshold=reward_threshold,
-            )
-            report.mcnemar = mcnemar_test(report.flip_report.contingency, report.flip_report.summary.n_paired)
+            # Aggregate repeats before analysis (mean reward per problem)
+            base_agg = aggregate_repeats(base_records)
+            cand_agg = aggregate_repeats(cand_records)
+
+            # Auto-detect or use explicit test selection
+            selected_test = test if test != "auto" else detect_test(base_agg, cand_agg)
+            report.test_used = selected_test
+
+            if selected_test == "mcnemar":
+                report.test_reason = "all per-problem rewards are binary (0.0 or 1.0)"
+                report.flip_report = build_flip_report(
+                    base_agg, cand_agg, threshold=reward_threshold,
+                )
+                report.mcnemar = mcnemar_test(report.flip_report.contingency, report.flip_report.summary.n_paired)
+            else:
+                report.test_reason = "per-problem rewards are continuous (N>1 repeats averaged or non-binary scores)"
+                # Build flip report for display (still useful for category breakdown)
+                report.flip_report = build_flip_report(
+                    base_agg, cand_agg, threshold=reward_threshold,
+                )
+                # Compute paired deltas for sign/permutation test
+                paired_keys = sorted(set(base_agg) & set(cand_agg))
+                paired_deltas = [
+                    float(base_agg[k].get("reward", 0)) - float(cand_agg[k].get("reward", 0))
+                    for k in paired_keys
+                ]
+                if selected_test == "sign":
+                    report.sign_test_result = sign_test(paired_deltas)
+                else:  # permutation
+                    report.permutation_result = permutation_test(paired_deltas)
         elif not base_records or not cand_records:
             empty = []
             if not base_records:
@@ -287,6 +334,7 @@ def compare_results(
     reward_threshold: float = 0.0,
     alpha: float = _SIGNIFICANCE_THRESHOLD,
     min_effect: float = _MIN_EFFECT_SIZE,
+    test: Literal["auto", "mcnemar", "sign", "permutation"] = "auto",
 ) -> dict[str, Any]:
     """Compare pre-loaded paired records in memory (no file I/O).
 
@@ -294,10 +342,31 @@ def compare_results(
     ``(problem_idx, repeat)`` instead of file paths.  Useful for library
     integration (e.g. ``modelopt[eval]``).
     """
+    base_agg = aggregate_repeats(baseline_records)
+    cand_agg = aggregate_repeats(candidate_records)
+
     report = RegressionReport()
-    flip = build_flip_report(baseline_records, candidate_records, threshold=reward_threshold)
+    selected_test = test if test != "auto" else detect_test(base_agg, cand_agg)
+    report.test_used = selected_test
+
+    flip = build_flip_report(base_agg, cand_agg, threshold=reward_threshold)
     report.flip_report = flip
-    report.mcnemar = mcnemar_test(flip.contingency, flip.summary.n_paired)
+
+    if selected_test == "mcnemar":
+        report.test_reason = "all per-problem rewards are binary (0.0 or 1.0)"
+        report.mcnemar = mcnemar_test(flip.contingency, flip.summary.n_paired)
+    else:
+        report.test_reason = "per-problem rewards are continuous (N>1 repeats averaged or non-binary scores)"
+        paired_keys = sorted(set(base_agg) & set(cand_agg))
+        paired_deltas = [
+            float(base_agg[k].get("reward", 0)) - float(cand_agg[k].get("reward", 0))
+            for k in paired_keys
+        ]
+        if selected_test == "sign":
+            report.sign_test_result = sign_test(paired_deltas)
+        else:
+            report.permutation_result = permutation_test(paired_deltas)
+
     report.verdict, report.verdict_reasons = _compute_verdict(report, alpha, min_effect)
     return report.to_dict()
 
@@ -447,6 +516,165 @@ def mcnemar_test(
     return result
 
 
+@dataclass
+class SignTestResult:
+    """Result of one-sided sign test on paired differences."""
+    n_positive: int = 0  # baseline > candidate (regressions)
+    n_negative: int = 0  # candidate > baseline (improvements)
+    n_ties: int = 0
+    p_value: float | None = None
+    significant: bool | None = None
+    method: str = "sign_test"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {k: v for k, v in asdict(self).items() if v is not None}
+
+
+@dataclass
+class PermutationResult:
+    """Result of permutation test on paired differences."""
+    observed_mean_diff: float = 0.0
+    p_value: float | None = None
+    significant: bool | None = None
+    n_permutations: int = 10_000
+    effect_size: float | None = None  # Cohen's d paired
+    method: str = "permutation"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {k: v for k, v in asdict(self).items() if v is not None}
+
+
+def sign_test(
+    paired_deltas: list[float],
+) -> SignTestResult:
+    """One-sided sign test for degradation (H1: baseline > candidate).
+
+    Counts positive vs negative paired differences, ignoring ties (zeros).
+    This is the correct generalization of McNemar to continuous data —
+    when N>1 repeats are averaged, scores become continuous and McNemar
+    no longer applies.
+    """
+    n_positive = sum(1 for d in paired_deltas if d > 0)  # regressions
+    n_negative = sum(1 for d in paired_deltas if d < 0)  # improvements
+    n_ties = sum(1 for d in paired_deltas if d == 0)
+
+    result = SignTestResult(
+        n_positive=n_positive,
+        n_negative=n_negative,
+        n_ties=n_ties,
+    )
+
+    n_non_tied = n_positive + n_negative
+    if n_non_tied == 0:
+        result.p_value = 1.0
+        result.significant = False
+        return result
+
+    try:
+        from scipy.stats import binomtest
+
+        res = binomtest(n_positive, n_non_tied, 0.5, alternative="greater")
+        result.p_value = round(float(res.pvalue), 6)
+        result.significant = result.p_value < _SIGNIFICANCE_THRESHOLD
+    except ImportError:
+        logger.debug("scipy not installed; skipping sign test (pip install nemo-evaluator[stats])")
+
+    return result
+
+
+def permutation_test(
+    paired_deltas: list[float],
+    n_permutations: int = 10_000,
+    seed: int = 42,
+) -> PermutationResult:
+    """One-sided permutation test on paired differences (H1: mean diff > 0 = baseline better).
+
+    Under H0, the signs of the paired differences are exchangeable.
+    Randomly flip signs n_permutations times, compare observed mean to
+    the permutation distribution. Uses only numpy (no scipy required).
+    """
+    deltas = np.array(paired_deltas, dtype=np.float64)
+    observed_mean = float(deltas.mean())
+    n = len(deltas)
+
+    if n == 0:
+        return PermutationResult(observed_mean_diff=0.0, p_value=1.0, significant=False)
+
+    # Cohen's d for paired samples
+    std = float(deltas.std(ddof=1)) if n > 1 else 0.0
+    effect_size = round(observed_mean / std, 6) if std > 0 else None
+
+    rng = np.random.default_rng(seed)
+    # Generate random sign flips: shape (n_permutations, n)
+    signs = rng.choice([-1, 1], size=(n_permutations, n))
+    perm_means = (signs * deltas).mean(axis=1)
+
+    # One-sided: fraction of permuted means >= observed mean
+    p_value = float((perm_means >= observed_mean).sum() + 1) / (n_permutations + 1)
+
+    return PermutationResult(
+        observed_mean_diff=round(observed_mean, 6),
+        p_value=round(p_value, 6),
+        significant=p_value < _SIGNIFICANCE_THRESHOLD,
+        n_permutations=n_permutations,
+        effect_size=effect_size,
+    )
+
+
+def detect_test(
+    base_records: dict[tuple[int, int], dict[str, Any]],
+    cand_records: dict[tuple[int, int], dict[str, Any]],
+) -> Literal["mcnemar", "sign", "permutation"]:
+    """Auto-detect the appropriate statistical test based on data shape.
+
+    - All rewards are 0.0 or 1.0 → mcnemar (N=1 binary)
+    - Any non-binary rewards → permutation (N>1 averaged or continuous scores)
+    """
+    paired_keys = set(base_records) & set(cand_records)
+    for key in paired_keys:
+        b_reward = float(base_records[key].get("reward", 0))
+        c_reward = float(cand_records[key].get("reward", 0))
+        if b_reward not in (0.0, 1.0) or c_reward not in (0.0, 1.0):
+            return "permutation"
+    return "mcnemar"
+
+
+def aggregate_repeats(
+    records: dict[tuple[int, int], dict[str, Any]],
+) -> dict[tuple[int, int], dict[str, Any]]:
+    """Aggregate multiple repeats per problem_idx by mean reward.
+
+    If a problem has repeats (0, 1, 2, ...), collapse to a single entry
+    keyed by (problem_idx, 0) with the mean reward. Preserves metadata
+    from the first repeat.
+    """
+    from collections import defaultdict
+
+    by_problem: dict[int, list[tuple[int, dict[str, Any]]]] = defaultdict(list)
+    for (pid, rep), record in records.items():
+        by_problem[pid].append((rep, record))
+
+    aggregated: dict[tuple[int, int], dict[str, Any]] = {}
+    for pid, entries in by_problem.items():
+        if len(entries) == 1:
+            # Single repeat — pass through unchanged
+            rep, record = entries[0]
+            aggregated[(pid, rep)] = record
+        else:
+            # Multiple repeats — average rewards
+            rewards = [float(r.get("reward", 0)) for _, r in entries]
+            mean_reward = sum(rewards) / len(rewards)
+            # Use first repeat's metadata as the base
+            _, base_record = sorted(entries, key=lambda x: x[0])[0]
+            agg_record = dict(base_record)
+            agg_record["reward"] = mean_reward
+            agg_record["repeat"] = 0
+            agg_record["_aggregated_from_repeats"] = len(entries)
+            aggregated[(pid, 0)] = agg_record
+
+    return aggregated
+
+
 def mde_estimate(n_discordant: int) -> float:
     """Minimum detectable effect at 80% power for one-sided binomial."""
     if n_discordant <= 0:
@@ -564,42 +792,72 @@ def _compute_verdict(
 ) -> tuple[str, list[str]]:
     """Compute PASS / WARN / BLOCK / INCONCLUSIVE verdict.
 
-    Item #4: BLOCK requires p < alpha AND |effect| > min_effect
-    Item #27: INCONCLUSIVE when test lacks power to detect min_effect
+    Dispatches to the appropriate test result based on report.test_used.
+    BLOCK requires p < alpha AND |effect| > min_effect.
+    INCONCLUSIVE when test lacks power to detect min_effect.
     """
-    reasons: list[str] = []
-    m = report.mcnemar
     s = report.flip_report.summary if report.flip_report else None
-
-    if m is None or s is None:
+    if s is None:
         return "PASS", ["no paired data available"]
 
-    if m.p_value is None:
+    # Extract p-value, significance, and effect size from whichever test was used
+    p_value: float | None = None
+    significant: bool | None = None
+    effect_size: float | None = None
+    test_label = report.test_used or "mcnemar"
+    n_discordant = 0
+
+    if report.test_used == "permutation" and report.permutation_result:
+        pr = report.permutation_result
+        p_value = pr.p_value
+        significant = pr.significant
+        effect_size = pr.effect_size
+        # For permutation, all non-zero deltas are "discordant"
+        n_discordant = s.n_regressions + s.n_improvements
+    elif report.test_used == "sign" and report.sign_test_result:
+        sr = report.sign_test_result
+        p_value = sr.p_value
+        significant = sr.significant
+        # Effect size from flip summary
+        effect_size = report.mcnemar.effect_size if report.mcnemar else None
+        n_discordant = sr.n_positive + sr.n_negative
+    elif report.mcnemar:
+        m = report.mcnemar
+        p_value = m.p_value
+        significant = m.significant
+        effect_size = m.effect_size
+        n_discordant = m.n_discordant
+    else:
+        return "PASS", ["no paired data available"]
+
+    if p_value is None:
         return "INCONCLUSIVE", ["scipy not installed; statistical test skipped (install nemo-evaluator[stats])"]
 
-    # Identical results: no discordant pairs means no signal of regression
-    if m.n_discordant == 0:
+    # Identical results
+    if n_discordant == 0:
         return "PASS", ["no discordant pairs; baseline and candidate produced identical per-sample results"]
 
-    # Power check: can the suite detect regressions of size min_effect?
-    mde = mde_estimate(m.n_discordant)
-    underpowered = mde > min_effect * 10  # MDE > 10x the practical threshold
+    # Power check
+    mde = mde_estimate(n_discordant)
+    underpowered = mde > min_effect * 10
 
-    if m.significant and m.effect_size is not None and abs(m.effect_size) > min_effect:
+    reasons: list[str] = []
+
+    if significant and effect_size is not None and abs(effect_size) > min_effect:
         if s.n_regressions > s.n_improvements:
-            reasons.append(f"McNemar p={m.p_value:.4f}, effect={m.effect_size:.4f} > {min_effect}")
+            reasons.append(f"{test_label} p={p_value:.4f}, effect={effect_size:.4f} > {min_effect}")
             return "BLOCK", reasons
 
-    if m.significant:
-        reasons.append(f"McNemar p={m.p_value:.4f} (significant) but effect below practical threshold")
+    if significant:
+        reasons.append(f"{test_label} p={p_value:.4f} (significant) but effect below practical threshold")
         return "WARN", reasons
 
     if underpowered and s.n_paired > 0:
         reasons.append(
-            f"Test underpowered: {m.n_discordant} discordant pairs can detect "
+            f"Test underpowered: {n_discordant} discordant pairs can detect "
             f"~{mde * 100:.1f}% regression at 80% power, but practical threshold is {min_effect * 100:.1f}%"
         )
         return "INCONCLUSIVE", reasons
 
-    reasons.append(f"McNemar p={m.p_value:.4f} (not significant)")
+    reasons.append(f"{test_label} p={p_value:.4f} (not significant)")
     return "PASS", reasons

@@ -1,0 +1,23 @@
+# NVFP4 Base Model Release Policy
+# Usage: nel gate baseline/ candidate/ --policy nvfp4-base-release-policy.yaml --strict
+#
+# Base (pre-alignment) model benchmark suite for quantization regression gating.
+# All benchmarks use single-pass evaluation (no repeats).
+
+version: 1
+
+defaults:
+  tier: supporting
+  max_drop: 0.015
+  metric: mean_reward
+  direction: higher_is_better
+
+benchmarks:
+  adlr_math_500: {}
+  adlr_humaneval:
+    metric: pass@1
+  adlr_winogrande: {}
+  ruler-128k: {}
+  adlr_mmlu:
+    tier: advisory
+    metric: exact_match

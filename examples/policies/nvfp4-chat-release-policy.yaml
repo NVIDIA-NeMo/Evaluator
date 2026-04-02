@@ -1,0 +1,47 @@
+# NVFP4 Chat Model Release Policy
+# Usage: nel gate baseline/ candidate/ --policy nvfp4-chat-release-policy.yaml --strict
+#
+# Aligned / chat model benchmark suite for quantization regression gating.
+# P0 benchmarks are critical (1.0pp threshold), P1 are supporting (1.5pp),
+# P2 are advisory (tracked but do not affect the gate verdict).
+
+version: 1
+
+defaults:
+  tier: supporting
+  max_drop: 0.015          # 1.5pp for supporting tier
+  metric: mean_reward
+  direction: higher_is_better
+  relative_guard_below: 0.15
+
+benchmarks:
+  # P0 critical -- block release on breach
+  ns_ifbench:
+    tier: critical
+    max_drop: 0.01
+    metric: pass@1
+  gpqa_diamond_aa_v3:
+    tier: critical
+    max_drop: 0.01
+    max_relative_drop: 0.10
+
+  # P1 supporting -- block with relaxed threshold
+  simple_evals.AIME_2025:
+    max_relative_drop: 0.10   # relative guard active (baselines 15-50%)
+  ns_livecodebench:
+    metric: pass@1
+  ns_scicode:
+    metric: pass@1
+  tau2_bench_telecom: {}
+  ruler-128k: {}
+
+  # P2 advisory -- tracked, not gated
+  mmlu:
+    tier: advisory
+    metric: exact_match
+  ns_gpqa:
+    tier: advisory
+    metric: pass@1
+  ns_aime2026:
+    tier: advisory
+    metric: pass@1

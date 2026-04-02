@@ -77,7 +77,12 @@ def _resolve_bundle(path_str: str) -> str:
 @click.option("--report", "report_path", type=click.Path(), default=None,
               help="Write Markdown report to this path (default: auto-generated next to candidate bundle).")
 @click.option("--no-report", is_flag=True, help="Suppress auto-generated Markdown report.")
-def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold, show_flips, compact, fmt, verbose, report_path, no_report):
+@click.option(
+    "--test", "test_method", type=click.Choice(["auto", "mcnemar", "sign", "permutation"]),
+    default="auto",
+    help="Statistical test: auto (detect from data), mcnemar (N=1 binary), sign (N>1 averaged), permutation (continuous).",
+)
+def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold, show_flips, compact, fmt, verbose, report_path, no_report, test_method):
     """Compare two evaluation runs and report regressions.
 
     BASELINE and CANDIDATE can be eval-*.json bundle files OR directories
@@ -100,6 +105,7 @@ def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold
         baseline, candidate,
         reward_threshold=reward_threshold,
         min_effect=threshold,
+        test=test_method,
     )
 
     # Item #4: auto-generate Markdown report next to candidate bundle
@@ -285,17 +291,38 @@ def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold
                 _render_flip_entry(f_entry, "green", verbose)
 
     # ── Verbose: statistical details ───────────────────────────────
-    if verbose and mcnemar:
+    if verbose:
+        test_used = report.get("test_used")
+        test_reason = report.get("test_reason")
         click.echo()
         click.echo("STATISTICAL DETAILS")
         click.echo("\u2500" * 60)
-        click.echo(f"  Test: McNemar exact binomial (one-sided, H1: regressions > improvements)")
-        click.echo(f"  p-value: {mcnemar.get('p_value')}")
-        click.echo(f"  Method: {mcnemar.get('method')}")
-        click.echo(f"  Discordant pairs: {mcnemar.get('n_discordant')}")
-        click.echo(f"  Effect size: {mcnemar.get('effect_size')} (net regression rate over paired samples)")
-        if mcnemar.get("ci_lower") is not None:
-            click.echo(f"  95% CI: [{mcnemar['ci_lower']:.4f}, {mcnemar['ci_upper']:.4f}]")
+        if test_used:
+            click.echo(f"  Test selected: {test_used}")
+        if test_reason:
+            click.echo(f"  Reason: {test_reason}")
+
+        if mcnemar:
+            click.echo(f"  Test: McNemar exact binomial (one-sided, H1: regressions > improvements)")
+            click.echo(f"  p-value: {mcnemar.get('p_value')}")
+            click.echo(f"  Method: {mcnemar.get('method')}")
+            click.echo(f"  Discordant pairs: {mcnemar.get('n_discordant')}")
+            click.echo(f"  Effect size: {mcnemar.get('effect_size')} (net regression rate over paired samples)")
+            if mcnemar.get("ci_lower") is not None:
+                click.echo(f"  95% CI: [{mcnemar['ci_lower']:.4f}, {mcnemar['ci_upper']:.4f}]")
+
+        sign_result = report.get("sign_test")
+        if sign_result:
+            click.echo(f"  Test: Sign test (one-sided, H1: baseline > candidate)")
+            click.echo(f"  p-value: {sign_result.get('p_value')}")
+            click.echo(f"  Regressions (d>0): {sign_result.get('n_positive')}, Improvements (d<0): {sign_result.get('n_negative')}, Ties: {sign_result.get('n_ties')}")
+
+        perm_result = report.get("permutation_test")
+        if perm_result:
+            click.echo(f"  Test: Permutation test (one-sided, {perm_result.get('n_permutations', 10000)} permutations)")
+            click.echo(f"  p-value: {perm_result.get('p_value')}")
+            click.echo(f"  Observed mean diff: {perm_result.get('observed_mean_diff')}")
+            click.echo(f"  Effect size (Cohen's d): {perm_result.get('effect_size')}")
 
     # ── Output / exit ──────────────────────────────────────────────
     if output:
