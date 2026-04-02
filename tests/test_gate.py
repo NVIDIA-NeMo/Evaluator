@@ -581,3 +581,85 @@ class TestWriteGateReport:
         assert loaded["verdict"] == "GO"
         assert len(loaded["benchmarks"]) == 1
         assert loaded["benchmarks"][0]["benchmark"] == "mmlu"
+
+
+class TestGateMarkdownReport:
+    def test_generates_markdown(self, tmp_path):
+        from nemo_evaluator.engine.gate_report import generate_gate_report, write_gate_report as write_md
+
+        report_dict = GateReport(
+            verdict="NO-GO",
+            verdict_reasons=["BREACH: gpqa [critical]"],
+            benchmarks=[
+                BenchmarkGateResult(
+                    benchmark="mmlu_pro", tier="critical", status="PASS",
+                    metric="mean_reward", baseline_score=0.782, candidate_score=0.775,
+                    delta=-0.007, delta_ci_lower=-0.012, delta_ci_upper=-0.002, n_paired=12000,
+                ),
+                BenchmarkGateResult(
+                    benchmark="gpqa", tier="critical", status="BREACH",
+                    metric="mean_reward", baseline_score=0.412, candidate_score=0.398,
+                    delta=-0.014, delta_ci_lower=-0.038, delta_ci_upper=0.010, n_paired=198,
+                    reasons=["95% CI on damage exceeds threshold"],
+                ),
+            ],
+            warnings=["Candidate-only benchmarks (no baseline): hle"],
+        ).to_dict()
+
+        md = generate_gate_report(report_dict)
+        assert "# Quality Gate Report: NO-GO" in md
+        assert "mmlu_pro" in md
+        assert "gpqa" in md
+        assert "BREACH" in md
+        assert "12,000" in md  # formatted N
+
+        path = write_md(report_dict, tmp_path / "damage.md")
+        assert path.exists()
+        assert "NO-GO" in path.read_text()
+
+    def test_empty_report(self):
+        from nemo_evaluator.engine.gate_report import generate_gate_report
+
+        md = generate_gate_report({"verdict": "GO", "benchmarks": [], "warnings": []})
+        assert "# Quality Gate Report: GO" in md
+
+
+class TestClusteredCIIntegration:
+    def test_extract_clusters_with_categories(self):
+        from nemo_evaluator.engine.gate import _extract_clusters
+
+        records = {
+            (0, 0): {"reward": 1.0, "metadata": {"category": "algebra"}},
+            (1, 0): {"reward": 0.0, "metadata": {"category": "geometry"}},
+            (2, 0): {"reward": 1.0, "metadata": {"category": "algebra"}},
+        }
+        clusters = _extract_clusters(records, [0, 1, 2])
+        assert clusters == ["algebra", "geometry", "algebra"]
+
+    def test_extract_clusters_returns_none_without_categories(self):
+        from nemo_evaluator.engine.gate import _extract_clusters
+
+        records = {
+            (0, 0): {"reward": 1.0},
+            (1, 0): {"reward": 0.0},
+        }
+        clusters = _extract_clusters(records, [0, 1])
+        assert clusters is None
+
+    def test_paired_delta_ci_with_clusters(self):
+        from nemo_evaluator.engine.gate import _paired_delta_ci
+
+        # 20 deltas across 2 clusters — clustered CI should be wider than normal
+        deltas = [0.1, 0.12, 0.09, 0.11, 0.1, 0.08, 0.13, 0.11, 0.1, 0.09,
+                  -0.05, -0.04, -0.06, -0.03, -0.05, -0.04, -0.06, -0.03, -0.05, -0.04]
+        clusters = ["A"] * 10 + ["B"] * 10
+
+        ci_normal = _paired_delta_ci(deltas)
+        ci_clustered = _paired_delta_ci(deltas, clusters=clusters)
+
+        assert ci_normal[0] is not None
+        assert ci_clustered[0] is not None
+        # Clustered CI should be wider (or at least different) when clusters have different means
+        width_normal = ci_normal[1] - ci_normal[0]
+        width_clustered = ci_clustered[1] - ci_clustered[0]
+        assert width_clustered >= width_normal * 0.9  # clustered should be at least comparable

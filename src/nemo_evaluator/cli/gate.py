@@ -74,6 +74,18 @@ def _resolve_results_dir(path_str: str) -> Path:
     is_flag=True,
     help="Show per-benchmark reasons and warnings.",
 )
+@click.option(
+    "--report",
+    "report_path",
+    type=click.Path(),
+    default=None,
+    help="Write Markdown damage report to this path.",
+)
+@click.option(
+    "--no-report",
+    is_flag=True,
+    help="Suppress auto-generated Markdown damage report.",
+)
 def gate_cmd(
     baseline: str,
     candidate: str,
@@ -82,6 +94,8 @@ def gate_cmd(
     fmt: str,
     strict: bool,
     verbose: bool,
+    report_path: str | None,
+    no_report: bool,
 ) -> None:
     """Apply a multi-benchmark release policy to baseline and candidate results."""
     try:
@@ -101,6 +115,19 @@ def gate_cmd(
         return
 
     _render_text(report, baseline_dir, candidate_dir, Path(policy_path), verbose, output)
+
+    # Markdown damage report
+    if not no_report:
+        from nemo_evaluator.engine.gate_report import write_gate_report as write_md_report
+
+        if report_path:
+            md_path = write_md_report(report.to_dict(), report_path)
+            click.echo(f"\nMarkdown damage report written to: {md_path}")
+        elif not no_report and output:
+            # Auto-generate next to JSON output
+            md_path = write_md_report(report.to_dict(), Path(output).with_suffix(".md"))
+            click.echo(f"Markdown damage report written to: {md_path}")
+
     _exit_strict(strict, report.verdict)
 
 

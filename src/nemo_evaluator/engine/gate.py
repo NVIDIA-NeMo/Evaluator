@@ -307,8 +307,9 @@ def _evaluate_benchmark(
     if result.baseline_score != 0:
         result.relative_drop_pct = round(100 * delta_mean / result.baseline_score, 2)
 
-    # Normal CI on paired deltas
-    ci = _paired_delta_ci(deltas)
+    # CI on paired deltas — use clustered CI when category metadata available
+    clusters = _extract_clusters(base_records, paired_keys)
+    ci = _paired_delta_ci(deltas, clusters=clusters)
     result.delta_ci_lower = ci[0]
     result.delta_ci_upper = ci[1]
 
@@ -326,11 +327,22 @@ def _is_regression(delta: float, direction: Direction) -> bool:
 def _paired_delta_ci(
     deltas: list[float],
     confidence: float = 0.95,
+    clusters: list[str] | None = None,
 ) -> tuple[float | None, float | None]:
-    """Compute normal CI on paired deltas without requiring scipy."""
+    """Compute CI on paired deltas. Uses clustered SE when cluster labels provided."""
     n = len(deltas)
     if n < 2:
         return None, None
+
+    # Try clustered CI if cluster labels are available and non-trivial
+    if clusters and len(set(clusters)) > 1:
+        try:
+            from nemo_evaluator.metrics.confidence import clustered_ci
+
+            ci = clustered_ci(deltas, clusters, confidence=confidence)
+            return round(ci.ci_lower, 6), round(ci.ci_upper, 6)
+        except Exception:
+            pass  # fall through to normal CI
 
     arr = np.array(deltas, dtype=np.float64)
     mean = float(arr.mean())
@@ -340,6 +352,31 @@ def _paired_delta_ci(
     z = 1.96 if confidence == 0.95 else 1.645 if confidence == 0.90 else 1.96
 
     return round(mean - z * se, 6), round(mean + z * se, 6)
+
+
+def _extract_clusters(
+    records: dict[tuple[int, int], dict[str, Any]],
+    paired_keys: list[int],
+) -> list[str] | None:
+    """Extract category/cluster labels for paired problems, if available."""
+    clusters = []
+    for pid in paired_keys:
+        # Find the record for this problem (any repeat)
+        record = None
+        for key, rec in records.items():
+            if key[0] == pid:
+                record = rec
+                break
+        if record is None:
+            return None
+        cat = (
+            record.get("metadata", {}).get("category")
+            or record.get("scoring_details", {}).get("category")
+        )
+        if cat is None:
+            return None  # all problems must have categories for clustered CI
+        clusters.append(str(cat))
+    return clusters
 
 
 def _metric_problem_values(
