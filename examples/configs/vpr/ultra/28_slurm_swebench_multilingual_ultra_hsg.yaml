@@ -64,8 +64,7 @@ services:
         chat_template_kwargs:
           enable_thinking: true
         skip_special_tokens: false
-      litellm_settings:
-        request_timeout: 600
+      request_timeout: 600
       interceptors:
         - name: turn_counter
           config:
@@ -90,8 +89,8 @@ cluster:
   hostname: oci-hsg-cs-001-login-01.nvidia.com
   account: llmservice_nemotron_ultra
   walltime: "04:00:00"
-  shards: 2
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260401-222021-c9f0387c-harbor-arm64
+  shards: 3
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260402-113114-13f3322f-harbor-arm64
   sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
   sbatch_extra_flags:
     switches: 1

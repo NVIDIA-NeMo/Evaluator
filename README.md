@@ -9,7 +9,6 @@ pip install -e .                   # core
 pip install -e ".[scoring]"        # + sympy
 pip install -e ".[scoring,stats]"  # + sympy + scipy
 pip install -e ".[harbor]"         # + Harbor agents
-pip install -e ".[proxy]"          # + LiteLLM proxy
 pip install -e ".[inspect]"        # + Inspect AI log export
 pip install -e ".[all]"            # everything
 ```
@@ -44,9 +43,9 @@ nel eval report ./eval_results/ -f markdown -o report.md
 
 External environments via URI schemes: `lm-eval://`, `skills://`, `vlmevalkit://`, `gym://`, `harbor://`, `container://`.
 
-## LiteLLM Proxy
+## Adapter Proxy
 
-Optional local proxy for LLM traffic observability. Intercepts all agent-to-model requests for logging, debugging, and custom transformations.
+Built-in local proxy with composable interceptor pipeline. Intercepts all agent-to-model requests for caching, logging, payload modification, turn limiting, and custom transformations. No external dependencies required.
 
 ```yaml
 services:
@@ -56,12 +55,19 @@ services:
     protocol: chat_completions
     model: nvidia/nemotron-3-super-120b-a12b
     api_key: ${NVIDIA_API_KEY}
-    interceptors:
-      - name: my_module.MyCallback
-    proxy_verbose: true   # stream proxy logs to stderr
+    proxy:
+      request_timeout: 600
+      interceptors:
+        - name: turn_counter
+          config:
+            max_turns: 100
+        - name: drop_params
+          config:
+            params: [max_tokens]
+      verbose: true
 ```
 
-Install with `pip install -e ".[proxy]"`. Works with both local and ECS Fargate sandboxes (reverse SSH tunnel established automatically).
+Available interceptors: `endpoint`, `drop_params`, `modify_tools`, `turn_counter`, `system_message`, `payload_modifier`, `raise_client_errors`, `caching`, `log_tokens`, `response_stats`, `reasoning`, `progress_tracking`, `logging`.
 
 ## Export
 
