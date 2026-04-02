@@ -13,7 +13,6 @@ RUN apt-get update \
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir "litellm[proxy]<=1.82.6"
 RUN pip install --no-cache-dir ".[scoring,stats]"
 RUN pip install --no-cache-dir "harbor @ git+https://github.com/harbor-framework/harbor.git@0b6c2aa9ef1e044e9180816fea6ab1636c574bb5"
 

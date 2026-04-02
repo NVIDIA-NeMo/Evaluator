@@ -76,9 +76,8 @@ def _ensure_env(api_key: str | None, model_url: str | None, model_id: str | None
     unsafe here because ``os.environ`` is process-global and concurrent
     tasks would clobber each other's cleanup.
 
-    Harbor uses litellm as its LLM layer, so ``LLM_MODEL`` gets the
-    ``openai/`` prefix when a custom ``model_url`` is set (litellm needs
-    the provider hint for OpenAI-compatible endpoints).
+    ``LLM_MODEL`` gets the ``openai/`` prefix when a custom ``model_url``
+    is set (the provider hint is needed for OpenAI-compatible endpoints).
     """
     key = _resolve_api_key(api_key)
     if not key:
