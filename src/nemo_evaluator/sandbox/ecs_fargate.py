@@ -1185,7 +1185,22 @@ class EcsFargateSandbox:
                 shell_cmd = f'su -s /bin/bash "$(getent passwd {user} | cut -d: -f1)" -c {shlex.quote(shell_cmd)}'
             else:
                 shell_cmd = f"su -s /bin/bash {shlex.quote(str(user))} -c {shlex.quote(shell_cmd)}"
-        return await asyncio.to_thread(self._exec_client.exec, shell_cmd, timeout=int(timeout_sec))  # type: ignore[union-attr]
+        try:
+            return await asyncio.to_thread(self._exec_client.exec, shell_cmd, timeout=int(timeout_sec))  # type: ignore[union-attr]
+        except ConnectionError:
+            if self._ssh_tunnel and not self._ssh_tunnel.is_open:
+                logger.warning("SSH tunnel dead — attempting reconnect before re-raising")
+                try:
+                    await self.reconnect_tunnel()
+                    sidecar = self._cfg.ssh_sidecar
+                    if sidecar and sidecar.exec_server_port is not None:
+                        health_url = f"http://127.0.0.1:{self._ssh_tunnel.local_port}/health"  # type: ignore[union-attr]
+                        self._ssh_tunnel.wait_ready(health_url=health_url, timeout=60.0)  # type: ignore[union-attr]
+                        self._exec_client = ExecClient(port=self._ssh_tunnel.local_port)  # type: ignore[union-attr]
+                        return await asyncio.to_thread(self._exec_client.exec, shell_cmd, timeout=int(timeout_sec))
+                except Exception as reconnect_err:
+                    logger.warning("Tunnel reconnect failed: %s", reconnect_err)
+            raise
 
     async def upload(self, local_path: Path, remote_path: str) -> None:
         self._require_exec_client()

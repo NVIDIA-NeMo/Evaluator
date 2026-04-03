@@ -94,7 +94,21 @@ async def _proxy_handler(request: Request) -> Response:
 
     try:
         resp = await pipeline.process(adapter_req)
-    except Exception:
+    except Exception as exc:
+        from nemo_evaluator.errors import GracefulError
+
+        if isinstance(exc, GracefulError):
+            logger.warning("Proxy: graceful termination for session %s: %s", ctx.extra.get("nel_session_id", "?"), exc)
+            return JSONResponse(
+                {
+                    "error": {
+                        "message": str(exc),
+                        "type": "nel_session_terminated",
+                        "code": "session_budget_exhausted",
+                    },
+                },
+                status_code=429,
+            )
         logger.exception("Pipeline error")
         return JSONResponse(
             {"error": {"message": "Internal adapter proxy error", "type": "server_error"}},
