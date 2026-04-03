@@ -40,3 +40,29 @@ class TestResponseCache:
         cache.put("m", "b", None, 0.0, 100, {"answer": "beta"})
         assert cache.get("m", "a", None, 0.0, 100)["answer"] == "alpha"
         assert cache.get("m", "b", None, 0.0, 100)["answer"] == "beta"
+
+    def test_different_stop_sequences_different_keys(self, tmp_path):
+        cache = ResponseCache(tmp_path / "cache")
+        resp_a = {"answer": "with_stop_a"}
+        resp_b = {"answer": "with_stop_b"}
+        cache.put("m", "prompt", None, 0.0, 100, resp_a, stop=["END"])
+        cache.put("m", "prompt", None, 0.0, 100, resp_b, stop=["STOP"])
+        assert cache.get("m", "prompt", None, 0.0, 100, stop=["END"])["answer"] == "with_stop_a"
+        assert cache.get("m", "prompt", None, 0.0, 100, stop=["STOP"])["answer"] == "with_stop_b"
+        assert cache.get("m", "prompt", None, 0.0, 100, stop=None) is None
+
+    def test_different_penalties_different_keys(self, tmp_path):
+        cache = ResponseCache(tmp_path / "cache")
+        resp_a = {"answer": "penalty_a"}
+        resp_b = {"answer": "penalty_b"}
+        cache.put("m", "prompt", None, 0.0, 100, resp_a, frequency_penalty=0.5)
+        cache.put("m", "prompt", None, 0.0, 100, resp_b, frequency_penalty=1.0)
+        assert cache.get("m", "prompt", None, 0.0, 100, frequency_penalty=0.5)["answer"] == "penalty_a"
+        assert cache.get("m", "prompt", None, 0.0, 100, frequency_penalty=1.0)["answer"] == "penalty_b"
+
+    def test_stop_list_order_does_not_matter(self, tmp_path):
+        cache = ResponseCache(tmp_path / "cache")
+        resp = {"answer": "ordered"}
+        cache.put("m", "prompt", None, 0.0, 100, resp, stop=["A", "B"])
+        assert cache.get("m", "prompt", None, 0.0, 100, stop=["A", "B"]) is not None
+        assert cache.get("m", "prompt", None, 0.0, 100, stop=["B", "A"]) is not None

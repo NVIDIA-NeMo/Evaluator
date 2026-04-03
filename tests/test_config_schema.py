@@ -466,6 +466,32 @@ class TestGenerationConfig:
         assert merged.temperature == 0.7
         assert merged.max_tokens == 2048
 
+    def test_merge_onto_all_fields(self):
+        base = GenerationConfig(
+            temperature=0.0,
+            top_p=0.9,
+            max_tokens=2048,
+            stop=["END"],
+            frequency_penalty=0.5,
+            presence_penalty=0.3,
+        )
+        override = GenerationConfig(temperature=0.7, stop=["STOP", "DONE"])
+        merged = override.merge_onto(base)
+        assert merged.temperature == 0.7
+        assert merged.top_p == 0.9
+        assert merged.max_tokens == 2048
+        assert merged.stop == ["STOP", "DONE"]
+        assert merged.frequency_penalty == 0.5
+        assert merged.presence_penalty == 0.3
+
+    def test_merge_onto_none_inherits(self):
+        base = GenerationConfig(frequency_penalty=0.5, presence_penalty=-0.5)
+        override = GenerationConfig()
+        merged = override.merge_onto(base)
+        assert merged.frequency_penalty == 0.5
+        assert merged.presence_penalty == -0.5
+        assert merged.temperature is None
+
     def test_range_validation(self):
         with pytest.raises(Exception):
             GenerationConfig(temperature=3.0)
@@ -473,6 +499,12 @@ class TestGenerationConfig:
     def test_max_tokens_positive(self):
         with pytest.raises(Exception):
             GenerationConfig(max_tokens=0)
+
+    def test_penalty_range_validation(self):
+        with pytest.raises(Exception):
+            GenerationConfig(frequency_penalty=3.0)
+        with pytest.raises(Exception):
+            GenerationConfig(presence_penalty=-3.0)
 
 
 class TestUrlProtocolWarning:

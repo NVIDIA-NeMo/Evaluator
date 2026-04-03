@@ -80,6 +80,9 @@ class ModelClient:
     max_tokens: int | None = None
     top_p: float | None = None
     seed: int | None = None
+    stop: list[str] | None = None
+    frequency_penalty: float | None = None
+    presence_penalty: float | None = None
     timeout: float = 120.0
     max_concurrent: int = 8
     cache_dir: str | None = None
@@ -145,6 +148,9 @@ class ModelClient:
                 self.max_tokens,
                 top_p=self.top_p,
                 seed=self.seed,
+                stop=self.stop,
+                frequency_penalty=self.frequency_penalty,
+                presence_penalty=self.presence_penalty,
                 messages=cache_msgs,
             )
             if cached:
@@ -162,6 +168,12 @@ class ModelClient:
             payload["top_p"] = self.top_p
         if self.seed is not None:
             payload["seed"] = self.seed
+        if self.stop is not None:
+            payload["stop"] = self.stop
+        if self.frequency_penalty is not None:
+            payload["frequency_penalty"] = self.frequency_penalty
+        if self.presence_penalty is not None:
+            payload["presence_penalty"] = self.presence_penalty
 
         url = f"{self.base_url}/chat/completions"
         t0 = time.monotonic()
@@ -178,6 +190,9 @@ class ModelClient:
                 data,
                 top_p=self.top_p,
                 seed=self.seed,
+                stop=self.stop,
+                frequency_penalty=self.frequency_penalty,
+                presence_penalty=self.presence_penalty,
                 messages=cache_msgs,
             )
         return self._parse_response(data, latency, cache_prompt, system)
@@ -216,6 +231,12 @@ class ModelClient:
             payload["top_p"] = self.top_p
         if self.seed is not None:
             payload["seed"] = self.seed
+        if self.stop is not None:
+            payload["stop"] = self.stop
+        if self.frequency_penalty is not None:
+            payload["frequency_penalty"] = self.frequency_penalty
+        if self.presence_penalty is not None:
+            payload["presence_penalty"] = self.presence_penalty
 
         url = f"{self.base_url}/chat/completions"
         t0 = time.monotonic()
@@ -224,7 +245,17 @@ class ModelClient:
 
         if self._cache:
             self._cache.put(
-                self.model, prompt, system, self.temperature, self.max_tokens, data, top_p=self.top_p, seed=self.seed
+                self.model,
+                prompt,
+                system,
+                self.temperature,
+                self.max_tokens,
+                data,
+                top_p=self.top_p,
+                seed=self.seed,
+                stop=self.stop,
+                frequency_penalty=self.frequency_penalty,
+                presence_penalty=self.presence_penalty,
             )
         return self._parse_response(data, latency, prompt, system)
 
@@ -248,6 +279,12 @@ class ModelClient:
             payload["top_p"] = self.top_p
         if self.seed is not None:
             payload["seed"] = self.seed
+        if self.stop is not None:
+            payload["stop"] = self.stop
+        if self.frequency_penalty is not None:
+            payload["frequency_penalty"] = self.frequency_penalty
+        if self.presence_penalty is not None:
+            payload["presence_penalty"] = self.presence_penalty
         for k, v in overrides.items():
             if k not in ("temperature", "max_tokens"):
                 payload[k] = v

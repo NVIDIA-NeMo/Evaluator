@@ -288,6 +288,12 @@ class ReActSolver:
                 overrides["max_tokens"] = gen.max_tokens
             if getattr(gen, "top_p", None) is not None:
                 overrides["top_p"] = gen.top_p
+            if getattr(gen, "stop", None) is not None:
+                overrides["stop"] = gen.stop
+            if getattr(gen, "frequency_penalty", None) is not None:
+                overrides["frequency_penalty"] = gen.frequency_penalty
+            if getattr(gen, "presence_penalty", None) is not None:
+                overrides["presence_penalty"] = gen.presence_penalty
         return overrides
 
     @staticmethod
