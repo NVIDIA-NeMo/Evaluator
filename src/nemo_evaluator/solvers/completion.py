@@ -36,6 +36,7 @@ class CompletionSolver:
         temperature: float | None = None,
         max_tokens: int | None = None,
         top_p: float | None = None,
+        seed: int | None = None,
         stop: list[str] | None = None,
         frequency_penalty: float | None = None,
         presence_penalty: float | None = None,
@@ -49,6 +50,7 @@ class CompletionSolver:
             temperature=temperature,
             max_tokens=max_tokens,
             top_p=top_p,
+            seed=seed,
             stop=stop,
             frequency_penalty=frequency_penalty,
             presence_penalty=presence_penalty,
@@ -58,6 +60,7 @@ class CompletionSolver:
         self._temperature = temperature
         self._max_tokens = max_tokens
         self._top_p = top_p
+        self._seed = seed
         self._stop = stop
         self._frequency_penalty = frequency_penalty
         self._presence_penalty = presence_penalty
@@ -75,6 +78,8 @@ class CompletionSolver:
             payload["max_tokens"] = self._max_tokens
         if self._top_p is not None:
             payload["top_p"] = self._top_p
+        if self._seed is not None:
+            payload["seed"] = self._seed
         if self._stop is not None:
             payload["stop"] = self._stop
         if self._frequency_penalty is not None:

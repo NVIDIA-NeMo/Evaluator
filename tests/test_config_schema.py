@@ -471,6 +471,7 @@ class TestGenerationConfig:
             temperature=0.0,
             top_p=0.9,
             max_tokens=2048,
+            seed=42,
             stop=["END"],
             frequency_penalty=0.5,
             presence_penalty=0.3,
@@ -480,6 +481,7 @@ class TestGenerationConfig:
         assert merged.temperature == 0.7
         assert merged.top_p == 0.9
         assert merged.max_tokens == 2048
+        assert merged.seed == 42
         assert merged.stop == ["STOP", "DONE"]
         assert merged.frequency_penalty == 0.5
         assert merged.presence_penalty == 0.3
