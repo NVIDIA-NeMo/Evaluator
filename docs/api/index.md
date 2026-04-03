@@ -57,8 +57,13 @@ Async client for OpenAI-compatible endpoints.
 | `base_url` | `str` | `https://inference-api.nvidia.com/v1` | API base URL |
 | `model` | `str` | `azure/openai/gpt-5.2` | Model identifier |
 | `api_key` | `str \| None` | `None` (uses `NEMO_API_KEY`) | API key |
-| `temperature` | `float` | `0.0` | Sampling temperature |
-| `max_tokens` | `int \| None` | `None` | Max completion tokens (unlimited by default) |
+| `temperature` | `float \| None` | `None` | Sampling temperature (0.0-2.0) |
+| `max_tokens` | `int \| None` | `None` | Max completion tokens |
+| `top_p` | `float \| None` | `None` | Nucleus sampling threshold (0.0-1.0) |
+| `seed` | `int \| None` | `None` | RNG seed for reproducibility |
+| `stop` | `list[str] \| None` | `None` | Stop sequences |
+| `frequency_penalty` | `float \| None` | `None` | Frequency penalty (-2.0 to 2.0) |
+| `presence_penalty` | `float \| None` | `None` | Presence penalty (-2.0 to 2.0) |
 | `timeout` | `float` | `120.0` | Request timeout in seconds |
 | `max_concurrent` | `int` | `8` | Max parallel requests |
 

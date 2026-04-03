@@ -91,8 +91,17 @@ class ResponseCache:
         messages: list[dict] | None = None,
     ) -> dict[str, Any] | None:
         key = self._key(
-            model, prompt, system, temperature, max_tokens,
-            top_p, seed, stop, frequency_penalty, presence_penalty, messages,
+            model,
+            prompt,
+            system,
+            temperature,
+            max_tokens,
+            top_p,
+            seed,
+            stop,
+            frequency_penalty,
+            presence_penalty,
+            messages,
         )
         p = self._path(key)
         if p.exists():
@@ -124,8 +133,17 @@ class ResponseCache:
         if temperature > 0:
             return
         key = self._key(
-            model, prompt, system, temperature, max_tokens,
-            top_p, seed, stop, frequency_penalty, presence_penalty, messages,
+            model,
+            prompt,
+            system,
+            temperature,
+            max_tokens,
+            top_p,
+            seed,
+            stop,
+            frequency_penalty,
+            presence_penalty,
+            messages,
         )
         p = self._path(key)
         p.parent.mkdir(parents=True, exist_ok=True)

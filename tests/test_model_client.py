@@ -267,14 +267,23 @@ class TestBuildGenerationPayload:
 
     def test_all_generation_keys_supported(self):
         c = self._client(
-            temperature=0.7, max_tokens=1024, top_p=0.9, seed=42,
-            stop=["END"], frequency_penalty=0.5, presence_penalty=-0.5,
+            temperature=0.7,
+            max_tokens=1024,
+            top_p=0.9,
+            seed=42,
+            stop=["END"],
+            frequency_penalty=0.5,
+            presence_penalty=-0.5,
         )
         result = c._build_generation_payload()
         assert result == {
-            "temperature": 0.7, "max_tokens": 1024, "top_p": 0.9,
-            "seed": 42, "stop": ["END"],
-            "frequency_penalty": 0.5, "presence_penalty": -0.5,
+            "temperature": 0.7,
+            "max_tokens": 1024,
+            "top_p": 0.9,
+            "seed": 42,
+            "stop": ["END"],
+            "frequency_penalty": 0.5,
+            "presence_penalty": -0.5,
         }
 
     def test_override_with_none_default_uses_override(self):
