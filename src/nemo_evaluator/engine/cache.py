@@ -64,11 +64,11 @@ class ResponseCache:
             system or "",
             str(temperature),
             str(max_tokens),
-            str(top_p or ""),
-            str(seed or ""),
+            str(top_p) if top_p is not None else "",
+            str(seed) if seed is not None else "",
             json.dumps(sorted(stop)) if stop else "",
-            str(frequency_penalty or ""),
-            str(presence_penalty or ""),
+            str(frequency_penalty) if frequency_penalty is not None else "",
+            str(presence_penalty) if presence_penalty is not None else "",
         ]
         return hashlib.sha256("|".join(parts).encode()).hexdigest()
 

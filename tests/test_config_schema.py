@@ -476,12 +476,12 @@ class TestGenerationConfig:
             frequency_penalty=0.5,
             presence_penalty=0.3,
         )
-        override = GenerationConfig(temperature=0.7, stop=["STOP", "DONE"])
+        override = GenerationConfig(temperature=0.7, seed=99, stop=["STOP", "DONE"])
         merged = override.merge_onto(base)
         assert merged.temperature == 0.7
         assert merged.top_p == 0.9
         assert merged.max_tokens == 2048
-        assert merged.seed == 42
+        assert merged.seed == 99
         assert merged.stop == ["STOP", "DONE"]
         assert merged.frequency_penalty == 0.5
         assert merged.presence_penalty == 0.3

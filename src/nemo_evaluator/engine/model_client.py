@@ -125,6 +125,24 @@ class ModelClient:
             await self._http.close()
             self._http = None
 
+    _GENERATION_KEYS = ("temperature", "max_tokens", "top_p", "seed", "stop", "frequency_penalty", "presence_penalty")
+
+    def _build_generation_payload(self, **overrides: Any) -> dict[str, Any]:
+        """Build generation params dict, with optional per-call overrides.
+
+        For each known generation key, the override wins if present,
+        otherwise the client default is used.  ``None`` values are omitted.
+        Any extra override keys are passed through as-is.
+        """
+        params: dict[str, Any] = {}
+        for key in self._GENERATION_KEYS:
+            val = overrides.pop(key, getattr(self, key))
+            if val is not None:
+                params[key] = val
+        for k, v in overrides.items():
+            params[k] = v
+        return params
+
     async def chat(
         self, prompt: str | None = None, system: str | None = None, messages: list[dict[str, str]] | None = None
     ) -> ModelResponse:
@@ -159,21 +177,8 @@ class ModelClient:
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": msgs,
+            **self._build_generation_payload(),
         }
-        if self.temperature is not None:
-            payload["temperature"] = self.temperature
-        if self.max_tokens is not None:
-            payload["max_tokens"] = self.max_tokens
-        if self.top_p is not None:
-            payload["top_p"] = self.top_p
-        if self.seed is not None:
-            payload["seed"] = self.seed
-        if self.stop is not None:
-            payload["stop"] = self.stop
-        if self.frequency_penalty is not None:
-            payload["frequency_penalty"] = self.frequency_penalty
-        if self.presence_penalty is not None:
-            payload["presence_penalty"] = self.presence_penalty
 
         url = f"{self.base_url}/chat/completions"
         t0 = time.monotonic()
@@ -222,21 +227,8 @@ class ModelClient:
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": msgs,
+            **self._build_generation_payload(),
         }
-        if self.temperature is not None:
-            payload["temperature"] = self.temperature
-        if self.max_tokens is not None:
-            payload["max_tokens"] = self.max_tokens
-        if self.top_p is not None:
-            payload["top_p"] = self.top_p
-        if self.seed is not None:
-            payload["seed"] = self.seed
-        if self.stop is not None:
-            payload["stop"] = self.stop
-        if self.frequency_penalty is not None:
-            payload["frequency_penalty"] = self.frequency_penalty
-        if self.presence_penalty is not None:
-            payload["presence_penalty"] = self.presence_penalty
 
         url = f"{self.base_url}/chat/completions"
         t0 = time.monotonic()
@@ -272,22 +264,8 @@ class ModelClient:
             "model": self.model,
             "messages": messages,
             "tools": tools,
-            "temperature": overrides.get("temperature", self.temperature),
-            "max_tokens": overrides.get("max_tokens", self.max_tokens),
+            **self._build_generation_payload(**overrides),
         }
-        if self.top_p is not None:
-            payload["top_p"] = self.top_p
-        if self.seed is not None:
-            payload["seed"] = self.seed
-        if self.stop is not None:
-            payload["stop"] = self.stop
-        if self.frequency_penalty is not None:
-            payload["frequency_penalty"] = self.frequency_penalty
-        if self.presence_penalty is not None:
-            payload["presence_penalty"] = self.presence_penalty
-        for k, v in overrides.items():
-            if k not in ("temperature", "max_tokens"):
-                payload[k] = v
 
         url = f"{self.base_url}/chat/completions"
         t0 = time.monotonic()

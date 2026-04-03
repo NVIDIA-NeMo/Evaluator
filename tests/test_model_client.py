@@ -227,3 +227,57 @@ class TestModelClient:
         assert c.stop is None
         assert c.frequency_penalty is None
         assert c.presence_penalty is None
+
+
+class TestBuildGenerationPayload:
+    """Tests for ModelClient._build_generation_payload."""
+
+    def _client(self, **kwargs):
+        return ModelClient(base_url="https://api.example.com/v1", model="test", **kwargs)
+
+    def test_returns_empty_when_all_none(self):
+        assert self._client()._build_generation_payload() == {}
+
+    def test_includes_set_defaults(self):
+        c = self._client(temperature=0.7, max_tokens=1024, seed=42)
+        result = c._build_generation_payload()
+        assert result == {"temperature": 0.7, "max_tokens": 1024, "seed": 42}
+
+    def test_omits_none_defaults(self):
+        c = self._client(temperature=0.5)
+        result = c._build_generation_payload()
+        assert "top_p" not in result
+        assert "seed" not in result
+        assert result == {"temperature": 0.5}
+
+    def test_overrides_replace_defaults(self):
+        c = self._client(temperature=0.7, max_tokens=1024)
+        result = c._build_generation_payload(temperature=0.1, max_tokens=512)
+        assert result == {"temperature": 0.1, "max_tokens": 512}
+
+    def test_overrides_add_new_fields(self):
+        c = self._client(temperature=0.5)
+        result = c._build_generation_payload(seed=99)
+        assert result == {"temperature": 0.5, "seed": 99}
+
+    def test_extra_overrides_passed_through(self):
+        c = self._client(temperature=0.5)
+        result = c._build_generation_payload(guided_json={"type": "object"})
+        assert result == {"temperature": 0.5, "guided_json": {"type": "object"}}
+
+    def test_all_generation_keys_supported(self):
+        c = self._client(
+            temperature=0.7, max_tokens=1024, top_p=0.9, seed=42,
+            stop=["END"], frequency_penalty=0.5, presence_penalty=-0.5,
+        )
+        result = c._build_generation_payload()
+        assert result == {
+            "temperature": 0.7, "max_tokens": 1024, "top_p": 0.9,
+            "seed": 42, "stop": ["END"],
+            "frequency_penalty": 0.5, "presence_penalty": -0.5,
+        }
+
+    def test_override_with_none_default_uses_override(self):
+        c = self._client()
+        result = c._build_generation_payload(temperature=0.3)
+        assert result == {"temperature": 0.3}
