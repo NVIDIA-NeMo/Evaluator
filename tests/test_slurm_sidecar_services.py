@@ -14,7 +14,12 @@
 # limitations under the License.
 """Tests that non-model services (gym) referenced by solvers appear in SLURM sidecar configs."""
 
+import os
+
+import pytest
+
 from nemo_evaluator.config import EvalConfig
+from nemo_evaluator.config.eval_config import parse_eval_config
 from nemo_evaluator.orchestration.slurm_gen import generate_sbatch
 
 
@@ -32,11 +37,33 @@ def _make_slurm_config(services, benchmarks):
     )
 
 
+def _validate_sidecar(sidecar: dict) -> EvalConfig:
+    """Parse a sidecar dict through the real config loader (with env-var expansion).
+
+    Raises if EvalConfig validation fails (e.g. missing service references).
+    """
+    env_patch = {
+        "MODEL_URL": "http://localhost:8000",
+        "MODEL_MODEL": "test-model",
+        "NEL_OUTPUT_DIR": "/tmp/test",
+    }
+    orig = {k: os.environ.get(k) for k in env_patch}
+    os.environ.update(env_patch)
+    try:
+        return parse_eval_config(sidecar)
+    finally:
+        for k, v in orig.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
 class TestSidecarGymServices:
     """Non-model services (gym) referenced by solvers must appear in sidecar configs."""
 
     def test_gym_delegation_includes_gym_service(self):
-        """gym_service referenced by gym_delegation solver appears in sidecar."""
+        """gym_service referenced by gym_delegation solver validates in sidecar."""
         cfg = _make_slurm_config(
             services={
                 "model": {
@@ -63,13 +90,10 @@ class TestSidecarGymServices:
         )
         _, sidecars, _ = generate_sbatch(cfg)
         assert len(sidecars) == 1
-        sidecar = list(sidecars.values())[0]
-        assert "gym" in sidecar["services"]
-        assert sidecar["services"]["gym"]["type"] == "gym"
-        assert sidecar["services"]["gym"]["url"] == "http://gym-server:8000"
+        _validate_sidecar(list(sidecars.values())[0])
 
     def test_tool_calling_includes_resource_service(self):
-        """resource_service referenced by tool_calling solver appears in sidecar."""
+        """resource_service referenced by tool_calling solver validates in sidecar."""
         cfg = _make_slurm_config(
             services={
                 "model": {
@@ -95,13 +119,10 @@ class TestSidecarGymServices:
         )
         _, sidecars, _ = generate_sbatch(cfg)
         assert len(sidecars) == 1
-        sidecar = list(sidecars.values())[0]
-        assert "tools" in sidecar["services"]
-        assert sidecar["services"]["tools"]["type"] == "gym"
-        assert sidecar["services"]["tools"]["url"] == "http://localhost:18099"
+        _validate_sidecar(list(sidecars.values())[0])
 
     def test_managed_gym_gets_localhost_url(self):
-        """Managed gym (no url set) gets http://localhost:<port> in sidecar."""
+        """Managed gym (no url set) gets localhost URL in sidecar."""
         cfg = _make_slurm_config(
             services={
                 "model": {
@@ -127,8 +148,8 @@ class TestSidecarGymServices:
             ],
         )
         _, sidecars, _ = generate_sbatch(cfg)
-        sidecar = list(sidecars.values())[0]
-        assert sidecar["services"]["gym"]["url"] == "http://localhost:9090"
+        sidecar = _validate_sidecar(list(sidecars.values())[0])
+        assert sidecar.services["gym"].url == "http://localhost:9090"
 
     def test_unreferenced_gym_excluded_from_sidecar(self):
         """Gym service not referenced by solver must not appear in sidecar."""
@@ -151,6 +172,31 @@ class TestSidecarGymServices:
         )
         _, sidecars, _ = generate_sbatch(cfg)
         assert len(sidecars) == 1
-        sidecar = list(sidecars.values())[0]
-        assert "unused_gym" not in sidecar["services"]
-        assert list(sidecar["services"].keys()) == ["model"]
+        sidecar = _validate_sidecar(list(sidecars.values())[0])
+        assert "unused_gym" not in sidecar.services
+
+    def test_missing_gym_service_fails_validation(self):
+        """A sidecar missing a referenced gym service fails EvalConfig validation."""
+        sidecar_missing_gym = {
+            "services": {
+                "model": {
+                    "type": "api",
+                    "url": "http://localhost:8000/chat/completions",
+                    "protocol": "chat_completions",
+                    "model": "test-model",
+                },
+            },
+            "benchmarks": [
+                {
+                    "name": "swebench-multilingual",
+                    "solver": {
+                        "type": "gym_delegation",
+                        "service": "model",
+                        "gym_service": "gym",
+                        "gym_agent": "openhands",
+                    },
+                }
+            ],
+        }
+        with pytest.raises(ValueError, match="gym_service='gym' not in services"):
+            _validate_sidecar(sidecar_missing_gym)
