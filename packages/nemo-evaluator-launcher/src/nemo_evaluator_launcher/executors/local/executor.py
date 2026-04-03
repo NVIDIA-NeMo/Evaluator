@@ -297,6 +297,7 @@ class LocalExecutor(BaseExecutor):
                     auto_export_config_str=auto_export_config_str,
                     extra_docker_args=extra_docker_args,
                     endpoint_readiness_timeout=endpoint_readiness_timeout,
+                    invocation_id=invocation_id,
                 ).rstrip("\n")
                 + "\n"
             )
@@ -316,6 +317,7 @@ class LocalExecutor(BaseExecutor):
                     auto_export_config_str=auto_export_config_str,
                     extra_docker_args=extra_docker_args,
                     endpoint_readiness_timeout=endpoint_readiness_timeout,
+                    invocation_id=invocation_id,
                 ).rstrip("\n")
                 + "\n"
             )

@@ -14,6 +14,8 @@
 # limitations under the License.
 
 
+NEL_INVOCATION_ID="{{ invocation_id }}"
+
 # check if docker exists
 command -v docker >/dev/null 2>&1 || { echo 'docker not found'; exit 1; }
 
