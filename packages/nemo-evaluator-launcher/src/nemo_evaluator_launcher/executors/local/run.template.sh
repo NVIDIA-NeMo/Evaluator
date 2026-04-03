@@ -42,6 +42,7 @@ chmod 666 "$logs_dir/client_stdout.log"
 task_dir="{{ task.output_dir }}"
 artifacts_dir="$task_dir/artifacts"
 logs_dir="$task_dir/logs"
+interrupted_marker="$artifacts_dir/.nemo_evaluator_interrupted"
 
 mkdir -m 777 -p "$task_dir"
 mkdir -m 777 -p "$artifacts_dir"
@@ -132,6 +133,11 @@ else
     # Stop the server
     docker stop $SERVER_CONTAINER_NAME 2>/dev/null || true
     {% endif %}
+
+    if [ "$exit_code" = "0" ] && [ -f "$interrupted_marker" ]; then
+        echo "Evaluation exited cleanly after SIGTERM; marking job as interrupted." >&2
+        exit_code=143
+    fi
 
     echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $exit_code" > "$logs_dir/stage.exit"
 

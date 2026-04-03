@@ -26,7 +26,10 @@ from omegaconf import OmegaConf
 
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.executors.base import ExecutionState
-from nemo_evaluator_launcher.executors.local.executor import LocalExecutor
+from nemo_evaluator_launcher.executors.local.executor import (
+    INTERRUPTED_MARKER_FILENAME,
+    LocalExecutor,
+)
 
 
 class TestLocalExecutorDryRun:
@@ -451,6 +454,24 @@ class TestLocalExecutorGetStatus:
         assert len(statuses) == 1
         assert statuses[0].state == ExecutionState.SUCCESS
         assert statuses[0].progress["progress"] == 100
+
+    def test_get_status_interrupted_marker_overrides_exit_code_0(
+        self, mock_execdb, sample_job_data, setup_job_filesystem
+    ):
+        """Test get_status treats exit_code 0 plus interruption marker as killed."""
+        _, artifacts_dir, _ = setup_job_filesystem(
+            stage_files={"exit": "2025-01-01T12:00:00Z 0"},
+            progress_value=85,
+        )
+        (artifacts_dir / INTERRUPTED_MARKER_FILENAME).write_text("{}")
+
+        db = ExecutionDB()
+        db.write_job(sample_job_data)
+
+        statuses = LocalExecutor.get_status("abc12345.0")
+        assert len(statuses) == 1
+        assert statuses[0].state == ExecutionState.KILLED
+        assert statuses[0].progress["progress"] == 85
 
     def test_get_status_failed_with_nonzero_exit_code(
         self, mock_execdb, sample_job_data, setup_job_filesystem

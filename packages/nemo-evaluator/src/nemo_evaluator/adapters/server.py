@@ -328,6 +328,18 @@ class AdapterServer:
                 current_request if "current_request" in locals() else None,
             )
 
+            # Write server error marker so the parent's SIGTERM handler knows
+            # this is a server-initiated shutdown (not an operator interruption).
+            # Keep in sync with nemo_evaluator.core.evaluate.SERVER_ERROR_MARKER_FILENAME
+            try:
+                error_marker = os.path.join(
+                    self.output_dir, ".nemo_evaluator_server_error"
+                )
+                with open(error_marker, "w") as f:
+                    f.write(str(e))
+            except OSError:
+                pass
+
             # Send SIGTERM to parent process - the signal handler will run post-eval hooks
             logger.info("Sending SIGTERM to parent process")
             try:
