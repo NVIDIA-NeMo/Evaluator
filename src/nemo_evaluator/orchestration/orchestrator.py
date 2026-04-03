@@ -632,6 +632,7 @@ async def _run_single_benchmark(
     resume: bool = False,
 ) -> dict[str, Any]:
     from nemo_evaluator.environments.registry import get_environment
+    from nemo_evaluator.adapters.proxy import start_adapter_proxy
     from nemo_evaluator.observability.progress import ConsoleProgress
     from nemo_evaluator.engine.artifacts import write_all
     from nemo_evaluator.engine.eval_loop import run_evaluation
@@ -656,22 +657,20 @@ async def _run_single_benchmark(
         svc = config.get_service(service_name)
 
     proxy_handle = None
-    proxy_cfg = getattr(svc, "proxy", None) if svc else None
-    if proxy_cfg is not None and proxy_cfg.needs_proxy:
-        from nemo_evaluator.adapters.proxy import start_adapter_proxy
-
-        proxy_handle = start_adapter_proxy(
-            upstream_url=model_url,
-            model_id=model_id,
-            api_key=api_key,
-            interceptor_specs=_interceptor_specs(proxy_cfg.interceptors),
-            verbose=proxy_cfg.verbose,
-            extra_body=proxy_cfg.extra_body or None,
-            request_timeout=proxy_cfg.request_timeout,
-            max_retries=proxy_cfg.max_retries,
-            retry_on_status=proxy_cfg.retry_on_status,
-            max_concurrent_upstream=proxy_cfg.max_concurrent_upstream,
-        )
+    if model_url:
+        proxy_kwargs: dict[str, Any] = dict(upstream_url=model_url, model_id=model_id, api_key=api_key)
+        proxy_cfg = getattr(svc, "proxy", None) if svc else None
+        if proxy_cfg is not None and proxy_cfg.needs_proxy:
+            proxy_kwargs.update(
+                interceptor_specs=_interceptor_specs(proxy_cfg.interceptors),
+                verbose=proxy_cfg.verbose,
+                extra_body=proxy_cfg.extra_body or None,
+                request_timeout=proxy_cfg.request_timeout,
+                max_retries=proxy_cfg.max_retries,
+                retry_on_status=proxy_cfg.retry_on_status,
+                max_concurrent_upstream=proxy_cfg.max_concurrent_upstream,
+            )
+        proxy_handle = start_adapter_proxy(**proxy_kwargs)
         model_url = proxy_handle.url
 
     try:

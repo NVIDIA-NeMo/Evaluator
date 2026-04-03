@@ -64,7 +64,7 @@ class DiskCache:
             logger.warning("Failed to initialize cache DB at %s", self._db_path, exc_info=True)
 
     @staticmethod
-    def cache_key(body: dict[str, Any]) -> str:
+    def cache_key(body: dict[str, Any], *, session_prefix: str = "") -> str:
         canonical: dict[str, Any] = {}
         for k in _RELEVANT_KEYS:
             if k in body:
@@ -72,6 +72,8 @@ class DiskCache:
         if "extra_body" in body and isinstance(body["extra_body"], dict):
             canonical["extra_body"] = body["extra_body"]
         raw = json.dumps(canonical, sort_keys=True, ensure_ascii=False)
+        if session_prefix:
+            raw = session_prefix + "|" + raw
         return hashlib.sha256(raw.encode()).hexdigest()
 
     def _get_sync(self, key: str) -> dict | None:

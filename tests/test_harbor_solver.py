@@ -79,7 +79,7 @@ class TestEnsureEnv:
         assert os.environ["LLM_MODEL"] == "openai/my-model"
 
     def test_no_key_uses_dummy(self, monkeypatch):
-        for v in ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL"):
+        for v in ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "NVIDIA_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
             monkeypatch.delenv(v, raising=False)
         _ensure_env(None, None, None)
         assert os.environ["LLM_API_KEY"] == "no-key-needed"

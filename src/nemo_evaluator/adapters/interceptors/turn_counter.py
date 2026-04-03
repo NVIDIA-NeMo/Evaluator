@@ -29,7 +29,8 @@ _WARN_THRESHOLD = 0.80
 _URGENT_THRESHOLD = 0.95
 
 
-def _session_key(body: dict[str, Any]) -> str:
+def _session_key_from_body(body: dict[str, Any]) -> str:
+    """Fallback: derive a session key from the first non-system message."""
     messages = body.get("messages") or []
     for msg in messages:
         if msg.get("role") == "system":
@@ -61,7 +62,7 @@ class Interceptor(RequestInterceptor):
         self._lock = asyncio.Lock()
 
     async def intercept_request(self, req: AdapterRequest) -> AdapterRequest:
-        key = _session_key(req.body)
+        key = req.ctx.extra.get("nel_session_id") or _session_key_from_body(req.body)
 
         async with self._lock:
             sess = self._sessions.setdefault(key, _Session())

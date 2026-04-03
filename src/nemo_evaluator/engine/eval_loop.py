@@ -21,6 +21,7 @@ import logging
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 from nemo_evaluator.environments.base import EvalEnvironment, VerifyResult
 from nemo_evaluator.errors import GracefulError
@@ -238,7 +239,9 @@ async def run_evaluation(
             if model_url:
                 from nemo_evaluator.sandbox.base import OutsideEndpoint as OE
 
-                outside_eps.append(OE(url=model_url, env_var="MODEL_BASE_URL"))
+                step_session_id = uuid4().hex[:12]
+                step_url = f"{model_url.rstrip('/')}/s/{step_session_id}"
+                outside_eps.append(OE(url=step_url, env_var="MODEL_BASE_URL"))
 
             sandbox_cfg = config.get("_sandbox_config")
             vr: VerifyResult | None = None

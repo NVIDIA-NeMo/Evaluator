@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import socket
 import threading
 import time
@@ -48,11 +49,18 @@ _HOP_BY_HOP_HEADERS = frozenset(
 )
 
 
+_SESSION_PATH_RE = re.compile(r"^/s/([a-f0-9]+)(/.*)?$")
+
+
 async def _proxy_handler(request: Request) -> Response:
     """Catch-all handler that forwards any POST request through the pipeline.
 
     Matches the original Evaluator proxy behavior: all paths are forwarded
     to upstream (chat/completions, completions, embeddings, models, etc.).
+
+    If the path starts with ``/s/<hex_id>/…`` the session id is extracted
+    into ``ctx.extra["nel_session_id"]`` and stripped before forwarding, so
+    the upstream model never sees the prefix.
     """
     pipeline: AdapterPipeline = request.app.state.pipeline
     model_id: str = request.app.state.model_id
@@ -68,12 +76,20 @@ async def _proxy_handler(request: Request) -> Response:
     if model_id:
         body.setdefault("model", model_id)
 
+    path = request.url.path
+    ctx = InterceptorContext()
+
+    m = _SESSION_PATH_RE.match(path)
+    if m:
+        ctx.extra["nel_session_id"] = m.group(1)
+        path = m.group(2) or "/"
+
     adapter_req = AdapterRequest(
         method=request.method,
-        path=request.url.path,
+        path=path,
         headers=dict(request.headers),
         body=body,
-        ctx=InterceptorContext(),
+        ctx=ctx,
     )
 
     try:

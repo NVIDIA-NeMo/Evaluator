@@ -87,9 +87,8 @@ class TestMLflowExporter:
 
 class TestInspectExporter:
     def test_init(self):
-        try:
-            from nemo_evaluator.engine.exporters.inspect_export import InspectExporter
-        except ImportError:
-            pytest.skip("inspect_ai not installed")
+        pytest.importorskip("inspect_ai")
+        from nemo_evaluator.engine.exporters.inspect_export import InspectExporter
+
         exp = InspectExporter(format="json")
         assert exp._format == "json"

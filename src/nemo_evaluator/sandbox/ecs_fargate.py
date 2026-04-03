@@ -1211,7 +1211,11 @@ class EcsFargateSandbox:
         for ep in self._outside_endpoints:
             if ep.url == url and ep.env_var in self._reverse_port_map:
                 remote_port, scheme = self._reverse_port_map[ep.env_var]
-                return f"{scheme}://127.0.0.1:{remote_port}"
+                parsed = urlparse(url)
+                return parsed._replace(
+                    scheme=scheme,
+                    netloc=f"127.0.0.1:{remote_port}",
+                ).geturl()
         if self._ssh_tunnel_port is not None:
             parsed = urlparse(url)
             return parsed._replace(netloc=f"127.0.0.1:{self._ssh_tunnel_port}").geturl()
@@ -1406,12 +1410,18 @@ class EcsFargateSandbox:
                 env[k] = self._render_env_value(v)
         if self._ssh_tunnel_port and self._outside_endpoints:
             ep = self._outside_endpoints[0]
-            scheme = urlparse(ep.url).scheme or "http"
-            env[ep.env_var] = f"{scheme}://127.0.0.1:{self._ssh_tunnel_port}"
+            parsed = urlparse(ep.url)
+            env[ep.env_var] = parsed._replace(
+                netloc=f"127.0.0.1:{self._ssh_tunnel_port}",
+            ).geturl()
         for ep in self._outside_endpoints:
             if ep.env_var in self._reverse_port_map:
                 remote_port, scheme = self._reverse_port_map[ep.env_var]
-                env[ep.env_var] = f"{scheme}://127.0.0.1:{remote_port}"
+                parsed = urlparse(ep.url)
+                env[ep.env_var] = parsed._replace(
+                    scheme=scheme,
+                    netloc=f"127.0.0.1:{remote_port}",
+                ).geturl()
         return env
 
     def _render_env_value(self, value: str) -> str:
