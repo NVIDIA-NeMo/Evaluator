@@ -702,7 +702,7 @@ def _create_slurm_sbatch_script(
     s += "#SBATCH --output {}\n".format(remote_task_subdir / "logs" / "slurm-%A.log")
     s += "\n"
     s += f'TASK_DIR="{str(remote_task_subdir)}"\n'
-    s += f'export NEL_INVOCATION_ID="{invocation_id}"\n'
+    s += f'NEL_INVOCATION_ID="{invocation_id}"\n'
     s += "\n"
 
     # Collect env vars using unified pipeline
