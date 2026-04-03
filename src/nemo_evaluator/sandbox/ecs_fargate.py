@@ -1208,16 +1208,16 @@ class EcsFargateSandbox:
         dest.write_bytes(data)
 
     def resolve_outside_endpoint(self, url: str) -> str:
+        parsed = urlparse(url)
         for ep in self._outside_endpoints:
-            if ep.url == url and ep.env_var in self._reverse_port_map:
+            ep_parsed = urlparse(ep.url)
+            if ep_parsed.netloc == parsed.netloc and ep.env_var in self._reverse_port_map:
                 remote_port, scheme = self._reverse_port_map[ep.env_var]
-                parsed = urlparse(url)
                 return parsed._replace(
                     scheme=scheme,
                     netloc=f"127.0.0.1:{remote_port}",
                 ).geturl()
         if self._ssh_tunnel_port is not None:
-            parsed = urlparse(url)
             return parsed._replace(netloc=f"127.0.0.1:{self._ssh_tunnel_port}").geturl()
         raise RuntimeError("resolve_outside_endpoint() requires SSH reverse tunnel")
 
