@@ -797,7 +797,7 @@ def _health_block(name: str, svc) -> str:
         return _HEALTH_WAIT_MULTI.format(
             name=name,
             name_upper=upper,
-            url=url,
+            url=svc.base_url,
             max_attempts=max_attempts,
         )
 
@@ -871,6 +871,17 @@ def _extract_bench_config(config: EvalConfig, bench_idx: int, svc_url_var: str, 
             if gen:
                 svc_dict["generation"] = gen
         services[svc_name] = svc_dict
+
+    # Include non-model services (gym) so the inner eval runner can resolve them.
+    for attr in ("resource_service", "gym_service"):
+        extra_svc_name = getattr(bench.solver, attr, None)
+        if extra_svc_name and extra_svc_name not in services:
+            extra_svc = config.services.get(extra_svc_name)
+            if extra_svc and not extra_svc.is_model_server:
+                services[extra_svc_name] = {
+                    "type": extra_svc.type,
+                    "url": extra_svc.base_url,
+                }
 
     bench_dict = bench.model_dump(exclude_none=True)
     bench_dict.pop("scoring", None)
