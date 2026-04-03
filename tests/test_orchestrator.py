@@ -2,77 +2,68 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
-class TestMakeSolver:
-    @patch("nemo_evaluator.orchestration.orchestrator.ChatSolver")
-    def test_simple_chat_solver(self, MockChat):
-        from nemo_evaluator.orchestration.orchestrator import _make_solver
-
-        bench = MagicMock()
-        bench.solver = MagicMock()
-        bench.solver.__class__.__name__ = "SimpleSolver"
-        type(bench.solver).__name__ = "SimpleSolver"
-        bench.solver.protocol = "chat"
-        bench.solver.image_detail = None
-        bench.solver.system_prompt = None
-
-        config = MagicMock()
-        client = MagicMock()
-
-        solver = _make_solver(bench, config, client, "http://localhost:8000/v1", "m", "k")
-        assert solver is not None
-
-    @patch("nemo_evaluator.orchestration.orchestrator.CompletionSolver")
-    def test_simple_completion_solver(self, MockCompletion):
-        from nemo_evaluator.orchestration.orchestrator import _make_solver
-
-        bench = MagicMock()
-        bench.solver = MagicMock()
-        type(bench.solver).__name__ = "SimpleSolver"
-        bench.solver.protocol = "completions"
-        bench.solver.image_detail = None
-
-        config = MagicMock()
-        client = MagicMock()
-
-        solver = _make_solver(bench, config, client, "http://localhost:8000/v1", "m", "k")
-        assert solver is not None
+from nemo_evaluator.config.sandboxes import NoSandbox as NoSandboxConfig
 
 
 class TestMakeSandboxManager:
     def test_no_sandbox_returns_none(self):
         from nemo_evaluator.orchestration.orchestrator import _make_sandbox_manager
 
-        sb = MagicMock()
-        type(sb).__name__ = "NoSandbox"
+        sb = NoSandboxConfig()
         result = _make_sandbox_manager(sb)
         assert result is None
 
 
-class TestRunLocal:
-    """Smoke test that run_local wiring doesn't crash with fully mocked deps."""
+class TestSafeName:
+    def test_sanitizes_special_chars(self):
+        from nemo_evaluator.orchestration.orchestrator import _safe_name
 
-    @patch("nemo_evaluator.orchestration.orchestrator._generate_reports")
-    @patch("nemo_evaluator.orchestration.orchestrator._run_single_benchmark")
-    @patch("nemo_evaluator.orchestration.orchestrator.CheckpointManager")
-    def test_empty_benchmarks(self, MockCkpt, mock_run_bench, mock_reports):
-        from nemo_evaluator.orchestration.orchestrator import run_local
+        result = _safe_name("hello/world:v1")
+        assert "/" not in result
+        assert ":" not in result
 
-        config = MagicMock()
-        config.benchmarks = []
-        config.services = {}
-        config.output.dir = "/tmp/test-run"
-        config.output.run_name = None
-        config.cluster = MagicMock()
-        config.cluster.container_env = {}
-        config.exporters = []
+    def test_replaces_whitespace(self):
+        from nemo_evaluator.orchestration.orchestrator import _safe_name
 
-        ckpt = MagicMock()
-        ckpt.is_completed.return_value = False
-        MockCkpt.return_value = ckpt
+        result = _safe_name("  hello world  ")
+        assert " " not in result
 
-        bundles = run_local(config)
-        assert bundles == []
-        mock_run_bench.assert_not_called()
+
+class TestInterceptorSpecs:
+    def test_returns_list_from_configs(self):
+        from nemo_evaluator.orchestration.orchestrator import _interceptor_specs
+
+        ic = MagicMock()
+        ic.name = "turn_counter"
+        ic.config = {"max_turns": 200}
+        result = _interceptor_specs([ic])
+        assert len(result) == 1
+        assert result[0]["name"] == "turn_counter"
+        assert result[0]["config"]["max_turns"] == 200
+
+    def test_empty_list(self):
+        from nemo_evaluator.orchestration.orchestrator import _interceptor_specs
+
+        assert _interceptor_specs([]) == []
+
+
+class TestResolveGeneration:
+    def test_returns_generation_config(self):
+        from nemo_evaluator.config import GenerationConfig, EvalConfig
+        from nemo_evaluator.orchestration.orchestrator import _resolve_generation
+
+        config = MagicMock(spec=EvalConfig)
+        svc = MagicMock()
+        svc.generation = GenerationConfig(temperature=0.7, max_tokens=100)
+        config.get_service.return_value = svc
+
+        solver_cfg = MagicMock()
+        solver_cfg.service = "my-svc"
+        solver_cfg.generation = None
+
+        result = _resolve_generation(config, solver_cfg)
+        assert result.temperature == 0.7
+        assert result.max_tokens == 100

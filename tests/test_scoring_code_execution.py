@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
 from unittest.mock import AsyncMock, MagicMock, patch
-
 
 from nemo_evaluator.scoring.code_execution import (
     _extract_code,
@@ -42,7 +42,7 @@ class TestExtractCode:
 
 
 class TestCodeSandbox:
-    @patch("nemo_evaluator.scoring.code_execution.subprocess.run")
+    @patch("subprocess.run")
     def test_passing_code(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0)
         sample = ScorerInput(
@@ -55,30 +55,28 @@ class TestCodeSandbox:
         assert "extracted" in result
         mock_run.assert_called_once()
 
-    @patch("nemo_evaluator.scoring.code_execution.subprocess.run")
+    @patch("subprocess.run")
     def test_failing_code(self, mock_run):
         mock_run.return_value = MagicMock(returncode=1)
         sample = ScorerInput(response="pass", target="", metadata={"_prompt": "", "_test": "", "_entry_point": "f"})
         result = code_sandbox(sample)
         assert result["correct"] is False
 
-    @patch("nemo_evaluator.scoring.code_execution.subprocess.run")
+    @patch("subprocess.run")
     def test_timeout(self, mock_run):
-        import subprocess
-
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="docker", timeout=30)
         sample = ScorerInput(response="while True: pass", target="", metadata={})
         result = code_sandbox(sample)
         assert result["correct"] is False
 
-    @patch("nemo_evaluator.scoring.code_execution.subprocess.run")
+    @patch("subprocess.run")
     def test_docker_not_found(self, mock_run):
         mock_run.side_effect = FileNotFoundError("docker not found")
         sample = ScorerInput(response="print(1)", target="", metadata={})
         result = code_sandbox(sample)
         assert result["correct"] is False
 
-    @patch("nemo_evaluator.scoring.code_execution.subprocess.run")
+    @patch("subprocess.run")
     def test_extracted_truncated_to_500(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0)
         long_code = "x" * 1000
