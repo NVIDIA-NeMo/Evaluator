@@ -30,6 +30,7 @@ dependencies = [
     "structlog",
     "typing-extensions>=4.0.0",
     "pyyaml",
+    "waitress",
     "werkzeug",
     "yq",
 ]
