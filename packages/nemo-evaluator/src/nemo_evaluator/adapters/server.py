@@ -17,6 +17,7 @@
 
 import multiprocessing
 import os
+import resource
 import signal
 import socket
 import sys
@@ -25,7 +26,7 @@ from typing import List
 
 import flask
 import requests
-import werkzeug.serving
+import waitress
 
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.adapters.interceptors.logging_interceptor import _get_safe_headers
@@ -40,6 +41,31 @@ from nemo_evaluator.api.api_dataclasses import Evaluation
 from nemo_evaluator.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+_DEFAULT_ADAPTER_SERVER_THREADS = 2048
+_DEFAULT_ADAPTER_SERVER_CONNECTION_LIMIT = 16384
+
+
+def _increase_file_descriptor_limit() -> None:
+    """Increase the file descriptor limit to support high concurrency.
+
+    At high concurrency (thousands of simultaneous connections), the default
+    OS file descriptor limit (typically 1024) can be exhausted, causing
+    "connection reset by peer" errors.
+    """
+    try:
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        target = min(65536, hard)
+        if soft < target:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
+            logger.info(
+                f"Increased file descriptor limit from {soft} to {target} (hard limit: {hard})"
+            )
+        else:
+            logger.info(f"File descriptor limit already sufficient: {soft}")
+    except (ValueError, OSError) as e:
+        logger.warning(f"Could not increase file descriptor limit: {e}")
 
 
 def _setup_file_logging() -> None:
@@ -107,6 +133,7 @@ def _run_adapter_server(
     model_name: str | None = None,
 ) -> None:
     """Internal function to run the adapter server."""
+    _increase_file_descriptor_limit()
     # Set up centralized logging using NEMO_EVALUATOR_LOG_DIR environment variable if set
     _setup_file_logging()
     adapter = AdapterServer(
@@ -216,14 +243,38 @@ class AdapterServer:
         return self.pipeline.post_eval_hooks
 
     def run(self) -> None:
-        """Start the Flask server."""
-        # give way to the server
+        """Start the adapter server using waitress.
 
-        werkzeug.serving.run_simple(
-            hostname=self.adapter_host,
+        Waitress is a production-grade WSGI server that uses a fixed thread pool
+        with proper connection queuing, unlike Werkzeug's dev server which creates
+        an unbounded thread per request. This allows handling high concurrency
+        (10k+ simultaneous connections) without exhausting OS resources.
+
+        Configuration via environment variables:
+            ADAPTER_SERVER_THREADS: Number of worker threads (default: 128)
+            ADAPTER_SERVER_CONNECTION_LIMIT: Max simultaneous connections (default: 16384)
+        """
+        threads = int(
+            os.environ.get("ADAPTER_SERVER_THREADS", _DEFAULT_ADAPTER_SERVER_THREADS)
+        )
+        connection_limit = int(
+            os.environ.get(
+                "ADAPTER_SERVER_CONNECTION_LIMIT",
+                _DEFAULT_ADAPTER_SERVER_CONNECTION_LIMIT,
+            )
+        )
+        logger.info(
+            f"Starting adapter server on {self.adapter_host}:{self.adapter_port}",
+            threads=threads,
+            connection_limit=connection_limit,
+        )
+        waitress.serve(
+            self.app,
+            host=self.adapter_host,
             port=self.adapter_port,
-            application=self.app,
-            threaded=True,
+            threads=threads,
+            connection_limit=connection_limit,
+            channel_timeout=300,
         )
 
     # The headers we don't want to let out
