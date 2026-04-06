@@ -97,6 +97,7 @@ class ApptainerSandbox:
         self._instance_name = f"nel-{uuid4().hex[:12]}"
         self._staging_dir: Path | None = None
         self._running = False
+        self._outside_endpoints: list[OutsideEndpoint] = []
 
     @property
     def spec(self) -> SandboxSpec:
@@ -129,6 +130,7 @@ class ApptainerSandbox:
         *,
         outside_endpoints: list[OutsideEndpoint] | None = None,
     ) -> None:
+        self._outside_endpoints = outside_endpoints or []
         import tempfile
 
         staging_base = self._sif_cache_dir if self._node else None
@@ -296,6 +298,12 @@ class ApptainerSandbox:
             new_netloc = f"{evaluator_host}:{port}" if port else evaluator_host
             return urlunparse(parsed._replace(netloc=new_netloc))
         return url
+
+    def resolved_endpoint_url(self, env_var: str) -> str | None:
+        for ep in self._outside_endpoints:
+            if ep.env_var == env_var:
+                return self.resolve_outside_endpoint(ep.url)
+        return None
 
     @property
     def is_running(self) -> bool:

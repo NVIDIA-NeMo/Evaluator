@@ -158,10 +158,23 @@ class Sandbox(Protocol):
     def resolve_outside_endpoint(self, url: str) -> str:
         """Rewrite orchestrator-side URL for use inside this sandbox.
 
-        Bridge network: localhost -> host.docker.internal.
-        Host/shared network: unchanged.
+        Only performs network-topology rewriting (e.g. localhost →
+        host.docker.internal).  The caller's path is preserved as-is.
+        To obtain the full session-scoped URL registered via
+        ``OutsideEndpoint``, use :meth:`resolved_endpoint_url` instead.
         """
         ...
+
+    def resolved_endpoint_url(self, env_var: str) -> str | None:
+        """Return the sandbox-resolved URL for a registered OutsideEndpoint.
+
+        Looks up the ``OutsideEndpoint`` registered during ``start()`` whose
+        ``env_var`` matches, and returns its URL rewritten for the sandbox's
+        network topology (including any session path prefix).
+
+        Returns ``None`` if no matching endpoint was registered.
+        """
+        return None
 
     @property
     def is_running(self) -> bool: ...

@@ -886,9 +886,16 @@ class HarborSolver:
         try:
             # Rewrite the proxy/model URL for the sandbox's network topology
             # (e.g. 127.0.0.1 → host.docker.internal for Docker bridge).
-            resolved_url = sandbox.resolve_outside_endpoint(self._model_url) if self._model_url else self._model_url
-            # Harbor agents read LLM_BASE_URL from os.environ directly
-            # (not from kwargs), so we must update the process env.
+            # Prefer the session-scoped URL registered via OutsideEndpoint
+            # (includes /s/<session_id> path for turn-counter isolation).
+            # Fall back to plain network-topology rewrite for sandboxes that
+            # don't register endpoints (e.g. local).
+            resolved_url = sandbox.resolved_endpoint_url("MODEL_BASE_URL") or (
+                sandbox.resolve_outside_endpoint(self._model_url) if self._model_url else self._model_url
+            )
+            # Best-effort env update for agents that read LLM_BASE_URL from
+            # os.environ.  Per-agent api_base kwarg (set in _create_agent) is
+            # the authoritative URL and is not subject to this race.
             if resolved_url:
                 os.environ["LLM_BASE_URL"] = resolved_url
 

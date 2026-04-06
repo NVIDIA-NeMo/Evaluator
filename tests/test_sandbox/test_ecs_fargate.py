@@ -68,8 +68,8 @@ class TestResolveOutsideEndpoint:
         assert result == "http://127.0.0.1:4000/v1"
 
     def test_session_scoped_url_matches_base_url(self):
-        """The exact bug scenario: endpoint registered with /s/<id> suffix,
-        but resolve called with the bare base URL."""
+        """resolve_outside_endpoint preserves the caller's path (no session
+        injection).  Use resolved_endpoint_url for session-scoped URLs."""
         sb = self._sb()
         sb._outside_endpoints = [OutsideEndpoint(url="http://127.0.0.1:4000/v1/s/session42", env_var="MODEL_BASE_URL")]
         sb._reverse_port_map = {"MODEL_BASE_URL": (4000, "http")}
@@ -130,6 +130,55 @@ class TestResolveOutsideEndpoint:
 
         result = sb.resolve_outside_endpoint("http://127.0.0.1:4000/v1")
         assert "127.0.0.1:7777" in result
+
+
+class TestResolvedEndpointUrl:
+    """Tests for the session-scoped resolved_endpoint_url method."""
+
+    def _sb(self):
+        return _make_sandbox()
+
+    def test_returns_session_path_via_reverse_port_map(self):
+        sb = self._sb()
+        sb._outside_endpoints = [OutsideEndpoint(url="http://localhost:4000/s/abc123", env_var="MODEL_BASE_URL")]
+        sb._reverse_port_map = {"MODEL_BASE_URL": (4000, "http")}
+
+        result = sb.resolved_endpoint_url("MODEL_BASE_URL")
+        assert result == "http://127.0.0.1:4000/s/abc123"
+
+    def test_returns_session_path_via_ssh_tunnel(self):
+        sb = self._sb()
+        sb._outside_endpoints = [OutsideEndpoint(url="http://localhost:4000/s/xyz789", env_var="MODEL_BASE_URL")]
+        sb._reverse_port_map = {}
+        sb._ssh_tunnel_port = 9999
+
+        result = sb.resolved_endpoint_url("MODEL_BASE_URL")
+        assert result == "http://127.0.0.1:9999/s/xyz789"
+
+    def test_returns_none_for_unknown_env_var(self):
+        sb = self._sb()
+        sb._outside_endpoints = [OutsideEndpoint(url="http://localhost:4000/s/abc", env_var="MODEL_BASE_URL")]
+        sb._reverse_port_map = {"MODEL_BASE_URL": (4000, "http")}
+
+        assert sb.resolved_endpoint_url("UNKNOWN_VAR") is None
+
+    def test_returns_none_when_no_endpoints(self):
+        sb = self._sb()
+        sb._outside_endpoints = []
+        assert sb.resolved_endpoint_url("MODEL_BASE_URL") is None
+
+    def test_harbor_scenario_base_url_gets_session_path(self):
+        """The real bug: Harbor calls with base URL, needs session path back."""
+        sb = self._sb()
+        sb._outside_endpoints = [OutsideEndpoint(url="http://localhost:4000/s/session42", env_var="MODEL_BASE_URL")]
+        sb._reverse_port_map = {"MODEL_BASE_URL": (4000, "http")}
+
+        session_url = sb.resolved_endpoint_url("MODEL_BASE_URL")
+        assert "/s/session42" in session_url
+        assert "127.0.0.1:4000" in session_url
+
+        plain_url = sb.resolve_outside_endpoint("http://localhost:4000")
+        assert "/s/" not in plain_url
 
 
 # ── TestEcsFargateLifecycle ───────────────────────────────────────────

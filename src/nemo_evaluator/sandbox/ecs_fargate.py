@@ -1236,6 +1236,23 @@ class EcsFargateSandbox:
             return parsed._replace(netloc=f"127.0.0.1:{self._ssh_tunnel_port}").geturl()
         raise RuntimeError("resolve_outside_endpoint() requires SSH reverse tunnel")
 
+    def resolved_endpoint_url(self, env_var: str) -> str | None:
+        for ep in self._outside_endpoints:
+            if ep.env_var != env_var:
+                continue
+            ep_parsed = urlparse(ep.url)
+            if ep.env_var in self._reverse_port_map:
+                remote_port, scheme = self._reverse_port_map[ep.env_var]
+                return ep_parsed._replace(
+                    scheme=scheme,
+                    netloc=f"127.0.0.1:{remote_port}",
+                ).geturl()
+            if self._ssh_tunnel_port is not None:
+                return ep_parsed._replace(
+                    netloc=f"127.0.0.1:{self._ssh_tunnel_port}",
+                ).geturl()
+        return None
+
     async def __aenter__(self) -> Self:
         await self.start()
         return self

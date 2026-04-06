@@ -53,6 +53,7 @@ class SlurmSandbox:
         self._het_group = het_group
         self._container_name = f"nel-sandbox-{node}-{slot}"
         self._running = False
+        self._outside_endpoints: list[OutsideEndpoint] = []
 
     @property
     def spec(self) -> SandboxSpec:
@@ -71,6 +72,7 @@ class SlurmSandbox:
         return args
 
     async def start(self, *, outside_endpoints: list[OutsideEndpoint] | None = None) -> None:
+        self._outside_endpoints = outside_endpoints or []
         env_args: list[str] = []
         for k, v in self._spec.env.items():
             env_args.extend(["--export", f"{k}={v}"])
@@ -216,6 +218,12 @@ class SlurmSandbox:
             new_netloc = f"{evaluator_host}:{port}" if port else evaluator_host
             return urlunparse(parsed._replace(netloc=new_netloc))
         return url
+
+    def resolved_endpoint_url(self, env_var: str) -> str | None:
+        for ep in self._outside_endpoints:
+            if ep.env_var == env_var:
+                return self.resolve_outside_endpoint(ep.url)
+        return None
 
     @property
     def is_running(self) -> bool:

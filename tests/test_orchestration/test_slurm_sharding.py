@@ -1304,10 +1304,11 @@ class TestStatusWithProgress:
 
 
 class TestShardedStop:
+    @patch("nemo_evaluator.executors.slurm_executor.time.sleep")
     @patch("nemo_evaluator.executors.slurm_executor._read_meta")
     @patch("nemo_evaluator.executors.slurm_executor._resolve_shard_latest_ids")
     @patch("nemo_evaluator.executors.ssh.ssh_run")
-    def test_stop_all_shards(self, mock_ssh, mock_latest, mock_meta):
+    def test_stop_all_shards(self, mock_ssh, mock_latest, mock_meta, _mock_sleep):
         from nemo_evaluator.executors.slurm_executor import SlurmExecutor
 
         job_ids = ["10", "11", "12"]
@@ -1323,14 +1324,15 @@ class TestShardedStop:
         mock_ssh.return_value = ""
 
         assert SlurmExecutor().stop("/r") is True
-        mock_ssh.assert_called_once()
-        call_cmd = mock_ssh.call_args[0][1]
-        assert "scancel 10 11 12" in call_cmd
+        scancel_calls = [c for c in mock_ssh.call_args_list if "scancel" in str(c)]
+        assert len(scancel_calls) == 1
+        assert "scancel 10 11 12" in scancel_calls[0][0][1]
 
+    @patch("nemo_evaluator.executors.slurm_executor.time.sleep")
     @patch("nemo_evaluator.executors.slurm_executor._read_meta")
     @patch("nemo_evaluator.executors.slurm_executor._resolve_latest_job_id")
-    @patch("nemo_evaluator.executors.ssh.cancel_job")
-    def test_stop_single_shard(self, mock_cancel, mock_latest, mock_meta):
+    @patch("nemo_evaluator.executors.ssh.ssh_run")
+    def test_stop_single_shard(self, mock_ssh, mock_latest, mock_meta, _mock_sleep):
         from nemo_evaluator.executors.slurm_executor import SlurmExecutor
 
         mock_meta.return_value = {
@@ -1342,9 +1344,46 @@ class TestShardedStop:
             "is_sharded": True,
         }
         mock_latest.return_value = "11"
+        mock_ssh.return_value = ""
 
         assert SlurmExecutor().stop("/r", shard_idx=1) is True
-        mock_cancel.assert_called_once_with(hostname="h", job_id="11", username=None)
+        scancel_calls = [c for c in mock_ssh.call_args_list if "scancel" in str(c)]
+        assert len(scancel_calls) == 1
+        assert "11" in scancel_calls[0][0][1]
+
+    @patch("nemo_evaluator.executors.slurm_executor.time.sleep")
+    @patch("nemo_evaluator.executors.slurm_executor._read_meta")
+    @patch("nemo_evaluator.executors.slurm_executor._resolve_shard_latest_ids")
+    @patch("nemo_evaluator.executors.ssh.ssh_run")
+    def test_stop_cancels_sharded_successors(self, mock_ssh, mock_latest, mock_meta, _mock_sleep):
+        """Sharded stop discovers afternotok successors via squeue."""
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+
+        mock_meta.return_value = {
+            "job_id": "10",
+            "job_ids": ["10", "11"],
+            "hostname": "h",
+            "remote_dir": "/r",
+            "username": "",
+            "is_sharded": True,
+        }
+        mock_latest.return_value = ["10", "11"]
+
+        squeue_output = "20 PENDING /r/shard_0/nel_eval.sbatch\n21 PENDING /r/shard_1/nel_eval.sbatch\n"
+
+        def ssh_side_effect(host, cmd, **kw):
+            if "squeue" in cmd:
+                return squeue_output
+            return ""
+
+        mock_ssh.side_effect = ssh_side_effect
+
+        assert SlurmExecutor().stop("/r") is True
+        scancel_calls = [c for c in mock_ssh.call_args_list if "scancel" in str(c)]
+        assert len(scancel_calls) >= 1
+        first_scancel = scancel_calls[0][0][1]
+        for jid in ["10", "11", "20", "21"]:
+            assert jid in first_scancel
 
     @patch("nemo_evaluator.executors.slurm_executor._read_meta")
     def test_stop_shard_out_of_range(self, mock_meta):
@@ -1795,14 +1834,48 @@ class TestResumePartialFailure:
 
 
 class TestNonShardedStop:
+    @patch("nemo_evaluator.executors.slurm_executor.time.sleep")
     @patch("nemo_evaluator.executors.slurm_executor._read_meta")
-    @patch("nemo_evaluator.executors.ssh.cancel_job")
-    def test_stop_single_job(self, mock_cancel, mock_meta):
+    @patch("nemo_evaluator.executors.slurm_executor._resolve_latest_job_id")
+    @patch("nemo_evaluator.executors.ssh.ssh_run")
+    def test_stop_single_job(self, mock_ssh, mock_latest, mock_meta, _mock_sleep):
         from nemo_evaluator.executors.slurm_executor import SlurmExecutor
 
-        mock_meta.return_value = {"job_id": "100", "hostname": "h", "username": ""}
+        mock_meta.return_value = {"job_id": "100", "hostname": "h", "username": "", "remote_dir": "/out"}
+        mock_latest.return_value = "100"
+        mock_ssh.return_value = ""
+
         assert SlurmExecutor().stop("/out") is True
-        mock_cancel.assert_called_once_with(hostname="h", job_id="100", username=None)
+        scancel_calls = [c for c in mock_ssh.call_args_list if "scancel" in str(c)]
+        assert len(scancel_calls) == 1
+        assert "100" in scancel_calls[0][0][1]
+
+    @patch("nemo_evaluator.executors.slurm_executor.time.sleep")
+    @patch("nemo_evaluator.executors.slurm_executor._read_meta")
+    @patch("nemo_evaluator.executors.slurm_executor._resolve_latest_job_id")
+    @patch("nemo_evaluator.executors.ssh.ssh_run")
+    def test_stop_cancels_afternotok_successor(self, mock_ssh, mock_latest, mock_meta, _mock_sleep):
+        """Successor discovered via squeue is included in the scancel call."""
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+
+        mock_meta.return_value = {"job_id": "100", "hostname": "h", "username": "", "remote_dir": "/out"}
+        mock_latest.return_value = "100"
+
+        squeue_output = "101 PENDING /out/nel_eval.sbatch\n"
+
+        def ssh_side_effect(host, cmd, **kw):
+            if "squeue" in cmd:
+                return squeue_output
+            return ""
+
+        mock_ssh.side_effect = ssh_side_effect
+
+        assert SlurmExecutor().stop("/out") is True
+        scancel_calls = [c for c in mock_ssh.call_args_list if "scancel" in str(c)]
+        assert len(scancel_calls) >= 1
+        first_scancel = scancel_calls[0][0][1]
+        assert "100" in first_scancel
+        assert "101" in first_scancel
 
 
 class TestNonShardedLogs:

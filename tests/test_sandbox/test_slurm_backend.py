@@ -231,6 +231,24 @@ class TestSlurmResolveOutsideEndpoint:
         assert sb.resolve_outside_endpoint(url) == url
 
 
+class TestSlurmResolvedEndpointUrl:
+    def test_session_path_preserved(self):
+        from nemo_evaluator.sandbox.base import OutsideEndpoint
+
+        sb = _make(node="compute-1")
+        sb._outside_endpoints = [
+            OutsideEndpoint(url="http://localhost:4000/s/abc123", env_var="MODEL_BASE_URL"),
+        ]
+        with patch("nemo_evaluator.sandbox.slurm.platform.node", return_value="head-node"):
+            result = sb.resolved_endpoint_url("MODEL_BASE_URL")
+        assert "head-node:4000" in result
+        assert "/s/abc123" in result
+
+    def test_returns_none_for_unknown_var(self):
+        sb = _make()
+        assert sb.resolved_endpoint_url("NOPE") is None
+
+
 class TestSlurmTransfer:
     @patch("nemo_evaluator.sandbox.slurm.asyncio.create_subprocess_exec")
     @patch("nemo_evaluator.sandbox.slurm.shutil.copy2")
