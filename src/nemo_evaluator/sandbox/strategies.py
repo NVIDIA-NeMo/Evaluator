@@ -174,6 +174,7 @@ class StatelessSandbox:
         self._transfer = transfer
         self._agent_sandbox: Sandbox | None = None
         self._verify_sandbox: Sandbox | None = None
+        self._agent_exec_env: dict[str, str] = {}
         self._lock = asyncio.Lock()
         self._torn_down = False
 
@@ -186,6 +187,7 @@ class StatelessSandbox:
         if self._ctx.agent_spec is None:
             raise RuntimeError("StatelessSandbox: no agent_spec but get_agent_sandbox called")
         spec = self._transfer.prepare_agent_spec(self._ctx.agent_spec)
+        self._agent_exec_env = dict(spec.env)
         self._agent_sandbox = await self._ctx.sandbox_mgr.acquire(
             spec,
             outside_endpoints=self._ctx.outside_endpoints,
@@ -229,6 +231,7 @@ class StatelessSandbox:
                     cap_result = await self._agent_sandbox.exec(
                         self._ctx.capture_cmd,
                         timeout_sec=300,
+                        env=self._agent_exec_env or None,
                     )
                     if cap_result.return_code != 0:
                         logger.error(
