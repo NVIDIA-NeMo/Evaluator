@@ -788,7 +788,7 @@ class HarborSolver:
         t0: float,
         effective_timeout: float,
         jitter: float,
-    ) -> bool:
+    ) -> tuple[bool, Exception | None]:
         """Run *agent_task* with a two-phase timeout.
 
         Phase 1 (short): wait ``min(600, 15% of run_timeout)`` seconds.
@@ -796,9 +796,11 @@ class HarborSolver:
             `GracefulError` — the model is likely unreachable.
         Phase 2 (remainder): wait the rest of ``effective_timeout``.
 
-        Returns True if the agent timed out, False if it completed.
-        Raises the agent's exception if it failed, or `GracefulError`
-        if no progress was detected.
+        Returns ``(timed_out, agent_error)`` — *timed_out* is True when
+        the agent didn't finish in time, *agent_error* captures any
+        exception the agent raised (instead of propagating it) so that
+        ``solve()`` can still collect partial results.
+        Raises `GracefulError` if no progress was detected.
         """
         no_progress_timeout = min(600.0, self._run_timeout * 0.15)
 
@@ -857,13 +859,17 @@ class HarborSolver:
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await agent_task
 
-        # Propagate agent exceptions (but not CancelledError from our cancel)
+        # Record agent exceptions instead of propagating — lets solve()
+        # collect partial results (logs, workspace diff) before returning
+        # a degraded SolveResult rather than crashing.
+        agent_error: Exception | None = None
         if agent_task.done() and not agent_task.cancelled():
             exc = agent_task.exception()
             if exc is not None:
-                raise exc
+                logger.warning("HarborSolver: agent.run() raised %s: %s", type(exc).__name__, exc)
+                agent_error = exc
 
-        return timed_out
+        return timed_out, agent_error
 
     async def solve(
         self,
@@ -965,12 +971,13 @@ class HarborSolver:
 
             context = AgentContext()
 
+            agent_error: Exception | None = None
             agent_timed_out = False
             jitter = random.uniform(0, min(120.0, self._run_timeout * 0.02))
             effective_timeout = self._run_timeout + jitter
 
             agent_task = asyncio.create_task(agent.run(task.prompt, adapter, context))
-            agent_timed_out = await self._wait_for_agent(
+            agent_timed_out, agent_error = await self._wait_for_agent(
                 agent_task,
                 sandbox,
                 t0,
@@ -1046,7 +1053,10 @@ class HarborSolver:
                 )
 
             error = None
-            if agent_timed_out and workspace_diff:
+            if agent_error is not None:
+                error = f"Agent crashed: {type(agent_error).__name__}: {agent_error}"
+                logger.warning("HarborSolver: %s", error)
+            elif agent_timed_out and workspace_diff:
                 logger.info(
                     "HarborSolver: agent timed out after %.0fs but produced "
                     "workspace changes — submitting for verification",

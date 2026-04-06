@@ -107,7 +107,7 @@ async def _proxy_handler(request: Request) -> Response:
                         "code": "session_budget_exhausted",
                     },
                 },
-                status_code=429,
+                status_code=400,
             )
         logger.exception("Pipeline error")
         return JSONResponse(
