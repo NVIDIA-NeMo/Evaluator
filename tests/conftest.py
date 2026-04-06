@@ -68,7 +68,15 @@ class MockSandbox:
     async def stop(self) -> None:
         self._running = False
 
-    async def exec(self, command: str, timeout_sec: float = 180) -> MockExecResult:
+    async def exec(
+        self,
+        command: str,
+        timeout_sec: float = 180,
+        *,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | int | None = None,
+    ) -> MockExecResult:
         self._exec_log.append(command)
         for pattern, result in self._exec_results.items():
             if pattern in command:
