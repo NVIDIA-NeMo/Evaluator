@@ -206,6 +206,11 @@ def _make_solver(
                 api_key=api_key,
                 temperature=gen.temperature,
                 max_tokens=gen.max_tokens,
+                top_p=gen.top_p,
+                seed=gen.seed,
+                stop=gen.stop,
+                frequency_penalty=gen.frequency_penalty,
+                presence_penalty=gen.presence_penalty,
             )
 
         if solver_cfg.image_detail != "auto":
@@ -264,8 +269,13 @@ def _make_solver(
             base_url=model_url,
             model=model_id,
             api_key=api_key,
-            temperature=gen.temperature or 0.0,
-            max_tokens=gen.max_tokens or 4096,
+            temperature=gen.temperature,
+            max_tokens=gen.max_tokens,
+            top_p=gen.top_p,
+            seed=gen.seed,
+            stop=gen.stop,
+            frequency_penalty=gen.frequency_penalty,
+            presence_penalty=gen.presence_penalty,
             max_concurrent=bench.max_concurrent,
             reasoning_pattern=reasoning_pat,
         )
@@ -720,6 +730,11 @@ async def _run_single_benchmark(
                 api_key=api_key,
                 temperature=gen.temperature,
                 max_tokens=gen.max_tokens,
+                top_p=gen.top_p,
+                seed=gen.seed,
+                stop=gen.stop,
+                frequency_penalty=gen.frequency_penalty,
+                presence_penalty=gen.presence_penalty,
                 max_concurrent=concurrency,
                 reasoning_pattern=reasoning_pat,
             )

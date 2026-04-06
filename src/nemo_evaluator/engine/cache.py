@@ -49,13 +49,27 @@ class ResponseCache:
         max_tokens: int | None,
         top_p: float | None = None,
         seed: int | None = None,
+        stop: list[str] | None = None,
+        frequency_penalty: float | None = None,
+        presence_penalty: float | None = None,
         messages: list[dict] | None = None,
     ) -> str:
         if messages:
             content = json.dumps(messages, sort_keys=True, default=str)
         else:
             content = prompt
-        parts = [model, content, system or "", str(temperature), str(max_tokens), str(top_p or ""), str(seed or "")]
+        parts = [
+            model,
+            content,
+            system or "",
+            str(temperature),
+            str(max_tokens),
+            str(top_p) if top_p is not None else "",
+            str(seed) if seed is not None else "",
+            json.dumps(sorted(stop)) if stop else "",
+            str(frequency_penalty) if frequency_penalty is not None else "",
+            str(presence_penalty) if presence_penalty is not None else "",
+        ]
         return hashlib.sha256("|".join(parts).encode()).hexdigest()
 
     def _path(self, key: str) -> Path:
@@ -71,9 +85,24 @@ class ResponseCache:
         *,
         top_p: float | None = None,
         seed: int | None = None,
+        stop: list[str] | None = None,
+        frequency_penalty: float | None = None,
+        presence_penalty: float | None = None,
         messages: list[dict] | None = None,
     ) -> dict[str, Any] | None:
-        key = self._key(model, prompt, system, temperature, max_tokens, top_p, seed, messages)
+        key = self._key(
+            model,
+            prompt,
+            system,
+            temperature,
+            max_tokens,
+            top_p,
+            seed,
+            stop,
+            frequency_penalty,
+            presence_penalty,
+            messages,
+        )
         p = self._path(key)
         if p.exists():
             self._hits += 1
@@ -96,11 +125,26 @@ class ResponseCache:
         *,
         top_p: float | None = None,
         seed: int | None = None,
+        stop: list[str] | None = None,
+        frequency_penalty: float | None = None,
+        presence_penalty: float | None = None,
         messages: list[dict] | None = None,
     ) -> None:
         if temperature > 0:
             return
-        key = self._key(model, prompt, system, temperature, max_tokens, top_p, seed, messages)
+        key = self._key(
+            model,
+            prompt,
+            system,
+            temperature,
+            max_tokens,
+            top_p,
+            seed,
+            stop,
+            frequency_penalty,
+            presence_penalty,
+            messages,
+        )
         p = self._path(key)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(response, default=str), encoding="utf-8")
