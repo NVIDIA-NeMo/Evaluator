@@ -140,6 +140,30 @@ async def test_turn_counter_basic():
         await ic.intercept_request(_req({"model": "test", "messages": [{"role": "user", "content": "hi"}]}))
 
 
+async def test_turn_counter_session_isolation():
+    """Repeats of the same problem get independent turn budgets when
+    the proxy injects distinct session_id values."""
+    from nemo_evaluator.errors import GracefulError
+
+    ic = InterceptorRegistry.create("turn_counter", {"max_turns": 3})
+    body = {"model": "test", "messages": [{"role": "user", "content": "same prompt"}]}
+
+    for session_id in ("aaa", "bbb"):
+        for _ in range(3):
+            r = _req(body)
+            r.ctx.extra["session_id"] = session_id
+            await ic.intercept_request(r)
+
+    r = _req(body)
+    r.ctx.extra["session_id"] = "aaa"
+    with pytest.raises(GracefulError, match="Turn budget exhausted"):
+        await ic.intercept_request(r)
+
+    r = _req(body)
+    r.ctx.extra["session_id"] = "ccc"
+    await ic.intercept_request(r)
+
+
 async def test_raise_client_errors_4xx():
     ic = InterceptorRegistry.create("raise_client_errors")
     resp = _resp({"error": "bad request"}, status_code=400)

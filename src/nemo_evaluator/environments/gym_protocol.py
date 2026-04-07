@@ -55,7 +55,7 @@ def wrap_text_as_gym_response(text: str) -> dict[str, Any]:
     Native Gym resource servers validate ``body.response`` against
     ``NeMoGymResponse`` (an OpenAI ``Response`` subclass).  The
     ``output_text`` property concatenates text from output message items.
-    We set it as a top-level key for servers that read it directly.
+    Also set as a top-level key for servers that read it directly.
     """
     return {
         "id": "eval-synthetic",

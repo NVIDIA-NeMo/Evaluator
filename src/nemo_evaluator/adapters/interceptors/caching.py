@@ -40,7 +40,8 @@ class Interceptor(RequestToResponseInterceptor, ResponseInterceptor):
     ) -> AdapterRequest | AdapterResponse:
         if self._bypass:
             return req
-        key = DiskCache.cache_key(req.body)
+        session_prefix = req.ctx.extra.get("session_id", "")
+        key = DiskCache.cache_key(req.body, session_prefix=session_prefix)
         hit = await self._cache.get(key)
         if hit is not None:
             logger.debug("cache hit key=%s", key[:16])

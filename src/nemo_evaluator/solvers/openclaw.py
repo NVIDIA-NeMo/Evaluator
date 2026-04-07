@@ -429,7 +429,10 @@ class OpenClawSolver:
 
         logger.info("OpenClawSolver[sandbox]: session=%s task=%s", session_id, task_id)
 
-        await self._setup_config(sandbox)
+        resolved_model_url = sandbox.resolved_endpoint_url("MODEL_BASE_URL") or (
+            sandbox.resolve_outside_endpoint(self._model_url) if self._model_url else self._model_url
+        )
+        await self._setup_config(sandbox, model_url_override=resolved_model_url)
 
         pre_existing_files: set[str] = set()
         if workspace_path and Path(workspace_path).is_dir():
@@ -545,17 +548,18 @@ class OpenClawSolver:
             return []
         return _parse_session_jsonl(raw)
 
-    async def _setup_config(self, sandbox: Sandbox) -> None:
+    async def _setup_config(self, sandbox: Sandbox, *, model_url_override: str | None = None) -> None:
         """Write an OpenClaw config into the container.
 
         Uses ``config_path`` verbatim when provided, otherwise generates
-        one from the solver parameters.
+        one from the solver parameters.  ``model_url_override`` takes
+        precedence over ``self._model_url`` (used for session-scoped URLs).
         """
         if self._config_path is not None:
             config_json = self._config_path.read_text(encoding="utf-8")
         else:
             config = _build_openclaw_config(
-                model_url=self._model_url,
+                model_url=model_url_override or self._model_url,
                 model_id=self._model_id,
                 api_key=self._api_key or "",
                 context_window=self._context_window,

@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""HarborSolver: runs Harbor-compatible agents inside a nel Sandbox."""
+"""HarborSolver: runs Harbor-compatible agents inside an evaluator Sandbox."""
 
 from __future__ import annotations
 
@@ -58,7 +58,9 @@ def _extract_response(context: Any) -> str:
 
 
 def _resolve_api_key(explicit: str | None) -> str | None:
-    """Return *explicit* if non-empty, else probe common env vars."""
+    """Return *explicit* if non-empty, else probe env vars in order:
+    ``LLM_API_KEY``, ``NVIDIA_API_KEY``, ``OPENAI_API_KEY``, ``ANTHROPIC_API_KEY``.
+    """
     if explicit:
         return explicit
     for var in ("LLM_API_KEY", "NVIDIA_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
@@ -68,33 +70,33 @@ def _resolve_api_key(explicit: str | None) -> str | None:
     return None
 
 
-def _ensure_env(api_key: str | None, model_url: str | None, model_id: str | None) -> None:
-    """Set ``LLM_*`` env vars that Harbor agents expect.
+def _model_id_for_openai(model_id: str, has_custom_url: bool) -> str:
+    """Return *model_id* with an ``openai/`` prefix when needed.
 
-    Called once — these are process-wide settings that must stay set for the
-    lifetime of concurrent solve() calls. A save/restore context manager is
-    unsafe here because ``os.environ`` is process-global and concurrent
-    tasks would clobber each other's cleanup.
-
-    ``LLM_MODEL`` gets the ``openai/`` prefix when a custom ``model_url``
-    is set (the provider hint is needed for OpenAI-compatible endpoints).
+    The prefix tells LiteLLM to use the OpenAI-compatible provider when
+    routing through a custom endpoint URL.
     """
-    key = _resolve_api_key(api_key)
-    if not key:
-        key = "no-key-needed"
-        logger.info("No API key found — using dummy key for self-hosted model")
-    os.environ["LLM_API_KEY"] = key
-    if model_url:
-        os.environ["LLM_BASE_URL"] = model_url
+    if has_custom_url and not model_id.startswith("openai/"):
+        return f"openai/{model_id}"
+    return model_id
+
+
+def _ensure_host_env(api_key: str, model_id: str | None, *, has_custom_url: bool) -> None:
+    """Populate host-process env vars required by OpenHands-family agents.
+
+    ``OpenHandsSDK.run()`` reads ``LLM_API_KEY`` (required) and
+    ``LLM_MODEL`` (fallback) directly from ``os.environ`` before
+    building the container exec environment.  Uses ``setdefault`` so
+    values set by an earlier solver or caller are never overwritten.
+
+    ``LLM_BASE_URL`` is intentionally *not* set here; each ``solve()``
+    call passes a per-session URL via the adapter's ``override_env``.
+    """
+    os.environ.setdefault("LLM_API_KEY", api_key)
     if model_id:
-        mid = model_id
-        if model_url and not mid.startswith("openai/"):
-            mid = f"openai/{mid}"
-        os.environ["LLM_MODEL"] = mid
+        os.environ.setdefault("LLM_MODEL", _model_id_for_openai(model_id, has_custom_url))
     os.environ.setdefault("LITELLM_LOG", "ERROR")
     os.environ.setdefault("LITELLM_TELEMETRY", "false")
-    os.environ.setdefault("SECURITY_CONFIRMATION_MODE", "false")
-    os.environ.setdefault("SECURITY_ENABLE_SECURITY_ANALYZER", "false")
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +143,7 @@ async def _download_agent_logs_inner(
         return
     logger.info("Container /logs/agent/:\n%s", ls.stdout.strip())
 
-    remote_tar = "/tmp/_nel_agent_logs.tar.gz"
+    remote_tar = "/tmp/_eval_agent_logs.tar.gz"
     rc = await sandbox.exec(
         f"tar czf {remote_tar} -C /logs/agent .",
         timeout_sec=120,
@@ -152,7 +154,9 @@ async def _download_agent_logs_inner(
 
     import tarfile
 
-    local_tar = Path(tempfile.mktemp(suffix=".tar.gz"))
+    fd, _tmp = tempfile.mkstemp(suffix=".tar.gz")
+    os.close(fd)
+    local_tar = Path(_tmp)
     try:
         last_err: Exception | None = None
         for attempt in range(1, max_retries + 1):
@@ -160,7 +164,7 @@ async def _download_agent_logs_inner(
                 await sandbox.download(remote_tar, local_tar)
                 dest.mkdir(parents=True, exist_ok=True)
                 with tarfile.open(local_tar, "r:gz") as tar:
-                    tar.extractall(dest)
+                    tar.extractall(dest, filter="data")
                 logger.info("Downloaded %d files to %s", len(list(dest.rglob("*"))), dest)
                 return
             except Exception as exc:
@@ -190,37 +194,31 @@ async def _download_agent_logs_inner(
 async def _patch_openhands_sdk(sandbox: "Sandbox", *, cmd_timeout: float | None = None) -> None:
     """Apply runtime patches to the OpenHands SDK inside the sandbox.
 
-    1. **Prevent premature FINISHED on text-only responses** in the SDK's
-       ``Agent.step()`` — when the LLM produces text without a tool call,
-       the SDK sets ``execution_status = FINISHED`` and stops.  Reasoning
-       models often produce intermediate text (summaries, status) before
-       their next tool call.  We patch this to let the loop continue until
-       the agent explicitly calls ``finish`` or hits ``max_iterations``.
-       (Upstream: OpenHands/software-agent-sdk#1349)
+    1. **Prevent premature FINISHED on text-only responses** — when the
+       LLM returns text without a tool call the SDK sets
+       ``execution_status = FINISHED`` and stops.  Reasoning models often
+       produce intermediate text before their next tool call, so the
+       patched loop continues until ``finish`` is called or
+       ``max_iterations`` is reached.
 
     2. **Capture reasoning in ATIF trajectory** — the runner's event
        serialization drops ``reasoning_content`` / ``thinking_blocks``.
-       We patch both the event→dict conversion and the ``build_trajectory``
-       step builder so reasoning appears in the output JSON.
+       Both the event-to-dict conversion and ``build_trajectory`` are
+       patched so reasoning appears in the output JSON.
 
-    3. **Preserve reasoning in conversation history** — vLLM's
-       ``ultra_v3`` reasoning parser can swallow ``<tool_call>`` blocks
-       that appear inside ``<think>`` tags, putting them into
+    3. **Preserve reasoning in conversation history** — some reasoning
+       parsers move ``<tool_call>`` blocks inside ``<think>`` tags into
        ``reasoning_content`` instead of ``tool_calls``.  The SDK then
-       drops ``reasoning_content`` on the next serialization pass because
-       ``nemotron`` is not in ``SEND_REASONING_CONTENT_MODELS``, causing
-       the model to lose its chain-of-thought on retry.  We patch
-       ``Message.to_chat_dict()`` to wrap ``reasoning_content`` in
-       ``<think>`` tags and prepend it to the ``content`` field — the
-       same approach used by NeMo Gym's middleware.
+       drops ``reasoning_content`` on the next serialization pass,
+       causing the model to lose its chain-of-thought.  The patch wraps
+       ``reasoning_content`` in ``<think>`` tags and prepends it to
+       ``content`` so it survives round-trips.
 
-    4. **Enforce 300 s hard timeout on terminal commands** — the SDK's
-       terminal tool only applies a hard timeout when the model explicitly
-       passes a ``timeout`` parameter.  Without it, a command that keeps
-       producing output (e.g. a long test run) can consume the entire
-       ``run_timeout`` budget.  We patch the execution loop to impose a
-       300 s ceiling on every command, matching the reference setup.
-
+    4. **Enforce 300 s hard timeout on terminal commands** — the SDK
+       only applies a hard timeout when the model passes an explicit
+       ``timeout`` parameter.  The patch imposes a 300 s ceiling on
+       every command to prevent a single long-running process from
+       consuming the entire ``run_timeout`` budget.
     """
     # -- Patch 0: disable stuck detection --------------------------------
     _stuck_script = (
@@ -383,8 +381,8 @@ print(f'reasoning: msg={ok_a} action={ok_b} traj={ok_c}')
     # -- Patch 3: preserve reasoning_content in conversation history -------
     # When send_reasoning_content is False (nemotron is not in the list),
     # the SDK silently drops reasoning_content from assistant messages.
-    # We patch to_chat_dict() to wrap it in <think> tags and prepend to
-    # content — standard field that passes cleanly through LiteLLM → vLLM.
+    # Patch to_chat_dict() to wrap reasoning_content in <think> tags and
+    # prepend to content so it survives LiteLLM serialization round-trips.
 
     _reasoning_in_content_script = """\
 import glob, sys
@@ -515,12 +513,12 @@ print(f'cmd_timeout_{{_MAX}}s={{ok}} at {{p}}')
 # ---------------------------------------------------------------------------
 #
 # Each Harbor agent writes its own logs and converts them to ATIF via
-# ``populate_context_post_run()``.  NEL's job here is simple:
-#   1. Read the ATIF trajectory.json the agent produced.
-#   2. If nothing structured exists, grab the largest .txt as an error log.
+# ``populate_context_post_run()``.  The evaluator:
+#   1. Reads the ATIF trajectory.json the agent produced.
+#   2. Falls back to the largest .txt as an error log if nothing structured exists.
 #
 # Agent-specific parsing (OpenHands completions/, sessions/events/, etc.)
-# is deliberately NOT done here — that is the agent's responsibility.
+# is the agent's responsibility.
 # ---------------------------------------------------------------------------
 
 
@@ -695,7 +693,7 @@ def _silence_harbor_debug(level: int = logging.INFO) -> None:
 
 
 class HarborSolver:
-    """Runs any Harbor agent inside a nel Sandbox.
+    """Runs any Harbor agent inside an evaluator :class:`Sandbox`.
 
     Agent resolution (``harbor_agent`` parameter):
       - Built-in name (e.g. ``"openhands"``)
@@ -738,16 +736,22 @@ class HarborSolver:
         self._max_input_tokens = max_input_tokens
         self._max_output_tokens = max_output_tokens
         self._api_key = _resolve_api_key(api_key)
-        _ensure_env(self._api_key, self._model_url, self._model_id)
+        if not self._api_key:
+            self._api_key = "no-key-needed"
+            logger.info("No API key found — using dummy key for self-hosted model")
+
+        self._container_env.setdefault("LLM_API_KEY", self._api_key)
+        if model_id:
+            self._container_env.setdefault("LLM_MODEL", _model_id_for_openai(model_id, bool(model_url)))
+
+        _ensure_host_env(self._api_key, self._model_id, has_custom_url=bool(model_url))
 
     def _create_agent(self, logs_dir: Path, *, model_url: str = "") -> Any:
         from harbor.agents.factory import AgentFactory
 
         kwargs = dict(self._harbor_agent_kwargs)
-        model_id = self._model_id
         url = model_url or self._model_url
-        if url and "model_name" not in kwargs and model_id and not model_id.startswith("openai/"):
-            model_id = f"openai/{model_id}"
+        model_id = _model_id_for_openai(self._model_id, bool(url)) if self._model_id else ""
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
         if "api_base" not in kwargs and url:
@@ -786,7 +790,7 @@ class HarborSolver:
         t0: float,
         effective_timeout: float,
         jitter: float,
-    ) -> bool:
+    ) -> tuple[bool, Exception | None]:
         """Run *agent_task* with a two-phase timeout.
 
         Phase 1 (short): wait ``min(600, 15% of run_timeout)`` seconds.
@@ -794,9 +798,11 @@ class HarborSolver:
             `GracefulError` — the model is likely unreachable.
         Phase 2 (remainder): wait the rest of ``effective_timeout``.
 
-        Returns True if the agent timed out, False if it completed.
-        Raises the agent's exception if it failed, or `GracefulError`
-        if no progress was detected.
+        Returns ``(timed_out, agent_error)`` — *timed_out* is True when
+        the agent didn't finish in time, *agent_error* captures any
+        exception the agent raised (instead of propagating it) so that
+        ``solve()`` can still collect partial results.
+        Raises `GracefulError` if no progress was detected.
         """
         no_progress_timeout = min(600.0, self._run_timeout * 0.15)
 
@@ -822,7 +828,7 @@ class HarborSolver:
 
             if not has_progress:
                 logger.warning(
-                    "HarborSolver: no agent progress after %.0fs — aborting early (vLLM may be unreachable)",
+                    "HarborSolver: no agent progress after %.0fs — aborting early (model may be unreachable)",
                     no_progress_timeout,
                 )
                 agent_task.cancel()
@@ -831,7 +837,7 @@ class HarborSolver:
                 raise GracefulError(
                     f"Agent made no progress after {no_progress_timeout:.0f}s "
                     f"(run_timeout={self._run_timeout:.0f}s). "
-                    "Model may be unreachable (vLLM KV-cache pressure?)."
+                    "Model endpoint may be unreachable or overloaded."
                 )
 
             # Phase 2 — progress confirmed, wait remaining time
@@ -855,13 +861,14 @@ class HarborSolver:
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await agent_task
 
-        # Propagate agent exceptions (but not CancelledError from our cancel)
+        agent_error: Exception | None = None
         if agent_task.done() and not agent_task.cancelled():
             exc = agent_task.exception()
             if exc is not None:
-                raise exc
+                logger.warning("HarborSolver: agent.run() raised %s: %s", type(exc).__name__, exc)
+                agent_error = exc
 
-        return timed_out
+        return timed_out, agent_error
 
     async def solve(
         self,
@@ -877,24 +884,25 @@ class HarborSolver:
         _silence_harbor_debug()
 
         t0 = time.monotonic()
-        logs_dir = Path(tempfile.mkdtemp(prefix="nel_harbor_"))
+        logs_dir = Path(tempfile.mkdtemp(prefix="eval_harbor_"))
         agent_logs_dir = logs_dir / "agent"
         agent_logs_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Rewrite the proxy/model URL for the sandbox's network topology
-            # (e.g. 127.0.0.1 → host.docker.internal for Docker bridge).
-            resolved_url = sandbox.resolve_outside_endpoint(self._model_url) if self._model_url else self._model_url
-            # Harbor agents read LLM_BASE_URL from os.environ directly
-            # (not from kwargs), so we must update the process env.
+            resolved_url = sandbox.resolved_endpoint_url("MODEL_BASE_URL") or (
+                sandbox.resolve_outside_endpoint(self._model_url) if self._model_url else self._model_url
+            )
+
+            override: dict[str, str] = {}
             if resolved_url:
-                os.environ["LLM_BASE_URL"] = resolved_url
+                override["LLM_BASE_URL"] = resolved_url
 
             adapter = SandboxEnvironmentAdapter(
                 sandbox,
                 logs_dir=logs_dir,
                 default_timeout=self._timeout,
                 persistent_env=self._container_env,
+                override_env=override,
             )
 
             agent = self._create_agent(agent_logs_dir, model_url=resolved_url)
@@ -903,11 +911,9 @@ class HarborSolver:
                 timeout_sec=10,
             )
 
-            # HACK: Ensure python3 >= 3.12 for openhands-sdk and install
-            # stdbuf (coreutils) which the agent run command requires.
-            # We record the current `python3` location BEFORE shimming so we
-            # can overwrite it — swebench images use pyenv whose shims shadow
-            # /usr/local/bin in PATH.
+            # Ensure python3 >= 3.12 for openhands-sdk and install stdbuf
+            # (coreutils).  pyenv shims are handled by overwriting the
+            # current `python3` location directly.
             if self._harbor_agent.lower() == "openhands-sdk":
                 hack_result = await sandbox.exec(
                     "if python3 -c 'import sys; exit(0 if sys.version_info >= (3,12) else 1)' 2>/dev/null; then "
@@ -947,7 +953,7 @@ class HarborSolver:
                     f" | stderr: {hack_result.stderr[:500]}" if hack_result.stderr else "",
                 )
                 ver_result = await sandbox.exec("python3 --version 2>&1 && which python3", timeout_sec=10)
-                logger.info("python3 after HACK: %s", ver_result.stdout.strip() if ver_result.stdout else "N/A")
+                logger.info("python3 after shim: %s", ver_result.stdout.strip() if ver_result.stdout else "N/A")
 
             await agent.setup(adapter)
 
@@ -956,12 +962,13 @@ class HarborSolver:
 
             context = AgentContext()
 
+            agent_error: Exception | None = None
             agent_timed_out = False
             jitter = random.uniform(0, min(120.0, self._run_timeout * 0.02))
             effective_timeout = self._run_timeout + jitter
 
             agent_task = asyncio.create_task(agent.run(task.prompt, adapter, context))
-            agent_timed_out = await self._wait_for_agent(
+            agent_timed_out, agent_error = await self._wait_for_agent(
                 agent_task,
                 sandbox,
                 t0,
@@ -1028,16 +1035,17 @@ class HarborSolver:
             latency_ms = (time.monotonic() - t0) * 1000
 
             # Timeout with zero progress → graceful error (reward 0, no retry).
-            # Retrying is wasteful: the same task consistently fails (likely
-            # vLLM KV-cache exhaustion or prompt-specific issue), and each
-            # retry burns another full run_timeout (5400 s) with 0 output.
+            # Retrying is unlikely to help if the model produced nothing.
             if agent_timed_out and not workspace_diff and prompt_tokens + completion_tokens == 0:
                 raise GracefulError(
                     f"Agent made no progress before run_timeout ({self._run_timeout:.0f}s). Model may be unreachable."
                 )
 
             error = None
-            if agent_timed_out and workspace_diff:
+            if agent_error is not None:
+                error = f"Agent crashed: {type(agent_error).__name__}: {agent_error}"
+                logger.warning("HarborSolver: %s", error)
+            elif agent_timed_out and workspace_diff:
                 logger.info(
                     "HarborSolver: agent timed out after %.0fs but produced "
                     "workspace changes — submitting for verification",

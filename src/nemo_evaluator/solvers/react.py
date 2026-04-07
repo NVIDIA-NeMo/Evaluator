@@ -12,12 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""ReActSolver: NEL-driven agent loop with pluggable tool backends.
+"""ReActSolver: evaluator-driven agent loop with pluggable tool backends.
 
-NEL drives the model-call → parse-tool-calls → dispatch cycle directly,
-giving full observability over every turn.  Works with Gym Resource Server
-tools (``HttpToolBackend``), sandbox tools (``SandboxToolBackend``), or
-both (``CompositeToolBackend``).
+The evaluator drives the model-call / parse-tool-calls / dispatch cycle
+directly, giving full observability over every turn.  Works with Gym
+Resource Server tools (``HttpToolBackend``), sandbox tools
+(``SandboxToolBackend``), or both (``CompositeToolBackend``).
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 class ReActSolver:
-    """NEL-native ReAct loop.
+    """Evaluator-native ReAct loop.
 
     Parameters
     ----------

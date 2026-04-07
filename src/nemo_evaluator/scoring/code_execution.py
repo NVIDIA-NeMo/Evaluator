@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 def _extract_code(sample: ScorerInput) -> str:
     """Extract Python code from model response (markdown fences or raw)."""
-    m = re.search(r"```(?:python)?\s*\n((?:\n|.)+?)```", sample.response, re.DOTALL)
+    m = re.search(r"```(?:python)?\s*\n(.+?)```", sample.response, re.DOTALL)
     return m.group(1) if m else sample.response
 
 
