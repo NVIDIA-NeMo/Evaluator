@@ -230,3 +230,27 @@ class TestPickLifecycle:
         mgr = MockSandboxManager()
         lc = pick_lifecycle(seed, sandbox_mgr=mgr)
         assert isinstance(lc, NoSandbox)
+
+    def test_force_stateful_overrides_verify_spec(self):
+        """force_stateful=True routes to StatefulSandbox even when verify_sandbox_spec is set."""
+        seed = _make_seed(
+            sandbox_spec=SandboxSpec(image="agent:latest"),
+            verify_sandbox_spec=SandboxSpec(image="verify:latest"),
+            capture_cmd="git diff > /output/patch.diff",
+            apply_cmd="git apply /input/patch.diff",
+        )
+        mgr = MockSandboxManager()
+        lc = pick_lifecycle(seed, sandbox_mgr=mgr, force_stateful=True)
+        assert isinstance(lc, StatefulSandbox)
+
+    def test_force_stateful_false_keeps_stateless_with_verify_spec(self):
+        """Default behaviour unchanged: verify_sandbox_spec present → StatelessSandbox."""
+        seed = _make_seed(
+            sandbox_spec=SandboxSpec(image="agent:latest"),
+            verify_sandbox_spec=SandboxSpec(image="verify:latest"),
+            capture_cmd="git diff > /output/patch.diff",
+            apply_cmd="git apply /input/patch.diff",
+        )
+        mgr = MockSandboxManager()
+        lc = pick_lifecycle(seed, sandbox_mgr=mgr, force_stateful=False)
+        assert isinstance(lc, StatelessSandbox)

@@ -262,6 +262,7 @@ async def run_evaluation(
                     outside_endpoints=outside_eps,
                     config_capture_cmd=sandbox_cfg.capture_cmd if sandbox_cfg else None,
                     verify_timeout=sandbox_cfg.verify_timeout if sandbox_cfg else 600.0,
+                    force_stateful=sandbox_cfg.stateful if sandbox_cfg else False,
                 )
 
                 try:

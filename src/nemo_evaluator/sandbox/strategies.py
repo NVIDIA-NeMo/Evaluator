@@ -349,6 +349,7 @@ def pick_lifecycle(
     outside_endpoints: list[OutsideEndpoint] | None = None,
     config_capture_cmd: str | None = None,
     verify_timeout: float = 600.0,
+    force_stateful: bool = False,
 ) -> SandboxLifecycle:
     """Select the appropriate lifecycle strategy for *seed*.
 
@@ -358,7 +359,7 @@ def pick_lifecycle(
     """
     eps = outside_endpoints or []
 
-    if seed.verify_sandbox_spec is not None and sandbox_mgr is not None:
+    if seed.verify_sandbox_spec is not None and not force_stateful and sandbox_mgr is not None:
         agent_spec = sandbox_mgr.resolve_spec(seed) or seed.sandbox_spec
         verify_spec = (
             sandbox_mgr.resolve_spec(
@@ -370,6 +371,7 @@ def pick_lifecycle(
 
         transfer = sandbox_mgr.get_transfer_strategy()
 
+        logger.debug("pick_lifecycle: selected StatelessSandbox")
         return StatelessSandbox(
             LifecycleContext(
                 sandbox_mgr=sandbox_mgr,
@@ -386,6 +388,8 @@ def pick_lifecycle(
     if sandbox_mgr is not None:
         spec = sandbox_mgr.resolve_spec(seed)
         if spec is not None:
+            logger.debug("pick_lifecycle: selected StatefulSandbox")
             return StatefulSandbox(sandbox_mgr, spec, eps)
 
+    logger.debug("pick_lifecycle: selected NoSandbox")
     return NoSandbox()
