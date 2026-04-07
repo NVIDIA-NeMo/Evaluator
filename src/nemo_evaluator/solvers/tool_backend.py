@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Pluggable tool backends for the NEL-driven agent loop (ReActSolver).
+"""Pluggable tool backends for the evaluator-driven agent loop (ReActSolver).
 
 Three implementations:
 

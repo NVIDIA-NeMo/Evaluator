@@ -65,7 +65,7 @@ class HarborSolverConfig(BaseModel):
 
 
 class AgentSolverConfig(BaseModel):
-    """Agent-as-library solver — imports agent into NEL process."""
+    """Agent-as-library solver — imports and runs the agent in-process."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -77,7 +77,7 @@ class AgentSolverConfig(BaseModel):
 
 
 class ToolCallingSolverConfig(BaseModel):
-    """NEL-native ReAct loop: model call -> parse tool_calls -> dispatch.
+    """Evaluator-native ReAct loop: model call -> parse tool_calls -> dispatch.
 
     At least one of ``resource_service`` (Gym HTTP tools) or ``sandbox_tools``
     (bash/file tools in sandbox) must be configured.

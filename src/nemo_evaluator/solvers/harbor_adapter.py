@@ -91,9 +91,6 @@ class SandboxEnvironmentAdapter:
         merged = {**self._persistent_env}
         if env:
             merged.update(env)
-        # override_env always wins — used for per-sandbox values like
-        # LLM_BASE_URL that must not be clobbered by the agent reading
-        # from the (process-global, racy) os.environ.
         merged.update(self._override_env)
         return merged or None
 
@@ -180,7 +177,7 @@ class SandboxEnvironmentAdapter:
             local_tar.unlink(missing_ok=True)
             await self._sandbox.exec(f"rm -f {remote_tar}", timeout_sec=10)
 
-    # -- Lifecycle (no-ops: nel manages the container) -----------------------
+    # -- Lifecycle (no-ops: the evaluator manages the container) -------------
 
     async def start(self, force_build: bool = False) -> None:
         pass

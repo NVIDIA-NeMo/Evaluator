@@ -53,13 +53,10 @@ _SESSION_PATH_RE = re.compile(r"^/s/([a-f0-9]+)(/.*)?$")
 
 
 async def _proxy_handler(request: Request) -> Response:
-    """Catch-all handler that forwards any POST request through the pipeline.
+    """Forward any POST request through the interceptor pipeline.
 
-    Matches the original Evaluator proxy behavior: all paths are forwarded
-    to upstream (chat/completions, completions, embeddings, models, etc.).
-
-    If the path starts with ``/s/<hex_id>/…`` the session id is extracted
-    into ``ctx.extra["nel_session_id"]`` and stripped before forwarding, so
+    If the path starts with ``/s/<hex_id>/…``, the session id is extracted
+    into ``ctx.extra["nel_session_id"]`` and stripped before forwarding so
     the upstream model never sees the prefix.
     """
     pipeline: AdapterPipeline = request.app.state.pipeline
