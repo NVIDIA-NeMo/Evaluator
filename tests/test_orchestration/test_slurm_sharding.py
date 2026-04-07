@@ -489,7 +489,7 @@ class TestSidecarConfigGeneration:
         assert f"config_{key}.yaml" in script
         assert "srun --overlap" not in script.split("nel eval run")[0].split("Benchmark 1/1")[-1]
 
-    def test_simple_bench_uses_quick_mode(self):
+    def test_simple_bench_gets_sidecar(self):
         cfg = EvalConfig.model_validate(
             {
                 "services": {
@@ -513,8 +513,12 @@ class TestSidecarConfigGeneration:
             }
         )
         script, sidecars, _ = generate_sbatch(cfg)
-        assert len(sidecars) == 0
-        assert '--bench "gsm8k"' in script
+        assert len(sidecars) == 1
+        assert "config_gsm8k.yaml" in script
+        assert "nel eval run" in script
+        sidecar = sidecars["gsm8k"]
+        assert sidecar["benchmarks"][0]["solver"]["type"] == "simple"
+        assert sidecar["benchmarks"][0]["solver"]["service"] == "model"
 
     def test_secrets_not_in_sbatch_script(self):
         """Credentials must go to .secrets.env, not inline in the sbatch script."""
