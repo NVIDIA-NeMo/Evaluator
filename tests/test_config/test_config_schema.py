@@ -638,3 +638,105 @@ class TestApplyOverrideNull:
         data = {"key": "value"}
         _apply_override(data, "key=none")
         assert data["key"] == "none"
+
+
+# ---------------------------------------------------------------------------
+# stateful sandbox flag
+# ---------------------------------------------------------------------------
+
+
+class TestStatefulSandboxFlag:
+    def test_stateful_field_accepted_in_ecs_fargate(self):
+        """EcsFargateSandbox parses stateful: true without error."""
+        from nemo_evaluator.config import EcsFargateSandbox
+
+        sb = EcsFargateSandbox(
+            type="ecs_fargate",
+            region="us-east-1",
+            ecr_repository="123.dkr.ecr.us-east-1.amazonaws.com/repo",
+            stateful=True,
+        )
+        assert sb.stateful is True
+
+    def test_stateful_defaults_to_false(self):
+        """stateful defaults to False for backward compatibility."""
+        from nemo_evaluator.config import EcsFargateSandbox
+
+        sb = EcsFargateSandbox(
+            type="ecs_fargate",
+            region="us-east-1",
+            ecr_repository="123.dkr.ecr.us-east-1.amazonaws.com/repo",
+        )
+        assert sb.stateful is False
+
+    def test_stateful_with_capture_cmd_warns(self):
+        """Setting stateful=True alongside capture_cmd emits a UserWarning."""
+        from nemo_evaluator.config import EcsFargateSandbox
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            EcsFargateSandbox(
+                type="ecs_fargate",
+                region="us-east-1",
+                ecr_repository="123.dkr.ecr.us-east-1.amazonaws.com/repo",
+                stateful=True,
+                capture_cmd="echo capture",
+            )
+        assert any("stateful" in str(w.message).lower() and issubclass(w.category, UserWarning) for w in caught)
+
+
+class TestTerminalBenchPlaybook:
+    def test_terminal_bench_playbook_loads(self):
+        """terminal_bench_2 playbook parses cleanly and has stateful=True."""
+        config = parse_eval_config(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "https://example.com/v1",
+                        "protocol": "chat_completions",
+                        "model": "test-model",
+                        "api_key": "test-key",
+                    },
+                },
+                "benchmarks": [
+                    {
+                        "playbook": "terminal_bench_2",
+                        "sandbox": {
+                            "region": "us-east-1",
+                            "ecr_repository": "123.dkr.ecr.us-east-1.amazonaws.com/repo",
+                        },
+                    }
+                ],
+            }
+        )
+        bm = config.benchmarks[0]
+        assert bm.name == "harbor://terminal-bench@2.0"
+        assert bm.sandbox.stateful is True
+
+    def test_terminal_bench_playbook_stateful_can_be_overridden(self):
+        """User can override stateful: false to revert to stateless."""
+        config = parse_eval_config(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "https://example.com/v1",
+                        "protocol": "chat_completions",
+                        "model": "test-model",
+                        "api_key": "test-key",
+                    },
+                },
+                "benchmarks": [
+                    {
+                        "playbook": "terminal_bench_2",
+                        "sandbox": {
+                            "region": "us-east-1",
+                            "ecr_repository": "123.dkr.ecr.us-east-1.amazonaws.com/repo",
+                            "stateful": False,
+                        },
+                    }
+                ],
+            }
+        )
+        assert config.benchmarks[0].sandbox.stateful is False
