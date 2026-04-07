@@ -139,3 +139,34 @@ class TestPatchOpenhandsSDK:
         sandbox.exec.return_value = MagicMock(stdout="stuck_detection disabled", stderr="", return_code=0)
         await _patch_openhands_sdk(sandbox)
         assert sandbox.exec.call_count >= 4
+
+
+class TestSandboxEnvironmentAdapter:
+    def test_exposes_all_base_environment_public_attrs(self, tmp_path):
+        """Adapter must expose every public attr set by BaseEnvironment.__init__.
+
+        Derived by introspecting BaseEnvironment so the test catches future
+        Harbor upgrades that add new required attributes.
+        """
+        import inspect
+        from unittest.mock import MagicMock
+
+        from harbor.environments.base import BaseEnvironment
+
+        from nemo_evaluator.solvers.harbor_adapter import SandboxEnvironmentAdapter
+
+        base_src = inspect.getsource(BaseEnvironment.__init__)
+        base_attrs = {
+            line.strip().split("=")[0].strip().removeprefix("self.").strip()
+            for line in base_src.splitlines()
+            if line.strip().startswith("self.") and not line.strip().startswith("self._") and "=" in line
+        }
+        # environment_dir / environment_name are only meaningful for container-spawning
+        # environments (Docker, Daytona, …) that read Dockerfiles from a local directory.
+        # terminus-2 never accesses them, so the adapter intentionally omits them.
+        container_only_attrs = {"environment_dir", "environment_name"}
+        base_attrs -= container_only_attrs
+
+        adapter = SandboxEnvironmentAdapter(MagicMock(), session_id="test-session", logs_dir=tmp_path)
+        missing = {a for a in base_attrs if not hasattr(adapter, a)}
+        assert not missing, f"SandboxEnvironmentAdapter missing public attrs: {missing}"

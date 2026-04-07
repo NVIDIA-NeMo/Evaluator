@@ -48,6 +48,7 @@ class SandboxEnvironmentAdapter:
         self,
         sandbox: Sandbox,
         *,
+        session_id: str,
         logs_dir: Path,
         default_timeout: float = 600.0,
         persistent_env: dict[str, str] | None = None,
@@ -58,6 +59,7 @@ class SandboxEnvironmentAdapter:
 
         self._sandbox = sandbox
         self._default_timeout = default_timeout
+        self.session_id = session_id
         self.trial_paths = TrialPaths(trial_dir=logs_dir)
         self.trial_paths.mkdir()
         self.logger = logger
