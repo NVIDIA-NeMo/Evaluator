@@ -252,7 +252,7 @@ async def run_evaluation(
                 if model_url:
                     from nemo_evaluator.sandbox.base import OutsideEndpoint as OE
 
-                    step_session_id = uuid4().hex[:12]
+                    step_session_id = uuid4().hex[:16]
                     step_url = f"{model_url.rstrip('/')}/s/{step_session_id}"
                     outside_eps.append(OE(url=step_url, env_var="MODEL_BASE_URL"))
 

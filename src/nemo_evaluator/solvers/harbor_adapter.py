@@ -86,13 +86,19 @@ class SandboxEnvironmentAdapter:
         return user if user is not None else self.default_user
 
     def _merge_env(self, env: dict[str, str] | None) -> dict[str, str] | None:
+        """Merge environment variable layers for a single exec call.
+
+        Precedence (last wins): ``persistent_env`` < *env* (caller) < ``override_env``.
+        Override always wins so that per-session values (e.g. ``LLM_BASE_URL``)
+        cannot be accidentally overwritten by agent code.
+        """
         if not self._persistent_env and not self._override_env and not env:
             return None
         merged = {**self._persistent_env}
         if env:
             merged.update(env)
         merged.update(self._override_env)
-        return merged or None
+        return merged
 
     # -- exec ----------------------------------------------------------------
 
@@ -149,7 +155,7 @@ class SandboxEnvironmentAdapter:
                 for child in src.rglob("*"):
                     if child.is_file():
                         tar.add(str(child), arcname=str(child.relative_to(src)))
-            remote_tar = f"/tmp/_nel_upload_{archive.stem}.tar.gz"
+            remote_tar = f"/tmp/_eval_upload_{archive.stem}.tar.gz"
             await self._sandbox.upload(archive, remote_tar)
             q_dir = shlex.quote(target_dir)
             await self._sandbox.exec(
@@ -162,7 +168,7 @@ class SandboxEnvironmentAdapter:
     async def download_dir(self, source_dir: str, target_dir: Path | str) -> None:
         dst = Path(target_dir)
         dst.mkdir(parents=True, exist_ok=True)
-        remote_tar = f"/tmp/_nel_download_{dst.name}.tar.gz"
+        remote_tar = f"/tmp/_eval_download_{dst.name}.tar.gz"
         await self._sandbox.exec(
             f"tar czf {remote_tar} -C {shlex.quote(source_dir)} .",
             timeout_sec=120,
@@ -172,7 +178,7 @@ class SandboxEnvironmentAdapter:
         try:
             await self._sandbox.download(remote_tar, local_tar)
             with tarfile.open(local_tar, "r:gz") as tar:
-                tar.extractall(dst)
+                tar.extractall(dst, filter="data")
         finally:
             local_tar.unlink(missing_ok=True)
             await self._sandbox.exec(f"rm -f {remote_tar}", timeout_sec=10)

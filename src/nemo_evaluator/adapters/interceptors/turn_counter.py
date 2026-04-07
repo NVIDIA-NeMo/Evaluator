@@ -65,7 +65,10 @@ class Interceptor(RequestInterceptor):
         self._last_gc = time.monotonic()
 
     async def intercept_request(self, req: AdapterRequest) -> AdapterRequest:
-        key = req.ctx.extra.get("nel_session_id") or _session_key_from_body(req.body)
+        key = req.ctx.extra.get("session_id")
+        if not key:
+            key = _session_key_from_body(req.body)
+            logger.warning("no session_id in context — falling back to body-hash key %s", key)
 
         async with self._lock:
             now = time.monotonic()

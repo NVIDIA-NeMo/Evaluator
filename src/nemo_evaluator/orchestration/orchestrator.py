@@ -894,7 +894,7 @@ async def _run_single_benchmark(
         if judge_client is not None and hasattr(judge_client, "close"):
             await judge_client.close()
         if proxy_handle is not None:
-            proxy_handle.stop()
+            await proxy_handle.async_stop()
 
 
 def _load_prior_bundle(task_dir: str) -> dict[str, Any]:

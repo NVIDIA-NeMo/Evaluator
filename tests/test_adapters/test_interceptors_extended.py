@@ -117,7 +117,7 @@ class TestCachingInterceptor:
         body = {"messages": [{"role": "user", "content": "hello"}]}
 
         ctx_a = InterceptorContext()
-        ctx_a.extra["nel_session_id"] = "session_aaa"
+        ctx_a.extra["session_id"] = "session_aaa"
         req_a = AdapterRequest(method="POST", path="/chat/completions", headers={}, body=body, ctx=ctx_a)
         result_a = await i.intercept_request(req_a)
         assert isinstance(result_a, AdapterRequest)
@@ -128,7 +128,7 @@ class TestCachingInterceptor:
         await i.intercept_response(resp_a)
 
         ctx_b = InterceptorContext()
-        ctx_b.extra["nel_session_id"] = "session_bbb"
+        ctx_b.extra["session_id"] = "session_bbb"
         req_b = AdapterRequest(method="POST", path="/chat/completions", headers={}, body=body, ctx=ctx_b)
         result_b = await i.intercept_request(req_b)
         assert isinstance(result_b, AdapterRequest), "must be a cache miss, not a hit"

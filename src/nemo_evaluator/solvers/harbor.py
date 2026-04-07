@@ -58,7 +58,9 @@ def _extract_response(context: Any) -> str:
 
 
 def _resolve_api_key(explicit: str | None) -> str | None:
-    """Return *explicit* if non-empty, else probe common env vars."""
+    """Return *explicit* if non-empty, else probe env vars in order:
+    ``LLM_API_KEY``, ``NVIDIA_API_KEY``, ``OPENAI_API_KEY``, ``ANTHROPIC_API_KEY``.
+    """
     if explicit:
         return explicit
     for var in ("LLM_API_KEY", "NVIDIA_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
@@ -68,28 +70,33 @@ def _resolve_api_key(explicit: str | None) -> str | None:
     return None
 
 
-def _ensure_env(api_key: str | None, model_url: str | None, model_id: str | None) -> None:
-    """Set process-wide ``LLM_*`` env vars that Harbor agents expect.
+def _model_id_for_openai(model_id: str, has_custom_url: bool) -> str:
+    """Return *model_id* with an ``openai/`` prefix when needed.
 
-    ``LLM_MODEL`` gets an ``openai/`` prefix when a custom *model_url* is
-    provided (the provider hint is needed for OpenAI-compatible endpoints).
+    The prefix tells LiteLLM to use the OpenAI-compatible provider when
+    routing through a custom endpoint URL.
     """
-    key = _resolve_api_key(api_key)
-    if not key:
-        key = "no-key-needed"
-        logger.info("No API key found — using dummy key for self-hosted model")
-    os.environ["LLM_API_KEY"] = key
-    if model_url:
-        os.environ["LLM_BASE_URL"] = model_url
+    if has_custom_url and not model_id.startswith("openai/"):
+        return f"openai/{model_id}"
+    return model_id
+
+
+def _ensure_host_env(api_key: str, model_id: str | None, *, has_custom_url: bool) -> None:
+    """Populate host-process env vars required by OpenHands-family agents.
+
+    ``OpenHandsSDK.run()`` reads ``LLM_API_KEY`` (required) and
+    ``LLM_MODEL`` (fallback) directly from ``os.environ`` before
+    building the container exec environment.  Uses ``setdefault`` so
+    values set by an earlier solver or caller are never overwritten.
+
+    ``LLM_BASE_URL`` is intentionally *not* set here; each ``solve()``
+    call passes a per-session URL via the adapter's ``override_env``.
+    """
+    os.environ.setdefault("LLM_API_KEY", api_key)
     if model_id:
-        mid = model_id
-        if model_url and not mid.startswith("openai/"):
-            mid = f"openai/{mid}"
-        os.environ["LLM_MODEL"] = mid
+        os.environ.setdefault("LLM_MODEL", _model_id_for_openai(model_id, has_custom_url))
     os.environ.setdefault("LITELLM_LOG", "ERROR")
     os.environ.setdefault("LITELLM_TELEMETRY", "false")
-    os.environ.setdefault("SECURITY_CONFIRMATION_MODE", "false")
-    os.environ.setdefault("SECURITY_ENABLE_SECURITY_ANALYZER", "false")
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +143,7 @@ async def _download_agent_logs_inner(
         return
     logger.info("Container /logs/agent/:\n%s", ls.stdout.strip())
 
-    remote_tar = "/tmp/_nel_agent_logs.tar.gz"
+    remote_tar = "/tmp/_eval_agent_logs.tar.gz"
     rc = await sandbox.exec(
         f"tar czf {remote_tar} -C /logs/agent .",
         timeout_sec=120,
@@ -157,7 +164,7 @@ async def _download_agent_logs_inner(
                 await sandbox.download(remote_tar, local_tar)
                 dest.mkdir(parents=True, exist_ok=True)
                 with tarfile.open(local_tar, "r:gz") as tar:
-                    tar.extractall(dest)
+                    tar.extractall(dest, filter="data")
                 logger.info("Downloaded %d files to %s", len(list(dest.rglob("*"))), dest)
                 return
             except Exception as exc:
@@ -729,16 +736,22 @@ class HarborSolver:
         self._max_input_tokens = max_input_tokens
         self._max_output_tokens = max_output_tokens
         self._api_key = _resolve_api_key(api_key)
-        _ensure_env(self._api_key, self._model_url, self._model_id)
+        if not self._api_key:
+            self._api_key = "no-key-needed"
+            logger.info("No API key found — using dummy key for self-hosted model")
+
+        self._container_env.setdefault("LLM_API_KEY", self._api_key)
+        if model_id:
+            self._container_env.setdefault("LLM_MODEL", _model_id_for_openai(model_id, bool(model_url)))
+
+        _ensure_host_env(self._api_key, self._model_id, has_custom_url=bool(model_url))
 
     def _create_agent(self, logs_dir: Path, *, model_url: str = "") -> Any:
         from harbor.agents.factory import AgentFactory
 
         kwargs = dict(self._harbor_agent_kwargs)
-        model_id = self._model_id
         url = model_url or self._model_url
-        if url and "model_name" not in kwargs and model_id and not model_id.startswith("openai/"):
-            model_id = f"openai/{model_id}"
+        model_id = _model_id_for_openai(self._model_id, bool(url)) if self._model_id else ""
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
         if "api_base" not in kwargs and url:
@@ -871,7 +884,7 @@ class HarborSolver:
         _silence_harbor_debug()
 
         t0 = time.monotonic()
-        logs_dir = Path(tempfile.mkdtemp(prefix="nel_harbor_"))
+        logs_dir = Path(tempfile.mkdtemp(prefix="eval_harbor_"))
         agent_logs_dir = logs_dir / "agent"
         agent_logs_dir.mkdir(parents=True, exist_ok=True)
 

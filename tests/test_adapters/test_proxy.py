@@ -174,12 +174,12 @@ class TestUnit:
         assert resp.json()["path"] == "/v1/chat/completions"
 
     def test_session_id_in_context(self):
-        """The nel_session_id extracted from the path is visible to interceptors."""
+        """The session_id extracted from the path is visible to interceptors."""
         _HeaderCapture.last_req = None
         client = _test_client(pipeline=AdapterPipeline([_HeaderCapture(), _EchoEndpoint()]))
         client.post("/s/deadbeef1234/v1/chat/completions", json={"messages": []})
         assert _HeaderCapture.last_req is not None
-        assert _HeaderCapture.last_req.ctx.extra.get("nel_session_id") == "deadbeef1234"
+        assert _HeaderCapture.last_req.ctx.extra.get("session_id") == "deadbeef1234"
 
     def test_no_session_for_plain_path(self):
         """Requests without /s/ prefix work normally with no session ID."""
@@ -187,7 +187,7 @@ class TestUnit:
         client = _test_client(pipeline=AdapterPipeline([_HeaderCapture(), _EchoEndpoint()]))
         client.post("/v1/chat/completions", json={"messages": []})
         assert _HeaderCapture.last_req is not None
-        assert "nel_session_id" not in _HeaderCapture.last_req.ctx.extra
+        assert "session_id" not in _HeaderCapture.last_req.ctx.extra
 
     def test_model_id_injected(self):
         resp = _test_client(model_id="my-model").post("/v1/chat/completions", json={"messages": []})

@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 
 from nemo_evaluator.solvers.harbor import (
-    _ensure_env,
+    _ensure_host_env,
     _extract_response,
     _resolve_api_key,
 )
@@ -69,29 +69,37 @@ class TestResolveApiKey:
         assert _resolve_api_key(None) is None
 
 
-class TestEnsureEnv:
+class TestEnsureHostEnv:
     def test_sets_env_vars(self, monkeypatch):
         for v in ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "LITELLM_LOG"):
             monkeypatch.delenv(v, raising=False)
-        _ensure_env("key-1", "http://localhost:5000/v1", "my-model")
+        _ensure_host_env("key-1", "my-model", has_custom_url=True)
         assert os.environ["LLM_API_KEY"] == "key-1"
-        assert os.environ["LLM_BASE_URL"] == "http://localhost:5000/v1"
+        assert "LLM_BASE_URL" not in os.environ
         assert os.environ["LLM_MODEL"] == "openai/my-model"
 
+    def test_setdefault_does_not_clobber(self, monkeypatch):
+        """A second call must not overwrite values set by the first."""
+        monkeypatch.setenv("LLM_API_KEY", "first-key")
+        monkeypatch.setenv("LLM_MODEL", "first-model")
+        _ensure_host_env("second-key", "second-model", has_custom_url=True)
+        assert os.environ["LLM_API_KEY"] == "first-key"
+        assert os.environ["LLM_MODEL"] == "first-model"
+
     def test_no_key_uses_dummy(self, monkeypatch):
-        for v in ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "NVIDIA_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
+        for v in ("LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL"):
             monkeypatch.delenv(v, raising=False)
-        _ensure_env(None, None, None)
+        _ensure_host_env("no-key-needed", None, has_custom_url=False)
         assert os.environ["LLM_API_KEY"] == "no-key-needed"
 
     def test_model_no_prefix_without_url(self, monkeypatch):
         monkeypatch.delenv("LLM_MODEL", raising=False)
-        _ensure_env("k", None, "bare-model")
+        _ensure_host_env("k", "bare-model", has_custom_url=False)
         assert os.environ["LLM_MODEL"] == "bare-model"
 
     def test_already_prefixed_model(self, monkeypatch):
         monkeypatch.delenv("LLM_MODEL", raising=False)
-        _ensure_env("k", "http://x", "openai/already")
+        _ensure_host_env("k", "openai/already", has_custom_url=True)
         assert os.environ["LLM_MODEL"] == "openai/already"
 
 

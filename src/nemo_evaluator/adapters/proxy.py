@@ -56,7 +56,7 @@ async def _proxy_handler(request: Request) -> Response:
     """Forward any POST request through the interceptor pipeline.
 
     If the path starts with ``/s/<hex_id>/…``, the session id is extracted
-    into ``ctx.extra["nel_session_id"]`` and stripped before forwarding so
+    into ``ctx.extra["session_id"]`` and stripped before forwarding so
     the upstream model never sees the prefix.
     """
     pipeline: AdapterPipeline = request.app.state.pipeline
@@ -78,7 +78,7 @@ async def _proxy_handler(request: Request) -> Response:
 
     m = _SESSION_PATH_RE.match(path)
     if m:
-        ctx.extra["nel_session_id"] = m.group(1)
+        ctx.extra["session_id"] = m.group(1)
         path = m.group(2) or "/"
 
     adapter_req = AdapterRequest(
@@ -95,16 +95,16 @@ async def _proxy_handler(request: Request) -> Response:
         from nemo_evaluator.errors import GracefulError
 
         if isinstance(exc, GracefulError):
-            logger.warning("Proxy: graceful termination for session %s: %s", ctx.extra.get("nel_session_id", "?"), exc)
+            logger.warning("Proxy: graceful termination for session %s: %s", ctx.extra.get("session_id", "?"), exc)
             return JSONResponse(
                 {
                     "error": {
                         "message": str(exc),
-                        "type": "nel_session_terminated",
+                        "type": "invalid_request_error",
                         "code": "session_budget_exhausted",
                     },
                 },
-                status_code=400,
+                status_code=429,
             )
         logger.exception("Pipeline error")
         return JSONResponse(
@@ -185,23 +185,28 @@ class ProxyHandle:
     _thread: threading.Thread
     _endpoint_interceptor: Any
 
+    async def async_stop(self) -> None:
+        """Stop the proxy server and close the endpoint interceptor.
+
+        Preferred over :meth:`stop` when called from an async context so
+        the interceptor's connection pool is drained before returning.
+        """
+        self._server.should_exit = True
+        self._thread.join(timeout=10)
+        if self._endpoint_interceptor is not None:
+            await self._endpoint_interceptor.close()
+
     def stop(self) -> None:
+        """Synchronous stop — use :meth:`async_stop` from async code."""
         self._server.should_exit = True
         self._thread.join(timeout=10)
         if self._endpoint_interceptor is None:
             return
+        loop = asyncio.new_event_loop()
         try:
-            running_loop = asyncio.get_running_loop()
-        except RuntimeError:
-            running_loop = None
-        if running_loop is not None:
-            running_loop.create_task(self._endpoint_interceptor.close())
-        else:
-            loop = asyncio.new_event_loop()
-            try:
-                loop.run_until_complete(self._endpoint_interceptor.close())
-            finally:
-                loop.close()
+            loop.run_until_complete(self._endpoint_interceptor.close())
+        finally:
+            loop.close()
 
 
 def start_adapter_proxy(
