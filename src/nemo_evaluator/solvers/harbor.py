@@ -899,17 +899,20 @@ class HarborSolver:
             resolved_url = sandbox.resolved_endpoint_url("MODEL_BASE_URL") or (
                 sandbox.resolve_outside_endpoint(self._model_url) if self._model_url else self._model_url
             )
-            # Best-effort env update for agents that read LLM_BASE_URL from
-            # os.environ.  Per-agent api_base kwarg (set in _create_agent) is
-            # the authoritative URL and is not subject to this race.
+
+            # override_env takes priority over whatever the harbor agent
+            # reads from os.environ, avoiding the race where concurrent
+            # solve() calls clobber os.environ["LLM_BASE_URL"].
+            override: dict[str, str] = {}
             if resolved_url:
-                os.environ["LLM_BASE_URL"] = resolved_url
+                override["LLM_BASE_URL"] = resolved_url
 
             adapter = SandboxEnvironmentAdapter(
                 sandbox,
                 logs_dir=logs_dir,
                 default_timeout=self._timeout,
                 persistent_env=self._container_env,
+                override_env=override,
             )
 
             agent = self._create_agent(agent_logs_dir, model_url=resolved_url)

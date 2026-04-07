@@ -12,11 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Bridge between nel's Sandbox and Harbor's BaseEnvironment.
+"""Adapts :class:`~nemo_evaluator.sandbox.base.Sandbox` to Harbor's
+``BaseEnvironment`` interface.
 
-All Harbor imports are lazy so this module can be imported without
-the harbor package installed -- the ImportError surfaces only when
-a HarborSolver is actually instantiated.
+All Harbor imports are lazy so the module can be imported without the
+``harbor`` package installed.
 """
 
 from __future__ import annotations
@@ -35,10 +35,10 @@ logger = logging.getLogger(__name__)
 
 
 class SandboxEnvironmentAdapter:
-    """Wraps a nel ``Sandbox`` to satisfy Harbor's ``BaseEnvironment`` interface.
+    """Wraps a :class:`Sandbox` to satisfy Harbor's ``BaseEnvironment`` interface.
 
-    We deliberately skip ``BaseEnvironment.__init__()`` and set the
-    required attributes directly so nel stays in control of the
+    ``BaseEnvironment.__init__()`` is deliberately skipped; the required
+    attributes are set directly so the evaluator retains control of the
     container lifecycle.
     """
 
@@ -51,6 +51,7 @@ class SandboxEnvironmentAdapter:
         logs_dir: Path,
         default_timeout: float = 600.0,
         persistent_env: dict[str, str] | None = None,
+        override_env: dict[str, str] | None = None,
     ) -> None:
         from harbor.models.task.config import EnvironmentConfig as TaskEnvConfig
         from harbor.models.trial.paths import TrialPaths
@@ -61,6 +62,7 @@ class SandboxEnvironmentAdapter:
         self.trial_paths.mkdir()
         self.logger = logger
         self._persistent_env: dict[str, str] = dict(persistent_env or {})
+        self._override_env: dict[str, str] = dict(override_env or {})
         self.task_env_config = TaskEnvConfig()
         self.default_user = None
 
@@ -84,11 +86,15 @@ class SandboxEnvironmentAdapter:
         return user if user is not None else self.default_user
 
     def _merge_env(self, env: dict[str, str] | None) -> dict[str, str] | None:
-        if not self._persistent_env and not env:
+        if not self._persistent_env and not self._override_env and not env:
             return None
         merged = {**self._persistent_env}
         if env:
             merged.update(env)
+        # override_env always wins — used for per-sandbox values like
+        # LLM_BASE_URL that must not be clobbered by the agent reading
+        # from the (process-global, racy) os.environ.
+        merged.update(self._override_env)
         return merged or None
 
     # -- exec ----------------------------------------------------------------
