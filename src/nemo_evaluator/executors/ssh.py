@@ -111,6 +111,51 @@ def _ssh_target(hostname: str, username: str | None = None) -> str:
     return hostname
 
 
+def copy_from_remote(
+    hostname: str,
+    remote_pattern: str,
+    local_dir: Path,
+    username: str | None = None,
+    timeout: float = 120.0,
+) -> list[Path]:
+    """Download files matching a remote glob pattern to a local directory via scp.
+
+    Returns the list of local paths that were downloaded.
+    """
+    target = _ssh_target(hostname, username)
+    local_dir.mkdir(parents=True, exist_ok=True)
+
+    _ensure_master(target)
+    try:
+        _run(
+            ["scp", "-p", *_ssh_opts(target), f"{target}:{remote_pattern}", str(local_dir) + "/"],
+            timeout=timeout,
+        )
+    except SSHError as e:
+        if "No such file" in str(e) or "not a regular file" in str(e):
+            return []
+        raise
+
+    return sorted(local_dir.iterdir())
+
+
+def copy_tree_from_remote(
+    hostname: str,
+    remote_dir: str,
+    local_dir: Path,
+    username: str | None = None,
+    timeout: float = 300.0,
+) -> None:
+    """Recursively download a remote directory to a local path via scp -r."""
+    target = _ssh_target(hostname, username)
+    local_dir.mkdir(parents=True, exist_ok=True)
+    _ensure_master(target)
+    _run(
+        ["scp", "-rp", *_ssh_opts(target), f"{target}:{remote_dir}/.", str(local_dir) + "/"],
+        timeout=timeout,
+    )
+
+
 def copy_to_remote(
     hostname: str,
     local_paths: list[Path],
