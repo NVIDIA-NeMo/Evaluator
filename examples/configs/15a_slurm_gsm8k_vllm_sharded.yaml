@@ -1,0 +1,36 @@
+# Flavor: SLURM array job — sharded evaluation
+# Splits the benchmark across 4 SLURM array tasks for parallel execution.
+# Each task evaluates a disjoint slice of the dataset.
+#
+# Prerequisites:
+#   - Access to a SLURM cluster with GPU nodes
+#   - Model weights accessible on shared filesystem
+# Run: nel eval run examples/configs/15a_slurm_gsm8k_vllm_sharded.yaml --submit
+# After all tasks complete:
+#   nel eval merge ./eval_results
+
+services:
+  model:
+    type: vllm
+    model: nvidia/Llama-3.1-70B-Instruct
+    protocol: chat_completions
+    tensor_parallel_size: 4
+    port: 8000
+    node_pool: compute
+
+benchmarks:
+  - name: gsm8k
+    solver:
+      type: simple
+      service: model
+
+cluster:
+  type: slurm
+  walltime: "02:00:00"
+  shards: 4
+  node_pools:
+    compute:
+      partition: batch
+      nodes: 1
+      ntasks_per_node: 1
+      gres: "gpu:4"

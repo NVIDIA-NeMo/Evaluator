@@ -1,0 +1,66 @@
+# Single non-sharded evaluation job.
+#
+# Usage:
+#   kubectl apply -f eval-job.yaml
+#
+# Prerequisites:
+#   - ConfigMap "nemo-evaluator-config" (see eval-indexed-job.yaml)
+#   - Secret "nemo-evaluator-secrets" with key "api-key"
+#   - PVC "nel-results-pvc"
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nel-eval
+  labels:
+    app: nemo-evaluator
+    component: eval
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: nemo-evaluator
+        component: eval
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: eval
+          image: nemo-evaluator:latest
+          command: ["nel", "eval", "run"]
+          args:
+            - "--bench"
+            - "gsm8k"
+            - "--repeats"
+            - "4"
+            - "--output-dir"
+            - "/results"
+          env:
+            - name: NEMO_MODEL_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: nemo-evaluator-config
+                  key: model-url
+            - name: NEMO_MODEL_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: nemo-evaluator-config
+                  key: model-id
+            - name: NEMO_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: nemo-evaluator-secrets
+                  key: api-key
+          volumeMounts:
+            - name: results
+              mountPath: /results
+          resources:
+            requests:
+              cpu: "2"
+              memory: "8Gi"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
+      volumes:
+        - name: results
+          persistentVolumeClaim:
+            claimName: nel-results-pvc

@@ -1,0 +1,145 @@
+# Sharded evaluation: 8 indexed pods, each evaluating its shard.
+# After all complete, a merge job combines results.
+#
+# Usage:
+#   kubectl apply -f eval-indexed-job.yaml
+#
+# Prerequisites:
+#   - Secret "nemo-evaluator-secrets" with key "api-key"
+#   - PVC "nel-results-pvc" for shared storage
+#
+# To customize model/benchmark, edit the env vars or use Kustomize overlays.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nel-eval-sharded
+  labels:
+    app: nemo-evaluator
+    component: eval-sharded
+spec:
+  completionMode: Indexed
+  completions: 8
+  parallelism: 8
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: nemo-evaluator
+        component: eval-sharded
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: eval
+          image: nemo-evaluator:latest
+          command: ["nel", "run"]
+          args:
+            - "--benchmark"
+            - "gsm8k"
+            - "--model-url"
+            - "$(NEMO_MODEL_URL)"
+            - "--model-id"
+            - "$(NEMO_MODEL_ID)"
+            - "--repeats"
+            - "4"
+            - "--output-dir"
+            - "/results/shard_$(JOB_COMPLETION_INDEX)"
+            - "--no-progress"
+          env:
+            - name: NEMO_MODEL_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: nemo-evaluator-config
+                  key: model-url
+            - name: NEMO_MODEL_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: nemo-evaluator-config
+                  key: model-id
+            - name: JOB_COMPLETION_INDEX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
+            - name: NEL_SHARD_IDX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
+            - name: NEL_TOTAL_SHARDS
+              value: "8"
+            - name: NEMO_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: nemo-evaluator-secrets
+                  key: api-key
+          volumeMounts:
+            - name: results
+              mountPath: /results
+          resources:
+            requests:
+              cpu: "2"
+              memory: "8Gi"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
+      volumes:
+        - name: results
+          persistentVolumeClaim:
+            claimName: nel-results-pvc
+---
+# Merge job: waits for all shards to finish, then combines results.
+# The initContainer polls for shard completion markers before merge runs.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nel-eval-merge
+  labels:
+    app: nemo-evaluator
+    component: eval-merge
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait-for-shards
+          image: nemo-evaluator:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Waiting for 8 shards to complete..."
+              for i in $(seq 0 7); do
+                dir="/results/shard_${i}"
+                while [ ! -f "${dir}/eval-*.json" ] 2>/dev/null && [ ! -d "${dir}" ]; do
+                  echo "Shard ${i} not ready, waiting..."
+                  sleep 30
+                done
+              done
+              echo "All shards ready."
+          volumeMounts:
+            - name: results
+              mountPath: /results
+      containers:
+        - name: merge
+          image: nemo-evaluator:latest
+          command: ["nel", "eval", "merge"]
+          args:
+            - "/results"
+          volumeMounts:
+            - name: results
+              mountPath: /results
+          resources:
+            requests:
+              cpu: "1"
+              memory: "4Gi"
+      volumes:
+        - name: results
+          persistentVolumeClaim:
+            claimName: nel-results-pvc
+---
+# ConfigMap: customize these values for your deployment.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nemo-evaluator-config
+data:
+  model-url: "https://inference-api.nvidia.com/v1"
+  model-id: "azure/openai/gpt-5.2"

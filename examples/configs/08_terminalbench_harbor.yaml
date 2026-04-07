@@ -1,0 +1,48 @@
+# Flavor: Terminal-Bench 2.0 via Harbor -- tasks auto-downloaded from Harbor registry,
+# solved by the Terminus-2 agent in ECS Fargate sandboxes, verified by per-task test.sh.
+#
+# Uses harbor://terminal-bench@2.0 (89 tasks) from the Harbor registry.
+# Tasks are downloaded via sparse git checkout on first run.
+#
+# ECS infrastructure auto-discovered from AWS SSM Parameter Store.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - AWS credentials configured (orchestrator IAM user)
+#   - Terraform applied for target region (creates SSM parameter)
+#   - git (for sparse checkout)
+#   - pip install nemo-evaluator[harbor]
+# Run: nel eval run examples/configs/08_terminalbench_harbor.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+    proxy:
+      verbose: true
+      interceptors:
+        - name: turn_counter
+
+output:
+  export: [inspect]
+
+benchmarks:
+  - name: harbor://terminal-bench@2.0
+    max_problems: 5
+    max_concurrent: 5
+    solver:
+      type: harbor
+      service: nemotron
+      agent: terminus-2
+    sandbox:
+      type: ecs_fargate
+      region: us-west-2
+      cpu: "4096"
+      memory: "8192"
+      max_task_lifetime_sec: 7200
+      log_stream_prefix: terminalbench
+      timeout: 600.0
+      concurrency: 5

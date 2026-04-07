@@ -1,0 +1,35 @@
+# Flavor: code execution in AWS ECS Fargate sandbox
+# Same as 06 (HumanEval + Docker) but runs sandboxes on ECS Fargate
+# instead of a local Docker daemon — suitable for CI or remote runners.
+#
+# ECS infrastructure auto-discovered from AWS SSM Parameter Store.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - AWS credentials configured (orchestrator IAM user)
+#   - Terraform applied for target region (creates SSM parameter)
+# Run: nel eval run examples/configs/18_humaneval_ecs.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+
+benchmarks:
+  - name: humaneval
+    max_problems: 5
+    solver:
+      type: simple
+      service: nemotron
+    sandbox:
+      type: ecs_fargate
+      region: us-west-2
+      image: python:3.12-slim
+      cpu: "2048"
+      memory: "4096"
+      log_stream_prefix: humaneval
+      timeout: 120.0
+      concurrency: 4

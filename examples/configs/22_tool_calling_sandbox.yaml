@@ -1,0 +1,41 @@
+# NEL-driven tool-calling with sandbox tools (no agent framework needed).
+#
+# NEL itself acts as the coding agent: it calls the model with tool schemas
+# (bash, file_read, file_write, str_replace_editor), dispatches tool calls
+# into the Docker sandbox, and records the full multi-turn conversation.
+#
+# This replaces opaque delegation to Harbor/OpenHands for SWE-bench — NEL
+# controls the loop with full per-turn observability.
+#
+# response_mode: sandbox_artifact means the final answer is the sandbox
+# state (patch), not the last model message.
+#
+# Prerequisites:
+#   - Docker running locally
+#   - NVIDIA_API_KEY set in environment
+
+services:
+  model:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/llama-3.3-nemotron-super-49b-v1
+    api_key: ${NVIDIA_API_KEY}
+
+benchmarks:
+  - name: swebench-verified
+    solver:
+      type: tool_calling
+      service: model
+      sandbox_tools: true
+      max_turns: 100
+      response_mode: sandbox_artifact
+      system_prompt: |
+        You are a software engineer fixing a bug in a Python repository.
+        You have these tools: bash, str_replace_editor, file_read, file_write.
+        Use bash to explore the repo and run tests. Use str_replace_editor to
+        make targeted edits. When done, the sandbox state is captured
+        automatically.
+    sandbox:
+      type: docker
+      timeout: 1800.0

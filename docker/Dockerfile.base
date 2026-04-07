@@ -1,0 +1,40 @@
+# NeMo Evaluator base image.
+# Contains: nemo-evaluator[scoring,stats] + built-in BYOB benchmarks.
+# Sufficient for: built-in benchmarks, gym://, vlmevalkit://, container://.
+#
+# Build locally:
+#   docker build -f docker/Dockerfile.base -t nemo-evaluator .
+#
+# Per-harness variants:
+#   docker build -f docker/Dockerfile.lm-eval --build-arg BASE_IMAGE=nemo-evaluator -t nemo-evaluator:lm-eval .
+#   docker build -f docker/Dockerfile.skills  --build-arg BASE_IMAGE=nemo-evaluator -t nemo-evaluator:skills  .
+#   docker build -f docker/Dockerfile.gym     --build-arg BASE_IMAGE=nemo-evaluator -t nemo-evaluator:gym     .
+#   docker build -f docker/Dockerfile.full    --build-arg BASE_IMAGE=nemo-evaluator -t nemo-evaluator:full    .
+#
+# CI builds and pushes to the GitLab container registry automatically.
+
+FROM nvcr.io/nvidia/base/ubuntu:noble-20251013
+
+ARG TARGETARCH
+
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends \
+        python3 python3-pip python3.12-venv python-is-python3 \
+        curl nano vim git libgl1 wget \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN wget -q https://github.com/jqlang/jq/releases/download/jq-1.8.0/jq-linux-${TARGETARCH} -O /bin/jq \
+    && chmod +x /bin/jq
+
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+WORKDIR /app
+
+COPY pyproject.toml README.md ./
+COPY src/ src/
+
+RUN pip install --no-cache-dir ".[scoring,stats]"
+
+ENV PYTHONUNBUFFERED=1
+
+CMD ["nel", "--help"]

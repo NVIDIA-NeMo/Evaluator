@@ -1,0 +1,26 @@
+# Flavor: code execution in Docker sandbox (code_sandbox scorer)
+# Model generates code, which is executed inside a Python container.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - Docker running locally
+# Run: nel eval run examples/configs/06_humaneval_docker.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+
+benchmarks:
+  - name: humaneval
+    max_problems: 5
+    solver:
+      type: simple
+      service: nemotron
+    sandbox:
+      type: docker
+      image: python:3.12-slim
+      timeout: 60.0

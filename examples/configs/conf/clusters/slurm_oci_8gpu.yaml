@@ -1,0 +1,19 @@
+type: slurm
+hostname: cw-dfw-cs-001-login-01
+account: coreai_dlalgo_compeval
+walltime: "04:00:00"
+container_mounts:
+  - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
+container_env:
+  HF_TOKEN: ${HF_TOKEN}
+  HF_HOME: /cache/huggingface
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+  AWS_DEFAULT_REGION: us-west-2
+mount_home: false
+node_pools:
+  gpu:
+    partition: batch
+    nodes: 1
+    ntasks_per_node: 1
+    gres: "gpu:8"

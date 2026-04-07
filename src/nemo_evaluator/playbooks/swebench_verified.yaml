@@ -1,0 +1,30 @@
+# SWE-bench Verified — Reference Playbook
+#
+# Pre-configured benchmark settings for SWE-bench Verified (500 Python tasks,
+# human-validated).  Include this in your eval config under `benchmarks:`.
+#
+# Requires a service named "model" in your config's `services:` section.
+
+name: harbor://swebench-verified@1.0
+instruction_template: swebench_instruction.md
+max_concurrent: 30
+timeout: 10800.0
+solver:
+  type: harbor
+  service: model
+  agent: openhands-sdk
+  run_timeout: 5400.0
+  cmd_timeout: 1800
+  agent_kwargs:
+    max_iterations: 200
+    temperature: 1.0
+sandbox:
+  type: ecs_fargate
+  cpu: "4096"
+  memory: "8192"
+  ephemeral_storage_gib: 50
+  max_task_lifetime_sec: 14400
+  codebuild_build_timeout: 60
+  log_stream_prefix: swebench-verified
+  timeout: 10800.0
+  concurrency: 30

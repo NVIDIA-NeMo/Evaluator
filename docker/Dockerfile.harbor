@@ -1,0 +1,19 @@
+# nemo-evaluator + Harbor benchmark framework
+# For: harbor:// benchmarks (swebench-verified, terminal-bench-v1, etc.)
+# and BYOB benchmarks that depend on Harbor mappers.
+#
+# Build:
+#   docker build -f docker/Dockerfile.harbor --build-arg BASE_IMAGE=nemo-evaluator -t nemo-evaluator:harbor .
+ARG BASE_IMAGE=nemo-evaluator:latest
+FROM ${BASE_IMAGE}
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir ".[scoring,stats]"
+RUN pip install --no-cache-dir "harbor @ git+https://github.com/harbor-framework/harbor.git@0b6c2aa9ef1e044e9180816fea6ab1636c574bb5"
+
+CMD ["nel", "--help"]

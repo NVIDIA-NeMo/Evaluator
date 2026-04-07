@@ -1,0 +1,35 @@
+# Flavor: Gym as agent runtime, nel verifies (Mode A)
+# The nemo-gym server runs the OpenHands agent. nel receives the patch
+# and independently verifies it against SWE-bench test suites in Docker.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - Docker running locally
+#   - nemo-gym server running: ng_run --agent openhands --port 8000
+# Run: nel eval run examples/configs/09_gym_runtime.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+  swe_gym:
+    type: gym
+    url: http://localhost:11413
+
+benchmarks:
+  - name: swebench-multilingual
+    max_problems: 3
+    max_concurrent: 2
+    solver:
+      type: gym_delegation
+      service: nemotron
+      gym_service: swe_gym
+      gym_agent: openhands
+      trust_reward: false
+    sandbox:
+      type: docker
+      timeout: 1800.0
+      concurrency: 2

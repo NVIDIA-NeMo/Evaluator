@@ -1,0 +1,26 @@
+# Flavor: lm-evaluation-harness integration (lm-eval:// data source)
+# Uses lm-eval's task registry instead of our built-in BYOB benchmark.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - pip install nemo-evaluator[lm-eval]
+# Run: nel eval run examples/configs/03_mmlu_lmeval.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+
+benchmarks:
+  - name: lm-eval://mmlu_generative
+    max_problems: 5
+    solver:
+      type: simple
+      service: nemotron
+    scoring:
+      metrics:
+        - type: scorer
+          name: mcq_extract

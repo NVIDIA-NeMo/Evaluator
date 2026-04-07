@@ -1,0 +1,28 @@
+# Flavor: completions solver (raw text completion, not chat)
+# Requires a /v1/completions endpoint (vLLM, sglang, or base-model API).
+# NVIDIA API Catalog only exposes /chat/completions — use a self-hosted
+# vLLM server or change protocol to chat_completions for API-based testing.
+#
+# Prerequisites: NVIDIA_API_KEY or a local vLLM server
+# Run: nel eval run examples/configs/02_mmlu_completions.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/completions
+    protocol: completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+    generation:
+      max_tokens: 64
+
+benchmarks:
+  - name: mmlu
+    max_problems: 5
+    solver:
+      type: simple
+      service: nemotron
+    scoring:
+      metrics:
+        - type: scorer
+          name: mcq_extract

@@ -1,0 +1,33 @@
+# nemo-evaluator + NeMo Gym resource servers
+# For: gym:// benchmarks running native Gym servers (spider2_lite, xstest, finance, etc.)
+#
+# Build:
+#   docker build -f docker/Dockerfile.gym --build-arg BASE_IMAGE=nemo-evaluator -t nemo-evaluator:gym .
+#
+# To pin a Gym version:
+#   docker build -f docker/Dockerfile.gym --build-arg BASE_IMAGE=nemo-evaluator --build-arg GYM_REF=v0.2.0 -t nemo-evaluator:gym .
+ARG BASE_IMAGE=nemo-evaluator:latest
+FROM ${BASE_IMAGE}
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG GYM_REPO=https://github.com/NVIDIA-NeMo/Gym.git
+ARG GYM_REF=main
+
+RUN git clone --depth 1 -b ${GYM_REF} ${GYM_REPO} /opt/Gym
+
+WORKDIR /opt/Gym
+RUN pip install --no-cache-dir .
+
+# Only deps for resource servers we actually ship (spider2_lite, xstest, finance_sec_search).
+# spider2_lite and xstest need nothing beyond Gym itself.
+# TODO: Add more resource servers deps as needed.
+RUN pip install --no-cache-dir "beautifulsoup4>=4.12.0" "tavily==1.1.0"
+
+ENV GYM_PATH=/opt/Gym
+ENV PYTHONPATH=/opt/Gym
+
+WORKDIR /app
+CMD ["nel", "--help"]

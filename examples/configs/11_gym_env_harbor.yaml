@@ -1,0 +1,31 @@
+# Flavor: Gym as environment, nel as agent runtime (Mode C)
+# The gym server provides seed/verify (the benchmark environment).
+# nel runs the Harbor/OpenHands agent independently.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - Docker running locally
+#   - nemo-gym server running on port 8000 with native protocol
+#   - pip install nemo-evaluator[harbor]
+# Run: nel eval run examples/configs/11_gym_env_harbor.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+
+benchmarks:
+  - name: gym://localhost:8000?protocol=native
+    max_problems: 3
+    max_concurrent: 2
+    solver:
+      type: harbor
+      service: nemotron
+      agent: openhands
+    sandbox:
+      type: docker
+      timeout: 1800.0
+      concurrency: 2

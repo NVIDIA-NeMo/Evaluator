@@ -1,0 +1,10 @@
+# nemo-evaluator + NeMo Skills
+# For: skills:// benchmarks (mmlu-pro, gsm8k, math, etc.)
+ARG BASE_IMAGE=nemo-evaluator:latest
+FROM ${BASE_IMAGE}
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir ".[scoring,stats,skills]"
+
+CMD ["nel", "--help"]

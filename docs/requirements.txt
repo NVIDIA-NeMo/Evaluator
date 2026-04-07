@@ -1,0 +1,6 @@
+sphinx>=7.0
+nvidia-sphinx-theme
+myst-parser>=3.0
+sphinx-design>=0.5
+sphinx-copybutton>=0.5
+sphinxcontrib-mermaid>=0.9

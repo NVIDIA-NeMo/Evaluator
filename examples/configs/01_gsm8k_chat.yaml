@@ -1,0 +1,20 @@
+# Flavor: chat solver + numeric scorer + no sandbox
+# The simplest possible config -- text QA with regex answer extraction.
+#
+# Prerequisites: NVIDIA_API_KEY set in environment
+# Run: nel eval run examples/configs/01_gsm8k_chat.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+
+benchmarks:
+  - name: gsm8k
+    max_problems: 5
+    solver:
+      type: simple
+      service: nemotron

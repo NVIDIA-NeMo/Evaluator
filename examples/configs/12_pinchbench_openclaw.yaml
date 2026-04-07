@@ -1,0 +1,41 @@
+# Flavor: Agentic benchmark (PinchBench) + OpenClaw solver + ECS sandbox
+# Tasks with embedded grading code are scored automatically; the rest
+# fall through to LLM-as-judge.
+#
+# ECS infrastructure auto-discovered from AWS SSM Parameter Store.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - AWS credentials configured (orchestrator IAM user)
+#   - Terraform applied for target region (creates SSM parameter)
+# Run: nel eval run examples/configs/12_pinchbench_openclaw.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+    proxy:
+      verbose: true
+      interceptors:
+        - name: turn_counter
+
+benchmarks:
+  - name: pinchbench
+    max_problems: 3
+    timeout: 900.0
+    max_concurrent: 3
+    solver:
+      type: openclaw
+      service: nemotron
+    sandbox:
+      type: ecs_fargate
+      region: us-west-2
+      image: ghcr.io/openclaw/openclaw
+      cpu: "2048"
+      memory: "4096"
+      log_stream_prefix: pinchbench
+      timeout: 900.0
+      concurrency: 3

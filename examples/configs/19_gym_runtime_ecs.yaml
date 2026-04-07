@@ -1,0 +1,43 @@
+# Flavor: Gym as agent runtime + ECS Fargate sandbox (Mode A)
+# Same as 09 but verification sandboxes run on ECS Fargate instead of
+# local Docker. The gym server still runs the agent; nel verifies on ECS.
+#
+# ECS infrastructure auto-discovered from AWS SSM Parameter Store.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - AWS credentials configured (orchestrator IAM user)
+#   - Terraform applied for target region (creates SSM parameter)
+#   - nemo-gym server running: ng_run --agent openhands --port 8000
+# Run: nel eval run examples/configs/19_gym_runtime_ecs.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+
+  gym:
+    type: gym
+    url: http://localhost:8000
+
+benchmarks:
+  - name: swebench-multilingual
+    max_problems: 3
+    solver:
+      type: gym_delegation
+      service: nemotron
+      gym_service: gym
+      gym_agent: openhands
+      trust_reward: false
+    sandbox:
+      type: ecs_fargate
+      region: us-west-2
+      cpu: "4096"
+      memory: "8192"
+      ephemeral_storage_gib: 40
+      log_stream_prefix: gym-swebench
+      timeout: 1800.0
+      concurrency: 2

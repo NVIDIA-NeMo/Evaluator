@@ -1,0 +1,29 @@
+# NEL-driven tool-calling with Gym Resource Server tools.
+#
+# NEL drives the model-call → parse-tool-calls → dispatch cycle directly.
+# The Gym Resource Server provides HTTP tool endpoints (e.g. web_search,
+# find_in_page) discovered via /openapi.json.  Every model call, tool call,
+# and conversation turn is recorded by NEL for full observability.
+#
+# Prerequisites:
+#   - A running Gym Resource Server at localhost:8000
+#   - NVIDIA_API_KEY set in environment
+
+services:
+  model:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/llama-3.3-nemotron-super-49b-v1
+    api_key: ${NVIDIA_API_KEY}
+  tools:
+    type: gym
+    url: http://localhost:8000
+
+benchmarks:
+  - name: swebench-multilingual
+    solver:
+      type: tool_calling
+      service: model
+      resource_service: tools
+      max_turns: 50

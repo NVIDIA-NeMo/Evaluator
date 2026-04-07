@@ -1,0 +1,127 @@
+[
+  {
+    "idx": 0,
+    "prompt": "Who received the IEEE Frank Rosenblatt Award in 2010?",
+    "expected_answer": "Michio Sugeno",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "simpleqa",
+      "metadata": "{'topic': 'Science and technology', 'answer_type': 'Person', 'urls': ['https://en.wikipedia.org/wiki/IEEE_Frank_Rosenblatt_Award', 'https://ieeexplore.ieee.org/author/37271220500', 'https://en.wikipedia.org/wiki/IEEE_Frank_Rosenblatt_Award', 'https://www.nxtbook.com/nxtbooks/ieee/awards_2010/index.php?startid=21#/p/20']}",
+      "problem": "Who received the IEEE Frank Rosenblatt Award in 2010?"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Who received the IEEE Frank Rosenblatt Award in 2010?"
+      }
+    ],
+    "system": null,
+    "model_response": "The **2010 IEEE Frank Rosenblatt Award** was received by **Teuvo Kohonen**.",
+    "reward": 0.0,
+    "extracted_answer": null,
+    "scoring_details": {
+      "method": "skipped_in_fixture_gen",
+      "reason": "judge required"
+    }
+  },
+  {
+    "idx": 1,
+    "prompt": "Who was awarded the Oceanography Society's Jerlov Award in 2018?",
+    "expected_answer": "Annick Bricaud",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "simpleqa",
+      "metadata": "{'topic': 'Science and technology', 'answer_type': 'Person', 'urls': ['https://en.wikipedia.org/wiki/The_Oceanography_Society', 'https://en.wikipedia.org/wiki/The_Oceanography_Society', 'https://tos.org/jerlov-medal', 'https://www.eurekalert.org/news-releases/490504']}",
+      "problem": "Who was awarded the Oceanography Society's Jerlov Award in 2018?"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "Who was awarded the Oceanography Society's Jerlov Award in 2018?"
+      }
+    ],
+    "system": null,
+    "model_response": "The Oceanography Society’s **Nils Gunnar Jerlov Award** in **2018** was awarded to **Dr. Annick Bricaud**.",
+    "reward": 0.0,
+    "extracted_answer": null,
+    "scoring_details": {
+      "method": "skipped_in_fixture_gen",
+      "reason": "judge required"
+    }
+  },
+  {
+    "idx": 2,
+    "prompt": "What's the name of the women's liberal arts college in Cambridge, Massachusetts?",
+    "expected_answer": "Radcliffe College",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "simpleqa",
+      "metadata": "{'topic': 'Geography', 'answer_type': 'Place', 'urls': ['https://en.wikipedia.org/wiki/Radcliffe_College', 'https://en.wikipedia.org/wiki/Radcliffe_College', 'https://www.braingainmag.com/7-historic-liberal-arts-colleges-in-the-us.htm', 'https://thepeoplesarchive.dclibrary.org/repositories/2/resources/2228']}",
+      "problem": "What's the name of the women's liberal arts college in Cambridge, Massachusetts?"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "What's the name of the women's liberal arts college in Cambridge, Massachusetts?"
+      }
+    ],
+    "system": null,
+    "model_response": "The women’s liberal arts college in Cambridge, Massachusetts is **Radcliffe College** (historically; it’s now part of **Harvard University** as the **Radcliffe Institute for Advanced Study**).",
+    "reward": 0.0,
+    "extracted_answer": null,
+    "scoring_details": {
+      "method": "skipped_in_fixture_gen",
+      "reason": "judge required"
+    }
+  },
+  {
+    "idx": 3,
+    "prompt": "In whose honor was the Leipzig 1877 tournament organized?",
+    "expected_answer": "Adolf Anderssen",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "simpleqa",
+      "metadata": "{'topic': 'Sports', 'answer_type': 'Person', 'urls': ['https://en.wikipedia.org/wiki/Adolf_Anderssen', 'https://www.chessgames.com/perl/chess.pl?tid=79429', 'https://en.wikipedia.org/wiki/Adolf_Anderssen']}",
+      "problem": "In whose honor was the Leipzig 1877 tournament organized?"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "In whose honor was the Leipzig 1877 tournament organized?"
+      }
+    ],
+    "system": null,
+    "model_response": "The Leipzig 1877 chess tournament was organized in honor of **Adolf Anderssen**.",
+    "reward": 0.0,
+    "extracted_answer": null,
+    "scoring_details": {
+      "method": "skipped_in_fixture_gen",
+      "reason": "judge required"
+    }
+  },
+  {
+    "idx": 4,
+    "prompt": "According to Karl Küchler, what did Empress Elizabeth of Austria's favorite sculpture depict, which was made for her villa Achilleion at Corfu?",
+    "expected_answer": "Poet Henrich Heine.",
+    "metadata": {
+      "source": "byob",
+      "benchmark": "simpleqa",
+      "metadata": "{'topic': 'Art', 'answer_type': 'Person', 'urls': ['https://www.gutenberg.org/files/60408/60408-h/60408-h.htm\\nhttps://en.wikipedia.org/wiki/Achilleion_(Corfu)', 'https://www.gutenberg.org/cache/epub/60408/pg60408-images.html', 'https://archive.org/stream/elizabethempres01burggoog/elizabethempres01burggoog_djvu.txt', 'https://www.habsburger.net/en/chapter/achilleion-corfu-elisabeths-flight-antiquity']}",
+      "problem": "According to Karl Küchler, what did Empress Elizabeth of Austria's favorite sculpture depict, which was made for her villa Achilleion at Corfu?"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "According to Karl Küchler, what did Empress Elizabeth of Austria's favorite sculpture depict, which was made for her villa Achilleion at Corfu?"
+      }
+    ],
+    "system": null,
+    "model_response": "According to Karl Küchler, Empress Elisabeth of Austria’s favorite sculpture for her villa Achilleion on Corfu depicted **the dying Achilles** (Achilles mortally wounded).",
+    "reward": 0.0,
+    "extracted_answer": null,
+    "scoring_details": {
+      "method": "skipped_in_fixture_gen",
+      "reason": "judge required"
+    }
+  }
+]

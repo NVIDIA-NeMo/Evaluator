@@ -1,0 +1,8 @@
+ecs_swebench:
+  type: ecs_fargate
+  region: us-west-1
+  cpu: "8192"
+  memory: "16384"
+  ephemeral_storage_gib: 50
+  max_task_lifetime_sec: 14400
+  ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"

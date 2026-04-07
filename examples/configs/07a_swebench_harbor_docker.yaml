@@ -1,0 +1,40 @@
+# Flavor: Full Harbor -- SWE-bench with OpenHands in local Docker sandbox.
+# Same as 07 but uses local Docker instead of ECS — for local dev/testing.
+#
+# Uses harbor://swebench-verified@1.0 (500 tasks) from the Harbor registry.
+# Tasks are auto-downloaded on first run.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - Docker running locally
+#   - git (for sparse checkout)
+#   - pip install nemo-evaluator[harbor]
+# Run: nel eval run examples/configs/07a_swebench_harbor_docker.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+    proxy:
+      verbose: true
+      interceptors:
+        - name: turn_counter
+          config:
+            max_turns: 100
+
+benchmarks:
+  - name: harbor://swebench-verified@1.0
+    max_problems: 3
+    solver:
+      type: harbor
+      service: nemotron
+      agent: openhands-sdk
+      agent_kwargs:
+        max_iterations: 100
+    sandbox:
+      type: docker
+      timeout: 1800.0
+      concurrency: 3

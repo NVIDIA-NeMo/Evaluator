@@ -1,0 +1,48 @@
+# Flavor: Multi-benchmark suite in a single run (RFC Story 2)
+# Runs multiple benchmarks of different types in one evaluation,
+# producing a unified cross-benchmark report.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - Docker running locally (for humaneval code sandbox)
+# Run: nel eval run examples/configs/17_suite_release.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+
+sandboxes:
+  humaneval_code:
+    type: docker
+    image: python:3.12-slim
+    timeout: 60.0
+
+benchmarks:
+  - name: gsm8k
+    max_problems: 5
+    solver:
+      type: simple
+      service: nemotron
+
+  - name: mmlu
+    max_problems: 5
+    solver:
+      type: simple
+      service: nemotron
+
+  - name: humaneval
+    max_problems: 5
+    solver:
+      type: simple
+      service: nemotron
+    sandbox: humaneval_code
+
+  - name: simpleqa
+    max_problems: 5
+    solver:
+      type: simple
+      service: nemotron

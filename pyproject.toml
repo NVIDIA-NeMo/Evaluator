@@ -1,0 +1,133 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nemo-evaluator"
+version = "0.3.0"
+description = "NeMo Evaluator — benchmark environments, pluggable solvers, interceptor proxy, and decision-grade scoring for LLMs"
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+license = "Apache-2.0"
+authors = [
+    { name = "NVIDIA" },
+    { email = "contact@nvidia.com" },
+]
+maintainers = [
+    { name = "NVIDIA" },
+    { email = "contact@nvidia.com" },
+]
+keywords = [
+    "deep learning",
+    "evaluations",
+    "benchmarks",
+    "machine learning",
+    "gpu",
+    "NLP",
+    "LLM",
+    "pytorch",
+    "NVIDIA",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Testing",
+]
+dependencies = [
+    "pydantic>=2.0",
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.20",
+    "aiohttp>=3.9",
+    "pyyaml>=6.0",
+    "click>=8.0",
+    "numpy>=1.24",
+    "datasets>=2.14",
+    "jinja2>=3.0",
+    "starlette>=0.27",
+    "boto3>=1.28",
+]
+
+[project.optional-dependencies]
+scoring = ["sympy>=1.12"]
+stats = ["scipy>=1.10"]
+ray = ["ray[default]>=2.9"]
+skills = ["nemo-skills @ git+https://github.com/NVIDIA-NeMo/Skills.git"]
+lm-eval = ["lm_eval>=0.4"]
+harbor = ["harbor>=0.3.0,<0.4.0"]
+inspect = ["inspect_ai"]
+export = ["wandb", "mlflow"]
+harnesses = ["nemo-evaluator[lm-eval]"]
+all = ["nemo-evaluator[scoring,stats,ray,lm-eval,harbor]"]
+docs = [
+    "sphinx",
+    "sphinx-autobuild",
+    "sphinx-copybutton",
+    "nvidia-sphinx-theme",
+    "sphinxcontrib-mermaid",
+    "sphinx-design",
+    "myst-parser",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-xdist>=3.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1",
+    "pre-commit>=3.0",
+    "nemo-evaluator[scoring,stats,lm-eval,harbor]",
+]
+
+[project.urls]
+Homepage = "https://docs.nvidia.com/nemo/evaluator/"
+Repository = "https://github.com/NVIDIA-NeMo/Evaluator"
+Documentation = "https://docs.nvidia.com/nemo/evaluator/"
+Changelog = "https://github.com/NVIDIA-NeMo/Evaluator/blob/main/CHANGELOG.md"
+Issues = "https://github.com/NVIDIA-NeMo/Evaluator/issues"
+
+[project.scripts]
+nel = "nemo_evaluator.cli.main:cli"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nemo_evaluator"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/nemo_evaluator/templates" = "nemo_evaluator/templates"
+"src/nemo_evaluator/playbooks" = "nemo_evaluator/playbooks"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "network: tests that download from HF or hit external services (deselect via: -m 'not network')",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["nemo_evaluator"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ ==",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"

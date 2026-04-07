@@ -1,0 +1,30 @@
+# Flavor: Gym as full environment -- gym runs agent AND verifies (Mode B)
+# nel trusts the gym server's reward. No Docker sandbox needed on nel side.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - nemo-gym server running: ng_run --agent openhands --port 8000
+# Run: nel eval run examples/configs/10_gym_full.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+  swe_gym:
+    type: gym
+    url: http://localhost:8000
+
+benchmarks:
+  - name: swebench-multilingual
+    max_problems: 3
+    solver:
+      type: gym_delegation
+      service: nemotron
+      gym_service: swe_gym
+      gym_agent: openhands
+      trust_reward: true
+    sandbox:
+      type: none

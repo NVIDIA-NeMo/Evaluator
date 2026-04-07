@@ -1,0 +1,125 @@
+services:
+  # Serve a benchmark environment (e.g. for Gym training to connect to)
+  serve:
+    build: ..
+    command: ["serve", "--benchmark", "${BENCHMARK:-gsm8k}", "--host", "0.0.0.0", "--port", "9090", "--gym-compat"]
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9090/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Run evaluation against a served environment
+  eval-remote:
+    build: ..
+    command: >
+      run --adapter gym://serve:9090
+          --model-url ${MODEL_URL:-https://inference-api.nvidia.com/v1}
+          --model-id ${MODEL_ID:-azure/openai/gpt-5.2}
+          --repeats ${REPEATS:-1}
+          --output-dir /results
+          --no-progress
+    environment:
+      NEMO_API_KEY: ${NEMO_API_KEY}
+    volumes:
+      - ./results:/results
+    depends_on:
+      serve:
+        condition: service_healthy
+
+  # Run evaluation locally (no serve dependency)
+  eval-local:
+    build: ..
+    command: >
+      run --benchmark ${BENCHMARK:-gsm8k}
+          --model-url ${MODEL_URL:-https://inference-api.nvidia.com/v1}
+          --model-id ${MODEL_ID:-azure/openai/gpt-5.2}
+          --repeats ${REPEATS:-1}
+          --max-problems ${MAX_PROBLEMS:-50}
+          --output-dir /results
+    environment:
+      NEMO_API_KEY: ${NEMO_API_KEY}
+    volumes:
+      - ./results:/results
+    profiles: ["local"]
+
+  # Sharded evaluation: launch multiple containers, each with a unique shard index.
+  # Usage: for i in 0 1 2 3; do NEL_SHARD_IDX=$i NEL_TOTAL_SHARDS=4 docker compose --profile sharded up eval-shard; done
+  # Or use the helper script: bash deploy/run_sharded.sh 4
+  eval-shard-0:
+    build: ..
+    command: >
+      run --benchmark ${BENCHMARK:-gsm8k}
+          --model-url ${MODEL_URL:-https://inference-api.nvidia.com/v1}
+          --model-id ${MODEL_ID:-azure/openai/gpt-5.2}
+          --repeats ${REPEATS:-1}
+          --output-dir /results/shard_0
+          --no-progress
+    environment:
+      NEMO_API_KEY: ${NEMO_API_KEY}
+      NEL_SHARD_IDX: "0"
+      NEL_TOTAL_SHARDS: "${NEL_TOTAL_SHARDS:-4}"
+    volumes:
+      - ./results:/results
+    profiles: ["sharded"]
+
+  eval-shard-1:
+    build: ..
+    command: >
+      run --benchmark ${BENCHMARK:-gsm8k}
+          --model-url ${MODEL_URL:-https://inference-api.nvidia.com/v1}
+          --model-id ${MODEL_ID:-azure/openai/gpt-5.2}
+          --repeats ${REPEATS:-1}
+          --output-dir /results/shard_1
+          --no-progress
+    environment:
+      NEMO_API_KEY: ${NEMO_API_KEY}
+      NEL_SHARD_IDX: "1"
+      NEL_TOTAL_SHARDS: "${NEL_TOTAL_SHARDS:-4}"
+    volumes:
+      - ./results:/results
+    profiles: ["sharded"]
+
+  eval-shard-2:
+    build: ..
+    command: >
+      run --benchmark ${BENCHMARK:-gsm8k}
+          --model-url ${MODEL_URL:-https://inference-api.nvidia.com/v1}
+          --model-id ${MODEL_ID:-azure/openai/gpt-5.2}
+          --repeats ${REPEATS:-1}
+          --output-dir /results/shard_2
+          --no-progress
+    environment:
+      NEMO_API_KEY: ${NEMO_API_KEY}
+      NEL_SHARD_IDX: "2"
+      NEL_TOTAL_SHARDS: "${NEL_TOTAL_SHARDS:-4}"
+    volumes:
+      - ./results:/results
+    profiles: ["sharded"]
+
+  eval-shard-3:
+    build: ..
+    command: >
+      run --benchmark ${BENCHMARK:-gsm8k}
+          --model-url ${MODEL_URL:-https://inference-api.nvidia.com/v1}
+          --model-id ${MODEL_ID:-azure/openai/gpt-5.2}
+          --repeats ${REPEATS:-1}
+          --output-dir /results/shard_3
+          --no-progress
+    environment:
+      NEMO_API_KEY: ${NEMO_API_KEY}
+      NEL_SHARD_IDX: "3"
+      NEL_TOTAL_SHARDS: "${NEL_TOTAL_SHARDS:-4}"
+    volumes:
+      - ./results:/results
+    profiles: ["sharded"]
+
+  # Merge sharded results
+  eval-merge:
+    build: ..
+    command: ["nel", "eval", "merge", "/results"]
+    volumes:
+      - ./results:/results
+    profiles: ["sharded"]

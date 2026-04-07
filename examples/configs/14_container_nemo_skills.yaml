@@ -1,0 +1,36 @@
+# Flavor: Container harness (container:// URI)
+# Runs a legacy eval-factory container as an opaque box.  NEL generates a
+# legacy-format run_config.yaml and mounts it at /config/run_config.yaml so
+# the container's `nemo-evaluator run_eval` entrypoint can consume it as-is.
+#
+# The container receives:
+#   - /config/run_config.yaml  (legacy Evaluator format with endpoint + params)
+#   - /results                 (bind-mount for output)
+#   - NEMO_API_KEY env var     (api_key_name in the config points here)
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - Docker running locally
+#   - Access to the container registry (docker login if needed)
+# Run: nel eval run examples/configs/14_container_nemo_skills.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+
+benchmarks:
+  # TODO: verify this container URI points to the correct public registry
+  - name: "container://nvcr.io/nvidia/nemo-evaluator/nemo-skills:26.03#gsm8k"
+    solver:
+      type: container
+      service: nemotron
+      uri: "container://nvcr.io/nvidia/nemo-evaluator/nemo-skills:26.03#gsm8k"
+      # Optional: pass legacy params into config.params (merged with framework.yml defaults)
+      # params:
+      #   temperature: 0.0
+      #   parallelism: 8
+      #   limit_samples: 100

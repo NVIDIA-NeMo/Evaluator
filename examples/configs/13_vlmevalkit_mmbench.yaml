@@ -1,0 +1,25 @@
+# Flavor: VLM evaluation via VLMEvalKit integration (vlmevalkit://)
+# Uses VLMEvalKit's dataset infrastructure to load MMBench, with
+# VLMSolver handling multimodal prompts (text + images).
+#
+# Prerequisites:
+#   - VLM endpoint available (must support vision/image inputs)
+#   - VLMEvalKit on PYTHONPATH or installed:
+#       export PYTHONPATH=$PYTHONPATH:/path/to/VLMEvalKit
+# Run: nel eval run examples/configs/13_vlmevalkit_mmbench.yaml
+
+services:
+  vila:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/vila-3b
+    api_key: ${NVIDIA_API_KEY}
+
+benchmarks:
+  - name: vlmevalkit://MMBench_DEV_EN
+    max_problems: 5
+    solver:
+      type: simple
+      service: vila
+      image_detail: high

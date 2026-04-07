@@ -1,0 +1,54 @@
+# Flavor: Full Harbor -- tasks downloaded from Harbor registry via sparse git checkout,
+# agent solves in ECS Fargate sandbox, verification via per-task test.sh.
+#
+# Uses harbor://swebench-verified@1.0 (500 tasks) from the Harbor registry.
+# Tasks are auto-downloaded on first run.
+#
+# ECS infrastructure (cluster, subnets, roles, SSH keys, EFS, S3, etc.)
+# is auto-discovered from AWS SSM Parameter Store.  Only region and
+# benchmark-specific overrides are needed.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment
+#   - AWS credentials configured (orchestrator IAM user)
+#   - Terraform applied for target region (creates SSM parameter)
+#   - git (for sparse checkout)
+#   - pip install nemo-evaluator[harbor]
+# Run: nel eval run examples/configs/07_swebench_harbor.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+    proxy:
+      verbose: true
+      interceptors:
+        - name: turn_counter
+          config:
+            max_turns: 100
+
+benchmarks:
+  - name: harbor://swebench-verified@1.0
+    max_problems: 3
+    timeout: 3600.0
+    solver:
+      type: harbor
+      service: nemotron
+      agent: openhands-sdk
+      agent_kwargs:
+        max_iterations: 100
+        temperature: 1.0
+    sandbox:
+      type: ecs_fargate
+      region: us-west-2
+      cpu: "4096"
+      memory: "8192"
+      ephemeral_storage_gib: 50
+      max_task_lifetime_sec: 14400
+      log_stream_prefix: swebench
+      ecr_repository: "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"
+      timeout: 3600.0
+      concurrency: 3

@@ -1,0 +1,33 @@
+# Flavor: SLURM cluster + vLLM auto-deploy
+# Submits a SLURM job that auto-deploys vLLM, then runs the benchmark.
+#
+# Prerequisites:
+#   - Access to a SLURM cluster with GPU nodes
+#   - Model weights accessible on shared filesystem
+# Run: nel eval run examples/configs/15_slurm_gsm8k_vllm.yaml
+
+services:
+  model:
+    type: vllm
+    model: nvidia/Llama-3.1-70B-Instruct
+    protocol: chat_completions
+    tensor_parallel_size: 4
+    port: 8000
+    node_pool: compute
+
+benchmarks:
+  - name: gsm8k
+    max_problems: 50
+    solver:
+      type: simple
+      service: model
+
+cluster:
+  type: slurm
+  walltime: "02:00:00"
+  node_pools:
+    compute:
+      partition: batch
+      nodes: 1
+      ntasks_per_node: 1
+      gres: "gpu:4"
