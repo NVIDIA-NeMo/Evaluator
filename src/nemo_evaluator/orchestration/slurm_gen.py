@@ -29,8 +29,6 @@ from nemo_evaluator.config import (
     ExternalApiService,
     GymResourceService,
     NatAgentService,
-    NoSandbox,
-    SimpleSolver,
     SlurmCluster,
     SlurmSandbox,
 )
@@ -329,25 +327,6 @@ if [ ${name_upper}_READY -eq 0 ]; then
     echo "ERROR: {name} did not become healthy after {max_attempts} attempts."
     exit 1
 fi
-"""
-
-_TASK = """\
-# Benchmark {idx}/{total}: {bench_name}
-echo ""
-echo "============================================================"
-echo "  Benchmark {idx}/{total}: {bench_name} (repeats={repeats})"
-echo "============================================================"
-echo "  Logs: $OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log"
-{run_prefix}nel eval run \\
-    --bench "{bench_name}" \\
-    --model-url "${model_url_var}" \\
-    --model-id "${model_id_var}" \\
-    --repeats {repeats} \\
-    {extra_flags}\\
-    -o "$OUTPUT_DIR/{safe_name}" 2>&1 | stdbuf -oL tee -a "$OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log"
-_EVAL_RC=${{PIPESTATUS[0]}}
-ln -sf "eval-{safe_name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/eval-{safe_name}.log"
-if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
 """
 
 _TASK_CONFIG = """\
@@ -827,11 +806,6 @@ def _find_sandbox_bench(config: EvalConfig):
     return None
 
 
-def _needs_full_config(bench) -> bool:
-    """True if the benchmark can't use --bench quick mode (needs the full config YAML)."""
-    return not isinstance(bench.solver, SimpleSolver) or not isinstance(bench.sandbox, NoSandbox)
-
-
 def _extract_bench_config(config: EvalConfig, bench_idx: int, svc_url_var: str, svc_model_var: str) -> dict:
     """Build a standalone config dict for one benchmark.
 
@@ -1214,58 +1188,29 @@ def generate_sbatch(
         if use_containers and eval_image:
             run_prefix = _eval_srun_prefix(bench.name, eval_image)
 
-        if _needs_full_config(bench):
-            sidecar = _extract_bench_config(
-                config,
-                i - 1,
+        sidecar = _extract_bench_config(
+            config,
+            i - 1,
+            svc_url_var=model_url_var,
+            svc_model_var=model_id_var,
+        )
+        sidecar_configs[safe_name] = sidecar
+        config_extra_flags = "--resume " if (cluster.auto_resume or is_shard_script) else ""
+        parts.append(
+            _TASK_CONFIG.format(
+                idx=i,
+                total=total,
+                bench_name=bench.name,
                 svc_url_var=model_url_var,
                 svc_model_var=model_id_var,
+                model_url_bash=model_url_var,
+                model_id_bash=model_id_var,
+                repeats=bench.repeats,
+                safe_name=safe_name,
+                run_prefix=run_prefix,
+                extra_flags=config_extra_flags,
             )
-            sidecar_configs[safe_name] = sidecar
-            config_extra_flags = "--resume " if (cluster.auto_resume or is_shard_script) else ""
-            parts.append(
-                _TASK_CONFIG.format(
-                    idx=i,
-                    total=total,
-                    bench_name=bench.name,
-                    svc_url_var=model_url_var,
-                    svc_model_var=model_id_var,
-                    model_url_bash=model_url_var,
-                    model_id_bash=model_id_var,
-                    repeats=bench.repeats,
-                    safe_name=safe_name,
-                    run_prefix=run_prefix,
-                    extra_flags=config_extra_flags,
-                )
-            )
-        else:
-            extra_flags = ""
-            gen = getattr(bench.solver, "generation", None)
-            system_prompt = getattr(bench.solver, "system_prompt", None)
-            if system_prompt:
-                extra_flags += f"--system-prompt {shlex.quote(system_prompt)} "
-            if gen and gen.temperature is not None:
-                extra_flags += f"--temperature {gen.temperature} "
-            if gen and gen.max_tokens is not None:
-                extra_flags += f"--max-tokens {gen.max_tokens} "
-            if bench.max_problems is not None:
-                extra_flags += f"--max-problems {bench.max_problems} "
-            if cluster.auto_resume or is_shard_script:
-                extra_flags += "--resume "
-
-            parts.append(
-                _TASK.format(
-                    idx=i,
-                    total=total,
-                    bench_name=bench.name,
-                    model_url_var=model_url_var,
-                    model_id_var=model_id_var,
-                    repeats=bench.repeats,
-                    extra_flags=extra_flags,
-                    safe_name=safe_name,
-                    run_prefix=run_prefix,
-                )
-            )
+        )
 
     if is_shard_script:
         report_lines = []
