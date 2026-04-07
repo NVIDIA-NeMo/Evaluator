@@ -875,6 +875,7 @@ async def _run_single_benchmark(
                 "repeats": bench.repeats,
                 "max_problems": bench.max_problems,
                 "scorers": scorer_names or None,
+                "_sandbox_config": bench.sandbox,
             },
             progress=ConsoleProgress(log_interval=config.output.progress_interval),
             judge_client=judge_client,
