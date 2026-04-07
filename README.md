@@ -1,5 +1,8 @@
 # NeMo Evaluator SDK
 
+> [!NOTE]
+> **Preview: NeMo Evaluator 0.3.0** — A ground-up rewrite with a unified `nel` CLI, pluggable environment architecture, and built-in agentic eval support is available on the [`dev/0.3.0`](https://github.com/NVIDIA-NeMo/Evaluator/tree/dev/0.3.0) branch. Feedback welcome via [Issues](https://github.com/NVIDIA-NeMo/Evaluator/issues).
+
 [![License](https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg)](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-green)](https://www.python.org/downloads/)
 [![Tests](https://github.com/NVIDIA-NeMo/Evaluator/actions/workflows/cicd-main.yml/badge.svg)](https://github.com/NVIDIA-NeMo/Evaluator/actions/workflows/cicd-main.yml)
