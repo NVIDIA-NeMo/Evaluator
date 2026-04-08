@@ -824,7 +824,9 @@ def _create_slurm_sbatch_script(
     s += "\n"
 
     # prepare deployment mounts
-    deployment_mounts_list = []
+    deployment_mounts_list = [
+        "{}:/results".format(remote_task_subdir / "artifacts"),
+    ]
     deployment_is_unsafe = False
     if cfg.deployment.type != "none":
         if checkpoint_path := cfg.deployment.get("checkpoint_path"):
