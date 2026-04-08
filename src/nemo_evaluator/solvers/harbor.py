@@ -899,6 +899,7 @@ class HarborSolver:
 
             adapter = SandboxEnvironmentAdapter(
                 sandbox,
+                session_id=task.metadata["task_id"],
                 logs_dir=logs_dir,
                 default_timeout=self._timeout,
                 persistent_env=self._container_env,
