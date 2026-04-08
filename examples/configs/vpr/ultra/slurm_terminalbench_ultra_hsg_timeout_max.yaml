@@ -1,0 +1,108 @@
+# SLURM + vLLM Ray (Nemotron Ultra V3) + Terminal-Bench 2.0 + ECS Fargate
+# HSG cluster — multi-node (2 nodes × 4 GPUs = tp=8 via Ray)
+#
+# Prerequisites:
+#   - HSG SLURM cluster access (oci-hsg-cs-001)
+#   - AWS credentials: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+#
+# Run:
+#   nel eval run examples/configs/vpr/ultra/slurm_terminalbench_ultra_hsg_timeout_max.yaml --dry-run
+#   nel eval run examples/configs/vpr/ultra/slurm_terminalbench_ultra_hsg_timeout_max.yaml
+
+services:
+  model:
+    type: vllm
+    model: /lustre/fsw/portfolios/coreai/users/gchlebus/shared/ultra-v3-sft-bf16-hybridep-ep64-cp32-bindpcie-recompute-offload-mar13-blend-512k-filt-1e-5-iter_0001900-hf
+    served_model_name: nemotron-ultra
+    protocol: chat_completions
+    port: 5000
+    tensor_parallel_size: 8
+    data_parallel_size: 1
+    num_nodes: 2
+    image: /lustre/fsw/portfolios/coreai/users/gchlebus/shared/vllm-hsg-03-16.sqsh
+    startup_timeout: 3600.0
+    extra_args:
+      - "--enable-prefix-caching"
+      - "--enable-log-requests"
+      - "--trust-remote-code"
+      - "--dtype=bfloat16"
+      - "--kv-cache-dtype=fp8"
+      - "--enable-auto-tool-choice"
+      - "--tool-call-parser=qwen3_coder"
+      - "--reasoning-parser-plugin=/reasoning/ultra_v3_reasoning_parser.py"
+      - "--reasoning-parser=ultra_v3"
+      - "--enable-expert-parallel"
+      - "--max-num-seqs=64"
+      - "--max-model-len=262144"
+      - "--gpu-memory-utilization=0.95"
+      - "--model-loader-extra-config={\"enable_multithread_load\":true,\"num_threads\":96}"
+      - "--compilation-config={\"pass_config\":{\"fuse_allreduce_rms\":false}}"
+    extra_env:
+      VLLM_CACHE_ROOT: /cache/vllm
+      VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+      VLLM_ENGINE_READY_TIMEOUT_S: "3600"
+      RAY_raylet_start_wait_time_s: "120"
+      VLLM_FLASHINFER_ALLREDUCE_BACKEND: trtllm
+      VLLM_ALLREDUCE_USE_SYMM_MEM: "0"
+      FLASHINFER_WORKSPACE_BASE: /tmp
+    container_mounts:
+      - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
+      - /lustre/fsw/portfolios/coreai/users/${USER}/cache/vllm:/cache/vllm
+      - /lustre/fsw/portfolios/coreai/users/gchlebus/shared/evals:/reasoning
+    generation:
+      temperature: 1.0
+      top_p: 0.95
+    proxy:
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: true
+        skip_special_tokens: false
+      request_timeout: 600
+      interceptors:
+        - name: drop_params
+          config:
+            params:
+              - max_tokens
+              - max_completion_tokens
+    node_pool: gpu
+
+benchmarks:
+  - playbook: terminal_bench_2
+    repeats: 8
+    solver:
+      timeout_strategy: max
+    sandbox:
+      region: us-east-1
+      ecr_repository: "463701203462.dkr.ecr.us-east-1.amazonaws.com/harbor-us-east-1"
+      log_stream_prefix: terminalbench-ultra-hsg
+
+cluster:
+  type: slurm
+  hostname: oci-hsg-cs-001-login-01.nvidia.com
+  account: llmservice_nemotron_ultra
+  walltime: "04:00:00"
+  shards: 8
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:0.16.4-harbor-arm64
+  sbatch_comment: '{"OccupiedIdleGPUsJobReaper":{"exemptIdleTimeMins":"1920","reason":"benchmarking","description":"Required data validation and evaluation"}}'
+  sbatch_extra_flags:
+    switches: 1
+    exclusive: true
+  container_mounts:
+    - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
+  container_env:
+    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    AWS_DEFAULT_REGION: us-east-1
+    LLM_API_KEY: "no-key-needed"
+  mount_home: false
+  auto_resume: true
+  max_retries: 3
+  node_pools:
+    gpu:
+      partition: batch
+      nodes: 2
+      ntasks_per_node: 1
+      gpus_per_node: 4
+
+output:
+  dir: /lustre/fsw/portfolios/coreai/users/${USER}/nemo-evaluator-rundirs/ultra-v3/nemotron-ultra-v3-sft-mar13-iter1900/terminalbench-2
