@@ -45,6 +45,7 @@ _HOP_BY_HOP_HEADERS = frozenset(
         "upgrade",
         "content-length",
         "content-encoding",
+        "server",
     }
 )
 
