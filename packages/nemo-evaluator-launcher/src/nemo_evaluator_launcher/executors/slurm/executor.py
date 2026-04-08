@@ -951,6 +951,20 @@ def _create_slurm_sbatch_script(
     ):
         evaluation_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
+    # Mount local nemo-evaluator source for development (avoids container rebuilds)
+    dev_cfg = cfg.execution.get("dev", {}) or {}
+    local_evaluator_path = dev_cfg.get("mount_local_evaluator")
+    if local_evaluator_path:
+        container_dev_path = "/opt/nemo-evaluator-dev"
+        evaluation_mounts_list.append(f"{local_evaluator_path}:{container_dev_path}")
+        s += f'export PYTHONPATH="{container_dev_path}:${{PYTHONPATH:-}}"\n'
+        s += f'echo "DEV MODE: mounting local nemo-evaluator from {local_evaluator_path} into {container_dev_path}"\n\n'
+        logger.warning(
+            "Dev mode: mounting local evaluator into eval container",
+            path=str(local_evaluator_path),
+            container_path=container_dev_path,
+        )
+
     # Handle dataset directory mounting if dataset_dir is specified in the task config
     if "dataset_dir" in task:
         dataset_mount_host = task["dataset_dir"]
@@ -2262,6 +2276,12 @@ def _collect_mount_paths(cfg: DictConfig) -> List[str]:
     # Evaluation mounts
     for source_mnt in cfg.execution.get("mounts", {}).get("evaluation", {}).keys():
         mount_paths.append(source_mnt)
+
+    # Dev mode: local evaluator mount
+    dev_cfg = cfg.execution.get("dev", {}) or {}
+    local_evaluator_path = dev_cfg.get("mount_local_evaluator")
+    if local_evaluator_path:
+        mount_paths.append(local_evaluator_path)
 
     return mount_paths
 

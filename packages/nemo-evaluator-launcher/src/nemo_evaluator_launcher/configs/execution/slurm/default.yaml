@@ -42,6 +42,9 @@ mounts:
   auxiliary: {}  # keyed by auxiliary deployment name, e.g. auxiliary.judge: {/host/path: /container/path}
   mount_home: true
 
+dev:
+  mount_local_evaluator: null  # Path to local nemo-evaluator source (e.g. /path/to/packages/nemo-evaluator/src). When set, mounts into eval container and prepends PYTHONPATH to override the container's built-in version.
+
 proxy:
   type: haproxy
   image: haproxy:latest
