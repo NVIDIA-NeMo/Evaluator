@@ -139,13 +139,8 @@ class ApptainerSandbox(_SlurmSandboxBase):
         return self
 
 
-class NoSandbox(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class NoSandbox(_SandboxBase):
     type: Literal["none"] = "none"
-
-    capture_cmd: str | None = None
-    verify_timeout: float = 600.0
 
 
 class CustomSandbox(BaseModel):

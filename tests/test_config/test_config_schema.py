@@ -740,3 +740,31 @@ class TestTerminalBenchPlaybook:
             }
         )
         assert config.benchmarks[0].sandbox.stateful is False
+
+
+class TestNoSandboxStateful:
+    def test_pick_lifecycle_with_nosandbox_config(self):
+        """pick_lifecycle must work when sandbox_cfg is a NoSandbox (BYOB default).
+
+        eval_loop.py:259-265 builds pick_lifecycle kwargs from sandbox_cfg. When
+        no sandbox is configured, BenchmarkConfig defaults to NoSandbox(). This
+        crashed with AttributeError because NoSandbox lacked the stateful field.
+        """
+        from unittest.mock import MagicMock
+
+        from nemo_evaluator.config.sandboxes import NoSandbox
+        from nemo_evaluator.sandbox.strategies import pick_lifecycle
+
+        sandbox_cfg = NoSandbox()
+        seed = MagicMock()
+        seed.sandbox_spec = None
+        seed.verify_sandbox_spec = None
+
+        # This mirrors eval_loop.py:259-265 exactly
+        pick_lifecycle(
+            seed,
+            None,
+            config_capture_cmd=sandbox_cfg.capture_cmd,
+            verify_timeout=sandbox_cfg.verify_timeout,
+            force_stateful=sandbox_cfg.stateful,
+        )
