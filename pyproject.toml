@@ -123,6 +123,7 @@ filterwarnings = [
 source = ["nemo_evaluator"]
 
 [tool.coverage.report]
+fail_under = 52
 show_missing = true
 skip_empty = true
 exclude_lines = [
