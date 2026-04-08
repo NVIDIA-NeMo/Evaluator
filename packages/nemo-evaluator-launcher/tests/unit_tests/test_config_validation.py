@@ -227,6 +227,42 @@ INVALID_STRUCTURAL_CONFIGS = [
         "Invalid 'execution.mounts' config",
         id="mounts_evaluation_invalid_value",
     ),
+    pytest.param(
+        """\
+        evaluation:
+          tasks:
+            - name: lm-evaluation-harness.ifeval
+        execution:
+          env_vars:
+            deployment:
+              HF_TOKEN: host:HF_TOKEN
+        """,
+        "execution.env_vars.*is not supported",
+        id="execution_env_vars_deployment",
+    ),
+    pytest.param(
+        """\
+        evaluation:
+          tasks:
+            - name: lm-evaluation-harness.ifeval
+        execution:
+          env_vars:
+            HF_TOKEN: host:HF_TOKEN
+        """,
+        "execution.env_vars.*is not supported",
+        id="execution_env_vars_flat",
+    ),
+    pytest.param(
+        """\
+        evaluation:
+          tasks:
+            - name: lm-evaluation-harness.ifeval
+        execution:
+          env_vars: {}
+        """,
+        "execution.env_vars.*is not supported",
+        id="execution_env_vars_empty",
+    ),
 ]
 
 

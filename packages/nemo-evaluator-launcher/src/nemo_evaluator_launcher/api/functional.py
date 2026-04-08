@@ -80,6 +80,19 @@ def _validate_config_sections(cfg: RunConfig) -> None:
     Raises:
         ValueError: If an unknown or removed key is present in a validated section.
     """
+    # Check for removed execution.env_vars — must use env_vars / deployment.env_vars / evaluation.env_vars
+    if (
+        cfg.execution is not None
+        and getattr(cfg.execution, "env_vars", None) is not None
+    ):
+        raise ValueError(
+            "'execution.env_vars' is not supported. "
+            "Use top-level 'env_vars' for variables that should apply to all jobs. "
+            "For variables that should be applied only to deployment or evaluation jobs, "
+            "use 'deployment.env_vars' or 'evaluation.env_vars' respectively.\n"
+            "Run 'nel migrate-config <config.yaml>' to migrate your config automatically."
+        )
+
     if cfg.evaluation is not None:
         eval_dict = OmegaConf.to_container(cfg.evaluation, resolve=False)
         try:
