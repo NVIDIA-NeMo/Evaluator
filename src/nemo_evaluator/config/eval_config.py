@@ -313,6 +313,23 @@ class EvalConfig(BaseModel):
         return self
 
     @model_validator(mode="after")
+    def _validate_output_dir(self) -> EvalConfig:
+        """Require absolute output.dir for remote SLURM execution.
+
+        Relative paths break container mounts, remote mkdir, and scp —
+        producing cryptic "died during startup" failures instead of a
+        clear error at config time.
+        """
+        if not isinstance(self.cluster, SlurmCluster):
+            return self
+        if not self.cluster.hostname:
+            return self
+        d = self.output.dir
+        if not d.startswith("/"):
+            raise ValueError(f"output.dir must be an absolute path for remote SLURM execution, got: {d!r}")
+        return self
+
+    @model_validator(mode="after")
     def _validate_timeout_hierarchy(self) -> EvalConfig:
         """Warn if benchmark + startup timeouts exceed SLURM walltime."""
         if not isinstance(self.cluster, SlurmCluster):
