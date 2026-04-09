@@ -79,9 +79,6 @@ execution:
     deployment:
       /path/to/hf_home: /root/.cache/huggingface
     mount_home: false
-  env_vars:
-    deployment:
-      HF_TOKEN: ${oc.env:HF_TOKEN}
 
 # Ray cluster setup is handled by the vllm_ray deployment config (no pre_cmd needed)
 deployment:
@@ -95,6 +92,8 @@ deployment:
   gpu_memory_utilization: 0.90
   port: 8000
   extra_args: "--disable-custom-all-reduce --enforce-eager"
+  env_vars:
+      HF_TOKEN: host:HF_TOKEN
 
 evaluation:
   nemo_evaluator_config:
