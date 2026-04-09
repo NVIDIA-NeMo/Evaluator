@@ -93,7 +93,7 @@ deployment:
   port: 8000
   extra_args: "--disable-custom-all-reduce --enforce-eager"
   env_vars:
-      HF_TOKEN: ${oc.env:HF_TOKEN}
+      HF_TOKEN: host:HF_TOKEN
 
 evaluation:
   nemo_evaluator_config:
