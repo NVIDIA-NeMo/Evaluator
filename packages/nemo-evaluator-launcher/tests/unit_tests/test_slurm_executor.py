@@ -29,6 +29,7 @@ from nemo_evaluator_launcher.executors.base import ExecutionState, ExecutionStat
 from nemo_evaluator_launcher.executors.slurm.executor import (
     SlurmExecutor,
     _create_slurm_sbatch_script,
+    _generate_auto_export_section,
     _generate_autoresume_handler,
 )
 
@@ -3960,3 +3961,129 @@ class TestSbatchExtraFlags:
         switches_pos = script.index("#SBATCH --switches 1")
         job_name_pos = script.index("#SBATCH --job-name")
         assert comment_pos < switches_pos < job_name_pos
+
+
+class TestAutoExportSection:
+    """Tests for _generate_auto_export_section — separate CPU export job."""
+
+    @pytest.fixture
+    def export_cfg(self):
+        return OmegaConf.create(
+            {
+                "execution": {
+                    "account": "test_account",
+                    "partition": "gpu_partition",
+                    "output_dir": "/results/output",
+                    "auto_export": {
+                        "destinations": ["mlflow"],
+                    },
+                },
+                "export": {
+                    "mlflow": {
+                        "tracking_uri": "https://mlflow.example.com",
+                        "experiment_name": "test",
+                    }
+                },
+            }
+        )
+
+    def test_empty_destinations_returns_empty(self, export_cfg):
+        result = _generate_auto_export_section(
+            cfg=export_cfg,
+            job_id="inv123.0",
+            destinations=[],
+            env_var_names=[],
+            secrets=None,
+            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
+        )
+        assert result == ""
+
+    def test_export_submits_separate_sbatch(self, export_cfg):
+        result = _generate_auto_export_section(
+            cfg=export_cfg,
+            job_id="inv123.0",
+            destinations=["mlflow"],
+            env_var_names=["MLFLOW_TRACKING_URI"],
+            secrets=None,
+            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
+        )
+        # Must write an export sbatch script, not run srun inline
+        assert "export.sbatch" in result
+        assert "sbatch" in result
+        # Must NOT contain srun --overlap (the old inline approach)
+        assert "srun --mpi pmix --overlap" not in result
+
+    def test_export_script_has_no_gpu_request(self, export_cfg):
+        result = _generate_auto_export_section(
+            cfg=export_cfg,
+            job_id="inv123.0",
+            destinations=["mlflow"],
+            env_var_names=[],
+            secrets=None,
+            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
+        )
+        # The export sbatch must not request GPUs
+        assert "--gpus-per-node" not in result
+        assert "--gres" not in result
+
+    def test_export_mounts_invocation_dir(self, export_cfg):
+        result = _generate_auto_export_section(
+            cfg=export_cfg,
+            job_id="inv123.0",
+            destinations=["mlflow"],
+            env_var_names=[],
+            secrets=None,
+            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
+        )
+        # Must mount the invocation dir AND output_dir so exporter can find job data
+        assert (
+            "/results/output/20260409-inv123:/results/output/20260409-inv123" in result
+        )
+        assert "/results/output:/results/output" in result
+
+    def test_export_custom_partition(self, export_cfg):
+        export_cfg.execution.auto_export.partition = "cpu_partition"
+        result = _generate_auto_export_section(
+            cfg=export_cfg,
+            job_id="inv123.0",
+            destinations=["mlflow"],
+            env_var_names=[],
+            secrets=None,
+            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
+        )
+        assert "cpu_partition" in result
+
+    def test_export_uses_eval_partition_by_default(self, export_cfg):
+        result = _generate_auto_export_section(
+            cfg=export_cfg,
+            job_id="inv123.0",
+            destinations=["mlflow"],
+            env_var_names=[],
+            secrets=None,
+            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
+        )
+        assert "gpu_partition" in result
+
+    def test_export_custom_launcher_install_cmd(self, export_cfg):
+        export_cfg.execution.auto_export.launcher_install_cmd = "pip install custom-pkg"
+        result = _generate_auto_export_section(
+            cfg=export_cfg,
+            job_id="inv123.0",
+            destinations=["mlflow"],
+            env_var_names=[],
+            secrets=None,
+            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
+        )
+        assert "pip install custom-pkg" in result
+
+    def test_export_multiple_destinations(self, export_cfg):
+        result = _generate_auto_export_section(
+            cfg=export_cfg,
+            job_id="inv123.0",
+            destinations=["mlflow", "wandb"],
+            env_var_names=[],
+            secrets=None,
+            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
+        )
+        assert "Exporting to mlflow" in result
+        assert "Exporting to wandb" in result
