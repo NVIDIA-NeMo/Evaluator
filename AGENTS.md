@@ -92,17 +92,19 @@ Only after all checks pass, create the commit.
 
 ## Commit messages
 
-Use clear, imperative commit messages. Focus on "why" not "what":
+Use clear, imperative commit messages. Focus on "why" not "what".
+
+Format: `<type>: [EVAL-XXXX] <short imperative description>` where `EVAL-XXXX` is the Linear ticket ID (omit the bracket if there is no ticket).
 
 ```
-feat: add server_cmd support for native Gym servers on SLURM
+feat: [EVAL-1017] add server_cmd support for native Gym servers on SLURM
 
 The sbatch generator now honors ServiceConfig.server_cmd for gym
 services instead of hardcoding `nel serve`. This enables running
 any server that speaks /seed_session + /verify as a managed service.
 ```
 
-Prefix with `feat:`, `fix:`, `refactor:`, `test:`, `docs:` as appropriate.
+Prefix with `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:` as appropriate.
 
 ## Design principles
 
