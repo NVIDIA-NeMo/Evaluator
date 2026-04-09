@@ -80,6 +80,9 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
         Args:
             params: Configuration parameters
         """
+        # Get logger for this interceptor with interceptor context
+        self.logger = get_logger(self.__class__.__name__)
+
         self.progress_tracking_url = os.path.expandvars(params.progress_tracking_url)
         self.progress_tracking_interval = params.progress_tracking_interval
         self.request_method = params.request_method
@@ -92,9 +95,6 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
         self._samples_processed = self._initialize_samples_processed()
         self._last_updated_samples_processed = self._samples_processed
         self._lock = threading.Lock()
-
-        # Get logger for this interceptor with interceptor context
-        self.logger = get_logger(self.__class__.__name__)
 
         # Optional update on timer
         self.progress_tracking_interval_seconds = (
