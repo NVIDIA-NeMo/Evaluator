@@ -43,6 +43,7 @@ _BUILTIN: dict[str, str] = {
     "raise_client_errors": "nemo_evaluator.adapters.interceptors.raise_client_errors",
     "system_message": "nemo_evaluator.adapters.interceptors.system_message",
     "payload_modifier": "nemo_evaluator.adapters.interceptors.payload_modifier",
+    "consolidate_system": "nemo_evaluator.adapters.interceptors.consolidate_system",
     "caching": "nemo_evaluator.adapters.interceptors.caching",
     "log_tokens": "nemo_evaluator.adapters.interceptors.log_tokens",
     "response_stats": "nemo_evaluator.adapters.interceptors.response_stats",
