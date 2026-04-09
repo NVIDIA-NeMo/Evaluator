@@ -127,7 +127,7 @@ def gate_cmd(
         if report_path:
             md_path = write_md_report(report.to_dict(), report_path)
             click.echo(f"\nMarkdown damage report written to: {md_path}")
-        elif not no_report and output:
+        elif output:
             # Auto-generate next to JSON output
             md_path = write_md_report(report.to_dict(), Path(output).with_suffix(".md"))
             click.echo(f"Markdown damage report written to: {md_path}")

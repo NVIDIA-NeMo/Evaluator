@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from nemo_evaluator.metrics.confidence import bootstrap_ci, clustered_ci, normal_ci
@@ -67,7 +68,6 @@ class TestClusteredCI:
 
     def test_no_clustering_effect_when_random(self):
         """When cluster assignment is random (no real structure), clustered SE ≈ naive SE."""
-        import numpy as np
         rng = np.random.default_rng(42)
         scores = list(rng.choice([0.0, 1.0], size=200))
         clusters = [f"c{i % 50}" for i in range(200)]  # 50 clusters of 4
@@ -101,7 +101,6 @@ class TestClusteredCI:
         scores = []
         clusters = []
         for subj, acc in [("math", 0.9), ("history", 0.6), ("science", 0.8), ("art", 0.5)]:
-            import numpy as np
             rng = np.random.default_rng(hash(subj) % 2**32)
             scores.extend(list(rng.choice([0.0, 1.0], size=25, p=[1 - acc, acc])))
             clusters.extend([subj] * 25)

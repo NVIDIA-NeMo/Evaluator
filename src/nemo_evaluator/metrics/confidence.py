@@ -122,7 +122,7 @@ def clustered_ci(
     # Group residuals by cluster
     residuals = arr - mean
     cluster_sums: dict[str | int, float] = {}
-    for r, c in zip(residuals, clusters):
+    for r, c in zip(residuals, clusters, strict=True):
         cluster_sums[c] = cluster_sums.get(c, 0.0) + float(r)
 
     g = len(cluster_sums)

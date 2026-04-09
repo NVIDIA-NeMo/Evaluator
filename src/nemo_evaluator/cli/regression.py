@@ -303,7 +303,7 @@ def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold
             click.echo(f"  Reason: {test_reason}")
 
         if mcnemar:
-            click.echo(f"  Test: McNemar exact binomial (one-sided, H1: regressions > improvements)")
+            click.echo("  Test: McNemar exact binomial (one-sided, H1: regressions > improvements)")
             click.echo(f"  p-value: {mcnemar.get('p_value')}")
             click.echo(f"  Method: {mcnemar.get('method')}")
             click.echo(f"  Discordant pairs: {mcnemar.get('n_discordant')}")
@@ -313,7 +313,7 @@ def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold
 
         sign_result = report.get("sign_test")
         if sign_result:
-            click.echo(f"  Test: Sign test (one-sided, H1: baseline > candidate)")
+            click.echo("  Test: Sign test (one-sided, H1: baseline > candidate)")
             click.echo(f"  p-value: {sign_result.get('p_value')}")
             click.echo(f"  Regressions (d>0): {sign_result.get('n_positive')}, Improvements (d<0): {sign_result.get('n_negative')}, Ties: {sign_result.get('n_ties')}")
 
@@ -336,7 +336,7 @@ def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold
 
     # ── Summary sentence (item #5) ───────────────────────────────
     from nemo_evaluator.engine.comparison import build_summary_sentence
-    summary_sentence = build_summary_sentence(verdict, s, cats, threshold)
+    summary_sentence = build_summary_sentence(s, cats, threshold)
     if summary_sentence:
         click.echo()
         click.echo(_style(f"Summary: {summary_sentence}", bold=True))

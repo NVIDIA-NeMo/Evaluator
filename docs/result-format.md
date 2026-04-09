@@ -89,7 +89,7 @@ Each bundle is a JSON file describing the results of one benchmark evaluation. `
 
 ### Flat (bundles in root)
 
-```
+```text
 results/
   eval-mmlu_pro.json
   results.jsonl           # per-problem records for the single benchmark
@@ -97,7 +97,7 @@ results/
 
 ### Nested (one subdirectory per benchmark)
 
-```
+```text
 results/
   mmlu_pro/
     eval-mmlu_pro.json

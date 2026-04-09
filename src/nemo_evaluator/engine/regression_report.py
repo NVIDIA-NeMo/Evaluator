@@ -39,8 +39,8 @@ def generate_report(report: dict[str, Any]) -> str:
     # ── Header ─────────────────────────────────────────────────────
     _w(f"# Regression Report: {verdict}")
     _w("")
-    _w(f"| | |")
-    _w(f"|---|---|")
+    _w("| | |")
+    _w("|---|---|")
     _w(f"| **Baseline** | `{base_id}` |")
     _w(f"| **Candidate** | `{cand_id}` |")
     _w(f"| **Generated** | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} |")
@@ -80,8 +80,8 @@ def generate_report(report: dict[str, Any]) -> str:
                f"{n_reg} problems that the baseline solved correctly are now answered incorrectly. "
                f"This exceeds both the statistical significance threshold and the practical effect threshold.")
         elif verdict == "WARN":
-            _w(f"**A statistically significant change was detected**, but the practical effect size "
-               f"is below the configured threshold. Review the specific flips below before shipping.")
+            _w("**A statistically significant change was detected**, but the practical effect size "
+               "is below the configured threshold. Review the specific flips below before shipping.")
         elif verdict == "INCONCLUSIVE":
             _w(f"**Not enough data to rule out small regressions.** With only {mcnemar.get('n_discordant', 0)} "
                f"discordant pairs, this evaluation cannot reliably detect regressions below "
@@ -94,7 +94,7 @@ def generate_report(report: dict[str, Any]) -> str:
                 _w("**No regressions detected.** Both models produce identical outcomes on all paired samples.")
 
     # Summary sentence
-    summary = build_summary_sentence(verdict, s, cats, threshold)
+    summary = build_summary_sentence(s, cats, threshold)
     if summary:
         _w("")
         _w(f"> **{summary}**")
@@ -132,10 +132,10 @@ def generate_report(report: dict[str, Any]) -> str:
         _w("")
         _w("### McNemar Paired Test")
         _w("")
-        _w(f"| | |")
-        _w(f"|---|---|")
-        _w(f"| **Test** | McNemar exact binomial (one-sided) |")
-        _w(f"| **Hypothesis** | H₁: P(regression) > P(improvement) |")
+        _w("| | |")
+        _w("|---|---|")
+        _w("| **Test** | McNemar exact binomial (one-sided) |")
+        _w("| **Hypothesis** | H₁: P(regression) > P(improvement) |")
         _w(f"| **Discordant pairs** | {mcnemar.get('n_discordant', 0)} |")
         p = mcnemar.get("p_value")
         _w(f"| **p-value** | {p:.6f} |" if p is not None else "| **p-value** | n/a (scipy not installed) |")

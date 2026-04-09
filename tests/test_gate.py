@@ -35,7 +35,7 @@ def _write_bundle(path: Path, name: str, scores: dict | None = None):
 
 
 def _write_results(path: Path, records: list[dict]):
-    with path.open("w") as f:
+    with path.open("w", encoding="utf-8") as f:
         for r in records:
             f.write(json.dumps(r) + "\n")
 
@@ -525,14 +525,14 @@ class TestAggregateVerdict:
             BenchmarkGateResult(benchmark="a", tier="critical", status="PASS"),
             BenchmarkGateResult(benchmark="b", tier="supporting", status="PASS"),
         ]
-        verdict, _ = _aggregate_verdict(benchmarks, [])
+        verdict, _ = _aggregate_verdict(benchmarks)
         assert verdict == "GO"
 
     def test_critical_breach(self):
         benchmarks = [
             BenchmarkGateResult(benchmark="a", tier="critical", status="BREACH"),
         ]
-        verdict, reasons = _aggregate_verdict(benchmarks, [])
+        verdict, reasons = _aggregate_verdict(benchmarks)
         assert verdict == "NO-GO"
         assert "BREACH" in reasons[0]
 
@@ -540,21 +540,21 @@ class TestAggregateVerdict:
         benchmarks = [
             BenchmarkGateResult(benchmark="a", tier="critical", status="MISSING"),
         ]
-        verdict, _ = _aggregate_verdict(benchmarks, ["a"])
+        verdict, _ = _aggregate_verdict(benchmarks)
         assert verdict == "NO-GO"
 
     def test_insufficient_evidence_is_inconclusive(self):
         benchmarks = [
             BenchmarkGateResult(benchmark="a", tier="critical", status="INSUFFICIENT_EVIDENCE"),
         ]
-        verdict, _ = _aggregate_verdict(benchmarks, [])
+        verdict, _ = _aggregate_verdict(benchmarks)
         assert verdict == "INCONCLUSIVE"
 
     def test_advisory_ignored(self):
         benchmarks = [
             BenchmarkGateResult(benchmark="a", tier="advisory", status="BREACH"),
         ]
-        verdict, _ = _aggregate_verdict(benchmarks, [])
+        verdict, _ = _aggregate_verdict(benchmarks)
         assert verdict == "GO"
 
     def test_breach_takes_precedence_over_insufficient(self):
@@ -562,14 +562,14 @@ class TestAggregateVerdict:
             BenchmarkGateResult(benchmark="a", tier="critical", status="BREACH"),
             BenchmarkGateResult(benchmark="b", tier="critical", status="INSUFFICIENT_EVIDENCE"),
         ]
-        verdict, _ = _aggregate_verdict(benchmarks, [])
+        verdict, _ = _aggregate_verdict(benchmarks)
         assert verdict == "NO-GO"
 
 
 # ── TestWriteGateReport ───────────────────────────────────────────────
 
 
-class TestWriteGateReport:
+class TestWriteGateReportRoundTrip:
     def test_round_trip(self, tmp_path):
         report = GateReport(
             verdict="GO",

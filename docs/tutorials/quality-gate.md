@@ -156,7 +156,7 @@ nel gate ./results/baseline ./results/candidate --policy gate_policy.yaml
 
 Sample output:
 
-```
+```text
 GO
 Policy:    gate_policy.yaml
 Baseline:  ./results/baseline
@@ -178,7 +178,7 @@ BENCHMARKS
 
 When the gate returns NO-GO, the output tells you which benchmarks failed and why:
 
-```
+```text
 NO-GO
 Policy:    gate_policy.yaml
 Baseline:  ./results/baseline

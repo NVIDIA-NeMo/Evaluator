@@ -150,7 +150,7 @@ def gate_runs(
         result = _evaluate_benchmark(bench_name, base_path, cand_path, resolved)
         report.benchmarks.append(result)
 
-    report.verdict, report.verdict_reasons = _aggregate_verdict(report.benchmarks, report.missing)
+    report.verdict, report.verdict_reasons = _aggregate_verdict(report.benchmarks)
     return report
 
 
@@ -365,14 +365,13 @@ def _extract_clusters(
     paired_keys: list[int],
 ) -> list[str] | None:
     """Extract category/cluster labels for paired problems, if available."""
+    by_problem: dict[int, dict[str, Any]] = {}
+    for (pid, _repeat), rec in records.items():
+        if pid not in by_problem:
+            by_problem[pid] = rec
     clusters = []
     for pid in paired_keys:
-        # Find the record for this problem (any repeat)
-        record = None
-        for key, rec in records.items():
-            if key[0] == pid:
-                record = rec
-                break
+        record = by_problem.get(pid)
         if record is None:
             return None
         cat = (
@@ -625,7 +624,6 @@ def _aggregate_repeats(
 
 def _aggregate_verdict(
     benchmarks: list[BenchmarkGateResult],
-    missing: list[str],
 ) -> tuple[str, list[str]]:
     """Compute GO / NO-GO / INCONCLUSIVE from per-benchmark results.
 

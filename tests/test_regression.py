@@ -1,6 +1,5 @@
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -33,7 +32,7 @@ def _write_bundle(path: Path, run_id: str, scores: dict, categories=None, name="
 
 
 def _write_results_jsonl(path: Path, records: list[dict]):
-    with path.open("w") as f:
+    with path.open("w", encoding="utf-8") as f:
         for r in records:
             f.write(json.dumps(r) + "\n")
 

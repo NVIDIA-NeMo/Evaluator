@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 import logging
 import math
-import os
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -107,7 +106,7 @@ class RegressionReport:
     warnings: list[str] = field(default_factory=list)
     threshold: float = _MIN_EFFECT_SIZE  # user's --max-drop value
 
-    def is_regression(self, alpha: float = _SIGNIFICANCE_THRESHOLD) -> bool:
+    def is_regression(self) -> bool:
         if self.mcnemar and self.mcnemar.significant:
             s = self.flip_report.summary if self.flip_report else None
             if s and s.n_regressions > s.n_improvements:
@@ -323,7 +322,7 @@ def compare_runs(
             )
 
     # Verdict logic (#4: effect size gating, #27: INCONCLUSIVE)
-    report.verdict, report.verdict_reasons = _compute_verdict(report, alpha, min_effect)
+    report.verdict, report.verdict_reasons = _compute_verdict(report, min_effect)
 
     return report.to_dict()
 
@@ -367,7 +366,7 @@ def compare_results(
         else:
             report.permutation_result = permutation_test(paired_deltas)
 
-    report.verdict, report.verdict_reasons = _compute_verdict(report, alpha, min_effect)
+    report.verdict, report.verdict_reasons = _compute_verdict(report, min_effect)
     return report.to_dict()
 
 
@@ -683,7 +682,6 @@ def mde_estimate(n_discordant: int) -> float:
 
 
 def build_summary_sentence(
-    verdict: str,
     summary: dict[str, Any],
     category_deltas: dict[str, Any],
     threshold: float = 0.05,
@@ -740,9 +738,9 @@ def _load_bundle(path: str | Path) -> dict[str, Any]:
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON in bundle {p}: {e}")
+        raise ValueError(f"Invalid JSON in bundle {p}: {e}") from e
     if not isinstance(data, dict):
-        raise ValueError(f"Bundle {p} is not a JSON object")
+        raise TypeError(f"Bundle {p} is not a JSON object")
     return data
 
 
@@ -787,7 +785,6 @@ def _make_flip_entry(
 
 def _compute_verdict(
     report: RegressionReport,
-    alpha: float,
     min_effect: float,
 ) -> tuple[str, list[str]]:
     """Compute PASS / WARN / BLOCK / INCONCLUSIVE verdict.
