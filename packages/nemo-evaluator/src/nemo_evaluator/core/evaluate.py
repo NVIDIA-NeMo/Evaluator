@@ -269,7 +269,9 @@ def _run_evaluation(
             exit_code = (
                 1
                 if server_error_shutdown
-                else 0 if cleanup_succeeded and not alive else 1
+                else 0
+                if cleanup_succeeded and not alive
+                else 1
             )
         sys.exit(exit_code)
 

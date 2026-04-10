@@ -30,8 +30,8 @@ from nemo_evaluator_launcher.executors.base import ExecutionState, ExecutionStat
 from nemo_evaluator_launcher.executors.slurm.executor import (
     SlurmExecutor,
     _create_slurm_sbatch_script,
-    _generate_autoresume_handler,
     _generate_auto_export_section,
+    _generate_autoresume_handler,
 )
 
 
@@ -1420,6 +1420,7 @@ class TestSlurmExecutorDryRun:
                     remote_task_subdir=Path("/test/remote"),
                     invocation_id="test123",
                     job_id="test123.0",
+                    task_idx=0,
                 )
 
             assert ".nemo_evaluator_interrupted" in result.cmd
