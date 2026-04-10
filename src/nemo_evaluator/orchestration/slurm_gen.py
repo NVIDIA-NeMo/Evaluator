@@ -524,8 +524,8 @@ def _safe(s: str) -> str:
 
 
 _MODEL_CMD = {
-    "vllm": ("vllm serve", "", "--tensor-parallel-size", "--data-parallel-size"),
-    "sglang": ("sglang serve", "", "--tp-size", "--dp-size"),
+    "vllm": ("vllm serve", "", "--tensor-parallel-size", "--pipeline-parallel-size", "--data-parallel-size"),
+    "sglang": ("sglang serve", "", "--tp-size", "--pp-size", "--dp-size"),
 }
 
 
@@ -619,7 +619,7 @@ def _service_block(
         het_flag = f" --het-group={pool_to_het[pool]}"
 
     if svc.type in _MODEL_CMD:
-        cmd, model_flag, tp_flag_name, dp_flag_name = _MODEL_CMD[svc.type]
+        cmd, model_flag, tp_flag_name, pp_flag_name, dp_flag_name = _MODEL_CMD[svc.type]
         deploy_image = _resolve_service_image(svc)
 
         # Auto-mount local model paths into the container at /model (read-only),
@@ -644,6 +644,9 @@ def _service_block(
                 extra_mounts=model_mount + ["$OUTPUT_DIR:$OUTPUT_DIR"],
             )
         tp_flag = f"{tp_flag_name} {svc.tensor_parallel_size} " if svc.tensor_parallel_size else ""
+        pp_flag = (
+            f"{pp_flag_name} {svc.pipeline_parallel_size} " if getattr(svc, "pipeline_parallel_size", None) else ""
+        )
         dp_flag = f"{dp_flag_name} {svc.data_parallel_size} " if svc.data_parallel_size else ""
         extra = " ".join(shlex.quote(a) for a in svc.extra_args)
         cuda = ""
@@ -654,7 +657,7 @@ def _service_block(
             f" {model_flag} {model_for_cmd}" if model_flag else f" {model_for_cmd}" if model_for_cmd else ""
         )
         served_name_flag = f"--served-model-name {shlex.quote(model_api_name)} "
-        main_cmd = f"{cmd}{model_flag_part} --port {svc.port} {tp_flag}{dp_flag}{served_name_flag}{extra}"
+        main_cmd = f"{cmd}{model_flag_part} --port {svc.port} {tp_flag}{pp_flag}{dp_flag}{served_name_flag}{extra}"
 
         setup_list = getattr(svc, "setup_commands", []) or []
         num_nodes = getattr(svc, "num_nodes", 1)

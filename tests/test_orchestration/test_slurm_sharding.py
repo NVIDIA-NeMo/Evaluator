@@ -1012,6 +1012,62 @@ class TestMultinodeRay:
         script, _, _ = generate_sbatch(cfg)
         assert "--ntasks 4" in script
 
+    def test_pipeline_parallel_size_in_vllm_command(self):
+        """pipeline_parallel_size should produce --pipeline-parallel-size in the vLLM command."""
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "vllm",
+                        "model": "some/model",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                        "tensor_parallel_size": 8,
+                        "pipeline_parallel_size": 2,
+                        "num_nodes": 2,
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "04:00:00",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 2, "gres": "gpu:8"}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "--pipeline-parallel-size 2" in script
+        assert "--tensor-parallel-size 8" in script
+
+    def test_no_pipeline_parallel_when_unset(self):
+        """When pipeline_parallel_size is not set, no --pipeline-parallel-size flag should appear."""
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "vllm",
+                        "model": "some/model",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                        "tensor_parallel_size": 4,
+                    },
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "--pipeline-parallel-size" not in script
+        assert "--tensor-parallel-size 4" in script
+
 
 # ---------------------------------------------------------------------------
 # Lifecycle helpers
