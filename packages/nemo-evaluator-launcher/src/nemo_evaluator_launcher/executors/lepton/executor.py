@@ -889,6 +889,11 @@ exit_code=$?
 # Set proper permissions
 chmod 777 -R {output_dir} 2>/dev/null || true
 
+if [ "$exit_code" -eq 0 ] && [ -f "{output_dir}/.nemo_evaluator_interrupted" ]; then
+    echo "Evaluation exited cleanly after SIGTERM; marking job as interrupted" >&2
+    exit_code=143
+fi
+
 # Record completion status
 echo "exit_code: $exit_code" > {output_dir}/logs/stage.exit
 

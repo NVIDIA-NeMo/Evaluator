@@ -24,11 +24,13 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from omegaconf import OmegaConf
 
+from nemo_evaluator_launcher.common.env_vars import SecretsEnvResult
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.executors.base import ExecutionState, ExecutionStatus
 from nemo_evaluator_launcher.executors.slurm.executor import (
     SlurmExecutor,
     _create_slurm_sbatch_script,
+    _generate_auto_export_section,
     _generate_autoresume_handler,
 )
 
@@ -1347,6 +1349,83 @@ class TestSlurmExecutorDryRun:
 
         finally:
             # Clean up environment
+            for env_var in ["TEST_API_KEY", "GLOBAL_VALUE", "TASK_VALUE"]:
+                if env_var in os.environ:
+                    del os.environ[env_var]
+
+    def test_generate_auto_export_section_skips_marker_interrupted_runs(self):
+        cfg = OmegaConf.create(
+            {
+                "execution": {
+                    "output_dir": "/tmp/out",
+                    "auto_export": {"destinations": ["wandb"]},
+                },
+                "export": {},
+            }
+        )
+
+        section = _generate_auto_export_section(
+            cfg=cfg,
+            job_id="abc12345.0",
+            destinations=["wandb"],
+            env_var_names=[],
+            secrets=SecretsEnvResult(secrets_content=""),
+            remote_task_subdir=Path("/tmp/out/test_task"),
+        )
+
+        assert "EVAL_INTERRUPTED_MARKER=" in section
+        assert ".nemo_evaluator_interrupted" in section
+        assert "Skipping auto-export" in section
+        assert "EVAL_EXIT_CODE=143" in section
+
+    def test_sbatch_script_exits_nonzero_on_interrupted_marker(
+        self, sample_config, mock_tasks_mapping, tmpdir
+    ):
+        """Sbatch script must exit 143 when the interrupted marker exists."""
+        os.environ["TEST_API_KEY"] = "test-key"
+        os.environ["GLOBAL_VALUE"] = "global_env_value"
+        os.environ["TASK_VALUE"] = "task_env_value"
+        try:
+            with (
+                patch(
+                    "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
+                ) as mock_load_tasks,
+                patch(
+                    "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+                ) as mock_get_task_def,
+                patch(
+                    "nemo_evaluator_launcher.common.helpers.get_eval_factory_command"
+                ) as mock_get_eval_command,
+                patch(
+                    "nemo_evaluator_launcher.common.helpers.get_served_model_name"
+                ) as mock_get_model_name,
+            ):
+                mock_load_tasks.return_value = mock_tasks_mapping
+                mock_get_task_def.return_value = {
+                    "container": "nvcr.io/nvidia/nemo:24.01",
+                    "endpoint_type": "openai",
+                    "task": "mmlu_pro",
+                }
+                from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+                mock_get_eval_command.return_value = CmdAndReadableComment(
+                    cmd="nemo-evaluator run_eval --test", debug="# Test command"
+                )
+                mock_get_model_name.return_value = "test-model"
+
+                result = _create_slurm_sbatch_script(
+                    cfg=sample_config,
+                    task=OmegaConf.create({"name": "mmlu_pro"}),
+                    eval_image="nvcr.io/nvidia/nemo:24.01",
+                    remote_task_subdir=Path("/test/remote"),
+                    invocation_id="test123",
+                    job_id="test123.0",
+                    task_idx=0,
+                )
+
+            assert ".nemo_evaluator_interrupted" in result.cmd
+            assert "exit 143" in result.cmd
+        finally:
             for env_var in ["TEST_API_KEY", "GLOBAL_VALUE", "TASK_VALUE"]:
                 if env_var in os.environ:
                     del os.environ[env_var]
