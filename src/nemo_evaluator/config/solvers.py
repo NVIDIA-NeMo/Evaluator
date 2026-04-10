@@ -62,6 +62,22 @@ class HarborSolverConfig(BaseModel):
             "run_timeout budget. None means no ceiling (SDK default)."
         ),
     )
+    timeout_strategy: Literal["override", "task", "max"] = Field(
+        default="override",
+        description=(
+            "How to resolve agent timeout when the task defines its own "
+            "timeout in task.toml. 'override': NEL timeout always wins. "
+            "'task': use per-task timeout (NEL timeout as fallback). "
+            "'max': use the larger of NEL and task timeout."
+        ),
+    )
+    max_agent_timeout: float | None = Field(
+        default=None,
+        description=(
+            "Hard ceiling (seconds) on agent timeout regardless of strategy. "
+            "Useful with 'task' or 'max' strategy to cap runaway timeouts."
+        ),
+    )
 
 
 class AgentSolverConfig(BaseModel):

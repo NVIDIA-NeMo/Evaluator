@@ -57,6 +57,9 @@ reviews:
         Tests must pass offline (no network access) unless marked @pytest.mark.network.
         Use fixtures from tests/conftest.py (FixturedEnvironment, CachedSolver, MockSandbox).
         Do not skip tests silently — if a test needs network, mark it explicitly.
+        Prefer @pytest.mark.parametrize with descriptive ids over separate test methods
+        when testing the same function with multiple inputs. Import shared fixtures and
+        helpers at module level, not inside each test.
 
     - path: "src/nemo_evaluator/sandbox/**"
       instructions: >

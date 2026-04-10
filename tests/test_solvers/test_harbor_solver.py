@@ -7,9 +7,12 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 
+import pytest
+
 from nemo_evaluator.solvers.harbor import (
     _ensure_host_env,
     _extract_response,
+    _resolve_agent_timeout,
     _resolve_api_key,
 )
 
@@ -170,3 +173,37 @@ class TestSandboxEnvironmentAdapter:
         adapter = SandboxEnvironmentAdapter(MagicMock(), session_id="test-session", logs_dir=tmp_path)
         missing = {a for a in base_attrs if not hasattr(adapter, a)}
         assert not missing, f"SandboxEnvironmentAdapter missing public attrs: {missing}"
+
+
+class TestResolveAgentTimeout:
+    """Tests for per-task timeout resolution (EVAL-1116)."""
+
+    @pytest.mark.parametrize(
+        ("strategy", "config", "task", "cap", "expected"),
+        [
+            ("override", 3600, 900, None, 3600),
+            ("override", 3600, None, None, 3600),
+            ("task", 3600, 900, None, 900),
+            ("task", 3600, None, None, 3600),
+            ("task", 3600, 12000, 7200, 7200),
+            ("max", 3600, 900, None, 3600),
+            ("max", 3600, 12000, None, 12000),
+            ("max", 3600, 12000, 7200, 7200),
+            ("max", 3600, None, None, 3600),
+            ("bogus", 3600, 900, None, 3600),
+        ],
+        ids=[
+            "override-ignores-task",
+            "override-no-task",
+            "task-uses-task",
+            "task-fallback-to-nel",
+            "task-capped",
+            "max-nel-larger",
+            "max-task-larger",
+            "max-capped",
+            "max-no-task-fallback",
+            "unknown-fallback",
+        ],
+    )
+    def test_effective_timeout(self, strategy, config, task, cap, expected):
+        assert _resolve_agent_timeout(strategy, config, task, cap) == expected

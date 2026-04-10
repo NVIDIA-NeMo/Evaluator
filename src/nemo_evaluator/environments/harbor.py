@@ -734,6 +734,9 @@ class HarborEnvironment(EvalEnvironment):
             "task_id": task_dir.name,
             "task_dir": str(task_dir),
         }
+        agent_timeout = config.get("agent", {}).get("timeout_sec")
+        if agent_timeout is not None:
+            metadata["agent_timeout_sec"] = agent_timeout
         task_metadata = config.get("metadata", {})
         if task_metadata:
             metadata.update(task_metadata)

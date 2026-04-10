@@ -768,3 +768,52 @@ class TestNoSandboxStateful:
             verify_timeout=sandbox_cfg.verify_timeout,
             force_stateful=sandbox_cfg.stateful,
         )
+
+
+class TestHarborSolverTimeoutConfig:
+    """Tests for timeout_strategy and max_agent_timeout config fields (EVAL-1116)."""
+
+    def test_timeout_strategy_defaults_to_override(self):
+        from nemo_evaluator.config.solvers import HarborSolverConfig
+
+        cfg = HarborSolverConfig(type="harbor", service="model", agent="terminus-2")
+        assert cfg.timeout_strategy == "override"
+        assert cfg.max_agent_timeout is None
+
+    def test_timeout_strategy_task_parses(self):
+        from nemo_evaluator.config.solvers import HarborSolverConfig
+
+        cfg = HarborSolverConfig(
+            type="harbor",
+            service="model",
+            agent="terminus-2",
+            timeout_strategy="task",
+            max_agent_timeout=7200,
+        )
+        assert cfg.timeout_strategy == "task"
+        assert cfg.max_agent_timeout == 7200
+
+    def test_timeout_strategy_max_parses(self):
+        from nemo_evaluator.config.solvers import HarborSolverConfig
+
+        cfg = HarborSolverConfig(
+            type="harbor",
+            service="model",
+            agent="terminus-2",
+            timeout_strategy="max",
+            max_agent_timeout=3600,
+        )
+        assert cfg.timeout_strategy == "max"
+        assert cfg.max_agent_timeout == 3600
+
+    def test_timeout_strategy_invalid_rejected(self):
+        import pydantic
+        from nemo_evaluator.config.solvers import HarborSolverConfig
+
+        with pytest.raises(pydantic.ValidationError, match="timeout_strategy"):
+            HarborSolverConfig(
+                type="harbor",
+                service="model",
+                agent="terminus-2",
+                timeout_strategy="foo",
+            )

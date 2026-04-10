@@ -225,6 +225,16 @@ def _make_solver(
     if isinstance(solver_cfg, (HarborSolverConfig, AgentSolverConfig)):
         from nemo_evaluator.solvers.harbor import HarborSolver
 
+        if hasattr(sb, "model_fields_set") and "timeout" in sb.model_fields_set:
+            import warnings
+
+            warnings.warn(
+                "sandbox.timeout is deprecated and has no effect. "
+                "Use benchmark-level 'timeout' or solver 'run_timeout' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         svc = config.get_service(solver_cfg.service)
         container_env = getattr(solver_cfg, "container_env", {})
         run_timeout = getattr(solver_cfg, "run_timeout", None)
@@ -233,13 +243,15 @@ def _make_solver(
             harbor_agent_kwargs=solver_cfg.agent_kwargs,
             model_url=model_url,
             model_id=model_id,
-            timeout=getattr(sb, "timeout", 1800.0),
+            timeout=bench.timeout,
             run_timeout=run_timeout,
             api_key=api_key,
             container_env=container_env,
             max_input_tokens=getattr(svc, "max_input_tokens", None),
             max_output_tokens=getattr(svc, "max_output_tokens", None),
             cmd_timeout=getattr(solver_cfg, "cmd_timeout", None),
+            timeout_strategy=getattr(solver_cfg, "timeout_strategy", "override"),
+            max_agent_timeout=getattr(solver_cfg, "max_agent_timeout", None),
         )
 
     if isinstance(solver_cfg, GymDelegationSolverConfig):

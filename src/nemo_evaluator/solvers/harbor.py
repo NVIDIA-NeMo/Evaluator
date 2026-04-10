@@ -40,6 +40,36 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _resolve_agent_timeout(
+    strategy: str,
+    config_timeout: float,
+    task_timeout: float | None,
+    max_cap: float | None,
+) -> float:
+    """Compute effective agent timeout based on strategy.
+
+    Args:
+        strategy: "override" (config wins), "task" (per-task from task.toml),
+                  or "max" (larger of both).
+        config_timeout: timeout from NEL config (solver.run_timeout or bench.timeout).
+        task_timeout: per-task timeout from task.toml ``[agent] timeout_sec``.
+        max_cap: optional hard ceiling (``max_agent_timeout`` config field).
+    """
+    if strategy == "override" or task_timeout is None:
+        result = config_timeout
+    elif strategy == "task":
+        result = task_timeout
+    elif strategy == "max":
+        result = max(config_timeout, task_timeout)
+    else:
+        logger.warning("Unknown timeout_strategy '%s', falling back to config_timeout", strategy)
+        result = config_timeout
+
+    if max_cap is not None:
+        result = min(result, max_cap)
+    return result
+
+
 def _extract_response(context: Any) -> str:
     """Extract text response from AgentContext (metadata > last rollout)."""
     if context.metadata and isinstance(context.metadata.get("response"), str):
@@ -715,6 +745,8 @@ class HarborSolver:
         max_input_tokens: int | None = None,
         max_output_tokens: int | None = None,
         cmd_timeout: float | None = None,
+        timeout_strategy: str = "override",
+        max_agent_timeout: float | None = None,
     ) -> None:
         _check_harbor_installed()
         self._harbor_agent = harbor_agent
@@ -724,6 +756,8 @@ class HarborSolver:
         self._timeout = timeout
         self._run_timeout = run_timeout or timeout
         self._cmd_timeout = cmd_timeout
+        self._timeout_strategy = timeout_strategy
+        self._max_agent_timeout = max_agent_timeout
         self._container_env = dict(container_env or {})
         self._container_env.setdefault("PIP_INDEX_URL", "https://pypi.org/simple")
         self._container_env.setdefault("LITELLM_LOG", "ERROR")
@@ -804,7 +838,8 @@ class HarborSolver:
         ``solve()`` can still collect partial results.
         Raises `GracefulError` if no progress was detected.
         """
-        no_progress_timeout = min(600.0, self._run_timeout * 0.15)
+        resolved_timeout = effective_timeout - jitter
+        no_progress_timeout = min(600.0, resolved_timeout * 0.15)
 
         # Phase 1 — wait for first sign of life
         done, _ = await asyncio.wait(
@@ -852,10 +887,11 @@ class HarborSolver:
         if timed_out:
             logger.warning(
                 "HarborSolver: agent.run() timed out after %.0fs "
-                "(run_timeout=%.0fs+%.0fs jitter) — collecting partial results",
+                "(effective=%.0fs+%.0fs jitter, strategy=%s) — collecting partial results",
                 time.monotonic() - t0,
-                self._run_timeout,
+                effective_timeout - jitter,
                 jitter,
+                self._timeout_strategy,
             )
             agent_task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):
@@ -965,8 +1001,26 @@ class HarborSolver:
 
             agent_error: Exception | None = None
             agent_timed_out = False
-            jitter = random.uniform(0, min(120.0, self._run_timeout * 0.02))
-            effective_timeout = self._run_timeout + jitter
+            task_timeout = task.metadata.get("agent_timeout_sec")
+            if task_timeout is not None and not isinstance(task_timeout, (int, float)):
+                logger.warning("agent_timeout_sec in metadata is not numeric: %r, ignoring", task_timeout)
+                task_timeout = None
+            run_timeout = _resolve_agent_timeout(
+                self._timeout_strategy,
+                self._run_timeout,
+                task_timeout,
+                self._max_agent_timeout,
+            )
+            logger.info(
+                "HarborSolver: timeout resolved: strategy=%s nel=%.0fs task=%s cap=%s → effective=%.0fs",
+                self._timeout_strategy,
+                self._run_timeout,
+                f"{task_timeout:.0f}s" if task_timeout is not None else "n/a",
+                f"{self._max_agent_timeout:.0f}s" if self._max_agent_timeout is not None else "n/a",
+                run_timeout,
+            )
+            jitter = random.uniform(0, min(120.0, run_timeout * 0.02))
+            effective_timeout = run_timeout + jitter
 
             agent_task = asyncio.create_task(agent.run(task.prompt, adapter, context))
             agent_timed_out, agent_error = await self._wait_for_agent(
