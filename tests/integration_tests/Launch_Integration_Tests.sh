@@ -24,8 +24,9 @@ mkdir /tmp/datasets
 cp -r ${HF_HOME}/datasets/gsm8k /tmp/datasets
 cp -r ${HF_HOME}/datasets/google___if_eval /tmp/datasets
 ls -alh /tmp/datasets
-mkdir -p /checkpoints && \
-ln -s /home/TestData/nemo2_ckpt/llama-3_2-1b-instruct_v2.0 /checkpoints/llama-3_2-1b-instruct_v2.0
+
+mkdir -p /workspace/
+python -c "from megatron.bridge import AutoBridge; AutoBridge.import_ckpt('meta-llama/Llama-3.2-1B-Instruct', '/workspace/llama-3_2-1b-instruct/')"
 
 SCRIPT_DIR=$(dirname "$0")
 PROJECT_DIR=$SCRIPT_DIR/../../
