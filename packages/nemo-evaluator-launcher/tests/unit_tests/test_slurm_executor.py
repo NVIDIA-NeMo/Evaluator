@@ -1357,6 +1357,8 @@ class TestSlurmExecutorDryRun:
         cfg = OmegaConf.create(
             {
                 "execution": {
+                    "account": "test_account",
+                    "partition": "batch",
                     "output_dir": "/tmp/out",
                     "auto_export": {"destinations": ["wandb"]},
                 },
