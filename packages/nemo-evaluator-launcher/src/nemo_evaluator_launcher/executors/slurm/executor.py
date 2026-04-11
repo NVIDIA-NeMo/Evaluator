@@ -1103,24 +1103,24 @@ def _generate_auto_export_section(
 ) -> str:
     """Generate auto-export as a separate CPU-only sbatch job.
 
-    Instead of running export inside the GPU job (wasting expensive GPU
-    time on I/O-bound MLflow uploads), we write a lightweight export
-    sbatch script and submit it from the eval script only on success.
-    The export job requests **no GPUs** and targets the CPU partition
-    when configured.
+    Instead of running export inline via srun --overlap (which holds GPUs
+    during I/O-bound uploads), we generate a lightweight export.sbatch
+    script and submit it from the eval script on success.  The export job
+    requests no GPUs and targets the CPU partition when configured.
     """
     if not destinations:
         return ""
 
-    # --- Build the export sbatch script content ---
+    # Keep in sync with nemo_evaluator.core.evaluate.INTERRUPTED_MARKER_FILENAME
+    interrupted_marker = (
+        remote_task_subdir / "artifacts" / ".nemo_evaluator_interrupted"
+    )
+
+    # --- Read auto_export settings ---
     auto_export_cfg = cfg.execution.get("auto_export", {}) or {}
-    launcher_install_cmd = None
-    export_partition = None
-    configured_export_image = None
-    if isinstance(auto_export_cfg, dict) or OmegaConf.is_config(auto_export_cfg):
-        launcher_install_cmd = auto_export_cfg.get("launcher_install_cmd")
-        export_partition = auto_export_cfg.get("partition")
-        configured_export_image = auto_export_cfg.get("image")
+    launcher_install_cmd = auto_export_cfg.get("launcher_install_cmd")
+    export_partition = auto_export_cfg.get("partition")
+    configured_export_image = auto_export_cfg.get("image")
     if not launcher_install_cmd:
         launcher_install_cmd = (
             "pip install --ignore-installed nemo-evaluator-launcher[all]"
@@ -1128,52 +1128,40 @@ def _generate_auto_export_section(
     if configured_export_image:
         export_image = configured_export_image
 
-    # Build export config — use top-level 'export' section. If missing,
-    # fall back to per-destination config from auto_export so the exporter
-    # has tracking_uri / entity / project even when 'export:' is absent.
+    # --- Build export config YAML ---
+    # Use top-level 'export' section.  If missing, fall back to
+    # per-destination config nested under auto_export so the exporter
+    # still has tracking_uri / entity / project.
     raw_export = cfg.get("export", None)
     if raw_export is None or (
         isinstance(raw_export, (dict, DictConfig)) and not raw_export
     ):
         raw_export = {}
         for dest in destinations:
-            dest_cfg = (
-                auto_export_cfg.get(dest)
-                if isinstance(auto_export_cfg, (dict, DictConfig))
-                else None
-            )
+            dest_cfg = auto_export_cfg.get(dest)
             if dest_cfg:
                 raw_export[dest] = dest_cfg
     export_config = {"export": raw_export}
+
     payload_clean = OmegaConf.to_container(
         OmegaConf.create(export_config), resolve=True
     )
-    export_config_yaml = yaml.safe_dump(payload_clean, sort_keys=False)
+    yaml_str = yaml.safe_dump(payload_clean, sort_keys=False)
 
+    # write launcher config as config.yml for exporters (no core command)
     submitted_yaml = yaml.safe_dump(
         OmegaConf.to_container(cfg, resolve=True), sort_keys=False
     )
 
-    # The invocation directory is the parent of the task directory.
-    # Mount it so the exporter can discover job artifacts via --job-dirs.
     invocation_dir = remote_task_subdir.parent
     output_dir = cfg.execution.output_dir
 
-    # Build secrets re-export command
-    reexport_cmd = ""
     if secrets:
         reexport_cmd = build_reexport_commands("export", secrets)
+    else:
+        reexport_cmd = ""
 
-    # Build container env flags
-    container_env_flag = ""
-    if env_var_names:
-        container_env_flag = "--container-env {} ".format(",".join(env_var_names))
-
-    export_dest_cmds = ""
-    for dest in destinations:
-        export_dest_cmds += f'    echo "Exporting to {dest}..."\n'
-        export_dest_cmds += f'    nemo-evaluator-launcher export {job_id} --dest {dest} --config {remote_task_subdir}/artifacts/export_config.yml --job-dirs {output_dir} || echo "Export to {dest} failed"\n'
-
+    # --- Build the export sbatch script that will run on a CPU node ---
     export_sbatch = "#!/bin/bash\n"
     export_sbatch += f"#SBATCH --job-name=nel-export-{remote_task_subdir.name}\n"
     export_sbatch += "#SBATCH --nodes=1\n"
@@ -1189,30 +1177,26 @@ def _generate_auto_export_section(
         f"#SBATCH --output {remote_task_subdir / 'logs' / 'export-%A.log'}\n"
     )
     export_sbatch += "\nset -uo pipefail\n"
-
-    # Source secrets
     secrets_path = remote_task_subdir / ".secrets.env"
     export_sbatch += f'[ -f "{secrets_path}" ] && source "{secrets_path}"\n'
     if reexport_cmd:
         export_sbatch += f"{reexport_cmd}\n"
 
     export_sbatch += f"\nsrun --nodes 1 --ntasks 1 --container-image {export_image} "
-    export_sbatch += f"{container_env_flag}"
+    if env_var_names:
+        export_sbatch += "--container-env {} ".format(",".join(env_var_names))
     export_sbatch += "--no-container-mount-home "
     export_sbatch += f"--container-mounts {invocation_dir}:{invocation_dir},{output_dir}:{output_dir} "
     export_sbatch += "bash -c '\n"
     export_sbatch += f"    {launcher_install_cmd}\n"
     export_sbatch += f"    cd {remote_task_subdir}/artifacts\n"
-    export_sbatch += export_dest_cmds
+    for dest in destinations:
+        export_sbatch += f'    echo "Exporting to {dest}..."\n'
+        export_sbatch += f'    nemo-evaluator-launcher export {job_id} --dest {dest} --config {remote_task_subdir}/artifacts/export_config.yml --job-dirs {output_dir} || echo "Export to {dest} failed"\n'
     export_sbatch += "'\n"
 
-    # Keep in sync with nemo_evaluator.core.evaluate.INTERRUPTED_MARKER_FILENAME
-    interrupted_marker = (
-        remote_task_subdir / "artifacts" / ".nemo_evaluator_interrupted"
-    )
-
     # --- In the main GPU script: write configs + submit export job ---
-    s = "\n# Auto-export: write config files and submit CPU-only export job\n"
+    s = "\n# Auto-export on success\n"
     s += "EVAL_EXIT_CODE=$?\n"
     s += f'EVAL_INTERRUPTED_MARKER="{interrupted_marker}"\n'
     s += 'if [ $EVAL_EXIT_CODE -eq 0 ] && [ -f "$EVAL_INTERRUPTED_MARKER" ]; then\n'
@@ -1221,23 +1205,24 @@ def _generate_auto_export_section(
     s += "fi\n"
     s += "if [ $EVAL_EXIT_CODE -eq 0 ]; then\n"
     s += "    echo 'Evaluation completed successfully. Submitting export job...'\n"
-
-    # Write export config files to artifacts dir
     s += f'    cd "{remote_task_subdir}/artifacts"\n'
+
+    if reexport_cmd:
+        s += f"    {reexport_cmd}\n"
+
     s += "    cat > export_config.yml << 'EOF'\n"
-    s += export_config_yaml
+    s += yaml_str
     s += "EOF\n"
+
     s += "    cat > config.yml << 'EOF'\n"
     s += submitted_yaml
     s += "EOF\n"
 
-    # Write export sbatch script
+    # Write and submit the CPU-only export sbatch script
     export_script_path = remote_task_subdir / "export.sbatch"
     s += f"    cat > {export_script_path} << 'EXPORT_EOF'\n"
     s += export_sbatch
     s += "EXPORT_EOF\n"
-
-    # Submit export job (no dependency needed since eval already succeeded)
     s += f'    _export_out=$(sbatch "{export_script_path}" 2>&1)\n'
     s += "    _export_id=$(echo \"$_export_out\" | grep -oE '[0-9]+')\n"
     s += '    if [ -n "$_export_id" ]; then\n'
