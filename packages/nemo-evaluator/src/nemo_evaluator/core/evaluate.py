@@ -16,6 +16,7 @@
 import copy
 import importlib
 import json
+import math
 import os
 import signal
 import sys
@@ -48,7 +49,75 @@ from nemo_evaluator.package_info import __version__
 
 logger = get_logger(__name__)
 
-__all__ = ["evaluate"]
+__all__ = ["evaluate", "INTERRUPTED_MARKER_FILENAME"]
+
+SHUTDOWN_TIMEOUT_ENV_VAR = "NEMO_EVALUATOR_SHUTDOWN_TIMEOUT_SECONDS"
+DEFAULT_SHUTDOWN_TIMEOUT_SECONDS = 30.0
+INTERRUPTED_MARKER_FILENAME = ".nemo_evaluator_interrupted"
+SERVER_ERROR_MARKER_FILENAME = ".nemo_evaluator_server_error"
+
+
+def _get_interrupted_marker_path(output_dir: str) -> str:
+    return os.path.join(output_dir, INTERRUPTED_MARKER_FILENAME)
+
+
+def _clear_marker(output_dir: str, filename: str) -> None:
+    marker_path = os.path.join(output_dir, filename)
+    try:
+        os.remove(marker_path)
+    except FileNotFoundError:
+        return
+    except OSError as e:
+        logger.warning(f"Failed to remove marker {marker_path}: {e}")
+
+
+def _clear_interrupted_marker(output_dir: str) -> None:
+    _clear_marker(output_dir, INTERRUPTED_MARKER_FILENAME)
+
+
+def _write_interrupted_marker(output_dir: str, signum: Optional[int] = None) -> None:
+    marker_path = _get_interrupted_marker_path(output_dir)
+    signal_name = None
+    if signum is not None:
+        try:
+            signal_name = signal.Signals(signum).name
+        except ValueError:
+            signal_name = str(signum)
+
+    payload = {
+        "signal": signal_name,
+        "timestamp": time.time(),
+    }
+    try:
+        with open(marker_path, "w") as f:
+            json.dump(payload, f)
+    except OSError as e:
+        logger.warning(f"Failed to write interruption marker {marker_path}: {e}")
+
+
+def _get_shutdown_timeout_seconds() -> float:
+    """Return the graceful shutdown timeout for child processes."""
+    raw_timeout = os.getenv(SHUTDOWN_TIMEOUT_ENV_VAR)
+    if raw_timeout is None:
+        return DEFAULT_SHUTDOWN_TIMEOUT_SECONDS
+
+    try:
+        timeout = float(raw_timeout)
+    except ValueError:
+        logger.warning(
+            f"Invalid {SHUTDOWN_TIMEOUT_ENV_VAR}={raw_timeout!r}; "
+            f"falling back to {DEFAULT_SHUTDOWN_TIMEOUT_SECONDS} seconds"
+        )
+        return DEFAULT_SHUTDOWN_TIMEOUT_SECONDS
+
+    if not math.isfinite(timeout) or timeout <= 0:
+        logger.warning(
+            f"{SHUTDOWN_TIMEOUT_ENV_VAR}={raw_timeout!r} is not a positive finite number; "
+            f"falling back to {DEFAULT_SHUTDOWN_TIMEOUT_SECONDS} seconds"
+        )
+        return DEFAULT_SHUTDOWN_TIMEOUT_SECONDS
+
+    return timeout
 
 
 def parse_output(evaluation: Evaluation) -> EvaluationResult:
@@ -117,41 +186,64 @@ def _run_evaluation(
         and target_cfg.api_endpoint.adapter_config.mode == "client"
     )
 
+    # Import eagerly so it is available inside the signal handler without
+    # risking a deadlock on the import lock.
+    from nemo_evaluator.adapters.pipeline import AdapterPipeline
+
+    # Cache timeout so the signal handler avoids redundant env-var parsing.
+    shutdown_timeout = _get_shutdown_timeout_seconds()
+
     # Track if graceful cleanup has been performed
-    cleanup_performed = False
+    cleanup_status: Optional[bool] = None
 
-    def run_client_mode_cleanup():
+    def run_client_mode_cleanup() -> bool:
         """Run post-eval hooks for client mode during graceful shutdown."""
-        nonlocal cleanup_performed
-        if cleanup_performed:
-            return
+        nonlocal cleanup_status
+        if cleanup_status is not None:
+            return cleanup_status
 
-        cleanup_performed = True
-        if (
+        cleanup_status = True
+        if not (
             use_client_mode
             and target_cfg.api_endpoint
             and target_cfg.api_endpoint.adapter_config
         ):
-            try:
-                from nemo_evaluator.adapters.pipeline import AdapterPipeline
+            return cleanup_status
 
-                pipeline = AdapterPipeline(
-                    target_cfg.api_endpoint.adapter_config,
-                    evaluation.config.output_dir,
-                    target_cfg.api_endpoint.model_id,
-                )
-                pipeline.run_post_eval_hooks(url=target_cfg.api_endpoint.url or "")
-                logger.info("Post-eval hooks executed during shutdown")
-            except Exception as e:
-                logger.error(f"Failed to run post-eval hooks during shutdown: {e}")
+        try:
+            pipeline = AdapterPipeline(
+                target_cfg.api_endpoint.adapter_config,
+                evaluation.config.output_dir,
+                target_cfg.api_endpoint.model_id,
+            )
+            pipeline.run_post_eval_hooks(url=target_cfg.api_endpoint.url or "")
+            logger.info("Post-eval hooks executed during shutdown")
+        except Exception as e:
+            cleanup_status = False
+            logger.error(f"Failed to run post-eval hooks during shutdown: {e}")
+
+        return cleanup_status
 
     def kill_all(signum=None, frame=None):
         """Kill all processes and exit."""
-        logger.critical("FATAL: Terminating all processes...")
+        # If another SIGINT/SIGTERM arrives during shutdown, use default handling
+        # instead of re-entering kill_all and repeating cleanup/termination logic.
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-        # For SIGTERM (graceful shutdown), run client mode cleanup first
+        logger.info("Terminating all processes...")
+
+        server_error_shutdown = False
+        cleanup_succeeded = True
         if signum == signal.SIGTERM:
-            run_client_mode_cleanup()
+            server_error_path = os.path.join(
+                evaluation.config.output_dir, SERVER_ERROR_MARKER_FILENAME
+            )
+            server_error_shutdown = os.path.exists(server_error_path)
+            if not server_error_shutdown:
+                _write_interrupted_marker(evaluation.config.output_dir, signum)
+        if signum != signal.SIGINT:
+            cleanup_succeeded = run_client_mode_cleanup()
 
         parent = psutil.Process(os.getpid())  # current process
         children = parent.children(recursive=True)
@@ -163,14 +255,25 @@ def _run_evaluation(
                 # Send SIGTERM to children for graceful termination (run post-eval hooks)
                 child.terminate()
 
-        # Use faster timeout for keyboard interrupt (SIGINT)
-        timeout = 1 if signum == signal.SIGINT else 5
-        gone, alive = psutil.wait_procs(children, timeout=timeout)
+        timeout = 1 if signum == signal.SIGINT else shutdown_timeout
+        _, alive = psutil.wait_procs(children, timeout=timeout)
         for child in alive:
-            logger.warning(f"Force killing child process {child.pid}")
+            logger.warning(
+                f"Force killing child process {child.pid} after waiting {timeout} seconds"
+            )
             child.kill()
 
-        sys.exit(1)
+        if signum == signal.SIGINT:
+            exit_code = 128 + signal.SIGINT
+        else:
+            exit_code = (
+                1
+                if server_error_shutdown
+                else 0
+                if cleanup_succeeded and not alive
+                else 1
+            )
+        sys.exit(exit_code)
 
     # Set up signal handlers
     signal.signal(signal.SIGTERM, kill_all)
@@ -188,8 +291,8 @@ def _run_evaluation(
             # In client mode, explicitly run post-eval hooks after command completes
             # This ensures hooks run reliably from the parent process rather than
             # depending on finalizers in the subprocess during interpreter shutdown
-            # Note: cleanup_performed flag prevents double execution if SIGTERM was received
-            if not cleanup_performed:
+            # Note: cleanup_status prevents double execution if a signal was received
+            if cleanup_status is None:
                 run_client_mode_cleanup()
 
             return evaluation_result
@@ -361,6 +464,8 @@ def evaluate(
     verify_capabilities(evaluation)
 
     prepare_output_directory(evaluation)
+    _clear_interrupted_marker(evaluation.config.output_dir)
+    _clear_marker(evaluation.config.output_dir, SERVER_ERROR_MARKER_FILENAME)
 
     model_name = (
         target_cfg.api_endpoint.model_id

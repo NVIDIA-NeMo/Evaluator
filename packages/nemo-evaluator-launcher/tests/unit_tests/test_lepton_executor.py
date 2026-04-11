@@ -23,11 +23,32 @@ from omegaconf import OmegaConf
 
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.executors.base import ExecutionState, ExecutionStatus
-from nemo_evaluator_launcher.executors.lepton.executor import LeptonExecutor
+from nemo_evaluator_launcher.executors.lepton.executor import (
+    LeptonExecutor,
+    _create_evaluation_launch_script,
+)
 
 
 class TestLeptonExecutor:
     """Test Lepton executor functionality."""
+
+    def test_launch_script_marks_interrupted_runs_nonzero(self):
+        cfg = OmegaConf.create({"execution": {"output_dir": "/tmp/out"}})
+        task = OmegaConf.create({"name": "test_task"})
+
+        script = _create_evaluation_launch_script(
+            cfg=cfg,
+            task=task,
+            task_definition={},
+            endpoint_url="https://example.lepton.run/v1/chat/completions",
+            task_name="test_task",
+            invocation_id="abc12345",
+            eval_command="nemo-evaluator run_eval --output_dir /results",
+            eval_command_debug_comment="# debug",
+        )
+
+        assert ".nemo_evaluator_interrupted" in script
+        assert "exit_code=143" in script
 
     def test_lepton_executor_import(self):
         """Test that Lepton executor can be imported conditionally."""
