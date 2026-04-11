@@ -42,6 +42,11 @@ mounts:
   auxiliary: {}  # keyed by auxiliary deployment name, e.g. auxiliary.judge: {/host/path: /container/path}
   mount_home: true
 
+auto_export:
+  partition: null  # CPU partition for export jobs (e.g. "cpu"). Falls back to execution partition when null.
+  image: null      # Container image for export jobs. Falls back to python:3.12.7-slim when null.
+  launcher_install_cmd: null  # Custom pip install command. Falls back to "pip install --ignore-installed nemo-evaluator-launcher[all]" when null.
+
 proxy:
   type: haproxy
   image: haproxy:latest
