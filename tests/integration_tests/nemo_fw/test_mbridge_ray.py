@@ -30,33 +30,31 @@ from nemo_evaluator.api.api_dataclasses import (
 logger = logging.getLogger(__name__)
 
 
+MBRIDGE_CKPT_PATH = "/workspace/llama-3_2-1b-instruct/iter_0000000"
+
+
 @pytest.fixture(scope="module", autouse=True)
 def deployment_process():
-    """Fixture to deploy the nemo checkpoint on Triton server."""
-    nemo2_ckpt_path = "/home/TestData/nemo2_ckpt/llama-3_2-1b-instruct_v2.0"
+    """Fixture to deploy the mbridge checkpoint on Ray server."""
     model_name = "megatron_model"
     port = 8886
     # Run deployment
     deploy_proc = subprocess.Popen(
         [
             "python",
-            "/opt/Export-Deploy/scripts/deploy/nlp/deploy_inframework_triton.py",
-            "--nemo_checkpoint",
-            nemo2_ckpt_path,
+            "/opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py",
+            "--megatron_checkpoint",
+            MBRIDGE_CKPT_PATH,
             "--num_gpus",
-            "1",
-            "--num_nodes",
             "1",
             "--tensor_model_parallel_size",
             "1",
             "--pipeline_model_parallel_size",
             "1",
-            "--triton_model_name",
+            "--model_id",
             model_name,
-            "--server_port",
+            "--port",
             str(port),
-            "--server_address",
-            "0.0.0.0",
         ]
     )
 
@@ -94,9 +92,6 @@ def deployment_process():
         subprocess.run(["pkill", f"-{signal.SIGTERM}", "tritonserver"], check=False)
 
 
-# FIXME(martas): Errors out due to an MCore bug on deployment side
-# enable once fixed in Export-Deploy
-@pytest.mark.pleasefixme
 @pytest.mark.run_only_on("GPU")
 @pytest.mark.parametrize(
     "eval_type,endpoint_type,eval_params",
@@ -110,7 +105,7 @@ def deployment_process():
                 "request_timeout": 360,
                 "extra": {
                     "tokenizer_backend": "huggingface",
-                    "tokenizer": "/home/TestData/nemo2_ckpt/llama-3_2-1b-instruct_v2.0/context/nemo_tokenizer",
+                    "tokenizer": f"{MBRIDGE_CKPT_PATH}/tokenizer",
                 },
             },
         ),
