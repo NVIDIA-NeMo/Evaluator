@@ -23,6 +23,7 @@ export NEMO_EVALUATOR_TELEMETRY_LEVEL="0"
 mkdir /tmp/datasets
 cp -r ${HF_HOME}/datasets/gsm8k /tmp/datasets
 cp -r ${HF_HOME}/datasets/google___if_eval /tmp/datasets
+cp -r ${HF_HOME}/datasets/allenai___ai2_arc /tmp/datasets
 ls -alh /tmp/datasets
 
 mkdir -p /workspace/
