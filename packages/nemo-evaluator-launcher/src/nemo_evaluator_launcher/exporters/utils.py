@@ -48,7 +48,16 @@ OPTIONAL_ARTIFACTS = ["omni-info.json"]
 
 # Glob-style patterns to exclude when only_required=false (applied recursively)
 # Matches: cache/, response_stats_cache/, lm_cache_rank0.db/, *.lock, synthetic/, etc.
-EXCLUDED_PATTERNS = ["*cache*", "*.db", "*.lock", "synthetic", "debug.json"]
+EXCLUDED_PATTERNS = [
+    "*cache*",
+    "*.db",
+    "*.lock",
+    "synthetic",
+    "debug.json",
+    "preprocessed_datasets",
+    "evaluator_rollouts.jsonl",
+    "evaluator_rollouts_materialized_inputs.jsonl",
+]
 
 
 @dataclass
