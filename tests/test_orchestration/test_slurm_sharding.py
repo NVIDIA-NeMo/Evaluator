@@ -1010,7 +1010,9 @@ class TestMultinodeRay:
             }
         )
         script, _, _ = generate_sbatch(cfg)
-        assert "--ntasks 4" in script
+        # Per-node srun pattern: one srun per node instead of single multi-task srun
+        assert "--nodes 1 --ntasks 1" in script
+        assert "MASTER_IP" in script
 
     def test_pipeline_parallel_size_in_vllm_command(self):
         """pipeline_parallel_size should produce --pipeline-parallel-size in the vLLM command."""

@@ -141,6 +141,7 @@ class ApptainerSandbox(_SlurmSandboxBase):
 
 class NoSandbox(_SandboxBase):
     type: Literal["none"] = "none"
+    stateful: bool = False
 
 
 class CustomSandbox(BaseModel):

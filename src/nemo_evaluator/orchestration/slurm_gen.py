@@ -130,9 +130,11 @@ _HEADER_HETJOB_POOL = """\
 # ── Het Group {het_idx}: {pool_name} ──
 #SBATCH --nodes={nodes}
 #SBATCH --ntasks-per-node={ntasks_per_node}
+#SBATCH --time={walltime}
 {gres_line}
 {gpus_per_node_line}
 {partition_line}
+{account_line}
 """
 
 _HEADER_HETJOB_SEPARATOR = """\
@@ -203,7 +205,7 @@ _GYM_CMD_SERVICE = """\
 # Service: {name} (gym / custom server)
 echo "Starting server: {name}..."
 echo "  Logs: $OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log"
-({server_cmd}) >> "$OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log" 2>&1 &
+{srun_prefix}bash -c '{server_cmd}' >> "$OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log" 2>&1 &
 {name_upper}_PID=$!
 ln -sf "server-{name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/server-{name}.log"
 """
@@ -237,49 +239,59 @@ if [ "$_GPUS_PER_NODE" -eq 0 ] 2>/dev/null || [ -z "$_GPUS_PER_NODE" ]; then
     echo "FATAL: Cannot determine GPU count for Ray. Set gpus_per_node in cluster config."
     exit 1
 fi
-export RAY_ADDRESS="localhost:$RAY_PORT"
+export RAY_ADDRESS="$MASTER_IP:$RAY_PORT"
 
-# Start Ray head on first node, workers on remaining nodes
-{srun_prefix}bash -c '
+# Per-node srun pattern: one srun --ntasks=1 per node (matches ray.sub).
+# Multi-task srun (--ntasks=N) can fail to initialize container envs properly.
+_WORKER_NODES=$(scontrol show hostnames "{nodelist_var}" | tail -n +2)
+
+# Head node (first node)
+{srun_prefix_single_node}bash -c '
 set -uo pipefail
 trap "kill 0 2>/dev/null" EXIT
-_GPUS='"$_GPUS_PER_NODE"'
-_MASTER='"$MASTER_IP"'
-_RAY_PORT='"$RAY_PORT"'
-PROC_ID=$SLURM_PROCID
-if [ "$PROC_ID" -eq 0 ]; then
-    echo "[Ray head] Starting on $(hostname) with $_GPUS GPUs"
-    ray start --head --port=$_RAY_PORT --num-gpus=$_GPUS --block &
-    RAY_HEAD_PID=$!
-    for _i in $(seq 1 120); do
-        ray status 2>/dev/null && break
-        sleep 2
-    done
-    echo "[Ray head] Launching {svc_type}..."
-    export RAY_ADDRESS="localhost:$_RAY_PORT"
-    {service_cmd}
-    _SVC_RC=$?
-    if [ $_SVC_RC -ne 0 ]; then
-        echo "[Ray head] {svc_type} exited with code $_SVC_RC"
-        ray stop 2>/dev/null; kill $RAY_HEAD_PID 2>/dev/null
-        exit $_SVC_RC
-    fi
-    wait $RAY_HEAD_PID
-else
-    echo "[Ray worker $PROC_ID] Joining $_MASTER:$_RAY_PORT with $_GPUS GPUs"
-    _joined=0
-    for _i in $(seq 1 60); do
-        ray start --address="$_MASTER:$_RAY_PORT" --num-gpus=$_GPUS --block && {{ _joined=1; break; }}
-        echo "[Ray worker $PROC_ID] Retry $_i/60..."
-        sleep 5
-    done
-    if [ "$_joined" -eq 0 ]; then
-        echo "[Ray worker $PROC_ID] FATAL: Failed to join Ray cluster after 60 attempts"
-        exit 1
-    fi
+echo "[Ray head] Starting on $(hostname) with '"$_GPUS_PER_NODE"' GPUs"
+{ray_binary} start --head --port='"$RAY_PORT"' --num-gpus='"$_GPUS_PER_NODE"' --node-manager-port=8266 --object-manager-port=8267 --metrics-export-port=8269 --dashboard-agent-grpc-port=8270 --dashboard-agent-listen-port=8271 --runtime-env-agent-port=8272 --block &
+RAY_HEAD_PID=$!
+for _i in $(seq 1 120); do
+    {ray_binary} status 2>/dev/null && break
+    sleep 2
+done
+# Wait for worker nodes to join Ray cluster.
+# ray.sub uses sleep 90; we wait proportionally to node count.
+echo "[Ray head] Waiting 90s for {num_nodes} worker nodes to join..."
+sleep 90
+{ray_binary} status 2>/dev/null || true
+echo "[Ray head] Launching {svc_type}..."
+export RAY_ADDRESS="localhost:'"$RAY_PORT"'"
+{service_cmd}
+_SVC_RC=$?
+if [ $_SVC_RC -ne 0 ]; then
+    echo "[Ray head] {svc_type} exited with code $_SVC_RC"
+    {ray_binary} stop 2>/dev/null; kill $RAY_HEAD_PID 2>/dev/null
+    exit $_SVC_RC
 fi
+wait $RAY_HEAD_PID
 ' >> "$OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log" 2>&1 &
 {name_upper}_PID=$!
+
+# Worker nodes (remaining nodes)
+for _WORKER in $_WORKER_NODES; do
+    {srun_prefix_single_node_worker}bash -c '
+set -uo pipefail
+echo "[Ray worker on $(hostname)] Joining '"$MASTER_IP"':'"$RAY_PORT"' with '"$_GPUS_PER_NODE"' GPUs"
+_joined=0
+for _i in $(seq 1 60); do
+    {ray_binary} start --address="'"$MASTER_IP"':'"$RAY_PORT"'" --num-gpus='"$_GPUS_PER_NODE"' --node-manager-port=8266 --object-manager-port=8267 --metrics-export-port=8269 --dashboard-agent-grpc-port=8270 --dashboard-agent-listen-port=8271 --runtime-env-agent-port=8272 --block && {{ _joined=1; break; }}
+    echo "[Ray worker $(hostname)] Retry $_i/60..."
+    sleep 5
+done
+if [ "$_joined" -eq 0 ]; then
+    echo "[Ray worker $(hostname)] FATAL: Failed to join after 60 attempts"
+    exit 1
+fi
+' >> "$OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log" 2>&1 &
+done
+
 ln -sf "server-{name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/server-{name}.log"
 {name_upper}_URL="http://localhost:{port}/v1"
 {name_upper}_MODEL={model}
@@ -568,12 +580,17 @@ def _build_srun_prefix(
     env_keys: list[str],
     mount_home: bool,
     extra_mounts: list[str] | None = None,
+    pin_to_master: bool = False,
 ) -> str:
     """Build a per-service srun command with merged mounts and env.
 
     ``env_keys`` is the already-resolved list of original env var names
     that this container needs (from the group's remappings + implicit vars).
     The caller is responsible for emitting re-export commands beforehand.
+
+    When *pin_to_master* is True, the srun is pinned to ``$MASTER_IP`` so
+    that single-node services (Gym, eval) share the master's host network
+    namespace and can reach each other via localhost.
     """
     if not deploy_image:
         return ""
@@ -590,12 +607,13 @@ def _build_srun_prefix(
     num_nodes = getattr(svc, "num_nodes", 1)
     ntasks = num_nodes if num_nodes > 1 else 1
     label_flag = " --label" if num_nodes > 1 else ""
+    pin_flag = " -w $MASTER_IP" if pin_to_master and num_nodes == 1 else ""
     if num_nodes > 1:
         for extra_key in ("MASTER_IP", "RAY_ADDRESS"):
             if f"--container-env={extra_key}" not in env_parts:
                 env_parts.append(f"--container-env={extra_key}")
     return (
-        f"srun --mpi=pmix --overlap --nodes {num_nodes} --ntasks {ntasks}{label_flag}{het_flag} "
+        f"srun --mpi=pmix --overlap --mem=0 --nodes {num_nodes} --ntasks {ntasks}{label_flag}{het_flag}{pin_flag} "
         f"--container-image {deploy_image} "
         f"{mount_flag}{home_flag}{' '.join(env_parts)} "
     )
@@ -617,6 +635,10 @@ def _service_block(
     het_flag = ""
     if pool and pool_to_het and pool in pool_to_het:
         het_flag = f" --het-group={pool_to_het[pool]}"
+    # In single-pool (no het-job) multi-node configs, pin single-node services
+    # (like Gym) to $MASTER_IP so they share the host network namespace with
+    # the batch script and eval srun, enabling localhost communication.
+    _pin = not pool_to_het and use_containers
 
     if svc.type in _MODEL_CMD:
         cmd, model_flag, tp_flag_name, pp_flag_name, dp_flag_name = _MODEL_CMD[svc.type]
@@ -682,6 +704,27 @@ def _service_block(
             # Inside the template's bash -c '...' block, break out of single
             # quotes to expand $OUTPUT_DIR, then re-enter single quotes.
             ray_service_cmd = f"""bash '"$OUTPUT_DIR"'/logs/{script_file}"""
+
+            # Build per-node srun prefix (--nodes=1 --ntasks=1 per node).
+            # Multi-task srun (--ntasks=N) fails with some containers (e.g.
+            # NeMo RL sqsh) because pyxis doesn't fully initialize the
+            # container env on each task. Named containers (--container-name)
+            # ensure proper initialization, matching ray.sub's pattern.
+            head_srun = srun_prefix.replace(
+                f"--nodes {num_nodes} --ntasks {num_nodes}", "--nodes 1 --ntasks 1"
+            ).replace(" --label", "")
+            safe = _safe(name)
+            # Head node: named container + -w $MASTER_IP
+            head_srun_prefix = f"{head_srun.rstrip()} --container-name=nel-{safe}-head -w $MASTER_IP "
+            # Worker node: named container + -w $_WORKER
+            worker_srun_prefix = f"{head_srun.rstrip()} --container-name=nel-{safe}-worker -w $_WORKER "
+
+            # Nodelist variable for het-job support
+            nodelist_var = "$SLURM_JOB_NODELIST"
+            if het_flag:
+                het_idx = het_flag.strip().split("=")[-1]
+                nodelist_var = f"$SLURM_JOB_NODELIST_HET_GROUP_{het_idx}"
+
             return (
                 reexport_block
                 + script_heredoc
@@ -695,6 +738,10 @@ def _service_block(
                     num_nodes=num_nodes,
                     ray_port=6379,
                     srun_prefix=srun_prefix,
+                    srun_prefix_single_node=head_srun_prefix,
+                    srun_prefix_single_node_worker=worker_srun_prefix,
+                    ray_binary=getattr(svc, "ray_binary", "ray"),
+                    nodelist_var=nodelist_var,
                 )
             )
 
@@ -736,17 +783,31 @@ def _service_block(
         )
 
     if isinstance(svc, GymResourceService):
+        deploy_image = _resolve_service_image(svc) if getattr(svc, "image", None) else None
+        srun_prefix = ""
+        if use_containers and deploy_image:
+            srun_prefix = _build_srun_prefix(
+                svc,
+                deploy_image,
+                het_flag=het_flag,
+                cluster_mounts=cluster_mounts or [],
+                env_keys=env_keys or [],
+                mount_home=mount_home,
+                pin_to_master=_pin,
+            )
         if svc.server_cmd:
             return _GYM_CMD_SERVICE.format(
                 name=name,
                 name_upper=upper,
                 server_cmd=svc.server_cmd,
+                srun_prefix=srun_prefix,
             )
         return _GYM_SERVICE.format(
             name=name,
             name_upper=upper,
             benchmark=svc.benchmark or "",
             port=svc.port,
+            srun_prefix=srun_prefix,
         )
 
     if isinstance(svc, ExternalApiService):
@@ -766,12 +827,23 @@ def _service_block(
     )
 
 
-def _health_block(name: str, svc) -> str:
+def _health_block(name: str, svc, *, pool_to_het: dict[str, int] | None = None) -> str:
     if isinstance(svc, ExternalApiService):
         return ""
     upper = _safe(name).upper()
     port = getattr(svc, "port", 8000)
+
+    # For het-job services on a different node pool, the batch script (on het-group 0)
+    # cannot reach the service's container port on another het-group's node.
+    # Skip the health check — the eval srun runs on the same het-group as the service
+    # and can reach localhost, plus max_system_retries handles startup delay.
+    pool = getattr(svc, "node_pool", None)
+    if pool and pool_to_het and pool in pool_to_het and pool_to_het[pool] != 0:
+        return (
+            f'echo "Skipping health check for {name} (het-group {pool_to_het[pool]}, not reachable from batch node)"\n'
+        )
     url = f"http://localhost:{port}"
+
     timeout = getattr(svc, "startup_timeout", 600.0)
     max_attempts = int(timeout / 5) or 120
 
@@ -779,7 +851,7 @@ def _health_block(name: str, svc) -> str:
         return _HEALTH_WAIT_MULTI.format(
             name=name,
             name_upper=upper,
-            url=svc.base_url,
+            url=svc.base_url or url,
             max_attempts=max_attempts,
         )
 
@@ -933,6 +1005,7 @@ def generate_sbatch(
     used_pools = _collect_used_pools(config)
     use_het = len(used_pools) > 1
     pool_to_het = {name: i for i, name in enumerate(used_pools)} if use_het else {}
+    _has_multinode_service = _any_multinode_service(config)
 
     # --- Build env groups for disambiguated .secrets.env ---
     env_groups: dict[str, dict[str, str]] = {}
@@ -961,15 +1034,18 @@ def generate_sbatch(
             gres_line = f"#SBATCH --gres={pool.gres}" if pool.gres else ""
             gpus_per_node_line = f"#SBATCH --gpus-per-node={pool.gpus_per_node}" if pool.gpus_per_node else ""
             partition_line = f"#SBATCH --partition={pool.partition}" if pool.partition else ""
+            account_line = f"#SBATCH --account={cluster.account}" if cluster.account else ""
             parts.append(
                 _HEADER_HETJOB_POOL.format(
                     het_idx=i,
                     pool_name=pool_name,
                     nodes=effective_nodes,
                     ntasks_per_node=pool.ntasks_per_node,
+                    walltime=cluster.walltime,
                     gres_line=gres_line,
                     gpus_per_node_line=gpus_per_node_line,
                     partition_line=partition_line,
+                    account_line=account_line,
                 )
             )
             if i < len(used_pools) - 1:
@@ -1073,7 +1149,7 @@ def generate_sbatch(
     parts.append("")
 
     for name, svc in config.services.items():
-        block = _health_block(name, svc)
+        block = _health_block(name, svc, pool_to_het=pool_to_het if use_het else None)
         if block:
             parts.append(block)
 
@@ -1148,8 +1224,23 @@ def generate_sbatch(
         _home_flag = "" if cluster.mount_home else "--no-container-mount-home "
         _envs = [f"--container-env={k}" for k in eval_env_keys]
         reexport = build_reexport_commands(group_name, secrets_result)
+        # For het-jobs, the eval srun must run on the same het-group as the
+        # Gym service (so it can reach localhost:11000). Determine the het-group
+        # from the benchmark's gym_service node_pool.
+        # For single-pool multi-node configs, pin to $MASTER_IP instead so
+        # eval shares the host network with the Gym srun (also pinned there).
+        _eval_node_flag = ""
+        if use_het:
+            gym_svc_name = getattr(config.benchmarks[0].solver, "gym_service", None) if config.benchmarks else None
+            if gym_svc_name and gym_svc_name in config.services:
+                gym_pool = getattr(config.services[gym_svc_name], "node_pool", None)
+                if gym_pool and gym_pool in pool_to_het:
+                    _eval_node_flag = f" --het-group={pool_to_het[gym_pool]}"
+        elif _has_multinode_service:
+            _eval_node_flag = " -w $MASTER_IP"
+
         prefix = (
-            f"srun --mpi=pmix --overlap --unbuffered --nodes 1 --ntasks 1 "
+            f"srun --mpi=pmix --overlap --unbuffered --nodes 1 --ntasks 1{_eval_node_flag} "
             f"--container-image {image} "
             f"{_mount_flag}{_home_flag}{' '.join(_envs)} \\\n    "
         )
@@ -1271,6 +1362,16 @@ def generate_sbatch(
             upper = _safe(name).upper()
             kill_cmds.append(f'    [ -n "${{{upper}_PID:-}}" ] && wait ${upper}_PID 2>/dev/null || true')
 
+    # For het-jobs, auto-resume prologue and cleanup MUST go after all #SBATCH
+    # headers (after the het-job footer), otherwise SLURM stops reading SBATCH
+    # directives at the first non-comment bash code.
+    if use_het:
+        # Footer is the last part added during het-job header generation.
+        # Insert after it so all #SBATCH lines are contiguous at the top.
+        after_headers_idx = len(parts)
+    else:
+        after_headers_idx = 1
+
     if cluster.auto_resume:
         max_walltime_check = ""
         if cluster.max_walltime is not None:
@@ -1283,11 +1384,11 @@ def generate_sbatch(
             max_retries=cluster.max_retries,
             max_walltime_check=max_walltime_check,
         )
-        parts.insert(1, prologue)
+        parts.insert(after_headers_idx, prologue)
+        after_headers_idx += 1  # shift for the cleanup insert
 
     cleanup_body = "\n".join(kill_cmds) if kill_cmds else "    echo 'No managed services.'"
-    cleanup_idx = 2 if cluster.auto_resume else 1
-    parts.insert(cleanup_idx, _CLEANUP_FUNC.format(kill_commands=cleanup_body))
+    parts.insert(after_headers_idx, _CLEANUP_FUNC.format(kill_commands=cleanup_body))
 
     parts.append(_FOOTER)
 

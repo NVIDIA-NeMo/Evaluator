@@ -88,7 +88,7 @@ def generate_secrets_env(
             group_remappings[group_name].append(
                 VarRemapping(original_name=target_name, disambiguated_name=disambiguated)
             )
-            escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+            escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
             lines.append(f'export {disambiguated}="{escaped}"')
 
     secrets_content = "\n".join(lines) + ("\n" if lines else "")
