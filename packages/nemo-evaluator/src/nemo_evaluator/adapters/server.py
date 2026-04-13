@@ -275,6 +275,8 @@ class AdapterServer:
             threads=threads,
             connection_limit=connection_limit,
             channel_timeout=300,
+            asyncore_use_poll=True,  # select.poll() has no fd limit; select.select() breaks above fd 1023
+            ipv6=False,  # avoid EADDRNOTAVAIL when IPv6 is disabled in container
         )
 
     # The headers we don't want to let out
