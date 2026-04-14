@@ -1385,6 +1385,8 @@ class TestSlurmExecutorDryRun:
         cfg = OmegaConf.create(
             {
                 "execution": {
+                    "account": "test_account",
+                    "partition": "gpu_partition",
                     "output_dir": "/tmp/out",
                     "auto_export": {
                         "destinations": ["mlflow"],
@@ -1416,6 +1418,8 @@ class TestSlurmExecutorDryRun:
         cfg = OmegaConf.create(
             {
                 "execution": {
+                    "account": "test_account",
+                    "partition": "gpu_partition",
                     "output_dir": "/tmp/out",
                     "auto_export": {
                         "destinations": ["mlflow"],
