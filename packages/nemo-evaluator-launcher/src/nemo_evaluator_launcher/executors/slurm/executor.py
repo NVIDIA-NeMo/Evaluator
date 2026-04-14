@@ -1157,8 +1157,13 @@ def _generate_auto_export_section(
     #
     auto_export_cfg = cfg.execution.get("auto_export", {}) or {}
     launcher_install_cmd = None
+    export_mounts = {}
     if isinstance(auto_export_cfg, dict) or OmegaConf.is_config(auto_export_cfg):
         launcher_install_cmd = auto_export_cfg.get("launcher_install_cmd")
+        export_mounts = auto_export_cfg.get("export_mounts") or {}
+        configured_image = auto_export_cfg.get("export_image")
+        if configured_image:
+            export_image = configured_image
 
     if not launcher_install_cmd:
         launcher_install_cmd = "pip install nemo-evaluator-launcher[all]"
@@ -1173,7 +1178,13 @@ def _generate_auto_export_section(
     # and there's no use-case for mounting it
     s += "--no-container-mount-home "
 
-    s += f"--container-mounts {remote_task_subdir}/artifacts:{remote_task_subdir}/artifacts,{remote_task_subdir}/logs:{remote_task_subdir}/logs "
+    mounts = [
+        f"{remote_task_subdir}/artifacts:{remote_task_subdir}/artifacts",
+        f"{remote_task_subdir}/logs:{remote_task_subdir}/logs",
+    ]
+    for host_path, container_path in export_mounts.items():
+        mounts.append(f"{host_path}:{container_path}")
+    s += "--container-mounts {} ".format(",".join(mounts))
     s += "--output {} ".format(remote_task_subdir / "logs" / "export-%A.log")
     s += "    bash -c '\n"
     s += f"        {launcher_install_cmd}\n"
