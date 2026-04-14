@@ -56,6 +56,10 @@ try:
             "parse_framework_to_irs",
         ]
     )
-except ModuleNotFoundError:
+except ModuleNotFoundError as exc:
     # Allow importing this package for IR-only workflows (docs autogen, etc.)
-    pass
+    # Only suppress when nemo_evaluator itself is missing; re-raise if a
+    # transitive dependency (pydantic, structlog, …) is absent — that is a
+    # broken installation, not an IR-only workflow.
+    if exc.name is None or not exc.name.startswith("nemo_evaluator"):
+        raise
