@@ -25,7 +25,6 @@ import tempfile
 from typing import Optional
 
 import yaml
-from nemo_evaluator.core.input import get_framework_evaluations
 
 from nemo_evaluator_launcher.common.container_metadata.intermediate_repr import (
     HarnessIntermediateRepresentation,
@@ -943,6 +942,8 @@ def parse_framework_to_irs(
             temp_file_path = temp_file.name
 
         try:
+            from nemo_evaluator.core.input import get_framework_evaluations
+
             include_internal = (
                 importlib.util.find_spec("nemo_evaluator_internal") is not None
                 or importlib.util.find_spec("nemo_evaluator_launcher_internal")

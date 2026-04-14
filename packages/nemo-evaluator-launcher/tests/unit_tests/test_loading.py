@@ -208,9 +208,7 @@ class TestCreateTaskIrs:
 class TestParseFrameworkToIrs:
     """Test parsing framework.yml to IRs."""
 
-    @patch(
-        "nemo_evaluator_launcher.common.container_metadata.loading.get_framework_evaluations"
-    )
+    @patch("nemo_evaluator.core.input.get_framework_evaluations")
     def test_parse_framework_to_irs_success(self, mock_get_evaluations):
         """Test successful parsing of framework.yml."""
         framework_content = """
@@ -237,9 +235,7 @@ evaluations:
         assert harness_ir.name == "test-harness"  # Original name preserved
         assert len(task_irs) > 0
 
-    @patch(
-        "nemo_evaluator_launcher.common.container_metadata.loading.get_framework_evaluations"
-    )
+    @patch("nemo_evaluator.core.input.get_framework_evaluations")
     def test_parse_framework_to_irs_preserves_case(self, mock_get_evaluations):
         """Test that framework name case is preserved."""
         framework_content = """
@@ -274,9 +270,7 @@ evaluations: []
 """
         # This should not raise an error - no validation in loading.py
         # We'll mock get_framework_evaluations to avoid actual parsing
-        with patch(
-            "nemo_evaluator_launcher.common.container_metadata.loading.get_framework_evaluations"
-        ) as mock_get:
+        with patch("nemo_evaluator.core.input.get_framework_evaluations") as mock_get:
             mock_get.return_value = ("test-harness-123", {}, {})
             harness_ir, task_irs = parse_framework_to_irs(
                 framework_content, "test:latest", None

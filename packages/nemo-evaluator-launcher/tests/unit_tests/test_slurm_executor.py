@@ -29,6 +29,7 @@ from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.executors.base import ExecutionState, ExecutionStatus
 from nemo_evaluator_launcher.executors.slurm.executor import (
     SlurmExecutor,
+    _collect_mount_paths,
     _create_slurm_sbatch_script,
     _generate_auto_export_section,
     _generate_autoresume_handler,
@@ -1379,6 +1380,63 @@ class TestSlurmExecutorDryRun:
         assert ".nemo_evaluator_interrupted" in section
         assert "Skipping auto-export" in section
         assert "EVAL_EXIT_CODE=143" in section
+
+    def test_generate_auto_export_section_with_export_mounts(self):
+        cfg = OmegaConf.create(
+            {
+                "execution": {
+                    "output_dir": "/tmp/out",
+                    "auto_export": {
+                        "destinations": ["mlflow"],
+                        "export_mounts": {
+                            "/lustre/cache/uv": "/cache/uv",
+                            "/lustre/data": "/data",
+                        },
+                    },
+                },
+                "export": {},
+            }
+        )
+
+        section = _generate_auto_export_section(
+            cfg=cfg,
+            job_id="abc12345.0",
+            destinations=["mlflow"],
+            env_var_names=[],
+            secrets=SecretsEnvResult(secrets_content=""),
+            remote_task_subdir=Path("/tmp/out/test_task"),
+        )
+
+        assert "/tmp/out/test_task/artifacts:/tmp/out/test_task/artifacts" in section
+        assert "/tmp/out/test_task/logs:/tmp/out/test_task/logs" in section
+        assert "/lustre/cache/uv:/cache/uv" in section
+        assert "/lustre/data:/data" in section
+
+    def test_generate_auto_export_section_with_custom_image(self):
+        cfg = OmegaConf.create(
+            {
+                "execution": {
+                    "output_dir": "/tmp/out",
+                    "auto_export": {
+                        "destinations": ["mlflow"],
+                        "export_image": "my-registry.com/uv-git:latest",
+                    },
+                },
+                "export": {},
+            }
+        )
+
+        section = _generate_auto_export_section(
+            cfg=cfg,
+            job_id="abc12345.0",
+            destinations=["mlflow"],
+            env_var_names=[],
+            secrets=SecretsEnvResult(secrets_content=""),
+            remote_task_subdir=Path("/tmp/out/test_task"),
+        )
+
+        assert "my-registry.com/uv-git:latest" in section
+        assert "python:3.12.7-slim" not in section
 
     def test_sbatch_script_exits_nonzero_on_interrupted_marker(
         self, sample_config, mock_tasks_mapping, tmpdir
@@ -4043,178 +4101,20 @@ class TestSbatchExtraFlags:
         assert comment_pos < switches_pos < job_name_pos
 
 
-class TestAutoExportSection:
-    """Tests for _generate_auto_export_section — separate CPU export job."""
-
-    @pytest.fixture
-    def export_cfg(self):
-        return OmegaConf.create(
-            {
-                "execution": {
-                    "account": "test_account",
-                    "partition": "gpu_partition",
-                    "output_dir": "/results/output",
-                    "auto_export": {
-                        "destinations": ["mlflow"],
-                    },
-                },
-                "export": {
-                    "mlflow": {
-                        "tracking_uri": "https://mlflow.example.com",
-                        "experiment_name": "test",
-                    }
-                },
-            }
-        )
-
-    def test_empty_destinations_returns_empty(self, export_cfg):
-        result = _generate_auto_export_section(
-            cfg=export_cfg,
-            job_id="inv123.0",
-            destinations=[],
-            env_var_names=[],
-            secrets=None,
-            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
-        )
-        assert result == ""
-
-    def test_export_submits_separate_sbatch(self, export_cfg):
-        result = _generate_auto_export_section(
-            cfg=export_cfg,
-            job_id="inv123.0",
-            destinations=["mlflow"],
-            env_var_names=["MLFLOW_TRACKING_URI"],
-            secrets=None,
-            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
-        )
-        # Must write an export sbatch script, not run srun inline
-        assert "export.sbatch" in result
-        assert "sbatch" in result
-        # Must NOT contain srun --overlap (the old inline approach)
-        assert "srun --mpi pmix --overlap" not in result
-
-    def test_export_script_has_no_gpu_request(self, export_cfg):
-        result = _generate_auto_export_section(
-            cfg=export_cfg,
-            job_id="inv123.0",
-            destinations=["mlflow"],
-            env_var_names=[],
-            secrets=None,
-            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
-        )
-        # The export sbatch must not request GPUs
-        assert "--gpus-per-node" not in result
-        assert "--gres" not in result
-
-    def test_export_mounts_invocation_dir(self, export_cfg):
-        result = _generate_auto_export_section(
-            cfg=export_cfg,
-            job_id="inv123.0",
-            destinations=["mlflow"],
-            env_var_names=[],
-            secrets=None,
-            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
-        )
-        # Must mount the invocation dir AND output_dir so exporter can find job data
-        assert (
-            "/results/output/20260409-inv123:/results/output/20260409-inv123" in result
-        )
-        assert "/results/output:/results/output" in result
-
-    def test_export_custom_partition(self, export_cfg):
-        export_cfg.execution.auto_export.partition = "cpu_partition"
-        result = _generate_auto_export_section(
-            cfg=export_cfg,
-            job_id="inv123.0",
-            destinations=["mlflow"],
-            env_var_names=[],
-            secrets=None,
-            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
-        )
-        assert "cpu_partition" in result
-
-    def test_export_uses_eval_partition_by_default(self, export_cfg):
-        result = _generate_auto_export_section(
-            cfg=export_cfg,
-            job_id="inv123.0",
-            destinations=["mlflow"],
-            env_var_names=[],
-            secrets=None,
-            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
-        )
-        assert "gpu_partition" in result
-
-    def test_export_custom_launcher_install_cmd(self, export_cfg):
-        export_cfg.execution.auto_export.launcher_install_cmd = "pip install custom-pkg"
-        result = _generate_auto_export_section(
-            cfg=export_cfg,
-            job_id="inv123.0",
-            destinations=["mlflow"],
-            env_var_names=[],
-            secrets=None,
-            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
-        )
-        assert "pip install custom-pkg" in result
-
-    def test_export_multiple_destinations(self, export_cfg):
-        result = _generate_auto_export_section(
-            cfg=export_cfg,
-            job_id="inv123.0",
-            destinations=["mlflow", "wandb"],
-            env_var_names=[],
-            secrets=None,
-            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
-        )
-        assert "Exporting to mlflow" in result
-        assert "Exporting to wandb" in result
-
-    def test_export_interrupted_marker_check(self, export_cfg):
-        result = _generate_auto_export_section(
-            cfg=export_cfg,
-            job_id="inv123.0",
-            destinations=["mlflow"],
-            env_var_names=[],
-            secrets=None,
-            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
-        )
-        assert ".nemo_evaluator_interrupted" in result
-        assert "EVAL_EXIT_CODE=143" in result
-
-    def test_export_missing_export_section_uses_auto_export(self):
+class TestCollectMountPaths:
+    def test_export_mounts_not_in_collect(self):
+        """Export mounts should NOT be validated — they only exist on compute nodes."""
         cfg = OmegaConf.create(
             {
+                "deployment": {"type": "none"},
                 "execution": {
-                    "account": "test_account",
-                    "partition": "gpu_partition",
-                    "output_dir": "/results/output",
                     "auto_export": {
-                        "destinations": ["mlflow"],
-                        "mlflow": {
-                            "tracking_uri": "https://mlflow.example.com",
-                            "experiment_name": "fallback_test",
+                        "export_mounts": {
+                            "/lustre/cache/uv": "/cache/uv",
                         },
                     },
                 },
             }
         )
-        result = _generate_auto_export_section(
-            cfg=cfg,
-            job_id="inv123.0",
-            destinations=["mlflow"],
-            env_var_names=[],
-            secrets=None,
-            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
-        )
-        assert "tracking_uri" in result
-        assert "mlflow.example.com" in result
-
-    def test_export_default_pip_uses_ignore_installed(self, export_cfg):
-        result = _generate_auto_export_section(
-            cfg=export_cfg,
-            job_id="inv123.0",
-            destinations=["mlflow"],
-            env_var_names=[],
-            secrets=None,
-            remote_task_subdir=Path("/results/output/20260409-inv123/task0"),
-        )
-        assert "--ignore-installed" in result
+        paths = _collect_mount_paths(cfg)
+        assert "/lustre/cache/uv" not in paths

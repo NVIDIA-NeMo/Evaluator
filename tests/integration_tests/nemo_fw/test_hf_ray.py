@@ -89,19 +89,18 @@ def deployment_process():
     "eval_type,endpoint_type,eval_params",
     [
         ("gsm8k", "completions", {"limit_samples": 1, "request_timeout": 360}),
-        # TODO(martas): enable once logprobs are supported
-        # (
-        #     "arc_challenge",
-        #     "completions",
-        #     {
-        #         "limit_samples": 1,
-        #         "request_timeout": 360,
-        #         "extra": {
-        #             "tokenizer_backend": "huggingface",
-        #             "tokenizer": "meta-llama/Llama-3.2-1B-Instruct",
-        #         },
-        #     },
-        # ),
+        (
+            "arc_challenge",
+            "completions",
+            {
+                "limit_samples": 1,
+                "request_timeout": 360,
+                "extra": {
+                    "tokenizer_backend": "huggingface",
+                    "tokenizer": "meta-llama/Llama-3.2-1B-Instruct",
+                },
+            },
+        ),
         ("ifeval", "chat", {"limit_samples": 1, "request_timeout": 360}),
     ],
 )

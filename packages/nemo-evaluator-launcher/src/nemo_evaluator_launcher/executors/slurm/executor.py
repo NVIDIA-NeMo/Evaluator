@@ -1218,18 +1218,56 @@ def _generate_auto_export_section(
     s += submitted_yaml
     s += "EOF\n"
 
-    # Write and submit the CPU-only export sbatch script
-    export_script_path = remote_task_subdir / "export.sbatch"
-    s += f"    cat > {export_script_path} << 'EXPORT_EOF'\n"
-    s += export_sbatch
-    s += "EXPORT_EOF\n"
-    s += f'    _export_out=$(sbatch "{export_script_path}" 2>&1)\n'
-    s += "    _export_id=$(echo \"$_export_out\" | grep -oE '[0-9]+')\n"
-    s += '    if [ -n "$_export_id" ]; then\n'
-    s += '        echo "Export job submitted: $_export_id"\n'
-    s += "    else\n"
-    s += '        echo "WARNING: Failed to submit export job: $_export_out"\n'
-    s += "    fi\n"
+    # Export host only env before running auto export
+
+    # Get launcher install command - allows full customization of how to install the launcher.
+    # Supports multi-line YAML strings. Example config:
+    #
+    #   auto_export:
+    #     destinations: ["mlflow"]
+    #     launcher_install_cmd: |
+    #       apt-get update -qq && apt-get install -qq -y git
+    #       pip install "nemo-evaluator-launcher[all] @ git+https://github.com/NVIDIA-NeMo/Evaluator.git@branch#subdirectory=packages/nemo-evaluator-launcher"
+    #
+    auto_export_cfg = cfg.execution.get("auto_export", {}) or {}
+    launcher_install_cmd = None
+    export_mounts = {}
+    if isinstance(auto_export_cfg, dict) or OmegaConf.is_config(auto_export_cfg):
+        launcher_install_cmd = auto_export_cfg.get("launcher_install_cmd")
+        export_mounts = auto_export_cfg.get("export_mounts") or {}
+        configured_image = auto_export_cfg.get("export_image")
+        if configured_image:
+            export_image = configured_image
+
+    if not launcher_install_cmd:
+        launcher_install_cmd = "pip install nemo-evaluator-launcher[all]"
+
+    s += "    # export\n"
+    s += "    srun --mpi pmix --overlap "
+    s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
+    s += "--container-image {} ".format(export_image)
+    if env_var_names:
+        s += "--container-env {} ".format(",".join(env_var_names))
+    # never mount home directory for export jobs - this is error prone
+    # and there's no use-case for mounting it
+    s += "--no-container-mount-home "
+
+    mounts = [
+        f"{remote_task_subdir}/artifacts:{remote_task_subdir}/artifacts",
+        f"{remote_task_subdir}/logs:{remote_task_subdir}/logs",
+    ]
+    for host_path, container_path in export_mounts.items():
+        mounts.append(f"{host_path}:{container_path}")
+    s += "--container-mounts {} ".format(",".join(mounts))
+    s += "--output {} ".format(remote_task_subdir / "logs" / "export-%A.log")
+    s += "    bash -c '\n"
+    s += f"        {launcher_install_cmd}\n"
+    s += f"        cd {remote_task_subdir}/artifacts\n"
+    for dest in destinations:
+        s += f'        echo "Exporting to {dest}..."\n'
+        s += f'        nemo-evaluator-launcher export {job_id} --dest {dest} --config export_config.yml --job-dirs {cfg.execution.output_dir} || echo "Export to {dest} failed"\n'
+    s += "'\n"
+    s += "    echo 'Auto-export completed.'\n"
     s += "else\n"
     s += "    echo 'Evaluation failed with exit code $EVAL_EXIT_CODE. Skipping auto-export.'\n"
     s += "fi\n"

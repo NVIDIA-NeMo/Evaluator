@@ -91,13 +91,7 @@ def _github_list_dir(path: str, ref: str) -> list[dict]:
     if resp.status_code == 403 and "rate limit" in resp.text.lower():
         raise RuntimeError(_RATE_LIMIT_HINT)
     if resp.status_code == 404:
-        raise RuntimeError(
-            f"GitHub ref '{ref}' not found in {_REPO}.\n"
-            f"This usually means you are running a pre-release or test-PyPI version of NEL\n"
-            f"whose tag does not exist on GitHub.\n"
-            f"Use --ref to specify an existing branch, tag, or commit SHA, e.g.:\n"
-            f"  nel skills add --ref main --claude"
-        )
+        raise RuntimeError(f"GitHub ref '{ref}' not found in {_REPO}.")
     if resp.status_code != 200:
         raise RuntimeError(f"GitHub API error ({resp.status_code}): {resp.text}")
     data = resp.json()
@@ -191,6 +185,16 @@ class AddCmd:
 
         print(f"Fetching skill list from {_REPO} (ref: {ref}) ...")
         skills = _discover_skills(ref)
+
+        if not skills and self.ref is None:
+            logger.warning(
+                f"No skills found for ref '{ref}'. "
+                f"Falling back to 'main'. "
+                f"Use --ref to point at an existing branch, tag, or commit SHA."
+            )
+            ref = "main"
+            skills = _discover_skills(ref)
+
         if not skills:
             raise RuntimeError(f"No skills found in {_REPO} (ref: {ref})")
 
