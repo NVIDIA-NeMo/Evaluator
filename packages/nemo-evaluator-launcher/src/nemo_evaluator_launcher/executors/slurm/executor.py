@@ -1104,9 +1104,9 @@ def _generate_auto_export_section(
     """Generate auto-export as a separate CPU-only sbatch job.
 
     Instead of running export inline via srun --overlap (which holds GPUs
-    during I/O-bound uploads), we generate a lightweight export.sbatch
-    script and submit it from the eval script on success.  The export job
-    requests no GPUs and targets the CPU partition when configured.
+    during I/O-bound uploads), we generate an export.sbatch script and
+    submit it from the eval script on success.  The export job requests
+    no GPUs and uses the configured partition.
     """
     if not destinations:
         return ""
@@ -1118,60 +1118,50 @@ def _generate_auto_export_section(
 
     # --- Read auto_export settings ---
     auto_export_cfg = cfg.execution.get("auto_export", {}) or {}
-    launcher_install_cmd = auto_export_cfg.get("launcher_install_cmd")
-    export_partition = auto_export_cfg.get("partition")
-    configured_export_image = auto_export_cfg.get("image")
+    launcher_install_cmd = None
+    export_mounts = {}
+    export_partition = None
+    if isinstance(auto_export_cfg, dict) or OmegaConf.is_config(auto_export_cfg):
+        launcher_install_cmd = auto_export_cfg.get("launcher_install_cmd")
+        export_mounts = auto_export_cfg.get("export_mounts") or {}
+        export_partition = auto_export_cfg.get("partition")
+        configured_image = auto_export_cfg.get("export_image")
+        if configured_image:
+            export_image = configured_image
+
     if not launcher_install_cmd:
-        launcher_install_cmd = (
-            "pip install --ignore-installed nemo-evaluator-launcher[all]"
-        )
-    if configured_export_image:
-        export_image = configured_export_image
+        launcher_install_cmd = "pip install nemo-evaluator-launcher[all]"
+
+    if not export_partition:
+        export_partition = cfg.execution.partition
 
     # --- Build export config YAML ---
-    # Use top-level 'export' section.  If missing, fall back to
-    # per-destination config nested under auto_export so the exporter
-    # still has tracking_uri / entity / project.
-    raw_export = cfg.get("export", None)
-    if raw_export is None or (
-        isinstance(raw_export, (dict, DictConfig)) and not raw_export
-    ):
-        raw_export = {}
-        for dest in destinations:
-            dest_cfg = auto_export_cfg.get(dest)
-            if dest_cfg:
-                raw_export[dest] = dest_cfg
-    export_config = {"export": raw_export}
-
+    export_config = {"export": cfg.get("export", {})}
     payload_clean = OmegaConf.to_container(
         OmegaConf.create(export_config), resolve=True
     )
     yaml_str = yaml.safe_dump(payload_clean, sort_keys=False)
 
-    # write launcher config as config.yml for exporters (no core command)
     submitted_yaml = yaml.safe_dump(
         OmegaConf.to_container(cfg, resolve=True), sort_keys=False
     )
 
-    invocation_dir = remote_task_subdir.parent
     output_dir = cfg.execution.output_dir
+    invocation_dir = remote_task_subdir.parent
 
     if secrets:
         reexport_cmd = build_reexport_commands("export", secrets)
     else:
         reexport_cmd = ""
 
-    # --- Build the export sbatch script that will run on a CPU node ---
+    # --- Build the export sbatch script (CPU-only, no GPUs) ---
     export_sbatch = "#!/bin/bash\n"
     export_sbatch += f"#SBATCH --job-name=nel-export-{remote_task_subdir.name}\n"
     export_sbatch += "#SBATCH --nodes=1\n"
     export_sbatch += "#SBATCH --ntasks=1\n"
     export_sbatch += "#SBATCH --time=00:30:00\n"
     export_sbatch += f"#SBATCH --account {cfg.execution.account}\n"
-    if export_partition:
-        export_sbatch += f"#SBATCH --partition {export_partition}\n"
-    else:
-        export_sbatch += f"#SBATCH --partition {cfg.execution.partition}\n"
+    export_sbatch += f"#SBATCH --partition {export_partition}\n"
     export_sbatch += "#SBATCH --no-requeue\n"
     export_sbatch += (
         f"#SBATCH --output {remote_task_subdir / 'logs' / 'export-%A.log'}\n"
@@ -1182,11 +1172,18 @@ def _generate_auto_export_section(
     if reexport_cmd:
         export_sbatch += f"{reexport_cmd}\n"
 
+    mounts = [
+        f"{invocation_dir}:{invocation_dir}",
+        f"{output_dir}:{output_dir}",
+    ]
+    for host_path, container_path in export_mounts.items():
+        mounts.append(f"{host_path}:{container_path}")
+
     export_sbatch += f"\nsrun --nodes 1 --ntasks 1 --container-image {export_image} "
     if env_var_names:
         export_sbatch += "--container-env {} ".format(",".join(env_var_names))
     export_sbatch += "--no-container-mount-home "
-    export_sbatch += f"--container-mounts {invocation_dir}:{invocation_dir},{output_dir}:{output_dir} "
+    export_sbatch += "--container-mounts {} ".format(",".join(mounts))
     export_sbatch += "bash -c '\n"
     export_sbatch += f"    {launcher_install_cmd}\n"
     export_sbatch += f"    cd {remote_task_subdir}/artifacts\n"
@@ -1218,56 +1215,18 @@ def _generate_auto_export_section(
     s += submitted_yaml
     s += "EOF\n"
 
-    # Export host only env before running auto export
-
-    # Get launcher install command - allows full customization of how to install the launcher.
-    # Supports multi-line YAML strings. Example config:
-    #
-    #   auto_export:
-    #     destinations: ["mlflow"]
-    #     launcher_install_cmd: |
-    #       apt-get update -qq && apt-get install -qq -y git
-    #       pip install "nemo-evaluator-launcher[all] @ git+https://github.com/NVIDIA-NeMo/Evaluator.git@branch#subdirectory=packages/nemo-evaluator-launcher"
-    #
-    auto_export_cfg = cfg.execution.get("auto_export", {}) or {}
-    launcher_install_cmd = None
-    export_mounts = {}
-    if isinstance(auto_export_cfg, dict) or OmegaConf.is_config(auto_export_cfg):
-        launcher_install_cmd = auto_export_cfg.get("launcher_install_cmd")
-        export_mounts = auto_export_cfg.get("export_mounts") or {}
-        configured_image = auto_export_cfg.get("export_image")
-        if configured_image:
-            export_image = configured_image
-
-    if not launcher_install_cmd:
-        launcher_install_cmd = "pip install nemo-evaluator-launcher[all]"
-
-    s += "    # export\n"
-    s += "    srun --mpi pmix --overlap "
-    s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
-    s += "--container-image {} ".format(export_image)
-    if env_var_names:
-        s += "--container-env {} ".format(",".join(env_var_names))
-    # never mount home directory for export jobs - this is error prone
-    # and there's no use-case for mounting it
-    s += "--no-container-mount-home "
-
-    mounts = [
-        f"{remote_task_subdir}/artifacts:{remote_task_subdir}/artifacts",
-        f"{remote_task_subdir}/logs:{remote_task_subdir}/logs",
-    ]
-    for host_path, container_path in export_mounts.items():
-        mounts.append(f"{host_path}:{container_path}")
-    s += "--container-mounts {} ".format(",".join(mounts))
-    s += "--output {} ".format(remote_task_subdir / "logs" / "export-%A.log")
-    s += "    bash -c '\n"
-    s += f"        {launcher_install_cmd}\n"
-    s += f"        cd {remote_task_subdir}/artifacts\n"
-    for dest in destinations:
-        s += f'        echo "Exporting to {dest}..."\n'
-        s += f'        nemo-evaluator-launcher export {job_id} --dest {dest} --config export_config.yml --job-dirs {cfg.execution.output_dir} || echo "Export to {dest} failed"\n'
-    s += "'\n"
-    s += "    echo 'Auto-export completed.'\n"
+    # Write and submit the CPU-only export sbatch script
+    export_script_path = remote_task_subdir / "export.sbatch"
+    s += f"    cat > {export_script_path} << 'EXPORT_EOF'\n"
+    s += export_sbatch
+    s += "EXPORT_EOF\n"
+    s += f'    _export_out=$(sbatch "{export_script_path}" 2>&1)\n'
+    s += "    _export_id=$(echo \"$_export_out\" | grep -oE '[0-9]+')\n"
+    s += '    if [ -n "$_export_id" ]; then\n'
+    s += '        echo "Export job submitted: $_export_id"\n'
+    s += "    else\n"
+    s += '        echo "WARNING: Failed to submit export job: $_export_out"\n'
+    s += "    fi\n"
     s += "else\n"
     s += "    echo 'Evaluation failed with exit code $EVAL_EXIT_CODE. Skipping auto-export.'\n"
     s += "fi\n"

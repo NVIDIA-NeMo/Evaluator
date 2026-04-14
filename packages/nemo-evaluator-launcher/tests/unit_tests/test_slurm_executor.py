@@ -1409,8 +1409,7 @@ class TestSlurmExecutorDryRun:
             remote_task_subdir=Path("/tmp/out/test_task"),
         )
 
-        assert "/tmp/out/test_task/artifacts:/tmp/out/test_task/artifacts" in section
-        assert "/tmp/out/test_task/logs:/tmp/out/test_task/logs" in section
+        assert "/tmp/out:/tmp/out" in section
         assert "/lustre/cache/uv:/cache/uv" in section
         assert "/lustre/data:/data" in section
 
