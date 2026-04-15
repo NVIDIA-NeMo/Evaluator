@@ -1197,7 +1197,9 @@ def _generate_auto_export_section(
     for host_path, container_path in export_mounts.items():
         mounts.append(f"{host_path}:{container_path}")
 
-    export_sbatch += f"\nsrun --nodes 1 --ntasks 1 --container-image {export_image} "
+    export_sbatch += (
+        f"\nsrun --nodes 1 --ntasks 1 --gpus 0 --container-image {export_image} "
+    )
     if env_var_names:
         export_sbatch += "--container-env {} ".format(",".join(env_var_names))
     # never mount home directory for export jobs - this is error prone
