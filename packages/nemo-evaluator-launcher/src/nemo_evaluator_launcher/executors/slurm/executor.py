@@ -1168,32 +1168,65 @@ def _generate_auto_export_section(
     if not launcher_install_cmd:
         launcher_install_cmd = "pip install nemo-evaluator-launcher[all]"
 
-    s += "    # export\n"
-    s += "    srun --mpi pmix --overlap "
-    s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
-    s += "--container-image {} ".format(export_image)
-    if env_var_names:
-        s += "--container-env {} ".format(",".join(env_var_names))
-    # never mount home directory for export jobs - this is error prone
-    # and there's no use-case for mounting it
-    s += "--no-container-mount-home "
+    cpu_partition = cfg.execution.get("cpu_partition")
+    export_partition = cpu_partition or cfg.execution.partition
+    output_dir = cfg.execution.output_dir
+    invocation_dir = remote_task_subdir.parent
+
+    # --- Build export sbatch script (CPU-only, no GPUs) ---
+    export_sbatch = "#!/bin/bash\n"
+    export_sbatch += f"#SBATCH --job-name=nel-export-{remote_task_subdir.name}\n"
+    export_sbatch += "#SBATCH --nodes=1\n"
+    export_sbatch += "#SBATCH --ntasks=1\n"
+    export_sbatch += "#SBATCH --time=00:30:00\n"
+    export_sbatch += f"#SBATCH --account {cfg.execution.account}\n"
+    export_sbatch += f"#SBATCH --partition {export_partition}\n"
+    export_sbatch += "#SBATCH --no-requeue\n"
+    export_sbatch += (
+        f"#SBATCH --output {remote_task_subdir / 'logs' / 'export-%A.log'}\n"
+    )
+    export_sbatch += "\nset -uo pipefail\n"
+    secrets_path = remote_task_subdir / ".secrets.env"
+    export_sbatch += f'[ -f "{secrets_path}" ] && source "{secrets_path}"\n'
+    if secrets:
+        export_sbatch += f"{build_reexport_commands('export', secrets)}\n"
 
     mounts = [
-        f"{remote_task_subdir}/artifacts:{remote_task_subdir}/artifacts",
-        f"{remote_task_subdir}/logs:{remote_task_subdir}/logs",
+        f"{invocation_dir}:{invocation_dir}",
+        f"{output_dir}:{output_dir}",
     ]
     for host_path, container_path in export_mounts.items():
         mounts.append(f"{host_path}:{container_path}")
-    s += "--container-mounts {} ".format(",".join(mounts))
-    s += "--output {} ".format(remote_task_subdir / "logs" / "export-%A.log")
-    s += "    bash -c '\n"
-    s += f"        {launcher_install_cmd}\n"
-    s += f"        cd {remote_task_subdir}/artifacts\n"
+
+    export_sbatch += (
+        f"\nsrun --nodes 1 --ntasks 1 --gpus 0 --container-image {export_image} "
+    )
+    if env_var_names:
+        export_sbatch += "--container-env {} ".format(",".join(env_var_names))
+    # never mount home directory for export jobs - this is error prone
+    # and there's no use-case for mounting it
+    export_sbatch += "--no-container-mount-home "
+    export_sbatch += "--container-mounts {} ".format(",".join(mounts))
+    export_sbatch += "bash -c '\n"
+    export_sbatch += f"    {launcher_install_cmd}\n"
+    export_sbatch += f"    cd {remote_task_subdir}/artifacts\n"
     for dest in destinations:
-        s += f'        echo "Exporting to {dest}..."\n'
-        s += f'        nemo-evaluator-launcher export {job_id} --dest {dest} --config export_config.yml --job-dirs {cfg.execution.output_dir} || echo "Export to {dest} failed"\n'
-    s += "'\n"
-    s += "    echo 'Auto-export completed.'\n"
+        export_sbatch += f'    echo "Exporting to {dest}..."\n'
+        export_sbatch += f'    nemo-evaluator-launcher export {job_id} --dest {dest} --config {remote_task_subdir}/artifacts/export_config.yml --job-dirs {output_dir} || echo "Export to {dest} failed"\n'
+    export_sbatch += "'\n"
+
+    # --- Write and submit the export sbatch script ---
+    export_script_path = remote_task_subdir / "export.sbatch"
+    s += f"    cat > {export_script_path} << 'EXPORT_EOF'\n"
+    s += export_sbatch
+    s += "EXPORT_EOF\n"
+    s += f'    _export_out=$(sbatch "{export_script_path}" 2>&1)\n'
+    s += "    _export_id=$(echo \"$_export_out\" | grep -oE '[0-9]+')\n"
+    s += '    if [ -n "$_export_id" ]; then\n'
+    s += '        echo "Export job submitted: $_export_id"\n'
+    s += "    else\n"
+    s += '        echo "WARNING: Failed to submit export job: $_export_out"\n'
+    s += "    fi\n"
     s += "else\n"
     s += "    echo 'Evaluation failed with exit code $EVAL_EXIT_CODE. Skipping auto-export.'\n"
     s += "fi\n"

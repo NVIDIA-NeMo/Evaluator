@@ -20,6 +20,7 @@ username: ${oc.env:USER} # Defaults to $USER env var
 account: ??? # SLURM account allocation (required)
 output_dir: ??? # Absolute path accessible on compute nodes (required)
 partition: batch
+cpu_partition: null  # CPU-only partition for export jobs. Falls back to execution.partition when null.
 num_nodes: 1             # Total SLURM nodes (num_nodes_per_instance = num_nodes / num_instances)
 num_instances: 1         # Number of independent deployment instances
 ntasks_per_node: 1
