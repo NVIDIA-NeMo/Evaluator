@@ -44,9 +44,6 @@ mounts:
 
 auto_export:
   partition: ${execution.partition}  # Partition for export jobs. Defaults to the main execution partition.
-  export_image: null     # Container image for export. Falls back to python:3.12.7-slim when null.
-  export_mounts: {}      # Extra mounts for export container. Example: {"/lustre/cache/uv": "/cache/uv"}
-  launcher_install_cmd: null  # Custom pip install command. Falls back to "pip install nemo-evaluator-launcher[all]" when null.
 
 proxy:
   type: haproxy
