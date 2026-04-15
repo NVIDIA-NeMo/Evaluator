@@ -1200,6 +1200,8 @@ def _generate_auto_export_section(
     export_sbatch += f"\nsrun --nodes 1 --ntasks 1 --container-image {export_image} "
     if env_var_names:
         export_sbatch += "--container-env {} ".format(",".join(env_var_names))
+    # never mount home directory for export jobs - this is error prone
+    # and there's no use-case for mounting it
     export_sbatch += "--no-container-mount-home "
     export_sbatch += "--container-mounts {} ".format(",".join(mounts))
     export_sbatch += "bash -c '\n"
