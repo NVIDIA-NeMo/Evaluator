@@ -1170,10 +1170,8 @@ def _generate_auto_export_section(
 
     cpu_partition = cfg.execution.get("cpu_partition")
     export_partition = cpu_partition or cfg.execution.partition
-    # --gpus 0 on CPU partitions tells srun not to inherit GPU gres from
-    # the parent allocation.  On GPU fallback, request 1 GPU so the sbatch
-    # is accepted on clusters that require a GPU spec (e.g. HSG).
-    export_gpu_flag = "--gpus 0 " if cpu_partition else "--gpus 1 "
+    # --gpus 0 tells srun not to inherit GPU gres from the parent allocation.
+    export_gpu_flag = "--gpus 0 "
     output_dir = cfg.execution.output_dir
     invocation_dir = remote_task_subdir.parent
 
@@ -1185,8 +1183,6 @@ def _generate_auto_export_section(
     export_sbatch += "#SBATCH --time=00:30:00\n"
     export_sbatch += f"#SBATCH --account {cfg.execution.account}\n"
     export_sbatch += f"#SBATCH --partition {export_partition}\n"
-    if not cpu_partition:
-        export_sbatch += "#SBATCH --gpus-per-node=1\n"
     export_sbatch += "#SBATCH --no-requeue\n"
     export_sbatch += (
         f"#SBATCH --output {remote_task_subdir / 'logs' / 'export-%A.log'}\n"
