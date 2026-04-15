@@ -88,6 +88,16 @@ execution:
       MLFLOW_TRACKING_URI: MLFLOW_TRACKING_URI
 ```
 
+Auto-export runs as a separate CPU-only sbatch job after the GPU evaluation completes, so GPU nodes are released immediately. To target a dedicated CPU partition (recommended on clusters like HSG that require GPU specs on batch):
+
+```yaml
+execution:
+  cpu_partition: cpu  # CPU-only partition for export jobs (defaults to execution.partition)
+  auto_export:
+    destinations: ["mlflow"]
+    export_image: /path/to/python-3.12.sqsh  # optional, defaults to python:3.12.7-slim
+```
+
 Set optional fields to customize your export:
 
 ```yaml
