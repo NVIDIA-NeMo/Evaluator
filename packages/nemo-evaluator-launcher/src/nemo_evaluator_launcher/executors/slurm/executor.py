@@ -1170,9 +1170,10 @@ def _generate_auto_export_section(
 
     cpu_partition = cfg.execution.get("cpu_partition")
     export_partition = cpu_partition or cfg.execution.partition
-    # When falling back to the GPU partition, request 1 GPU so the job is
-    # accepted on clusters that require a GPU spec (e.g. HSG).
-    export_gpu_flag = "" if cpu_partition else "--gpus 1 "
+    # --gpus 0 on CPU partitions tells srun not to inherit GPU gres from
+    # the parent allocation.  On GPU fallback, request 1 GPU so the sbatch
+    # is accepted on clusters that require a GPU spec (e.g. HSG).
+    export_gpu_flag = "--gpus 0 " if cpu_partition else "--gpus 1 "
     output_dir = cfg.execution.output_dir
     invocation_dir = remote_task_subdir.parent
 
