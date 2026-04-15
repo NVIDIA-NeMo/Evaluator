@@ -1168,7 +1168,7 @@ def _generate_auto_export_section(
     if not launcher_install_cmd:
         launcher_install_cmd = "pip install nemo-evaluator-launcher[all]"
 
-    export_partition = auto_export_cfg.get("partition") or cfg.execution.partition
+    export_partition = cfg.execution.get("cpu_partition") or cfg.execution.partition
     output_dir = cfg.execution.output_dir
     invocation_dir = remote_task_subdir.parent
 
