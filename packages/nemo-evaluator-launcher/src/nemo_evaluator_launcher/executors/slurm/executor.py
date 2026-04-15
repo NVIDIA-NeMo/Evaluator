@@ -1170,8 +1170,6 @@ def _generate_auto_export_section(
 
     cpu_partition = cfg.execution.get("cpu_partition")
     export_partition = cpu_partition or cfg.execution.partition
-    # --gpus 0 tells srun not to inherit GPU gres from the parent allocation.
-    export_gpu_flag = "--gpus 0 "
     output_dir = cfg.execution.output_dir
     invocation_dir = remote_task_subdir.parent
 
@@ -1201,8 +1199,7 @@ def _generate_auto_export_section(
         mounts.append(f"{host_path}:{container_path}")
 
     export_sbatch += (
-        f"\nsrun --nodes 1 --ntasks 1 {export_gpu_flag}"
-        f"--container-image {export_image} "
+        f"\nsrun --nodes 1 --ntasks 1 --gpus 0 --container-image {export_image} "
     )
     if env_var_names:
         export_sbatch += "--container-env {} ".format(",".join(env_var_names))
