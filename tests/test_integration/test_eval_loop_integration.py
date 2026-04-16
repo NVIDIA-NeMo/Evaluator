@@ -19,6 +19,7 @@ import asyncio
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.engine.eval_loop import run_evaluation
+from nemo_evaluator.observability.types import ModelResponse
 from nemo_evaluator.solvers import SolveResult
 
 
@@ -204,6 +205,37 @@ class _MockSolverWithTrajectory:
         pass
 
 
+class _MockSolverWithModelResponse:
+    """Returns a full ModelResponse with token breakdown so runtime stats can be verified."""
+
+    PROMPT_TOKENS = 10
+    COMPLETION_TOKENS = 5
+    REASONING_TOKENS = 2
+    TOTAL_TOKENS = 17  # 10 + 5 + 2
+    LATENCY_MS = 42.0
+    FINISH_REASON = "stop"
+    MODEL = "mock-model"
+
+    async def solve(self, task):
+        return SolveResult(
+            response=task.expected_answer,
+            model_response=ModelResponse(
+                content=task.expected_answer,
+                model=self.MODEL,
+                finish_reason=self.FINISH_REASON,
+                prompt_tokens=self.PROMPT_TOKENS,
+                completion_tokens=self.COMPLETION_TOKENS,
+                total_tokens=self.TOTAL_TOKENS,
+                latency_ms=self.LATENCY_MS,
+                reasoning_tokens=self.REASONING_TOKENS,
+            ),
+            trajectory=[{"step": 1, "action": "answer"}],
+        )
+
+    async def close(self):
+        pass
+
+
 class TestResumeTrajectories:
     def test_trajectories_preserved_on_full_resume(self, tmp_path):
         """All steps in verified_cache on resume → collector never called → 0-byte trajectories.jsonl.
@@ -254,3 +286,46 @@ class TestResumeTrajectories:
         assert len(artifacts.steps) == 3  # 3 problems × 1 repeat
         for step in artifacts.steps:
             assert step.trajectory, f"missing trajectory p{step.problem_idx} r{step.repeat}"
+
+
+class TestResumeRuntimeStats:
+    def test_total_tokens_complete_on_full_resume(self, tmp_path):
+        """On resume with all steps in verified_cache, total_tokens must reflect ALL steps.
+
+        Reproduces EVAL-1255: inference_log only stores total token count, not the full
+        ModelResponse breakdown, so cached steps have model_response=None and contribute
+        0 to total_tokens in runtime_stats.
+        """
+        env = _MockEnv()
+        solver = _MockSolverWithModelResponse()
+        log_dir = tmp_path / "logs"
+
+        # First run: 3 problems × 1 repeat = 3 steps, each with TOTAL_TOKENS tokens
+        asyncio.run(run_evaluation(env, solver, n_repeats=1, step_log_dir=log_dir))
+
+        # Second run: all 3 steps served from verified_cache
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1, step_log_dir=log_dir, resume=True))
+
+        expected_total = 3 * _MockSolverWithModelResponse.TOTAL_TOKENS
+        actual_total = bundle["benchmark"]["scores"]["runtime"]["total_tokens"]
+        assert actual_total == expected_total, (
+            f"expected total_tokens={expected_total} (3 steps × {_MockSolverWithModelResponse.TOTAL_TOKENS}), "
+            f"got {actual_total} — cached steps not contributing to token stats"
+        )
+
+    def test_latency_percentiles_complete_on_full_resume(self, tmp_path):
+        """On resume with all steps in verified_cache, latency percentiles must include cached steps."""
+        env = _MockEnv()
+        solver = _MockSolverWithModelResponse()
+        log_dir = tmp_path / "logs"
+
+        asyncio.run(run_evaluation(env, solver, n_repeats=1, step_log_dir=log_dir))
+
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1, step_log_dir=log_dir, resume=True))
+
+        runtime = bundle["benchmark"]["scores"]["runtime"]
+        # All 3 cached steps have the same latency — p50 should equal that latency
+        assert runtime["latency_percentiles_ms"]["p50"] == _MockSolverWithModelResponse.LATENCY_MS, (
+            f"expected p50={_MockSolverWithModelResponse.LATENCY_MS}ms from cached steps, "
+            f"got {runtime['latency_percentiles_ms']['p50']} — latency not restored from cache"
+        )

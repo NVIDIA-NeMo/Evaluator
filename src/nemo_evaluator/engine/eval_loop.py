@@ -30,7 +30,7 @@ from nemo_evaluator.metrics.confidence import bootstrap_ci, sample_level_ci
 from nemo_evaluator.metrics.pass_at_k import aggregate_pass_at_k, pass_at_k
 from nemo_evaluator.observability.collector import ArtifactCollector
 from nemo_evaluator.observability.progress import NoOpProgress, ProgressTracker
-from nemo_evaluator.observability.types import StepRecord
+from nemo_evaluator.observability.types import ModelResponse, StepRecord
 from nemo_evaluator.engine.artifacts import build_artifact_bundle
 from nemo_evaluator.sandbox.strategies import pick_lifecycle
 from nemo_evaluator.solvers import Solver
@@ -226,8 +226,20 @@ async def run_evaluation(
                     scoring_details=cached_verified.get("scoring_details", {}),
                 )
                 cached_inf = inferred_cache.get(key)
-                if cached_inf and cached_inf.get("trajectory"):
-                    cached_step.trajectory = cached_inf["trajectory"]
+                if cached_inf:
+                    if cached_inf.get("trajectory"):
+                        cached_step.trajectory = cached_inf["trajectory"]
+                    cached_step.model_response = ModelResponse(
+                        content=cached_inf.get("response", ""),
+                        model=cached_inf.get("model", ""),
+                        finish_reason=cached_inf.get("finish_reason", ""),
+                        prompt_tokens=cached_inf.get("prompt_tokens", 0),
+                        completion_tokens=cached_inf.get("completion_tokens", 0),
+                        total_tokens=cached_inf.get("tokens", 0),
+                        latency_ms=cached_inf.get("latency_ms", 0.0),
+                        reasoning_tokens=cached_inf.get("reasoning_tokens", 0),
+                    )
+                    cached_step.model_ms = cached_inf.get("latency_ms", 0.0)
                 async with lock:
                     collector.record(cached_step)
                     results.append(result_dict)
@@ -325,12 +337,18 @@ async def run_evaluation(
                         )
 
                         if inference_log is not None:
+                            mr = solve_result.model_response if solve_result else None
                             inf_record = {
                                 "problem_idx": idx,
                                 "repeat": rep,
                                 "response": response_text,
                                 "tokens": tokens,
                                 "latency_ms": latency_ms,
+                                "model": mr.model if mr else "",
+                                "finish_reason": mr.finish_reason if mr else "",
+                                "prompt_tokens": mr.prompt_tokens if mr else 0,
+                                "completion_tokens": mr.completion_tokens if mr else 0,
+                                "reasoning_tokens": mr.reasoning_tokens if mr else 0,
                                 "prompt": seed_result.prompt,
                                 "expected_answer": seed_result.expected_answer,
                                 "seed_metadata": seed_result.metadata,
