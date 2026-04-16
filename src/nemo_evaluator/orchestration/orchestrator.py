@@ -686,9 +686,11 @@ def _start_proxy(
 
     proxy_kwargs: dict[str, Any] = dict(upstream_url=model_url, model_id=model_id, api_key=api_key)
     proxy_cfg = getattr(svc, "proxy", None) if svc else None
+    interceptor_specs: list[dict[str, Any]] = []
+
     if proxy_cfg is not None and proxy_cfg.needs_proxy:
+        interceptor_specs = _interceptor_specs(proxy_cfg.interceptors)
         proxy_kwargs.update(
-            interceptor_specs=_interceptor_specs(proxy_cfg.interceptors),
             verbose=proxy_cfg.verbose,
             extra_body=proxy_cfg.extra_body or None,
             request_timeout=proxy_cfg.request_timeout,
@@ -696,6 +698,16 @@ def _start_proxy(
             retry_on_status=proxy_cfg.retry_on_status,
             max_concurrent_upstream=proxy_cfg.max_concurrent_upstream,
         )
+
+    gen = getattr(svc, "generation", None)
+    if gen is not None:
+        overrides = {k: v for k, v in gen.model_dump().items() if v is not None}
+        if overrides:
+            interceptor_specs.append({"name": "payload_modifier", "config": {"params_to_add": overrides}})
+
+    if interceptor_specs:
+        proxy_kwargs["interceptor_specs"] = interceptor_specs
+
     handle = start_adapter_proxy(**proxy_kwargs)
     return handle.url, handle
 
