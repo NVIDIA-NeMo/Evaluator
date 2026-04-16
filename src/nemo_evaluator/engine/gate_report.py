@@ -117,7 +117,7 @@ def generate_gate_report(report_dict: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def write_gate_report(report_dict: dict[str, Any], output_path: str | Path) -> Path:
+def write_gate_markdown(report_dict: dict[str, Any], output_path: str | Path) -> Path:
     """Write a Markdown damage report to disk."""
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)

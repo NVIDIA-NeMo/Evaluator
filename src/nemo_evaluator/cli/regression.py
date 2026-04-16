@@ -20,7 +20,6 @@ from datetime import datetime, timezone
 
 import click
 
-# Item #14: respect NO_COLOR env var
 _NO_COLOR = os.environ.get("NO_COLOR") is not None
 
 
@@ -36,15 +35,26 @@ def _bar(value: float, width: int = 20) -> str:
 
 
 def _verdict_color(verdict: str) -> str:
-    if verdict in ("BLOCK",):
+    if verdict == "BLOCK":
         return "red"
     if verdict in ("WARN", "INCONCLUSIVE"):
         return "yellow"
     return "green"
 
 
-def _cap_verdict(delta: float, threshold: float, mcnemar_sig: bool | None) -> tuple[str, str]:
-    if delta < -threshold and mcnemar_sig:
+_TEST_KEY_MAP = {"mcnemar": "mcnemar", "sign": "sign_test", "permutation": "permutation_test"}
+
+
+def _test_significant(report: dict) -> bool | None:
+    """Extract significance from whichever statistical test was used."""
+    test = report.get("test_used")
+    key = _TEST_KEY_MAP.get(test, test) if test else None
+    result = report.get(key) if key else None
+    return result.get("significant") if isinstance(result, dict) else None
+
+
+def _cap_verdict(delta: float, threshold: float, sig: bool | None) -> tuple[str, str]:
+    if delta < -threshold and sig:
         return "BROKE \u26a0", "red"
     if delta < -threshold:
         return "WARN", "yellow"
@@ -161,11 +171,9 @@ def compare_cmd(
         test=test_method,
     )
 
-    # Item #4: auto-generate Markdown report next to candidate bundle
     if report_path is None and not no_report:
         report_path = str(Path(candidate).parent / "regression_report.md")
 
-    # Item #9: --format json writes to stdout
     if fmt == "json":
         import json as _json
 
@@ -188,19 +196,16 @@ def compare_cmd(
     base_id = report["baseline"]["run_id"]
     cand_id = report["candidate"]["run_id"]
 
-    # Item #15: --compact mode for Slack (~8 lines)
     if compact:
         _render_compact(verdict, v_color, base_id, cand_id, s, mcnemar, report, threshold, warnings)
         _exit_strict(strict, verdict)
         return
 
-    regressions = []
-
-    # ── One-liner summary as first line (item #7) ──────────────────
+    # ── One-liner summary ────────────────────────────────────────────
     n_reg = s.get("n_regressions", 0)
     n_imp = s.get("n_improvements", 0)
     n_paired = s.get("n_paired", 0)
-    sig_word = "significant" if mcnemar and mcnemar.get("significant") else "not significant"
+    sig_word = "significant" if _test_significant(report) else "not significant"
     click.echo()
     click.echo(
         _style(
@@ -216,7 +221,6 @@ def compare_cmd(
     click.echo("\u2550" * 60)
     click.echo(f"Baseline:  {base_id}")
     click.echo(f"Candidate: {cand_id}")
-    # Item #4 from PM: add timestamp
     click.echo(f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
 
     # ── Warnings ───────────────────────────────────────────────────
@@ -230,14 +234,13 @@ def compare_cmd(
         if verbose:
             click.echo(_style(f"VERDICT: {verdict}", fg=v_color, bold=True) + f"  ({reason_text})")
         else:
-            # Item #6: plain English, hide p-values
             plain = _plain_english_verdict(verdict, s, mcnemar)
             click.echo(_style(f"VERDICT: {verdict}", fg=v_color, bold=True) + f"  ({plain})")
 
     # ── Capability Impact Profile ──────────────────────────────────
     cats = report.get("category_deltas", {})
     score_deltas = report.get("score_deltas", {})
-    mcnemar_sig = mcnemar.get("significant") if mcnemar else None
+    test_sig = _test_significant(report)
 
     if cats:
         click.echo()
@@ -249,7 +252,7 @@ def compare_cmd(
             base_val = v["baseline"]
             cand_val = v["candidate"]
             delta = v["delta"]
-            label, color = _cap_verdict(delta, threshold, mcnemar_sig)
+            label, color = _cap_verdict(delta, threshold, test_sig)
             line = (
                 f"  {cat:<{max_name_len}}  {_bar(cand_val)}  "
                 f"{base_val * 100:5.1f}% \u2192 {cand_val * 100:5.1f}%  "
@@ -266,20 +269,13 @@ def compare_cmd(
             base_val = delta["baseline"]
             cand_val = delta["candidate"]
             overlap = "overlap" if delta.get("ci_overlap") else "NO overlap"
-            label, color = _cap_verdict(d, threshold, mcnemar_sig)
-            if d < -threshold:
-                regressions.append(metric)
+            label, color = _cap_verdict(d, threshold, test_sig)
             line = (
                 f"  {metric:<20}  {_bar(cand_val)}  "
                 f"{base_val * 100:5.1f}% \u2192 {cand_val * 100:5.1f}%  "
                 f"({d * 100:+.1f}%, CI {overlap})  "
             )
             click.echo(line + _style(label, fg=color, bold=True))
-
-    if cats:
-        for metric, delta in score_deltas.items():
-            if delta["delta"] < -threshold:
-                regressions.append(metric)
 
     # ── Flip summary ───────────────────────────────────────────────
     if flip:
@@ -295,7 +291,6 @@ def compare_cmd(
         rg_bar = "\u2593" * max(1, round(nr * scale)) if nr else ""
         im_bar = "\u2592" * max(1, round(ni * scale)) if ni else ""
 
-        # Item #12: show regression rate with denominator
         reg_rate = f" ({nr / n * 100:.1f}%)" if n > 0 and nr > 0 else ""
         imp_rate = f" ({ni / n * 100:.1f}%)" if n > 0 and ni > 0 else ""
 
@@ -312,7 +307,6 @@ def compare_cmd(
             + f"  (baseline wrong, candidate right){imp_rate}"
         )
 
-        # Item #13: category breakdown subtotals
         cat_bd = s.get("category_breakdown")
         if cat_bd:
             click.echo()
@@ -410,7 +404,7 @@ def compare_cmd(
         rp = write_report(report, report_path)
         click.echo(f"Markdown report written to: {rp}")
 
-    # ── Summary sentence (item #5) ───────────────────────────────
+    # ── Summary sentence ────────────────────────────────────────────
     from nemo_evaluator.engine.comparison import build_summary_sentence
 
     summary_sentence = build_summary_sentence(s, cats, threshold)
@@ -419,9 +413,8 @@ def compare_cmd(
         click.echo(_style(f"Summary: {summary_sentence}", bold=True))
 
     click.echo()
-    # Item #3: clarify "no regressions" vs flip count
     if verdict == "BLOCK":
-        broke_cats = _broke_categories(report, threshold, mcnemar_sig)
+        broke_cats = _broke_categories(report, threshold, test_sig)
         if broke_cats:
             click.echo(_style(f"BLOCKED: {', '.join(broke_cats)} regressed beyond threshold.", fg="red", bold=True))
         else:
@@ -457,14 +450,14 @@ def compare_cmd(
 
 
 def _render_compact(verdict, v_color, base_id, cand_id, s, mcnemar, report, threshold, warnings):
-    """Item #15: compact mode for Slack / CI (~8 lines)."""
+    """Compact mode for Slack / CI (~8 lines)."""
     nr = s.get("n_regressions", 0)
     ni = s.get("n_improvements", 0)
     np_ = s.get("n_paired", 0)
-    sig = "significant" if mcnemar and mcnemar.get("significant") else "not significant"
+    sig = "significant" if _test_significant(report) else "not significant"
 
     click.echo(
-        _style(f"{verdict}", fg=v_color, bold=True) + f" — {nr} regressions, {ni} improvements ({np_} samples, {sig})"
+        _style(verdict, fg=v_color, bold=True) + f" — {nr} regressions, {ni} improvements ({np_} samples, {sig})"
     )
     click.echo(f"  Baseline:  {base_id}")
     click.echo(f"  Candidate: {cand_id}")
@@ -507,7 +500,7 @@ def _render_flip_entry(f_entry: dict, color: str, verbose: bool):
 
 
 def _plain_english_verdict(verdict: str, s: dict, mcnemar: dict | None) -> str:
-    """Item #6: human-readable verdict explanation without statistical jargon."""
+    """Human-readable verdict explanation without statistical jargon."""
     nr = s.get("n_regressions", 0)
     ni = s.get("n_improvements", 0)
     np_ = s.get("n_paired", 0)
@@ -524,15 +517,14 @@ def _plain_english_verdict(verdict: str, s: dict, mcnemar: dict | None) -> str:
     return f"{nr} flip(s) out of {np_} paired samples — within normal variation"
 
 
-def _broke_categories(report: dict, threshold: float, mcnemar_sig: bool | None) -> list[str]:
+def _broke_categories(report: dict, threshold: float, sig: bool | None) -> list[str]:
     cats = report.get("category_deltas", {})
-    return [cat for cat, v in sorted(cats.items()) if v["delta"] < -threshold and mcnemar_sig]
+    return [cat for cat, v in sorted(cats.items()) if v["delta"] < -threshold and sig]
 
 
 def _exit_strict(strict: bool, verdict: str):
     if not strict:
         return
-    # Item #8: exit 1 for BLOCK, exit 2 for WARN/INCONCLUSIVE
     if verdict == "BLOCK":
         sys.exit(1)
     if verdict in ("WARN", "INCONCLUSIVE"):

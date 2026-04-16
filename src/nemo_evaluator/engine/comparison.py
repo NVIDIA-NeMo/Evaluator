@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 _SIGNIFICANCE_THRESHOLD = 0.05
 _MIN_EFFECT_SIZE = 0.005  # 0.5% practical threshold
 _REPORT_VERSION = 1
+_POWER_80_FACTOR = 2.8  # z_alpha + z_beta for alpha=0.05 one-sided, 80% power
 
 
 # ── Dataclasses (public API) ──────────────────────────────────────────
@@ -120,23 +121,6 @@ class RegressionReport:
     verdict_reasons: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     threshold: float = _MIN_EFFECT_SIZE  # user's --max-drop value
-
-    def is_regression(self) -> bool:
-        if self.mcnemar and self.mcnemar.significant:
-            s = self.flip_report.summary if self.flip_report else None
-            if s and s.n_regressions > s.n_improvements:
-                return True
-        return False
-
-    def worst_category(self) -> str | None:
-        if not self.category_deltas:
-            return None
-        return min(self.category_deltas, key=lambda c: self.category_deltas[c].get("delta", 0))
-
-    def flip_list(self, direction: str = "regressions") -> list[FlipEntry]:
-        if not self.flip_report:
-            return []
-        return self.flip_report.regressions if direction == "regressions" else self.flip_report.improvements
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -373,13 +357,13 @@ def compare_results(
 
     if selected_test == "mcnemar":
         report.test_reason = "all per-problem rewards are binary (0.0 or 1.0)"
-        report.mcnemar = mcnemar_test(flip.contingency, flip.summary.n_paired)
+        report.mcnemar = mcnemar_test(flip.contingency, flip.summary.n_paired, alpha=alpha)
     else:
         report.test_reason = "per-problem rewards are continuous (N>1 repeats averaged or non-binary scores)"
         paired_keys = sorted(set(base_agg) & set(cand_agg))
         paired_deltas = [float(base_agg[k].get("reward", 0)) - float(cand_agg[k].get("reward", 0)) for k in paired_keys]
         if selected_test == "sign":
-            report.sign_test_result = sign_test(paired_deltas)
+            report.sign_test_result = sign_test(paired_deltas, alpha=alpha)
         else:
             report.permutation_result = permutation_test(paired_deltas)
 
@@ -649,11 +633,14 @@ def permutation_test(
 def detect_test(
     base_records: dict[tuple[int, int], dict[str, Any]],
     cand_records: dict[tuple[int, int], dict[str, Any]],
-) -> Literal["mcnemar", "sign", "permutation"]:
+) -> Literal["mcnemar", "permutation"]:
     """Auto-detect the appropriate statistical test based on data shape.
 
-    - All rewards are 0.0 or 1.0 → mcnemar (N=1 binary)
-    - Any non-binary rewards → permutation (N>1 averaged or continuous scores)
+    - All rewards are 0.0 or 1.0 → mcnemar (paired binary)
+    - Any non-binary rewards → permutation (continuous deltas)
+
+    Note: ``"sign"`` test is available via explicit ``test="sign"`` but is
+    never auto-selected; it is a manual option for callers who prefer it.
     """
     paired_keys = set(base_records) & set(cand_records)
     for key in paired_keys:
@@ -704,7 +691,7 @@ def mde_estimate(n_discordant: int) -> float:
     """Minimum detectable effect at 80% power for one-sided binomial."""
     if n_discordant <= 0:
         return 1.0
-    return 2.8 / math.sqrt(max(1, n_discordant))
+    return _POWER_80_FACTOR / math.sqrt(max(1, n_discordant))
 
 
 def build_summary_sentence(
@@ -840,9 +827,9 @@ def _compute_verdict(
         sr = report.sign_test_result
         p_value = sr.p_value
         significant = sr.significant
-        # Effect size from flip summary
-        effect_size = report.mcnemar.effect_size if report.mcnemar else None
         n_discordant = sr.n_positive + sr.n_negative
+        # Sign test has no native effect size; derive from flip imbalance
+        effect_size = (s.n_regressions - s.n_improvements) / s.n_paired if s.n_paired > 0 else None
     elif report.mcnemar:
         m = report.mcnemar
         p_value = m.p_value
@@ -875,7 +862,7 @@ def _compute_verdict(
         return "WARN", reasons
 
     if underpowered and s.n_paired > 0:
-        n_needed = max(1, int((2.8 / min_effect) ** 2))
+        n_needed = max(1, int((_POWER_80_FACTOR / min_effect) ** 2))
         reasons.append(
             f"Test underpowered: {n_discordant} discordant pairs can detect "
             f"~{mde * 100:.1f}% regression at 80% power, but practical threshold is {min_effect * 100:.1f}%. "

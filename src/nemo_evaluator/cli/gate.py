@@ -120,14 +120,13 @@ def gate_cmd(
 
     # Markdown damage report
     if not no_report:
-        from nemo_evaluator.engine.gate_report import write_gate_report as write_md_report
+        from nemo_evaluator.engine.gate_report import write_gate_markdown
 
         if report_path:
-            md_path = write_md_report(report.to_dict(), report_path)
+            md_path = write_gate_markdown(report.to_dict(), report_path)
             click.echo(f"\nMarkdown damage report written to: {md_path}")
         elif output:
-            # Auto-generate next to JSON output
-            md_path = write_md_report(report.to_dict(), Path(output).with_suffix(".md"))
+            md_path = write_gate_markdown(report.to_dict(), Path(output).with_suffix(".md"))
             click.echo(f"Markdown damage report written to: {md_path}")
 
     _exit_strict(strict, report.verdict)

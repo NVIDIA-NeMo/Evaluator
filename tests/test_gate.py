@@ -7,15 +7,12 @@ from nemo_evaluator.config.gate_policy import GatePolicy
 from nemo_evaluator.engine.gate import (
     BenchmarkGateResult,
     GateReport,
-    _aggregate_repeats,
     _aggregate_verdict,
     _discover_bundles,
-    _is_regression,
     _paired_delta_ci,
     gate_runs,
     write_gate_report,
 )
-from nemo_evaluator.config.gate_policy import Direction
 
 
 # ── Helpers ───────────────────────────────────────────────────────────
@@ -479,46 +476,6 @@ class TestGateVerdicts:
             gate_runs(base_dir, cand_dir, policy)
 
 
-# ── TestRepeatAggregation ─────────────────────────────────────────────
-
-
-class TestRepeatAggregation:
-    def test_mean_aggregation(self, tmp_path):
-        """3 repeats averaged correctly."""
-        base_recs = [_record(i, 0.8, repeat=r) for i in range(20) for r in range(3)]
-        cand_recs = [_record(i, 0.75, repeat=r) for i in range(20) for r in range(3)]
-
-        base_dir, cand_dir = _make_gate_dirs(
-            tmp_path,
-            {
-                "mmlu": (base_recs, cand_recs, _scores(0.8), _scores(0.75)),
-            },
-        )
-        policy = GatePolicy.model_validate(
-            {
-                "version": 1,
-                "defaults": {"metric": "mean_reward", "repeats_aggregation": "mean"},
-                "benchmarks": {"mmlu": {"tier": "critical", "max_drop": 0.01}},
-            }
-        )
-        report = gate_runs(base_dir, cand_dir, policy)
-        mmlu = report.benchmarks[0]
-        # After aggregation: 20 paired items (not 60)
-        assert mmlu.n_paired == 20
-        assert mmlu.status == "BREACH"  # 0.05 drop > 0.01
-
-    def test_mean_preserves_signal(self):
-        """Majority vote would erase this; mean preserves it."""
-        records = {
-            (0, 0): {"problem_idx": 0, "repeat": 0, "reward": 1.0},
-            (0, 1): {"problem_idx": 0, "repeat": 1, "reward": 1.0},
-            (0, 2): {"problem_idx": 0, "repeat": 2, "reward": 0.0},
-        }
-        agg = _aggregate_repeats(records)
-        # Mean: (1+1+0)/3 = 0.667, not 1.0 (majority would say "correct")
-        assert abs(agg[(0, 0)]["reward"] - 2 / 3) < 0.01
-
-
 # ── TestPairedDeltaCI ─────────────────────────────────────────────────
 
 
@@ -556,27 +513,6 @@ class TestWriteGateReport:
         path = write_gate_report(report, tmp_path / "gate.json")
         data = json.loads(path.read_text())
         assert data["benchmarks"][0]["regression_report"] == {"verdict": "PASS"}
-
-
-# ── TestIsRegression ──────────────────────────────────────────────────
-
-
-class TestIsRegression:
-    def test_higher_is_better_negative_delta(self):
-        assert _is_regression(-0.05, Direction.higher_is_better) is True
-
-    def test_higher_is_better_positive_delta(self):
-        assert _is_regression(0.05, Direction.higher_is_better) is False
-
-    def test_lower_is_better_positive_delta(self):
-        assert _is_regression(0.05, Direction.lower_is_better) is True
-
-    def test_lower_is_better_negative_delta(self):
-        assert _is_regression(-0.05, Direction.lower_is_better) is False
-
-    def test_zero_delta_not_regression(self):
-        assert _is_regression(0.0, Direction.higher_is_better) is False
-        assert _is_regression(0.0, Direction.lower_is_better) is False
 
 
 # ── TestAggregateVerdict ──────────────────────────────────────────────
@@ -648,7 +584,7 @@ class TestWriteGateReportRoundTrip:
 
 class TestGateMarkdownReport:
     def test_generates_markdown(self, tmp_path):
-        from nemo_evaluator.engine.gate_report import generate_gate_report, write_gate_report as write_md
+        from nemo_evaluator.engine.gate_report import generate_gate_report, write_gate_markdown
 
         report_dict = GateReport(
             verdict="NO-GO",
@@ -690,7 +626,7 @@ class TestGateMarkdownReport:
         assert "BREACH" in md
         assert "12,000" in md  # formatted N
 
-        path = write_md(report_dict, tmp_path / "damage.md")
+        path = write_gate_markdown(report_dict, tmp_path / "damage.md")
         assert path.exists()
         assert "NO-GO" in path.read_text()
 
@@ -759,4 +695,4 @@ class TestClusteredCIIntegration:
         # Clustered CI should be wider (or at least different) when clusters have different means
         width_normal = ci_normal[1] - ci_normal[0]
         width_clustered = ci_clustered[1] - ci_clustered[0]
-        assert width_clustered >= width_normal * 0.9  # clustered should be at least comparable
+        assert width_clustered > width_normal, "Clustered CI should be strictly wider when cluster means differ"

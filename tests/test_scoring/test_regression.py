@@ -20,7 +20,6 @@ import pytest
 from nemo_evaluator.engine.comparison import (
     FlipReport,
     McNemarResult,
-    RegressionReport,
     build_flip_report,
     compare_results,
     compare_runs,
@@ -226,8 +225,9 @@ class TestPairedAnalysis:
         b, c = _make_paired_dirs(tmp_path, base, cand)
         report = compare_runs(b, c, min_effect=0.05)  # 5% threshold, effect is 0.6%
         # With only 10 discordant pairs and one-sided test, may or may not be significant.
-        # Verdict should NOT be BLOCK (effect too small for that).
-        assert report["verdict"] != "BLOCK"
+        assert report["verdict"] in ("WARN", "PASS", "INCONCLUSIVE"), (
+            f"Expected non-BLOCK verdict for small effect, got {report['verdict']}"
+        )
 
     def test_mcnemar_no_discordant(self, tmp_path):
         base = [_record(i, 1.0) for i in range(5)]
@@ -374,7 +374,10 @@ class TestCompareResults:
         cand = {(i, 0): {"reward": 1.0 if i < 3 else 0.0, "expected_answer": str(i)} for i in range(5)}
         report = compare_results(base, cand)
         assert report["flip_report"]["summary"]["n_regressions"] == 2
-        assert report["verdict"] is not None
+        assert report["verdict"] in ("PASS", "WARN", "BLOCK", "INCONCLUSIVE")
+        assert report["test_used"] == "mcnemar"
+        assert "flip_report" in report
+        assert report["flip_report"]["summary"]["n_paired"] == 5
 
 
 class TestPublicAPI:
@@ -398,12 +401,6 @@ class TestPublicAPI:
         _write_results_jsonl(tmp_path / "results.jsonl", [_record(0, 1.0)])
         records = load_paired_records(tmp_path)
         assert (0, 0) in records
-
-    def test_regression_report_methods(self):
-        r = RegressionReport()
-        assert r.is_regression() is False
-        assert r.worst_category() is None
-        assert r.flip_list() == []
 
 
 class TestSignTest:

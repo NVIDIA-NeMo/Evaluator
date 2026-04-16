@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
-from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -38,7 +37,6 @@ class BenchmarkGateDefaults(BaseModel):
     relative_guard_below: float | None = None
     metric: str | None = None
     direction: Direction = Direction.higher_is_better
-    repeats_aggregation: Literal["mean"] | None = None
 
     @field_validator("max_drop")
     @classmethod
@@ -73,7 +71,6 @@ class BenchmarkGateEntry(BaseModel):
     relative_guard_below: float | None = Field(default=None)
     metric: str | None = None
     direction: Direction | None = None
-    repeats_aggregation: Literal["mean"] | None = Field(default=None)
 
     @field_validator("max_drop")
     @classmethod
@@ -108,7 +105,6 @@ class ResolvedBenchmarkPolicy(BaseModel):
     relative_guard_below: float | None
     metric: str | None
     direction: Direction
-    repeats_aggregation: Literal["mean"] | None
 
 
 class GatePolicy(BaseModel):
@@ -139,7 +135,6 @@ class GatePolicy(BaseModel):
                 relative_guard_below=d.relative_guard_below,
                 metric=d.metric,
                 direction=d.direction,
-                repeats_aggregation=d.repeats_aggregation,
             )
         return ResolvedBenchmarkPolicy(
             tier=entry.tier if entry.tier is not None else d.tier,
@@ -150,9 +145,6 @@ class GatePolicy(BaseModel):
             ),
             metric=entry.metric if entry.metric is not None else d.metric,
             direction=entry.direction if entry.direction is not None else d.direction,
-            repeats_aggregation=(
-                entry.repeats_aggregation if entry.repeats_aggregation is not None else d.repeats_aggregation
-            ),
         )
 
     def required_benchmarks(self) -> set[str]:

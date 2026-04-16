@@ -30,7 +30,6 @@ class TestGatePolicyParsing:
                     "relative_guard_below": 0.2,
                     "metric": "mean_reward",
                     "direction": "higher_is_better",
-                    "repeats_aggregation": "mean",
                 },
                 "benchmarks": {
                     "mmlu": {"tier": "supporting", "max_drop": 0.015},
@@ -40,7 +39,6 @@ class TestGatePolicyParsing:
         )
         assert p.defaults.tier == Tier.critical
         assert p.defaults.max_relative_drop == 0.02
-        assert p.defaults.repeats_aggregation == "mean"
         assert "mmlu" in p.benchmarks
         assert p.benchmarks["mmlu"].tier == Tier.supporting
 
@@ -88,10 +86,6 @@ class TestGatePolicyParsing:
         d2 = BenchmarkGateDefaults(direction="lower_is_better")
         assert d1.direction == Direction.higher_is_better
         assert d2.direction == Direction.lower_is_better
-
-    def test_majority_vote_rejected(self):
-        with pytest.raises(ValueError):
-            BenchmarkGateDefaults(repeats_aggregation="majority")
 
 
 class TestResolve:

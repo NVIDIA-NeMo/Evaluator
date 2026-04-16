@@ -315,13 +315,6 @@ def _evaluate_benchmark(
     return result
 
 
-def _is_regression(delta: float, direction: Direction) -> bool:
-    """Return True if the delta represents a regression given the metric direction."""
-    if direction == Direction.higher_is_better:
-        return delta < 0  # score went down
-    return delta > 0  # score went up (bad for lower-is-better)
-
-
 def _paired_delta_ci(
     deltas: list[float],
     confidence: float = 0.95,
@@ -576,32 +569,6 @@ def _apply_thresholds(
 
     result.status = "PASS"
     result.reasons.append(f"Point estimate damage {damage:.4f} is within threshold {policy.max_drop:.4f}")
-
-
-# ── Repeat aggregation ────────────────────────────────────────────────
-
-
-def _aggregate_repeats(
-    records: dict[tuple[int, int], dict[str, Any]],
-) -> dict[tuple[int, int], dict[str, Any]]:
-    """Collapse multiple repeats per problem by averaging reward.
-
-    Returns records keyed by ``(problem_idx, 0)``.
-    """
-    by_problem: dict[int, list[dict[str, Any]]] = defaultdict(list)
-    for (pid, _rep), record in records.items():
-        by_problem[pid].append(record)
-
-    aggregated: dict[tuple[int, int], dict[str, Any]] = {}
-    for pid, reps in by_problem.items():
-        reward = sum(float(r.get("reward", 0)) for r in reps) / len(reps)
-        template = reps[0].copy()
-        template["reward"] = reward
-        template["repeat"] = 0
-        template["_aggregated_from"] = len(reps)
-        aggregated[(pid, 0)] = template
-
-    return aggregated
 
 
 # ── Verdict aggregation ───────────────────────────────────────────────
