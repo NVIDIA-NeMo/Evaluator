@@ -306,7 +306,7 @@ def compare_runs(
                 report.flip_report = build_flip_report(
                     base_agg, cand_agg, threshold=reward_threshold,
                 )
-                report.mcnemar = mcnemar_test(report.flip_report.contingency, report.flip_report.summary.n_paired)
+                report.mcnemar = mcnemar_test(report.flip_report.contingency, report.flip_report.summary.n_paired, alpha=alpha)
             else:
                 report.test_reason = "per-problem rewards are continuous (N>1 repeats averaged or non-binary scores)"
                 # Build flip report for display (still useful for category breakdown)
@@ -320,9 +320,9 @@ def compare_runs(
                     for k in paired_keys
                 ]
                 if selected_test == "sign":
-                    report.sign_test_result = sign_test(paired_deltas)
+                    report.sign_test_result = sign_test(paired_deltas, alpha=alpha)
                 else:  # permutation
-                    report.permutation_result = permutation_test(paired_deltas)
+                    report.permutation_result = permutation_test(paired_deltas, alpha=alpha)
         elif not base_records or not cand_records:
             empty = []
             if not base_records:
@@ -479,6 +479,7 @@ def build_flip_report(
 def mcnemar_test(
     contingency: dict[str, int],
     n_paired: int = 0,
+    alpha: float = _SIGNIFICANCE_THRESHOLD,
 ) -> McNemarResult:
     """One-sided McNemar's test for degradation (H1: regressions > improvements).
 
@@ -522,7 +523,7 @@ def mcnemar_test(
         res = binomtest(b, n_discordant, 0.5, alternative="greater")
         result.p_value = round(float(res.pvalue), 6)
         result.method = "exact_binomial"
-        result.significant = result.p_value < _SIGNIFICANCE_THRESHOLD
+        result.significant = result.p_value < alpha
     except ImportError:
         logger.debug("scipy not installed; skipping McNemar test (pip install nemo-evaluator[stats])")
 
@@ -559,6 +560,7 @@ class PermutationResult:
 
 def sign_test(
     paired_deltas: list[float],
+    alpha: float = _SIGNIFICANCE_THRESHOLD,
 ) -> SignTestResult:
     """One-sided sign test for degradation (H1: baseline > candidate).
 
@@ -588,7 +590,7 @@ def sign_test(
 
         res = binomtest(n_positive, n_non_tied, 0.5, alternative="greater")
         result.p_value = round(float(res.pvalue), 6)
-        result.significant = result.p_value < _SIGNIFICANCE_THRESHOLD
+        result.significant = result.p_value < alpha
     except ImportError:
         logger.debug("scipy not installed; skipping sign test (pip install nemo-evaluator[stats])")
 
@@ -599,6 +601,7 @@ def permutation_test(
     paired_deltas: list[float],
     n_permutations: int = 10_000,
     seed: int = 42,
+    alpha: float = _SIGNIFICANCE_THRESHOLD,
 ) -> PermutationResult:
     """One-sided permutation test on paired differences (H1: mean diff > 0 = baseline better).
 
@@ -628,7 +631,7 @@ def permutation_test(
     return PermutationResult(
         observed_mean_diff=round(observed_mean, 6),
         p_value=round(p_value, 6),
-        significant=p_value < _SIGNIFICANCE_THRESHOLD,
+        significant=p_value < alpha,
         n_permutations=n_permutations,
         effect_size=effect_size,
     )

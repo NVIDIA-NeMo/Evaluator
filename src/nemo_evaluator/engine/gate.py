@@ -258,7 +258,7 @@ def _evaluate_benchmark(
     try:
         reg_report = compare_runs(str(base_path), str(cand_path))
         result.regression_report = reg_report
-    except Exception as e:
+    except (FileNotFoundError, ValueError, TypeError, KeyError) as e:
         logger.warning("compare_runs failed for %s: %s", bench_name, e)
         reg_report = None
 

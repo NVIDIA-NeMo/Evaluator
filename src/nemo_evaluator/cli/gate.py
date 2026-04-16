@@ -107,7 +107,7 @@ def gate_cmd(
         candidate_dir = _resolve_results_dir(candidate)
         policy = load_gate_policy(policy_path)
         report = gate_runs(baseline_dir, candidate_dir, policy)
-    except Exception as exc:
+    except (FileNotFoundError, ValueError, TypeError) as exc:
         raise click.ClickException(str(exc)) from exc
 
     if output:

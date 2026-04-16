@@ -253,7 +253,7 @@ if report.verdict != "GO":
 | Flag | Required | Default | Purpose |
 |------|----------|---------|---------|
 | `--policy` / `-p` | Yes | -- | Path to the gate policy YAML |
-| `--strict` | No | off | Exit non-zero on NO-GO (1) or INCONCLUSIVE (2) |
+| `--strict` | No | on | Exit non-zero on NO-GO (1) or INCONCLUSIVE (2) |
 | `--output` / `-o` | No | none | Write JSON report to file |
 | `--format` | No | text | `text` or `json` |
 | `--verbose` | No | off | Show per-benchmark reasons and warnings |
