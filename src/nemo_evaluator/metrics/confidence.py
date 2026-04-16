@@ -71,8 +71,9 @@ def normal_ci(scores: list[float], confidence: float = 0.95) -> ConfidenceInterv
     n = len(arr)
 
     if n < 2:
-        return ConfidenceInterval(mean=mean, ci_lower=mean, ci_upper=mean,
-                                  confidence=confidence, method="normal", se=0.0)
+        return ConfidenceInterval(
+            mean=mean, ci_lower=mean, ci_upper=mean, confidence=confidence, method="normal", se=0.0
+        )
 
     from scipy import stats
 
@@ -130,8 +131,9 @@ def clustered_ci(
     n = len(arr)
 
     if n < 2:
-        return ConfidenceInterval(mean=mean, ci_lower=mean, ci_upper=mean,
-                                  confidence=confidence, method="clustered", se=0.0)
+        return ConfidenceInterval(
+            mean=mean, ci_lower=mean, ci_upper=mean, confidence=confidence, method="clustered", se=0.0
+        )
 
     # Group residuals by cluster
     residuals = arr - mean
@@ -145,8 +147,8 @@ def clustered_ci(
         return normal_ci(scores, confidence)
 
     # Clustered variance: (G / (G-1)) * (1/N^2) * sum(e_g^2)
-    sum_sq = sum(e ** 2 for e in cluster_sums.values())
-    clustered_var = (g / (g - 1)) * sum_sq / (n ** 2)
+    sum_sq = sum(e**2 for e in cluster_sums.values())
+    clustered_var = (g / (g - 1)) * sum_sq / (n**2)
     se = float(np.sqrt(clustered_var))
 
     from scipy import stats

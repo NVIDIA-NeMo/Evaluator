@@ -76,7 +76,9 @@ def generate_gate_report(report_dict: dict[str, Any]) -> str:
             ci_str = f"[{ci_lo:.4f}, {ci_hi:.4f}]" if ci_lo is not None and ci_hi is not None else "—"
             n_str = f"{n:,}" if n > 0 else "—"
 
-            _w(f"| {name} | {tier} | {status} | {metric} | {base_str} | {cand_str} | {delta_str} | {ci_str} | {n_str} |")
+            _w(
+                f"| {name} | {tier} | {status} | {metric} | {base_str} | {cand_str} | {delta_str} | {ci_str} | {n_str} |"
+            )
 
         _w("")
 

@@ -54,6 +54,7 @@ def _cap_verdict(delta: float, threshold: float, mcnemar_sig: bool | None) -> tu
 def _resolve_bundle(path_str: str) -> str:
     """Accept a directory or a bundle .json file. If directory, find the eval-*.json inside."""
     from pathlib import Path
+
     p = Path(path_str)
     if p.is_file():
         return str(p)
@@ -75,28 +76,65 @@ def _resolve_bundle(path_str: str) -> str:
 @click.argument("candidate", type=click.Path(exists=True))
 @click.option("--output", "-o", type=click.Path(), default=None, help="Write full report JSON to file.")
 @click.option(
-    "--max-drop", "-t", "threshold", type=float, default=0.05,
+    "--max-drop",
+    "-t",
+    "threshold",
+    type=float,
+    default=0.05,
     help="Maximum allowed absolute drop in any metric (0-1 scale, default: 0.05 = 5%%).",
 )
-@click.option("--strict/--no-strict", default=True, help="Exit non-zero on BLOCK (exit 1) or WARN/INCONCLUSIVE (exit 2). Default: strict. Use --no-strict for interactive exploration. For multi-benchmark policies, see 'nel gate'.")
 @click.option(
-    "--correct-above", "reward_threshold", type=float, default=0.0,
+    "--strict/--no-strict",
+    default=True,
+    help="Exit non-zero on BLOCK (exit 1) or WARN/INCONCLUSIVE (exit 2). Default: strict. Use --no-strict for interactive exploration. For multi-benchmark policies, see 'nel gate'.",
+)
+@click.option(
+    "--correct-above",
+    "reward_threshold",
+    type=float,
+    default=0.0,
     help="Reward above this counts as 'correct' for flip analysis. Use 0.5 for judge scores. Default: >0.",
 )
 @click.option("--show-flips", is_flag=True, help="Show per-sample flip list with details.")
 @click.option("--compact", is_flag=True, help="Short output for Slack / CI logs (~8 lines).")
-@click.option("--format", "fmt", type=click.Choice(["text", "json"]), default="text",
-              help="Output format. 'json' writes structured JSON to stdout.")
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    help="Output format. 'json' writes structured JSON to stdout.",
+)
 @click.option("--verbose", is_flag=True, help="Show statistical details (p-values, methods, power).")
-@click.option("--report", "report_path", type=click.Path(), default=None,
-              help="Write Markdown report to this path (default: auto-generated next to candidate bundle).")
+@click.option(
+    "--report",
+    "report_path",
+    type=click.Path(),
+    default=None,
+    help="Write Markdown report to this path (default: auto-generated next to candidate bundle).",
+)
 @click.option("--no-report", is_flag=True, help="Suppress auto-generated Markdown report.")
 @click.option(
-    "--test", "test_method", type=click.Choice(["auto", "mcnemar", "sign", "permutation"]),
+    "--test",
+    "test_method",
+    type=click.Choice(["auto", "mcnemar", "sign", "permutation"]),
     default="auto",
     help="Statistical test: auto (detect from data), mcnemar (N=1 binary), sign (N>1 averaged), permutation (continuous).",
 )
-def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold, show_flips, compact, fmt, verbose, report_path, no_report, test_method):
+def compare_cmd(
+    baseline,
+    candidate,
+    output,
+    threshold,
+    strict,
+    reward_threshold,
+    show_flips,
+    compact,
+    fmt,
+    verbose,
+    report_path,
+    no_report,
+    test_method,
+):
     """Compare two evaluation runs and report regressions.
 
     BASELINE and CANDIDATE can be eval-*.json bundle files OR directories
@@ -116,7 +154,8 @@ def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold
     candidate = _resolve_bundle(candidate)
 
     report = compare_runs(
-        baseline, candidate,
+        baseline,
+        candidate,
         reward_threshold=reward_threshold,
         min_effect=threshold,
         test=test_method,
@@ -129,9 +168,11 @@ def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold
     # Item #9: --format json writes to stdout
     if fmt == "json":
         import json as _json
+
         click.echo(_json.dumps(report, indent=2, default=str))
         if report_path:
             from nemo_evaluator.engine.regression_report import write_report
+
             write_report(report, report_path)
             click.echo(f"Report written to: {report_path}", err=True)
         return
@@ -161,10 +202,13 @@ def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold
     n_paired = s.get("n_paired", 0)
     sig_word = "significant" if mcnemar and mcnemar.get("significant") else "not significant"
     click.echo()
-    click.echo(_style(
-        f"{verdict} — {n_reg} regressions, {n_imp} improvements out of {n_paired} paired samples — {sig_word}",
-        fg=v_color, bold=True,
-    ))
+    click.echo(
+        _style(
+            f"{verdict} — {n_reg} regressions, {n_imp} improvements out of {n_paired} paired samples — {sig_word}",
+            fg=v_color,
+            bold=True,
+        )
+    )
 
     # ── Header ─────────────────────────────────────────────────────
     click.echo()
@@ -260,8 +304,13 @@ def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold
         click.echo("\u2500" * 60)
         click.echo(_style(f"  Stable correct:  {sc:>4}  {sc_bar}", fg="green") + "  (both got it right)")
         click.echo(f"  Stable wrong:    {sw:>4}  {sw_bar}  (both got it wrong)")
-        click.echo(_style(f"  Regressions:     {nr:>4}  {rg_bar}", fg="red") + f"  (baseline right, candidate wrong){reg_rate}")
-        click.echo(_style(f"  Improvements:    {ni:>4}  {im_bar}", fg="green") + f"  (baseline wrong, candidate right){imp_rate}")
+        click.echo(
+            _style(f"  Regressions:     {nr:>4}  {rg_bar}", fg="red") + f"  (baseline right, candidate wrong){reg_rate}"
+        )
+        click.echo(
+            _style(f"  Improvements:    {ni:>4}  {im_bar}", fg="green")
+            + f"  (baseline wrong, candidate right){imp_rate}"
+        )
 
         # Item #13: category breakdown subtotals
         cat_bd = s.get("category_breakdown")
@@ -284,10 +333,15 @@ def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold
             nr = s.get("n_regressions", 0)
             np_ = s.get("n_paired", 0)
             click.echo()
-            click.echo(_style(
-                f"REGRESSIONS ({nr} of {np_} problems, {nr / np_ * 100:.1f}%)" if np_ else f"REGRESSIONS ({nr} problems)",
-                fg="red", bold=True,
-            ))
+            click.echo(
+                _style(
+                    f"REGRESSIONS ({nr} of {np_} problems, {nr / np_ * 100:.1f}%)"
+                    if np_
+                    else f"REGRESSIONS ({nr} problems)",
+                    fg="red",
+                    bold=True,
+                )
+            )
             click.echo("\u2500" * 60)
             for f_entry in flip["regressions"]:
                 _render_flip_entry(f_entry, "red", verbose)
@@ -296,10 +350,15 @@ def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold
             ni = s.get("n_improvements", 0)
             np_ = s.get("n_paired", 0)
             click.echo()
-            click.echo(_style(
-                f"IMPROVEMENTS ({ni} of {np_} problems, {ni / np_ * 100:.1f}%)" if np_ else f"IMPROVEMENTS ({ni} problems)",
-                fg="green", bold=True,
-            ))
+            click.echo(
+                _style(
+                    f"IMPROVEMENTS ({ni} of {np_} problems, {ni / np_ * 100:.1f}%)"
+                    if np_
+                    else f"IMPROVEMENTS ({ni} problems)",
+                    fg="green",
+                    bold=True,
+                )
+            )
             click.echo("\u2500" * 60)
             for f_entry in flip["improvements"]:
                 _render_flip_entry(f_entry, "green", verbose)
@@ -329,7 +388,9 @@ def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold
         if sign_result:
             click.echo("  Test: Sign test (one-sided, H1: baseline > candidate)")
             click.echo(f"  p-value: {sign_result.get('p_value')}")
-            click.echo(f"  Regressions (d>0): {sign_result.get('n_positive')}, Improvements (d<0): {sign_result.get('n_negative')}, Ties: {sign_result.get('n_ties')}")
+            click.echo(
+                f"  Regressions (d>0): {sign_result.get('n_positive')}, Improvements (d<0): {sign_result.get('n_negative')}, Ties: {sign_result.get('n_ties')}"
+            )
 
         perm_result = report.get("permutation_test")
         if perm_result:
@@ -345,11 +406,13 @@ def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold
 
     if report_path:
         from nemo_evaluator.engine.regression_report import write_report
+
         rp = write_report(report, report_path)
         click.echo(f"Markdown report written to: {rp}")
 
     # ── Summary sentence (item #5) ───────────────────────────────
     from nemo_evaluator.engine.comparison import build_summary_sentence
+
     summary_sentence = build_summary_sentence(s, cats, threshold)
     if summary_sentence:
         click.echo()
@@ -364,16 +427,26 @@ def compare_cmd(baseline, candidate, output, threshold, strict, reward_threshold
         else:
             click.echo(_style("BLOCKED: significant regression detected.", fg="red", bold=True))
     elif verdict == "WARN":
-        click.echo(_style("WARNING: statistically significant change, but below practical threshold.", fg="yellow", bold=True))
+        click.echo(
+            _style("WARNING: statistically significant change, but below practical threshold.", fg="yellow", bold=True)
+        )
     elif verdict == "INCONCLUSIVE":
-        click.echo(_style("INCONCLUSIVE: not enough data to detect regressions at the configured threshold.", fg="yellow", bold=True))
+        click.echo(
+            _style(
+                "INCONCLUSIVE: not enough data to detect regressions at the configured threshold.",
+                fg="yellow",
+                bold=True,
+            )
+        )
     else:
         nr = s.get("n_regressions", 0)
         if nr > 0:
-            click.echo(_style(
-                f"No significant regressions. ({nr} flip(s) within normal variation for {s.get('n_paired', 0)} samples.)",
-                fg="green",
-            ))
+            click.echo(
+                _style(
+                    f"No significant regressions. ({nr} flip(s) within normal variation for {s.get('n_paired', 0)} samples.)",
+                    fg="green",
+                )
+            )
         else:
             click.echo(_style("No regressions detected.", fg="green"))
 
@@ -390,7 +463,9 @@ def _render_compact(verdict, v_color, base_id, cand_id, s, mcnemar, report, thre
     np_ = s.get("n_paired", 0)
     sig = "significant" if mcnemar and mcnemar.get("significant") else "not significant"
 
-    click.echo(_style(f"{verdict}", fg=v_color, bold=True) + f" — {nr} regressions, {ni} improvements ({np_} samples, {sig})")
+    click.echo(
+        _style(f"{verdict}", fg=v_color, bold=True) + f" — {nr} regressions, {ni} improvements ({np_} samples, {sig})"
+    )
     click.echo(f"  Baseline:  {base_id}")
     click.echo(f"  Candidate: {cand_id}")
 
@@ -399,7 +474,12 @@ def _render_compact(verdict, v_color, base_id, cand_id, s, mcnemar, report, thre
         for cat, v in sorted(cats.items()):
             d = v["delta"]
             if d < -threshold:
-                click.echo(_style(f"  {cat}: {v['baseline'] * 100:.1f}% -> {v['candidate'] * 100:.1f}%  ({d * 100:+.1f}%)", fg="red"))
+                click.echo(
+                    _style(
+                        f"  {cat}: {v['baseline'] * 100:.1f}% -> {v['candidate'] * 100:.1f}%  ({d * 100:+.1f}%)",
+                        fg="red",
+                    )
+                )
 
     for w in warnings:
         click.echo(_style(f"  WARNING: {w}", fg="yellow"))
@@ -411,11 +491,14 @@ def _render_flip_entry(f_entry: dict, color: str, verbose: bool):
     if len(exp) > 30:
         exp = exp[:27] + "..."
 
-    click.echo(_style(
-        f"  #{f_entry['problem_idx']:<5}  "
-        f"{f_entry['baseline_reward']:.1f} \u2192 {f_entry['candidate_reward']:.1f}",
-        fg=color,
-    ) + f"  expected={exp!r:<32s}{cat}")
+    click.echo(
+        _style(
+            f"  #{f_entry['problem_idx']:<5}  "
+            f"{f_entry['baseline_reward']:.1f} \u2192 {f_entry['candidate_reward']:.1f}",
+            fg=color,
+        )
+        + f"  expected={exp!r:<32s}{cat}"
+    )
 
     if verbose:
         cand_resp = f_entry.get("candidate_response")

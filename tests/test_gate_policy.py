@@ -20,22 +20,24 @@ class TestGatePolicyParsing:
         assert p.benchmarks == {}
 
     def test_full_policy(self):
-        p = GatePolicy.model_validate({
-            "version": 1,
-            "defaults": {
-                "tier": "critical",
-                "max_drop": 0.01,
-                "max_relative_drop": 0.02,
-                "relative_guard_below": 0.2,
-                "metric": "mean_reward",
-                "direction": "higher_is_better",
-                "repeats_aggregation": "mean",
-            },
-            "benchmarks": {
-                "mmlu": {"tier": "supporting", "max_drop": 0.015},
-                "gpqa": {},
-            },
-        })
+        p = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "defaults": {
+                    "tier": "critical",
+                    "max_drop": 0.01,
+                    "max_relative_drop": 0.02,
+                    "relative_guard_below": 0.2,
+                    "metric": "mean_reward",
+                    "direction": "higher_is_better",
+                    "repeats_aggregation": "mean",
+                },
+                "benchmarks": {
+                    "mmlu": {"tier": "supporting", "max_drop": 0.015},
+                    "gpqa": {},
+                },
+            }
+        )
         assert p.defaults.tier == Tier.critical
         assert p.defaults.max_relative_drop == 0.02
         assert p.defaults.repeats_aggregation == "mean"
@@ -67,14 +69,16 @@ class TestGatePolicyParsing:
             BenchmarkGateEntry.model_validate({"tier": "critical", "bogus": 42})
 
     def test_three_tiers(self):
-        p = GatePolicy.model_validate({
-            "version": 1,
-            "benchmarks": {
-                "a": {"tier": "critical"},
-                "b": {"tier": "supporting"},
-                "c": {"tier": "advisory"},
-            },
-        })
+        p = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "benchmarks": {
+                    "a": {"tier": "critical"},
+                    "b": {"tier": "supporting"},
+                    "c": {"tier": "advisory"},
+                },
+            }
+        )
         assert p.benchmarks["a"].tier == Tier.critical
         assert p.benchmarks["b"].tier == Tier.supporting
         assert p.benchmarks["c"].tier == Tier.advisory
@@ -92,31 +96,37 @@ class TestGatePolicyParsing:
 
 class TestResolve:
     def test_resolve_with_overrides(self):
-        p = GatePolicy.model_validate({
-            "version": 1,
-            "defaults": {"tier": "supporting", "max_drop": 0.015, "metric": "mean_reward"},
-            "benchmarks": {"mmlu": {"tier": "critical", "max_drop": 0.01}},
-        })
+        p = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "defaults": {"tier": "supporting", "max_drop": 0.015, "metric": "mean_reward"},
+                "benchmarks": {"mmlu": {"tier": "critical", "max_drop": 0.01}},
+            }
+        )
         resolved = p.resolve("mmlu")
         assert resolved.tier == Tier.critical
         assert resolved.max_drop == 0.01
         assert resolved.metric == "mean_reward"  # inherited
 
     def test_resolve_unknown_benchmark(self):
-        p = GatePolicy.model_validate({
-            "version": 1,
-            "defaults": {"tier": "supporting", "max_drop": 0.015},
-        })
+        p = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "defaults": {"tier": "supporting", "max_drop": 0.015},
+            }
+        )
         resolved = p.resolve("unknown_bench")
         assert resolved.tier == Tier.supporting
         assert resolved.max_drop == 0.015
 
     def test_resolve_empty_entry_inherits_all(self):
-        p = GatePolicy.model_validate({
-            "version": 1,
-            "defaults": {"max_drop": 0.02, "direction": "lower_is_better"},
-            "benchmarks": {"ppl": {}},
-        })
+        p = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "defaults": {"max_drop": 0.02, "direction": "lower_is_better"},
+                "benchmarks": {"ppl": {}},
+            }
+        )
         resolved = p.resolve("ppl")
         assert resolved.max_drop == 0.02
         assert resolved.direction == Direction.lower_is_better
@@ -124,23 +134,27 @@ class TestResolve:
 
 class TestRequiredBenchmarks:
     def test_excludes_advisory(self):
-        p = GatePolicy.model_validate({
-            "version": 1,
-            "benchmarks": {
-                "mmlu": {"tier": "critical"},
-                "gpqa": {"tier": "supporting"},
-                "ifeval": {"tier": "advisory"},
-            },
-        })
+        p = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "benchmarks": {
+                    "mmlu": {"tier": "critical"},
+                    "gpqa": {"tier": "supporting"},
+                    "ifeval": {"tier": "advisory"},
+                },
+            }
+        )
         required = p.required_benchmarks()
         assert required == {"mmlu", "gpqa"}
 
     def test_inherits_default_tier(self):
-        p = GatePolicy.model_validate({
-            "version": 1,
-            "defaults": {"tier": "critical"},
-            "benchmarks": {"a": {}, "b": {"tier": "advisory"}},
-        })
+        p = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "defaults": {"tier": "critical"},
+                "benchmarks": {"a": {}, "b": {"tier": "advisory"}},
+            }
+        )
         assert p.required_benchmarks() == {"a"}
 
     def test_empty_benchmarks(self):
@@ -150,35 +164,43 @@ class TestRequiredBenchmarks:
 
 class TestGateValidation:
     def test_validate_for_gate_accepts_supported_required_metrics(self):
-        p = GatePolicy.model_validate({
-            "version": 1,
-            "defaults": {"metric": "mean_reward"},
-            "benchmarks": {"mmlu": {"tier": "critical"}},
-        })
+        p = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "defaults": {"metric": "mean_reward"},
+                "benchmarks": {"mmlu": {"tier": "critical"}},
+            }
+        )
         p.validate_for_gate({"mean_reward", "pass@1"})
 
     def test_validate_for_gate_rejects_missing_metric(self):
-        p = GatePolicy.model_validate({
-            "version": 1,
-            "benchmarks": {"mmlu": {"tier": "critical"}},
-        })
+        p = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "benchmarks": {"mmlu": {"tier": "critical"}},
+            }
+        )
         with pytest.raises(ValueError, match="explicit metric"):
             p.validate_for_gate({"mean_reward", "pass@1"})
 
     def test_validate_for_gate_rejects_unsupported_metric(self):
-        p = GatePolicy.model_validate({
-            "version": 1,
-            "defaults": {"metric": "scorer:rouge"},
-            "benchmarks": {"mmlu": {"tier": "critical"}},
-        })
+        p = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "defaults": {"metric": "scorer:rouge"},
+                "benchmarks": {"mmlu": {"tier": "critical"}},
+            }
+        )
         with pytest.raises(ValueError, match="unsupported metric"):
             p.validate_for_gate({"mean_reward", "pass@1"})
 
     def test_validate_for_gate_ignores_advisory_without_metric(self):
-        p = GatePolicy.model_validate({
-            "version": 1,
-            "benchmarks": {"triviaqa": {"tier": "advisory"}},
-        })
+        p = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "benchmarks": {"triviaqa": {"tier": "advisory"}},
+            }
+        )
         p.validate_for_gate({"mean_reward", "pass@1"})
 
 

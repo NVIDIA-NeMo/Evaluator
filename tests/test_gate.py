@@ -126,9 +126,12 @@ class TestGateVerdicts:
 
     def test_all_pass(self, tmp_path):
         """All benchmarks within threshold → GO."""
-        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
-            "mmlu": (_simple_records(50, 0.8), _simple_records(50, 0.795), _scores(0.8), _scores(0.795)),
-        })
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {
+                "mmlu": (_simple_records(50, 0.8), _simple_records(50, 0.795), _scores(0.8), _scores(0.795)),
+            },
+        )
         policy = self._policy(benchmarks={"mmlu": {}})
         report = gate_runs(base_dir, cand_dir, policy)
         assert report.verdict == "GO"
@@ -136,9 +139,12 @@ class TestGateVerdicts:
 
     def test_critical_breach(self, tmp_path):
         """Critical benchmark exceeds threshold → NO-GO."""
-        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
-            "mmlu": (_simple_records(50, 1.0), _simple_records(50, 0.95), _scores(1.0), _scores(0.95)),
-        })
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {
+                "mmlu": (_simple_records(50, 1.0), _simple_records(50, 0.95), _scores(1.0), _scores(0.95)),
+            },
+        )
         policy = self._policy(benchmarks={"mmlu": {"tier": "critical"}})
         report = gate_runs(base_dir, cand_dir, policy)
         assert report.verdict == "NO-GO"
@@ -148,22 +154,30 @@ class TestGateVerdicts:
 
     def test_supporting_breach_is_nogo(self, tmp_path):
         """Supporting benchmark breach also blocks (not just a warning)."""
-        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
-            "triviaqa": (_simple_records(50, 1.0), _simple_records(50, 0.9), _scores(1.0), _scores(0.9)),
-        })
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {
+                "triviaqa": (_simple_records(50, 1.0), _simple_records(50, 0.9), _scores(1.0), _scores(0.9)),
+            },
+        )
         policy = self._policy(benchmarks={"triviaqa": {"tier": "supporting", "max_drop": 0.015}})
         report = gate_runs(base_dir, cand_dir, policy)
         assert report.verdict == "NO-GO"
 
     def test_advisory_breach_is_go(self, tmp_path):
         """Advisory benchmark breach does NOT affect verdict."""
-        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
-            "ifeval": (_simple_records(50, 1.0), _simple_records(50, 0.5), _scores(1.0), _scores(0.5)),
-        })
-        policy = GatePolicy.model_validate({
-            "version": 1,
-            "benchmarks": {"ifeval": {"tier": "advisory"}},
-        })
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {
+                "ifeval": (_simple_records(50, 1.0), _simple_records(50, 0.5), _scores(1.0), _scores(0.5)),
+            },
+        )
+        policy = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "benchmarks": {"ifeval": {"tier": "advisory"}},
+            }
+        )
         report = gate_runs(base_dir, cand_dir, policy)
         assert report.verdict == "GO"
 
@@ -205,17 +219,22 @@ class TestGateVerdicts:
         # Better: baseline 10%, candidate 9.5%. Absolute drop = 0.005 < 0.015. Relative = 5% > 2%.
         base_recs = _simple_records(50, 0.10)
         cand_recs = _simple_records(50, 0.095)
-        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
-            "hle": (base_recs, cand_recs, _scores(0.10), _scores(0.095)),
-        })
-        policy = self._policy(benchmarks={
-            "hle": {
-                "tier": "critical",
-                "max_drop": 0.015,  # absolute: 0.005 < 0.015, passes
-                "max_relative_drop": 0.02,  # relative: 5% > 2%, breaches
-                "relative_guard_below": 0.20,
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {
+                "hle": (base_recs, cand_recs, _scores(0.10), _scores(0.095)),
             },
-        })
+        )
+        policy = self._policy(
+            benchmarks={
+                "hle": {
+                    "tier": "critical",
+                    "max_drop": 0.015,  # absolute: 0.005 < 0.015, passes
+                    "max_relative_drop": 0.02,  # relative: 5% > 2%, breaches
+                    "relative_guard_below": 0.20,
+                },
+            }
+        )
         report = gate_runs(base_dir, cand_dir, policy)
         hle = next(b for b in report.benchmarks if b.benchmark == "hle")
         assert hle.relative_breached
@@ -227,16 +246,21 @@ class TestGateVerdicts:
         # But if we set max_drop high to avoid absolute breach:
         base_recs = _simple_records(50, 0.80)
         cand_recs = _simple_records(50, 0.76)
-        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
-            "mmlu": (base_recs, cand_recs, _scores(0.80), _scores(0.76)),
-        })
-        policy = self._policy(benchmarks={
-            "mmlu": {
-                "max_drop": 0.05,  # absolute: 0.04 < 0.05, passes
-                "max_relative_drop": 0.02,  # relative: 5% > 2%, BUT...
-                "relative_guard_below": 0.20,  # baseline 0.80 > 0.20, skip relative
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {
+                "mmlu": (base_recs, cand_recs, _scores(0.80), _scores(0.76)),
             },
-        })
+        )
+        policy = self._policy(
+            benchmarks={
+                "mmlu": {
+                    "max_drop": 0.05,  # absolute: 0.04 < 0.05, passes
+                    "max_relative_drop": 0.02,  # relative: 5% > 2%, BUT...
+                    "relative_guard_below": 0.20,  # baseline 0.80 > 0.20, skip relative
+                },
+            }
+        )
         report = gate_runs(base_dir, cand_dir, policy)
         mmlu = next(b for b in report.benchmarks if b.benchmark == "mmlu")
         assert not mmlu.relative_breached
@@ -244,9 +268,12 @@ class TestGateVerdicts:
 
     def test_improvement_does_not_breach(self, tmp_path):
         """Positive improvement must NOT trigger BREACH (direction-aware)."""
-        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
-            "mmlu": (_simple_records(50, 0.7), _simple_records(50, 0.9), _scores(0.7), _scores(0.9)),
-        })
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {
+                "mmlu": (_simple_records(50, 0.7), _simple_records(50, 0.9), _scores(0.7), _scores(0.9)),
+            },
+        )
         policy = self._policy(benchmarks={"mmlu": {}})
         report = gate_runs(base_dir, cand_dir, policy)
         mmlu = report.benchmarks[0]
@@ -258,9 +285,12 @@ class TestGateVerdicts:
         """For lower-is-better metrics, an increase is a regression."""
         base_recs = _simple_records(50, 5.0)
         cand_recs = _simple_records(50, 5.5)
-        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
-            "loss": (base_recs, cand_recs, _scores(5.0), _scores(5.5)),
-        })
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {
+                "loss": (base_recs, cand_recs, _scores(5.0), _scores(5.5)),
+            },
+        )
         policy = self._policy(
             benchmarks={"loss": {"direction": "lower_is_better", "max_drop": 0.3}},
         )
@@ -273,9 +303,12 @@ class TestGateVerdicts:
         """For lower-is-better, a decrease is improvement → PASS."""
         base_recs = _simple_records(50, 5.0)
         cand_recs = _simple_records(50, 4.5)
-        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
-            "loss": (base_recs, cand_recs, _scores(5.0), _scores(4.5)),
-        })
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {
+                "loss": (base_recs, cand_recs, _scores(5.0), _scores(4.5)),
+            },
+        )
         policy = self._policy(
             benchmarks={"loss": {"direction": "lower_is_better", "max_drop": 0.3}},
         )
@@ -284,20 +317,23 @@ class TestGateVerdicts:
 
     def test_metric_selection_pass1_does_not_gate_on_mean_reward(self, tmp_path):
         """Selected metric must drive the gate math."""
-        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
-            "code": (
-                _simple_records(50, 0.6),
-                _simple_records(50, 0.4),
-                {
-                    "mean_reward": _score_entry(0.6, 0.6, 0.6),
-                    "pass@1": _score_entry(1.0, 1.0, 1.0),
-                },
-                {
-                    "mean_reward": _score_entry(0.4, 0.4, 0.4),
-                    "pass@1": _score_entry(1.0, 1.0, 1.0),
-                },
-            ),
-        })
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {
+                "code": (
+                    _simple_records(50, 0.6),
+                    _simple_records(50, 0.4),
+                    {
+                        "mean_reward": _score_entry(0.6, 0.6, 0.6),
+                        "pass@1": _score_entry(1.0, 1.0, 1.0),
+                    },
+                    {
+                        "mean_reward": _score_entry(0.4, 0.4, 0.4),
+                        "pass@1": _score_entry(1.0, 1.0, 1.0),
+                    },
+                ),
+            },
+        )
         policy = self._policy(benchmarks={"code": {"metric": "pass@1"}})
         report = gate_runs(base_dir, cand_dir, policy)
         code = report.benchmarks[0]
@@ -308,20 +344,25 @@ class TestGateVerdicts:
 
     def test_per_benchmark_thresholds(self, tmp_path):
         """Different max_drop per benchmark honored."""
-        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
-            # mmlu: drop 0.02 > 0.01 threshold → BREACH
-            "mmlu": (_simple_records(50, 0.8), _simple_records(50, 0.78), _scores(0.8), _scores(0.78)),
-            # gpqa: drop 0.02 < 0.05 threshold → PASS
-            "gpqa": (_simple_records(50, 0.5), _simple_records(50, 0.48), _scores(0.5), _scores(0.48)),
-        })
-        policy = GatePolicy.model_validate({
-            "version": 1,
-            "defaults": {"metric": "mean_reward"},
-            "benchmarks": {
-                "mmlu": {"tier": "critical", "max_drop": 0.01},
-                "gpqa": {"tier": "critical", "max_drop": 0.05},
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {
+                # mmlu: drop 0.02 > 0.01 threshold → BREACH
+                "mmlu": (_simple_records(50, 0.8), _simple_records(50, 0.78), _scores(0.8), _scores(0.78)),
+                # gpqa: drop 0.02 < 0.05 threshold → PASS
+                "gpqa": (_simple_records(50, 0.5), _simple_records(50, 0.48), _scores(0.5), _scores(0.48)),
             },
-        })
+        )
+        policy = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "defaults": {"metric": "mean_reward"},
+                "benchmarks": {
+                    "mmlu": {"tier": "critical", "max_drop": 0.01},
+                    "gpqa": {"tier": "critical", "max_drop": 0.05},
+                },
+            }
+        )
         report = gate_runs(base_dir, cand_dir, policy)
         mmlu = next(b for b in report.benchmarks if b.benchmark == "mmlu")
         gpqa = next(b for b in report.benchmarks if b.benchmark == "gpqa")
@@ -339,30 +380,37 @@ class TestGateVerdicts:
         _write_bundle(cand_dir / "eval-mmlu.json", "mmlu")
         # No results.jsonl written
 
-        policy = GatePolicy.model_validate({
-            "version": 1,
-            "defaults": {"metric": "mean_reward"},
-            "benchmarks": {"mmlu": {"tier": "critical", "max_drop": 0.01}},
-        })
+        policy = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "defaults": {"metric": "mean_reward"},
+                "benchmarks": {"mmlu": {"tier": "critical", "max_drop": 0.01}},
+            }
+        )
         report = gate_runs(tmp_path / "baseline", tmp_path / "candidate", policy)
         assert report.benchmarks[0].status == "INSUFFICIENT_EVIDENCE"
         assert report.verdict == "INCONCLUSIVE"
 
     def test_insufficient_evidence_few_items(self, tmp_path):
         """< 10 paired items → INSUFFICIENT_EVIDENCE."""
-        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
-            "mmlu": (
-                _simple_records(5, 0.8),
-                _simple_records(5, 0.7),
-                _scores(0.8),
-                _scores(0.7),
-            ),
-        })
-        policy = GatePolicy.model_validate({
-            "version": 1,
-            "defaults": {"metric": "mean_reward"},
-            "benchmarks": {"mmlu": {"tier": "critical", "max_drop": 0.01}},
-        })
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {
+                "mmlu": (
+                    _simple_records(5, 0.8),
+                    _simple_records(5, 0.7),
+                    _scores(0.8),
+                    _scores(0.7),
+                ),
+            },
+        )
+        policy = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "defaults": {"metric": "mean_reward"},
+                "benchmarks": {"mmlu": {"tier": "critical", "max_drop": 0.01}},
+            }
+        )
         report = gate_runs(base_dir, cand_dir, policy)
         assert report.benchmarks[0].status == "INSUFFICIENT_EVIDENCE"
 
@@ -377,9 +425,12 @@ class TestGateVerdicts:
             base.append(_record(i, 1.0))
             cand.append(_record(i, 1.0))
 
-        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
-            "mmlu": (base, cand, _scores(1.0), _scores(0.99)),
-        })
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {
+                "mmlu": (base, cand, _scores(1.0), _scores(0.99)),
+            },
+        )
         policy = self._policy(benchmarks={"mmlu": {"max_drop": 0.01}})
         report = gate_runs(base_dir, cand_dir, policy)
         mmlu = report.benchmarks[0]
@@ -411,14 +462,19 @@ class TestGateVerdicts:
 
     def test_missing_metric_for_required_benchmark_fails_fast(self, tmp_path):
         """Required benchmarks must resolve to an explicit supported metric."""
-        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
-            "mmlu": (_simple_records(50, 0.8), _simple_records(50, 0.79), _scores(0.8), _scores(0.79)),
-        })
-        policy = GatePolicy.model_validate({
-            "version": 1,
-            "defaults": {"tier": "critical", "max_drop": 0.01},
-            "benchmarks": {"mmlu": {}},
-        })
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {
+                "mmlu": (_simple_records(50, 0.8), _simple_records(50, 0.79), _scores(0.8), _scores(0.79)),
+            },
+        )
+        policy = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "defaults": {"tier": "critical", "max_drop": 0.01},
+                "benchmarks": {"mmlu": {}},
+            }
+        )
         with pytest.raises(ValueError, match="explicit metric"):
             gate_runs(base_dir, cand_dir, policy)
 
@@ -432,14 +488,19 @@ class TestRepeatAggregation:
         base_recs = [_record(i, 0.8, repeat=r) for i in range(20) for r in range(3)]
         cand_recs = [_record(i, 0.75, repeat=r) for i in range(20) for r in range(3)]
 
-        base_dir, cand_dir = _make_gate_dirs(tmp_path, {
-            "mmlu": (base_recs, cand_recs, _scores(0.8), _scores(0.75)),
-        })
-        policy = GatePolicy.model_validate({
-            "version": 1,
-            "defaults": {"metric": "mean_reward", "repeats_aggregation": "mean"},
-            "benchmarks": {"mmlu": {"tier": "critical", "max_drop": 0.01}},
-        })
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {
+                "mmlu": (base_recs, cand_recs, _scores(0.8), _scores(0.75)),
+            },
+        )
+        policy = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "defaults": {"metric": "mean_reward", "repeats_aggregation": "mean"},
+                "benchmarks": {"mmlu": {"tier": "critical", "max_drop": 0.01}},
+            }
+        )
         report = gate_runs(base_dir, cand_dir, policy)
         mmlu = report.benchmarks[0]
         # After aggregation: 20 paired items (not 60)
@@ -483,13 +544,15 @@ class TestPairedDeltaCI:
 
 class TestWriteGateReport:
     def test_serialized_report_keeps_regression_evidence(self, tmp_path):
-        report = GateReport(benchmarks=[
-            BenchmarkGateResult(
-                benchmark="mmlu",
-                tier="critical",
-                regression_report={"verdict": "PASS"},
-            )
-        ])
+        report = GateReport(
+            benchmarks=[
+                BenchmarkGateResult(
+                    benchmark="mmlu",
+                    tier="critical",
+                    regression_report={"verdict": "PASS"},
+                )
+            ]
+        )
         path = write_gate_report(report, tmp_path / "gate.json")
         data = json.loads(path.read_text())
         assert data["benchmarks"][0]["regression_report"] == {"verdict": "PASS"}
@@ -592,14 +655,28 @@ class TestGateMarkdownReport:
             verdict_reasons=["BREACH: gpqa [critical]"],
             benchmarks=[
                 BenchmarkGateResult(
-                    benchmark="mmlu_pro", tier="critical", status="PASS",
-                    metric="mean_reward", baseline_score=0.782, candidate_score=0.775,
-                    delta=-0.007, delta_ci_lower=-0.012, delta_ci_upper=-0.002, n_paired=12000,
+                    benchmark="mmlu_pro",
+                    tier="critical",
+                    status="PASS",
+                    metric="mean_reward",
+                    baseline_score=0.782,
+                    candidate_score=0.775,
+                    delta=-0.007,
+                    delta_ci_lower=-0.012,
+                    delta_ci_upper=-0.002,
+                    n_paired=12000,
                 ),
                 BenchmarkGateResult(
-                    benchmark="gpqa", tier="critical", status="BREACH",
-                    metric="mean_reward", baseline_score=0.412, candidate_score=0.398,
-                    delta=-0.014, delta_ci_lower=-0.038, delta_ci_upper=0.010, n_paired=198,
+                    benchmark="gpqa",
+                    tier="critical",
+                    status="BREACH",
+                    metric="mean_reward",
+                    baseline_score=0.412,
+                    candidate_score=0.398,
+                    delta=-0.014,
+                    delta_ci_lower=-0.038,
+                    delta_ci_upper=0.010,
+                    n_paired=198,
                     reasons=["95% CI on damage exceeds threshold"],
                 ),
             ],
@@ -650,8 +727,28 @@ class TestClusteredCIIntegration:
         from nemo_evaluator.engine.gate import _paired_delta_ci
 
         # 20 deltas across 2 clusters — clustered CI should be wider than normal
-        deltas = [0.1, 0.12, 0.09, 0.11, 0.1, 0.08, 0.13, 0.11, 0.1, 0.09,
-                  -0.05, -0.04, -0.06, -0.03, -0.05, -0.04, -0.06, -0.03, -0.05, -0.04]
+        deltas = [
+            0.1,
+            0.12,
+            0.09,
+            0.11,
+            0.1,
+            0.08,
+            0.13,
+            0.11,
+            0.1,
+            0.09,
+            -0.05,
+            -0.04,
+            -0.06,
+            -0.03,
+            -0.05,
+            -0.04,
+            -0.06,
+            -0.03,
+            -0.05,
+            -0.04,
+        ]
         clusters = ["A"] * 10 + ["B"] * 10
 
         ci_normal = _paired_delta_ci(deltas)

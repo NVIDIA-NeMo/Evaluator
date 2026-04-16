@@ -144,9 +144,7 @@ class GatePolicy(BaseModel):
         return ResolvedBenchmarkPolicy(
             tier=entry.tier if entry.tier is not None else d.tier,
             max_drop=entry.max_drop if entry.max_drop is not None else d.max_drop,
-            max_relative_drop=(
-                entry.max_relative_drop if entry.max_relative_drop is not None else d.max_relative_drop
-            ),
+            max_relative_drop=(entry.max_relative_drop if entry.max_relative_drop is not None else d.max_relative_drop),
             relative_guard_below=(
                 entry.relative_guard_below if entry.relative_guard_below is not None else d.relative_guard_below
             ),
@@ -175,16 +173,11 @@ class GatePolicy(BaseModel):
         for name in sorted(self.required_benchmarks()):
             resolved = self.resolve(name)
             if not resolved.metric:
-                errors.append(
-                    f"{name}: required benchmark must resolve to an explicit metric"
-                )
+                errors.append(f"{name}: required benchmark must resolve to an explicit metric")
                 continue
             if resolved.metric not in supported_metrics:
                 supported = ", ".join(sorted(supported_metrics))
-                errors.append(
-                    f"{name}: unsupported metric {resolved.metric!r}; "
-                    f"supported metrics: {supported}"
-                )
+                errors.append(f"{name}: unsupported metric {resolved.metric!r}; supported metrics: {supported}")
         if errors:
             raise ValueError("Invalid gate policy:\n" + "\n".join(errors))
 

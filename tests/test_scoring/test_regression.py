@@ -51,8 +51,9 @@ def _write_results_jsonl(path: Path, records: list[dict]):
             f.write(json.dumps(r) + "\n")
 
 
-def _make_paired_dirs(tmp_path, base_records, cand_records, base_scores=None, cand_scores=None,
-                      base_name="test", cand_name="test"):
+def _make_paired_dirs(
+    tmp_path, base_records, cand_records, base_scores=None, cand_scores=None, base_name="test", cand_name="test"
+):
     base_dir = tmp_path / "base"
     cand_dir = tmp_path / "cand"
     base_dir.mkdir()
@@ -142,10 +143,16 @@ class TestCompareRuns:
 
 class TestPairedAnalysis:
     def test_flip_report_basic(self, tmp_path):
-        base = [_record(i, 1.0) for i in range(5)] + [_record(i, 0.0) for i in range(5, 7)] + \
-               [_record(7, 1.0), _record(8, 1.0), _record(9, 0.0)]
-        cand = [_record(i, 1.0) for i in range(5)] + [_record(i, 0.0) for i in range(5, 7)] + \
-               [_record(7, 0.0), _record(8, 0.0), _record(9, 1.0)]
+        base = (
+            [_record(i, 1.0) for i in range(5)]
+            + [_record(i, 0.0) for i in range(5, 7)]
+            + [_record(7, 1.0), _record(8, 1.0), _record(9, 0.0)]
+        )
+        cand = (
+            [_record(i, 1.0) for i in range(5)]
+            + [_record(i, 0.0) for i in range(5, 7)]
+            + [_record(7, 0.0), _record(8, 0.0), _record(9, 1.0)]
+        )
         b, c = _make_paired_dirs(tmp_path, base, cand)
         report = compare_runs(b, c)
 
@@ -195,8 +202,11 @@ class TestPairedAnalysis:
         pytest.importorskip("scipy")
         # 15 regressions, 2 improvements out of 20 -> significant AND large effect
         base = [_record(i, 1.0) for i in range(15)] + [_record(i, 0.0) for i in range(15, 20)]
-        cand = [_record(i, 0.0) for i in range(15)] + [_record(15, 1.0), _record(16, 1.0)] + \
-               [_record(i, 0.0) for i in range(17, 20)]
+        cand = (
+            [_record(i, 0.0) for i in range(15)]
+            + [_record(15, 1.0), _record(16, 1.0)]
+            + [_record(i, 0.0) for i in range(17, 20)]
+        )
         b, c = _make_paired_dirs(tmp_path, base, cand)
         report = compare_runs(b, c)
         assert report["verdict"] == "BLOCK"
@@ -233,6 +243,7 @@ class TestPairedAnalysis:
 
     def test_mcnemar_graceful_without_scipy(self, tmp_path, monkeypatch):
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -319,10 +330,16 @@ class TestPairedAnalysis:
 
     def test_category_breakdown_in_summary(self, tmp_path):
         """Item #13: category subtotals in flip summary."""
-        base = [_record(0, 1.0, category="algebra"), _record(1, 1.0, category="geometry"),
-                _record(2, 0.0, category="algebra")]
-        cand = [_record(0, 0.0, category="algebra"), _record(1, 0.0, category="geometry"),
-                _record(2, 1.0, category="algebra")]
+        base = [
+            _record(0, 1.0, category="algebra"),
+            _record(1, 1.0, category="geometry"),
+            _record(2, 0.0, category="algebra"),
+        ]
+        cand = [
+            _record(0, 0.0, category="algebra"),
+            _record(1, 0.0, category="geometry"),
+            _record(2, 1.0, category="algebra"),
+        ]
         b, c = _make_paired_dirs(tmp_path, base, cand)
         report = compare_runs(b, c)
         bd = report["flip_report"]["summary"]["category_breakdown"]
@@ -505,14 +522,26 @@ class TestAggregateRepeats:
         from nemo_evaluator.engine.comparison import compare_results
 
         base = {
-            (0, 0): {"reward": 1.0}, (0, 1): {"reward": 1.0}, (0, 2): {"reward": 1.0},
-            (1, 0): {"reward": 1.0}, (1, 1): {"reward": 0.0}, (1, 2): {"reward": 1.0},
-            (2, 0): {"reward": 0.0}, (2, 1): {"reward": 0.0}, (2, 2): {"reward": 1.0},
+            (0, 0): {"reward": 1.0},
+            (0, 1): {"reward": 1.0},
+            (0, 2): {"reward": 1.0},
+            (1, 0): {"reward": 1.0},
+            (1, 1): {"reward": 0.0},
+            (1, 2): {"reward": 1.0},
+            (2, 0): {"reward": 0.0},
+            (2, 1): {"reward": 0.0},
+            (2, 2): {"reward": 1.0},
         }
         cand = {
-            (0, 0): {"reward": 1.0}, (0, 1): {"reward": 0.0}, (0, 2): {"reward": 0.0},
-            (1, 0): {"reward": 0.0}, (1, 1): {"reward": 0.0}, (1, 2): {"reward": 0.0},
-            (2, 0): {"reward": 0.0}, (2, 1): {"reward": 0.0}, (2, 2): {"reward": 0.0},
+            (0, 0): {"reward": 1.0},
+            (0, 1): {"reward": 0.0},
+            (0, 2): {"reward": 0.0},
+            (1, 0): {"reward": 0.0},
+            (1, 1): {"reward": 0.0},
+            (1, 2): {"reward": 0.0},
+            (2, 0): {"reward": 0.0},
+            (2, 1): {"reward": 0.0},
+            (2, 2): {"reward": 0.0},
         }
         report = compare_results(base, cand)
         # After repeat aggregation, rewards are 0.67, 0.33, etc. → non-binary → permutation
