@@ -367,7 +367,7 @@ class ModelClient:
                         continue
                     raise InfraError(f"Model endpoint unreachable after {self.retry.max_retries} retries: {e}") from e
 
-        raise last_exc or RuntimeError("All retries exhausted")
+        raise last_exc or InfraError("All retries exhausted")
 
     async def embed(self, text: str) -> list[float]:
         """Get embedding for a single text via /v1/embeddings."""

@@ -334,11 +334,11 @@ async def run_evaluation(
                             if solve_result.model_response:
                                 step.model_response = solve_result.model_response
                                 step.model_ms = solve_result.model_response.latency_ms
+                            if solve_result.error_kind == ErrorKind.INFRA:
+                                _is_infra = True
                             if solve_result.error:
                                 logger.warning("solve error p%d r%d: %s", idx, rep, solve_result.error)
                                 step.model_error = solve_result.error
-                            if solve_result.error_kind == ErrorKind.INFRA:
-                                _is_infra = True
                         except GracefulError as e:
                             step.model_error = str(e)
                             logger.warning("solve error p%d r%d (graceful): %s", idx, rep, e)

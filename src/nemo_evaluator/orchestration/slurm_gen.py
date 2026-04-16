@@ -358,6 +358,34 @@ ln -sf "eval-{safe_name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/eval-{safe_name}.l
 if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
 """
 
+_TASK_CONFIG_WITH_PROBE = """\
+# Benchmark {idx}/{total}: {bench_name} (full config)
+echo ""
+echo "============================================================"
+echo "  Benchmark {idx}/{total}: {bench_name} (repeats={repeats})"
+echo "============================================================"
+echo "  Logs: $OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log"
+export {svc_url_var}="${{{model_url_bash}}}"
+export {svc_model_var}="${{{model_id_bash}}}"
+export NEL_OUTPUT_DIR="$OUTPUT_DIR/{safe_name}"
+mkdir -p "$NEL_OUTPUT_DIR"
+_PROBE_SENTINEL="$OUTPUT_DIR/.nel_model_died"
+rm -f "$_PROBE_SENTINEL"
+{run_prefix}nel eval run "$OUTPUT_DIR/config_{safe_name}.yaml" {extra_flags}> >(stdbuf -oL tee -a "$OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log") 2>&1 &
+_EVAL_PID=$!
+_nel_probe_health "{probe_url}" $_EVAL_PID "$_PROBE_SENTINEL" 30 3 &
+_PROBE_PID=$!
+wait $_EVAL_PID
+_EVAL_RC=$?
+kill $_PROBE_PID 2>/dev/null; wait $_PROBE_PID 2>/dev/null
+ln -sf "eval-{safe_name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/eval-{safe_name}.log"
+if [ -f "$_PROBE_SENTINEL" ]; then
+    echo "FATAL: Model server died during {bench_name}. Aborting."
+    exit 1
+fi
+if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
+"""
+
 _REPORT = """\
 # Generate reports
 echo ""
@@ -407,6 +435,32 @@ cleanup() {{
     echo "Results: $OUTPUT_DIR"
 }}
 trap cleanup EXIT
+"""
+
+# Plain string — never call .format() on this; all braces are bash syntax.
+_PROBE_FUNC = """\
+# Model liveness probe — kills eval if the model server dies mid-run.
+# Usage: _nel_probe_health <health_url> <eval_pid> <sentinel_file> [interval_s] [max_consecutive_failures]
+_nel_probe_health() {
+    local health_url="$1" eval_pid="$2" sentinel="$3"
+    local interval="${4:-30}" max_fails="${5:-3}" fails=0
+    sleep "$interval"
+    while kill -0 "$eval_pid" 2>/dev/null; do
+        if curl -sf "$health_url" > /dev/null 2>&1; then
+            fails=0
+        else
+            fails=$((fails + 1))
+            echo "WARNING: Model health check failed ($fails/$max_fails) at $health_url" >&2
+            if [ "$fails" -ge "$max_fails" ]; then
+                echo "FATAL: Model server unreachable after $max_fails consecutive checks. Killing eval (PID=$eval_pid)." >&2
+                touch "$sentinel"
+                kill "$eval_pid" 2>/dev/null || true
+                return 1
+            fi
+        fi
+        sleep "$interval"
+    done
+}
 """
 
 _FOOTER = """\
@@ -869,6 +923,29 @@ def _get_solver_service(bench) -> str | None:
     return getattr(bench.solver, "service", None)
 
 
+def _get_probe_url(
+    svc_name: str,
+    config: EvalConfig,
+    pool_to_het: dict[str, int],
+) -> str:
+    """Return the health URL for a managed model service, or ``""`` if probing isn't possible.
+
+    Probing is skipped for external APIs and for het-group services that aren't
+    reachable from the batch node (het-group 0).
+    """
+    if not svc_name:
+        return ""
+    svc = config.services.get(svc_name)
+    if svc is None or isinstance(svc, ExternalApiService):
+        return ""
+    pool = getattr(svc, "node_pool", None)
+    if pool and pool_to_het and pool in pool_to_het and pool_to_het[pool] != 0:
+        return ""
+    port = getattr(svc, "port", 8000)
+    health = getattr(svc, "health_path", "/health") or "/health"
+    return f"http://localhost:{port}{health}"
+
+
 def _find_sandbox_bench(config: EvalConfig):
     """Return the first benchmark with a SLURM/Apptainer sandbox that has a node_pool."""
     for b in config.benchmarks:
@@ -1265,6 +1342,7 @@ def generate_sbatch(
             f"{_merge_mount_flag}{_merge_home_flag}\\\n    "
         )
 
+    needs_probe = False
     for i, bench in enumerate(config.benchmarks, 1):
         svc_name = _get_solver_service(bench) or ""
         upper = _safe(svc_name).upper() if svc_name else "MODEL"
@@ -1290,21 +1368,27 @@ def generate_sbatch(
         )
         sidecar_configs[safe_name] = sidecar
         config_extra_flags = "--resume " if (cluster.auto_resume or is_shard_script) else ""
-        parts.append(
-            _TASK_CONFIG.format(
-                idx=i,
-                total=total,
-                bench_name=bench.name,
-                svc_url_var=model_url_var,
-                svc_model_var=model_id_var,
-                model_url_bash=model_url_var,
-                model_id_bash=model_id_var,
-                repeats=bench.repeats,
-                safe_name=safe_name,
-                run_prefix=run_prefix,
-                extra_flags=config_extra_flags,
-            )
+
+        probe_url = _get_probe_url(svc_name, config, pool_to_het)
+        fmt_kwargs = dict(
+            idx=i,
+            total=total,
+            bench_name=bench.name,
+            svc_url_var=model_url_var,
+            svc_model_var=model_id_var,
+            model_url_bash=model_url_var,
+            model_id_bash=model_id_var,
+            repeats=bench.repeats,
+            safe_name=safe_name,
+            run_prefix=run_prefix,
+            extra_flags=config_extra_flags,
         )
+        if probe_url:
+            needs_probe = True
+            fmt_kwargs["probe_url"] = probe_url
+            parts.append(_TASK_CONFIG_WITH_PROBE.format(**fmt_kwargs))
+        else:
+            parts.append(_TASK_CONFIG.format(**fmt_kwargs))
 
     if is_shard_script:
         report_lines = []
@@ -1389,6 +1473,9 @@ def generate_sbatch(
 
     cleanup_body = "\n".join(kill_cmds) if kill_cmds else "    echo 'No managed services.'"
     parts.insert(after_headers_idx, _CLEANUP_FUNC.format(kill_commands=cleanup_body))
+
+    if needs_probe:
+        parts.insert(after_headers_idx + 1, _PROBE_FUNC)
 
     parts.append(_FOOTER)
 
