@@ -27,11 +27,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import os
 import tempfile
 from pathlib import Path
 
 import ray
+
+logger = logging.getLogger(__name__)
 
 
 @ray.remote
@@ -119,7 +122,7 @@ def main():
         for i in range(args.shards)
     ]
 
-    print(f"Launched {args.shards} Ray tasks for {args.benchmark}")
+    logger.info("Launched %d Ray tasks for %s", args.shards, args.benchmark)
     shard_bundles = ray.get(futures)
 
     out = Path(args.output_dir)
@@ -139,11 +142,14 @@ def main():
         shard_dirs = sorted(Path(tmpdir).glob("shard_*"))
         merged = merge_results(shard_dirs, out, n_repeats=args.repeats)
 
-    print(f"\nMerged {args.shards} shards:")
+    logger.info("Merged %d shards:", args.shards)
     for k, v in merged.get("benchmark", {}).get("scores", {}).items():
         if isinstance(v, dict) and "value" in v:
-            print(f"  {k}: {v['value']:.4f}  [{v.get('ci_lower', '?'):.4f}, {v.get('ci_upper', '?'):.4f}]")
-    print(f"  Output: {out}/")
+            lo = v.get("ci_lower")
+            hi = v.get("ci_upper")
+            ci_str = f"  [{lo:.4f}, {hi:.4f}]" if lo is not None and hi is not None else ""
+            logger.info("  %s: %.4f%s", k, v["value"], ci_str)
+    logger.info("  Output: %s/", out)
 
 
 if __name__ == "__main__":
