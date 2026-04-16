@@ -33,12 +33,18 @@ def report_cmd(bundle_paths, fmt, output):
     expanded: list[Path] = []
     for p in paths:
         if p.is_dir():
-            expanded.extend(sorted(p.glob("eval-*.json")))
+            top = sorted(p.glob("eval-*.json"))
+            if top:
+                expanded.extend(top)
+            else:
+                expanded.extend(sorted(p.glob("*/eval-*.json")))
         else:
             expanded.append(p)
 
     if not expanded:
-        raise click.ClickException("No bundle files found.")
+        raise click.ClickException(
+            "No eval-*.json bundle files found. Pass benchmark directories or bundle files directly."
+        )
 
     bundles = load_bundles(expanded)
     if not bundles:

@@ -4,11 +4,11 @@ from pathlib import Path
 import pytest
 
 from nemo_evaluator.config.gate_policy import GatePolicy
+from nemo_evaluator.engine.bundles import discover_bundles
 from nemo_evaluator.engine.gate import (
     BenchmarkGateResult,
     GateReport,
     _aggregate_verdict,
-    _discover_bundles,
     _paired_delta_ci,
     gate_runs,
     write_gate_report,
@@ -86,12 +86,12 @@ class TestDiscoverBundles:
         sub = tmp_path / "mmlu"
         sub.mkdir()
         _write_bundle(sub / "eval-mmlu.json", "mmlu")
-        bundles = _discover_bundles(tmp_path)
+        bundles = discover_bundles(tmp_path)
         assert "mmlu" in bundles
 
     def test_flat_layout(self, tmp_path):
         _write_bundle(tmp_path / "eval-mmlu.json", "mmlu")
-        bundles = _discover_bundles(tmp_path)
+        bundles = discover_bundles(tmp_path)
         assert "mmlu" in bundles
 
     def test_duplicate_benchmark_fails(self, tmp_path):
@@ -101,10 +101,10 @@ class TestDiscoverBundles:
         sub.mkdir()
         _write_bundle(sub / "eval-b.json", "mmlu")
         with pytest.raises(ValueError, match="Duplicate benchmark"):
-            _discover_bundles(tmp_path)
+            discover_bundles(tmp_path)
 
     def test_empty_dir(self, tmp_path):
-        bundles = _discover_bundles(tmp_path)
+        bundles = discover_bundles(tmp_path)
         assert bundles == {}
 
 

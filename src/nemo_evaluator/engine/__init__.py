@@ -12,6 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from nemo_evaluator.engine.bundles import (
+    discover_bundles,
+    extract_benchmark_name,
+    match_bundles,
+)
 from nemo_evaluator.engine.eval_loop import run_evaluation
 from nemo_evaluator.engine.gate import (
     BenchmarkGateResult,
@@ -40,8 +45,11 @@ __all__ = [
     "build_flip_report",
     "compare_results",
     "compare_runs",
+    "discover_bundles",
+    "extract_benchmark_name",
     "gate_runs",
     "load_paired_records",
+    "match_bundles",
     "run_evaluation",
     "write_all",
     "write_gate_report",

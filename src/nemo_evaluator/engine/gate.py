@@ -28,6 +28,10 @@ from nemo_evaluator.config.gate_policy import (
     GatePolicy,
     ResolvedBenchmarkPolicy,
 )
+from nemo_evaluator.engine.bundles import (
+    discover_bundles,
+    match_bundles,
+)
 from nemo_evaluator.engine.comparison import (
     compare_runs,
     load_paired_records,
@@ -118,8 +122,8 @@ def gate_runs(
     candidate_dir = Path(candidate_dir)
     policy.validate_for_gate(set(_SUPPORTED_GATED_METRICS))
 
-    base_bundles = _discover_bundles(baseline_dir)
-    cand_bundles = _discover_bundles(candidate_dir)
+    base_bundles = discover_bundles(baseline_dir)
+    cand_bundles = discover_bundles(candidate_dir)
 
     report = GateReport()
 
@@ -137,7 +141,7 @@ def gate_runs(
         )
 
     # Match and evaluate
-    matched, unmatched_b, unmatched_c = _match_bundles(base_bundles, cand_bundles)
+    matched, unmatched_b, unmatched_c = match_bundles(base_bundles, cand_bundles)
 
     if unmatched_b:
         report.warnings.append(f"Baseline-only benchmarks (no candidate): {', '.join(sorted(unmatched_b))}")
@@ -164,65 +168,7 @@ def write_gate_report(report: GateReport, output_path: str | Path) -> Path:
     return path
 
 
-# ── Bundle discovery ──────────────────────────────────────────────────
-
-
-def _discover_bundles(directory: Path) -> dict[str, Path]:
-    """Find eval-*.json bundles, mapping benchmark_name → bundle_path.
-
-    Supports flat (bundles in root) and nested (one subdir per benchmark)
-    layouts.  Raises ValueError on duplicate benchmark names.
-    """
-    bundles: dict[str, Path] = {}
-
-    def _register(p: Path) -> None:
-        name = _extract_benchmark_name(p)
-        if name is None:
-            return
-        if name in bundles:
-            raise ValueError(f"Duplicate benchmark {name!r} in {directory}: found in {bundles[name]} and {p}")
-        bundles[name] = p
-
-    # Direct bundles
-    for p in sorted(directory.glob("eval-*.json")):
-        _register(p)
-
-    # Subdirectory bundles
-    for sub in sorted(directory.iterdir()):
-        if not sub.is_dir():
-            continue
-        sub_bundles = sorted(sub.glob("eval-*.json"))
-        if len(sub_bundles) == 1:
-            _register(sub_bundles[0])
-        elif len(sub_bundles) > 1:
-            logger.warning(
-                "Directory %s contains %d eval bundles; skipping.",
-                sub,
-                len(sub_bundles),
-            )
-
-    return bundles
-
-
-def _extract_benchmark_name(bundle_path: Path) -> str | None:
-    try:
-        data = json.loads(bundle_path.read_text(encoding="utf-8"))
-        return data.get("benchmark", {}).get("name")
-    except (json.JSONDecodeError, OSError) as e:
-        logger.warning("Failed to read bundle %s: %s", bundle_path, e)
-        return None
-
-
 # ── Matching ──────────────────────────────────────────────────────────
-
-
-def _match_bundles(
-    base: dict[str, Path],
-    cand: dict[str, Path],
-) -> tuple[dict[str, tuple[Path, Path]], set[str], set[str]]:
-    common = set(base) & set(cand)
-    matched = {name: (base[name], cand[name]) for name in common}
-    return matched, set(base) - common, set(cand) - common
 
 
 def _check_missing(
