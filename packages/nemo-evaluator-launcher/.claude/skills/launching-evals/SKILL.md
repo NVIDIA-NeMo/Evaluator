@@ -33,6 +33,9 @@ uv run nemo-evaluator-launcher info <invocation_id> --copy-logs ./evaluation-res
 # ssh <user>@<hostname> "ls <artifacts_path>/"
 # rsync -avzP <user>@<hostname>:<artifacts_path>/{results.yml,eval_factory_metrics.json,config.yml} ./evaluation-results/<invocation_id>.<job_index>/artifacts/
 
+# Resume a failed/interrupted run (re-sbatches existing run.sub in the original run directory)
+uv run nemo-evaluator-launcher resume <invocation_id>
+
 # List past runs
 uv run nemo-evaluator-launcher ls runs --since 1d   
 
