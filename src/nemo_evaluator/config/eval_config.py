@@ -1,3 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Top-level EvalConfig and YAML parser with env-var expansion."""
 
 from __future__ import annotations
@@ -299,6 +313,23 @@ class EvalConfig(BaseModel):
         return self
 
     @model_validator(mode="after")
+    def _validate_output_dir(self) -> EvalConfig:
+        """Require absolute output.dir for remote SLURM execution.
+
+        Relative paths break container mounts, remote mkdir, and scp —
+        producing cryptic "died during startup" failures instead of a
+        clear error at config time.
+        """
+        if not isinstance(self.cluster, SlurmCluster):
+            return self
+        if not self.cluster.hostname:
+            return self
+        d = self.output.dir
+        if not d.startswith("/"):
+            raise ValueError(f"output.dir must be an absolute path for remote SLURM execution, got: {d!r}")
+        return self
+
+    @model_validator(mode="after")
     def _validate_timeout_hierarchy(self) -> EvalConfig:
         """Warn if benchmark + startup timeouts exceed SLURM walltime."""
         if not isinstance(self.cluster, SlurmCluster):
@@ -392,11 +423,60 @@ def _expand_env(value: Any) -> Any:
     return value
 
 
+def _resolve_playbooks(raw: dict[str, Any]) -> dict[str, Any]:
+    """Expand ``playbook:`` references in benchmark entries.
+
+    If a benchmark entry contains ``playbook: <name>``, the named playbook
+    YAML is loaded from the built-in ``playbooks/`` directory (or a file path)
+    and deep-merged with any explicit overrides in the entry.
+    """
+    benchmarks = raw.get("benchmarks")
+    if not isinstance(benchmarks, list):
+        return raw
+
+    import yaml
+    from pathlib import Path
+
+    from nemo_evaluator.config.compose import _deep_merge
+
+    playbooks_dir = Path(__file__).resolve().parent.parent / "playbooks"
+
+    resolved = []
+    for entry in benchmarks:
+        if not isinstance(entry, dict) or "playbook" not in entry:
+            resolved.append(entry)
+            continue
+
+        ref = entry.pop("playbook")
+        pb_path = playbooks_dir / ref
+        if not pb_path.is_file():
+            for ext in (".yaml", ".yml"):
+                candidate = playbooks_dir / f"{ref}{ext}"
+                if candidate.is_file():
+                    pb_path = candidate
+                    break
+        if not pb_path.is_file():
+            pb_path = Path(ref)
+            if not pb_path.is_absolute():
+                pb_path = Path.cwd() / pb_path
+
+        if not pb_path.is_file():
+            raise FileNotFoundError(f"Playbook not found: {ref!r} (checked {playbooks_dir} and {Path.cwd()})")
+
+        base = yaml.safe_load(pb_path.read_text()) or {}
+        merged = _deep_merge(base, entry)
+        resolved.append(merged)
+
+    raw["benchmarks"] = resolved
+    return raw
+
+
 def parse_eval_config(raw: dict[str, Any]) -> EvalConfig:
     """Parse and validate a raw YAML dict, expanding env vars.
 
     This is the required entry point.  Do not call EvalConfig.model_validate()
     directly — env-var expansion would be skipped.
     """
+    raw = _resolve_playbooks(raw)
     expanded = _expand_env(raw)
     return EvalConfig.model_validate(expanded)

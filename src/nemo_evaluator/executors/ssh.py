@@ -1,16 +1,27 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """SSH submission: copy scripts to a SLURM login node and submit via sbatch."""
 
 from __future__ import annotations
 
-import atexit
 import logging
 import shlex
 import subprocess
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
-_control_sockets: list[tuple[str, str]] = []
 
 
 class SSHError(RuntimeError):
@@ -21,16 +32,17 @@ def _ssh_opts(target: str) -> list[str]:
     """Return SSH options that enable connection multiplexing.
 
     First call for a given target opens a ControlMaster; subsequent calls
-    reuse it — so the user authenticates only once.
+    reuse it — so the user authenticates only once.  ControlPersist handles
+    automatic teardown after the last client disconnects; we intentionally
+    do NOT register an atexit hook because that would kill the shared socket
+    while other nel processes (e.g. ``nel eval run`` + ``nel eval status``)
+    may still be using it.
     """
     socket_dir = Path.home() / ".ssh" / "nel"
     socket_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     if socket_dir.stat().st_mode & 0o077:
         socket_dir.chmod(0o700)
     control_path = str(socket_dir / "%C")
-
-    if not any(t == target for t, _ in _control_sockets):
-        _control_sockets.append((target, control_path))
 
     return [
         "-o",
@@ -40,21 +52,6 @@ def _ssh_opts(target: str) -> list[str]:
         "-o",
         "ControlPersist=120",
     ]
-
-
-def _cleanup_sockets() -> None:
-    for target, control_path in _control_sockets:
-        try:
-            subprocess.run(
-                ["ssh", "-o", f"ControlPath={control_path}", "-O", "exit", target],
-                capture_output=True,
-                timeout=5,
-            )
-        except Exception:
-            pass
-
-
-atexit.register(_cleanup_sockets)
 
 
 def _run(cmd: list[str], timeout: float = 30.0) -> str:
@@ -112,6 +109,51 @@ def _ssh_target(hostname: str, username: str | None = None) -> str:
     if username:
         return f"{username}@{hostname}"
     return hostname
+
+
+def copy_from_remote(
+    hostname: str,
+    remote_pattern: str,
+    local_dir: Path,
+    username: str | None = None,
+    timeout: float = 120.0,
+) -> list[Path]:
+    """Download files matching a remote glob pattern to a local directory via scp.
+
+    Returns the list of local paths that were downloaded.
+    """
+    target = _ssh_target(hostname, username)
+    local_dir.mkdir(parents=True, exist_ok=True)
+
+    _ensure_master(target)
+    try:
+        _run(
+            ["scp", "-p", *_ssh_opts(target), f"{target}:{remote_pattern}", str(local_dir) + "/"],
+            timeout=timeout,
+        )
+    except SSHError as e:
+        if "No such file" in str(e) or "not a regular file" in str(e):
+            return []
+        raise
+
+    return sorted(local_dir.iterdir())
+
+
+def copy_tree_from_remote(
+    hostname: str,
+    remote_dir: str,
+    local_dir: Path,
+    username: str | None = None,
+    timeout: float = 300.0,
+) -> None:
+    """Recursively download a remote directory to a local path via scp -r."""
+    target = _ssh_target(hostname, username)
+    local_dir.mkdir(parents=True, exist_ok=True)
+    _ensure_master(target)
+    _run(
+        ["scp", "-rp", *_ssh_opts(target), f"{target}:{remote_dir}/.", str(local_dir) + "/"],
+        timeout=timeout,
+    )
 
 
 def copy_to_remote(

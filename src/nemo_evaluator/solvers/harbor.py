@@ -1,8 +1,24 @@
-"""HarborSolver: runs Harbor-compatible agents inside a nel Sandbox."""
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""HarborSolver: runs Harbor-compatible agents inside an evaluator Sandbox."""
 
 from __future__ import annotations
 
 import asyncio
+import base64
+import contextlib
 import json
 import logging
 import os
@@ -24,6 +40,36 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _resolve_agent_timeout(
+    strategy: str,
+    config_timeout: float,
+    task_timeout: float | None,
+    max_cap: float | None,
+) -> float:
+    """Compute effective agent timeout based on strategy.
+
+    Args:
+        strategy: "override" (config wins), "task" (per-task from task.toml),
+                  or "max" (larger of both).
+        config_timeout: timeout from NEL config (solver.run_timeout or bench.timeout).
+        task_timeout: per-task timeout from task.toml ``[agent] timeout_sec``.
+        max_cap: optional hard ceiling (``max_agent_timeout`` config field).
+    """
+    if strategy == "override" or task_timeout is None:
+        result = config_timeout
+    elif strategy == "task":
+        result = task_timeout
+    elif strategy == "max":
+        result = max(config_timeout, task_timeout)
+    else:
+        logger.warning("Unknown timeout_strategy '%s', falling back to config_timeout", strategy)
+        result = config_timeout
+
+    if max_cap is not None:
+        result = min(result, max_cap)
+    return result
+
+
 def _extract_response(context: Any) -> str:
     """Extract text response from AgentContext (metadata > last rollout)."""
     if context.metadata and isinstance(context.metadata.get("response"), str):
@@ -42,7 +88,9 @@ def _extract_response(context: Any) -> str:
 
 
 def _resolve_api_key(explicit: str | None) -> str | None:
-    """Return *explicit* if non-empty, else probe common env vars."""
+    """Return *explicit* if non-empty, else probe env vars in order:
+    ``LLM_API_KEY``, ``NVIDIA_API_KEY``, ``OPENAI_API_KEY``, ``ANTHROPIC_API_KEY``.
+    """
     if explicit:
         return explicit
     for var in ("LLM_API_KEY", "NVIDIA_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
@@ -52,34 +100,33 @@ def _resolve_api_key(explicit: str | None) -> str | None:
     return None
 
 
-def _ensure_env(api_key: str | None, model_url: str | None, model_id: str | None) -> None:
-    """Set ``LLM_*`` env vars that Harbor agents expect.
+def _model_id_for_openai(model_id: str, has_custom_url: bool) -> str:
+    """Return *model_id* with an ``openai/`` prefix when needed.
 
-    Called once — these are process-wide settings that must stay set for the
-    lifetime of concurrent solve() calls. A save/restore context manager is
-    unsafe here because ``os.environ`` is process-global and concurrent
-    tasks would clobber each other's cleanup.
-
-    Harbor uses litellm as its LLM layer, so ``LLM_MODEL`` gets the
-    ``openai/`` prefix when a custom ``model_url`` is set (litellm needs
-    the provider hint for OpenAI-compatible endpoints).
+    The prefix tells LiteLLM to use the OpenAI-compatible provider when
+    routing through a custom endpoint URL.
     """
-    key = _resolve_api_key(api_key)
-    if not key:
-        key = "no-key-needed"
-        logger.info("No API key found — using dummy key for self-hosted model")
-    os.environ["LLM_API_KEY"] = key
-    if model_url:
-        os.environ["LLM_BASE_URL"] = model_url
+    if has_custom_url and not model_id.startswith("openai/"):
+        return f"openai/{model_id}"
+    return model_id
+
+
+def _ensure_host_env(api_key: str, model_id: str | None, *, has_custom_url: bool) -> None:
+    """Populate host-process env vars required by OpenHands-family agents.
+
+    ``OpenHandsSDK.run()`` reads ``LLM_API_KEY`` (required) and
+    ``LLM_MODEL`` (fallback) directly from ``os.environ`` before
+    building the container exec environment.  Uses ``setdefault`` so
+    values set by an earlier solver or caller are never overwritten.
+
+    ``LLM_BASE_URL`` is intentionally *not* set here; each ``solve()``
+    call passes a per-session URL via the adapter's ``override_env``.
+    """
+    os.environ.setdefault("LLM_API_KEY", api_key)
     if model_id:
-        mid = model_id
-        if model_url and not mid.startswith("openai/"):
-            mid = f"openai/{mid}"
-        os.environ["LLM_MODEL"] = mid
+        os.environ.setdefault("LLM_MODEL", _model_id_for_openai(model_id, has_custom_url))
     os.environ.setdefault("LITELLM_LOG", "ERROR")
     os.environ.setdefault("LITELLM_TELEMETRY", "false")
-    os.environ.setdefault("SECURITY_CONFIRMATION_MODE", "false")
-    os.environ.setdefault("SECURITY_ENABLE_SECURITY_ANALYZER", "false")
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +173,7 @@ async def _download_agent_logs_inner(
         return
     logger.info("Container /logs/agent/:\n%s", ls.stdout.strip())
 
-    remote_tar = "/tmp/_nel_agent_logs.tar.gz"
+    remote_tar = "/tmp/_eval_agent_logs.tar.gz"
     rc = await sandbox.exec(
         f"tar czf {remote_tar} -C /logs/agent .",
         timeout_sec=120,
@@ -137,7 +184,9 @@ async def _download_agent_logs_inner(
 
     import tarfile
 
-    local_tar = Path(tempfile.mktemp(suffix=".tar.gz"))
+    fd, _tmp = tempfile.mkstemp(suffix=".tar.gz")
+    os.close(fd)
+    local_tar = Path(_tmp)
     try:
         last_err: Exception | None = None
         for attempt in range(1, max_retries + 1):
@@ -145,7 +194,7 @@ async def _download_agent_logs_inner(
                 await sandbox.download(remote_tar, local_tar)
                 dest.mkdir(parents=True, exist_ok=True)
                 with tarfile.open(local_tar, "r:gz") as tar:
-                    tar.extractall(dest)
+                    tar.extractall(dest, filter="data")
                 logger.info("Downloaded %d files to %s", len(list(dest.rglob("*"))), dest)
                 return
             except Exception as exc:
@@ -172,17 +221,334 @@ async def _download_agent_logs_inner(
             pass
 
 
+async def _patch_openhands_sdk(sandbox: "Sandbox", *, cmd_timeout: float | None = None) -> None:
+    """Apply runtime patches to the OpenHands SDK inside the sandbox.
+
+    1. **Prevent premature FINISHED on text-only responses** — when the
+       LLM returns text without a tool call the SDK sets
+       ``execution_status = FINISHED`` and stops.  Reasoning models often
+       produce intermediate text before their next tool call, so the
+       patched loop continues until ``finish`` is called or
+       ``max_iterations`` is reached.
+
+    2. **Capture reasoning in ATIF trajectory** — the runner's event
+       serialization drops ``reasoning_content`` / ``thinking_blocks``.
+       Both the event-to-dict conversion and ``build_trajectory`` are
+       patched so reasoning appears in the output JSON.
+
+    3. **Preserve reasoning in conversation history** — some reasoning
+       parsers move ``<tool_call>`` blocks inside ``<think>`` tags into
+       ``reasoning_content`` instead of ``tool_calls``.  The SDK then
+       drops ``reasoning_content`` on the next serialization pass,
+       causing the model to lose its chain-of-thought.  The patch wraps
+       ``reasoning_content`` in ``<think>`` tags and prepends it to
+       ``content`` so it survives round-trips.
+
+    4. **Enforce 300 s hard timeout on terminal commands** — the SDK
+       only applies a hard timeout when the model passes an explicit
+       ``timeout`` parameter.  The patch imposes a 300 s ceiling on
+       every command to prevent a single long-running process from
+       consuming the entire ``run_timeout`` budget.
+    """
+    # -- Patch 0: disable stuck detection --------------------------------
+    _stuck_script = (
+        "p = '/installed-agent/run_agent.py'\n"
+        "c = open(p).read()\n"
+        "old = 'conversation = Conversation(**conv_kwargs)'\n"
+        'new = \'conv_kwargs["stuck_detection"] = False\\n'
+        "    conversation = Conversation(**conv_kwargs)'\n"
+        "if old in c:\n"
+        "    open(p, 'w').write(c.replace(old, new, 1))\n"
+        "    print('stuck_detection disabled')\n"
+        "else:\n"
+        "    print('pattern not found')\n"
+    )
+    encoded0 = base64.b64encode(_stuck_script.encode()).decode()
+    r0 = await sandbox.exec(
+        f"echo {encoded0} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    logger.info("Runner patch: %s", (r0.stdout or "").strip())
+
+    # -- Patch 1: don't FINISHED on text-only responses ------------------
+    # In agent.py, when the LLM produces text without a tool call the SDK
+    # sets execution_status=FINISHED and returns — killing the agent.
+    # We replace the 6-line block with a no-op so execution continues
+    # until finish() or max_iterations.  We also widen the nudge to
+    # always fire (not just for empty responses), so the model knows it
+    # must use a tool.
+    _agent_patch_script = """\
+import glob
+fs = glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/agent/agent.py')
+p = fs[0] if fs else ''
+assert p, 'agent.py not found'
+c = open(p).read()
+
+old1 = (
+    '        # Finish conversation if LLM produced content (awaits user input)\\n'
+    '        # Continue if only reasoning without content (e.g., GPT-5 codex thinking)\\n'
+    '        if has_content:\\n'
+    '            logger.debug("LLM produced a message response - awaits user input")\\n'
+    '            state.execution_status = ConversationExecutionStatus.FINISHED\\n'
+    '            return'
+)
+new1 = (
+    '        # [NEL] text-only response: continue instead of FINISHED\\n'
+    '        if has_content:\\n'
+    '            logger.debug("LLM produced text without tool call - continuing (NEL)")'
+)
+old2 = '        if not has_content:'
+new2 = '        if True:  # [NEL] always nudge when no tool call'
+
+ok1 = old1 in c
+c2 = c.replace(old1, new1, 1) if ok1 else c
+ok2 = old2 in c2
+c3 = c2.replace(old2, new2, 1) if ok2 else c2
+if ok1 or ok2:
+    open(p, 'w').write(c3)
+print(f'agent.py FINISHED={ok1} nudge={ok2} at {p}')
+"""
+    encoded1 = base64.b64encode(_agent_patch_script.encode()).decode()
+    r2 = await sandbox.exec(
+        f"echo {encoded1} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout2 = (r2.stdout or "").strip()
+    logger.info("Agent.py patch: %s", stdout2)
+    if r2.return_code != 0 or "False" in stdout2:
+        logger.warning(
+            "Agent.py patch problem (rc=%d): %s",
+            r2.return_code,
+            stdout2 or (r2.stderr or "")[:300],
+        )
+
+    # -- Patch 2: capture reasoning in ATIF trajectory ---------------------
+    # The runner converts SDK events → intermediate dicts → ATIF steps but
+    # never copies reasoning_content / thinking_blocks.  We add it at both
+    # the event-conversion and the step-building stages.
+
+    _reasoning_script = """\
+import sys
+p = '/installed-agent/run_agent.py'
+c = open(p).read()
+
+# A: MessageEvent agent – extract reasoning
+old_a = (
+    '                events_list.append(entry)\\n'
+    '                last_agent_timestamp = event.timestamp\\n'
+    '        elif isinstance(event, ActionEvent):'
+)
+new_a = (
+    '                _rc = getattr(event, "reasoning_content", "") or ""\\n'
+    '                if not _rc and hasattr(event, "llm_message"):\\n'
+    '                    _rc = getattr(event.llm_message, "reasoning_content", "") or ""\\n'
+    '                if _rc:\\n'
+    '                    entry["reasoning_content"] = _rc\\n'
+    '                events_list.append(entry)\\n'
+    '                last_agent_timestamp = event.timestamp\\n'
+    '        elif isinstance(event, ActionEvent):'
+)
+
+# B: ActionEvent – extract reasoning
+old_b = (
+    '            events_list.append(entry)\\n'
+    '            last_agent_timestamp = event.timestamp\\n'
+    '        elif isinstance(event, ObservationEvent):'
+)
+new_b = (
+    '            _rc = getattr(event, "reasoning_content", "") or ""\\n'
+    '            if not _rc:\\n'
+    '                _tp = getattr(event, "thought", [])\\n'
+    '                if _tp:\\n'
+    '                    _rc = chr(10).join(getattr(c, "text", str(c)) for c in _tp if getattr(c, "text", None))\\n'
+    '            if _rc:\\n'
+    '                entry["reasoning_content"] = _rc\\n'
+    '            events_list.append(entry)\\n'
+    '            last_agent_timestamp = event.timestamp\\n'
+    '        elif isinstance(event, ObservationEvent):'
+)
+
+# C: build_trajectory – propagate to ATIF steps
+old_c = (
+    '            steps.append(step)\\n'
+    '            step_id += 1\\n'
+    '\\n'
+    '        elif event_type == "tool_result":'
+)
+new_c = (
+    '            _rc = event.get("reasoning_content", "")\\n'
+    '            if _rc:\\n'
+    '                step["reasoning_content"] = _rc\\n'
+    '            steps.append(step)\\n'
+    '            step_id += 1\\n'
+    '\\n'
+    '        elif event_type == "tool_result":'
+)
+
+ok_a = old_a in c
+c = c.replace(old_a, new_a, 1) if ok_a else c
+ok_b = old_b in c
+c = c.replace(old_b, new_b, 1) if ok_b else c
+ok_c = old_c in c
+c = c.replace(old_c, new_c, 1) if ok_c else c
+open(p, 'w').write(c)
+print(f'reasoning: msg={ok_a} action={ok_b} traj={ok_c}')
+"""
+    encoded = base64.b64encode(_reasoning_script.encode()).decode()
+    r3 = await sandbox.exec(
+        f"echo {encoded} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout3 = (r3.stdout or "").strip()
+    logger.info("Reasoning patch: %s", stdout3)
+    if r3.return_code != 0 or "False" in stdout3:
+        logger.warning(
+            "Reasoning patch problem (rc=%d): %s",
+            r3.return_code,
+            stdout3 or (r3.stderr or "")[:300],
+        )
+
+    # -- Patch 3: preserve reasoning_content in conversation history -------
+    # When send_reasoning_content is False (nemotron is not in the list),
+    # the SDK silently drops reasoning_content from assistant messages.
+    # Patch to_chat_dict() to wrap reasoning_content in <think> tags and
+    # prepend to content so it survives LiteLLM serialization round-trips.
+
+    _reasoning_in_content_script = """\
+import glob, sys
+fs = glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/llm/message.py')
+p = fs[0] if fs else ''
+assert p, 'message.py not found'
+c = open(p).read()
+
+old = (
+    '        # Required for model like kimi-k2-thinking\\n'
+    '        if send_reasoning_content and self.reasoning_content:\\n'
+    '            message_dict["reasoning_content"] = self.reasoning_content\\n'
+    '\\n'
+    '        return message_dict'
+)
+
+new = (
+    '        # Required for model like kimi-k2-thinking\\n'
+    '        if send_reasoning_content and self.reasoning_content:\\n'
+    '            message_dict["reasoning_content"] = self.reasoning_content\\n'
+    '\\n'
+    '        # [NEL] Wrap reasoning_content in <think> tags in content so the\\n'
+    '        # model sees its previous chain-of-thought on retry turns.\\n'
+    '        if not send_reasoning_content and self.role == "assistant" and self.reasoning_content:\\n'
+    '            _wrapped = f"<think>{self.reasoning_content}</think>"\\n'
+    '            _c = message_dict.get("content")\\n'
+    '            if isinstance(_c, list):\\n'
+    '                _c.insert(0, {"type": "text", "text": _wrapped})\\n'
+    '            elif isinstance(_c, str):\\n'
+    '                message_dict["content"] = _wrapped + _c\\n'
+    '            else:\\n'
+    '                message_dict["content"] = _wrapped\\n'
+    '\\n'
+    '        return message_dict'
+)
+
+ok = old in c
+if ok:
+    c = c.replace(old, new, 1)
+    open(p, 'w').write(c)
+print(f'reasoning_in_content={ok} at {p}')
+"""
+    encoded4 = base64.b64encode(_reasoning_in_content_script.encode()).decode()
+    r4 = await sandbox.exec(
+        f"echo {encoded4} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout4 = (r4.stdout or "").strip()
+    logger.info("Reasoning-in-content patch: %s", stdout4)
+    if r4.return_code != 0 or "False" in stdout4:
+        logger.warning(
+            "Reasoning-in-content patch problem (rc=%d): %s",
+            r4.return_code,
+            stdout4 or (r4.stderr or "")[:300],
+        )
+
+    # -- Patch 4: hard timeout ceiling on terminal commands ------------------
+    if cmd_timeout is not None and cmd_timeout > 0:
+        _cmd_timeout_script = f"""\
+import glob, sys
+fs = glob.glob(
+    '/opt/openhands-sdk-venv/lib/python*/site-packages/'
+    'openhands/tools/terminal/terminal/terminal_session.py'
+)
+p = fs[0] if fs else ''
+assert p, 'terminal_session.py not found'
+c = open(p).read()
+
+_MAX = {cmd_timeout!r}
+
+old = (
+    '            if action.timeout is not None:\\n'
+    '                time_since_start = time.time() - start_time\\n'
+    '                if time_since_start >= action.timeout:\\n'
+    '                    obs = self._handle_hard_timeout_command(\\n'
+    '                        command,\\n'
+    '                        terminal_content=cur_terminal_output,\\n'
+    '                        ps1_matches=ps1_matches,\\n'
+    '                        timeout=action.timeout,\\n'
+    '                    )\\n'
+    '                    logger.debug(f\\"RETURNING OBSERVATION (hard-timeout): {{obs}}\\")\\n'
+    '                    return obs'
+)
+
+new = (
+    '            _NEL_MAX = ' + str(_MAX) + '  # [NEL] hard ceiling on any command\\n'
+    '            _eff_timeout = (\\n'
+    '                min(action.timeout, _NEL_MAX)\\n'
+    '                if action.timeout is not None\\n'
+    '                else _NEL_MAX\\n'
+    '            )\\n'
+    '            if elapsed_time >= _eff_timeout:\\n'
+    '                obs = self._handle_hard_timeout_command(\\n'
+    '                    command,\\n'
+    '                    terminal_content=cur_terminal_output,\\n'
+    '                    ps1_matches=ps1_matches,\\n'
+    '                    timeout=_eff_timeout,\\n'
+    '                )\\n'
+    '                logger.debug(f\\"RETURNING OBSERVATION (hard-timeout): {{obs}}\\")\\n'
+    '                return obs'
+)
+
+ok = old in c
+if ok:
+    c = c.replace(old, new, 1)
+    open(p, 'w').write(c)
+print(f'cmd_timeout_{{_MAX}}s={{ok}} at {{p}}')
+"""
+        encoded5 = base64.b64encode(_cmd_timeout_script.encode()).decode()
+        r5 = await sandbox.exec(
+            f"echo {encoded5} | base64 -d | python3",
+            timeout_sec=10,
+        )
+        stdout5 = (r5.stdout or "").strip()
+        logger.info("Cmd timeout patch (%ss): %s", cmd_timeout, stdout5)
+        if r5.return_code != 0 or "False" in stdout5:
+            logger.warning(
+                "Cmd timeout patch problem (rc=%d): %s",
+                r5.return_code,
+                stdout5 or (r5.stderr or "")[:300],
+            )
+    else:
+        logger.info("Cmd timeout patch: skipped (cmd_timeout not configured)")
+
+
 # ---------------------------------------------------------------------------
 # Trajectory / token / response recovery  (agent-agnostic)
 # ---------------------------------------------------------------------------
 #
 # Each Harbor agent writes its own logs and converts them to ATIF via
-# ``populate_context_post_run()``.  NEL's job here is simple:
-#   1. Read the ATIF trajectory.json the agent produced.
-#   2. If nothing structured exists, grab the largest .txt as an error log.
+# ``populate_context_post_run()``.  The evaluator:
+#   1. Reads the ATIF trajectory.json the agent produced.
+#   2. Falls back to the largest .txt as an error log if nothing structured exists.
 #
 # Agent-specific parsing (OpenHands completions/, sessions/events/, etc.)
-# is deliberately NOT done here — that is the agent's responsibility.
+# is the agent's responsibility.
 # ---------------------------------------------------------------------------
 
 
@@ -357,7 +723,7 @@ def _silence_harbor_debug(level: int = logging.INFO) -> None:
 
 
 class HarborSolver:
-    """Runs any Harbor agent inside a nel Sandbox.
+    """Runs any Harbor agent inside an evaluator :class:`Sandbox`.
 
     Agent resolution (``harbor_agent`` parameter):
       - Built-in name (e.g. ``"openhands"``)
@@ -378,6 +744,9 @@ class HarborSolver:
         container_env: dict[str, str] | None = None,
         max_input_tokens: int | None = None,
         max_output_tokens: int | None = None,
+        cmd_timeout: float | None = None,
+        timeout_strategy: str = "override",
+        max_agent_timeout: float | None = None,
     ) -> None:
         _check_harbor_installed()
         self._harbor_agent = harbor_agent
@@ -386,7 +755,11 @@ class HarborSolver:
         self._model_id = model_id
         self._timeout = timeout
         self._run_timeout = run_timeout or timeout
+        self._cmd_timeout = cmd_timeout
+        self._timeout_strategy = timeout_strategy
+        self._max_agent_timeout = max_agent_timeout
         self._container_env = dict(container_env or {})
+        self._container_env.setdefault("PIP_INDEX_URL", "https://pypi.org/simple")
         self._container_env.setdefault("LITELLM_LOG", "ERROR")
         self._container_env.setdefault("LITELLM_TELEMETRY", "false")
         if harbor_agent.lower() in ("openhands", "openhands-sdk"):
@@ -397,16 +770,22 @@ class HarborSolver:
         self._max_input_tokens = max_input_tokens
         self._max_output_tokens = max_output_tokens
         self._api_key = _resolve_api_key(api_key)
-        _ensure_env(self._api_key, self._model_url, self._model_id)
+        if not self._api_key:
+            self._api_key = "no-key-needed"
+            logger.info("No API key found — using dummy key for self-hosted model")
+
+        self._container_env.setdefault("LLM_API_KEY", self._api_key)
+        if model_id:
+            self._container_env.setdefault("LLM_MODEL", _model_id_for_openai(model_id, bool(model_url)))
+
+        _ensure_host_env(self._api_key, self._model_id, has_custom_url=bool(model_url))
 
     def _create_agent(self, logs_dir: Path, *, model_url: str = "") -> Any:
         from harbor.agents.factory import AgentFactory
 
         kwargs = dict(self._harbor_agent_kwargs)
-        model_id = self._model_id
         url = model_url or self._model_url
-        if url and "model_name" not in kwargs and model_id and not model_id.startswith("openai/"):
-            model_id = f"openai/{model_id}"
+        model_id = _model_id_for_openai(self._model_id, bool(url)) if self._model_id else ""
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
         if "api_base" not in kwargs and url:
@@ -422,8 +801,8 @@ class HarborSolver:
 
         if "model_info" not in kwargs:
             kwargs["model_info"] = {
-                "max_input_tokens": self._max_input_tokens or 131072,
-                "max_output_tokens": self._max_output_tokens or 16384,
+                "max_input_tokens": self._max_input_tokens or 262144,
+                "max_output_tokens": self._max_output_tokens or 262144,
                 "input_cost_per_token": 0.0,
                 "output_cost_per_token": 0.0,
             }
@@ -437,6 +816,95 @@ class HarborSolver:
 
             return ByobInstalledAgent(agent_dir=agent_path, logs_dir=logs_dir, **kwargs)
         return AgentFactory.create_agent_from_name(name, logs_dir=logs_dir, **kwargs)
+
+    async def _wait_for_agent(
+        self,
+        agent_task: asyncio.Task[None],
+        sandbox: "Sandbox",
+        t0: float,
+        effective_timeout: float,
+        jitter: float,
+    ) -> tuple[bool, Exception | None]:
+        """Run *agent_task* with a two-phase timeout.
+
+        Phase 1 (short): wait ``min(600, 15% of run_timeout)`` seconds.
+            If the agent has produced no log files, abort early with
+            `GracefulError` — the model is likely unreachable.
+        Phase 2 (remainder): wait the rest of ``effective_timeout``.
+
+        Returns ``(timed_out, agent_error)`` — *timed_out* is True when
+        the agent didn't finish in time, *agent_error* captures any
+        exception the agent raised (instead of propagating it) so that
+        ``solve()`` can still collect partial results.
+        Raises `GracefulError` if no progress was detected.
+        """
+        resolved_timeout = effective_timeout - jitter
+        no_progress_timeout = min(600.0, resolved_timeout * 0.15)
+
+        # Phase 1 — wait for first sign of life
+        done, _ = await asyncio.wait(
+            {agent_task},
+            timeout=no_progress_timeout + jitter,
+        )
+
+        if not done:
+            # Agent still running — probe sandbox for log output
+            has_progress = True
+            if sandbox.is_running:
+                try:
+                    probe = await sandbox.exec(
+                        "find /logs/agent -type f 2>/dev/null | wc -l",
+                        timeout_sec=15,
+                    )
+                    count = int(probe.stdout.strip()) if probe.stdout else 0
+                    has_progress = count > 0
+                except Exception:
+                    pass  # can't probe → assume progress
+
+            if not has_progress:
+                logger.warning(
+                    "HarborSolver: no agent progress after %.0fs — aborting early (model may be unreachable)",
+                    no_progress_timeout,
+                )
+                agent_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await agent_task
+                raise GracefulError(
+                    f"Agent made no progress after {no_progress_timeout:.0f}s "
+                    f"(run_timeout={self._run_timeout:.0f}s). "
+                    "Model endpoint may be unreachable or overloaded."
+                )
+
+            # Phase 2 — progress confirmed, wait remaining time
+            remaining = effective_timeout - (time.monotonic() - t0)
+            done, _ = await asyncio.wait(
+                {agent_task},
+                timeout=max(0.0, remaining),
+            )
+
+        # If agent still running after both phases → timed out
+        timed_out = agent_task not in done
+        if timed_out:
+            logger.warning(
+                "HarborSolver: agent.run() timed out after %.0fs "
+                "(effective=%.0fs+%.0fs jitter, strategy=%s) — collecting partial results",
+                time.monotonic() - t0,
+                effective_timeout - jitter,
+                jitter,
+                self._timeout_strategy,
+            )
+            agent_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await agent_task
+
+        agent_error: Exception | None = None
+        if agent_task.done() and not agent_task.cancelled():
+            exc = agent_task.exception()
+            if exc is not None:
+                logger.warning("HarborSolver: agent.run() raised %s: %s", type(exc).__name__, exc)
+                agent_error = exc
+
+        return timed_out, agent_error
 
     async def solve(
         self,
@@ -452,24 +920,26 @@ class HarborSolver:
         _silence_harbor_debug()
 
         t0 = time.monotonic()
-        logs_dir = Path(tempfile.mkdtemp(prefix="nel_harbor_"))
+        logs_dir = Path(tempfile.mkdtemp(prefix="eval_harbor_"))
         agent_logs_dir = logs_dir / "agent"
         agent_logs_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Rewrite the proxy/model URL for the sandbox's network topology
-            # (e.g. 127.0.0.1 → host.docker.internal for Docker bridge).
-            resolved_url = sandbox.resolve_outside_endpoint(self._model_url) if self._model_url else self._model_url
-            # Harbor agents read LLM_BASE_URL from os.environ directly
-            # (not from kwargs), so we must update the process env.
+            resolved_url = sandbox.resolved_endpoint_url("MODEL_BASE_URL") or (
+                sandbox.resolve_outside_endpoint(self._model_url) if self._model_url else self._model_url
+            )
+
+            override: dict[str, str] = {}
             if resolved_url:
-                os.environ["LLM_BASE_URL"] = resolved_url
+                override["LLM_BASE_URL"] = resolved_url
 
             adapter = SandboxEnvironmentAdapter(
                 sandbox,
+                session_id=task.metadata["task_id"],
                 logs_dir=logs_dir,
                 default_timeout=self._timeout,
                 persistent_env=self._container_env,
+                override_env=override,
             )
 
             agent = self._create_agent(agent_logs_dir, model_url=resolved_url)
@@ -478,49 +948,88 @@ class HarborSolver:
                 timeout_sec=10,
             )
 
-            # HACK: Pre-install openhands-sdk with uv + Python 3.13 so the
-            # harbor install script's "already installed" check passes and it
-            # skips its own venv creation (which uses the system python3 that
-            # may be too old for openhands-sdk's >3.12 requirement).
-            # Remove once the harbor install script is updated to use uv.
+            # Ensure python3 >= 3.12 for openhands-sdk and install stdbuf
+            # (coreutils).  pyenv shims are handled by overwriting the
+            # current `python3` location directly.
             if self._harbor_agent.lower() == "openhands-sdk":
-                await sandbox.exec(
-                    "if [ -f /opt/openhands-sdk-venv/bin/python ] "
-                    "&& /opt/openhands-sdk-venv/bin/python -c 'import openhands.sdk' 2>/dev/null; then "
-                    "  echo 'openhands-sdk venv already present'; "
+                hack_result = await sandbox.exec(
+                    "if python3 -c 'import sys; exit(0 if sys.version_info >= (3,12) else 1)' 2>/dev/null; then "
+                    "  echo 'System python3 is >=3.12, no shim needed'; "
                     "else "
-                    "  apt-get update -qq && apt-get install -y -qq curl && "
-                    "  curl -LsSf https://astral.sh/uv/install.sh | sh && "
+                    "  OLD_PY3=$(which python3 2>/dev/null || echo '') && "
+                    "  (command -v curl >/dev/null 2>&1 || "
+                    "    (apt-get update -qq && apt-get install -y -qq curl) 2>/dev/null || "
+                    "    apk add --no-cache curl 2>/dev/null || "
+                    "    yum install -y curl 2>/dev/null || "
+                    "    dnf install -y curl 2>/dev/null || "
+                    "    true) && "
+                    "  (curl -LsSf https://astral.sh/uv/install.sh || wget -qO- https://astral.sh/uv/install.sh) | sh && "
                     '  export PATH="$HOME/.local/bin:$PATH" && '
                     "  uv python install 3.13 && "
-                    "  uv venv /opt/openhands-sdk-venv --python 3.13 && "
-                    "  . /opt/openhands-sdk-venv/bin/activate && "
-                    "  uv pip install openhands-sdk openhands-tools && "
-                    "  echo 'openhands-sdk pre-installed with uv + Python 3.13'; "
-                    "fi",
+                    "  mkdir -p /usr/local/bin && "
+                    '  UV_PY=$(uv python find 3.13) && [ -n "$UV_PY" ] && '
+                    '  ln -sf "$UV_PY" /usr/local/bin/python3 && '
+                    '  if [ -n "$OLD_PY3" ] && [ "$OLD_PY3" != "/usr/local/bin/python3" ]; then '
+                    '    ln -sf "$UV_PY" "$OLD_PY3"; '
+                    "  fi && "
+                    "  hash -r && "
+                    "  echo 'Shimmed python3 -> Python 3.13'; "
+                    "fi && "
+                    "command -v stdbuf >/dev/null 2>&1 || ("
+                    "  (apt-get update -qq && apt-get install -y -qq coreutils) 2>/dev/null || "
+                    "  apk add --no-cache coreutils 2>/dev/null || "
+                    "  yum install -y coreutils 2>/dev/null || "
+                    "  dnf install -y coreutils 2>/dev/null || true"
+                    ") || true",
                     timeout_sec=300,
                 )
+                logger.info(
+                    "openhands-sdk HACK (rc=%d): %s%s",
+                    hack_result.return_code,
+                    hack_result.stdout[:500] if hack_result.stdout else "",
+                    f" | stderr: {hack_result.stderr[:500]}" if hack_result.stderr else "",
+                )
+                ver_result = await sandbox.exec("python3 --version 2>&1 && which python3", timeout_sec=10)
+                logger.info("python3 after shim: %s", ver_result.stdout.strip() if ver_result.stdout else "N/A")
 
             await agent.setup(adapter)
+
+            if self._harbor_agent.lower() == "openhands-sdk":
+                await _patch_openhands_sdk(sandbox, cmd_timeout=self._cmd_timeout)
+
             context = AgentContext()
 
+            agent_error: Exception | None = None
             agent_timed_out = False
-            jitter = random.uniform(0, min(120.0, self._run_timeout * 0.02))
-            effective_timeout = self._run_timeout + jitter
-            try:
-                await asyncio.wait_for(
-                    agent.run(task.prompt, adapter, context),
-                    timeout=effective_timeout,
-                )
-            except (asyncio.TimeoutError, TimeoutError):
-                elapsed = time.monotonic() - t0
-                logger.warning(
-                    "HarborSolver: agent.run() timed out after %.0fs (run_timeout=%.0fs+%.0fs jitter) — collecting partial results",
-                    elapsed,
-                    self._run_timeout,
-                    jitter,
-                )
-                agent_timed_out = True
+            task_timeout = task.metadata.get("agent_timeout_sec")
+            if task_timeout is not None and not isinstance(task_timeout, (int, float)):
+                logger.warning("agent_timeout_sec in metadata is not numeric: %r, ignoring", task_timeout)
+                task_timeout = None
+            run_timeout = _resolve_agent_timeout(
+                self._timeout_strategy,
+                self._run_timeout,
+                task_timeout,
+                self._max_agent_timeout,
+            )
+            logger.info(
+                "HarborSolver: timeout resolved: strategy=%s nel=%.0fs task=%s cap=%s → effective=%.0fs",
+                self._timeout_strategy,
+                self._run_timeout,
+                f"{task_timeout:.0f}s" if task_timeout is not None else "n/a",
+                f"{self._max_agent_timeout:.0f}s" if self._max_agent_timeout is not None else "n/a",
+                run_timeout,
+            )
+            jitter = random.uniform(0, min(120.0, run_timeout * 0.02))
+            effective_timeout = run_timeout + jitter
+
+            agent_task = asyncio.create_task(agent.run(task.prompt, adapter, context))
+            agent_timed_out, agent_error = await self._wait_for_agent(
+                agent_task,
+                sandbox,
+                t0,
+                effective_timeout,
+                jitter,
+            )
 
             # Capture git diff before downloading logs (agent may have
             # modified /testbed in SWE-bench and similar tasks).
@@ -580,16 +1089,18 @@ class HarborSolver:
 
             latency_ms = (time.monotonic() - t0) * 1000
 
-            # Timeout with zero progress → raise so the eval loop retries
-            # on a fresh sandbox (the model may have been temporarily down).
-            # Timeout WITH partial work → return normally for verification.
+            # Timeout with zero progress → graceful error (reward 0, no retry).
+            # Retrying is unlikely to help if the model produced nothing.
             if agent_timed_out and not workspace_diff and prompt_tokens + completion_tokens == 0:
-                raise RuntimeError(
+                raise GracefulError(
                     f"Agent made no progress before run_timeout ({self._run_timeout:.0f}s). Model may be unreachable."
                 )
 
             error = None
-            if agent_timed_out and workspace_diff:
+            if agent_error is not None:
+                error = f"Agent crashed: {type(agent_error).__name__}: {agent_error}"
+                logger.warning("HarborSolver: %s", error)
+            elif agent_timed_out and workspace_diff:
                 logger.info(
                     "HarborSolver: agent timed out after %.0fs but produced "
                     "workspace changes — submitting for verification",

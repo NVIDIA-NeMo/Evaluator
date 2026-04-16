@@ -1,9 +1,23 @@
-"""ReActSolver: NEL-driven agent loop with pluggable tool backends.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""ReActSolver: evaluator-driven agent loop with pluggable tool backends.
 
-NEL drives the model-call → parse-tool-calls → dispatch cycle directly,
-giving full observability over every turn.  Works with Gym Resource Server
-tools (``HttpToolBackend``), sandbox tools (``SandboxToolBackend``), or
-both (``CompositeToolBackend``).
+The evaluator drives the model-call / parse-tool-calls / dispatch cycle
+directly, giving full observability over every turn.  Works with Gym
+Resource Server tools (``HttpToolBackend``), sandbox tools
+(``SandboxToolBackend``), or both (``CompositeToolBackend``).
 """
 
 from __future__ import annotations
@@ -34,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 class ReActSolver:
-    """NEL-native ReAct loop.
+    """Evaluator-native ReAct loop.
 
     Parameters
     ----------
@@ -274,6 +288,14 @@ class ReActSolver:
                 overrides["max_tokens"] = gen.max_tokens
             if getattr(gen, "top_p", None) is not None:
                 overrides["top_p"] = gen.top_p
+            if getattr(gen, "seed", None) is not None:
+                overrides["seed"] = gen.seed
+            if getattr(gen, "stop", None) is not None:
+                overrides["stop"] = gen.stop
+            if getattr(gen, "frequency_penalty", None) is not None:
+                overrides["frequency_penalty"] = gen.frequency_penalty
+            if getattr(gen, "presence_penalty", None) is not None:
+                overrides["presence_penalty"] = gen.presence_penalty
         return overrides
 
     @staticmethod

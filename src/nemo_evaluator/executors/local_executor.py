@@ -1,3 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Local executor: in-process or background fork."""
 
 from __future__ import annotations
@@ -55,6 +69,8 @@ class LocalExecutor(Executor):
             self._run_foreground(config, resume=resume)
 
     def _run_foreground(self, config, *, resume: bool = False) -> None:
+        import sys
+
         import click
 
         from nemo_evaluator.orchestration.orchestrator import run_local
@@ -70,6 +86,8 @@ class LocalExecutor(Executor):
                 msg += f" {failed} failed."
             msg += f" Results: {config.output.dir}"
             click.echo(msg)
+            if failed:
+                sys.exit(1)
         finally:
             pid_file = Path(config.output.dir) / "nel.pid"
             if pid_file.exists():
@@ -121,16 +139,17 @@ class LocalExecutor(Executor):
         os.dup2(log_fd.fileno(), 1)
         os.dup2(log_fd.fileno(), 2)
 
+        bundles: list = []
         try:
             from nemo_evaluator.orchestration.orchestrator import run_local
 
-            run_local(config, resume=resume)
+            bundles = run_local(config, resume=resume)
         finally:
             pid_file = Path(config.output.dir) / "nel.pid"
             if pid_file.exists():
                 pid_file.unlink()
             log_fd.close()
-            os._exit(0)
+            os._exit(1 if any(b.get("_failed") for b in bundles) else 0)
 
     def status(self, output_dir: str | Path) -> ProcessState:
         pid = _read_pid(output_dir)

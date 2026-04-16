@@ -21,7 +21,7 @@ pip install -e ".[scoring]"
 | `stats` | `pip install -e ".[stats]"` | scipy for confidence intervals, McNemar significance testing, and regression analysis |
 | `skills` | `pip install -e ".[skills]"` | NeMo Skills benchmark integration |
 | `harbor` | `pip install -e ".[harbor]"` | Harbor agent integration (OpenHands, Terminus-2, etc.) |
-| `proxy` | `pip install -e ".[proxy]"` | LiteLLM proxy for LLM traffic observability and interception |
+| ~~`proxy`~~ | Removed | Adapter proxy is now built-in (no extra install needed) |
 | `inspect` | `pip install -e ".[inspect]"` | Inspect AI log export (`inspect_ai`-compatible `EvalLog` files) |
 | `ray` | `pip install -e ".[ray]"` | Ray distributed launcher |
 | `harnesses` | `pip install -e ".[harnesses]"` | lm-evaluation-harness tasks |

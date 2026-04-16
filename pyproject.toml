@@ -4,17 +4,43 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nemo-evaluator"
-version = "0.12.0"
-description = "NeMo Evaluator – benchmark environments, evaluation runner, and decision-grade scoring"
+version = "0.13.0"
+description = "NeMo Evaluator — benchmark environments, pluggable solvers, interceptor proxy, and decision-grade scoring for LLMs"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.14"
 license = "Apache-2.0"
+authors = [
+    { name = "NVIDIA" },
+    { email = "contact@nvidia.com" },
+]
+maintainers = [
+    { name = "NVIDIA" },
+    { email = "contact@nvidia.com" },
+]
+keywords = [
+    "deep learning",
+    "evaluations",
+    "benchmarks",
+    "machine learning",
+    "gpu",
+    "NLP",
+    "LLM",
+    "pytorch",
+    "NVIDIA",
+]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Testing",
 ]
 dependencies = [
     "pydantic>=2.0",
@@ -25,6 +51,9 @@ dependencies = [
     "click>=8.0",
     "numpy>=1.24",
     "datasets>=2.14",
+    "jinja2>=3.0",
+    "starlette>=0.27",
+    "boto3>=1.28",
 ]
 
 [project.optional-dependencies]
@@ -33,13 +62,11 @@ stats = ["scipy>=1.10"]
 ray = ["ray[default]>=2.9"]
 skills = ["nemo-skills @ git+https://github.com/NVIDIA-NeMo/Skills.git"]
 lm-eval = ["lm_eval>=0.4"]
-harbor = ["harbor>=0.2.0,<=0.3.0"]
-proxy = ["litellm<=1.82.6"]
-proxy-full = ["litellm[proxy]<=1.82.6"]
+harbor = ["harbor>=0.3.0,<0.4.0"]
 inspect = ["inspect_ai"]
 export = ["wandb", "mlflow"]
 harnesses = ["nemo-evaluator[lm-eval]"]
-all = ["nemo-evaluator[scoring,stats,ray,lm-eval,harbor,proxy]"]
+all = ["nemo-evaluator[scoring,stats,ray,lm-eval,harbor]"]
 docs = [
     "sphinx",
     "sphinx-autobuild",
@@ -59,6 +86,13 @@ dev = [
     "nemo-evaluator[scoring,stats,lm-eval,harbor]",
 ]
 
+[project.urls]
+Homepage = "https://docs.nvidia.com/nemo/evaluator/"
+Repository = "https://github.com/NVIDIA-NeMo/Evaluator"
+Documentation = "https://docs.nvidia.com/nemo/evaluator/"
+Changelog = "https://github.com/NVIDIA-NeMo/Evaluator/blob/main/CHANGELOG.md"
+Issues = "https://github.com/NVIDIA-NeMo/Evaluator/issues"
+
 [project.scripts]
 nel = "nemo_evaluator.cli.main:cli"
 
@@ -68,11 +102,18 @@ allow-direct-references = true
 [tool.hatch.build.targets.wheel]
 packages = ["src/nemo_evaluator"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"src/nemo_evaluator/templates" = "nemo_evaluator/templates"
+"src/nemo_evaluator/playbooks" = "nemo_evaluator/playbooks"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
     "network: tests that download from HF or hit external services (deselect via: -m 'not network')",
+    "integration: integration tests that wire real components together",
+    "slow: tests that take > 30s (deselect via: -m 'not slow')",
+    "e2e: end-to-end smoke tests requiring infrastructure",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
@@ -82,6 +123,7 @@ filterwarnings = [
 source = ["nemo_evaluator"]
 
 [tool.coverage.report]
+fail_under = 52
 show_missing = true
 skip_empty = true
 exclude_lines = [

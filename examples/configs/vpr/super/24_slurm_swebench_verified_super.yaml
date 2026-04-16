@@ -98,8 +98,8 @@ cluster:
   account: coreai_dlalgo_compeval
   walltime: "04:00:00"
   auto_resume: true
-  shards: 5
-  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:dev-20260326-125929-4a8bd0fa-harbor-amd64
+  shards: 10
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:0.15.0-harbor-amd64
   container_mounts:
     - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
   container_env:

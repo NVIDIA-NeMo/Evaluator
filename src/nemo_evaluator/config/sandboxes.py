@@ -1,7 +1,22 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Sandbox configuration schemas (Docker, ECS Fargate, SLURM, Apptainer, custom)."""
 
 from __future__ import annotations
 
+import warnings
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, model_validator
@@ -14,6 +29,18 @@ class _SandboxBase(BaseModel):
 
     capture_cmd: str | None = None
     verify_timeout: float = 600.0
+    stateful: bool = False
+
+    @model_validator(mode="after")
+    def _warn_stateful_with_capture_cmd(self) -> "_SandboxBase":
+        if self.stateful and self.capture_cmd is not None:
+            warnings.warn(
+                "sandbox.stateful=True ignores capture_cmd — the capture/transfer "
+                "workflow is skipped when stateful mode is enabled.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return self
 
 
 class DockerSandbox(_SandboxBase):
@@ -32,7 +59,7 @@ class SshSidecarConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     sshd_port: int = 2222
-    ssh_ready_timeout_sec: float = 120.0
+    ssh_ready_timeout_sec: float = 300.0
     public_key_secret_arn: str
     private_key_secret_arn: str
     image: str | None = None
@@ -112,13 +139,9 @@ class ApptainerSandbox(_SlurmSandboxBase):
         return self
 
 
-class NoSandbox(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class NoSandbox(_SandboxBase):
     type: Literal["none"] = "none"
-
-    capture_cmd: str | None = None
-    verify_timeout: float = 600.0
+    stateful: bool = False
 
 
 class CustomSandbox(BaseModel):

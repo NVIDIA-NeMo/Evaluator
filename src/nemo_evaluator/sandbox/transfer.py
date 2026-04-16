@@ -1,3 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """WorkspaceTransfer — pluggable strategies for moving workspace state
 between agent and verifier sandboxes in StatelessSandbox.
 
@@ -156,16 +170,24 @@ class EfsTransfer:
         return vol
 
     def prepare_agent_spec(self, spec: SandboxSpec) -> SandboxSpec:
-        return _clone_spec_with_volume(
+        new_spec = _clone_spec_with_volume(
             spec,
             self._efs_volume("/output", readonly=False),
         )
+        if self._ap_id:
+            session = self._session_path.lstrip("/")
+            new_spec.env = {**(new_spec.env or {}), "_NEL_EFS_SESSION": session}
+        return new_spec
 
     def prepare_verify_spec(self, spec: SandboxSpec) -> SandboxSpec:
-        return _clone_spec_with_volume(
+        new_spec = _clone_spec_with_volume(
             spec,
             self._efs_volume("/input", readonly=False),
         )
+        if self._ap_id:
+            session = self._session_path.lstrip("/")
+            new_spec.env = {**(new_spec.env or {}), "_NEL_EFS_SESSION": session}
+        return new_spec
 
     async def post_capture(self, source: Sandbox) -> None:
         logger.info(
@@ -177,14 +199,21 @@ class EfsTransfer:
         if self._ap_id:
             session = self._session_path.lstrip("/")
             result = await source.exec(
-                f"mkdir -p /output/{session} && mv /output/workspace.tar /output/{session}/workspace.tar",
-                timeout_sec=120,
+                f"ls -lh /output/{session}/workspace.tar 2>&1",
+                timeout_sec=30,
             )
-            if result.return_code != 0:
+            found = result.return_code == 0 and "No such file" not in (result.stdout or "")
+            if not found:
                 logger.error(
-                    "EfsTransfer.post_capture: mv failed rc=%d: %s",
-                    result.return_code,
-                    (result.stderr or "")[:300],
+                    "EfsTransfer.post_capture: session workspace MISSING at /output/%s/ — "
+                    "capture_cmd may have written to wrong path: %s",
+                    session,
+                    (result.stdout or "").strip()[:300],
+                )
+            else:
+                logger.info(
+                    "EfsTransfer.post_capture: %s",
+                    (result.stdout or "").strip()[:200],
                 )
         else:
             result = await source.exec(
@@ -206,12 +235,12 @@ class EfsTransfer:
         if self._ap_id:
             session = self._session_path.lstrip("/")
             result = await target.exec(
-                f"cp /input/{session}/workspace.tar /input/workspace.tar",
+                f"ln -sf /input/{session}/workspace.tar /input/workspace.tar",
                 timeout_sec=120,
             )
             if result.return_code != 0:
                 logger.error(
-                    "EfsTransfer.pre_restore: cp failed rc=%d: %s",
+                    "EfsTransfer.pre_restore: symlink failed rc=%d: %s",
                     result.return_code,
                     (result.stderr or "")[:300],
                 )

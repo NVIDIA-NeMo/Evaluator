@@ -1,3 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Sandbox lifecycle strategies for the eval loop.
 
 Three strategies control how sandboxes are managed during a single eval step:
@@ -160,6 +174,7 @@ class StatelessSandbox:
         self._transfer = transfer
         self._agent_sandbox: Sandbox | None = None
         self._verify_sandbox: Sandbox | None = None
+        self._agent_exec_env: dict[str, str] = {}
         self._lock = asyncio.Lock()
         self._torn_down = False
 
@@ -172,15 +187,14 @@ class StatelessSandbox:
         if self._ctx.agent_spec is None:
             raise RuntimeError("StatelessSandbox: no agent_spec but get_agent_sandbox called")
         spec = self._transfer.prepare_agent_spec(self._ctx.agent_spec)
+        self._agent_exec_env = dict(spec.env)
         self._agent_sandbox = await self._ctx.sandbox_mgr.acquire(
             spec,
             outside_endpoints=self._ctx.outside_endpoints,
         )
-        # TODO: Move to a benchmark-provided pre_agent_cmd so the strategy
-        # layer stays generic (currently only Harbor's capture_cmd reads this).
+        wd = self._ctx.agent_spec.workdir
         await self._agent_sandbox.exec(
-            "_h=$(cd /testbed 2>/dev/null && git rev-parse HEAD 2>/dev/null) && "
-            "echo $_h > /tmp/_nel_base_commit || true",
+            f"_h=$(cd {wd} 2>/dev/null && git rev-parse HEAD 2>/dev/null) && echo $_h > /tmp/_nel_base_commit || true",
             timeout_sec=10,
         )
         return self._agent_sandbox
@@ -200,9 +214,10 @@ class StatelessSandbox:
                         timeout_sec=10,
                     )
                     try:
+                        _wd = self._ctx.agent_spec.workdir
                         pre_diag = await self._agent_sandbox.exec(
                             "echo '=== base commit ===' && cat /tmp/_nel_base_commit 2>/dev/null || echo 'NOT SET'; "
-                            "echo '=== current HEAD ===' && cd /testbed 2>/dev/null && git log --oneline -1 2>/dev/null; "
+                            f"echo '=== current HEAD ===' && cd {_wd} 2>/dev/null && git log --oneline -1 2>/dev/null; "
                             "echo '=== git status ===' && git status --short 2>/dev/null | head -30; "
                             "echo '=== cwd ===' && pwd",
                             timeout_sec=15,
@@ -216,6 +231,7 @@ class StatelessSandbox:
                     cap_result = await self._agent_sandbox.exec(
                         self._ctx.capture_cmd,
                         timeout_sec=300,
+                        env=self._agent_exec_env or None,
                     )
                     if cap_result.return_code != 0:
                         logger.error(
@@ -274,8 +290,9 @@ class StatelessSandbox:
             )
         if self._ctx.apply_cmd:
             try:
+                _vwd = self._ctx.verify_spec.workdir
                 diag = await self._verify_sandbox.exec(
-                    "echo '=== git HEAD ===' && cd /testbed && git log --oneline -1 2>/dev/null; "
+                    f"echo '=== git HEAD ===' && cd {_vwd} && git log --oneline -1 2>/dev/null; "
                     "echo '=== patch stat ===' && "
                     "git apply --stat /tmp/_nel_ws/_nel_patch.diff 2>&1 | head -30; "
                     "echo '=== patch header ===' && head -40 /tmp/_nel_ws/_nel_patch.diff 2>/dev/null; "
@@ -332,6 +349,7 @@ def pick_lifecycle(
     outside_endpoints: list[OutsideEndpoint] | None = None,
     config_capture_cmd: str | None = None,
     verify_timeout: float = 600.0,
+    force_stateful: bool = False,
 ) -> SandboxLifecycle:
     """Select the appropriate lifecycle strategy for *seed*.
 
@@ -341,7 +359,7 @@ def pick_lifecycle(
     """
     eps = outside_endpoints or []
 
-    if seed.verify_sandbox_spec is not None and sandbox_mgr is not None:
+    if seed.verify_sandbox_spec is not None and not force_stateful and sandbox_mgr is not None:
         agent_spec = sandbox_mgr.resolve_spec(seed) or seed.sandbox_spec
         verify_spec = (
             sandbox_mgr.resolve_spec(
@@ -353,6 +371,7 @@ def pick_lifecycle(
 
         transfer = sandbox_mgr.get_transfer_strategy()
 
+        logger.debug("pick_lifecycle: selected StatelessSandbox")
         return StatelessSandbox(
             LifecycleContext(
                 sandbox_mgr=sandbox_mgr,
@@ -369,6 +388,8 @@ def pick_lifecycle(
     if sandbox_mgr is not None:
         spec = sandbox_mgr.resolve_spec(seed)
         if spec is not None:
+            logger.debug("pick_lifecycle: selected StatefulSandbox")
             return StatefulSandbox(sandbox_mgr, spec, eps)
 
+    logger.debug("pick_lifecycle: selected NoSandbox")
     return NoSandbox()

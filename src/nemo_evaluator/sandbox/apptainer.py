@@ -1,3 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Apptainer-based per-problem sandbox using persistent instances.
 
 Each sandbox is an Apptainer instance started from a SIF file.  Apptainer
@@ -83,6 +97,7 @@ class ApptainerSandbox:
         self._instance_name = f"nel-{uuid4().hex[:12]}"
         self._staging_dir: Path | None = None
         self._running = False
+        self._outside_endpoints: list[OutsideEndpoint] = []
 
     @property
     def spec(self) -> SandboxSpec:
@@ -115,6 +130,7 @@ class ApptainerSandbox:
         *,
         outside_endpoints: list[OutsideEndpoint] | None = None,
     ) -> None:
+        self._outside_endpoints = outside_endpoints or []
         import tempfile
 
         staging_base = self._sif_cache_dir if self._node else None
@@ -282,6 +298,12 @@ class ApptainerSandbox:
             new_netloc = f"{evaluator_host}:{port}" if port else evaluator_host
             return urlunparse(parsed._replace(netloc=new_netloc))
         return url
+
+    def resolved_endpoint_url(self, env_var: str) -> str | None:
+        for ep in self._outside_endpoints:
+            if ep.env_var == env_var:
+                return self.resolve_outside_endpoint(ep.url)
+        return None
 
     @property
     def is_running(self) -> bool:

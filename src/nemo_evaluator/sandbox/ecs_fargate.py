@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -142,7 +142,7 @@ class SshSidecarConfig:
     """
 
     sshd_port: int = 2222
-    ssh_ready_timeout_sec: float = 120.0
+    ssh_ready_timeout_sec: float = 300.0
     public_key_secret_arn: str = ""
     private_key_secret_arn: str = ""
     image: str | None = None
@@ -364,7 +364,7 @@ class SshTunnel:
     def close(self) -> None:
         self._kill()
 
-    def wait_ready(self, *, health_url: str | None = None, timeout: float = 120.0) -> None:
+    def wait_ready(self, *, health_url: str | None = None, timeout: float = 300.0) -> None:
         if health_url:
             self._poll_health(health_url, timeout)
         elif self._local_port:
@@ -532,9 +532,10 @@ def build_ssh_sidecar_container(
 EXEC_SERVER_SCRIPT = r'''#!/usr/bin/env python3
 """Zero-dependency HTTP exec server for sandbox containers."""
 from __future__ import annotations
-import base64, json, os, subprocess
+import base64, json, os, shutil, subprocess
 from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
+_BASH = shutil.which("bash")
 _PORT = int(os.environ.get("TB_EXEC_PORT", "19542"))
 _BIND = os.environ.get("TB_EXEC_BIND", "127.0.0.1")
 class _H(BaseHTTPRequestHandler):
@@ -559,7 +560,7 @@ class _H(BaseHTTPRequestHandler):
         if not cmd: self._err(400, "missing 'cmd'"); return
         t = b.get("timeout", 300)
         try:
-            cp = subprocess.run(cmd, shell=True, executable="/bin/bash", capture_output=True, timeout=t)
+            cp = subprocess.run(cmd, shell=True, executable=_BASH, capture_output=True, timeout=t)
             self._ok({"stdout": cp.stdout.decode("utf-8", errors="replace"),
                        "stderr": cp.stderr.decode("utf-8", errors="replace"),
                        "rc": cp.returncode})
@@ -611,6 +612,8 @@ if __name__ == "__main__":
     except KeyboardInterrupt: pass
     finally: s.server_close()
 '''
+
+_EXEC_SERVER_B64 = base64.b64encode(EXEC_SERVER_SCRIPT.encode()).decode()
 
 _TRANSIENT_ERRORS = (
     ConnectionResetError,
@@ -1104,6 +1107,23 @@ class EcsFargateSandbox:
     def spec(self) -> SandboxSpec:
         return self._spec
 
+    def resolved_endpoint_url(self, env_var: str) -> str | None:
+        for ep in self._outside_endpoints:
+            if ep.env_var != env_var:
+                continue
+            ep_parsed = urlparse(ep.url)
+            if ep.env_var in self._reverse_port_map:
+                remote_port, scheme = self._reverse_port_map[ep.env_var]
+                return ep_parsed._replace(
+                    scheme=scheme,
+                    netloc=f"127.0.0.1:{remote_port}",
+                ).geturl()
+            if self._ssh_tunnel_port is not None:
+                return ep_parsed._replace(
+                    netloc=f"127.0.0.1:{self._ssh_tunnel_port}",
+                ).geturl()
+        return None
+
     @property
     def is_running(self) -> bool:
         return self._started and not self._stopped
@@ -1182,7 +1202,22 @@ class EcsFargateSandbox:
                 shell_cmd = f'su -s /bin/bash "$(getent passwd {user} | cut -d: -f1)" -c {shlex.quote(shell_cmd)}'
             else:
                 shell_cmd = f"su -s /bin/bash {shlex.quote(str(user))} -c {shlex.quote(shell_cmd)}"
-        return await asyncio.to_thread(self._exec_client.exec, shell_cmd, timeout=int(timeout_sec))  # type: ignore[union-attr]
+        try:
+            return await asyncio.to_thread(self._exec_client.exec, shell_cmd, timeout=int(timeout_sec))  # type: ignore[union-attr]
+        except ConnectionError:
+            if self._ssh_tunnel and not self._ssh_tunnel.is_open:
+                logger.warning("SSH tunnel dead — attempting reconnect before re-raising")
+                try:
+                    await self.reconnect_tunnel()
+                    sidecar = self._cfg.ssh_sidecar
+                    if sidecar and sidecar.exec_server_port is not None:
+                        health_url = f"http://127.0.0.1:{self._ssh_tunnel.local_port}/health"  # type: ignore[union-attr]
+                        self._ssh_tunnel.wait_ready(health_url=health_url, timeout=60.0)  # type: ignore[union-attr]
+                        self._exec_client = ExecClient(port=self._ssh_tunnel.local_port)  # type: ignore[union-attr]
+                        return await asyncio.to_thread(self._exec_client.exec, shell_cmd, timeout=int(timeout_sec))
+                except Exception as reconnect_err:
+                    logger.warning("Tunnel reconnect failed: %s", reconnect_err)
+            raise
 
     async def upload(self, local_path: Path, remote_path: str) -> None:
         self._require_exec_client()
@@ -1205,12 +1240,16 @@ class EcsFargateSandbox:
         dest.write_bytes(data)
 
     def resolve_outside_endpoint(self, url: str) -> str:
+        parsed = urlparse(url)
         for ep in self._outside_endpoints:
-            if ep.url == url and ep.env_var in self._reverse_port_map:
+            ep_parsed = urlparse(ep.url)
+            if ep_parsed.netloc == parsed.netloc and ep.env_var in self._reverse_port_map:
                 remote_port, scheme = self._reverse_port_map[ep.env_var]
-                return f"{scheme}://127.0.0.1:{remote_port}"
+                return parsed._replace(
+                    scheme=scheme,
+                    netloc=f"127.0.0.1:{remote_port}",
+                ).geturl()
         if self._ssh_tunnel_port is not None:
-            parsed = urlparse(url)
             return parsed._replace(netloc=f"127.0.0.1:{self._ssh_tunnel_port}").geturl()
         raise RuntimeError("resolve_outside_endpoint() requires SSH reverse tunnel")
 
@@ -1261,11 +1300,7 @@ class EcsFargateSandbox:
         if not has_exec_server:
             self._ssh_tunnel_port = self._resolve_ssh_tunnel_port()
 
-        exec_server_url: str | None = None
-        if has_exec_server:
-            exec_server_url = self._upload_exec_server()
-
-        command = self._build_container_command(exec_server_url, sidecar)
+        command = self._build_container_command(sidecar)
         env = self._build_env_vars()
         log_region = cfg.region or os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
         sidecar_def = build_ssh_sidecar_container(
@@ -1371,27 +1406,31 @@ class EcsFargateSandbox:
         logger.info("Uploaded exec server → s3://%s/%s", cfg.s3_bucket, key)
         return url
 
-    def _build_container_command(self, exec_server_url: str | None, sidecar: SshSidecarConfig) -> list[str] | None:
-        if exec_server_url is None:
+    def _build_container_command(self, sidecar: SshSidecarConfig) -> list[str] | None:
+        if sidecar.exec_server_port is None:
             return None
         exec_port = sidecar.exec_server_port or 19542
-        ttl = self._cfg.max_task_lifetime_sec
         hostname = re.sub(r"[^A-Za-z0-9._-]", "-", self._spec.image or "sandbox")[:63]
-        bootstrap = (
-            "if command -v python >/dev/null 2>&1; then :; "
-            "elif command -v python3 >/dev/null 2>&1; then "
-            '  P=$(command -v python3); ln -sf "$P" /usr/local/bin/python 2>/dev/null || true; '
-            '  ln -sf "$P" /usr/bin/python 2>/dev/null || true; fi; '
-        )
         setup = (
-            f"{bootstrap}"
             f"hostname {shlex.quote(hostname)} 2>/dev/null || true; "
-            f"python3 -c 'import urllib.request as u,sys;"
-            f'u.urlretrieve(sys.argv[1],"/tmp/_exec_server.py")\' '
-            f"{shlex.quote(exec_server_url)} && "
+            f"echo '{_EXEC_SERVER_B64}' | base64 -d > /tmp/_exec_server.py; "
+            "if ! command -v python3 >/dev/null 2>&1; then "
+            "  if command -v apt-get >/dev/null 2>&1; then "
+            "    apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 bash; "
+            "  elif command -v apk >/dev/null 2>&1; then "
+            "    apk add --no-cache python3 bash; "
+            "  elif command -v yum >/dev/null 2>&1; then "
+            "    yum install -y python3 bash; "
+            "  elif command -v dnf >/dev/null 2>&1; then "
+            "    dnf install -y python3 bash; "
+            "  fi; "
+            "fi; "
+            "if ! command -v python3 >/dev/null 2>&1; then "
+            "  echo 'FATAL: exec_server bootstrap failed — python3 not available' >&2; "
+            "  exit 1; "
+            "fi; "
             f"TB_EXEC_PORT={exec_port} TB_EXEC_BIND=127.0.0.1 "
-            f"nohup python3 /tmp/_exec_server.py >/tmp/_exec.log 2>&1 & "
-            f"sleep {ttl}"
+            "exec python3 /tmp/_exec_server.py"
         )
         return ["sh", "-lc", setup]
 
@@ -1403,12 +1442,18 @@ class EcsFargateSandbox:
                 env[k] = self._render_env_value(v)
         if self._ssh_tunnel_port and self._outside_endpoints:
             ep = self._outside_endpoints[0]
-            scheme = urlparse(ep.url).scheme or "http"
-            env[ep.env_var] = f"{scheme}://127.0.0.1:{self._ssh_tunnel_port}"
+            parsed = urlparse(ep.url)
+            env[ep.env_var] = parsed._replace(
+                netloc=f"127.0.0.1:{self._ssh_tunnel_port}",
+            ).geturl()
         for ep in self._outside_endpoints:
             if ep.env_var in self._reverse_port_map:
                 remote_port, scheme = self._reverse_port_map[ep.env_var]
-                env[ep.env_var] = f"{scheme}://127.0.0.1:{remote_port}"
+                parsed = urlparse(ep.url)
+                env[ep.env_var] = parsed._replace(
+                    scheme=scheme,
+                    netloc=f"127.0.0.1:{remote_port}",
+                ).geturl()
         return env
 
     def _render_env_value(self, value: str) -> str:

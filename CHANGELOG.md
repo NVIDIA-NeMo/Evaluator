@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.13.0 (unreleased)
+
+### Adapter Proxy (Breaking — replaces LiteLLM)
+
+- **LiteLLM removed**: The `litellm` dependency, `proxy` and `proxy-full` extras, and `litellm_settings` config field are all removed. The adapter proxy is now built-in with zero external proxy dependencies.
+- **New adapter system**: In-process Starlette proxy server with 13 composable async interceptors, replacing both the LiteLLM subprocess and the 4 LiteLLM `CustomLogger`-based interceptors.
+- **Interceptor pipeline**: `RequestInterceptor → RequestToResponseInterceptor → ResponseInterceptor` chain with short-circuit support (cache hits), `best_effort` error handling, and `ContextVar`-based per-request context.
+- **Built-in interceptors**: `endpoint`, `drop_params`, `modify_tools`, `turn_counter`, `system_message`, `payload_modifier`, `raise_client_errors`, `caching`, `log_tokens`, `response_stats`, `reasoning`, `progress_tracking`, `logging`.
+- **Disk cache**: Async SQLite cache with WAL mode, canonical cache keys, and graceful degradation on corruption. Requires node-local storage (not NFS/Lustre).
+- **Explicit proxy config fields**: `proxy.request_timeout`, `proxy.max_retries`, `proxy.retry_on_status`, `proxy.max_concurrent_upstream` replace the opaque `litellm_settings` dict.
+
+#### Migration guide
+
+| Old config | New config |
+|---|---|
+| `pip install -e ".[proxy]"` | No extra needed — built-in |
+| `proxy.litellm_settings.request_timeout: 600` | `proxy.request_timeout: 600` |
+| `proxy.litellm_settings.num_retries: 3` | `proxy.max_retries: 3` |
+| `proxy.litellm_settings.max_parallel_requests` | `proxy.max_concurrent_upstream` |
+| `proxy.litellm_settings.set_verbose: true` | `proxy.verbose: true` |
+
 ## 0.12.0 (2026-03-20)
 
 ### Config Schema v2 (Breaking)

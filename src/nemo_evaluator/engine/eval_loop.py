@@ -1,3 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Core evaluation loop: seed -> solve -> verify, with async parallelism."""
 
 from __future__ import annotations
@@ -7,6 +21,7 @@ import logging
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 from nemo_evaluator.environments.base import EvalEnvironment, VerifyResult
 from nemo_evaluator.errors import GracefulError
@@ -52,6 +67,7 @@ async def run_evaluation(
     skip_failed: bool = False,
     max_system_retries: int = 3,
     shard_info: tuple[int, int] | None = None,
+    instruction_template: Path | None = None,
 ) -> dict[str, Any]:
     config = config or {}
     max_system_retries = max(1, max_system_retries)
@@ -219,12 +235,6 @@ async def run_evaluation(
 
             step_t0 = time.monotonic()
 
-            outside_eps: list[OutsideEndpoint] = []
-            if model_url:
-                from nemo_evaluator.sandbox.base import OutsideEndpoint as OE
-
-                outside_eps.append(OE(url=model_url, env_var="MODEL_BASE_URL"))
-
             sandbox_cfg = config.get("_sandbox_config")
             vr: VerifyResult | None = None
             tv = step_t0
@@ -238,12 +248,21 @@ async def run_evaluation(
                 step.model_error = None
                 vr = None
 
+                outside_eps: list[OutsideEndpoint] = []
+                if model_url:
+                    from nemo_evaluator.sandbox.base import OutsideEndpoint as OE
+
+                    step_session_id = uuid4().hex[:16]
+                    step_url = f"{model_url.rstrip('/')}/s/{step_session_id}"
+                    outside_eps.append(OE(url=step_url, env_var="MODEL_BASE_URL"))
+
                 lifecycle = pick_lifecycle(
                     seed_result,
                     sandbox_manager,
                     outside_endpoints=outside_eps,
                     config_capture_cmd=sandbox_cfg.capture_cmd if sandbox_cfg else None,
                     verify_timeout=sandbox_cfg.verify_timeout if sandbox_cfg else 600.0,
+                    force_stateful=sandbox_cfg.stateful if sandbox_cfg else False,
                 )
 
                 try:
@@ -528,6 +547,17 @@ async def run_evaluation(
             ts = time.monotonic()
             seed_result = await env.seed(idx)
             seed_ms = (time.monotonic() - ts) * 1000
+
+            if instruction_template is not None:
+                from nemo_evaluator.templates import render_template
+
+                wd = seed_result.sandbox_spec.workdir if seed_result.sandbox_spec else "/testbed"
+                seed_result.prompt = render_template(
+                    instruction_template,
+                    original_prompt=seed_result.prompt,
+                    workspace_path=wd,
+                    metadata=seed_result.metadata,
+                )
 
             for rep in range(n_repeats):
                 task = asyncio.create_task(_run_step(idx, rep, seed_result, seed_ms))

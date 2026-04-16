@@ -669,7 +669,7 @@ services:
     model: <model identifier>
     # Optional:
     api_key: ${ENV_VAR}
-    generation: { max_tokens, temperature, top_p, ... }
+    generation: { temperature, top_p, max_tokens, seed, stop, frequency_penalty, presence_penalty }
     interceptors: [{ name, config }, ...]
     proxy_verbose: false
     depends_on: [<other service names>]

@@ -1,3 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Shared test fixtures: mock sandbox, cached solver, fixtured environment."""
 
 from __future__ import annotations
@@ -35,6 +49,7 @@ class MockSandbox:
         self._exec_log: list[str] = []
         self._files: dict[str, bytes] = {}
         self._container_ip = "172.17.0.2"
+        self._outside_endpoints: list = []
 
     @property
     def spec(self):
@@ -49,12 +64,21 @@ class MockSandbox:
         return self._container_ip if self._running else None
 
     async def start(self, *, outside_endpoints=None) -> None:
+        self._outside_endpoints = outside_endpoints or []
         self._running = True
 
     async def stop(self) -> None:
         self._running = False
 
-    async def exec(self, command: str, timeout_sec: float = 180) -> MockExecResult:
+    async def exec(
+        self,
+        command: str,
+        timeout_sec: float = 180,
+        *,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | int | None = None,
+    ) -> MockExecResult:
         self._exec_log.append(command)
         for pattern, result in self._exec_results.items():
             if pattern in command:
@@ -69,6 +93,12 @@ class MockSandbox:
 
     def resolve_outside_endpoint(self, url: str) -> str:
         return url
+
+    def resolved_endpoint_url(self, env_var: str) -> str | None:
+        for ep in self._outside_endpoints:
+            if ep.env_var == env_var:
+                return ep.url
+        return None
 
     async def __aenter__(self):
         await self.start()

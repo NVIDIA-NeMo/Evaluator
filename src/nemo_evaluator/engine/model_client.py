@@ -1,3 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from __future__ import annotations
 
 import asyncio
@@ -66,6 +80,9 @@ class ModelClient:
     max_tokens: int | None = None
     top_p: float | None = None
     seed: int | None = None
+    stop: list[str] | None = None
+    frequency_penalty: float | None = None
+    presence_penalty: float | None = None
     timeout: float = 120.0
     max_concurrent: int = 8
     cache_dir: str | None = None
@@ -108,6 +125,24 @@ class ModelClient:
             await self._http.close()
             self._http = None
 
+    _GENERATION_KEYS = ("temperature", "max_tokens", "top_p", "seed", "stop", "frequency_penalty", "presence_penalty")
+
+    def _build_generation_payload(self, **overrides: Any) -> dict[str, Any]:
+        """Build generation params dict, with optional per-call overrides.
+
+        For each known generation key, the override wins if present,
+        otherwise the client default is used.  ``None`` values are omitted.
+        Any extra override keys are passed through as-is.
+        """
+        params: dict[str, Any] = {}
+        for key in self._GENERATION_KEYS:
+            val = overrides.pop(key, getattr(self, key))
+            if val is not None:
+                params[key] = val
+        for k, v in overrides.items():
+            params[k] = v
+        return params
+
     async def chat(
         self, prompt: str | None = None, system: str | None = None, messages: list[dict[str, str]] | None = None
     ) -> ModelResponse:
@@ -131,6 +166,9 @@ class ModelClient:
                 self.max_tokens,
                 top_p=self.top_p,
                 seed=self.seed,
+                stop=self.stop,
+                frequency_penalty=self.frequency_penalty,
+                presence_penalty=self.presence_penalty,
                 messages=cache_msgs,
             )
             if cached:
@@ -139,15 +177,8 @@ class ModelClient:
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": msgs,
+            **self._build_generation_payload(),
         }
-        if self.temperature is not None:
-            payload["temperature"] = self.temperature
-        if self.max_tokens is not None:
-            payload["max_tokens"] = self.max_tokens
-        if self.top_p is not None:
-            payload["top_p"] = self.top_p
-        if self.seed is not None:
-            payload["seed"] = self.seed
 
         url = f"{self.base_url}/chat/completions"
         t0 = time.monotonic()
@@ -164,6 +195,9 @@ class ModelClient:
                 data,
                 top_p=self.top_p,
                 seed=self.seed,
+                stop=self.stop,
+                frequency_penalty=self.frequency_penalty,
+                presence_penalty=self.presence_penalty,
                 messages=cache_msgs,
             )
         return self._parse_response(data, latency, cache_prompt, system)
@@ -193,15 +227,8 @@ class ModelClient:
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": msgs,
+            **self._build_generation_payload(),
         }
-        if self.temperature is not None:
-            payload["temperature"] = self.temperature
-        if self.max_tokens is not None:
-            payload["max_tokens"] = self.max_tokens
-        if self.top_p is not None:
-            payload["top_p"] = self.top_p
-        if self.seed is not None:
-            payload["seed"] = self.seed
 
         url = f"{self.base_url}/chat/completions"
         t0 = time.monotonic()
@@ -210,7 +237,17 @@ class ModelClient:
 
         if self._cache:
             self._cache.put(
-                self.model, prompt, system, self.temperature, self.max_tokens, data, top_p=self.top_p, seed=self.seed
+                self.model,
+                prompt,
+                system,
+                self.temperature,
+                self.max_tokens,
+                data,
+                top_p=self.top_p,
+                seed=self.seed,
+                stop=self.stop,
+                frequency_penalty=self.frequency_penalty,
+                presence_penalty=self.presence_penalty,
             )
         return self._parse_response(data, latency, prompt, system)
 
@@ -227,16 +264,8 @@ class ModelClient:
             "model": self.model,
             "messages": messages,
             "tools": tools,
-            "temperature": overrides.get("temperature", self.temperature),
-            "max_tokens": overrides.get("max_tokens", self.max_tokens),
+            **self._build_generation_payload(**overrides),
         }
-        if self.top_p is not None:
-            payload["top_p"] = self.top_p
-        if self.seed is not None:
-            payload["seed"] = self.seed
-        for k, v in overrides.items():
-            if k not in ("temperature", "max_tokens"):
-                payload[k] = v
 
         url = f"{self.base_url}/chat/completions"
         t0 = time.monotonic()

@@ -1,3 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Filesystem response cache keyed by request hash."""
 
 from __future__ import annotations
@@ -32,16 +46,30 @@ class ResponseCache:
         prompt: str,
         system: str | None,
         temperature: float,
-        max_tokens: int,
+        max_tokens: int | None,
         top_p: float | None = None,
         seed: int | None = None,
+        stop: list[str] | None = None,
+        frequency_penalty: float | None = None,
+        presence_penalty: float | None = None,
         messages: list[dict] | None = None,
     ) -> str:
         if messages:
             content = json.dumps(messages, sort_keys=True, default=str)
         else:
             content = prompt
-        parts = [model, content, system or "", str(temperature), str(max_tokens), str(top_p or ""), str(seed or "")]
+        parts = [
+            model,
+            content,
+            system or "",
+            str(temperature),
+            str(max_tokens),
+            str(top_p) if top_p is not None else "",
+            str(seed) if seed is not None else "",
+            json.dumps(sorted(stop)) if stop else "",
+            str(frequency_penalty) if frequency_penalty is not None else "",
+            str(presence_penalty) if presence_penalty is not None else "",
+        ]
         return hashlib.sha256("|".join(parts).encode()).hexdigest()
 
     def _path(self, key: str) -> Path:
@@ -53,13 +81,28 @@ class ResponseCache:
         prompt: str,
         system: str | None,
         temperature: float,
-        max_tokens: int,
+        max_tokens: int | None,
         *,
         top_p: float | None = None,
         seed: int | None = None,
+        stop: list[str] | None = None,
+        frequency_penalty: float | None = None,
+        presence_penalty: float | None = None,
         messages: list[dict] | None = None,
     ) -> dict[str, Any] | None:
-        key = self._key(model, prompt, system, temperature, max_tokens, top_p, seed, messages)
+        key = self._key(
+            model,
+            prompt,
+            system,
+            temperature,
+            max_tokens,
+            top_p,
+            seed,
+            stop,
+            frequency_penalty,
+            presence_penalty,
+            messages,
+        )
         p = self._path(key)
         if p.exists():
             self._hits += 1
@@ -77,16 +120,31 @@ class ResponseCache:
         prompt: str,
         system: str | None,
         temperature: float,
-        max_tokens: int,
+        max_tokens: int | None,
         response: dict[str, Any],
         *,
         top_p: float | None = None,
         seed: int | None = None,
+        stop: list[str] | None = None,
+        frequency_penalty: float | None = None,
+        presence_penalty: float | None = None,
         messages: list[dict] | None = None,
     ) -> None:
         if temperature > 0:
             return
-        key = self._key(model, prompt, system, temperature, max_tokens, top_p, seed, messages)
+        key = self._key(
+            model,
+            prompt,
+            system,
+            temperature,
+            max_tokens,
+            top_p,
+            seed,
+            stop,
+            frequency_penalty,
+            presence_penalty,
+            messages,
+        )
         p = self._path(key)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(response, default=str), encoding="utf-8")
