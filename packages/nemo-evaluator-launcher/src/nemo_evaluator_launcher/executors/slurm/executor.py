@@ -1014,11 +1014,30 @@ def _create_slurm_sbatch_script(
         aux_extra_env_names.extend(endpoint_vars)
 
     s += "# evaluation client\n"
+    # `evaluation_gpu_visible` controls NVIDIA_VISIBLE_DEVICES for the eval container.
+    # Required for benchmarks that compile/execute CUDA code (e.g. compute-eval).
+    # Accepts:
+    #   - false / unset (default): don't export — eval container has no GPU access
+    #   - true                   : export NVIDIA_VISIBLE_DEVICES=all
+    #   - str (e.g. "all", "0", "0,1"): export NVIDIA_VISIBLE_DEVICES=<str> verbatim
+    eval_gpu_visible = cfg.execution.get("evaluation_gpu_visible", False)
+    extra_eval_env_names: list[str] = []
+    if eval_gpu_visible is True:
+        gpu_devices = "all"
+    elif isinstance(eval_gpu_visible, str) and eval_gpu_visible:
+        gpu_devices = eval_gpu_visible
+    else:
+        gpu_devices = None
+    if gpu_devices is not None:
+        s += f"export NVIDIA_VISIBLE_DEVICES={gpu_devices}\n"
+        extra_eval_env_names.append("NVIDIA_VISIBLE_DEVICES")
     s += "srun --mpi pmix --overlap "
     s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
     s += "--container-image {} ".format(eval_image)
     # Combine eval env vars with auxiliary endpoint env vars
-    all_eval_env_names = sorted(set(list(eval_env_vars.keys()) + aux_extra_env_names))
+    all_eval_env_names = sorted(
+        set(list(eval_env_vars.keys()) + aux_extra_env_names + extra_eval_env_names)
+    )
     if all_eval_env_names:
         s += "--container-env {} ".format(",".join(all_eval_env_names))
     if not cfg.execution.get("mounts", {}).get("mount_home", True):
