@@ -584,7 +584,7 @@ class TestWriteGateReportRoundTrip:
 
 class TestGateMarkdownReport:
     def test_generates_markdown(self, tmp_path):
-        from nemo_evaluator.engine.gate_report import generate_gate_report, write_gate_markdown
+        from nemo_evaluator.reports.gate import render_markdown as generate_gate_report, write_gate_markdown
 
         report_dict = GateReport(
             verdict="NO-GO",
@@ -631,7 +631,7 @@ class TestGateMarkdownReport:
         assert "NO-GO" in path.read_text()
 
     def test_empty_report(self):
-        from nemo_evaluator.engine.gate_report import generate_gate_report
+        from nemo_evaluator.reports.gate import render_markdown as generate_gate_report
 
         md = generate_gate_report({"verdict": "GO", "benchmarks": [], "warnings": []})
         assert "# Quality Gate Report: GO" in md

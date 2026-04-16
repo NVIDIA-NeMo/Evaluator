@@ -1054,18 +1054,18 @@ def _generate_reports(
 ) -> None:
     import click
 
-    from nemo_evaluator.cli.report import RENDERERS, _build_table, _load_bundles
+    from nemo_evaluator.reports.eval import RENDERERS, build_table, load_bundles
 
     bundle_files = sorted(output_dir.rglob("eval-*.json"))
     if not bundle_files:
         click.echo("No bundles found for report generation.")
         return
 
-    bundles = _load_bundles(bundle_files)
+    bundles = load_bundles(bundle_files)
     if not bundles:
         return
 
-    table = _build_table(bundles)
+    table = build_table(bundles)
 
     extensions = {
         "markdown": "md",

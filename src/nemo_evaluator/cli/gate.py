@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-import os
 import sys
 from pathlib import Path
 
@@ -9,22 +7,7 @@ import click
 
 from nemo_evaluator.config import load_gate_policy
 from nemo_evaluator.engine import gate_runs, write_gate_report
-
-_NO_COLOR = os.environ.get("NO_COLOR") is not None
-
-
-def _style(text: str, **kwargs) -> str:
-    if _NO_COLOR:
-        return text
-    return click.style(text, **kwargs)
-
-
-def _verdict_color(verdict: str) -> str:
-    if verdict == "NO-GO":
-        return "red"
-    if verdict == "INCONCLUSIVE":
-        return "yellow"
-    return "green"
+from nemo_evaluator.reports.gate import RENDERERS
 
 
 def _resolve_results_dir(path_str: str) -> Path:
@@ -58,9 +41,9 @@ def _resolve_results_dir(path_str: str) -> Path:
 @click.option(
     "--format",
     "fmt",
-    type=click.Choice(["text", "json"]),
+    type=click.Choice(sorted(RENDERERS)),
     default="text",
-    help="Output format. 'json' writes structured JSON to stdout.",
+    help="Output format.",
 )
 @click.option(
     "--strict/--no-strict",
@@ -111,78 +94,34 @@ def gate_cmd(
     if output:
         write_gate_report(report, output)
 
+    report_dict = report.to_dict()
+
+    opts = {
+        "verbose": verbose,
+        "policy_path": str(policy_path),
+        "baseline_dir": str(baseline_dir),
+        "candidate_dir": str(candidate_dir),
+        "output": output or "",
+    }
+    rendered = RENDERERS[fmt](report_dict, **opts)
+    click.echo(rendered)
+
     if fmt == "json":
-        click.echo(json.dumps(report.to_dict(), indent=2, default=str))
         _exit_strict(strict, report.verdict)
         return
 
-    _render_text(report, baseline_dir, candidate_dir, Path(policy_path), verbose, output)
-
-    # Markdown damage report
+    # Sidecar markdown
     if not no_report:
-        from nemo_evaluator.engine.gate_report import write_gate_markdown
+        from nemo_evaluator.reports.gate import write_gate_markdown
 
         if report_path:
-            md_path = write_gate_markdown(report.to_dict(), report_path)
+            md_path = write_gate_markdown(report_dict, report_path)
             click.echo(f"\nMarkdown damage report written to: {md_path}")
         elif output:
-            md_path = write_gate_markdown(report.to_dict(), Path(output).with_suffix(".md"))
+            md_path = write_gate_markdown(report_dict, Path(output).with_suffix(".md"))
             click.echo(f"Markdown damage report written to: {md_path}")
 
     _exit_strict(strict, report.verdict)
-
-
-def _render_text(
-    report,
-    baseline_dir: Path,
-    candidate_dir: Path,
-    policy_path: Path,
-    verbose: bool,
-    output: str | None,
-) -> None:
-    color = _verdict_color(report.verdict)
-
-    click.echo()
-    click.echo(_style(report.verdict, fg=color, bold=True))
-    click.echo(f"Policy:    {policy_path}")
-    click.echo(f"Baseline:  {baseline_dir}")
-    click.echo(f"Candidate: {candidate_dir}")
-
-    if report.verdict_reasons:
-        click.echo()
-        click.echo("VERDICT REASONS")
-        for reason in report.verdict_reasons:
-            click.echo(f"  - {reason}")
-
-    # Always show missing benchmarks (not gated by --verbose)
-    if report.missing:
-        click.echo()
-        click.echo(_style("MISSING BENCHMARKS", fg="red", bold=True))
-        for name in report.missing:
-            click.echo(f"  - {name}")
-
-    if report.warnings and verbose:
-        click.echo()
-        click.echo(_style("WARNINGS", fg="yellow", bold=True))
-        for warning in report.warnings:
-            click.echo(f"  - {warning}")
-
-    if report.benchmarks:
-        click.echo()
-        click.echo("BENCHMARKS")
-        click.echo("  name                 tier         status                 metric       delta")
-        click.echo("  -------------------------------------------------------------------------------")
-        for result in sorted(report.benchmarks, key=lambda item: item.benchmark):
-            delta = f"{result.delta * 100:+.1f}pp" if result.delta is not None else "n/a"
-            metric = result.metric or "n/a"
-            click.echo(f"  {result.benchmark:<20} {result.tier:<12} {result.status:<22} {metric:<12} {delta}")
-            if verbose or result.status != "PASS":
-                for reason in result.reasons:
-                    click.echo(f"    - {reason}")
-
-    if output:
-        click.echo()
-        click.echo(f"JSON report written to: {output}")
 
 
 def _exit_strict(strict: bool, verdict: str) -> None:

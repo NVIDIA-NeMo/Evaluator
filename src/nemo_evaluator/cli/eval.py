@@ -695,7 +695,7 @@ def eval_report(results_dir, run_id, fmt, output, all_formats):
     Accepts a local RESULTS_DIR or --run-id to fetch results from a remote
     SLURM cluster automatically.
     """
-    from nemo_evaluator.cli.report import RENDERERS, _build_table, _load_bundles
+    from nemo_evaluator.reports.eval import RENDERERS, build_table, load_bundles
 
     if results_dir is None and run_id is None:
         raise click.ClickException("Specify a RESULTS_DIR or --run-id.")
@@ -712,11 +712,11 @@ def eval_report(results_dir, run_id, fmt, output, all_formats):
         if not bundle_files:
             raise click.ClickException(f"No eval bundles found in {results}")
 
-        bundles = _load_bundles(bundle_files)
+        bundles = load_bundles(bundle_files)
         if not bundles:
             raise click.ClickException("No valid bundles loaded.")
 
-        table = _build_table(bundles)
+        table = build_table(bundles)
 
         if all_formats:
             out_dir = Path(output) if output else Path(".")

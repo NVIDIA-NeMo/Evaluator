@@ -19,14 +19,13 @@ import pytest
 
 from nemo_evaluator.engine.comparison import (
     FlipReport,
-    McNemarResult,
     build_flip_report,
     compare_results,
     compare_runs,
     load_paired_records,
-    mcnemar_test,
     write_regression,
 )
+from nemo_evaluator.metrics.paired_tests import McNemarResult, mcnemar_test
 
 
 def _write_bundle(path: Path, run_id: str, scores: dict, categories=None, name="test"):
@@ -406,7 +405,7 @@ class TestPublicAPI:
 class TestSignTest:
     def test_sign_test_clear_regression(self):
         """Mostly positive deltas (baseline > candidate) should be significant."""
-        from nemo_evaluator.engine.comparison import sign_test
+        from nemo_evaluator.metrics.paired_tests import sign_test
 
         # 15 regressions, 3 improvements
         deltas = [0.3] * 15 + [-0.2] * 3
@@ -420,7 +419,7 @@ class TestSignTest:
 
     def test_sign_test_no_signal(self):
         """Equal positive and negative deltas should not be significant."""
-        from nemo_evaluator.engine.comparison import sign_test
+        from nemo_evaluator.metrics.paired_tests import sign_test
 
         deltas = [0.3] * 10 + [-0.3] * 10
         result = sign_test(deltas)
@@ -432,7 +431,7 @@ class TestSignTest:
 
     def test_sign_test_all_ties(self):
         """All zero deltas → p=1.0, not significant."""
-        from nemo_evaluator.engine.comparison import sign_test
+        from nemo_evaluator.metrics.paired_tests import sign_test
 
         result = sign_test([0.0] * 20)
         assert result.n_ties == 20
@@ -443,7 +442,7 @@ class TestSignTest:
 class TestPermutationTest:
     def test_permutation_clear_regression(self):
         """Large positive mean diff should be significant."""
-        from nemo_evaluator.engine.comparison import permutation_test
+        from nemo_evaluator.metrics.paired_tests import permutation_test
 
         deltas = [0.5] * 20 + [-0.1] * 5
         result = permutation_test(deltas, seed=42)
@@ -454,7 +453,7 @@ class TestPermutationTest:
 
     def test_permutation_no_signal(self):
         """Symmetric deltas should not be significant."""
-        from nemo_evaluator.engine.comparison import permutation_test
+        from nemo_evaluator.metrics.paired_tests import permutation_test
 
         deltas = [0.1, -0.1] * 20
         result = permutation_test(deltas, seed=42)
@@ -464,7 +463,7 @@ class TestPermutationTest:
 
     def test_permutation_reproducible(self):
         """Same seed produces same p-value."""
-        from nemo_evaluator.engine.comparison import permutation_test
+        from nemo_evaluator.metrics.paired_tests import permutation_test
 
         deltas = [0.3, 0.1, -0.2, 0.4, -0.1, 0.2, 0.0, 0.3]
         r1 = permutation_test(deltas, seed=123)
@@ -474,14 +473,14 @@ class TestPermutationTest:
 
 class TestDetectTest:
     def test_binary_data_selects_mcnemar(self):
-        from nemo_evaluator.engine.comparison import detect_test
+        from nemo_evaluator.metrics.paired_tests import detect_test
 
         base = {(0, 0): {"reward": 1.0}, (1, 0): {"reward": 0.0}, (2, 0): {"reward": 1.0}}
         cand = {(0, 0): {"reward": 1.0}, (1, 0): {"reward": 1.0}, (2, 0): {"reward": 0.0}}
         assert detect_test(base, cand) == "mcnemar"
 
     def test_continuous_data_selects_permutation(self):
-        from nemo_evaluator.engine.comparison import detect_test
+        from nemo_evaluator.metrics.paired_tests import detect_test
 
         base = {(0, 0): {"reward": 0.67}, (1, 0): {"reward": 0.33}, (2, 0): {"reward": 1.0}}
         cand = {(0, 0): {"reward": 0.33}, (1, 0): {"reward": 0.67}, (2, 0): {"reward": 0.67}}

@@ -50,6 +50,39 @@ class TestInterceptorSpecs:
         assert _interceptor_specs([]) == []
 
 
+class TestGenerateReports:
+    """Smoke test: _generate_reports can import from reports.eval and produce output."""
+
+    def test_generate_reports_smoke(self, tmp_path):
+        import json
+
+        from nemo_evaluator.orchestration.orchestrator import _generate_reports
+
+        bundle = {
+            "run_id": "smoke-test",
+            "benchmark": {
+                "name": "test_bench",
+                "samples": 2,
+                "repeats": 1,
+                "scores": {"mean_reward": {"value": 0.75}},
+            },
+            "config": {"model": "test-model"},
+        }
+        (tmp_path / "eval-smoke.json").write_text(json.dumps(bundle), encoding="utf-8")
+
+        config = MagicMock()
+        config.output.report = ["markdown"]
+        config.output.export = []
+
+        _generate_reports(config, tmp_path)
+
+        md = tmp_path / "report.md"
+        assert md.exists(), "Markdown report not generated"
+        content = md.read_text()
+        assert "test-model" in content
+        assert "test_bench" in content
+
+
 class TestResolveGeneration:
     def test_returns_generation_config(self):
         from nemo_evaluator.config import GenerationConfig, EvalConfig
