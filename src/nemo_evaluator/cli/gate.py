@@ -34,9 +34,7 @@ def _resolve_results_dir(path_str: str) -> Path:
         return p
     if p.is_file() and p.name.startswith("eval-") and p.suffix == ".json":
         return p.parent
-    raise click.BadParameter(
-        f"{p} must be a results directory or an eval-*.json bundle path"
-    )
+    raise click.BadParameter(f"{p} must be a results directory or an eval-*.json bundle path")
 
 
 @click.command("gate")
@@ -178,10 +176,7 @@ def _render_text(
         for result in sorted(report.benchmarks, key=lambda item: item.benchmark):
             delta = f"{result.delta * 100:+.1f}pp" if result.delta is not None else "n/a"
             metric = result.metric or "n/a"
-            click.echo(
-                f"  {result.benchmark:<20} {result.tier:<12} {result.status:<22} "
-                f"{metric:<12} {delta}"
-            )
+            click.echo(f"  {result.benchmark:<20} {result.tier:<12} {result.status:<22} {metric:<12} {delta}")
             if verbose or result.status != "PASS":
                 for reason in result.reasons:
                     click.echo(f"    - {reason}")

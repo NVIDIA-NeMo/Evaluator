@@ -103,6 +103,7 @@ class FlipReport:
 @dataclass
 class RegressionReport:
     """Typed regression report. Use .to_dict() for JSON serialization."""
+
     report_version: int = _REPORT_VERSION
     baseline: dict[str, Any] = field(default_factory=dict)
     candidate: dict[str, Any] = field(default_factory=dict)
@@ -304,20 +305,25 @@ def compare_runs(
             if selected_test == "mcnemar":
                 report.test_reason = "all per-problem rewards are binary (0.0 or 1.0)"
                 report.flip_report = build_flip_report(
-                    base_agg, cand_agg, threshold=reward_threshold,
+                    base_agg,
+                    cand_agg,
+                    threshold=reward_threshold,
                 )
-                report.mcnemar = mcnemar_test(report.flip_report.contingency, report.flip_report.summary.n_paired, alpha=alpha)
+                report.mcnemar = mcnemar_test(
+                    report.flip_report.contingency, report.flip_report.summary.n_paired, alpha=alpha
+                )
             else:
                 report.test_reason = "per-problem rewards are continuous (N>1 repeats averaged or non-binary scores)"
                 # Build flip report for display (still useful for category breakdown)
                 report.flip_report = build_flip_report(
-                    base_agg, cand_agg, threshold=reward_threshold,
+                    base_agg,
+                    cand_agg,
+                    threshold=reward_threshold,
                 )
                 # Compute paired deltas for sign/permutation test
                 paired_keys = sorted(set(base_agg) & set(cand_agg))
                 paired_deltas = [
-                    float(base_agg[k].get("reward", 0)) - float(cand_agg[k].get("reward", 0))
-                    for k in paired_keys
+                    float(base_agg[k].get("reward", 0)) - float(cand_agg[k].get("reward", 0)) for k in paired_keys
                 ]
                 if selected_test == "sign":
                     report.sign_test_result = sign_test(paired_deltas, alpha=alpha)
@@ -371,10 +377,7 @@ def compare_results(
     else:
         report.test_reason = "per-problem rewards are continuous (N>1 repeats averaged or non-binary scores)"
         paired_keys = sorted(set(base_agg) & set(cand_agg))
-        paired_deltas = [
-            float(base_agg[k].get("reward", 0)) - float(cand_agg[k].get("reward", 0))
-            for k in paired_keys
-        ]
+        paired_deltas = [float(base_agg[k].get("reward", 0)) - float(cand_agg[k].get("reward", 0)) for k in paired_keys]
         if selected_test == "sign":
             report.sign_test_result = sign_test(paired_deltas)
         else:
@@ -449,10 +452,14 @@ def build_flip_report(
 
     # Category breakdown (#13)
     all_cats = sorted(set(list(cat_regressions.keys()) + list(cat_improvements.keys())))
-    cat_breakdown = {
-        cat: {"regressions": cat_regressions.get(cat, 0), "improvements": cat_improvements.get(cat, 0)}
-        for cat in all_cats
-    } if all_cats else None
+    cat_breakdown = (
+        {
+            cat: {"regressions": cat_regressions.get(cat, 0), "improvements": cat_improvements.get(cat, 0)}
+            for cat in all_cats
+        }
+        if all_cats
+        else None
+    )
 
     return FlipReport(
         contingency={
@@ -533,6 +540,7 @@ def mcnemar_test(
 @dataclass
 class SignTestResult:
     """Result of one-sided sign test on paired differences."""
+
     n_positive: int = 0  # baseline > candidate (regressions)
     n_negative: int = 0  # candidate > baseline (improvements)
     n_ties: int = 0
@@ -547,6 +555,7 @@ class SignTestResult:
 @dataclass
 class PermutationResult:
     """Result of permutation test on paired differences."""
+
     observed_mean_diff: float = 0.0
     p_value: float | None = None
     significant: bool | None = None
@@ -722,8 +731,7 @@ def build_summary_sentence(
         return f"All capabilities held ({', '.join(held)})."
 
     if not broke and n_reg > 0:
-        return (f"All capabilities held. {n_reg} problem(s) flipped but within normal variation "
-                f"for {n_paired} samples.")
+        return f"All capabilities held. {n_reg} problem(s) flipped but within normal variation for {n_paired} samples."
 
     parts = []
     if held:

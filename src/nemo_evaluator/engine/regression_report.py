@@ -76,20 +76,28 @@ def generate_report(report: dict[str, Any]) -> str:
         _w("")
 
         if verdict == "BLOCK":
-            _w(f"**The candidate model shows a statistically significant regression.** "
-               f"{n_reg} problems that the baseline solved correctly are now answered incorrectly. "
-               f"This exceeds both the statistical significance threshold and the practical effect threshold.")
+            _w(
+                f"**The candidate model shows a statistically significant regression.** "
+                f"{n_reg} problems that the baseline solved correctly are now answered incorrectly. "
+                f"This exceeds both the statistical significance threshold and the practical effect threshold."
+            )
         elif verdict == "WARN":
-            _w("**A statistically significant change was detected**, but the practical effect size "
-               "is below the configured threshold. Review the specific flips below before shipping.")
+            _w(
+                "**A statistically significant change was detected**, but the practical effect size "
+                "is below the configured threshold. Review the specific flips below before shipping."
+            )
         elif verdict == "INCONCLUSIVE":
-            _w(f"**Not enough data to rule out small regressions.** With only {mcnemar.get('n_discordant', 0)} "
-               f"discordant pairs, this evaluation cannot reliably detect regressions below "
-               f"~{mde_estimate(mcnemar.get('n_discordant', 0)) * 100:.1f}%. Consider adding more evaluation samples.")
+            _w(
+                f"**Not enough data to rule out small regressions.** With only {mcnemar.get('n_discordant', 0)} "
+                f"discordant pairs, this evaluation cannot reliably detect regressions below "
+                f"~{mde_estimate(mcnemar.get('n_discordant', 0)) * 100:.1f}%. Consider adding more evaluation samples."
+            )
         else:
             if n_reg > 0:
-                _w(f"**No significant regression detected.** {n_reg} problem(s) flipped, "
-                   f"but this is within normal variation for {n_paired} samples.")
+                _w(
+                    f"**No significant regression detected.** {n_reg} problem(s) flipped, "
+                    f"but this is within normal variation for {n_paired} samples."
+                )
             else:
                 _w("**No regressions detected.** Both models produce identical outcomes on all paired samples.")
 
@@ -122,8 +130,10 @@ def generate_report(report: dict[str, Any]) -> str:
         _w("|---|---|---|---|---|---|")
         for metric, d in sorted(scores.items()):
             overlap = "overlap" if d.get("ci_overlap") else "**NO overlap**"
-            _w(f"| {metric} | {d['baseline']:.4f} | {d['candidate']:.4f} | "
-               f"{d['delta']:+.4f} | {d['relative_pct']:+.1f}% | {overlap} |")
+            _w(
+                f"| {metric} | {d['baseline']:.4f} | {d['candidate']:.4f} | "
+                f"{d['delta']:+.4f} | {d['relative_pct']:+.1f}% | {overlap} |"
+            )
         _w("")
 
     # ── Statistical Details ────────────────────────────────────────
@@ -155,7 +165,9 @@ def generate_report(report: dict[str, Any]) -> str:
         ct = flip.get("contingency", {})
         _w("| | Candidate Correct | Candidate Wrong |")
         _w("|---|---|---|")
-        _w(f"| **Baseline Correct** | {ct.get('both_correct', 0)} | {ct.get('baseline_only_correct', 0)} (regressions) |")
+        _w(
+            f"| **Baseline Correct** | {ct.get('both_correct', 0)} | {ct.get('baseline_only_correct', 0)} (regressions) |"
+        )
         _w(f"| **Baseline Wrong** | {ct.get('candidate_only_correct', 0)} (improvements) | {ct.get('both_wrong', 0)} |")
         _w("")
 
@@ -201,21 +213,31 @@ def generate_report(report: dict[str, Any]) -> str:
 
         # Find most affected categories
         if cat_bd:
-            worst_cats = sorted(cat_bd.items(), key=lambda x: x[1].get("regressions", 0) - x[1].get("improvements", 0), reverse=True)
+            worst_cats = sorted(
+                cat_bd.items(), key=lambda x: x[1].get("regressions", 0) - x[1].get("improvements", 0), reverse=True
+            )
             worst = worst_cats[0] if worst_cats else None
             if worst and worst[1].get("regressions", 0) > 0:
-                _w(f"**Most affected category:** `{worst[0]}` "
-                   f"({worst[1]['regressions']} regressions, {worst[1].get('improvements', 0)} improvements)")
+                _w(
+                    f"**Most affected category:** `{worst[0]}` "
+                    f"({worst[1]['regressions']} regressions, {worst[1].get('improvements', 0)} improvements)"
+                )
                 _w("")
 
         _w("**Suggested next steps:**")
         _w("")
-        _w(f"1. **Examine the {min(5, len(regressions))} regressed problems above.** "
-           "What do they have in common? (length, difficulty, topic, format)")
-        _w("2. **Check if regressions cluster on 'easy' problems** (problems the baseline always gets right). "
-           "Easy-problem regressions indicate systematic failure, not noise.")
-        _w("3. **Compare model responses** for regressed problems. Are they near-misses (formatting), "
-           "refusals, or completely wrong outputs?")
+        _w(
+            f"1. **Examine the {min(5, len(regressions))} regressed problems above.** "
+            "What do they have in common? (length, difficulty, topic, format)"
+        )
+        _w(
+            "2. **Check if regressions cluster on 'easy' problems** (problems the baseline always gets right). "
+            "Easy-problem regressions indicate systematic failure, not noise."
+        )
+        _w(
+            "3. **Compare model responses** for regressed problems. Are they near-misses (formatting), "
+            "refusals, or completely wrong outputs?"
+        )
         _w("4. **Run with `n_repeats > 1`** to distinguish deterministic failures from stochastic ones.")
         _w("")
 
@@ -227,8 +249,7 @@ def generate_report(report: dict[str, Any]) -> str:
 
     # ── Footer ─────────────────────────────────────────────────────
     _w("---")
-    _w(f"*Generated by nemo-evaluator `nel compare` • "
-       f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}*")
+    _w(f"*Generated by nemo-evaluator `nel compare` • {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}*")
 
     return "\n".join(lines)
 
@@ -266,4 +287,3 @@ def _render_flip_detail(
     _w(f"| {f_entry.get('baseline_reward', 0):.1f} (reward) | {f_entry.get('candidate_reward', 0):.1f} (reward) |")
     _w(f"| {b_safe} | {c_safe} |")
     _w("")
-

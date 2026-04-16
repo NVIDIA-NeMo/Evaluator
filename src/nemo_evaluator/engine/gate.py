@@ -127,12 +127,14 @@ def gate_runs(
     missing = _check_missing(policy, base_bundles, cand_bundles)
     report.missing = sorted(missing)
     for name in report.missing:
-        report.benchmarks.append(BenchmarkGateResult(
-            benchmark=name,
-            tier=policy.resolve(name).tier.value,
-            status="MISSING",
-            reasons=[f"Required benchmark {name!r} not found in evaluation results"],
-        ))
+        report.benchmarks.append(
+            BenchmarkGateResult(
+                benchmark=name,
+                tier=policy.resolve(name).tier.value,
+                status="MISSING",
+                reasons=[f"Required benchmark {name!r} not found in evaluation results"],
+            )
+        )
 
     # Match and evaluate
     matched, unmatched_b, unmatched_c = _match_bundles(base_bundles, cand_bundles)
@@ -178,10 +180,7 @@ def _discover_bundles(directory: Path) -> dict[str, Path]:
         if name is None:
             return
         if name in bundles:
-            raise ValueError(
-                f"Duplicate benchmark {name!r} in {directory}: "
-                f"found in {bundles[name]} and {p}"
-            )
+            raise ValueError(f"Duplicate benchmark {name!r} in {directory}: found in {bundles[name]} and {p}")
         bundles[name] = p
 
     # Direct bundles
@@ -198,7 +197,8 @@ def _discover_bundles(directory: Path) -> dict[str, Path]:
         elif len(sub_bundles) > 1:
             logger.warning(
                 "Directory %s contains %d eval bundles; skipping.",
-                sub, len(sub_bundles),
+                sub,
+                len(sub_bundles),
             )
 
     return bundles
@@ -288,9 +288,7 @@ def _evaluate_benchmark(
 
     if result.n_paired < _MIN_PAIRED_ITEMS:
         result.status = "INSUFFICIENT_EVIDENCE"
-        result.reasons.append(
-            f"Only {result.n_paired} paired items (minimum {_MIN_PAIRED_ITEMS})"
-        )
+        result.reasons.append(f"Only {result.n_paired} paired items (minimum {_MIN_PAIRED_ITEMS})")
         _populate_from_bundle_scores(result, base_path, cand_path, reg_report, policy)
         return result
 
@@ -353,6 +351,7 @@ def _paired_delta_ci(
     # Use t-distribution when scipy is available (correct at small N), z-fallback otherwise
     try:
         from scipy.stats import t as t_dist
+
         z = float(t_dist.ppf(1 - (1 - confidence) / 2, df=n - 1))
     except ImportError:
         z = 1.96 if confidence == 0.95 else 1.645 if confidence == 0.90 else 1.96
@@ -374,10 +373,7 @@ def _extract_clusters(
         record = by_problem.get(pid)
         if record is None:
             return None
-        cat = (
-            record.get("metadata", {}).get("category")
-            or record.get("scoring_details", {}).get("category")
-        )
+        cat = record.get("metadata", {}).get("category") or record.get("scoring_details", {}).get("category")
         if cat is None:
             return None  # all problems must have categories for clustered CI
         clusters.append(str(cat))
@@ -531,14 +527,9 @@ def _apply_thresholds(
         policy.direction,
     )
 
-    if (
-        policy.max_relative_drop is not None
-        and result.baseline_score not in (None, 0)
-        and damage > 0
-    ):
+    if policy.max_relative_drop is not None and result.baseline_score not in (None, 0) and damage > 0:
         apply_relative = (
-            policy.relative_guard_below is None
-            or float(result.baseline_score) < policy.relative_guard_below
+            policy.relative_guard_below is None or float(result.baseline_score) < policy.relative_guard_below
         )
         if apply_relative:
             relative_drop = damage / abs(float(result.baseline_score))
@@ -546,8 +537,7 @@ def _apply_thresholds(
                 result.relative_breached = True
                 result.status = "BREACH"
                 result.reasons.append(
-                    f"Relative drop {relative_drop * 100:.1f}% exceeds threshold "
-                    f"{policy.max_relative_drop * 100:.1f}%"
+                    f"Relative drop {relative_drop * 100:.1f}% exceeds threshold {policy.max_relative_drop * 100:.1f}%"
                 )
                 return
 
@@ -569,8 +559,7 @@ def _apply_thresholds(
             return
         result.status = "INSUFFICIENT_EVIDENCE"
         result.reasons.append(
-            f"95% CI on damage [{damage_ci_lower:.4f}, {damage_ci_upper:.4f}] "
-            f"straddles threshold {policy.max_drop:.4f}"
+            f"95% CI on damage [{damage_ci_lower:.4f}, {damage_ci_upper:.4f}] straddles threshold {policy.max_drop:.4f}"
         )
         return
 
@@ -582,15 +571,11 @@ def _apply_thresholds(
     if damage > policy.max_drop:
         result.absolute_breached = True
         result.status = "BREACH"
-        result.reasons.append(
-            f"Point estimate damage {damage:.4f} exceeds threshold {policy.max_drop:.4f}"
-        )
+        result.reasons.append(f"Point estimate damage {damage:.4f} exceeds threshold {policy.max_drop:.4f}")
         return
 
     result.status = "PASS"
-    result.reasons.append(
-        f"Point estimate damage {damage:.4f} is within threshold {policy.max_drop:.4f}"
-    )
+    result.reasons.append(f"Point estimate damage {damage:.4f} is within threshold {policy.max_drop:.4f}")
 
 
 # ── Repeat aggregation ────────────────────────────────────────────────
