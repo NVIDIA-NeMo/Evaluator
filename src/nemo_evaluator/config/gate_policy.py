@@ -189,7 +189,7 @@ def load_gate_policy(path: str | Path) -> GatePolicy:
         raise FileNotFoundError(f"Gate policy not found: {p}")
     raw = yaml.safe_load(p.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
-        raise TypeError(f"Gate policy must be a YAML mapping, got {type(raw).__name__}")
+        raise ValueError(f"Gate policy must be a YAML mapping, got {type(raw).__name__}")
     return GatePolicy.model_validate(raw)
 
 
