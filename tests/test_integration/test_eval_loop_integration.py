@@ -189,3 +189,68 @@ class TestRunEvaluationIntegration:
         bundle = asyncio.run(run_evaluation(env, solver, n_repeats=2, max_concurrent=8))
         results = bundle["_results"]
         assert len(results) == 6
+
+
+class _MockSolverWithTrajectory:
+    """Always correct; returns a non-empty trajectory so we can assert it survives resume."""
+
+    async def solve(self, task):
+        return SolveResult(
+            response=task.expected_answer,
+            trajectory=[{"step": 1, "action": "think", "output": task.expected_answer}],
+        )
+
+    async def close(self):
+        pass
+
+
+class TestResumeTrajectories:
+    def test_trajectories_preserved_on_full_resume(self, tmp_path):
+        """All steps in verified_cache on resume → collector never called → 0-byte trajectories.jsonl.
+
+        Reproduces EVAL-1248: shard killed after all tasks complete (inference +
+        verification) but before write_all() flushes trajectories.jsonl to disk.
+        On resume every step hits the verified_cache early-return path at
+        eval_loop.py:202–225 which never calls collector.record().
+        """
+        env = _MockEnv()
+        solver = _MockSolverWithTrajectory()
+        log_dir = tmp_path / "logs"
+
+        # First run: completes fully, populates both inference_log and verified_log
+        asyncio.run(run_evaluation(env, solver, n_repeats=2, step_log_dir=log_dir))
+
+        # Second run with resume=True: all steps served from verified_cache
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=2, step_log_dir=log_dir, resume=True))
+
+        artifacts = bundle["_artifacts"]
+        assert artifacts is not None
+        assert len(artifacts.steps) == 6  # 3 problems × 2 repeats
+        for step in artifacts.steps:
+            assert step.trajectory, f"missing trajectory p{step.problem_idx} r{step.repeat}"
+
+    def test_trajectories_preserved_on_verify_only_resume(self, tmp_path):
+        """Inference cached but verify not done → trajectory silently dropped.
+
+        Reproduces EVAL-1248 for the partial-crash case: shard killed after all
+        inference but before verification. On resume, tasks hit the inferred_cache
+        path at eval_loop.py:272–278 which restores response/tokens but never sets
+        step.trajectory, so collector.record() records the step without trajectory.
+        """
+        env = _MockEnv()
+        solver = _MockSolverWithTrajectory()
+        log_dir = tmp_path / "logs"
+
+        # First run: completes fully, populates both logs
+        asyncio.run(run_evaluation(env, solver, n_repeats=1, step_log_dir=log_dir))
+        # Simulate crash after inference but before verification by deleting verified_log
+        (log_dir / "verified_log.jsonl").unlink()
+
+        # Resume: all tasks are inference-cached, verify-only
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1, step_log_dir=log_dir, resume=True))
+
+        artifacts = bundle["_artifacts"]
+        assert artifacts is not None
+        assert len(artifacts.steps) == 3  # 3 problems × 1 repeat
+        for step in artifacts.steps:
+            assert step.trajectory, f"missing trajectory p{step.problem_idx} r{step.repeat}"

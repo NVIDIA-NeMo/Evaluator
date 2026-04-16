@@ -215,7 +215,21 @@ async def run_evaluation(
                     "tokens": tokens,
                     "latency_ms": cached_verified.get("latency_ms", 0),
                 }
+                cached_step = StepRecord(
+                    problem_idx=idx,
+                    repeat=rep,
+                    prompt=seed_result.prompt,
+                    expected_answer=seed_result.expected_answer,
+                    seed_metadata=seed_result.metadata,
+                    reward=reward,
+                    extracted_answer=cached_verified.get("extracted_answer"),
+                    scoring_details=cached_verified.get("scoring_details", {}),
+                )
+                cached_inf = inferred_cache.get(key)
+                if cached_inf and cached_inf.get("trajectory"):
+                    cached_step.trajectory = cached_inf["trajectory"]
                 async with lock:
+                    collector.record(cached_step)
                     results.append(result_dict)
                     if reward > 0:
                         cum_correct += 1
@@ -274,6 +288,8 @@ async def run_evaluation(
                         response_text = cached_inferred.get("response", "")
                         tokens = cached_inferred.get("tokens", 0)
                         latency_ms = cached_inferred.get("latency_ms", 0)
+                        if cached_inferred.get("trajectory"):
+                            step.trajectory = cached_inferred["trajectory"]
                         logger.debug("resume p%d r%d: using cached inference", idx, rep)
                     else:
                         pg.on_phase(idx - start, rep, n_problems, n_repeats, "solving")
