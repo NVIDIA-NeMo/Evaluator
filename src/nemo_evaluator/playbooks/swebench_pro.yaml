@@ -18,7 +18,6 @@ solver:
   cmd_timeout: 1800
   agent_kwargs:
     max_iterations: 200
-    temperature: 1.0
 sandbox:
   type: ecs_fargate
   cpu: "4096"
