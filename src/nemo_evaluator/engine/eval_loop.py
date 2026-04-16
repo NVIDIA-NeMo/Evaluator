@@ -26,7 +26,7 @@ from uuid import uuid4
 from nemo_evaluator.environments.base import EvalEnvironment, VerifyResult
 from nemo_evaluator.errors import GracefulError
 from nemo_evaluator.metrics.aggregation import category_breakdown, scoring_details_breakdown, summary_stats
-from nemo_evaluator.metrics.confidence import bootstrap_ci
+from nemo_evaluator.metrics.confidence import bootstrap_ci, sample_level_ci
 from nemo_evaluator.metrics.pass_at_k import aggregate_pass_at_k, pass_at_k
 from nemo_evaluator.observability.collector import ArtifactCollector
 from nemo_evaluator.observability.progress import NoOpProgress, ProgressTracker
@@ -626,12 +626,16 @@ async def run_evaluation(
     for k in [1] + ([n_repeats] if n_repeats > 1 else []):
         if k <= n_repeats and problem_list:
             pak = aggregate_pass_at_k(problem_list, k)
-            ci = bootstrap_ci([pass_at_k(n, c, k) for n, c in problem_list])
-            metrics[f"pass@{k}"] = {
-                "value": round(pak, 4),
-                "ci_lower": round(ci.ci_lower, 4),
-                "ci_upper": round(ci.ci_upper, 4),
-            }
+            entry: dict[str, Any] = {"value": round(pak, 4)}
+            if k == 1:
+                sci = sample_level_ci(problem_list)
+                if sci is not None:
+                    entry["ci_lower"] = round(sci.ci_lower, 4)
+                    entry["ci_upper"] = round(sci.ci_upper, 4)
+            bci = bootstrap_ci([pass_at_k(n, c, k) for n, c in problem_list])
+            entry["bootstrap_ci_lower"] = round(bci.ci_lower, 4)
+            entry["bootstrap_ci_upper"] = round(bci.ci_upper, 4)
+            metrics[f"pass@{k}"] = entry
 
     metrics["summary"] = summary_stats(all_rewards)
 
