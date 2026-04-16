@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import TYPE_CHECKING, Any, Protocol
 
 from nemo_evaluator.environments.base import SeedResult
@@ -27,6 +28,14 @@ if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger(__name__)
+
+
+class ErrorKind(Enum):
+    NONE = "none"
+    GRACEFUL = "graceful"
+    INFRA = "infra_error"
+    TOOL_INFRA = "tool_infra"
+    SYSTEM = "system"
 
 
 @dataclass
@@ -42,6 +51,7 @@ class SolveResult:
     # degraded result instead of raising.  The eval loop uses this to
     # decide whether to abort (skip_failed=False) or continue.
     error: str | None = None
+    error_kind: ErrorKind = ErrorKind.NONE
 
 
 class Solver(Protocol):

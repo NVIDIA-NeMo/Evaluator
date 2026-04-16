@@ -28,9 +28,9 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from nemo_evaluator.errors import GracefulError
+from nemo_evaluator.errors import GracefulError, InfraError
 from nemo_evaluator.observability.types import ModelResponse
-from nemo_evaluator.solvers.base import SolveResult
+from nemo_evaluator.solvers.base import ErrorKind, SolveResult
 from nemo_evaluator.solvers.trajectory_util import build_atif_trajectory
 
 if TYPE_CHECKING:
@@ -869,7 +869,7 @@ class HarborSolver:
                 agent_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError, Exception):
                     await agent_task
-                raise GracefulError(
+                raise InfraError(
                     f"Agent made no progress after {no_progress_timeout:.0f}s "
                     f"(run_timeout={self._run_timeout:.0f}s). "
                     "Model endpoint may be unreachable or overloaded."
@@ -1089,16 +1089,43 @@ class HarborSolver:
 
             latency_ms = (time.monotonic() - t0) * 1000
 
-            # Timeout with zero progress → graceful error (reward 0, no retry).
-            # Retrying is unlikely to help if the model produced nothing.
+            # Timeout with zero progress → model is likely dead.
             if agent_timed_out and not workspace_diff and prompt_tokens + completion_tokens == 0:
-                raise GracefulError(
+                raise InfraError(
                     f"Agent made no progress before run_timeout ({self._run_timeout:.0f}s). Model may be unreachable."
                 )
 
+            # Detect partial progress with zero final tokens — vLLM may
+            # have died mid-solve (workspace changed from earlier turns but
+            # the last inference produced nothing).
+            _confirmed_zero_tokens = (context.n_output_tokens is not None and context.n_output_tokens == 0) or (
+                context.n_output_tokens is None and recovered["completion_tokens"] == 0 and not recovered["response"]
+            )
+
+            _infra_error_names = {
+                "ServiceUnavailableError",
+                "ConnectionError",
+                "TimeoutError",
+                "ConnectError",
+                "ReadTimeout",
+                "APIConnectionError",
+            }
+
             error = None
+            error_kind = ErrorKind.NONE
             if agent_error is not None:
-                error = f"Agent crashed: {type(agent_error).__name__}: {agent_error}"
+                etype = type(agent_error).__name__
+                if etype in _infra_error_names:
+                    raise InfraError(f"Agent infrastructure failure: {etype}: {agent_error}") from agent_error
+                error = f"Agent crashed: {etype}: {agent_error}"
+                logger.warning("HarborSolver: %s", error)
+            elif agent_timed_out and workspace_diff and _confirmed_zero_tokens:
+                error = (
+                    f"Agent timed out with workspace changes but 0 completion "
+                    f"tokens (run_timeout={self._run_timeout:.0f}s). "
+                    f"Model may have died mid-solve."
+                )
+                error_kind = ErrorKind.INFRA
                 logger.warning("HarborSolver: %s", error)
             elif agent_timed_out and workspace_diff:
                 logger.info(
@@ -1121,6 +1148,50 @@ class HarborSolver:
                 ),
                 trajectory=trajectory,
                 error=error,
+                error_kind=error_kind,
+            )
+
+        except InfraError as exc:
+            logger.warning("HarborSolver: infra failure: %s", exc)
+            latency_ms = (time.monotonic() - t0) * 1000
+
+            workspace_diff = ""
+            try:
+                if sandbox.is_running:
+                    workspace_diff = await _capture_workspace_diff(sandbox)
+                    await _download_agent_logs(sandbox, agent_logs_dir)
+            except Exception:
+                logger.debug("Post-failure recovery failed", exc_info=True)
+
+            recovered = _recover_from_logs(agent_logs_dir)
+            trajectory = recovered["trajectory"] or build_atif_trajectory(
+                steps=[{"source": "system", "message": str(exc)}],
+                agent_name=self._harbor_agent,
+                status="error",
+            )
+
+            if trajectory and workspace_diff:
+                doc = trajectory[0] if isinstance(trajectory, list) and trajectory else None
+                if isinstance(doc, dict):
+                    fm = doc.setdefault("final_metrics", {})
+                    fm["workspace_diff_preview"] = workspace_diff[:100_000]
+
+            response = recovered["response"]
+            if not response or _is_prompt_echo(response, ""):
+                response = "[workspace modified]" if workspace_diff else ""
+
+            return SolveResult(
+                response=response,
+                model_response=ModelResponse(
+                    content=response,
+                    model=self._model_id,
+                    total_tokens=recovered["prompt_tokens"] + recovered["completion_tokens"],
+                    completion_tokens=recovered["completion_tokens"],
+                    latency_ms=round(latency_ms, 2),
+                ),
+                trajectory=trajectory,
+                error=str(exc),
+                error_kind=ErrorKind.INFRA,
             )
 
         except GracefulError as exc:

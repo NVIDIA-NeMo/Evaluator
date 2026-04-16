@@ -24,6 +24,8 @@ from typing import Any
 
 import aiohttp
 
+from nemo_evaluator.errors import InfraError
+
 from nemo_evaluator.schemas import RetryConfig
 from nemo_evaluator.observability.types import ModelResponse
 
@@ -274,7 +276,10 @@ class ModelClient:
 
         choices = data.get("choices", [])
         if not choices:
-            raise ValueError(f"No choices in tool-calling response: {data}")
+            raise InfraError(
+                "Model returned HTTP 200 but empty choices in tool-calling response. "
+                "Possible KV-cache exhaustion or model crash."
+            )
 
         choice = choices[0]
         message = choice.get("message", {})
@@ -352,15 +357,15 @@ class ModelClient:
                     if attempt < self.retry.max_retries:
                         await asyncio.sleep(self._backoff_delay(attempt))
                         continue
-                    raise
-                except aiohttp.ClientResponseError:
-                    raise
+                    raise InfraError(f"Model request timed out after {self.retry.max_retries} retries") from e
+                except aiohttp.ClientResponseError as e:
+                    raise InfraError(f"Model returned HTTP {e.status} after retries: {e.message}") from e
                 except Exception as e:
                     last_exc = e
                     if attempt < self.retry.max_retries:
                         await asyncio.sleep(self._backoff_delay(attempt))
                         continue
-                    raise
+                    raise InfraError(f"Model endpoint unreachable after {self.retry.max_retries} retries: {e}") from e
 
         raise last_exc or RuntimeError("All retries exhausted")
 
@@ -386,7 +391,7 @@ class ModelClient:
     def _parse_response(self, data: dict, latency: float, prompt: str, system: str | None) -> ModelResponse:
         choices = data.get("choices", [])
         if not choices:
-            raise ValueError(f"No choices in response: {data}")
+            raise InfraError("Model returned HTTP 200 but empty choices. Possible KV-cache exhaustion or model crash.")
 
         choice = choices[0]
         usage = data.get("usage", {})

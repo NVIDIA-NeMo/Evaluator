@@ -29,3 +29,14 @@ class GracefulError(Exception):
     - Tool infrastructure error during a ReAct loop
     - OpenClaw non-zero exit / no JSON output / timeout
     """
+
+
+class InfraError(Exception):
+    """Model endpoint unreachable or unresponsive.
+
+    The eval loop retries up to ``max_system_retries`` with backoff.
+    If all retries fail, scores ``0.0`` with
+    ``error_category='infra_error'``.  On ``--resume``, entries tagged
+    ``infra_error`` are excluded from the verified cache and
+    re-executed.
+    """

@@ -24,7 +24,8 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from nemo_evaluator.environments.base import EvalEnvironment, VerifyResult
-from nemo_evaluator.errors import GracefulError
+from nemo_evaluator.errors import GracefulError, InfraError
+from nemo_evaluator.solvers.base import ErrorKind
 from nemo_evaluator.metrics.aggregation import category_breakdown, scoring_details_breakdown, summary_stats
 from nemo_evaluator.metrics.confidence import bootstrap_ci, sample_level_ci
 from nemo_evaluator.metrics.pass_at_k import aggregate_pass_at_k, pass_at_k
@@ -48,6 +49,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_CONCURRENT = 32
+
+
+def _get_error_category(entry: dict) -> str | None:
+    """Safe accessor for scoring_details.error_category."""
+    sd = entry.get("scoring_details")
+    if not isinstance(sd, dict):
+        return None
+    return sd.get("error_category")
 
 
 async def run_evaluation(
@@ -130,15 +139,24 @@ async def run_evaluation(
                     old_meta.get("config_hash", "?"),
                     cfg_hash,
                 )
-                verified_cache = verified_log.load()
+                verified_cache_raw = verified_log.load()
+                infra_keys = {k for k, v in verified_cache_raw.items() if _get_error_category(v) == "infra_error"}
+                verified_cache = {k: v for k, v in verified_cache_raw.items() if k not in infra_keys}
+                if infra_keys:
+                    logger.info("resume: %d infra-error entries will be retried", len(infra_keys))
                 if verified_cache:
                     verified_log.compact(verified_cache)
                 verified_log.open()
                 inference_log.open(truncate=True)
                 inference_log.write_meta({"config_hash": cfg_hash})
             else:
-                inferred_cache = inference_log.load()
-                verified_cache = verified_log.load()
+                inferred_cache_raw = inference_log.load()
+                verified_cache_raw = verified_log.load()
+                infra_keys = {k for k, v in verified_cache_raw.items() if _get_error_category(v) == "infra_error"}
+                verified_cache = {k: v for k, v in verified_cache_raw.items() if k not in infra_keys}
+                inferred_cache = {k: v for k, v in inferred_cache_raw.items() if k not in infra_keys}
+                if infra_keys:
+                    logger.info("resume: %d infra-error entries will be retried", len(infra_keys))
                 if inferred_cache:
                     meta = old_meta or {"config_hash": cfg_hash}
                     inference_log.compact(inferred_cache, meta=meta)
@@ -305,6 +323,7 @@ async def run_evaluation(
                         logger.debug("resume p%d r%d: using cached inference", idx, rep)
                     else:
                         pg.on_phase(idx - start, rep, n_problems, n_repeats, "solving")
+                        _is_infra = False
                         try:
                             if _solver_accepts_sandbox(solver):
                                 sandbox = await lifecycle.get_agent_sandbox()
@@ -316,11 +335,15 @@ async def run_evaluation(
                                 step.model_response = solve_result.model_response
                                 step.model_ms = solve_result.model_response.latency_ms
                             if solve_result.error:
-                                logger.warning("solve error p%d r%d (graceful): %s", idx, rep, solve_result.error)
+                                logger.warning("solve error p%d r%d: %s", idx, rep, solve_result.error)
                                 step.model_error = solve_result.error
+                            if solve_result.error_kind == ErrorKind.INFRA:
+                                _is_infra = True
                         except GracefulError as e:
                             step.model_error = str(e)
                             logger.warning("solve error p%d r%d (graceful): %s", idx, rep, e)
+                        except InfraError:
+                            raise  # bubble to outer loop for retry
                         except Exception:
                             raise  # system error — outer loop will retry
 
@@ -359,11 +382,12 @@ async def run_evaluation(
                     # ── Verify ───────────────────────────────────────
                     _solve_failed = step.model_error is not None
                     if _solve_failed:
+                        error_cat = "infra_error" if _is_infra else "graceful"
                         vr = VerifyResult(
                             reward=0.0,
                             scoring_details={
                                 "error": step.model_error,
-                                "error_category": "graceful",
+                                "error_category": error_cat,
                                 "method": "solve_failed",
                             },
                         )
@@ -394,6 +418,39 @@ async def run_evaluation(
                             **seed_result.metadata,
                         )
                     break  # success — exit retry loop
+
+                except InfraError as e:
+                    await lifecycle.teardown()
+                    if _attempt < max_system_retries:
+                        delay = min(30, 5 * (2 ** (_attempt - 1)))
+                        logger.warning(
+                            "p%d r%d: infra error (attempt %d/%d), retrying in %ds: %s",
+                            idx,
+                            rep,
+                            _attempt,
+                            max_system_retries,
+                            delay,
+                            e,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    logger.warning(
+                        "p%d r%d: infra error exhausted %d retries, scoring 0.0: %s",
+                        idx,
+                        rep,
+                        max_system_retries,
+                        e,
+                    )
+                    vr = VerifyResult(
+                        reward=0.0,
+                        scoring_details={
+                            "error": str(e),
+                            "error_category": "infra_error",
+                            "method": "infra_error",
+                            "retries_exhausted": max_system_retries,
+                        },
+                    )
+                    break
 
                 except GracefulError as e:
                     await lifecycle.teardown()
