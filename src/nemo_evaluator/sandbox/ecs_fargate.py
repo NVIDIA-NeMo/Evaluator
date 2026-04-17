@@ -391,7 +391,7 @@ class SshTunnel:
             "-o",
             "ServerAliveInterval=30",
             "-o",
-            "ServerAliveCountMax=5",
+            "ServerAliveCountMax=20",
             "-o",
             "ConnectTimeout=15",
             "-o",
@@ -481,7 +481,7 @@ def build_ssh_sidecar_container(
         "PasswordAuthentication no\\nAllowTcpForwarding yes\\n"
         "PermitListen any\\nGatewayPorts clientspecified\\n"
         "X11Forwarding no\\nPrintMotd no\\nLogLevel ERROR\\n"
-        "ClientAliveInterval 15\\nClientAliveCountMax 3\\n"
+        "ClientAliveInterval 30\\nClientAliveCountMax 20\\n"
         "TCPKeepAlive yes\\nUseDNS no\\nMaxSessions 50\\n"
     )
     watchdog = ""
