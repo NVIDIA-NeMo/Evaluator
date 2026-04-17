@@ -249,21 +249,46 @@ async def _patch_openhands_sdk(sandbox: "Sandbox", *, cmd_timeout: float | None 
        ``timeout`` parameter.  The patch imposes a 300 s ceiling on
        every command to prevent a single long-running process from
        consuming the entire ``run_timeout`` budget.
+
+    5. **Disable default visualizer + stuck detection** — the SDK's
+       ``DefaultConversationVisualizer`` renders every event through
+       ``rich``, whose grapheme splitter is pathologically slow on long
+       text containing U+200B adjacent to URLs.  Observed on 26 django
+       SWE-bench prompts: the first ``send_message()`` burns 100 % CPU
+       inside ``rich.cells.split_graphemes`` for the full 90 min
+       ``run_timeout`` without ever reaching the LLM.  ``stuck_detection``
+       is also disabled in the same patch because its heuristic
+       mis-flags reasoning-model turns.
     """
-    # -- Patch 0: disable stuck detection --------------------------------
-    _stuck_script = (
+    # -- Patch 0: disable stuck detection + default visualizer -----------
+    # stuck_detection=False: the SDK's heuristic mis-flags reasoning-model
+    # loops that produce text-only turns followed by the next tool call.
+    #
+    # visualizer=None: the SDK's DefaultConversationVisualizer renders each
+    # event through ``rich`` on send_message/run, and rich's grapheme
+    # splitter (``rich.cells.split_graphemes`` / ``chop_cells``) is
+    # pathologically slow on long text containing zero-width characters
+    # (U+200B) adjacent to URLs. A handful of SWE-bench prompts (notably
+    # 26 django tasks carrying ``\u200b`` + GitHub deep-links) would
+    # deadlock the first ``conversation.send_message()`` call at 100%
+    # CPU inside rich — no syscalls, no LLM request ever sent, the whole
+    # agent stalls until the outer run_timeout (90 min) fires. Visual
+    # output is irrelevant in eval runs, so disable the visualizer
+    # entirely.
+    _runner_patch_script = (
         "p = '/installed-agent/run_agent.py'\n"
         "c = open(p).read()\n"
         "old = 'conversation = Conversation(**conv_kwargs)'\n"
         'new = \'conv_kwargs["stuck_detection"] = False\\n'
+        '    conv_kwargs["visualizer"] = None\\n'
         "    conversation = Conversation(**conv_kwargs)'\n"
         "if old in c:\n"
         "    open(p, 'w').write(c.replace(old, new, 1))\n"
-        "    print('stuck_detection disabled')\n"
+        "    print('stuck_detection disabled, visualizer disabled')\n"
         "else:\n"
         "    print('pattern not found')\n"
     )
-    encoded0 = base64.b64encode(_stuck_script.encode()).decode()
+    encoded0 = base64.b64encode(_runner_patch_script.encode()).decode()
     r0 = await sandbox.exec(
         f"echo {encoded0} | base64 -d | python3",
         timeout_sec=10,

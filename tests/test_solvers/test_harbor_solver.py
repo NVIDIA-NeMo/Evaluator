@@ -143,6 +143,45 @@ class TestPatchOpenhandsSDK:
         await _patch_openhands_sdk(sandbox)
         assert sandbox.exec.call_count >= 4
 
+    async def test_runner_patch_disables_visualizer(self):
+        """Patch 0 must inject both stuck_detection=False AND visualizer=None.
+
+        The visualizer disable is critical: rich's grapheme splitter hangs in a
+        CPU-bound loop on prompts containing U+200B adjacent to URLs (seen on 26
+        django SWE-bench tasks), deadlocking conversation.send_message() before
+        a single LLM request is made. If this assertion ever fails because the
+        patch was refactored, the django timeouts will regress.
+        """
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(
+            stdout="stuck_detection disabled, visualizer disabled", stderr="", return_code=0
+        )
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts: list[str] = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" not in cmd:
+                continue
+            encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+            try:
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+            except Exception:
+                pass
+
+        runner_patch = next(
+            (s for s in decoded_scripts if "/installed-agent/run_agent.py" in s and "stuck_detection" in s),
+            None,
+        )
+        assert runner_patch is not None, "runner patch script not emitted"
+        assert 'conv_kwargs["visualizer"] = None' in runner_patch, (
+            f"runner patch must disable the default visualizer to avoid rich grapheme hang; got:\n{runner_patch}"
+        )
+
 
 class TestSandboxEnvironmentAdapter:
     def test_exposes_all_base_environment_public_attrs(self, tmp_path):
