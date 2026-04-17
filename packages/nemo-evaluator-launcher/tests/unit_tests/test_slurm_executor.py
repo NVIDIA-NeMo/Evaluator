@@ -17,6 +17,8 @@
 
 import os
 import re
+import shutil
+import subprocess
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
@@ -865,7 +867,7 @@ class TestMaxWalltimeFeature:
 
         # Should have time conversion function
         assert "_walltime_to_seconds()" in handler
-        assert "hours * 3600 + minutes * 60 + seconds" in handler
+        assert "10#$hours * 3600 + 10#$minutes * 60 + 10#$seconds" in handler
 
         # Should handle different time formats
         assert "HH:MM:SS" in handler or "BASH_REMATCH" in handler
@@ -879,6 +881,51 @@ class TestMaxWalltimeFeature:
         # Should format elapsed time for human-readable output
         assert "_elapsed_formatted" in handler
         assert "printf" in handler
+
+    @pytest.mark.skipif(shutil.which("bash") is None, reason="requires bash")
+    @pytest.mark.parametrize(
+        "time_str,expected",
+        [
+            ("02:08:45", 2 * 3600 + 8 * 60 + 45),
+            ("04:09:06", 4 * 3600 + 9 * 60 + 6),
+            ("00:08:09", 8 * 60 + 9),
+            ("1-08:09:08", 86400 + 8 * 3600 + 9 * 60 + 8),
+            ("08:09", 8 * 60 + 9),
+            ("09", 9),
+            ("12:30:45", 12 * 3600 + 30 * 60 + 45),
+        ],
+        ids=[
+            "hms-leading-zero-minutes",
+            "hms-leading-zero-minutes-and-seconds",
+            "hms-leading-zero-all",
+            "days-hms-leading-zeros",
+            "ms-leading-zeros",
+            "seconds-leading-zero",
+            "hms-no-leading-zeros",
+        ],
+    )
+    def test_bash_walltime_to_seconds_handles_leading_zeros(self, time_str, expected):
+        """Regression: bash _walltime_to_seconds must not treat leading-zero
+        fields like 08/09 as invalid octal (previously left walltime at 0)."""
+        handler = _generate_autoresume_handler(
+            Path("/test/remote"), max_walltime="120:00:00"
+        )
+
+        match = re.search(r"_walltime_to_seconds\(\)\s*\{.*?\n\}", handler, re.DOTALL)
+        assert match is not None, "could not extract _walltime_to_seconds from handler"
+        bash_fn = match.group(0)
+
+        script = f'{bash_fn}\n_walltime_to_seconds "{time_str}"\n'
+        result = subprocess.run(
+            ["bash", "-c", script],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, (
+            f"bash failed (rc={result.returncode}): stderr={result.stderr!r}"
+        )
+        assert result.stderr == "", f"unexpected stderr: {result.stderr!r}"
+        assert result.stdout.strip() == str(expected)
 
 
 class TestSlurmExecutorHelperFunctions:
