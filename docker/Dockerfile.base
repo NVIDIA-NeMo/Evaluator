@@ -13,7 +13,7 @@
 #
 # CI builds and pushes to the GitLab container registry automatically.
 
-FROM nvcr.io/nvidia/base/ubuntu:noble-20251013
+FROM nvcr.io/nvidia/base/ubuntu:noble-20260217
 
 ARG TARGETARCH
 
