@@ -322,17 +322,21 @@ print(f'agent.py FINISHED={ok1} nudge={ok2} at {p}')
             stdout2 or (r2.stderr or "")[:300],
         )
 
-    # -- Patch 2: capture reasoning in ATIF trajectory ---------------------
+    # -- Patch 2: capture reasoning + per-step metrics in ATIF trajectory ----
     # The runner converts SDK events → intermediate dicts → ATIF steps but
-    # never copies reasoning_content / thinking_blocks.  We add it at both
-    # the event-conversion and the step-building stages.
+    # never copies reasoning_content / thinking_blocks or per-turn token usage.
+    # We add both at the event-conversion and step-building stages.
+    #
+    # Event-collection (A, B): extract reasoning_content and LLM usage from
+    # the SDK event object and store in the intermediate dict.
+    # build_trajectory (C): propagate both to ATIF step fields.
 
     _reasoning_script = """\
 import sys
 p = '/installed-agent/run_agent.py'
 c = open(p).read()
 
-# A: MessageEvent agent – extract reasoning
+# A: MessageEvent agent - extract reasoning + usage
 old_a = (
     '                events_list.append(entry)\\n'
     '                last_agent_timestamp = event.timestamp\\n'
@@ -344,12 +348,23 @@ new_a = (
     '                    _rc = getattr(event.llm_message, "reasoning_content", "") or ""\\n'
     '                if _rc:\\n'
     '                    entry["reasoning_content"] = _rc\\n'
+    '                _lm_resp_id = getattr(event, "llm_response_id", None)\\n'
+    '                if _lm_resp_id:\\n'
+    '                    try:\\n'
+    '                        _nel_seen_resp_ids\\n'
+    '                    except NameError:\\n'
+    '                        _nel_seen_resp_ids = set()\\n'
+    '                    if _lm_resp_id not in _nel_seen_resp_ids:\\n'
+    '                        _tu = next((u for u in getattr(getattr(llm, "metrics", None), "token_usages", []) if getattr(u, "response_id", None) == _lm_resp_id), None)\\n'
+    '                        if _tu:\\n'
+    '                            entry["usage"] = {"prompt_tokens": int(getattr(_tu, "prompt_tokens", 0)), "completion_tokens": int(getattr(_tu, "completion_tokens", 0))}\\n'
+    '                            _nel_seen_resp_ids.add(_lm_resp_id)\\n'
     '                events_list.append(entry)\\n'
     '                last_agent_timestamp = event.timestamp\\n'
     '        elif isinstance(event, ActionEvent):'
 )
 
-# B: ActionEvent – extract reasoning
+# B: ActionEvent - extract reasoning + usage
 old_b = (
     '            events_list.append(entry)\\n'
     '            last_agent_timestamp = event.timestamp\\n'
@@ -363,12 +378,23 @@ new_b = (
     '                    _rc = chr(10).join(getattr(c, "text", str(c)) for c in _tp if getattr(c, "text", None))\\n'
     '            if _rc:\\n'
     '                entry["reasoning_content"] = _rc\\n'
+    '            _lm_resp_id = getattr(event, "llm_response_id", None)\\n'
+    '            if _lm_resp_id:\\n'
+    '                try:\\n'
+    '                    _nel_seen_resp_ids\\n'
+    '                except NameError:\\n'
+    '                    _nel_seen_resp_ids = set()\\n'
+    '                if _lm_resp_id not in _nel_seen_resp_ids:\\n'
+    '                    _tu = next((u for u in getattr(getattr(llm, "metrics", None), "token_usages", []) if getattr(u, "response_id", None) == _lm_resp_id), None)\\n'
+    '                    if _tu:\\n'
+    '                        entry["usage"] = {"prompt_tokens": int(getattr(_tu, "prompt_tokens", 0)), "completion_tokens": int(getattr(_tu, "completion_tokens", 0))}\\n'
+    '                        _nel_seen_resp_ids.add(_lm_resp_id)\\n'
     '            events_list.append(entry)\\n'
     '            last_agent_timestamp = event.timestamp\\n'
     '        elif isinstance(event, ObservationEvent):'
 )
 
-# C: build_trajectory – propagate to ATIF steps
+# C: build_trajectory - propagate reasoning + metrics to ATIF steps
 old_c = (
     '            steps.append(step)\\n'
     '            step_id += 1\\n'
@@ -379,6 +405,11 @@ new_c = (
     '            _rc = event.get("reasoning_content", "")\\n'
     '            if _rc:\\n'
     '                step["reasoning_content"] = _rc\\n'
+    '            _u = event.get("usage") or {}\\n'
+    '            _pt = int(_u.get("prompt_tokens", 0) or 0) if isinstance(_u, dict) else 0\\n'
+    '            _ct = int(_u.get("completion_tokens", 0) or 0) if isinstance(_u, dict) else 0\\n'
+    '            if _pt or _ct:\\n'
+    '                step["metrics"] = {"prompt_tokens": _pt, "completion_tokens": _ct}\\n'
     '            steps.append(step)\\n'
     '            step_id += 1\\n'
     '\\n'
@@ -392,7 +423,7 @@ c = c.replace(old_b, new_b, 1) if ok_b else c
 ok_c = old_c in c
 c = c.replace(old_c, new_c, 1) if ok_c else c
 open(p, 'w').write(c)
-print(f'reasoning: msg={ok_a} action={ok_b} traj={ok_c}')
+print(f'reasoning+metrics: msg={ok_a} action={ok_b} traj={ok_c}')
 """
     encoded = base64.b64encode(_reasoning_script.encode()).decode()
     r3 = await sandbox.exec(
@@ -400,10 +431,10 @@ print(f'reasoning: msg={ok_a} action={ok_b} traj={ok_c}')
         timeout_sec=10,
     )
     stdout3 = (r3.stdout or "").strip()
-    logger.info("Reasoning patch: %s", stdout3)
+    logger.info("Reasoning+metrics patch: %s", stdout3)
     if r3.return_code != 0 or "False" in stdout3:
         logger.warning(
-            "Reasoning patch problem (rc=%d): %s",
+            "Reasoning+metrics patch problem (rc=%d): %s",
             r3.return_code,
             stdout3 or (r3.stderr or "")[:300],
         )

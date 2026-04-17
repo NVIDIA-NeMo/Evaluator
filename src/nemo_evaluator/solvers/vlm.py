@@ -51,8 +51,8 @@ class VLMSolver:
             resp.content,
             system=effective_system,
             model_name=getattr(resp, "model", None),
-            prompt_tokens=getattr(resp, "prompt_tokens", 0) or 0,
-            completion_tokens=getattr(resp, "completion_tokens", 0) or 0,
+            prompt_tokens=getattr(resp, "prompt_tokens", None),
+            completion_tokens=getattr(resp, "completion_tokens", None),
         )
         return SolveResult(response=resp.content, model_response=resp, trajectory=trajectory)
 

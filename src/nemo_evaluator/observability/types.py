@@ -26,11 +26,11 @@ class ModelResponse:
     content: str
     model: str = ""
     finish_reason: str = ""
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    total_tokens: int = 0
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
     latency_ms: float = 0.0
-    reasoning_tokens: int = 0
+    reasoning_tokens: int | None = None
     raw_response: dict[str, Any] = field(default_factory=dict)
     request_prompt: str | None = None
     request_system: str | None = None

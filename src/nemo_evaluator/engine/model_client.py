@@ -49,6 +49,7 @@ class ToolCallingResponse:
     tool_calls: list[ToolCallInfo]
     finish_reason: str
     model_response: ModelResponse
+    reasoning_content: str = ""
 
 
 def _resolve_image(image: str) -> str:
@@ -286,6 +287,7 @@ class ModelClient:
         usage = data.get("usage", {})
 
         content = message.get("content") or ""
+        reasoning_content = message.get("reasoning_content") or message.get("reasoning") or ""
         finish_reason = choice.get("finish_reason", "")
 
         tool_calls: list[ToolCallInfo] = []
@@ -309,10 +311,10 @@ class ModelClient:
             content=content,
             model=data.get("model", self.model),
             finish_reason=finish_reason,
-            prompt_tokens=usage.get("prompt_tokens", 0),
-            completion_tokens=usage.get("completion_tokens", 0),
-            total_tokens=usage.get("total_tokens", 0),
-            reasoning_tokens=ct.get("reasoning_tokens", 0),
+            prompt_tokens=usage.get("prompt_tokens"),
+            completion_tokens=usage.get("completion_tokens"),
+            total_tokens=usage.get("total_tokens"),
+            reasoning_tokens=ct.get("reasoning_tokens"),
             latency_ms=round(latency, 2),
             raw_response=data,
             request_prompt=None,
@@ -324,6 +326,7 @@ class ModelClient:
             tool_calls=tool_calls,
             finish_reason=finish_reason,
             model_response=model_response,
+            reasoning_content=reasoning_content,
         )
 
     async def _post_with_retry(self, url: str, payload: dict[str, Any]) -> dict:
@@ -396,9 +399,7 @@ class ModelClient:
         choice = choices[0]
         usage = data.get("usage", {})
 
-        reasoning_tokens = 0
         ct = usage.get("completion_tokens_details") or {}
-        reasoning_tokens = ct.get("reasoning_tokens", 0)
 
         content = choice["message"].get("content") or ""
         if self.reasoning_pattern:
@@ -410,10 +411,10 @@ class ModelClient:
             content=content,
             model=data.get("model", self.model),
             finish_reason=choice.get("finish_reason", ""),
-            prompt_tokens=usage.get("prompt_tokens", 0),
-            completion_tokens=usage.get("completion_tokens", 0),
-            total_tokens=usage.get("total_tokens", 0),
-            reasoning_tokens=reasoning_tokens,
+            prompt_tokens=usage.get("prompt_tokens"),
+            completion_tokens=usage.get("completion_tokens"),
+            total_tokens=usage.get("total_tokens"),
+            reasoning_tokens=ct.get("reasoning_tokens"),
             latency_ms=round(latency, 2),
             raw_response=data,
             request_prompt=prompt,

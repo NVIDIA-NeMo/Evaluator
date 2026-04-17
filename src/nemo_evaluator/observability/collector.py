@@ -95,10 +95,10 @@ class ArtifactCollector:
 
         for s in self.steps:
             if s.model_response:
-                stats.total_tokens += s.model_response.total_tokens
-                stats.total_prompt_tokens += s.model_response.prompt_tokens
-                stats.total_completion_tokens += s.model_response.completion_tokens
-                stats.total_reasoning_tokens += s.model_response.reasoning_tokens
+                stats.total_tokens += s.model_response.total_tokens or 0
+                stats.total_prompt_tokens += s.model_response.prompt_tokens or 0
+                stats.total_completion_tokens += s.model_response.completion_tokens or 0
+                stats.total_reasoning_tokens += s.model_response.reasoning_tokens or 0
 
         if latencies:
             arr = np.array(latencies)

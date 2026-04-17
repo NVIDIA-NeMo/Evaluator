@@ -577,13 +577,29 @@ class TestReActSolver:
         assert doc["agent"]["name"] == "nemo-evaluator-react"
 
         steps = doc["steps"]
-        assert len(steps) == 3
-        assert steps[0]["source"] == "agent"
-        assert steps[0]["tool_calls"][0]["function_name"] == "bash"
-        assert steps[1]["source"] == "system"
-        assert "file.py" in steps[1]["message"]
-        assert steps[2]["source"] == "agent"
-        assert steps[2]["message"] == "Found it."
+        # user + agent(tool_call) + system(observation) + agent(final) = 4
+        assert len(steps) == 4
+        assert steps[0]["source"] == "user"
+        assert steps[0]["message"] == "Fix the bug."
+        assert steps[1]["source"] == "agent"
+        assert steps[1]["tool_calls"][0]["function_name"] == "bash"
+        assert steps[2]["source"] == "system"
+        assert "file.py" in steps[2]["message"]
+        assert steps[3]["source"] == "agent"
+        assert steps[3]["message"] == "Found it."
+
+        # Per-step metrics on agent steps (ATIF spec requirement)
+        for step in steps:
+            if step["source"] == "agent":
+                assert "metrics" in step, f"agent step missing metrics: {step}"
+                assert "prompt_tokens" in step["metrics"]
+                assert "completion_tokens" in step["metrics"]
+
+        # final_metrics must always be present and include total_steps
+        fm = doc["final_metrics"]
+        assert fm["total_steps"] == 4
+        assert fm["total_prompt_tokens"] == 200  # 2 turns x 100 prompt tokens
+        assert fm["total_completion_tokens"] == 100  # 2 turns x 50 completion tokens
 
     @pytest.mark.asyncio
     async def test_output_truncation(self):
@@ -603,7 +619,8 @@ class TestReActSolver:
             result = await solver.solve(_make_seed())
 
         doc = result.trajectory[0]
-        observation_step = doc["steps"][1]
+        # steps: user(0), agent(1), system/observation(2), agent(3)
+        observation_step = doc["steps"][2]
         assert "truncated" in observation_step["message"]
         assert len(observation_step["message"]) < len(big_output)
 

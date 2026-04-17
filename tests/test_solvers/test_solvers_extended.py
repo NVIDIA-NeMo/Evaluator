@@ -92,6 +92,59 @@ class TestTrajectoryUtil:
         assert isinstance(traj, list)
         assert len(traj) >= 1
 
+    def test_build_single_turn_atif_per_step_metrics(self):
+        from nemo_evaluator.solvers.trajectory_util import build_single_turn_atif
+
+        traj = build_single_turn_atif(
+            prompt="hello",
+            response="world",
+            model_name="test",
+            prompt_tokens=10,
+            completion_tokens=4,
+        )
+        doc = traj[0]
+        agent_step = next(s for s in doc["steps"] if s["source"] == "agent")
+        assert "metrics" in agent_step
+        assert agent_step["metrics"]["prompt_tokens"] == 10
+        assert agent_step["metrics"]["completion_tokens"] == 4
+
+    def test_build_atif_trajectory_final_metrics(self):
+        from nemo_evaluator.solvers.trajectory_util import build_atif_trajectory
+
+        steps = [
+            {"source": "user", "message": "hi"},
+            {"source": "agent", "message": "hello", "metrics": {"prompt_tokens": 7, "completion_tokens": 2}},
+        ]
+        traj = build_atif_trajectory(steps, prompt_tokens=7, completion_tokens=2)
+        doc = traj[0]
+        fm = doc["final_metrics"]
+        assert fm["total_prompt_tokens"] == 7
+        assert fm["total_completion_tokens"] == 2
+        assert fm["total_steps"] == 2
+
+    def test_build_atif_trajectory_final_metrics_always_present(self):
+        from nemo_evaluator.solvers.trajectory_util import build_atif_trajectory
+
+        traj = build_atif_trajectory([{"source": "user", "message": "ping"}])
+        assert "final_metrics" in traj[0]
+        assert traj[0]["final_metrics"]["total_steps"] == 1
+
+    def test_build_atif_trajectory_derives_totals_from_per_step_metrics(self):
+        from nemo_evaluator.solvers.trajectory_util import build_atif_trajectory
+
+        # No explicit token totals — should be summed from per-step metrics.
+        steps = [
+            {"source": "user", "message": "go"},
+            {"source": "agent", "message": "step1", "metrics": {"prompt_tokens": 30, "completion_tokens": 10}},
+            {"source": "system", "message": "obs"},
+            {"source": "agent", "message": "step2", "metrics": {"prompt_tokens": 50, "completion_tokens": 15}},
+        ]
+        traj = build_atif_trajectory(steps)
+        fm = traj[0]["final_metrics"]
+        assert fm["total_prompt_tokens"] == 80
+        assert fm["total_completion_tokens"] == 25
+        assert fm["total_steps"] == 4
+
     def test_build_atif_trajectory(self):
         from nemo_evaluator.solvers.trajectory_util import build_atif_trajectory
 
