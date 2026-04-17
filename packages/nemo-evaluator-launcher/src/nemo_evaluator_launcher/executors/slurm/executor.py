@@ -1671,7 +1671,7 @@ _walltime_to_seconds() {{
         seconds=${{BASH_REMATCH[1]}}
     fi
 
-    echo $((days * 86400 + hours * 3600 + minutes * 60 + seconds))
+    echo $((10#$days * 86400 + 10#$hours * 3600 + 10#$minutes * 60 + 10#$seconds))
 }}
 
 _max_walltime_seconds=$(_walltime_to_seconds "$_max_walltime")
