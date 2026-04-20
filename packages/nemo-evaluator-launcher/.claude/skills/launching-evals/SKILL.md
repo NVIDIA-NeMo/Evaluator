@@ -38,7 +38,7 @@ uv run nemo-evaluator-launcher ls runs --since 1d
 
 # List available evaluation tasks (by default, only shows tasks from the latest released containers)
 uv run nemo-evaluator-launcher ls tasks
-uv run nemo-evaluator-launcher ls tasks --from_container gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/long-context-eval:dev-2025-12-16T14-37-1693de28-amd64
+uv run nemo-evaluator-launcher ls tasks --from_container nvcr.io/nvidia/eval-factory/simple-evals:26.03
 ```
 
 ## Workflow
@@ -62,4 +62,3 @@ The complete evaluation workflow is divided into the following steps you should 
 - **`payload_modifier` interceptor**: The `params_to_remove` list (e.g. `[max_tokens, max_completion_tokens]`) strips those fields from the outgoing payload, intentionally lifting output length limits so reasoning models can think as long as they need.
 - **Auto-export git workaround**: The export container (`python:3.12-slim`) lacks `git`. When installing the launcher from a git URL, set `auto_export.launcher_install_cmd` to install git first (e.g., `apt-get update -qq && apt-get install -qq -y git && pip install "nemo-evaluator-launcher[all] @ git+...#subdirectory=packages/nemo-evaluator-launcher"`).
 - **Do NOT use `nemo-evaluator-launcher export --dest local`** — it only writes a summary JSON (`processed_results.json`), it does NOT copy actual logs or artifacts despite accepting `--copy_logs` and `--copy-artifacts` flags. `nel info --copy-artifacts` works but copies everything (very slow for large benchmarks). Preferred approach: use `nel info` to discover paths — if local, read directly; if remote, SSH to explore and rsync only what you need. Note that `nel info` prints standard artifacts but benchmarks produce additional artifacts in subdirs — explore to find them.
-
