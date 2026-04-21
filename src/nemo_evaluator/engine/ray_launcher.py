@@ -48,30 +48,25 @@ def run_shard(
     n_repeats: int,
     max_problems: int | None,
     system_prompt: str | None,
+    shuffle_seed: int | None = 42,
 ) -> dict:
     from nemo_evaluator.environments.registry import get_environment
     from nemo_evaluator.observability.progress import NoOpProgress
     from nemo_evaluator.engine.eval_loop import run_evaluation
     from nemo_evaluator.engine.model_client import ModelClient
-    from nemo_evaluator.engine.sharding import get_shard_range
     from nemo_evaluator.solvers import ChatSolver
 
     env = get_environment(benchmark)
     client = ModelClient(base_url=model_url, model=model_id, api_key=api_key, temperature=0.0)
     solver = ChatSolver(client, system_prompt=system_prompt)
 
-    total = len(env)
-    if max_problems:
-        total = min(total, max_problems)
-    problem_range = get_shard_range(total, shard_idx, total_shards)
-
     config = {
         "benchmark": benchmark,
         "model": model_id,
         "repeats": n_repeats,
-        "shard": {"idx": shard_idx, "total": total_shards, "range": list(problem_range)},
     }
 
+    # Pass shard_info (not problem_range) so shuffle_seed applies uniformly.
     bundle = asyncio.run(
         run_evaluation(
             env,
@@ -80,7 +75,8 @@ def run_shard(
             max_problems=max_problems,
             config=config,
             progress=NoOpProgress(),
-            problem_range=problem_range,
+            shard_info=(shard_idx, total_shards),
+            shuffle_seed=shuffle_seed,
         )
     )
 
@@ -103,7 +99,15 @@ def main():
     parser.add_argument("--api-key", default=os.environ.get("NEMO_API_KEY"))
     parser.add_argument("--system-prompt", default=None)
     parser.add_argument("--output-dir", "-o", default="./eval_results/ray")
+    parser.add_argument(
+        "--shuffle-seed",
+        type=int,
+        default=42,
+        help="Seed for deterministic shuffling of sample order across shards (pass -1 to disable).",
+    )
     args = parser.parse_args()
+
+    shuffle_seed: int | None = None if args.shuffle_seed < 0 else args.shuffle_seed
 
     ray.init()
 
@@ -118,6 +122,7 @@ def main():
             args.repeats,
             args.max_problems,
             args.system_prompt,
+            shuffle_seed,
         )
         for i in range(args.shards)
     ]

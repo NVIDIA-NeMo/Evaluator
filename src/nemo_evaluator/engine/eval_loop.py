@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -77,19 +78,42 @@ async def run_evaluation(
     max_system_retries: int = 3,
     shard_info: tuple[int, int] | None = None,
     instruction_template: Path | None = None,
+    shuffle_seed: int | None = None,
 ) -> dict[str, Any]:
     config = config or {}
     max_system_retries = max(1, max_system_retries)
 
     name = env.name
-    ds_size = await env.dataset_size()
-    if ds_size < 0:
+    ds_full_size = await env.dataset_size()
+    if ds_full_size < 0:
         raise ValueError(
-            f"Environment {name!r} returned invalid dataset_size={ds_size}. "
+            f"Environment {name!r} returned invalid dataset_size={ds_full_size}. "
             "Ensure the environment is reachable and has a valid dataset."
         )
-    if max_problems is not None:
-        ds_size = min(ds_size, max_problems)
+
+    # Seeded global permutation applied before sharding; explicit
+    # ``problem_range`` takes precedence.  ``problem_idx`` stays the
+    # original dataset index so scoring/merge/resume are unaffected.
+    perm: list[int] | None = None
+    if shuffle_seed is not None and problem_range is None:
+        perm = list(range(ds_full_size))
+        random.Random(shuffle_seed).shuffle(perm)
+        if max_problems is not None and max_problems < len(perm):
+            perm = perm[:max_problems]
+        ds_size = len(perm)
+    else:
+        ds_size = ds_full_size
+        if max_problems is not None:
+            ds_size = min(ds_size, max_problems)
+
+    # Set BEFORE config_hash() so resume auto-invalidates on seed change.
+    config["shuffle_seed"] = shuffle_seed
+    config["shuffle"] = {
+        "seed": shuffle_seed,
+        "applied": perm is not None,
+        "ds_full_size": ds_full_size,
+        "ds_effective_size": ds_size,
+    }
 
     if shard_info and not problem_range:
         from nemo_evaluator.engine.sharding import get_shard_range
@@ -213,7 +237,7 @@ async def run_evaluation(
 
     sem = asyncio.Semaphore(max_concurrent)
 
-    async def _run_step(idx: int, rep: int, seed_result, seed_ms: float):
+    async def _run_step(idx: int, slot: int, rep: int, seed_result, seed_ms: float):
         nonlocal cum_correct, cum_total
         async with sem:
             key = (idx, rep)
@@ -265,7 +289,7 @@ async def run_evaluation(
                         cum_correct += 1
                     cum_total += 1
                     problem_correct.setdefault(idx, []).append(reward)
-                pg.on_step(idx - start, rep, n_problems, n_repeats, reward, tokens, 0)
+                pg.on_step(slot, rep, n_problems, n_repeats, reward, tokens, 0)
                 return
 
             step = StepRecord(
@@ -322,7 +346,7 @@ async def run_evaluation(
                             step.trajectory = cached_inferred["trajectory"]
                         logger.debug("resume p%d r%d: using cached inference", idx, rep)
                     else:
-                        pg.on_phase(idx - start, rep, n_problems, n_repeats, "solving")
+                        pg.on_phase(slot, rep, n_problems, n_repeats, "solving")
                         _is_infra = False
                         try:
                             if _solver_accepts_sandbox(solver):
@@ -401,7 +425,7 @@ async def run_evaluation(
                             response_text,
                             solver_modified=(sandbox is not None),
                         )
-                        pg.on_phase(idx - start, rep, n_problems, n_repeats, "verifying")
+                        pg.on_phase(slot, rep, n_problems, n_repeats, "verifying")
                     tv = time.monotonic()
                     if not _solve_failed and solve_result and solve_result.reward is not None:
                         vr = VerifyResult(
@@ -533,7 +557,7 @@ async def run_evaluation(
                             vr.scoring_details[f"scorer:{scorer_name}"] = {"error": str(e), "reward": 0.0}
 
                 if judge_client and vr.scoring_details.get("needs_judge"):
-                    pg.on_phase(idx - start, rep, n_problems, n_repeats, "judging")
+                    pg.on_phase(slot, rep, n_problems, n_repeats, "judging")
                     try:
                         from nemo_evaluator.scoring.judge import judge_score
 
@@ -594,7 +618,7 @@ async def run_evaluation(
                     cum_total += 1
                     problem_correct.setdefault(idx, []).append(vr.reward)
 
-                pg.on_step(idx - start, rep, n_problems, n_repeats, vr.reward, tokens, step.total_ms)
+                pg.on_step(slot, rep, n_problems, n_repeats, vr.reward, tokens, step.total_ms)
 
             finally:
                 await lifecycle.teardown()
@@ -622,9 +646,12 @@ async def run_evaluation(
     interrupted = False
 
     try:
-        for idx in range(start, end):
+        for i in range(start, end):
             if first_error is not None:
                 break
+
+            idx = perm[i] if perm is not None else i  # global dataset index
+            slot = i - start  # shard-local progress position
 
             while len(pending) >= max_buffered:
                 done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
@@ -651,7 +678,7 @@ async def run_evaluation(
                 )
 
             for rep in range(n_repeats):
-                task = asyncio.create_task(_run_step(idx, rep, seed_result, seed_ms))
+                task = asyncio.create_task(_run_step(idx, slot, rep, seed_result, seed_ms))
                 pending.add(task)
 
         if first_error is not None:

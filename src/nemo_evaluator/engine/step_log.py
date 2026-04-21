@@ -42,7 +42,16 @@ MAX_TRAJECTORY_BYTES = 5 * 1024 * 1024
 
 def config_hash(config: dict[str, Any]) -> str:
     """Deterministic hash of inference-affecting config fields."""
-    keys = ["model", "base_url", "temperature", "max_tokens", "top_p", "system_prompt", "model_url"]
+    keys = [
+        "model",
+        "base_url",
+        "temperature",
+        "max_tokens",
+        "top_p",
+        "system_prompt",
+        "model_url",
+        "shuffle_seed",
+    ]
     subset = {k: config.get(k) for k in keys if config.get(k) is not None}
     raw = json.dumps(subset, sort_keys=True)
     return f"sha256:{hashlib.sha256(raw.encode()).hexdigest()}"

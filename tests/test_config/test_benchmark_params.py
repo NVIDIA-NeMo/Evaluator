@@ -31,6 +31,23 @@ def test_benchmarkconfig_params_default_empty():
     assert cfg.params == {}
 
 
+def test_benchmarkconfig_shuffle_seed_default_is_42():
+    """Default-on shuffling with seed 42 gives reproducible shard balance
+    without requiring users to opt in."""
+    cfg = BenchmarkConfig.model_validate({"name": "dummy", "solver": _MINIMAL_SOLVER})
+    assert cfg.shuffle_seed == 42
+
+
+def test_benchmarkconfig_shuffle_seed_none_disables_shuffle():
+    cfg = BenchmarkConfig.model_validate({"name": "dummy", "solver": _MINIMAL_SOLVER, "shuffle_seed": None})
+    assert cfg.shuffle_seed is None
+
+
+def test_benchmarkconfig_shuffle_seed_custom_int():
+    cfg = BenchmarkConfig.model_validate({"name": "dummy", "solver": _MINIMAL_SOLVER, "shuffle_seed": 7})
+    assert cfg.shuffle_seed == 7
+
+
 def test_benchmarkconfig_params_roundtrip():
     cfg = BenchmarkConfig.model_validate(
         {

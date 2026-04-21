@@ -322,6 +322,11 @@ def _make_solver(
 
         uses_sandbox = not isinstance(sb, NoSandbox)
         gen = _resolve_generation(config, solver_cfg)
+        # Sampling params (temperature, top_p, ...) are NOT passed to the
+        # solver: the adapter proxy auto-injects services.generation.* into
+        # every outbound request via a payload_modifier interceptor (see
+        # _start_proxy).  Mirroring them into openclaw.json is redundant and
+        # couples us to the OpenClaw JSON schema (broke with 2026.4.15).
         return OpenClawSolver(
             openclaw_bin=solver_cfg.openclaw_bin,
             thinking=solver_cfg.thinking,
@@ -333,8 +338,6 @@ def _make_solver(
             max_tokens=gen.max_tokens if gen else None,
             max_concurrent=solver_cfg.max_concurrent,
             config_path=solver_cfg.config_path,
-            temperature=gen.temperature if gen else None,
-            top_p=gen.top_p if gen else None,
             skip_preflight=solver_cfg.skip_preflight or uses_sandbox,
         )
 
@@ -720,9 +723,12 @@ def _build_environment(
     """Create the evaluation environment, optionally wrapping with a verifier."""
     from nemo_evaluator.environments.registry import get_environment
 
+    # Under shuffle we must load the full dataset so the permutation draws
+    # from the complete index space; max_problems is applied post-shuffle.
+    num_examples = None if bench.shuffle_seed is not None else bench.max_problems
     env = get_environment(
         bench.name,
-        num_examples=bench.max_problems,
+        num_examples=num_examples,
         num_fewshot=bench.fewshot,
         params=bench.params,
     )
@@ -916,6 +922,7 @@ async def _run_single_benchmark(
             max_system_retries=bench.max_system_retries,
             shard_info=shard_info,
             instruction_template=resolve_template_path(bench.instruction_template),
+            shuffle_seed=bench.shuffle_seed,
         )
 
         write_all(bundle, task_dir)

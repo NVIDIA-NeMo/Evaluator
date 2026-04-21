@@ -50,6 +50,15 @@ class BenchmarkConfig(BaseModel):
     instruction_template: str | None = None
     verifier: str | None = None
 
+    shuffle_seed: int | None = Field(
+        default=42,
+        description=(
+            "Seed for deterministic shuffling of sample execution order "
+            "(applied before shard slicing for balanced shard wall-clock). "
+            "Set to `null` to preserve dataset order. Not the model sampling seed."
+        ),
+    )
+
     sandbox: SandboxConfig = Field(default_factory=NoSandbox)
     scoring: ScoringConfig = Field(default_factory=ScoringConfig)
 

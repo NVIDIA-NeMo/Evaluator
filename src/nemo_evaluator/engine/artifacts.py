@@ -39,6 +39,7 @@ def _config_hash(config: dict[str, Any]) -> str:
         "benchmark",
         "repeats",
         "max_problems",
+        "shuffle_seed",
     ]
     subset = {k: config.get(k) for k in keys_to_hash if config.get(k) is not None}
     return hashlib.sha256(json.dumps(subset, sort_keys=True).encode()).hexdigest()
