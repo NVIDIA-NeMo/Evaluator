@@ -100,12 +100,16 @@ def _resolve_api_key(explicit: str | None) -> str | None:
     return None
 
 
-def _model_id_for_openai(model_id: str, has_custom_url: bool) -> str:
+def _model_id_for_openai(model_id: str, has_custom_url: bool, *, agent: str = "") -> str:
     """Return *model_id* with an ``openai/`` prefix when needed.
 
     The prefix tells LiteLLM to use the OpenAI-compatible provider when
-    routing through a custom endpoint URL.
+    routing through a custom endpoint URL.  Agents that don't go through
+    LiteLLM (e.g. ``claude-code``, which talks to the Anthropic API
+    directly) must not receive the prefix.
     """
+    if agent.lower() == "claude-code":
+        return model_id
     if has_custom_url and not model_id.startswith("openai/"):
         return f"openai/{model_id}"
     return model_id
@@ -127,6 +131,20 @@ def _ensure_host_env(api_key: str, model_id: str | None, *, has_custom_url: bool
         os.environ.setdefault("LLM_MODEL", _model_id_for_openai(model_id, has_custom_url))
     os.environ.setdefault("LITELLM_LOG", "ERROR")
     os.environ.setdefault("LITELLM_TELEMETRY", "false")
+
+
+def _ensure_claude_host_env(api_key: str, base_url: str) -> None:
+    """Populate host-process env vars read by the ``claude-code`` Harbor agent.
+
+    The agent shells out to ``claude`` which reads ``ANTHROPIC_API_KEY``
+    (required) and ``ANTHROPIC_BASE_URL`` (optional — used to route
+    through NVIDIA's inference API).  ``setdefault`` preserves anything
+    the user already exported.
+    """
+    if api_key:
+        os.environ.setdefault("ANTHROPIC_API_KEY", api_key)
+    if base_url:
+        os.environ.setdefault("ANTHROPIC_BASE_URL", base_url)
 
 
 # ---------------------------------------------------------------------------
@@ -832,16 +850,22 @@ class HarborSolver:
 
         self._container_env.setdefault("LLM_API_KEY", self._api_key)
         if model_id:
-            self._container_env.setdefault("LLM_MODEL", _model_id_for_openai(model_id, bool(model_url)))
+            self._container_env.setdefault(
+                "LLM_MODEL",
+                _model_id_for_openai(model_id, bool(model_url), agent=harbor_agent),
+            )
 
-        _ensure_host_env(self._api_key, self._model_id, has_custom_url=bool(model_url))
+        if harbor_agent.lower() == "claude-code":
+            _ensure_claude_host_env(self._api_key, model_url)
+        else:
+            _ensure_host_env(self._api_key, self._model_id, has_custom_url=bool(model_url))
 
     def _create_agent(self, logs_dir: Path, *, model_url: str = "") -> Any:
         from harbor.agents.factory import AgentFactory
 
         kwargs = dict(self._harbor_agent_kwargs)
         url = model_url or self._model_url
-        model_id = _model_id_for_openai(self._model_id, bool(url)) if self._model_id else ""
+        model_id = _model_id_for_openai(self._model_id, bool(url), agent=self._harbor_agent) if self._model_id else ""
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
         if "api_base" not in kwargs and url:

@@ -10,8 +10,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from nemo_evaluator.solvers.harbor import (
+    _ensure_claude_host_env,
     _ensure_host_env,
     _extract_response,
+    _model_id_for_openai,
     _resolve_agent_timeout,
     _resolve_api_key,
 )
@@ -104,6 +106,42 @@ class TestEnsureHostEnv:
         monkeypatch.delenv("LLM_MODEL", raising=False)
         _ensure_host_env("k", "openai/already", has_custom_url=True)
         assert os.environ["LLM_MODEL"] == "openai/already"
+
+
+class TestClaudeCodeAgent:
+    """claude-code talks directly to the Anthropic API, not via LiteLLM."""
+
+    def test_model_id_not_prefixed_for_claude_code(self):
+        assert (
+            _model_id_for_openai(
+                "aws/anthropic/bedrock-claude-sonnet-4-5-v1",
+                has_custom_url=True,
+                agent="claude-code",
+            )
+            == "aws/anthropic/bedrock-claude-sonnet-4-5-v1"
+        )
+
+    def test_model_id_still_prefixed_for_openhands(self):
+        """Default agent path is unchanged — openai/ prefix still applied."""
+        assert _model_id_for_openai("my-model", has_custom_url=True) == "openai/my-model"
+
+    def test_ensure_claude_host_env_sets_anthropic_vars(self, monkeypatch):
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+        _ensure_claude_host_env("sk-abc", "https://inference-api.nvidia.com")
+        assert os.environ["ANTHROPIC_API_KEY"] == "sk-abc"
+        assert os.environ["ANTHROPIC_BASE_URL"] == "https://inference-api.nvidia.com"
+
+    def test_ensure_claude_host_env_setdefault(self, monkeypatch):
+        """Existing values must not be overwritten."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "user-exported")
+        _ensure_claude_host_env("sk-override", "https://example.com")
+        assert os.environ["ANTHROPIC_API_KEY"] == "user-exported"
+
+    def test_ensure_claude_host_env_skips_empty_url(self, monkeypatch):
+        monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+        _ensure_claude_host_env("sk-abc", "")
+        assert "ANTHROPIC_BASE_URL" not in os.environ
 
 
 # ── Download agent logs ──────────────────────────────────────────────────

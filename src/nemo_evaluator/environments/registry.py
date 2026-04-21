@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import logging
 import re
 import sys
@@ -239,8 +240,37 @@ def _resolve_file_bench(name: str) -> str | None:
     raise KeyError(f"{file_path} registered no new benchmarks. Make sure it uses @benchmark + @scorer.")
 
 
+def _filter_init_kwargs(cls: type, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Keep only kwargs the target class ``__init__`` actually accepts.
+
+    ``num_examples`` / ``num_fewshot`` are passed opportunistically by the
+    orchestrator to every environment; silently drop them for classes that
+    don't declare them.  Any *explicit* ``params:`` key that the target
+    doesn't accept is a user error and raises a clear ``TypeError``.
+    """
+    try:
+        sig = inspect.signature(cls.__init__)
+    except (TypeError, ValueError):
+        return dict(kwargs)
+
+    params = sig.parameters
+    accepts_var_kw = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+    if accepts_var_kw:
+        return dict(kwargs)
+
+    accepted = {name for name in params if name != "self"}
+    return {k: v for k, v in kwargs.items() if k in accepted}
+
+
 def get_environment(name: str, **kwargs: Any) -> "EvalEnvironment":
-    """Resolve an environment by name, URI, or .py file path."""
+    """Resolve an environment by name, URI, or .py file path.
+
+    ``**kwargs`` are forwarded to the target environment constructor, filtered
+    to only the keys that constructor declares.  Callers should pass any YAML
+    ``params:`` entries alongside the usual ``num_examples`` / ``num_fewshot``
+    hints -- unknown ``params:`` keys surface as a ``TypeError`` from Python's
+    usual argument binding.
+    """
     _ensure_builtins()
 
     file_name = _resolve_file_bench(name)
@@ -256,10 +286,15 @@ def get_environment(name: str, **kwargs: Any) -> "EvalEnvironment":
         available = ", ".join(sorted(_REGISTRY)) or "(none)"
         raise KeyError(f"Unknown environment {name!r}. Available: {available}")
     cls = _REGISTRY[key]
-    init_kwargs = {}
-    if "num_examples" in kwargs and kwargs["num_examples"] is not None:
-        init_kwargs["num_examples"] = kwargs["num_examples"]
-    return cls(**init_kwargs)
+
+    user_params: dict[str, Any] = kwargs.pop("params", None) or {}
+    auto_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+    init_kwargs = _filter_init_kwargs(cls, auto_kwargs)
+    init_kwargs.update(user_params)
+    try:
+        return cls(**init_kwargs)
+    except TypeError as exc:
+        raise TypeError(f"Could not instantiate benchmark {name!r} with params {sorted(user_params)}: {exc}") from exc
 
 
 def list_environments() -> list[str]:

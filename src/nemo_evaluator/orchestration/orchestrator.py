@@ -720,7 +720,12 @@ def _build_environment(
     """Create the evaluation environment, optionally wrapping with a verifier."""
     from nemo_evaluator.environments.registry import get_environment
 
-    env = get_environment(bench.name, num_examples=bench.max_problems, num_fewshot=bench.fewshot)
+    env = get_environment(
+        bench.name,
+        num_examples=bench.max_problems,
+        num_fewshot=bench.fewshot,
+        params=bench.params,
+    )
     if not bench.verifier:
         return env
 
