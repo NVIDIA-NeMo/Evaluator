@@ -33,6 +33,9 @@ uv run nemo-evaluator-launcher info <invocation_id> --copy-logs ./evaluation-res
 # ssh <user>@<hostname> "ls <artifacts_path>/"
 # rsync -avzP <user>@<hostname>:<artifacts_path>/{results.yml,eval_factory_metrics.json,config.yml} ./evaluation-results/<invocation_id>.<job_index>/artifacts/
 
+# Resume a failed/interrupted run (re-sbatches existing run.sub in the original run directory)
+uv run nemo-evaluator-launcher resume <invocation_id>
+
 # List past runs
 uv run nemo-evaluator-launcher ls runs --since 1d   
 
@@ -47,7 +50,7 @@ The complete evaluation workflow is divided into the following steps you should 
 
 1. Create or modify a config using the `nel-assistant` skill. If the user provides a past run, use its `config.yml` artifact as a starting point.
 2. Run the evaluation. See `references/run-evaluation.md` when executing this step.
-3. Check progress (while RUNNING). See `references/check-progress.md` when executing this step.
+3. **Monitor progress (MANDATORY after every `nel run`)**: poll status repeatedly until SUCCESS/FAILED. See `references/check-progress.md`.
 4. Post-run actions (when terminal state reached):
    1. When the evaluation status is `SUCCESS`, analyze the results. See `references/analyze-results.md` when executing this step.
    2. When the evaluation status is `FAILED`, debug the failed run. See `references/debug-failed-runs.md` when executing this step.
