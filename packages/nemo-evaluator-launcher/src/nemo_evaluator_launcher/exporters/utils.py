@@ -15,6 +15,7 @@
 #
 """Shared utilities for metrics and configuration handling."""
 
+import hashlib
 import re
 import subprocess
 from dataclasses import dataclass, field
@@ -256,6 +257,7 @@ def load_benchmark_info(artifacts_dir: Path) -> Tuple[str, str]:
 
 # SSH connections directory
 CONNECTIONS_DIR = Path.home() / ".nemo-evaluator" / "connections"
+UNIX_SOCKET_MAX_PATH_LEN = 100  # conservative limit to avoid "socket path too long" errors on Linux (108 chars max, but we need to leave room for the and .sock suffix)
 
 
 def ssh_setup_masters(remotes: List[Tuple[str, str]]) -> Dict[Tuple[str, str], str]:
@@ -271,7 +273,18 @@ def ssh_setup_masters(remotes: List[Tuple[str, str]]) -> Dict[Tuple[str, str], s
     CONNECTIONS_DIR.mkdir(parents=True, exist_ok=True)
     control_paths: Dict[Tuple[str, str], str] = {}
     for username, hostname in remotes:
-        socket_path = str(CONNECTIONS_DIR / f"{username}_{hostname}.sock")
+        m = hashlib.md5()
+        m.update(f"{username}@{hostname}".encode("utf-8"))
+        socket_length = (
+            UNIX_SOCKET_MAX_PATH_LEN - len(str(CONNECTIONS_DIR)) - 16
+        )  # for multiplexing
+        if socket_length <= 16:
+            # managing collision risk
+            raise RuntimeError(
+                f"Base connections directory path is too long for SSH control socket: {CONNECTIONS_DIR}"
+            )
+        socket_name = str(int(m.hexdigest(), 16))[:socket_length]
+        socket_path = str(CONNECTIONS_DIR / f"{socket_name}.sock")
         socket_or_none = open_master_connection(
             username=username,
             hostname=hostname,
