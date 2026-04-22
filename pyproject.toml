@@ -7,7 +7,7 @@ name = "nemo-evaluator"
 version = "0.13.0"
 description = "NeMo Evaluator — benchmark environments, pluggable solvers, interceptor proxy, and decision-grade scoring for LLMs"
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.11,<3.14"
 license = "Apache-2.0"
 authors = [
     { name = "NVIDIA" },
@@ -65,8 +65,17 @@ lm-eval = ["lm_eval>=0.4"]
 harbor = ["harbor>=0.3.0,<0.4.0"]
 inspect = ["inspect_ai"]
 export = ["wandb", "mlflow"]
+sdk = [
+    "jsonschema>=4.23.0",
+    "jsonpath-ng>=1.7.0",
+    "pyarrow>=19.0.1",
+    "pandas>=1.5.3",
+    "openai>=1.61.0",
+    "sacrebleu>=2.5.1",
+    "rouge_score==0.1.2",
+]
 harnesses = ["nemo-evaluator[lm-eval]"]
-all = ["nemo-evaluator[scoring,stats,ray,lm-eval,harbor]"]
+all = ["nemo-evaluator[scoring,stats,ray,lm-eval,harbor,sdk]"]
 docs = [
     "sphinx",
     "sphinx-autobuild",
