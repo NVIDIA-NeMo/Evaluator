@@ -1,0 +1,36 @@
+# Flavor: Terminal-Bench 2.0 replayed by OracleSolver in ECS Fargate sandboxes.
+#
+# OracleSolver executes each task's own `solution/solve.sh` (the gold
+# trajectory) inside the sandbox instead of running an LLM agent. Used to
+# measure the infrastructure ceiling of the benchmark — what fraction of tasks
+# pass when the "agent" already knows the answer. Tasks that fail here expose
+# runtime limits (budget, privilege, hardware) or upstream task bugs; tasks
+# that pass here but have 0% agent pass-rate expose capability limits.
+#
+# Prerequisites:
+#   - AWS credentials configured (orchestrator IAM user)
+# Run: nel eval run examples/configs/08c_terminalbench_oracle_fargate.yaml
+
+services: {}
+
+benchmarks:
+  - name: harbor://terminal-bench@2.0
+    repeats: 1
+    max_concurrent: 89
+    timeout: 3600.0
+    solver:
+      type: oracle
+      timeout_strategy: max  # pick larger of benchmark `timeout` vs task.toml per-task budget
+    sandbox:
+      type: ecs_fargate
+      region: us-west-2
+      cpu: "4096"
+      memory: "8192"
+      ephemeral_storage_gib: 100
+      max_task_lifetime_sec: 14400
+      concurrency: 89
+      stateful: true
+      log_stream_prefix: terminalbench-oracle
+
+output:
+  dir: ./oracle-runs

@@ -44,6 +44,7 @@ from nemo_evaluator.config import (
     OpenClawSolverConfig,
     SimpleSolver,
     SlurmSandbox,
+    OracleSolverConfig,
     ToolCallingSolverConfig,
 )
 from nemo_evaluator.config.services import _MODEL_SERVICE_TYPES
@@ -317,6 +318,16 @@ def _make_solver(
         return NatSolver(
             nat_url=model_url,
             timeout=bench.timeout,
+        )
+
+    if isinstance(solver_cfg, OracleSolverConfig):
+        from nemo_evaluator.solvers.oracle import OracleSolver
+
+        return OracleSolver(
+            timeout=bench.timeout,
+            run_timeout=solver_cfg.run_timeout,
+            timeout_strategy=solver_cfg.timeout_strategy,
+            max_agent_timeout=solver_cfg.max_agent_timeout,
         )
 
     if isinstance(solver_cfg, OpenClawSolverConfig):
@@ -659,6 +670,7 @@ _MANAGES_OWN_CLIENT = (
     NatSolverConfig,
     OpenClawSolverConfig,
     ContainerSolverConfig,
+    OracleSolverConfig,
 )
 
 

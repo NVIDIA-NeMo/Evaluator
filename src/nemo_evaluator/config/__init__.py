@@ -88,6 +88,7 @@ from .solvers import (
     NatSolverConfig,
     OpenClawSolverConfig,
     SimpleSolver,
+    OracleSolverConfig,
     SolverConfig,
     ToolCallingSolverConfig,
 )
@@ -129,6 +130,7 @@ __all__ = [
     "NatSolverConfig",
     "OpenClawSolverConfig",
     "ContainerSolverConfig",
+    "OracleSolverConfig",
     "CustomSolverConfig",
     "SolverConfig",
     # Scoring

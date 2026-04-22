@@ -6,6 +6,10 @@
 
 - **`HarborEnvironment` respects `task.toml [verifier] timeout_sec`**: previously the test script (`bash /tests/test.sh`) was hardcoded to a 600s timeout regardless of what the task declared. Now mirrors the existing `agent_timeout_sec` plumbing — `seed()` extracts the verifier timeout into `SeedResult.metadata["verifier_timeout_sec"]`, `verify()` reads it back via `**metadata` kwargs. Defaults to 600s when the task doesn't declare one. Fixes tasks like `torch-tensor-parallelism` (900s) and `mteb-leaderboard` (3600s) being killed prematurely.
 
+### Solvers
+
+- **`OracleSolver`** (new): replays the task's `solution/solve.sh` gold trajectory inside the sandbox instead of running an agent. Useful for measuring the infrastructure ceiling of a benchmark — what fraction of tasks pass when the "agent" already knows the answer, isolating model capability from runtime constraints. Mirrors upstream harbor `OracleAgent` by uploading the full `solution/` directory to `/solution/` so solve.sh can reference sibling files. Config: `solver.type: oracle` with the same `timeout_strategy` / `run_timeout` / `max_agent_timeout` surface as `HarborSolverConfig`. No `service:` needed.
+
 ### Adapter Proxy (Breaking — replaces LiteLLM)
 
 - **LiteLLM removed**: The `litellm` dependency, `proxy` and `proxy-full` extras, and `litellm_settings` config field are all removed. The adapter proxy is now built-in with zero external proxy dependencies.
