@@ -64,13 +64,34 @@ class GymSolver:
         self._model_url = model_url
         self._api_key = api_key
         self._timeout = timeout
+        self._agent_url: str | None = None
+
+    _SWEBENCH_AGENTS = frozenset({"openhands", "swebench", ""})
 
     def _build_request(self, task: SeedResult) -> dict[str, Any]:
         meta = task.metadata or {}
 
         if self._gym_agent == "miniswe":
             return self._build_miniswe_request(task, meta)
-        return self._build_swebench_request(task, meta)
+
+        if self._gym_agent in self._SWEBENCH_AGENTS:
+            return self._build_swebench_request(task, meta)
+
+        # Default: forward dataset row as-is to Gym agent's /run endpoint.
+        return self._build_native_request(task, meta)
+
+    def _build_native_request(self, task: SeedResult, meta: dict) -> dict[str, Any]:
+        """Forward the original dataset row to the Gym agent."""
+        rcp: dict[str, Any] = {"input": task.messages or []}
+        if "tools" in meta:
+            rcp["tools"] = meta["tools"]
+        if "reasoning" in meta:
+            rcp["reasoning"] = meta["reasoning"]
+        body: dict[str, Any] = {"responses_create_params": rcp}
+        for k, v in meta.items():
+            if k not in ("tools", "reasoning"):
+                body[k] = v
+        return body
 
     def _build_swebench_request(self, task: SeedResult, meta: dict) -> dict[str, Any]:
         rcp = wrap_text_as_responses_create_params(task.prompt, model=self._model_id or "evaluator")
@@ -103,6 +124,27 @@ class GymSolver:
             "split": meta.get("split", "test"),
         }
 
+    async def _discover_agent_url(self) -> str:
+        """Query head server /server_instances to find the agent's URL."""
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as client:
+            async with client.get(f"{self._gym_url}/server_instances") as resp:
+                resp.raise_for_status()
+                instances = await resp.json()
+
+        for inst in instances:
+            if self._gym_agent and inst.get("process_name", "").lower() == self._gym_agent:
+                url = inst.get("url") or f"http://{inst['host']}:{inst['port']}"
+                logger.info("GymSolver: discovered agent %r at %s", self._gym_agent, url)
+                return url
+        for inst in instances:
+            if inst.get("server_type") == "responses_api_agents":
+                url = inst.get("url") or f"http://{inst['host']}:{inst['port']}"
+                logger.info("GymSolver: discovered agent at %s (fallback by type)", url)
+                return url
+
+        logger.warning("GymSolver: no agent found in /server_instances, using head server")
+        return self._gym_url
+
     async def solve(
         self,
         task: SeedResult,
@@ -110,11 +152,18 @@ class GymSolver:
     ) -> SolveResult:
         body = self._build_request(task)
 
+        if self._agent_url is None:
+            try:
+                self._agent_url = await self._discover_agent_url()
+            except Exception as exc:
+                logger.warning("GymSolver: agent discovery failed (%s), using head server URL", exc)
+                self._agent_url = self._gym_url
+
         t0 = time.monotonic()
         async with aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=self._timeout),
         ) as client:
-            url = f"{self._gym_url}/run"
+            url = f"{self._agent_url}/run"
             logger.info(
                 "GymSolver: POST %s (agent=%s, trust_reward=%s)", url, self._gym_agent or "auto", self._trust_reward
             )

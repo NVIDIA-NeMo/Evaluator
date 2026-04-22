@@ -61,7 +61,7 @@ env = ContainerEnvironment(
 )
 
 client = ModelClient(
-    base_url="https://inference-api.nvidia.com/v1",
+    base_url="https://integrate.api.nvidia.com/v1",
     model="azure/openai/gpt-5.2",
 )
 solver = ChatSolver(client)

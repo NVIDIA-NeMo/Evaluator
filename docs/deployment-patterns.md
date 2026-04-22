@@ -544,7 +544,7 @@ Files: `deploy/k8s/eval-job.yaml`, `deploy/k8s/eval-indexed-job.yaml`, `deploy/k
 # Submit as a Ray job
 ray job submit --working-dir . -- python -m nemo_evaluator.engine.ray_launcher \
     --bench gsm8k --shards 8 --repeats 5 \
-    --model-url https://inference-api.nvidia.com/v1 \
+    --model-url https://integrate.api.nvidia.com/v1 \
     --model-id azure/openai/gpt-5.2 \
     --output-dir ./eval_results/ray
 

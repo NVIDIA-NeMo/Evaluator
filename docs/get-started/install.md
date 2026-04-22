@@ -8,7 +8,7 @@
 ## Install from Source
 
 ```bash
-git clone -b dev/0.3.0 https://github.com/NVIDIA-NeMo/Evaluator.git
+git clone https://github.com/NVIDIA-NeMo/Evaluator.git
 cd Evaluator
 pip install -e ".[scoring]"
 ```
@@ -18,7 +18,7 @@ pip install -e ".[scoring]"
 | Extra | Command | What it adds |
 |-------|---------|-------------|
 | `scoring` | `pip install -e ".[scoring]"` | sympy for symbolic math comparison |
-| `stats` | `pip install -e ".[stats]"` | scipy for confidence intervals and Mann-Whitney U p-values in regression |
+| `stats` | `pip install -e ".[stats]"` | scipy for confidence intervals, McNemar significance testing, and regression analysis |
 | `skills` | `pip install -e ".[skills]"` | NeMo Skills benchmark integration |
 | `harbor` | `pip install -e ".[harbor]"` | Harbor agent integration (OpenHands, Terminus-2, etc.) |
 | ~~`proxy`~~ | Removed | Adapter proxy is now built-in (no extra install needed) |
@@ -40,7 +40,7 @@ nel list
 Expected output:
 
 ```
-nemo-evaluator 0.3.0
+nemo-evaluator 0.12.0
 
 Available environments:
   drop, gpqa, gsm8k, healthbench, humaneval, math500,

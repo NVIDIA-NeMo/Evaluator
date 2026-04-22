@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, model_validator
@@ -28,6 +29,18 @@ class _SandboxBase(BaseModel):
 
     capture_cmd: str | None = None
     verify_timeout: float = 600.0
+    stateful: bool = False
+
+    @model_validator(mode="after")
+    def _warn_stateful_with_capture_cmd(self) -> "_SandboxBase":
+        if self.stateful and self.capture_cmd is not None:
+            warnings.warn(
+                "sandbox.stateful=True ignores capture_cmd — the capture/transfer "
+                "workflow is skipped when stateful mode is enabled.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return self
 
 
 class DockerSandbox(_SandboxBase):
@@ -126,13 +139,9 @@ class ApptainerSandbox(_SlurmSandboxBase):
         return self
 
 
-class NoSandbox(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class NoSandbox(_SandboxBase):
     type: Literal["none"] = "none"
-
-    capture_cmd: str | None = None
-    verify_timeout: float = 600.0
+    stateful: bool = False
 
 
 class CustomSandbox(BaseModel):

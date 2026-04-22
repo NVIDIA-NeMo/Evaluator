@@ -42,6 +42,7 @@ import logging
 import os
 import shlex
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -76,13 +77,20 @@ def _build_openclaw_config(
     context_window: int = _DEFAULT_CONTEXT_WINDOW,
     max_tokens: int | None = None,
     max_concurrent: int = _DEFAULT_MAX_CONCURRENT,
-    temperature: float | None = None,
-    top_p: float | None = None,
 ) -> dict[str, Any]:
-    """Build an OpenClaw config for an arbitrary OpenAI-compatible provider.
+    """Build an OpenClaw config for an OpenAI-compatible provider.
 
-    The provider name is derived from the ``model_id`` prefix
-    (e.g. ``nvidia`` from ``nvidia/nemotron-...``).
+    Provider name is derived from the ``model_id`` prefix (e.g. ``nvidia``
+    from ``nvidia/nemotron-...``).  Sampling params are injected per-request
+    by the adapter proxy's ``payload_modifier``, not baked into the config.
+
+    When ``api_key`` is empty we deliberately omit ``apiKey`` from the
+    provider entry so OpenClaw's auth resolver falls through to its
+    synthetic local-key path for localhost ``baseUrl``s (the adapter proxy
+    reached via SSH reverse tunnel).  Writing a placeholder like
+    ``"NVIDIA_API_KEY"`` trips ``hasExplicitProviderApiKeyConfig`` in
+    ``model-auth.ts`` and disables the synthetic path, causing
+    ``No API key found for provider "custom"`` at agent start.
     """
     provider_name = model_id.split("/")[0] if "/" in model_id else "custom"
     openclaw_model_ref = f"{provider_name}/{model_id}"
@@ -103,22 +111,19 @@ def _build_openclaw_config(
         "compaction": {"mode": "safeguard"},
         "maxConcurrent": max_concurrent,
     }
-    if temperature is not None:
-        agent_defaults["temperature"] = temperature
-    if top_p is not None:
-        agent_defaults["topP"] = top_p
+
+    provider_entry: dict[str, Any] = {
+        "baseUrl": model_url,
+        "api": "openai-completions",
+        "models": [model_entry],
+    }
+    if api_key:
+        provider_entry["apiKey"] = api_key
 
     return {
         "models": {
             "mode": "merge",
-            "providers": {
-                provider_name: {
-                    "baseUrl": model_url,
-                    "apiKey": api_key or "NVIDIA_API_KEY",
-                    "api": "openai-completions",
-                    "models": [model_entry],
-                },
-            },
+            "providers": {provider_name: provider_entry},
         },
         "agents": {"defaults": agent_defaults},
         "tools": {"fs": {"workspaceOnly": False}},
@@ -225,27 +230,71 @@ def _check_prerequisites(openclaw_bin: str) -> None:
         )
 
 
-def _extract_json(raw: str) -> dict[str, Any]:
-    """Extract the first JSON object from stdout, skipping any preamble.
+_MAX_SCAN_BYTES = 4_000_000
+_JSON_DECODER = json.JSONDecoder()
 
-    Node.js may emit experimental warnings or other text before the
-    JSON payload that ``openclaw agent --json`` prints.
+
+def _iter_json_objects(raw: str) -> Iterator[dict[str, Any]]:
+    """Yield every top-level JSON object embedded in ``raw``, in order.
+
+    Uses :meth:`json.JSONDecoder.raw_decode` so the inner loop runs in C
+    and string literals containing ``{`` / ``}`` are handled correctly.
+    On a failed parse we advance one character and retry, which makes the
+    scanner tolerant of preamble (Node.js experimental warnings, OpenClaw
+    ``[subsystem] ...`` log lines, etc.).  Non-object JSON values are
+    skipped so we never latch onto a bare array or scalar.
     """
-    idx = raw.find("{")
-    if idx < 0:
-        return {}
-    candidate = raw[idx:]
-    depth = 0
-    for i, ch in enumerate(candidate):
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                try:
-                    return json.loads(candidate[: i + 1])
-                except json.JSONDecodeError:
-                    return {}
+    pos = 0
+    n = len(raw)
+    while pos < n:
+        start = raw.find("{", pos)
+        if start < 0:
+            return
+        try:
+            obj, end = _JSON_DECODER.raw_decode(raw, start)
+        except json.JSONDecodeError:
+            pos = start + 1
+            continue
+        if isinstance(obj, dict):
+            yield obj
+        pos = max(end, start + 1)
+
+
+def _extract_openclaw_envelope(stdout: str, stderr: str) -> dict[str, Any]:
+    """Locate the ``openclaw agent --json`` result envelope.
+
+    Prefers ``stdout`` (the documented channel) and falls back to ``stderr``.
+    The stderr fallback is **not** transitional — it is load-bearing:
+    upstream OpenClaw misroutes the envelope to stderr whenever ``--json``
+    mode flips ``loggingState.forceConsoleToStderr``, because
+    ``src/agents/command/delivery.ts`` emits via ``runtime.log`` (patched
+    ``console.log``) instead of ``writeRuntimeJson`` (direct
+    ``process.stdout.write``).  The dedicated ``writeRuntimeJson`` API
+    exists in ``src/runtime.ts`` but was never wired into the ``--local``
+    envelope emission.  We intentionally do not patch upstream, so this
+    logic stays.
+
+    We pick the *last* object containing a ``payloads`` key on each stream
+    rather than the first, so that any future pre-envelope diagnostic log
+    which happens to structurally include ``payloads`` cannot hijack the
+    result.  By construction the real envelope is the last thing
+    ``delivery.ts`` emits before command return.
+
+    Each stream is tail-capped to :data:`_MAX_SCAN_BYTES` to bound parse
+    time on multi-MB traces (``raw_decode`` is fast, but callers should
+    not be able to feed us arbitrary input).
+    """
+    for raw in (stdout, stderr):
+        if not raw:
+            continue
+        if len(raw) > _MAX_SCAN_BYTES:
+            raw = raw[-_MAX_SCAN_BYTES:]
+        last: dict[str, Any] | None = None
+        for obj in _iter_json_objects(raw):
+            if "payloads" in obj:
+                last = obj
+        if last is not None:
+            return last
     return {}
 
 
@@ -387,8 +436,6 @@ class OpenClawSolver:
         max_tokens: int | None = None,
         max_concurrent: int = _DEFAULT_MAX_CONCURRENT,
         config_path: str | None = None,
-        temperature: float | None = None,
-        top_p: float | None = None,
         *,
         skip_preflight: bool = False,
     ) -> None:
@@ -401,8 +448,6 @@ class OpenClawSolver:
         self._context_window = context_window
         self._max_tokens = max_tokens
         self._max_concurrent = max_concurrent
-        self._temperature = temperature
-        self._top_p = top_p
         self._config_path = Path(config_path) if config_path else None
         if self._config_path and not self._config_path.is_file():
             raise FileNotFoundError(f"openclaw_config points to {self._config_path} which does not exist")
@@ -429,7 +474,10 @@ class OpenClawSolver:
 
         logger.info("OpenClawSolver[sandbox]: session=%s task=%s", session_id, task_id)
 
-        await self._setup_config(sandbox)
+        resolved_model_url = sandbox.resolved_endpoint_url("MODEL_BASE_URL") or (
+            sandbox.resolve_outside_endpoint(self._model_url) if self._model_url else self._model_url
+        )
+        await self._setup_config(sandbox, model_url_override=resolved_model_url)
 
         pre_existing_files: set[str] = set()
         if workspace_path and Path(workspace_path).is_dir():
@@ -480,14 +528,14 @@ class OpenClawSolver:
                 error=err_msg,
             )
 
-        output = _extract_json(result.stdout)
+        output = _extract_openclaw_envelope(result.stdout, result.stderr)
         if not output:
             err_msg = f"no JSON output for {task_id}"
             logger.warning("OpenClawSolver[sandbox]: %s", err_msg)
             return SolveResult(
-                response=result.stdout[:5000],
+                response=(result.stdout or result.stderr)[:5000],
                 trajectory=build_atif_trajectory(
-                    [{"source": "system", "message": result.stderr[:2000] or "no JSON output"}],
+                    [{"source": "system", "message": result.stderr.strip()[:2000] or "no JSON output"}],
                     agent_name="openclaw",
                     status="error",
                 ),
@@ -545,24 +593,23 @@ class OpenClawSolver:
             return []
         return _parse_session_jsonl(raw)
 
-    async def _setup_config(self, sandbox: Sandbox) -> None:
+    async def _setup_config(self, sandbox: Sandbox, *, model_url_override: str | None = None) -> None:
         """Write an OpenClaw config into the container.
 
         Uses ``config_path`` verbatim when provided, otherwise generates
-        one from the solver parameters.
+        one from the solver parameters.  ``model_url_override`` takes
+        precedence over ``self._model_url`` (used for session-scoped URLs).
         """
         if self._config_path is not None:
             config_json = self._config_path.read_text(encoding="utf-8")
         else:
             config = _build_openclaw_config(
-                model_url=self._model_url,
+                model_url=model_url_override or self._model_url,
                 model_id=self._model_id,
                 api_key=self._api_key or "",
                 context_window=self._context_window,
                 max_tokens=self._max_tokens,
                 max_concurrent=self._max_concurrent,
-                temperature=self._temperature,
-                top_p=self._top_p,
             )
             config_json = json.dumps(config, indent=2)
         await self._write_file(sandbox, f"{_OPENCLAW_CONFIG_DIR}/openclaw.json", config_json)
@@ -758,14 +805,14 @@ class OpenClawSolver:
                 error=err_msg,
             )
 
-        output = _extract_json(stdout)
+        output = _extract_openclaw_envelope(stdout, stderr)
         if not output:
             err_msg = f"no JSON output for {task_id}"
             logger.warning("OpenClawSolver[local]: %s", err_msg)
             return SolveResult(
-                response=stdout[:5000],
+                response=(stdout or stderr)[:5000],
                 trajectory=build_atif_trajectory(
-                    [{"source": "system", "message": stderr[:2000] or "no JSON output"}],
+                    [{"source": "system", "message": stderr.strip()[:2000] or "no JSON output"}],
                     agent_name="openclaw",
                     status="error",
                 ),

@@ -32,8 +32,7 @@ _KNOWN_TARGETS = {
     "full": "docker/Dockerfile.full",
 }
 
-# TODO: verify this default registry points to the correct public registry
-_DEFAULT_REGISTRY = "nvcr.io/nvidia/nemo-evaluator"
+_DEFAULT_REGISTRY = ""
 
 
 def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
@@ -84,12 +83,12 @@ def cache_sqsh_cmd(
     \b
     Examples:
       # Build harbor from local source, push to registry, sqsh on cluster:
-      nel cache-sqsh harbor cw-dfw-cs-001-login-01 \\
-          /lustre/fsw/portfolios/coreai/users/\\$USER/cache/nel
+      nel cache-sqsh harbor slurm-login.example.com \\
+          /shared/\\$USER/cache/nel
 
       # Create sqsh of a third-party image on cluster:
-      nel cache-sqsh vllm/vllm-openai:v0.18.0-cu130 cw-dfw-cs-001-login-01 \\
-          /lustre/fsw/portfolios/coreai/users/\\$USER/cache/vllm
+      nel cache-sqsh vllm/vllm-openai:v0.18.0-cu130 slurm-login.example.com \\
+          /shared/\\$USER/cache/vllm
     """
     if shutil.which("docker") is None:
         click.secho("Error: 'docker' not found.", fg="red", err=True)

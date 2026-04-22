@@ -50,12 +50,14 @@ class DockerSandbox:
         self._container_id: str | None = None
         self._container_ip: str | None = None
         self._name = f"nel-sandbox-{uuid4().hex[:8]}"
+        self._outside_endpoints: list[OutsideEndpoint] = []
 
     @property
     def spec(self) -> SandboxSpec:
         return self._spec
 
     async def start(self, *, outside_endpoints: list[OutsideEndpoint] | None = None) -> None:
+        self._outside_endpoints = outside_endpoints or []
         entrypoint = self._spec.entrypoint or "sleep infinity"
 
         cmd: list[str] = [
@@ -198,6 +200,12 @@ class DockerSandbox:
         if self._network == "host":
             return url
         return url.replace("localhost", "host.docker.internal").replace("127.0.0.1", "host.docker.internal")
+
+    def resolved_endpoint_url(self, env_var: str) -> str | None:
+        for ep in self._outside_endpoints:
+            if ep.env_var == env_var:
+                return self.resolve_outside_endpoint(ep.url)
+        return None
 
     @property
     def is_running(self) -> bool:

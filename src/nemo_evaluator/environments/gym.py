@@ -172,6 +172,13 @@ class GymEnvironment(EvalEnvironment):
             or k in ("verifier_metadata",)
         }
 
+        # Forward tool definitions and reasoning config from responses_create_params
+        # so that GymSolver can reconstruct the native request for agentic benchmarks.
+        if "tools" in rcp:
+            meta["tools"] = rcp["tools"]
+        if "reasoning" in rcp:
+            meta["reasoning"] = rcp["reasoning"]
+
         return SeedResult(
             prompt=prompt,
             expected_answer=expected,

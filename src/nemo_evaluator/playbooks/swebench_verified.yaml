@@ -17,7 +17,7 @@ solver:
   cmd_timeout: 1800
   agent_kwargs:
     max_iterations: 200
-    temperature: 1.0
+    version: "1.17.0"
 sandbox:
   type: ecs_fargate
   cpu: "4096"
@@ -26,5 +26,5 @@ sandbox:
   max_task_lifetime_sec: 14400
   codebuild_build_timeout: 60
   log_stream_prefix: swebench-verified
-  timeout: 10800.0
+  timeout: 10800.0  # deprecated — not used anywhere anymore
   concurrency: 30

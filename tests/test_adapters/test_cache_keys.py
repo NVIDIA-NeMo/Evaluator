@@ -47,3 +47,14 @@ def test_key_changes_with_temperature():
     body_a = {"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}], "temperature": 0.7}
     body_b = {"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}], "temperature": 0.9}
     assert _compute_key(body_a) != _compute_key(body_b)
+
+
+def test_key_differs_with_session_prefix():
+    """Session prefix ensures repeats of the same problem never share cache entries."""
+    body = {"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}]}
+    k_none = DiskCache.cache_key(body)
+    k_a = DiskCache.cache_key(body, session_prefix="repeat-0")
+    k_b = DiskCache.cache_key(body, session_prefix="repeat-1")
+    assert k_none != k_a
+    assert k_a != k_b
+    assert k_none == DiskCache.cache_key(body, session_prefix="")

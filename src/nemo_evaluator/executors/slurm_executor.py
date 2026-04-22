@@ -22,6 +22,7 @@ import os
 import shlex
 import shutil
 import tempfile
+import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -143,10 +144,10 @@ def _find_pending_successors(
         logger.debug("squeue returned no pending/running jobs")
         return {}
 
-    # Build a lookup: script_path → (job_id, state) for all queued jobs.
+    # Build a lookup: script_path → [(job_id, state), ...] for all queued jobs.
     # %o may include trailing arguments (e.g. "nel_eval.sbatch 12345"),
     # so we key by the first whitespace-delimited token of the command.
-    queued: dict[str, tuple[str, str]] = {}
+    queued: dict[str, list[tuple[str, str]]] = {}
     for line in output.splitlines():
         parts = line.strip().split(None, 2)
         if len(parts) < 3:
@@ -154,7 +155,7 @@ def _find_pending_successors(
         q_id, q_state, q_cmd = parts
         script = q_cmd.strip().split()[0] if q_cmd.strip() else ""
         if script:
-            queued[script] = (q_id, q_state)
+            queued.setdefault(script, []).append((q_id, q_state))
 
     logger.debug(
         "successor scan: %d queued jobs, looking in remote_dir=%s",
@@ -171,11 +172,9 @@ def _find_pending_successors(
         if len(job_ids) == 1:
             candidates.append(f"{remote_dir}/nel_eval.sbatch")
         for script_path in candidates:
-            if script_path in queued:
-                succ_id, succ_state = queued[script_path]
+            for succ_id, succ_state in queued.get(script_path, []):
                 if succ_id != orig_id and succ_id not in id_set:
                     result[orig_id] = (succ_id, succ_state)
-                    break
 
     if result:
         logger.debug("found successors: %s", result)
@@ -184,6 +183,57 @@ def _find_pending_successors(
             "no successors found; sample queued paths: %s",
             list(queued.keys())[:5],
         )
+    return result
+
+
+def _collect_successor_ids(
+    hostname: str,
+    job_ids: list[str],
+    username: str | None,
+    remote_dir: str,
+) -> set[str]:
+    """Return the set of ALL pending/running successor job IDs.
+
+    Unlike ``_find_pending_successors`` (which returns at most one successor
+    per parent for the status display), this collects every matching job to
+    ensure ``nel stop`` doesn't miss any afternotok chains.
+    """
+    if not job_ids or not remote_dir:
+        return set()
+    try:
+        from nemo_evaluator.executors.ssh import ssh_run
+
+        output = ssh_run(
+            hostname,
+            "squeue -u $USER -h -o '%i %T %o' -t PENDING,RUNNING 2>/dev/null",
+            username=username,
+            timeout=15.0,
+        ).strip()
+    except Exception:
+        return set()
+    if not output:
+        return set()
+
+    queued: dict[str, list[str]] = {}
+    for line in output.splitlines():
+        parts = line.strip().split(None, 2)
+        if len(parts) < 3:
+            continue
+        q_id, _q_state, q_cmd = parts
+        script = q_cmd.strip().split()[0] if q_cmd.strip() else ""
+        if script:
+            queued.setdefault(script, []).append(q_id)
+
+    id_set = set(job_ids)
+    result: set[str] = set()
+    for i in range(max(len(job_ids), 1)):
+        candidates = [f"{remote_dir}/shard_{i}/nel_eval.sbatch"]
+        if len(job_ids) <= 1:
+            candidates.append(f"{remote_dir}/nel_eval.sbatch")
+        for script_path in candidates:
+            for q_id in queued.get(script_path, []):
+                if q_id not in id_set:
+                    result.add(q_id)
     return result
 
 
@@ -595,43 +645,56 @@ class SlurmExecutor(Executor):
         job_ids = _get_job_ids(meta)
         hostname = meta["hostname"]
         username = meta.get("username") or None
+        rdir = meta.get("remote_dir", str(output_dir))
 
         if not _is_sharded(meta):
-            from nemo_evaluator.executors.ssh import cancel_job
-
-            try:
-                cancel_job(hostname=hostname, job_id=job_ids[0], username=username)
-                return True
-            except Exception as e:
-                logger.error("Failed to cancel SLURM job %s: %s", job_ids[0], e)
-                return False
-
-        rdir = meta.get("remote_dir", str(output_dir))
+            latest = _resolve_latest_job_id(hostname, rdir, job_ids[0], username)
+            return self._cancel_with_successors(hostname, rdir, [latest], username)
 
         if shard_idx is not None:
             if shard_idx < 0 or shard_idx >= len(job_ids):
                 logger.error("Shard index %d out of range (0-%d)", shard_idx, len(job_ids) - 1)
                 return False
             latest = _resolve_latest_job_id(hostname, f"{rdir}/shard_{shard_idx}", job_ids[shard_idx], username)
-            from nemo_evaluator.executors.ssh import cancel_job
-
-            try:
-                cancel_job(hostname=hostname, job_id=latest, username=username)
-                return True
-            except Exception as e:
-                logger.error("Failed to cancel shard %d (job %s): %s", shard_idx, latest, e)
-                return False
+            return self._cancel_with_successors(hostname, rdir, [latest], username)
 
         latest_ids = _resolve_shard_latest_ids(hostname, rdir, job_ids, username)
+        return self._cancel_with_successors(hostname, rdir, latest_ids, username)
+
+    @staticmethod
+    def _cancel_with_successors(
+        hostname: str,
+        rdir: str,
+        target_ids: list[str],
+        username: str | None,
+    ) -> bool:
         from nemo_evaluator.executors.ssh import ssh_run
 
-        ids_str = " ".join(latest_ids)
+        all_ids = set(target_ids)
+
+        all_ids.update(_collect_successor_ids(hostname, target_ids, username, rdir))
+
+        ids_str = " ".join(sorted(all_ids))
         try:
             ssh_run(hostname, f"scancel {ids_str}", username=username, timeout=15.0)
-            return True
+            logger.info("Cancelled SLURM jobs: %s", ids_str)
         except Exception as e:
-            logger.error("Failed to cancel sharded jobs: %s", e)
+            logger.error("Failed to cancel jobs %s: %s", ids_str, e)
             return False
+
+        # Give SLURM time to process the cancellation — afternotok
+        # successors may transition to RUNNING in the interim.
+        time.sleep(2)
+
+        late = _collect_successor_ids(hostname, target_ids, username, rdir) - all_ids
+        if late:
+            logger.info("Cancelling late-started successors: %s", " ".join(sorted(late)))
+            try:
+                ssh_run(hostname, f"scancel {' '.join(sorted(late))}", username=username, timeout=15.0)
+            except Exception:
+                logger.warning("Failed to cancel late successors: %s", " ".join(sorted(late)))
+
+        return True
 
     def logs(
         self,

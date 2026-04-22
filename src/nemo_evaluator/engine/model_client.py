@@ -24,6 +24,8 @@ from typing import Any
 
 import aiohttp
 
+from nemo_evaluator.errors import InfraError
+
 from nemo_evaluator.schemas import RetryConfig
 from nemo_evaluator.observability.types import ModelResponse
 
@@ -47,6 +49,7 @@ class ToolCallingResponse:
     tool_calls: list[ToolCallInfo]
     finish_reason: str
     model_response: ModelResponse
+    reasoning_content: str = ""
 
 
 def _resolve_image(image: str) -> str:
@@ -274,13 +277,17 @@ class ModelClient:
 
         choices = data.get("choices", [])
         if not choices:
-            raise ValueError(f"No choices in tool-calling response: {data}")
+            raise InfraError(
+                "Model returned HTTP 200 but empty choices in tool-calling response. "
+                "Possible KV-cache exhaustion or model crash."
+            )
 
         choice = choices[0]
         message = choice.get("message", {})
         usage = data.get("usage", {})
 
         content = message.get("content") or ""
+        reasoning_content = message.get("reasoning_content") or message.get("reasoning") or ""
         finish_reason = choice.get("finish_reason", "")
 
         tool_calls: list[ToolCallInfo] = []
@@ -304,10 +311,10 @@ class ModelClient:
             content=content,
             model=data.get("model", self.model),
             finish_reason=finish_reason,
-            prompt_tokens=usage.get("prompt_tokens", 0),
-            completion_tokens=usage.get("completion_tokens", 0),
-            total_tokens=usage.get("total_tokens", 0),
-            reasoning_tokens=ct.get("reasoning_tokens", 0),
+            prompt_tokens=usage.get("prompt_tokens"),
+            completion_tokens=usage.get("completion_tokens"),
+            total_tokens=usage.get("total_tokens"),
+            reasoning_tokens=ct.get("reasoning_tokens"),
             latency_ms=round(latency, 2),
             raw_response=data,
             request_prompt=None,
@@ -319,6 +326,7 @@ class ModelClient:
             tool_calls=tool_calls,
             finish_reason=finish_reason,
             model_response=model_response,
+            reasoning_content=reasoning_content,
         )
 
     async def _post_with_retry(self, url: str, payload: dict[str, Any]) -> dict:
@@ -352,17 +360,17 @@ class ModelClient:
                     if attempt < self.retry.max_retries:
                         await asyncio.sleep(self._backoff_delay(attempt))
                         continue
-                    raise
-                except aiohttp.ClientResponseError:
-                    raise
+                    raise InfraError(f"Model request timed out after {self.retry.max_retries} retries") from e
+                except aiohttp.ClientResponseError as e:
+                    raise InfraError(f"Model returned HTTP {e.status} after retries: {e.message}") from e
                 except Exception as e:
                     last_exc = e
                     if attempt < self.retry.max_retries:
                         await asyncio.sleep(self._backoff_delay(attempt))
                         continue
-                    raise
+                    raise InfraError(f"Model endpoint unreachable after {self.retry.max_retries} retries: {e}") from e
 
-        raise last_exc or RuntimeError("All retries exhausted")
+        raise last_exc or InfraError("All retries exhausted")
 
     async def embed(self, text: str) -> list[float]:
         """Get embedding for a single text via /v1/embeddings."""
@@ -386,14 +394,12 @@ class ModelClient:
     def _parse_response(self, data: dict, latency: float, prompt: str, system: str | None) -> ModelResponse:
         choices = data.get("choices", [])
         if not choices:
-            raise ValueError(f"No choices in response: {data}")
+            raise InfraError("Model returned HTTP 200 but empty choices. Possible KV-cache exhaustion or model crash.")
 
         choice = choices[0]
         usage = data.get("usage", {})
 
-        reasoning_tokens = 0
         ct = usage.get("completion_tokens_details") or {}
-        reasoning_tokens = ct.get("reasoning_tokens", 0)
 
         content = choice["message"].get("content") or ""
         if self.reasoning_pattern:
@@ -405,10 +411,10 @@ class ModelClient:
             content=content,
             model=data.get("model", self.model),
             finish_reason=choice.get("finish_reason", ""),
-            prompt_tokens=usage.get("prompt_tokens", 0),
-            completion_tokens=usage.get("completion_tokens", 0),
-            total_tokens=usage.get("total_tokens", 0),
-            reasoning_tokens=reasoning_tokens,
+            prompt_tokens=usage.get("prompt_tokens"),
+            completion_tokens=usage.get("completion_tokens"),
+            total_tokens=usage.get("total_tokens"),
+            reasoning_tokens=ct.get("reasoning_tokens"),
             latency_ms=round(latency, 2),
             raw_response=data,
             request_prompt=prompt,

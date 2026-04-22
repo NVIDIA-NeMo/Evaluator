@@ -13,7 +13,7 @@ pip install -e ".[ray]"
 ```bash
 ray job submit --working-dir . -- python -m nemo_evaluator.engine.ray_launcher \
     --bench gsm8k --shards 8 --repeats 5 \
-    --model-url https://inference-api.nvidia.com/v1 \
+    --model-url https://integrate.api.nvidia.com/v1 \
     --model-id azure/openai/gpt-5.2 \
     --output-dir ./eval_results/ray
 ```
@@ -50,7 +50,7 @@ futures = [
         benchmark="gsm8k",
         shard_idx=i,
         total_shards=shards,
-        model_url="https://inference-api.nvidia.com/v1",
+        model_url="https://integrate.api.nvidia.com/v1",
         model_id="azure/openai/gpt-5.2",
         n_repeats=5,
     )

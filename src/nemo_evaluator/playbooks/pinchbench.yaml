@@ -1,0 +1,41 @@
+# PinchBench — Reference Playbook
+#
+# Pre-configured defaults for PinchBench (90 agentic task files).  Tasks with
+# embedded ``grade()`` functions are scored automatically; the rest fall
+# through to LLM-as-judge via the ``needs_judge`` mechanism.
+#
+# Execution model: **stateless** ECS Fargate sandbox (one container per task,
+# torn down after verification).  The OpenClawSolver uploads the task
+# workspace on entry, runs ``openclaw agent --json --local`` once, then
+# downloads any files the agent created back to the host for grading — so
+# statefulness between agent and verify phases is not required.
+#
+# The sandbox image is a fixed public OpenClaw build (no per-task ECR
+# builds).  The pinned tag matches the version verified against our
+# ``_extract_openclaw_envelope`` shim; bump only after re-running
+# ``tests/test_solvers/test_openclaw_envelope.py`` against a new tag.
+#
+# Requires a service named ``model`` in your config's ``services:`` section,
+# plus AWS credentials with access to the target ``region``.
+#
+# Minimal usage example:
+#   benchmarks:
+#     - playbook: pinchbench
+#       sandbox:
+#         region: us-west-2
+
+name: pinchbench
+timeout: 900.0
+max_concurrent: 30
+solver:
+  type: openclaw
+  service: model
+sandbox:
+  type: ecs_fargate
+  image: ghcr.io/openclaw/openclaw:2026.4.15
+  ecr_repository: ""
+  cpu: "2048"
+  memory: "4096"
+  timeout: 900.0
+  concurrency: 30
+  log_stream_prefix: pinchbench

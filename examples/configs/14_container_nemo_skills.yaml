@@ -23,12 +23,11 @@ services:
     api_key: ${NVIDIA_API_KEY}
 
 benchmarks:
-  # TODO: verify this container URI points to the correct public registry
-  - name: "container://nvcr.io/nvidia/nemo-evaluator/nemo-skills:26.03#gsm8k"
+  - name: "container://<your-registry>/nemo-skills:26.03#gsm8k"
     solver:
       type: container
       service: nemotron
-      uri: "container://nvcr.io/nvidia/nemo-evaluator/nemo-skills:26.03#gsm8k"
+      uri: "container://<your-registry>/nemo-skills:26.03#gsm8k"
       # Optional: pass legacy params into config.params (merged with framework.yml defaults)
       # params:
       #   temperature: 0.0

@@ -23,7 +23,7 @@ from typing import Any
 import numpy as np
 
 from nemo_evaluator.metrics.aggregation import category_breakdown, summary_stats
-from nemo_evaluator.metrics.confidence import bootstrap_ci
+from nemo_evaluator.metrics.confidence import bootstrap_ci, sample_level_ci
 from nemo_evaluator.metrics.pass_at_k import aggregate_pass_at_k, pass_at_k
 
 logger = logging.getLogger(__name__)
@@ -105,12 +105,16 @@ def merge_results(shard_dirs: list[str | Path], output_dir: str | Path, n_repeat
         valid = [(n, c) for n, c in problem_list if n >= k]
         if valid:
             pak = aggregate_pass_at_k(valid, k)
-            ci = bootstrap_ci([pass_at_k(n, c, k) for n, c in valid])
-            metrics[f"pass@{k}"] = {
-                "value": round(pak, 4),
-                "ci_lower": round(ci.ci_lower, 4),
-                "ci_upper": round(ci.ci_upper, 4),
-            }
+            entry: dict[str, Any] = {"value": round(pak, 4)}
+            if k == 1:
+                sci = sample_level_ci(valid)
+                if sci is not None:
+                    entry["ci_lower"] = round(sci.ci_lower, 4)
+                    entry["ci_upper"] = round(sci.ci_upper, 4)
+            bci = bootstrap_ci([pass_at_k(n, c, k) for n, c in valid])
+            entry["bootstrap_ci_lower"] = round(bci.ci_lower, 4)
+            entry["bootstrap_ci_upper"] = round(bci.ci_upper, 4)
+            metrics[f"pass@{k}"] = entry
 
     metrics["summary"] = summary_stats([r.get("reward", 0) for r in all_results])
 

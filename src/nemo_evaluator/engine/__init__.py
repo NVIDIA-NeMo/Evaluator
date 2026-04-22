@@ -12,9 +12,46 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from nemo_evaluator.engine.bundles import (
+    discover_bundles,
+    extract_benchmark_name,
+    match_bundles,
+)
 from nemo_evaluator.engine.eval_loop import run_evaluation
+from nemo_evaluator.engine.gate import (
+    BenchmarkGateResult,
+    GateReport,
+    gate_runs,
+    write_gate_report,
+)
 from nemo_evaluator.engine.model_client import ModelClient
 from nemo_evaluator.engine.artifacts import write_all
-from nemo_evaluator.engine.comparison import compare_runs
+from nemo_evaluator.engine.comparison import (
+    FlipReport,
+    RegressionReport,
+    build_flip_report,
+    compare_results,
+    compare_runs,
+    load_paired_records,
+    write_regression,
+)
 
-__all__ = ["run_evaluation", "ModelClient", "write_all", "compare_runs"]
+__all__ = [
+    "BenchmarkGateResult",
+    "FlipReport",
+    "GateReport",
+    "ModelClient",
+    "RegressionReport",
+    "build_flip_report",
+    "compare_results",
+    "compare_runs",
+    "discover_bundles",
+    "extract_benchmark_name",
+    "gate_runs",
+    "load_paired_records",
+    "match_bundles",
+    "run_evaluation",
+    "write_all",
+    "write_gate_report",
+    "write_regression",
+]

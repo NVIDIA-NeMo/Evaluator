@@ -69,8 +69,8 @@ A fragment file contains the content for its section, not the wrapping key:
 ```yaml
 # conf/clusters/slurm_oci_8gpu.yaml
 type: slurm
-hostname: cw-dfw-cs-001-login-01
-account: coreai_dlalgo_compeval
+hostname: slurm-login.example.com
+account: your-slurm-account
 walltime: "04:00:00"
 node_pools:
   gpu:

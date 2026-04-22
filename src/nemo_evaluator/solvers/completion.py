@@ -92,15 +92,15 @@ class CompletionSolver:
 
         text = data["choices"][0].get("text", "")
         usage = data.get("usage", {})
-        pt = usage.get("prompt_tokens", 0)
-        ct = usage.get("completion_tokens", 0)
+        pt = usage.get("prompt_tokens")
+        ct = usage.get("completion_tokens")
         model_resp = ModelResponse(
             content=text,
             model=data.get("model", self._model),
             finish_reason=data["choices"][0].get("finish_reason", ""),
             prompt_tokens=pt,
             completion_tokens=ct,
-            total_tokens=usage.get("total_tokens", 0),
+            total_tokens=usage.get("total_tokens"),
             latency_ms=round(latency, 2),
             raw_response=data,
         )

@@ -34,7 +34,11 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from jinja2 import Environment as JinjaEnv, select_autoescape
+
 logger = logging.getLogger(__name__)
+
+_jinja_env = JinjaEnv(autoescape=select_autoescape(default_for_string=False))
 
 
 class ByobInstalledAgent:
@@ -85,10 +89,7 @@ class ByobInstalledAgent:
         if template_text is None:
             return
 
-        from jinja2 import Environment as JinjaEnv
-
-        env = JinjaEnv()
-        template = env.from_string(template_text)
+        template = _jinja_env.from_string(template_text)
         rendered = template.render(**self._kwargs)
 
         script_path = self._logs_dir / "install.sh"
@@ -118,10 +119,7 @@ class ByobInstalledAgent:
         environment: Any,
         context: Any,
     ) -> None:
-        from jinja2 import Environment as JinjaEnv
-
-        env = JinjaEnv()
-        template = env.from_string(self._run_template)
+        template = _jinja_env.from_string(self._run_template)
         rendered = template.render(
             instruction=instruction,
             **self._kwargs,

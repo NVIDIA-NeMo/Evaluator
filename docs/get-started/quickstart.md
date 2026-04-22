@@ -57,24 +57,44 @@ gsm8k
 ```bash
 nel eval run --bench gsm8k --repeats 4 -o ./results/candidate
 
-nel regression ./results/baseline/eval-*.json ./results/candidate/eval-*.json --strict
+nel compare ./results/baseline ./results/candidate --strict
 ```
 
-Output:
+`nel compare` accepts directories or bundle files. It pairs results at the problem level, runs a McNemar exact test for regression detection, and generates an investigation report.
 
+When `scipy` is installed (`pip install nemo-evaluator[stats]`), comparisons include McNemar significance testing and confidence intervals on effect sizes.
+
+See {doc}`../tutorials/compare` for the full walkthrough.
+
+## Step 5: Gate a release across multiple benchmarks
+
+For release qualification, use `nel gate` with a policy file:
+
+```yaml
+# gate_policy.yaml
+version: 1
+defaults:
+  tier: supporting
+  metric: mean_reward
+  max_drop: 0.015
+benchmarks:
+  mmlu_pro:
+    tier: critical
+    max_drop: 0.01
+  gpqa:
+    tier: critical
+    max_drop: 0.01
 ```
-Baseline:  eval-20260224T100000Z-gsm8k
-Candidate: eval-20260225T143012Z-gsm8k
 
-  pass@1: 0.7200 -> 0.7500  (delta=+0.0300, +4.2%, CI overlap, p=0.0312 *)
-  pass@4: 0.8800 -> 0.9100  (delta=+0.0300, +3.4%, CI overlap, p=0.1240)
-
-No regressions beyond 5% threshold.
+```bash
+nel gate ./results/baseline ./results/candidate --policy gate_policy.yaml --strict
 ```
 
-When `scipy` is installed (`pip install nemo-evaluator[stats]`), each score delta includes a Mann-Whitney U p-value. Deltas marked with `*` are statistically significant (p < 0.05).
+The gate applies per-benchmark thresholds and returns `GO`, `NO-GO`, or `INCONCLUSIVE`. With `--strict`, exit codes work directly in CI (0/1/2).
 
-## Step 5: Use a config file
+See {doc}`../tutorials/quality-gate` for the full walkthrough.
+
+## Step 6: Use a config file
 
 For reproducible multi-benchmark evaluations:
 
@@ -110,7 +130,7 @@ nel eval run eval_config.yaml
 
 Each task gets its own output directory with the full artifact suite.
 
-## Step 6: Resume a failed suite
+## Step 7: Resume a failed suite
 
 If a benchmark fails mid-suite (e.g., a network error on benchmark 3/5), the remaining benchmarks still execute. Re-run with `--resume` to retry only the failed ones:
 
@@ -122,6 +142,8 @@ Completed benchmarks are skipped. Failed benchmarks are retried.
 
 ## Next Steps
 
+- {doc}`../tutorials/compare` -- Deep dive into comparing runs and investigating regressions
+- {doc}`../tutorials/quality-gate` -- Set up multi-benchmark release gates with policy files
 - {doc}`../tutorials/byob` -- Write your own benchmark with `@benchmark` + `@scorer`
 - {doc}`../tutorials/gym-integration` -- Serve benchmarks for Gym training
 - {doc}`../tutorials/distributed-eval` -- Scale to thousands of problems

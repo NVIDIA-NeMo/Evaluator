@@ -37,12 +37,14 @@ class LocalSandbox:
     def __init__(self, spec: SandboxSpec) -> None:
         self._spec = spec
         self._workdir: Path | None = None
+        self._outside_endpoints: list[OutsideEndpoint] = []
 
     @property
     def spec(self) -> SandboxSpec:
         return self._spec
 
     async def start(self, *, outside_endpoints: list[OutsideEndpoint] | None = None) -> None:
+        self._outside_endpoints = outside_endpoints or []
         self._workdir = Path(tempfile.mkdtemp(prefix="nel-sandbox-"))
         for local, remote in self._spec.files.items():
             dest = self._workdir / Path(remote).name
@@ -104,6 +106,12 @@ class LocalSandbox:
 
     def resolve_outside_endpoint(self, url: str) -> str:
         return url
+
+    def resolved_endpoint_url(self, env_var: str) -> str | None:
+        for ep in self._outside_endpoints:
+            if ep.env_var == env_var:
+                return ep.url
+        return None
 
     @property
     def is_running(self) -> bool:

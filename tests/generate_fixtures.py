@@ -43,7 +43,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 FIXTURE_DIR = PROJECT_ROOT / "tests" / "fixtures"
 N_SAMPLES = 5
 
-API_URL = os.environ.get("NEMO_MODEL_URL", "https://inference-api.nvidia.com/v1/chat/completions")
+API_URL = os.environ.get("NEMO_MODEL_URL", "https://integrate.api.nvidia.com/v1/chat/completions")
 MODEL_ID = os.environ.get("NEMO_MODEL_ID", "azure/openai/gpt-5.2")
 
 BENCHMARKS_WITH_CUSTOM_DATASETS = {

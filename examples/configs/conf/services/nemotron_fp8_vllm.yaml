@@ -26,7 +26,7 @@ nemotron:
     VLLM_CACHE_ROOT: /cache/vllm
     VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
   container_mounts:
-    - /lustre/fsw/portfolios/coreai/users/${USER}/cache/vllm:/cache/vllm
+    - ${SHARED_ROOT}/${USER}/cache/vllm:/cache/vllm
   generation:
     temperature: 1.0
     top_p: 0.95

@@ -141,5 +141,5 @@ kind: ConfigMap
 metadata:
   name: nemo-evaluator-config
 data:
-  model-url: "https://inference-api.nvidia.com/v1"
+  model-url: "https://integrate.api.nvidia.com/v1"
   model-id: "azure/openai/gpt-5.2"

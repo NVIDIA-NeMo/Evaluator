@@ -45,7 +45,7 @@ regression:check:
   image: nemo-evaluator:latest
   needs: [eval:candidate, eval:baseline]
   script:
-    - nel regression results/baseline/eval-*.json results/candidate/eval-*.json --threshold 0.05 --strict
+    - nel compare results/baseline/eval-*.json results/candidate/eval-*.json --max-drop 0.05 --strict
   artifacts:
     paths: [results/regression.json]
   rules:
@@ -66,16 +66,16 @@ sequenceDiagram
     B-->>R: results/baseline/eval-*.json
     C-->>R: results/candidate/eval-*.json
     R->>R: compare_runs()
-    alt delta > threshold
+    alt delta > max_drop
         R-->>MR: ❌ Pipeline failed
-    else delta ≤ threshold
+    else delta ≤ max_drop
         R-->>MR: ✅ Pipeline passed
     end
 ```
 
 ## Statistical significance
 
-With `scipy` installed (`pip install nemo-evaluator[stats]`), regression reports include Mann-Whitney U p-values for each score delta. This distinguishes meaningful regressions from noise.
+With `scipy` installed (`pip install nemo-evaluator[stats]`), `nel compare` includes McNemar significance testing, effect size confidence intervals, and power analysis.  This distinguishes meaningful regressions from benchmark noise.  See {doc}`../tutorials/compare` for details on interpreting the statistical output.
 
 ## Threshold tuning
 
@@ -116,5 +116,5 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
       - run: pip install -e ".[scoring]"
-      - run: nel regression baseline/eval-*.json candidate/eval-*.json --strict
+      - run: nel compare baseline/eval-*.json candidate/eval-*.json --strict
 ```

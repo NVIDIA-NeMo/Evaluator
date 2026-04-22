@@ -715,7 +715,8 @@ output:
 |------|-----------|
 | Write a custom benchmark | {doc}`byob` |
 | Integrate with NeMo Gym | {doc}`gym-integration` |
-| Set up CI regression gates | {doc}`regression-ci` |
+| Compare runs and detect regressions | {doc}`compare` |
+| Set up multi-benchmark quality gates | {doc}`quality-gate` |
 | Scale to large datasets | {doc}`distributed-eval` |
 | Understand the architecture | {doc}`../architecture/index` |
-| Browse all 25 configs | [`examples/configs/`](https://github.com/NVIDIA-NeMo/Evaluator/tree/dev/0.3.0/examples/configs) |
+| Browse all 25 configs | [`examples/configs/`](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/examples/configs) |

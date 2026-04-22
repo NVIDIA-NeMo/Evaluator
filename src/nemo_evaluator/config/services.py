@@ -108,6 +108,7 @@ class _ModelServerBase(BaseModel):
     extra_args: list[str] = Field(default_factory=list)
     setup_commands: list[str] = Field(default_factory=list)
     container_mounts: list[str] = Field(default_factory=list)
+    ray_binary: str = "ray"
     reasoning_pattern: str | None = None
     max_input_tokens: int | None = None
     max_output_tokens: int | None = None

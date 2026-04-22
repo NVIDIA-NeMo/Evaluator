@@ -33,7 +33,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from jinja2 import BaseLoader, Environment, TemplateNotFound
+from jinja2 import BaseLoader, Environment, TemplateNotFound, select_autoescape
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ class _PackageLoader(BaseLoader):
 _jinja_env = Environment(
     loader=_PackageLoader(),
     keep_trailing_newline=True,
-    autoescape=False,
+    autoescape=select_autoescape(),
     auto_reload=False,
 )
 

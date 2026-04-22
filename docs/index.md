@@ -49,7 +49,7 @@ Run your first evaluation in under 5 minutes.
 - **Pluggable solvers.** `simple`, `harbor`, `tool_calling`, `gym_delegation`, `openclaw` — swap inference strategy per benchmark via config.
 - **Cluster backends.** Run locally, in Docker, or on SLURM clusters with automatic model deployment.
 - **Resilient suites.** Per-benchmark checkpointing with failure isolation. Resume partially completed suites with `--resume`.
-- **Statistical regression.** Compare runs with confidence intervals and Mann-Whitney U p-values.
+- **Statistical regression.** Compare runs with McNemar's exact test, paired flip analysis, and confidence intervals.  Gate releases across benchmark suites with per-benchmark policy thresholds.
 - **15 built-in benchmarks.** MMLU, MMLU-Pro, MATH-500, GPQA, GSM8K, DROP, MGSM, TriviaQA, HumanEval, SimpleQA, HealthBench, PinchBench, XSTest, SWE-bench Verified, SWE-bench Multilingual.
 
 ## Tutorials
@@ -85,6 +85,18 @@ Use NeMo Skills benchmarks with full per-request observability.
 :link: tutorials/distributed-eval
 :link-type: doc
 Scale to thousands of problems with SLURM, Kubernetes, Ray, or manual sharding.
+:::
+
+:::{grid-item-card} {octicon}`git-compare;1.5em;sd-mr-1` Compare Runs
+:link: tutorials/compare
+:link-type: doc
+Diagnose what changed between two runs of the same benchmark with `nel compare`.
+:::
+
+:::{grid-item-card} {octicon}`shield-check;1.5em;sd-mr-1` Quality Gates
+:link: tutorials/quality-gate
+:link-type: doc
+Turn benchmark thresholds into a suite-level `GO / NO-GO / INCONCLUSIVE` decision with `nel gate`.
 :::
 ::::
 
@@ -142,7 +154,8 @@ tutorials/gym-integration
 tutorials/skills-integration
 tutorials/legacy-containers
 tutorials/distributed-eval
-tutorials/regression-ci
+tutorials/compare
+tutorials/quality-gate
 tutorials/adapters
 :::
 

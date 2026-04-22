@@ -18,18 +18,21 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 from nemo_evaluator.environments.base import EvalEnvironment, VerifyResult
-from nemo_evaluator.errors import GracefulError
+from nemo_evaluator.errors import GracefulError, InfraError
+from nemo_evaluator.solvers.base import ErrorKind
 from nemo_evaluator.metrics.aggregation import category_breakdown, scoring_details_breakdown, summary_stats
-from nemo_evaluator.metrics.confidence import bootstrap_ci
+from nemo_evaluator.metrics.confidence import bootstrap_ci, sample_level_ci
 from nemo_evaluator.metrics.pass_at_k import aggregate_pass_at_k, pass_at_k
 from nemo_evaluator.observability.collector import ArtifactCollector
 from nemo_evaluator.observability.progress import NoOpProgress, ProgressTracker
-from nemo_evaluator.observability.types import StepRecord
+from nemo_evaluator.observability.types import ModelResponse, StepRecord
 from nemo_evaluator.engine.artifacts import build_artifact_bundle
 from nemo_evaluator.sandbox.strategies import pick_lifecycle
 from nemo_evaluator.solvers import Solver
@@ -47,6 +50,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_CONCURRENT = 32
+
+
+def _get_error_category(entry: dict) -> str | None:
+    """Safe accessor for scoring_details.error_category."""
+    sd = entry.get("scoring_details")
+    if not isinstance(sd, dict):
+        return None
+    return sd.get("error_category")
 
 
 async def run_evaluation(
@@ -67,19 +78,42 @@ async def run_evaluation(
     max_system_retries: int = 3,
     shard_info: tuple[int, int] | None = None,
     instruction_template: Path | None = None,
+    shuffle_seed: int | None = None,
 ) -> dict[str, Any]:
     config = config or {}
     max_system_retries = max(1, max_system_retries)
 
     name = env.name
-    ds_size = await env.dataset_size()
-    if ds_size < 0:
+    ds_full_size = await env.dataset_size()
+    if ds_full_size < 0:
         raise ValueError(
-            f"Environment {name!r} returned invalid dataset_size={ds_size}. "
+            f"Environment {name!r} returned invalid dataset_size={ds_full_size}. "
             "Ensure the environment is reachable and has a valid dataset."
         )
-    if max_problems is not None:
-        ds_size = min(ds_size, max_problems)
+
+    # Seeded global permutation applied before sharding; explicit
+    # ``problem_range`` takes precedence.  ``problem_idx`` stays the
+    # original dataset index so scoring/merge/resume are unaffected.
+    perm: list[int] | None = None
+    if shuffle_seed is not None and problem_range is None:
+        perm = list(range(ds_full_size))
+        random.Random(shuffle_seed).shuffle(perm)
+        if max_problems is not None and max_problems < len(perm):
+            perm = perm[:max_problems]
+        ds_size = len(perm)
+    else:
+        ds_size = ds_full_size
+        if max_problems is not None:
+            ds_size = min(ds_size, max_problems)
+
+    # Set BEFORE config_hash() so resume auto-invalidates on seed change.
+    config["shuffle_seed"] = shuffle_seed
+    config["shuffle"] = {
+        "seed": shuffle_seed,
+        "applied": perm is not None,
+        "ds_full_size": ds_full_size,
+        "ds_effective_size": ds_size,
+    }
 
     if shard_info and not problem_range:
         from nemo_evaluator.engine.sharding import get_shard_range
@@ -129,15 +163,24 @@ async def run_evaluation(
                     old_meta.get("config_hash", "?"),
                     cfg_hash,
                 )
-                verified_cache = verified_log.load()
+                verified_cache_raw = verified_log.load()
+                infra_keys = {k for k, v in verified_cache_raw.items() if _get_error_category(v) == "infra_error"}
+                verified_cache = {k: v for k, v in verified_cache_raw.items() if k not in infra_keys}
+                if infra_keys:
+                    logger.info("resume: %d infra-error entries will be retried", len(infra_keys))
                 if verified_cache:
                     verified_log.compact(verified_cache)
                 verified_log.open()
                 inference_log.open(truncate=True)
                 inference_log.write_meta({"config_hash": cfg_hash})
             else:
-                inferred_cache = inference_log.load()
-                verified_cache = verified_log.load()
+                inferred_cache_raw = inference_log.load()
+                verified_cache_raw = verified_log.load()
+                infra_keys = {k for k, v in verified_cache_raw.items() if _get_error_category(v) == "infra_error"}
+                verified_cache = {k: v for k, v in verified_cache_raw.items() if k not in infra_keys}
+                inferred_cache = {k: v for k, v in inferred_cache_raw.items() if k not in infra_keys}
+                if infra_keys:
+                    logger.info("resume: %d infra-error entries will be retried", len(infra_keys))
                 if inferred_cache:
                     meta = old_meta or {"config_hash": cfg_hash}
                     inference_log.compact(inferred_cache, meta=meta)
@@ -194,7 +237,7 @@ async def run_evaluation(
 
     sem = asyncio.Semaphore(max_concurrent)
 
-    async def _run_step(idx: int, rep: int, seed_result, seed_ms: float):
+    async def _run_step(idx: int, slot: int, rep: int, seed_result, seed_ms: float):
         nonlocal cum_correct, cum_total
         async with sem:
             key = (idx, rep)
@@ -214,13 +257,39 @@ async def run_evaluation(
                     "tokens": tokens,
                     "latency_ms": cached_verified.get("latency_ms", 0),
                 }
+                cached_step = StepRecord(
+                    problem_idx=idx,
+                    repeat=rep,
+                    prompt=seed_result.prompt,
+                    expected_answer=seed_result.expected_answer,
+                    seed_metadata=seed_result.metadata,
+                    reward=reward,
+                    extracted_answer=cached_verified.get("extracted_answer"),
+                    scoring_details=cached_verified.get("scoring_details", {}),
+                )
+                cached_inf = inferred_cache.get(key)
+                if cached_inf:
+                    if cached_inf.get("trajectory"):
+                        cached_step.trajectory = cached_inf["trajectory"]
+                    cached_step.model_response = ModelResponse(
+                        content=cached_inf.get("response", ""),
+                        model=cached_inf.get("model", ""),
+                        finish_reason=cached_inf.get("finish_reason", ""),
+                        prompt_tokens=cached_inf.get("prompt_tokens", 0),
+                        completion_tokens=cached_inf.get("completion_tokens", 0),
+                        total_tokens=cached_inf.get("tokens", 0),
+                        latency_ms=cached_inf.get("latency_ms", 0.0),
+                        reasoning_tokens=cached_inf.get("reasoning_tokens", 0),
+                    )
+                    cached_step.model_ms = cached_inf.get("latency_ms", 0.0)
                 async with lock:
+                    collector.record(cached_step)
                     results.append(result_dict)
                     if reward > 0:
                         cum_correct += 1
                     cum_total += 1
                     problem_correct.setdefault(idx, []).append(reward)
-                pg.on_step(idx - start, rep, n_problems, n_repeats, reward, tokens, 0)
+                pg.on_step(slot, rep, n_problems, n_repeats, reward, tokens, 0)
                 return
 
             step = StepRecord(
@@ -233,12 +302,6 @@ async def run_evaluation(
             )
 
             step_t0 = time.monotonic()
-
-            outside_eps: list[OutsideEndpoint] = []
-            if model_url:
-                from nemo_evaluator.sandbox.base import OutsideEndpoint as OE
-
-                outside_eps.append(OE(url=model_url, env_var="MODEL_BASE_URL"))
 
             sandbox_cfg = config.get("_sandbox_config")
             vr: VerifyResult | None = None
@@ -253,12 +316,21 @@ async def run_evaluation(
                 step.model_error = None
                 vr = None
 
+                outside_eps: list[OutsideEndpoint] = []
+                if model_url:
+                    from nemo_evaluator.sandbox.base import OutsideEndpoint as OE
+
+                    step_session_id = uuid4().hex[:16]
+                    step_url = f"{model_url.rstrip('/')}/s/{step_session_id}"
+                    outside_eps.append(OE(url=step_url, env_var="MODEL_BASE_URL"))
+
                 lifecycle = pick_lifecycle(
                     seed_result,
                     sandbox_manager,
                     outside_endpoints=outside_eps,
                     config_capture_cmd=sandbox_cfg.capture_cmd if sandbox_cfg else None,
                     verify_timeout=sandbox_cfg.verify_timeout if sandbox_cfg else 600.0,
+                    force_stateful=sandbox_cfg.stateful if sandbox_cfg else False,
                 )
 
                 try:
@@ -270,9 +342,12 @@ async def run_evaluation(
                         response_text = cached_inferred.get("response", "")
                         tokens = cached_inferred.get("tokens", 0)
                         latency_ms = cached_inferred.get("latency_ms", 0)
+                        if cached_inferred.get("trajectory"):
+                            step.trajectory = cached_inferred["trajectory"]
                         logger.debug("resume p%d r%d: using cached inference", idx, rep)
                     else:
-                        pg.on_phase(idx - start, rep, n_problems, n_repeats, "solving")
+                        pg.on_phase(slot, rep, n_problems, n_repeats, "solving")
+                        _is_infra = False
                         try:
                             if _solver_accepts_sandbox(solver):
                                 sandbox = await lifecycle.get_agent_sandbox()
@@ -283,12 +358,16 @@ async def run_evaluation(
                             if solve_result.model_response:
                                 step.model_response = solve_result.model_response
                                 step.model_ms = solve_result.model_response.latency_ms
+                            if solve_result.error_kind == ErrorKind.INFRA:
+                                _is_infra = True
                             if solve_result.error:
-                                logger.warning("solve error p%d r%d (graceful): %s", idx, rep, solve_result.error)
+                                logger.warning("solve error p%d r%d: %s", idx, rep, solve_result.error)
                                 step.model_error = solve_result.error
                         except GracefulError as e:
                             step.model_error = str(e)
                             logger.warning("solve error p%d r%d (graceful): %s", idx, rep, e)
+                        except InfraError:
+                            raise  # bubble to outer loop for retry
                         except Exception:
                             raise  # system error — outer loop will retry
 
@@ -305,12 +384,18 @@ async def run_evaluation(
                         )
 
                         if inference_log is not None:
+                            mr = solve_result.model_response if solve_result else None
                             inf_record = {
                                 "problem_idx": idx,
                                 "repeat": rep,
                                 "response": response_text,
                                 "tokens": tokens,
                                 "latency_ms": latency_ms,
+                                "model": mr.model if mr else "",
+                                "finish_reason": mr.finish_reason if mr else "",
+                                "prompt_tokens": mr.prompt_tokens if mr else 0,
+                                "completion_tokens": mr.completion_tokens if mr else 0,
+                                "reasoning_tokens": mr.reasoning_tokens if mr else 0,
                                 "prompt": seed_result.prompt,
                                 "expected_answer": seed_result.expected_answer,
                                 "seed_metadata": seed_result.metadata,
@@ -321,11 +406,12 @@ async def run_evaluation(
                     # ── Verify ───────────────────────────────────────
                     _solve_failed = step.model_error is not None
                     if _solve_failed:
+                        error_cat = "infra_error" if _is_infra else "graceful"
                         vr = VerifyResult(
                             reward=0.0,
                             scoring_details={
                                 "error": step.model_error,
-                                "error_category": "graceful",
+                                "error_category": error_cat,
                                 "method": "solve_failed",
                             },
                         )
@@ -339,7 +425,7 @@ async def run_evaluation(
                             response_text,
                             solver_modified=(sandbox is not None),
                         )
-                        pg.on_phase(idx - start, rep, n_problems, n_repeats, "verifying")
+                        pg.on_phase(slot, rep, n_problems, n_repeats, "verifying")
                     tv = time.monotonic()
                     if not _solve_failed and solve_result and solve_result.reward is not None:
                         vr = VerifyResult(
@@ -356,6 +442,39 @@ async def run_evaluation(
                             **seed_result.metadata,
                         )
                     break  # success — exit retry loop
+
+                except InfraError as e:
+                    await lifecycle.teardown()
+                    if _attempt < max_system_retries:
+                        delay = min(30, 5 * (2 ** (_attempt - 1)))
+                        logger.warning(
+                            "p%d r%d: infra error (attempt %d/%d), retrying in %ds: %s",
+                            idx,
+                            rep,
+                            _attempt,
+                            max_system_retries,
+                            delay,
+                            e,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    logger.warning(
+                        "p%d r%d: infra error exhausted %d retries, scoring 0.0: %s",
+                        idx,
+                        rep,
+                        max_system_retries,
+                        e,
+                    )
+                    vr = VerifyResult(
+                        reward=0.0,
+                        scoring_details={
+                            "error": str(e),
+                            "error_category": "infra_error",
+                            "method": "infra_error",
+                            "retries_exhausted": max_system_retries,
+                        },
+                    )
+                    break
 
                 except GracefulError as e:
                     await lifecycle.teardown()
@@ -438,7 +557,7 @@ async def run_evaluation(
                             vr.scoring_details[f"scorer:{scorer_name}"] = {"error": str(e), "reward": 0.0}
 
                 if judge_client and vr.scoring_details.get("needs_judge"):
-                    pg.on_phase(idx - start, rep, n_problems, n_repeats, "judging")
+                    pg.on_phase(slot, rep, n_problems, n_repeats, "judging")
                     try:
                         from nemo_evaluator.scoring.judge import judge_score
 
@@ -499,7 +618,7 @@ async def run_evaluation(
                     cum_total += 1
                     problem_correct.setdefault(idx, []).append(vr.reward)
 
-                pg.on_step(idx - start, rep, n_problems, n_repeats, vr.reward, tokens, step.total_ms)
+                pg.on_step(slot, rep, n_problems, n_repeats, vr.reward, tokens, step.total_ms)
 
             finally:
                 await lifecycle.teardown()
@@ -527,9 +646,12 @@ async def run_evaluation(
     interrupted = False
 
     try:
-        for idx in range(start, end):
+        for i in range(start, end):
             if first_error is not None:
                 break
+
+            idx = perm[i] if perm is not None else i  # global dataset index
+            slot = i - start  # shard-local progress position
 
             while len(pending) >= max_buffered:
                 done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
@@ -556,7 +678,7 @@ async def run_evaluation(
                 )
 
             for rep in range(n_repeats):
-                task = asyncio.create_task(_run_step(idx, rep, seed_result, seed_ms))
+                task = asyncio.create_task(_run_step(idx, slot, rep, seed_result, seed_ms))
                 pending.add(task)
 
         if first_error is not None:
@@ -622,12 +744,16 @@ async def run_evaluation(
     for k in [1] + ([n_repeats] if n_repeats > 1 else []):
         if k <= n_repeats and problem_list:
             pak = aggregate_pass_at_k(problem_list, k)
-            ci = bootstrap_ci([pass_at_k(n, c, k) for n, c in problem_list])
-            metrics[f"pass@{k}"] = {
-                "value": round(pak, 4),
-                "ci_lower": round(ci.ci_lower, 4),
-                "ci_upper": round(ci.ci_upper, 4),
-            }
+            entry: dict[str, Any] = {"value": round(pak, 4)}
+            if k == 1:
+                sci = sample_level_ci(problem_list)
+                if sci is not None:
+                    entry["ci_lower"] = round(sci.ci_lower, 4)
+                    entry["ci_upper"] = round(sci.ci_upper, 4)
+            bci = bootstrap_ci([pass_at_k(n, c, k) for n, c in problem_list])
+            entry["bootstrap_ci_lower"] = round(bci.ci_lower, 4)
+            entry["bootstrap_ci_upper"] = round(bci.ci_upper, 4)
+            metrics[f"pass@{k}"] = entry
 
     metrics["summary"] = summary_stats(all_rewards)
 

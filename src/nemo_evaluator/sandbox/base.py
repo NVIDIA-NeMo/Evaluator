@@ -14,10 +14,9 @@
 # limitations under the License.
 """Sandbox protocol: per-problem isolated execution environments.
 
-The sandbox is infrastructure-only: it knows nothing about agents, solvers,
-or evaluation. It starts a container, provides exec/upload/download, and
-cleans up. Whether we exec a Python script or start a multi-turn agent is
-the solver's decision.
+A sandbox is infrastructure-only — it starts a container, provides
+exec/upload/download, and cleans up.  What runs inside the container
+(a script, a multi-turn agent, etc.) is the solver's concern.
 """
 
 from __future__ import annotations
@@ -81,10 +80,11 @@ class ExecResult:
 
 @dataclass
 class OutsideEndpoint:
-    """An orchestrator-side URL that should be reachable from inside the sandbox.
+    """A host-side URL that must be reachable from inside the sandbox.
 
-    The sandbox rewrites `url` for its network topology and injects the
-    resolved address as `env_var` inside the container.
+    The sandbox rewrites *url* for its network topology and exposes the
+    resolved address as the environment variable *env_var* inside the
+    container.
     """
 
     url: str
@@ -127,11 +127,10 @@ class SandboxSpec:
 
 
 class Sandbox(Protocol):
-    """Infrastructure-only: start/stop a container, exec commands, transfer files.
+    """Start/stop a container, exec commands, transfer files.
 
-    All methods are async — sandbox operations are I/O-bound and the eval
-    loop is async. Using sync calls would block the event loop when running
-    concurrent sandboxes.
+    All methods are async because sandbox operations are I/O-bound and
+    multiple sandboxes may run concurrently.
     """
 
     @property
@@ -156,12 +155,24 @@ class Sandbox(Protocol):
     async def download(self, remote_path: str, local_path: Path) -> None: ...
 
     def resolve_outside_endpoint(self, url: str) -> str:
-        """Rewrite orchestrator-side URL for use inside this sandbox.
+        """Rewrite a host-side URL for use inside the sandbox.
 
-        Bridge network: localhost -> host.docker.internal.
-        Host/shared network: unchanged.
+        Performs network-topology rewriting only (e.g. ``localhost`` to
+        ``host.docker.internal``).  The path component is preserved.
+        For a fully resolved :class:`OutsideEndpoint` URL, use
+        :meth:`resolved_endpoint_url`.
         """
         ...
+
+    def resolved_endpoint_url(self, env_var: str) -> str | None:
+        """Return the sandbox-resolved URL for a registered
+        :class:`OutsideEndpoint`.
+
+        Looks up the endpoint whose *env_var* matches and returns its URL
+        rewritten for the sandbox's network topology.  Returns ``None``
+        when no matching endpoint was registered.
+        """
+        return None
 
     @property
     def is_running(self) -> bool: ...

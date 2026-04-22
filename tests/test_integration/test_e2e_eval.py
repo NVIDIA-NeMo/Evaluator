@@ -167,9 +167,12 @@ async def test_eval_loop_metrics_shape():
 
     pass1 = scores["pass@1"]
     assert "value" in pass1
-    assert "ci_lower" in pass1
-    assert "ci_upper" in pass1
-    assert pass1["ci_lower"] <= pass1["value"] <= pass1["ci_upper"]
+    assert "bootstrap_ci_lower" in pass1
+    assert "bootstrap_ci_upper" in pass1
+    assert pass1["bootstrap_ci_lower"] <= pass1["value"] <= pass1["bootstrap_ci_upper"]
+    # sample-level ci_lower/ci_upper only present when n_repeats >= 2
+    assert "ci_lower" not in pass1
+    assert "ci_upper" not in pass1
 
     summary = scores["summary"]
     assert "n" in summary

@@ -200,3 +200,69 @@ class TestSidecarGymServices:
         }
         with pytest.raises(ValueError, match="gym_service='gym' not in services"):
             _validate_sidecar(sidecar_missing_gym)
+
+
+class TestSimpleSolverSidecar:
+    """SimpleSolver benchmarks now always get a sidecar YAML (no quick-mode)."""
+
+    def test_simple_solver_round_trip(self):
+        """All SimpleSolver fields survive the sidecar serialize / parse cycle."""
+        cfg = _make_slurm_config(
+            services={
+                "model": {
+                    "type": "api",
+                    "url": "http://x/v1/chat/completions",
+                    "protocol": "chat_completions",
+                },
+            },
+            benchmarks=[
+                {
+                    "name": "gsm8k",
+                    "solver": {
+                        "type": "simple",
+                        "service": "model",
+                        "system_prompt": "You are a math tutor.",
+                        "image_detail": "high",
+                        "generation": {"temperature": 0.7, "max_tokens": 512},
+                    },
+                    "repeats": 3,
+                    "max_problems": 50,
+                }
+            ],
+        )
+        _, sidecars, _ = generate_sbatch(cfg)
+        assert len(sidecars) == 1
+        sidecar = list(sidecars.values())[0]
+        parsed = _validate_sidecar(sidecar)
+
+        bench = parsed.benchmarks[0]
+        assert bench.solver.type == "simple"
+        assert bench.solver.system_prompt == "You are a math tutor."
+        assert bench.solver.image_detail == "high"
+        assert bench.solver.generation.temperature == 0.7
+        assert bench.solver.generation.max_tokens == 512
+        assert bench.repeats == 3
+        assert bench.max_problems == 50
+
+    def test_simple_solver_minimal(self):
+        """SimpleSolver with only required fields produces a valid sidecar."""
+        cfg = _make_slurm_config(
+            services={
+                "model": {
+                    "type": "api",
+                    "url": "http://x/v1/chat/completions",
+                    "protocol": "chat_completions",
+                },
+            },
+            benchmarks=[
+                {
+                    "name": "gsm8k",
+                    "solver": {"type": "simple", "service": "model"},
+                }
+            ],
+        )
+        _, sidecars, _ = generate_sbatch(cfg)
+        assert len(sidecars) == 1
+        parsed = _validate_sidecar(list(sidecars.values())[0])
+        assert parsed.benchmarks[0].solver.type == "simple"
+        assert parsed.benchmarks[0].solver.image_detail == "auto"

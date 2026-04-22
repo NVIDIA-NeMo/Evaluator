@@ -391,7 +391,7 @@ class SshTunnel:
             "-o",
             "ServerAliveInterval=30",
             "-o",
-            "ServerAliveCountMax=5",
+            "ServerAliveCountMax=20",
             "-o",
             "ConnectTimeout=15",
             "-o",
@@ -481,7 +481,7 @@ def build_ssh_sidecar_container(
         "PasswordAuthentication no\\nAllowTcpForwarding yes\\n"
         "PermitListen any\\nGatewayPorts clientspecified\\n"
         "X11Forwarding no\\nPrintMotd no\\nLogLevel ERROR\\n"
-        "ClientAliveInterval 15\\nClientAliveCountMax 3\\n"
+        "ClientAliveInterval 30\\nClientAliveCountMax 20\\n"
         "TCPKeepAlive yes\\nUseDNS no\\nMaxSessions 50\\n"
     )
     watchdog = ""
@@ -1107,6 +1107,23 @@ class EcsFargateSandbox:
     def spec(self) -> SandboxSpec:
         return self._spec
 
+    def resolved_endpoint_url(self, env_var: str) -> str | None:
+        for ep in self._outside_endpoints:
+            if ep.env_var != env_var:
+                continue
+            ep_parsed = urlparse(ep.url)
+            if ep.env_var in self._reverse_port_map:
+                remote_port, scheme = self._reverse_port_map[ep.env_var]
+                return ep_parsed._replace(
+                    scheme=scheme,
+                    netloc=f"127.0.0.1:{remote_port}",
+                ).geturl()
+            if self._ssh_tunnel_port is not None:
+                return ep_parsed._replace(
+                    netloc=f"127.0.0.1:{self._ssh_tunnel_port}",
+                ).geturl()
+        return None
+
     @property
     def is_running(self) -> bool:
         return self._started and not self._stopped
@@ -1185,7 +1202,22 @@ class EcsFargateSandbox:
                 shell_cmd = f'su -s /bin/bash "$(getent passwd {user} | cut -d: -f1)" -c {shlex.quote(shell_cmd)}'
             else:
                 shell_cmd = f"su -s /bin/bash {shlex.quote(str(user))} -c {shlex.quote(shell_cmd)}"
-        return await asyncio.to_thread(self._exec_client.exec, shell_cmd, timeout=int(timeout_sec))  # type: ignore[union-attr]
+        try:
+            return await asyncio.to_thread(self._exec_client.exec, shell_cmd, timeout=int(timeout_sec))  # type: ignore[union-attr]
+        except ConnectionError:
+            if self._ssh_tunnel and not self._ssh_tunnel.is_open:
+                logger.warning("SSH tunnel dead — attempting reconnect before re-raising")
+                try:
+                    await self.reconnect_tunnel()
+                    sidecar = self._cfg.ssh_sidecar
+                    if sidecar and sidecar.exec_server_port is not None:
+                        health_url = f"http://127.0.0.1:{self._ssh_tunnel.local_port}/health"  # type: ignore[union-attr]
+                        self._ssh_tunnel.wait_ready(health_url=health_url, timeout=60.0)  # type: ignore[union-attr]
+                        self._exec_client = ExecClient(port=self._ssh_tunnel.local_port)  # type: ignore[union-attr]
+                        return await asyncio.to_thread(self._exec_client.exec, shell_cmd, timeout=int(timeout_sec))
+                except Exception as reconnect_err:
+                    logger.warning("Tunnel reconnect failed: %s", reconnect_err)
+            raise
 
     async def upload(self, local_path: Path, remote_path: str) -> None:
         self._require_exec_client()
@@ -1208,12 +1240,16 @@ class EcsFargateSandbox:
         dest.write_bytes(data)
 
     def resolve_outside_endpoint(self, url: str) -> str:
+        parsed = urlparse(url)
         for ep in self._outside_endpoints:
-            if ep.url == url and ep.env_var in self._reverse_port_map:
+            ep_parsed = urlparse(ep.url)
+            if ep_parsed.netloc == parsed.netloc and ep.env_var in self._reverse_port_map:
                 remote_port, scheme = self._reverse_port_map[ep.env_var]
-                return f"{scheme}://127.0.0.1:{remote_port}"
+                return parsed._replace(
+                    scheme=scheme,
+                    netloc=f"127.0.0.1:{remote_port}",
+                ).geturl()
         if self._ssh_tunnel_port is not None:
-            parsed = urlparse(url)
             return parsed._replace(netloc=f"127.0.0.1:{self._ssh_tunnel_port}").geturl()
         raise RuntimeError("resolve_outside_endpoint() requires SSH reverse tunnel")
 
@@ -1406,12 +1442,18 @@ class EcsFargateSandbox:
                 env[k] = self._render_env_value(v)
         if self._ssh_tunnel_port and self._outside_endpoints:
             ep = self._outside_endpoints[0]
-            scheme = urlparse(ep.url).scheme or "http"
-            env[ep.env_var] = f"{scheme}://127.0.0.1:{self._ssh_tunnel_port}"
+            parsed = urlparse(ep.url)
+            env[ep.env_var] = parsed._replace(
+                netloc=f"127.0.0.1:{self._ssh_tunnel_port}",
+            ).geturl()
         for ep in self._outside_endpoints:
             if ep.env_var in self._reverse_port_map:
                 remote_port, scheme = self._reverse_port_map[ep.env_var]
-                env[ep.env_var] = f"{scheme}://127.0.0.1:{remote_port}"
+                parsed = urlparse(ep.url)
+                env[ep.env_var] = parsed._replace(
+                    scheme=scheme,
+                    netloc=f"127.0.0.1:{remote_port}",
+                ).geturl()
         return env
 
     def _render_env_value(self, value: str) -> str:

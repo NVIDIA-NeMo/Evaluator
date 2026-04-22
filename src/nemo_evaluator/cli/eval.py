@@ -616,50 +616,136 @@ def eval_clean(older_than, filter_executor, dry_run, yes):
 # ---------------------------------------------------------------------------
 
 
+def _fetch_remote_results(run_id: str) -> tuple[Path, Path]:
+    """Fetch eval bundles from a remote SLURM run into a local temp directory.
+
+    Returns ``(results_path, temp_dir)`` -- caller must clean up *temp_dir*.
+    """
+    import shlex
+    import tempfile
+
+    run_meta = _resolve_run_or_fail(run_id)
+    details = run_meta.details
+    hostname = details.get("hostname", "")
+    username = details.get("username") or None
+    rdir = details.get("remote_dir", run_meta.output_dir)
+
+    if not hostname:
+        local = Path(run_meta.output_dir)
+        if local.is_dir():
+            return local, None  # type: ignore[return-value]
+        raise click.ClickException(
+            f"Run {run_id} has no remote hostname and local path {run_meta.output_dir} does not exist."
+        )
+
+    from nemo_evaluator.executors.ssh import ssh_run
+
+    click.echo(f"Fetching results from {hostname}:{rdir} ...", err=True)
+
+    try:
+        file_list = ssh_run(
+            hostname,
+            f"find {shlex.quote(rdir)} -name 'eval-*.json' -o -name 'results.jsonl' | head -500",
+            username=username,
+            timeout=30.0,
+        )
+    except Exception as e:
+        raise click.ClickException(f"Failed to list remote results: {e}")
+
+    if not file_list.strip():
+        raise click.ClickException(f"No eval bundles found on {hostname}:{rdir}")
+
+    remote_files = [f for f in file_list.strip().splitlines() if f.strip()]
+    click.echo(f"Found {len(remote_files)} result file(s), downloading ...", err=True)
+
+    tmp = Path(tempfile.mkdtemp(prefix="nel_report_"))
+    from nemo_evaluator.executors.ssh import _ssh_opts, _ensure_master, _ssh_target, _run
+
+    target = _ssh_target(hostname, username)
+    _ensure_master(target)
+
+    for rf in remote_files:
+        rf = rf.strip()
+        rel = rf[len(rdir) :].lstrip("/")
+        local_file = tmp / rel
+        local_file.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            _run(
+                ["scp", "-p", *_ssh_opts(target), f"{target}:{rf}", str(local_file)],
+                timeout=60.0,
+            )
+        except Exception as e:
+            click.echo(f"Warning: failed to download {rf}: {e}", err=True)
+
+    click.echo(f"Downloaded to {tmp}", err=True)
+    return tmp, tmp
+
+
 @eval_cmd.command("report")
-@click.argument("results_dir", type=click.Path(exists=True))
+@click.argument("results_dir", required=False, type=click.Path(exists=True))
+@click.option("--run-id", "-r", default=None, help="NEL run ID (fetches results from remote if needed)")
 @click.option(
     "--format", "-f", "fmt", type=click.Choice(["markdown", "html", "csv", "json", "latex"]), default="markdown"
 )
 @click.option("--output", "-o", type=click.Path(), default=None)
 @click.option("--all-formats", is_flag=True)
-def eval_report(results_dir, fmt, output, all_formats):
-    """Generate evaluation reports from completed results."""
-    from nemo_evaluator.cli.report import RENDERERS, _build_table, _load_bundles
+def eval_report(results_dir, run_id, fmt, output, all_formats):
+    """Generate evaluation reports from completed results.
 
-    results = Path(results_dir)
-    bundle_files = sorted(results.rglob("eval-*.json"))
+    Accepts a local RESULTS_DIR or --run-id to fetch results from a remote
+    SLURM cluster automatically.
+    """
+    from nemo_evaluator.reports.eval import RENDERERS, build_table, load_bundles
 
-    if not bundle_files:
-        raise click.ClickException(f"No eval bundles found in {results_dir}")
+    if results_dir is None and run_id is None:
+        raise click.ClickException("Specify a RESULTS_DIR or --run-id.")
 
-    bundles = _load_bundles(bundle_files)
-    if not bundles:
-        raise click.ClickException("No valid bundles loaded.")
-
-    table = _build_table(bundles)
-
-    if all_formats:
-        ext_map = {
-            "markdown": "md",
-            "html": "html",
-            "csv": "csv",
-            "json": "json",
-            "latex": "tex",
-        }
-        for f, renderer in RENDERERS.items():
-            ext = ext_map.get(f, f)
-            path = results / f"report.{ext}"
-            path.write_text(renderer(table), encoding="utf-8")
-            click.echo(f"Report: {path}")
-        return
-
-    rendered = RENDERERS[fmt](table)
-    if output:
-        Path(output).write_text(rendered, encoding="utf-8")
-        click.echo(f"Report written to {output}")
+    cleanup_dir = None
+    if results_dir:
+        results = Path(results_dir)
     else:
-        click.echo(rendered)
+        results, cleanup_dir = _fetch_remote_results(run_id)
+
+    try:
+        bundle_files = sorted(results.rglob("eval-*.json"))
+
+        if not bundle_files:
+            raise click.ClickException(f"No eval bundles found in {results}")
+
+        bundles = load_bundles(bundle_files)
+        if not bundles:
+            raise click.ClickException("No valid bundles loaded.")
+
+        table = build_table(bundles)
+
+        if all_formats:
+            out_dir = Path(output) if output else Path(".")
+            out_dir.mkdir(parents=True, exist_ok=True)
+            ext_map = {
+                "markdown": "md",
+                "html": "html",
+                "csv": "csv",
+                "json": "json",
+                "latex": "tex",
+            }
+            for f, renderer in RENDERERS.items():
+                ext = ext_map.get(f, f)
+                path = out_dir / f"report.{ext}"
+                path.write_text(renderer(table), encoding="utf-8")
+                click.echo(f"Report: {path}")
+            return
+
+        rendered = RENDERERS[fmt](table)
+        if output:
+            Path(output).write_text(rendered, encoding="utf-8")
+            click.echo(f"Report written to {output}")
+        else:
+            click.echo(rendered)
+    finally:
+        if cleanup_dir is not None:
+            import shutil
+
+            shutil.rmtree(cleanup_dir, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
@@ -668,17 +754,27 @@ def eval_report(results_dir, fmt, output, all_formats):
 
 
 @eval_cmd.command("merge")
-@click.argument("output_dir", type=click.Path(exists=True))
+@click.argument("output_dir", required=False, type=click.Path(exists=True))
+@click.option("--run-id", "-r", default=None, help="NEL run ID (fetches results from remote if needed)")
 @click.option(
     "--repeats", "-n", type=int, default=None, help="Override n_repeats (auto-detected from shard bundles if omitted)"
 )
-def eval_merge(output_dir, repeats):
+def eval_merge(output_dir, run_id, repeats):
     """Merge results from sharded evaluation runs.
 
     OUTPUT_DIR should contain shard_0/, shard_1/, ... subdirectories
-    produced by a SLURM array job with shards configured.
+    produced by a SLURM array job with shards configured. Use --run-id
+    to fetch sharded results from a remote SLURM cluster automatically.
     """
     import json
+
+    if output_dir is None and run_id is None:
+        raise click.ClickException("Specify an OUTPUT_DIR or --run-id.")
+
+    if output_dir is None:
+        results_path, _ = _fetch_remote_results(run_id)
+        output_dir = str(results_path)
+        click.echo(f"Results cached at {output_dir}", err=True)
 
     root = Path(output_dir)
     shard_dirs = sorted(root.glob("shard_*"))

@@ -13,11 +13,11 @@
 #
 # CI builds and pushes to the GitLab container registry automatically.
 
-FROM nvcr.io/nvidia/base/ubuntu:noble-20251013
+FROM nvcr.io/nvidia/base/ubuntu:noble-20260217
 
 ARG TARGETARCH
 
-RUN apt-get update \
+RUN apt-get update -o Acquire::Retries=5 -o Acquire::http::Timeout=600 \
     && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
         python3 python3-pip python3.12-venv python-is-python3 \

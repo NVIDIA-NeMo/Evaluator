@@ -638,3 +638,182 @@ class TestApplyOverrideNull:
         data = {"key": "value"}
         _apply_override(data, "key=none")
         assert data["key"] == "none"
+
+
+# ---------------------------------------------------------------------------
+# stateful sandbox flag
+# ---------------------------------------------------------------------------
+
+
+class TestStatefulSandboxFlag:
+    def test_stateful_field_accepted_in_ecs_fargate(self):
+        """EcsFargateSandbox parses stateful: true without error."""
+        from nemo_evaluator.config import EcsFargateSandbox
+
+        sb = EcsFargateSandbox(
+            type="ecs_fargate",
+            region="us-east-1",
+            ecr_repository="123.dkr.ecr.us-east-1.amazonaws.com/repo",
+            stateful=True,
+        )
+        assert sb.stateful is True
+
+    def test_stateful_defaults_to_false(self):
+        """stateful defaults to False for backward compatibility."""
+        from nemo_evaluator.config import EcsFargateSandbox
+
+        sb = EcsFargateSandbox(
+            type="ecs_fargate",
+            region="us-east-1",
+            ecr_repository="123.dkr.ecr.us-east-1.amazonaws.com/repo",
+        )
+        assert sb.stateful is False
+
+    def test_stateful_with_capture_cmd_warns(self):
+        """Setting stateful=True alongside capture_cmd emits a UserWarning."""
+        from nemo_evaluator.config import EcsFargateSandbox
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            EcsFargateSandbox(
+                type="ecs_fargate",
+                region="us-east-1",
+                ecr_repository="123.dkr.ecr.us-east-1.amazonaws.com/repo",
+                stateful=True,
+                capture_cmd="echo capture",
+            )
+        assert any("stateful" in str(w.message).lower() and issubclass(w.category, UserWarning) for w in caught)
+
+
+class TestTerminalBenchPlaybook:
+    def test_terminal_bench_playbook_loads(self):
+        """terminal_bench_2 playbook parses cleanly and has stateful=True."""
+        config = parse_eval_config(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "https://example.com/v1",
+                        "protocol": "chat_completions",
+                        "model": "test-model",
+                        "api_key": "test-key",
+                    },
+                },
+                "benchmarks": [
+                    {
+                        "playbook": "terminal_bench_2",
+                        "sandbox": {
+                            "region": "us-east-1",
+                            "ecr_repository": "123.dkr.ecr.us-east-1.amazonaws.com/repo",
+                        },
+                    }
+                ],
+            }
+        )
+        bm = config.benchmarks[0]
+        assert bm.name == "harbor://terminal-bench@2.0"
+        assert bm.sandbox.stateful is True
+
+    def test_terminal_bench_playbook_stateful_can_be_overridden(self):
+        """User can override stateful: false to revert to stateless."""
+        config = parse_eval_config(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "https://example.com/v1",
+                        "protocol": "chat_completions",
+                        "model": "test-model",
+                        "api_key": "test-key",
+                    },
+                },
+                "benchmarks": [
+                    {
+                        "playbook": "terminal_bench_2",
+                        "sandbox": {
+                            "region": "us-east-1",
+                            "ecr_repository": "123.dkr.ecr.us-east-1.amazonaws.com/repo",
+                            "stateful": False,
+                        },
+                    }
+                ],
+            }
+        )
+        assert config.benchmarks[0].sandbox.stateful is False
+
+
+class TestNoSandboxStateful:
+    def test_pick_lifecycle_with_nosandbox_config(self):
+        """pick_lifecycle must work when sandbox_cfg is a NoSandbox (BYOB default).
+
+        eval_loop.py:259-265 builds pick_lifecycle kwargs from sandbox_cfg. When
+        no sandbox is configured, BenchmarkConfig defaults to NoSandbox(). This
+        crashed with AttributeError because NoSandbox lacked the stateful field.
+        """
+        from unittest.mock import MagicMock
+
+        from nemo_evaluator.config.sandboxes import NoSandbox
+        from nemo_evaluator.sandbox.strategies import pick_lifecycle
+
+        sandbox_cfg = NoSandbox()
+        seed = MagicMock()
+        seed.sandbox_spec = None
+        seed.verify_sandbox_spec = None
+
+        # This mirrors eval_loop.py:259-265 exactly
+        pick_lifecycle(
+            seed,
+            None,
+            config_capture_cmd=sandbox_cfg.capture_cmd,
+            verify_timeout=sandbox_cfg.verify_timeout,
+            force_stateful=sandbox_cfg.stateful,
+        )
+
+
+class TestHarborSolverTimeoutConfig:
+    """Tests for timeout_strategy and max_agent_timeout config fields."""
+
+    def test_timeout_strategy_defaults_to_override(self):
+        from nemo_evaluator.config.solvers import HarborSolverConfig
+
+        cfg = HarborSolverConfig(type="harbor", service="model", agent="terminus-2")
+        assert cfg.timeout_strategy == "override"
+        assert cfg.max_agent_timeout is None
+
+    def test_timeout_strategy_task_parses(self):
+        from nemo_evaluator.config.solvers import HarborSolverConfig
+
+        cfg = HarborSolverConfig(
+            type="harbor",
+            service="model",
+            agent="terminus-2",
+            timeout_strategy="task",
+            max_agent_timeout=7200,
+        )
+        assert cfg.timeout_strategy == "task"
+        assert cfg.max_agent_timeout == 7200
+
+    def test_timeout_strategy_max_parses(self):
+        from nemo_evaluator.config.solvers import HarborSolverConfig
+
+        cfg = HarborSolverConfig(
+            type="harbor",
+            service="model",
+            agent="terminus-2",
+            timeout_strategy="max",
+            max_agent_timeout=3600,
+        )
+        assert cfg.timeout_strategy == "max"
+        assert cfg.max_agent_timeout == 3600
+
+    def test_timeout_strategy_invalid_rejected(self):
+        import pydantic
+        from nemo_evaluator.config.solvers import HarborSolverConfig
+
+        with pytest.raises(pydantic.ValidationError, match="timeout_strategy"):
+            HarborSolverConfig(
+                type="harbor",
+                service="model",
+                agent="terminus-2",
+                timeout_strategy="foo",
+            )

@@ -90,8 +90,10 @@ class TestModelClient:
         assert resp.request_prompt == "What is 6*7?"
 
     def test_parse_response_rejects_empty_choices(self):
+        from nemo_evaluator.errors import InfraError
+
         c = ModelClient(base_url="https://api.example.com/v1", model="test")
-        with pytest.raises(ValueError, match="No choices"):
+        with pytest.raises(InfraError, match="empty choices"):
             c._parse_response({"choices": []}, 100.0, "test", None)
 
     @pytest.mark.asyncio

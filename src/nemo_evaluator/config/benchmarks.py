@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .sandboxes import NoSandbox, SandboxConfig
@@ -48,8 +50,26 @@ class BenchmarkConfig(BaseModel):
     instruction_template: str | None = None
     verifier: str | None = None
 
+    shuffle_seed: int | None = Field(
+        default=42,
+        description=(
+            "Seed for deterministic shuffling of sample execution order "
+            "(applied before shard slicing for balanced shard wall-clock). "
+            "Set to `null` to preserve dataset order. Not the model sampling seed."
+        ),
+    )
+
     sandbox: SandboxConfig = Field(default_factory=NoSandbox)
     scoring: ScoringConfig = Field(default_factory=ScoringConfig)
+
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Extra keyword arguments forwarded to the benchmark environment's "
+            "constructor.  Only keys accepted by the target class are passed; "
+            "unknown keys raise a clear error at resolution time."
+        ),
+    )
 
     @model_validator(mode="after")
     def _solver_requires_sandbox(self) -> BenchmarkConfig:

@@ -1,0 +1,36 @@
+# Flavor: NMP agentic-use Harbor tasks with auto-built base image.
+#
+# Runs the Harbor suite under ``$NMP_REPO/tests/agentic-use`` with the
+# claude-code agent.  The ``nmp-harbor:latest`` base image that every task
+# Dockerfile is ``FROM`` is built automatically from
+# ``$NMP_REPO/Dockerfile.harbor`` the first time the sandbox needs it.
+#
+# Prerequisites:
+#   - NMP_REPO pointing at a local NMP checkout
+#   - ANTHROPIC_API_KEY + ANTHROPIC_BASE_URL for the claude-code agent
+#   - Docker daemon running locally
+#
+# Run: nel eval run -c examples/configs/10_nmp_harbor.yaml
+#
+# See ``src/nemo_evaluator/benchmarks/nmp_harbor.py`` for tunables
+# (``nmp_repo``, ``task_names``, ``wait_api_cmd``, ...) exposed via
+# ``params:``.
+
+services:
+  anthropic:
+    type: api
+    url: ${ANTHROPIC_BASE_URL}
+    protocol: chat_completions
+    model: aws/anthropic/bedrock-claude-sonnet-4-5-v1
+    api_key: ${ANTHROPIC_API_KEY}
+
+benchmarks:
+  - name: nmp_harbor
+    solver:
+      type: harbor
+      service: anthropic
+      agent: claude-code
+    sandbox:
+      type: docker
+      timeout: 1800.0
+      concurrency: 8

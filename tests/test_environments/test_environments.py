@@ -68,6 +68,7 @@ SCORING_BENCHMARKS = {
 }
 
 
+@pytest.mark.network
 @pytest.mark.parametrize("bench", [b for b in AVAILABLE_FIXTURES if b in SCORING_BENCHMARKS])
 def test_scorer_determinism(bench: str):
     """Scoring the same response twice gives the same result."""

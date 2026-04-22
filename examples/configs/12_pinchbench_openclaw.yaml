@@ -11,7 +11,7 @@
 # Run: nel eval run examples/configs/12_pinchbench_openclaw.yaml
 
 services:
-  nemotron:
+  model:
     type: api
     url: https://integrate.api.nvidia.com/v1/chat/completions
     protocol: chat_completions
@@ -23,19 +23,9 @@ services:
         - name: turn_counter
 
 benchmarks:
-  - name: pinchbench
+  - playbook: pinchbench
     max_problems: 3
-    timeout: 900.0
     max_concurrent: 3
-    solver:
-      type: openclaw
-      service: nemotron
     sandbox:
-      type: ecs_fargate
       region: us-west-2
-      image: ghcr.io/openclaw/openclaw
-      cpu: "2048"
-      memory: "4096"
-      log_stream_prefix: pinchbench
-      timeout: 900.0
       concurrency: 3

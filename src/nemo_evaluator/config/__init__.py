@@ -39,6 +39,7 @@ from .clusters import (
 )
 from .compose import compose_config
 from .eval_config import EvalConfig, parse_eval_config
+from .gate_policy import GatePolicy, default_policy, load_gate_policy
 from .output import OutputConfig
 from .sandboxes import (
     ApptainerSandbox,
@@ -146,6 +147,10 @@ __all__ = [
     "ClusterConfig",
     # Output
     "OutputConfig",
+    # Gate policy
+    "GatePolicy",
+    "load_gate_policy",
+    "default_policy",
     # Top-level
     "EvalConfig",
     "parse_eval_config",

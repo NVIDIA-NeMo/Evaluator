@@ -12,12 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""ReActSolver: NEL-driven agent loop with pluggable tool backends.
+"""ReActSolver: evaluator-driven agent loop with pluggable tool backends.
 
-NEL drives the model-call → parse-tool-calls → dispatch cycle directly,
-giving full observability over every turn.  Works with Gym Resource Server
-tools (``HttpToolBackend``), sandbox tools (``SandboxToolBackend``), or
-both (``CompositeToolBackend``).
+The evaluator drives the model-call / parse-tool-calls / dispatch cycle
+directly, giving full observability over every turn.  Works with Gym
+Resource Server tools (``HttpToolBackend``), sandbox tools
+(``SandboxToolBackend``), or both (``CompositeToolBackend``).
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 class ReActSolver:
-    """NEL-native ReAct loop.
+    """Evaluator-native ReAct loop.
 
     Parameters
     ----------
@@ -117,8 +117,14 @@ class ReActSolver:
             if not tools:
                 raise ToolInfraError("No tools available from any backend")
 
-            # 3. Build initial messages
+            # 3. Build initial messages and seed ATIF steps
             messages = self._build_initial_messages(task)
+            for msg in messages:
+                role = msg.get("role", "")
+                if role == "system":
+                    atif_steps.append({"source": "system", "message": msg.get("content", "")})
+                elif role == "user":
+                    atif_steps.append({"source": "user", "message": msg.get("content", "")})
             last_response: ModelResponse | None = None
             last_tcr: ToolCallingResponse | None = None
 
@@ -130,30 +136,31 @@ class ReActSolver:
 
                 last_response = tcr.model_response
                 last_tcr = tcr
-                total_prompt_tokens += tcr.model_response.prompt_tokens
-                total_completion_tokens += tcr.model_response.completion_tokens
+                total_prompt_tokens += tcr.model_response.prompt_tokens or 0
+                total_completion_tokens += tcr.model_response.completion_tokens or 0
 
                 # 4b. Record ATIF agent step
-                atif_steps.append(
-                    {
-                        "source": "agent",
-                        "message": tcr.content or "",
-                        "model_name": tcr.model_response.model,
-                        "tool_calls": [
-                            {
-                                "function_name": tc.name,
-                                "arguments": tc.arguments,
-                                "tool_call_id": tc.id,
-                            }
-                            for tc in tcr.tool_calls
-                        ],
-                        "metrics": {
-                            "prompt_tokens": tcr.model_response.prompt_tokens,
-                            "completion_tokens": tcr.model_response.completion_tokens,
-                            "latency_ms": tcr.model_response.latency_ms,
-                        },
-                    }
-                )
+                agent_step: dict[str, Any] = {
+                    "source": "agent",
+                    "message": tcr.content or "",
+                    "model_name": tcr.model_response.model,
+                    "tool_calls": [
+                        {
+                            "function_name": tc.name,
+                            "arguments": tc.arguments,
+                            "tool_call_id": tc.id,
+                        }
+                        for tc in tcr.tool_calls
+                    ],
+                    "metrics": {
+                        "prompt_tokens": tcr.model_response.prompt_tokens,
+                        "completion_tokens": tcr.model_response.completion_tokens,
+                        "extra": {"latency_ms": tcr.model_response.latency_ms},
+                    },
+                }
+                if tcr.reasoning_content:
+                    agent_step["reasoning_content"] = tcr.reasoning_content
+                atif_steps.append(agent_step)
 
                 # 4c. No tool calls → model is done
                 if not tcr.tool_calls:

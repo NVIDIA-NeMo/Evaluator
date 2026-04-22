@@ -15,8 +15,10 @@ LLM evaluation framework with benchmark environments, pluggable solvers, composa
 ```bash
 pip install -e .                   # core
 pip install -e ".[scoring]"        # + sympy for symbolic math
-pip install -e ".[scoring,stats]"  # + scipy for confidence intervals
+pip install -e ".[stats]"          # + scipy (regression analysis)
+pip install -e ".[scoring,stats]"  # + sympy + scipy for confidence intervals
 pip install -e ".[harbor]"         # + Harbor agents (OpenHands, Terminus-2)
+pip install -e ".[proxy]"          # + LiteLLM proxy
 pip install -e ".[inspect]"        # + Inspect AI log export
 pip install -e ".[all]"            # everything
 ```
@@ -159,9 +161,33 @@ Pyxis/Enroot-based execution with auto-selected container images per URI scheme.
 | `nel list` | List benchmarks |
 | `nel serve -b <name>` | Serve as HTTP endpoint |
 | `nel validate -b <name>` | Sanity check |
-| `nel regression` | Compare runs (p-values) |
+| `nel compare` | Paired run comparison |
+| `nel gate` | Multi-benchmark quality gate |
 | `nel config` | Persistent user config |
 | `nel package` | Containerize BYOB benchmark |
+
+## Compare Results Between Runs
+
+Use `nel compare` when you want to compare two runs of the same benchmark and inspect score deltas, flips, and statistical evidence.
+
+```bash
+nel compare ./results/baseline ./results/candidate --strict
+```
+
+Full tutorial: [`docs/tutorials/compare.md`](docs/tutorials/compare.md)
+
+## Implement Quality Gates
+
+Use `nel gate` when you want one `GO / NO-GO / INCONCLUSIVE` decision across multiple benchmarks from an explicit policy file.
+
+```bash
+nel gate ./results/baseline ./results/candidate \
+  --policy gate_policy.yaml \
+  --strict \
+  --output gate_report.json
+```
+
+Full tutorial: [`docs/tutorials/quality-gate.md`](docs/tutorials/quality-gate.md)
 
 ## Examples
 

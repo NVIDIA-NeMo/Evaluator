@@ -13,7 +13,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from nemo_evaluator.metrics.pass_at_k import pass_at_k
-from nemo_evaluator.metrics.confidence import bootstrap_ci
+from nemo_evaluator.metrics.confidence import bootstrap_ci, sample_level_ci
 from nemo_evaluator.metrics.aggregation import category_breakdown
+from nemo_evaluator.metrics.paired_tests import (
+    McNemarResult,
+    POWER_80_FACTOR,
+    PermutationResult,
+    SIGNIFICANCE_THRESHOLD,
+    SignTestResult,
+    detect_test,
+    mcnemar_test,
+    mde_estimate,
+    permutation_test,
+    sign_test,
+)
 
-__all__ = ["pass_at_k", "bootstrap_ci", "category_breakdown"]
+__all__ = [
+    "McNemarResult",
+    "POWER_80_FACTOR",
+    "PermutationResult",
+    "SIGNIFICANCE_THRESHOLD",
+    "SignTestResult",
+    "bootstrap_ci",
+    "category_breakdown",
+    "detect_test",
+    "mcnemar_test",
+    "mde_estimate",
+    "pass_at_k",
+    "permutation_test",
+    "sample_level_ci",
+    "sign_test",
+]

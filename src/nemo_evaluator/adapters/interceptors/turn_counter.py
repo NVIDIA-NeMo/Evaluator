@@ -27,9 +27,12 @@ logger = logging.getLogger(__name__)
 
 _WARN_THRESHOLD = 0.80
 _URGENT_THRESHOLD = 0.95
+_STALE_SESSION_SEC = 900.0
+_GC_INTERVAL_SEC = 300.0
 
 
-def _session_key(body: dict[str, Any]) -> str:
+def _session_key_from_body(body: dict[str, Any]) -> str:
+    """Fallback: derive a session key from the first non-system message."""
     messages = body.get("messages") or []
     for msg in messages:
         if msg.get("role") == "system":
@@ -59,15 +62,23 @@ class Interceptor(RequestInterceptor):
         self._max = max_turns
         self._sessions: dict[str, _Session] = {}
         self._lock = asyncio.Lock()
+        self._last_gc = time.monotonic()
 
     async def intercept_request(self, req: AdapterRequest) -> AdapterRequest:
-        key = _session_key(req.body)
+        key = req.ctx.extra.get("session_id")
+        if not key:
+            key = _session_key_from_body(req.body)
+            logger.warning("no session_id in context — falling back to body-hash key %s", key)
 
         async with self._lock:
+            now = time.monotonic()
+            if now - self._last_gc > _GC_INTERVAL_SEC:
+                self._gc(now)
+                self._last_gc = now
+
             sess = self._sessions.setdefault(key, _Session())
             sess.count += 1
             n = sess.count
-            now = time.monotonic()
             dt = now - sess.last_time if sess.count > 1 else 0.0
             sess.last_time = now
             active = len(self._sessions)
@@ -129,3 +140,11 @@ class Interceptor(RequestInterceptor):
             )
 
         return req
+
+    def _gc(self, now: float) -> None:
+        """Remove sessions idle longer than ``_STALE_SESSION_SEC``."""
+        stale = [k for k, s in self._sessions.items() if now - s.last_time > _STALE_SESSION_SEC]
+        for k in stale:
+            del self._sessions[k]
+        if stale:
+            logger.debug("turn_counter GC: removed %d stale sessions, %d remaining", len(stale), len(self._sessions))

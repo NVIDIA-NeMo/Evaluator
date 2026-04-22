@@ -12,11 +12,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Bridge between nel's Sandbox and Harbor's BaseEnvironment.
+"""Adapts :class:`~nemo_evaluator.sandbox.base.Sandbox` to Harbor's
+``BaseEnvironment`` interface.
 
-All Harbor imports are lazy so this module can be imported without
-the harbor package installed -- the ImportError surfaces only when
-a HarborSolver is actually instantiated.
+All Harbor imports are lazy so the module can be imported without the
+``harbor`` package installed.
 """
 
 from __future__ import annotations
@@ -35,10 +35,10 @@ logger = logging.getLogger(__name__)
 
 
 class SandboxEnvironmentAdapter:
-    """Wraps a nel ``Sandbox`` to satisfy Harbor's ``BaseEnvironment`` interface.
+    """Wraps a :class:`Sandbox` to satisfy Harbor's ``BaseEnvironment`` interface.
 
-    We deliberately skip ``BaseEnvironment.__init__()`` and set the
-    required attributes directly so nel stays in control of the
+    ``BaseEnvironment.__init__()`` is deliberately skipped; the required
+    attributes are set directly so the evaluator retains control of the
     container lifecycle.
     """
 
@@ -48,19 +48,23 @@ class SandboxEnvironmentAdapter:
         self,
         sandbox: Sandbox,
         *,
+        session_id: str,
         logs_dir: Path,
         default_timeout: float = 600.0,
         persistent_env: dict[str, str] | None = None,
+        override_env: dict[str, str] | None = None,
     ) -> None:
         from harbor.models.task.config import EnvironmentConfig as TaskEnvConfig
         from harbor.models.trial.paths import TrialPaths
 
         self._sandbox = sandbox
         self._default_timeout = default_timeout
+        self.session_id = session_id
         self.trial_paths = TrialPaths(trial_dir=logs_dir)
         self.trial_paths.mkdir()
         self.logger = logger
         self._persistent_env: dict[str, str] = dict(persistent_env or {})
+        self._override_env: dict[str, str] = dict(override_env or {})
         self.task_env_config = TaskEnvConfig()
         self.default_user = None
 
@@ -84,12 +88,19 @@ class SandboxEnvironmentAdapter:
         return user if user is not None else self.default_user
 
     def _merge_env(self, env: dict[str, str] | None) -> dict[str, str] | None:
-        if not self._persistent_env and not env:
+        """Merge environment variable layers for a single exec call.
+
+        Precedence (last wins): ``persistent_env`` < *env* (caller) < ``override_env``.
+        Override always wins so that per-session values (e.g. ``LLM_BASE_URL``)
+        cannot be accidentally overwritten by agent code.
+        """
+        if not self._persistent_env and not self._override_env and not env:
             return None
         merged = {**self._persistent_env}
         if env:
             merged.update(env)
-        return merged or None
+        merged.update(self._override_env)
+        return merged
 
     # -- exec ----------------------------------------------------------------
 
@@ -146,7 +157,7 @@ class SandboxEnvironmentAdapter:
                 for child in src.rglob("*"):
                     if child.is_file():
                         tar.add(str(child), arcname=str(child.relative_to(src)))
-            remote_tar = f"/tmp/_nel_upload_{archive.stem}.tar.gz"
+            remote_tar = f"/tmp/_eval_upload_{archive.stem}.tar.gz"
             await self._sandbox.upload(archive, remote_tar)
             q_dir = shlex.quote(target_dir)
             await self._sandbox.exec(
@@ -159,7 +170,7 @@ class SandboxEnvironmentAdapter:
     async def download_dir(self, source_dir: str, target_dir: Path | str) -> None:
         dst = Path(target_dir)
         dst.mkdir(parents=True, exist_ok=True)
-        remote_tar = f"/tmp/_nel_download_{dst.name}.tar.gz"
+        remote_tar = f"/tmp/_eval_download_{dst.name}.tar.gz"
         await self._sandbox.exec(
             f"tar czf {remote_tar} -C {shlex.quote(source_dir)} .",
             timeout_sec=120,
@@ -169,12 +180,12 @@ class SandboxEnvironmentAdapter:
         try:
             await self._sandbox.download(remote_tar, local_tar)
             with tarfile.open(local_tar, "r:gz") as tar:
-                tar.extractall(dst)
+                tar.extractall(dst, filter="data")
         finally:
             local_tar.unlink(missing_ok=True)
             await self._sandbox.exec(f"rm -f {remote_tar}", timeout_sec=10)
 
-    # -- Lifecycle (no-ops: nel manages the container) -----------------------
+    # -- Lifecycle (no-ops: the evaluator manages the container) -------------
 
     async def start(self, force_build: bool = False) -> None:
         pass

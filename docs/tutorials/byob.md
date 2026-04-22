@@ -265,3 +265,56 @@ class MyComplexBenchmark(EvalEnvironment):
 
 The decorator path is preferred for single-turn benchmarks. Reserve subclassing for
 cases that genuinely need it.
+
+## Parametrizing a Built-in Benchmark from YAML
+
+Built-in environments registered with `@register("<name>")` can be tweaked
+from a config without a new Python module.  `BenchmarkConfig` accepts a
+`params:` mapping whose entries are forwarded to the environment
+constructor, filtered to the arguments it actually declares.  Unknown keys
+raise a clear `TypeError` at resolution time.
+
+```yaml
+benchmarks:
+  - name: nmp_harbor
+    params:
+      task_names: ["workspace-basic-cli"]   # run a single task
+    solver:
+      type: harbor
+      service: anthropic
+      agent: claude-code
+    sandbox:
+      type: docker
+```
+
+Scalar values are accepted for list parameters (`task_names: workspace-basic-cli`)
+so the CLI override flag works too: `-O benchmarks[0].params.task_names=workspace-basic-cli`.
+
+## Wrapping a Built-in Benchmark with Extra Pre-Build Steps
+
+When a dataset needs a one-off base image produced from a Dockerfile in a
+consumer repo, subclass the relevant environment under
+`src/nemo_evaluator/benchmarks/` and prepend your own `ImageBuildRequest`.
+See `src/nemo_evaluator/benchmarks/nmp_harbor.py` for a working reference:
+
+- Subclasses `HarborEnvironment` and registers under `@register("nmp_harbor")`.
+- Reads `NMP_REPO` (or the `nmp_repo` param) and points the dataset at
+  `$NMP_REPO/tests/agentic-use`.
+- Overrides `image_build_requests()` to prepend a single
+  `ImageBuildRequest` that builds `nmp-harbor:latest` from
+  `$NMP_REPO/Dockerfile.harbor` before any per-task image build runs.
+
+```yaml
+benchmarks:
+  - name: nmp_harbor             # reads $NMP_REPO; no manual docker build
+    solver:
+      type: harbor
+      service: anthropic
+      agent: claude-code
+    sandbox:
+      type: docker
+```
+
+The sandbox manager treats the prepended request identically to any other
+image build, so the same config works against Docker, ECR/ECS Fargate, etc.
+See `examples/configs/10_nmp_harbor.yaml`.

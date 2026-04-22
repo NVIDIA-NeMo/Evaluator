@@ -56,6 +56,10 @@ class ArtifactCollector:
         return arts
 
     def _classify_failure(self, step: StepRecord) -> None:
+        sd = step.scoring_details
+        if isinstance(sd, dict) and sd.get("error_category") == "infra_error":
+            step.failure_category = "infra_error"
+            return
         if step.model_error:
             err = step.model_error
             if any(code in err for code in ("408", "timeout", "Timeout", "timed out")):
@@ -91,10 +95,10 @@ class ArtifactCollector:
 
         for s in self.steps:
             if s.model_response:
-                stats.total_tokens += s.model_response.total_tokens
-                stats.total_prompt_tokens += s.model_response.prompt_tokens
-                stats.total_completion_tokens += s.model_response.completion_tokens
-                stats.total_reasoning_tokens += s.model_response.reasoning_tokens
+                stats.total_tokens += s.model_response.total_tokens or 0
+                stats.total_prompt_tokens += s.model_response.prompt_tokens or 0
+                stats.total_completion_tokens += s.model_response.completion_tokens or 0
+                stats.total_reasoning_tokens += s.model_response.reasoning_tokens or 0
 
         if latencies:
             arr = np.array(latencies)

@@ -1,9 +1,9 @@
 type: slurm
-hostname: cw-dfw-cs-001-login-01
-account: coreai_dlalgo_compeval
+hostname: slurm-login.example.com
+account: your-slurm-account
 walltime: "04:00:00"
 container_mounts:
-  - /lustre/fsw/portfolios/coreai/users/${USER}/cache/huggingface:/cache/huggingface
+  - ${SHARED_ROOT}/${USER}/cache/huggingface:/cache/huggingface
 container_env:
   HF_TOKEN: ${HF_TOKEN}
   HF_HOME: /cache/huggingface

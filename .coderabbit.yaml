@@ -1,0 +1,82 @@
+language: en-US
+tone_instructions: >
+  Be concise and direct. Focus on actionable issues, not style preferences
+  already handled by ruff. Do not suggest adding docstrings or comments
+  unless the logic is genuinely non-obvious.
+
+reviews:
+  profile: assertive
+  high_level_summary: true
+  collapse_walkthrough: true
+  poem: false
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+
+  path_filters:
+    - "src/**"
+    - "tests/**"
+    - "!examples/**"
+    - "!docs/**"
+
+  path_instructions:
+    - path: "src/**/*.py"
+      instructions: >
+        Enforce rules from AGENTS.md:
+
+        1. Commit messages should use the format: <type>: <description>.
+           Types: feat, fix, refactor, test, docs, chore. Commits should include
+           a message body explaining the commit concisely.
+
+        2. No narration comments — do not add comments that just describe what the
+           code does. Comments should explain non-obvious intent or constraints.
+
+        3. No fallback shims or deprecation wrappers unless explicitly requested.
+
+        4. Evaluator owns the loop — scoring and aggregation must never be delegated
+           to external servers.
+
+        5. Solvers must be stateless (no per-problem state).
+
+        6. Environments must be interchangeable — do not create environment-solver coupling.
+
+        7. Config is the contract — all user-facing behavior is controlled through
+           EvalConfig YAML.
+
+        8. Use logging.getLogger(__name__), never print().
+
+        9. No hardcoded paths, API keys, or model names.
+
+    - path: "tests/**/*.py"
+      instructions: >
+        Every new function or changed behavior must have a corresponding test.
+        Tests must pass offline (no network access) unless marked @pytest.mark.network.
+        Use fixtures from tests/conftest.py (FixturedEnvironment, CachedSolver, MockSandbox).
+        Do not skip tests silently — if a test needs network, mark it explicitly.
+        Prefer @pytest.mark.parametrize with descriptive ids over separate test methods
+        when testing the same function with multiple inputs. Import shared fixtures and
+        helpers at module level, not inside each test.
+
+    - path: "src/nemo_evaluator/sandbox/**"
+      instructions: >
+        Sandbox lifecycle must be explicit: NoSandbox, StatefulSandbox, or
+        StatelessSandbox. Do not add implicit sandbox behavior. The eval loop
+        picks the strategy based on the seed result and config.
+
+    - path: "src/nemo_evaluator/solvers/**"
+      instructions: >
+        Solvers are stateless — they receive a SeedResult and return a SolveResult.
+        Connection state (HTTP clients) is acceptable, but no per-problem state.
+        Solvers must be completely decoupled from benchmark logic.
+
+  tools:
+    ruff:
+      enabled: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "AGENTS.md"
