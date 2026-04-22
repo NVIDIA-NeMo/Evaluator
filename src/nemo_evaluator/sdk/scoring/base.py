@@ -6,10 +6,36 @@ import re
 import string
 from typing import Any, Awaitable, Callable, Protocol, runtime_checkable
 
+from nemo_evaluator.scoring.types import ScorerInput
 from nemo_evaluator.sdk.values import SecretRef
 from nemo_evaluator.sdk.values.results import MetricResult
 
 SecretResolver = Callable[[str], Awaitable[str | None]]
+
+
+class NELScorerMixin:
+    """Makes a SDK metric callable as a NEL scorer: ``__call__(ScorerInput) -> dict``.
+
+    NEL's scoring pipeline expects scorers to be callables with signature
+    ``(ScorerInput) -> dict``. SDK metrics natively use a different shape
+    (``metric(item, sample) -> float | bool``). This mixin bridges the two so
+    a SDK metric can be used wherever NEL accepts a scorer, without an
+    external adapter.
+
+    Concrete metrics inheriting this mixin must implement ``type`` and
+    ``metric(item, sample, trace=None)`` (both already required by the
+    :class:`Metric` protocol).
+    """
+
+    def __call__(self, scorer_input: ScorerInput) -> dict[str, Any]:
+        item: dict[str, Any] = {"reference": scorer_input.target, **(scorer_input.metadata or {})}
+        sample: dict[str, Any] = {"output_text": scorer_input.response, "response": scorer_input.response}
+        score = self.metric(item, sample)  # type: ignore[attr-defined]
+        score_value = float(score) if isinstance(score, (bool, int, float)) else 0.0
+        return {
+            "score": score_value,
+            "metric_type": getattr(self, "type", self.__class__.__name__),
+        }
 
 
 @runtime_checkable

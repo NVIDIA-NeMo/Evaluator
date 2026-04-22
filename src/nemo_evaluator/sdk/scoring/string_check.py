@@ -1,5 +1,6 @@
 """String-check metric runtime implementation."""
 
+from nemo_evaluator.sdk.scoring.base import NELScorerMixin
 from nemo_evaluator.sdk.scoring.template_rendering import (
     build_template_context,
     render_template_or_raise,
@@ -11,7 +12,7 @@ from nemo_evaluator.sdk.values.results import MetricResult, MetricScore
 __all__ = ["StringCheckMetric", "StringCheckOperation"]
 
 
-class StringCheckMetric(StringCheck):
+class StringCheckMetric(NELScorerMixin, StringCheck):
     """String-comparison metric with operator-based checks."""
 
     # TODO: currently not used. Remove this field if we don't need it.

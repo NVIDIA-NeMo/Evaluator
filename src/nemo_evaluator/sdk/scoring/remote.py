@@ -13,6 +13,7 @@ from httpx import Timeout
 from jsonpath_ng import parse as jsonpath_parse
 from jsonpath_ng.exceptions import JsonPathParserError
 from nemo_evaluator.sdk.inference import requests_log_var
+from nemo_evaluator.sdk.scoring.base import NELScorerMixin
 from nemo_evaluator.sdk.scoring.template_rendering import (
     build_template_context,
     render_template_or_raise,
@@ -95,7 +96,7 @@ async def _post_to_remote_endpoint(
             raise
 
 
-class _RemoteMetricBase(_RemoteBase, ABC):
+class _RemoteMetricBase(NELScorerMixin, _RemoteBase, ABC):
     """Shared runtime lifecycle for metrics backed by remote HTTP endpoints."""
 
     metric_threshold: float | None = Field(default=None)

@@ -3,6 +3,7 @@
 import math
 import re
 
+from nemo_evaluator.sdk.scoring.base import NELScorerMixin
 from nemo_evaluator.sdk.scoring.template_rendering import (
     build_template_context,
     render_template_or_raise,
@@ -29,7 +30,7 @@ def _parse_number_answer(answer: str) -> int | float:
     return float("nan")
 
 
-class NumberCheckMetric(NumberCheck):
+class NumberCheckMetric(NELScorerMixin, NumberCheck):
     """Numeric-comparison metric with template-driven operands."""
 
     def score_names(self) -> list[str]:

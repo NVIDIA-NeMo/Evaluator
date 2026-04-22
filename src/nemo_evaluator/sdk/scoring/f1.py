@@ -2,7 +2,7 @@
 
 import collections
 
-from nemo_evaluator.sdk.scoring.base import normalize_text
+from nemo_evaluator.sdk.scoring.base import NELScorerMixin, normalize_text
 from nemo_evaluator.sdk.scoring.template_rendering import render_reference_and_candidate, template_metric_repr
 from nemo_evaluator.sdk.values.metrics import F1
 from nemo_evaluator.sdk.values.results import MetricResult, MetricScore
@@ -10,7 +10,7 @@ from nemo_evaluator.sdk.values.results import MetricResult, MetricScore
 __all__ = ["F1Metric"]
 
 
-class F1Metric(F1):
+class F1Metric(NELScorerMixin, F1):
     """F1 metric for token-overlap similarity scoring."""
 
     metric_threshold: float | None = None
