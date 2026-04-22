@@ -4,15 +4,15 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _package_version
 
 from nemo_evaluator.sdk.datasets import DatasetLoadError, load_dataset, load_dataset_as_dicts
-from nemo_evaluator.sdk.metrics.bleu import BLEUMetric
-from nemo_evaluator.sdk.metrics.exact_match import ExactMatchMetric
-from nemo_evaluator.sdk.metrics.f1 import F1Metric
-from nemo_evaluator.sdk.metrics.llm_judge import LLMJudgeMetric
-from nemo_evaluator.sdk.metrics.number_check import NumberCheckMetric
-from nemo_evaluator.sdk.metrics.remote import NemoAgentToolkitRemoteMetric, RemoteMetric
-from nemo_evaluator.sdk.metrics.rouge import ROUGEMetric
-from nemo_evaluator.sdk.metrics.string_check import StringCheckMetric
-from nemo_evaluator.sdk.metrics.tool_calling import ToolCallingMetric
+from nemo_evaluator.sdk.scoring.bleu import BLEUMetric
+from nemo_evaluator.sdk.scoring.exact_match import ExactMatchMetric
+from nemo_evaluator.sdk.scoring.f1 import F1Metric
+from nemo_evaluator.sdk.scoring.llm_judge import LLMJudgeMetric
+from nemo_evaluator.sdk.scoring.number_check import NumberCheckMetric
+from nemo_evaluator.sdk.scoring.remote import NemoAgentToolkitRemoteMetric, RemoteMetric
+from nemo_evaluator.sdk.scoring.rouge import ROUGEMetric
+from nemo_evaluator.sdk.scoring.string_check import StringCheckMetric
+from nemo_evaluator.sdk.scoring.tool_calling import ToolCallingMetric
 from nemo_evaluator.sdk.structured_output import (
     InferenceFn,
     InferenceStructuredOutput,

@@ -9,11 +9,11 @@ if TYPE_CHECKING:
     from ragas.llms import LangchainLLMWrapper
 
 from nemo_evaluator.sdk.enums import MetricType
-from nemo_evaluator.sdk.metrics.ragas.base import BaseRAGASMetric
+from nemo_evaluator.sdk.scoring.ragas.base import BaseRAGASMetric
 
 # Lazy imports for RAGAS metric classes - these are getter functions that defer
 # the expensive RAGAS/langchain imports (~20-30s) until first use.
-from nemo_evaluator.sdk.metrics.ragas.imports import (
+from nemo_evaluator.sdk.scoring.ragas.imports import (
     get_agent_goal_accuracy_with_reference_class,
     get_agent_goal_accuracy_without_reference_class,
     get_answer_accuracy_class,

@@ -3,7 +3,8 @@
 from functools import cached_property
 from typing import ClassVar, Literal
 
-from nemo_evaluator.sdk.metrics.template_rendering import render_reference_and_candidate, template_metric_repr
+from nemo_evaluator.sdk.scoring.base import NELScorerMixin
+from nemo_evaluator.sdk.scoring.template_rendering import render_reference_and_candidate, template_metric_repr
 from nemo_evaluator.sdk.values.metrics import ROUGE
 from nemo_evaluator.sdk.values.results import MetricResult, MetricScore
 
@@ -12,7 +13,7 @@ __all__ = ["ROUGEMetric", "RougeScoreName"]
 RougeScoreName = Literal["rouge_1_score", "rouge_2_score", "rouge_3_score", "rouge_L_score"]
 
 
-class ROUGEMetric(ROUGE):
+class ROUGEMetric(NELScorerMixin, ROUGE):
     """ROUGE metric for overlap-based summarization quality scoring.
 
     Evaluator-driven runs expose dataset fields through ``item`` and generated

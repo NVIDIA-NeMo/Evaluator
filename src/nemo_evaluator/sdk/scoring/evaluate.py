@@ -10,7 +10,7 @@ import asyncio
 import logging
 from typing import Any
 
-from nemo_evaluator.sdk.metrics.base import Metric
+from nemo_evaluator.sdk.scoring.base import Metric
 from nemo_evaluator.sdk.values.results import SampleResult
 
 _logger = logging.getLogger(__name__)

@@ -1,6 +1,6 @@
 """Shared helpers for working with runtime metric identifiers."""
 
-from nemo_evaluator.sdk.metrics.base import Metric
+from nemo_evaluator.sdk.scoring.base import Metric
 
 
 def metric_type_name(metric: Metric) -> str:

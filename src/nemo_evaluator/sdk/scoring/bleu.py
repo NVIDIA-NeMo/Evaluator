@@ -1,7 +1,8 @@
 """BLEU metric runtime implementation."""
 
 import sacrebleu
-from nemo_evaluator.sdk.metrics.template_rendering import (
+from nemo_evaluator.sdk.scoring.base import NELScorerMixin
+from nemo_evaluator.sdk.scoring.template_rendering import (
     build_template_context,
     render_default_output_text_candidate_or_raise,
     render_template_or_raise,
@@ -13,7 +14,7 @@ from nemo_evaluator.sdk.values.results import MetricResult, MetricScore
 __all__ = ["BLEUMetric"]
 
 
-class BLEUMetric(BLEU):
+class BLEUMetric(NELScorerMixin, BLEU):
     """BLEU metric for sentence- and corpus-level n-gram overlap.
 
     Evaluator-driven runs render references from dataset fields exposed through

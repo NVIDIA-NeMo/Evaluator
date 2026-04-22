@@ -1,4 +1,4 @@
-from nemo_evaluator.sdk.metrics.exact_match import ExactMatchMetric
+from nemo_evaluator.sdk.scoring.exact_match import ExactMatchMetric
 
 
 class TestExactMatchMetric:
