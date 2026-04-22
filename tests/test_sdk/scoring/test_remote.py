@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from nemo_evaluator.sdk.inference import requests_log_var
-from nemo_evaluator.sdk.metrics.remote import NemoAgentToolkitRemoteMetric, RemoteMetric, _post_to_remote_endpoint
+from nemo_evaluator.sdk.scoring.remote import NemoAgentToolkitRemoteMetric, RemoteMetric, _post_to_remote_endpoint
 from nemo_evaluator.sdk.values.common import SecretRef
 from nemo_evaluator.sdk.values.results import MetricResult, MetricScore
 from nemo_evaluator.sdk.values.scores import JSONScoreParser, RemoteScore
@@ -22,13 +22,13 @@ class TestRemoteMetric:
         async_client = mocker.Mock()
         async_client.__aenter__ = mocker.AsyncMock(return_value=client)
         async_client.__aexit__ = mocker.AsyncMock(return_value=None)
-        mocker.patch("nemo_evaluator.sdk.metrics.remote.httpx.AsyncClient", return_value=async_client)
+        mocker.patch("nemo_evaluator.sdk.scoring.remote.httpx.AsyncClient", return_value=async_client)
 
         async def passthrough(_endpoint_key, callback, *, max_attempts):
             assert max_attempts == 3
             return await callback()
 
-        mocker.patch("nemo_evaluator.sdk.metrics.remote.run_with_resilience", side_effect=passthrough)
+        mocker.patch("nemo_evaluator.sdk.scoring.remote.run_with_resilience", side_effect=passthrough)
 
         result = await _post_to_remote_endpoint(
             url="https://remote.example.test",
@@ -43,9 +43,9 @@ class TestRemoteMetric:
     @pytest.mark.asyncio
     async def test_post_to_remote_endpoint_logs_and_reraises_failures(self, mocker: MockerFixture):
         logger = mocker.Mock()
-        mocker.patch("nemo_evaluator.sdk.metrics.remote.httpx.AsyncClient")
+        mocker.patch("nemo_evaluator.sdk.scoring.remote.httpx.AsyncClient")
         mocker.patch(
-            "nemo_evaluator.sdk.metrics.remote.run_with_resilience",
+            "nemo_evaluator.sdk.scoring.remote.run_with_resilience",
             side_effect=RuntimeError("boom"),
         )
 
@@ -73,7 +73,7 @@ class TestRemoteMetric:
     @pytest.mark.asyncio
     async def test_compute_scores(self, mocker: MockerFixture):
         mock_post = mocker.patch(
-            "nemo_evaluator.sdk.metrics.remote._post_to_remote_endpoint",
+            "nemo_evaluator.sdk.scoring.remote._post_to_remote_endpoint",
             new_callable=AsyncMock,
             return_value={"result": {"quality": 0.75}},
         )
@@ -105,7 +105,7 @@ class TestRemoteMetric:
     @pytest.mark.asyncio
     async def test_missing_extracted_score_returns_nan(self, mocker: MockerFixture):
         mocker.patch(
-            "nemo_evaluator.sdk.metrics.remote._post_to_remote_endpoint",
+            "nemo_evaluator.sdk.scoring.remote._post_to_remote_endpoint",
             new_callable=AsyncMock,
             return_value={"result": {}},
         )
@@ -121,7 +121,7 @@ class TestRemoteMetric:
     @pytest.mark.asyncio
     async def test_compute_scores_passes_rendered_body_dict_to_remote_endpoint(self, mocker: MockerFixture):
         mock_post = mocker.patch(
-            "nemo_evaluator.sdk.metrics.remote._post_to_remote_endpoint",
+            "nemo_evaluator.sdk.scoring.remote._post_to_remote_endpoint",
             new_callable=AsyncMock,
             return_value={"result": {"quality": 0.75}},
         )
@@ -138,11 +138,11 @@ class TestRemoteMetric:
     @pytest.mark.asyncio
     async def test_compute_scores_logs_and_reraises_invalid_score_values(self, mocker: MockerFixture):
         mocker.patch(
-            "nemo_evaluator.sdk.metrics.remote._post_to_remote_endpoint",
+            "nemo_evaluator.sdk.scoring.remote._post_to_remote_endpoint",
             new_callable=AsyncMock,
             return_value={"result": {"quality": {"nested": "value"}}},
         )
-        log_exception = mocker.patch("nemo_evaluator.sdk.metrics.remote._logger.exception")
+        log_exception = mocker.patch("nemo_evaluator.sdk.scoring.remote._logger.exception")
         metric = RemoteMetric(
             url="https://remote.example.test",
             body={"input": "{{item.prompt}}"},
@@ -266,7 +266,7 @@ class TestRemoteMetric:
             return {"result": {"quality": 1.0}}
 
         mocker.patch(
-            "nemo_evaluator.sdk.metrics.remote._post_to_remote_endpoint",
+            "nemo_evaluator.sdk.scoring.remote._post_to_remote_endpoint",
             new_callable=AsyncMock,
             side_effect=fake_post,
         )
@@ -327,7 +327,7 @@ class TestRemoteMetric:
             return {"result": {"quality": 1.0}}
 
         mocker.patch(
-            "nemo_evaluator.sdk.metrics.remote._post_to_remote_endpoint",
+            "nemo_evaluator.sdk.scoring.remote._post_to_remote_endpoint",
             new_callable=AsyncMock,
             side_effect=fake_post,
         )
@@ -347,7 +347,7 @@ class TestRemoteMetric:
     @pytest.mark.asyncio
     async def test_compute_scores_appends_request_log(self, mocker: MockerFixture):
         mocker.patch(
-            "nemo_evaluator.sdk.metrics.remote._post_to_remote_endpoint",
+            "nemo_evaluator.sdk.scoring.remote._post_to_remote_endpoint",
             new_callable=AsyncMock,
             return_value={"result": {"quality": 0.75}},
         )
@@ -371,7 +371,7 @@ class TestNemoAgentToolkitRemoteMetric:
     @pytest.mark.asyncio
     async def test_nemo_agent_toolkit_remote_metric(self, mocker: MockerFixture):
         mock_post = mocker.patch(
-            "nemo_evaluator.sdk.metrics.remote._post_to_remote_endpoint",
+            "nemo_evaluator.sdk.scoring.remote._post_to_remote_endpoint",
             new_callable=AsyncMock,
             return_value={"result": {"score": 1.0}},
         )
@@ -390,7 +390,7 @@ class TestNemoAgentToolkitRemoteMetric:
     @pytest.mark.asyncio
     async def test_nemo_agent_toolkit_missing_score_returns_nan(self, mocker: MockerFixture):
         mocker.patch(
-            "nemo_evaluator.sdk.metrics.remote._post_to_remote_endpoint",
+            "nemo_evaluator.sdk.scoring.remote._post_to_remote_endpoint",
             new_callable=AsyncMock,
             return_value={"result": {}},
         )
@@ -420,7 +420,7 @@ class TestNemoAgentToolkitRemoteMetric:
             return {"result": {"score": 1.0}}
 
         mocker.patch(
-            "nemo_evaluator.sdk.metrics.remote._post_to_remote_endpoint",
+            "nemo_evaluator.sdk.scoring.remote._post_to_remote_endpoint",
             new_callable=AsyncMock,
             side_effect=fake_post,
         )
@@ -451,7 +451,7 @@ class TestNemoAgentToolkitRemoteMetric:
             return {"result": {"score": 1.0}}
 
         mocker.patch(
-            "nemo_evaluator.sdk.metrics.remote._post_to_remote_endpoint",
+            "nemo_evaluator.sdk.scoring.remote._post_to_remote_endpoint",
             new_callable=AsyncMock,
             side_effect=fake_post,
         )
@@ -470,7 +470,7 @@ class TestNemoAgentToolkitRemoteMetric:
     @pytest.mark.asyncio
     async def test_nemo_agent_toolkit_compute_scores_appends_request_log(self, mocker: MockerFixture):
         mocker.patch(
-            "nemo_evaluator.sdk.metrics.remote._post_to_remote_endpoint",
+            "nemo_evaluator.sdk.scoring.remote._post_to_remote_endpoint",
             new_callable=AsyncMock,
             return_value={"result": {"score": 1.0}},
         )

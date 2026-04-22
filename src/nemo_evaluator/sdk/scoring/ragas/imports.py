@@ -1,5 +1,5 @@
 # Apply Git patch before any other imports that might use GitPython (like ragas)
-from nemo_evaluator.sdk.metrics.ragas.git_patch import apply_git_patch
+from nemo_evaluator.sdk.scoring.ragas.git_patch import apply_git_patch
 
 apply_git_patch()
 

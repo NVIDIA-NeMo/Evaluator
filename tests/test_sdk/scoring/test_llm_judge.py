@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 from nemo_evaluator.sdk.enums import ModelFormat
 from nemo_evaluator.sdk.inference import ClientInferenceError
-from nemo_evaluator.sdk.metrics.llm_judge import (
+from nemo_evaluator.sdk.scoring.llm_judge import (
     LLMJudgeMetric,
     default_judge_prompt_template_chat,
     default_judge_prompt_template_completions,
@@ -212,7 +212,7 @@ class TestLLMJudgeMetric:
             metric._validate_output_text(None, {"choices": [{"message": {"content": None}}]})
 
     def test_render_request_warns_on_overlapping_keys_and_includes_score_dumps(self, mocker: MockerFixture):
-        warn = mocker.patch("nemo_evaluator.sdk.metrics.llm_judge._logger.warning")
+        warn = mocker.patch("nemo_evaluator.sdk.scoring.llm_judge._logger.warning")
         metric = LLMJudgeMetric(
             model=_make_model(),
             scores=[_make_metric_score()],
@@ -391,7 +391,7 @@ class TestLLMJudgeMetric:
             scores=[_make_metric_score()],
         )
         detect = mocker.patch(
-            "nemo_evaluator.sdk.metrics.llm_judge.detect_structured_output_mode",
+            "nemo_evaluator.sdk.scoring.llm_judge.detect_structured_output_mode",
             new_callable=mocker.AsyncMock,
             return_value=StructuredOutputMode.ROOT_GUIDED_JSON,
         )
@@ -410,7 +410,7 @@ class TestLLMJudgeMetric:
             scores=[RangeScore(name="helpfulness", minimum=1, maximum=5, parser=RegexScoreParser(pattern="(\\d+)"))],
         )
         detect = mocker.patch(
-            "nemo_evaluator.sdk.metrics.llm_judge.detect_structured_output_mode",
+            "nemo_evaluator.sdk.scoring.llm_judge.detect_structured_output_mode",
             new_callable=mocker.AsyncMock,
         )
 
@@ -426,7 +426,7 @@ class TestLLMJudgeMetric:
         )
         metric._preprocess_hooks = []
         detect = mocker.patch(
-            "nemo_evaluator.sdk.metrics.llm_judge.detect_structured_output_mode",
+            "nemo_evaluator.sdk.scoring.llm_judge.detect_structured_output_mode",
             new_callable=mocker.AsyncMock,
         )
 

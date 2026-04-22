@@ -16,7 +16,7 @@ from nemo_evaluator.sdk.inference import get_logger, requests_log_var
 
 # Lazy imports for RAGAS - these are getter functions that defer the expensive
 # RAGAS/langchain imports (~20-30s) until first use, improving startup time.
-from nemo_evaluator.sdk.metrics.ragas.imports import (
+from nemo_evaluator.sdk.scoring.ragas.imports import (
     get_evaluate_function,
     get_evaluation_dataset_class,
     get_langchain_embeddings_wrapper_class,

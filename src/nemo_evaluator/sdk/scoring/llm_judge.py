@@ -9,8 +9,8 @@ import nemo_evaluator.sdk.inference as inference
 from nemo_evaluator.sdk.enums import ModelFormat
 from nemo_evaluator.sdk.inference import InferenceFn, InferenceHookParams
 from nemo_evaluator.sdk.inference import new_hooks as _new_inference_hooks
-from nemo_evaluator.sdk.metrics.hooks import HooksBase
-from nemo_evaluator.sdk.metrics.template_rendering import build_template_context
+from nemo_evaluator.sdk.scoring.hooks import HooksBase
+from nemo_evaluator.sdk.scoring.template_rendering import build_template_context
 from nemo_evaluator.sdk.structured_output import InferenceStructuredOutput, detect_structured_output_mode
 from nemo_evaluator.sdk.templates import render_request
 from nemo_evaluator.sdk.values.common import SecretRef, SupportedJobTypes

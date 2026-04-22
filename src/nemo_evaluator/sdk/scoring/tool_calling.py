@@ -4,7 +4,7 @@ import json
 import logging
 from typing import ClassVar, Literal
 
-from nemo_evaluator.sdk.metrics.template_rendering import (
+from nemo_evaluator.sdk.scoring.template_rendering import (
     build_template_context,
     render_template_or_raise,
     template_metric_repr,

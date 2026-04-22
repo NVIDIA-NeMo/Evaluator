@@ -13,7 +13,7 @@ from httpx import Timeout
 from jsonpath_ng import parse as jsonpath_parse
 from jsonpath_ng.exceptions import JsonPathParserError
 from nemo_evaluator.sdk.inference import requests_log_var
-from nemo_evaluator.sdk.metrics.template_rendering import (
+from nemo_evaluator.sdk.scoring.template_rendering import (
     build_template_context,
     render_template_or_raise,
     template_metric_repr,

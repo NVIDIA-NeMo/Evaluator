@@ -3,7 +3,7 @@
 from functools import cached_property
 from typing import ClassVar, Literal
 
-from nemo_evaluator.sdk.metrics.template_rendering import render_reference_and_candidate, template_metric_repr
+from nemo_evaluator.sdk.scoring.template_rendering import render_reference_and_candidate, template_metric_repr
 from nemo_evaluator.sdk.values.metrics import ROUGE
 from nemo_evaluator.sdk.values.results import MetricResult, MetricScore
 

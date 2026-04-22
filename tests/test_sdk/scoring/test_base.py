@@ -1,5 +1,5 @@
 from jinja2 import UndefinedError
-from nemo_evaluator.sdk.metrics.template_rendering import extract_missing_template_key, template_metric_repr
+from nemo_evaluator.sdk.scoring.template_rendering import extract_missing_template_key, template_metric_repr
 
 
 class _NoModelDumpMetric:
