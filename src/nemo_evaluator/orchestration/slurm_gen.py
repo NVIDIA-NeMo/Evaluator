@@ -1009,8 +1009,25 @@ def _extract_bench_config(config: EvalConfig, bench_idx: int, svc_url_var: str, 
                     "url": extra_svc.base_url,
                 }
 
+    scoring = getattr(bench, "scoring", None)
+    if scoring is not None:
+        referenced: list[str] = []
+        for metric in scoring.metrics or []:
+            for fld in ("service", "judge_service", "baseline_service"):
+                name = getattr(metric, fld, None)
+                if name:
+                    referenced.append(name)
+            for name in getattr(metric, "services", []) or []:
+                referenced.append(name)
+        for name in referenced:
+            if name in services:
+                continue
+            extra_svc = config.services.get(name)
+            if extra_svc is None:
+                continue
+            services[name] = extra_svc.model_dump(exclude_none=True)
+
     bench_dict = bench.model_dump(exclude_none=True)
-    bench_dict.pop("scoring", None)
 
     return {
         "services": services,
@@ -1504,6 +1521,15 @@ def stamp_output_dir(config: EvalConfig) -> str | None:
     return rid
 
 
+def _sidecar_contains_secret(cfg_dict: dict) -> bool:
+    """Whether a sidecar config embeds any non-empty ``api_key`` value."""
+    services = cfg_dict.get("services") or {}
+    for svc in services.values():
+        if isinstance(svc, dict) and svc.get("api_key"):
+            return True
+    return False
+
+
 def _write_single_script(
     out: Path,
     script: str,
@@ -1537,6 +1563,8 @@ def _write_single_script(
     for safe_name, cfg_dict in sidecar_configs.items():
         cfg_path = out / f"config_{safe_name}.yaml"
         cfg_path.write_text(yaml.dump(cfg_dict, default_flow_style=False, sort_keys=False), encoding="utf-8")
+        if _sidecar_contains_secret(cfg_dict):
+            cfg_path.chmod(0o600)
         extra_paths.append(cfg_path)
 
     return path, extra_paths

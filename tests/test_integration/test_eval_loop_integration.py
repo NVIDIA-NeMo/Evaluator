@@ -329,3 +329,112 @@ class TestResumeRuntimeStats:
             f"expected p50={_MockSolverWithModelResponse.LATENCY_MS}ms from cached steps, "
             f"got {runtime['latency_percentiles_ms']['p50']} — latency not restored from cache"
         )
+
+
+class _JudgeFnEnv(EvalEnvironment):
+    """Env whose verify() attaches a ``_judge_fn`` closure and ``needs_judge``."""
+
+    name = "mock_judge_fn"
+
+    def __init__(self, judge_fn):
+        super().__init__()
+        self._dataset = [{"idx": 0}]
+        self._judge_fn = judge_fn
+
+    async def seed(self, idx):
+        return SeedResult(prompt="q", expected_answer="a", metadata={"idx": idx})
+
+    async def verify(self, response, expected, **meta):  # noqa: ARG002
+        return VerifyResult(
+            reward=0.0,
+            extracted_answer=response,
+            scoring_details={
+                "needs_judge": True,
+                "_judge_fn": self._judge_fn,
+                "task_id": f"t{meta.get('idx', 0)}",
+            },
+        )
+
+
+class _OneProblemSolver:
+    async def solve(self, task):  # noqa: ARG002
+        return SolveResult(response="resp")
+
+    async def close(self):
+        pass
+
+
+class TestJudgeFnSerialization:
+    def test_judge_fn_popped_on_happy_path(self, tmp_path):
+        async def ok_fn(client):  # noqa: ARG001
+            return {"reward": 0.9, "judge": {"total": 0.9}}
+
+        env = _JudgeFnEnv(ok_fn)
+
+        class _FakeJudgeClient:
+            pass
+
+        bundle = asyncio.run(
+            run_evaluation(
+                env,
+                _OneProblemSolver(),
+                n_repeats=1,
+                judge_client=_FakeJudgeClient(),
+                step_log_dir=tmp_path,
+            )
+        )
+
+        (result,) = bundle["_results"]
+        assert "_judge_fn" not in result["scoring_details"]
+        assert result["scoring_details"]["needs_judge"] is False
+        assert result["reward"] == 0.9
+        assert result["scoring_details"]["judge"] == {"total": 0.9}
+
+    def test_judge_fn_popped_when_no_judge_client(self, tmp_path, caplog):
+        import logging
+
+        async def unused_fn(client):  # noqa: ARG001
+            raise AssertionError("must not be invoked without a judge_client")
+
+        env = _JudgeFnEnv(unused_fn)
+        with caplog.at_level(logging.WARNING, logger="nemo_evaluator.engine.eval_loop"):
+            bundle = asyncio.run(
+                run_evaluation(
+                    env,
+                    _OneProblemSolver(),
+                    n_repeats=1,
+                    judge_client=None,
+                    step_log_dir=tmp_path,
+                )
+            )
+
+        (result,) = bundle["_results"]
+        assert "_judge_fn" not in result["scoring_details"]
+        assert result["scoring_details"]["needs_judge"] is False
+        assert "error" in result["scoring_details"]["judge"]
+        assert any("needs_judge" in rec.message and "no judge_client" in rec.message for rec in caplog.records)
+
+    def test_judge_closure_exception_recorded_not_swallowed(self, tmp_path):
+        async def broken_fn(client):  # noqa: ARG001
+            raise RuntimeError("judge exploded")
+
+        env = _JudgeFnEnv(broken_fn)
+
+        class _FakeJudgeClient:
+            pass
+
+        bundle = asyncio.run(
+            run_evaluation(
+                env,
+                _OneProblemSolver(),
+                n_repeats=1,
+                judge_client=_FakeJudgeClient(),
+                step_log_dir=tmp_path,
+            )
+        )
+
+        (result,) = bundle["_results"]
+        assert "_judge_fn" not in result["scoring_details"]
+        judge = result["scoring_details"]["judge"]
+        assert judge["total"] is None
+        assert "judge exploded" in judge["error"]

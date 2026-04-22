@@ -556,23 +556,53 @@ async def run_evaluation(
                             logger.warning("scorer %s error p%d r%d: %s", scorer_name, idx, rep, e)
                             vr.scoring_details[f"scorer:{scorer_name}"] = {"error": str(e), "reward": 0.0}
 
-                if judge_client and vr.scoring_details.get("needs_judge"):
-                    pg.on_phase(slot, rep, n_problems, n_repeats, "judging")
-                    try:
-                        from nemo_evaluator.scoring.judge import judge_score
-
-                        judge_result = await judge_score(
-                            instruction=seed_result.prompt,
-                            response=response_text,
-                            expected=seed_result.expected_answer,
-                            client=judge_client,
+                judge_fn = vr.scoring_details.pop("_judge_fn", None)
+                if vr.scoring_details.get("needs_judge"):
+                    if judge_client is None:
+                        logger.warning(
+                            "p%d r%d needs_judge=True but no judge_client is configured",
+                            idx,
+                            rep,
                         )
-                        step.scoring_details["judge"] = judge_result
-                        if "normalized" in judge_result:
-                            step.reward = judge_result["normalized"]
-                            vr.reward = judge_result["normalized"]
-                    except Exception as e:
-                        logger.warning("judge error p%d r%d: %s", idx, rep, e)
+                        vr.scoring_details["judge"] = {
+                            "error": "no judge_client configured",
+                            "total": None,
+                        }
+                    else:
+                        pg.on_phase(slot, rep, n_problems, n_repeats, "judging")
+                        try:
+                            if judge_fn is not None:
+                                final = await judge_fn(judge_client)
+                                step.scoring_details["judge"] = final.get("judge", {})
+                                extras = final.get("details")
+                                if extras:
+                                    step.scoring_details.update(extras)
+                                reward = final.get("reward")
+                                if reward is not None:
+                                    step.reward = float(reward)
+                                    vr.reward = float(reward)
+                            else:
+                                from nemo_evaluator.scoring.judge import judge_score
+
+                                judge_result = await judge_score(
+                                    instruction=seed_result.prompt,
+                                    response=response_text,
+                                    expected=seed_result.expected_answer,
+                                    client=judge_client,
+                                )
+                                step.scoring_details["judge"] = judge_result
+                                if "normalized" in judge_result:
+                                    step.reward = judge_result["normalized"]
+                                    vr.reward = judge_result["normalized"]
+                        except (KeyboardInterrupt, asyncio.CancelledError):
+                            raise
+                        except Exception as e:
+                            logger.warning("judge error p%d r%d: %s", idx, rep, e)
+                            step.scoring_details["judge"] = {
+                                "error": f"{type(e).__name__}: {e}",
+                                "total": None,
+                            }
+                    vr.scoring_details["needs_judge"] = False
 
                 if verified_log is not None:
                     ver_record = {

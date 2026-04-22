@@ -151,8 +151,9 @@ class OpenClawSolverConfig(BaseModel):
     type: Literal["openclaw"] = "openclaw"
     service: str
     thinking: str = "high"
-    context_window: int = 131072
+    context_window: int | None = None
     max_concurrent: int = 4
+    idle_timeout_seconds: int = 600
     config_path: str | None = None
     skip_preflight: bool = False
     openclaw_bin: str = "openclaw"

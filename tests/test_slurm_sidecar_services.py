@@ -266,3 +266,170 @@ class TestSimpleSolverSidecar:
         parsed = _validate_sidecar(list(sidecars.values())[0])
         assert parsed.benchmarks[0].solver.type == "simple"
         assert parsed.benchmarks[0].solver.image_detail == "auto"
+
+
+class TestSidecarScoringServices:
+    """Services referenced from scoring.metrics must appear in sidecar configs.
+
+    Regression: PinchBench and other llm_judge / hybrid benchmarks silently
+    lost their judge service in SLURM runs because ``_extract_bench_config``
+    (a) stripped ``bench.scoring`` and (b) only copied solver-facing
+    services.  Every judge-scored task then short-circuited with
+    ``reward=0.0`` because ``judge_client`` was None.
+    """
+
+    def test_judge_service_and_scoring_survive_sidecar(self):
+        cfg = _make_slurm_config(
+            services={
+                "model": {
+                    "type": "vllm",
+                    "model": "nvidia/test",
+                    "protocol": "chat_completions",
+                    "tensor_parallel_size": 4,
+                    "port": 8000,
+                    "node_pool": "gpu",
+                },
+                "judge": {
+                    "type": "api",
+                    "url": "https://inference-api.nvidia.com/v1/chat/completions",
+                    "protocol": "chat_completions",
+                    "model": "aws/anthropic/claude-opus-4-5",
+                    "api_key": "sk-test",
+                    "generation": {"temperature": 0.0},
+                    "proxy": {"extra_body": {"reasoning_effort": "low"}},
+                },
+            },
+            benchmarks=[
+                {
+                    "name": "pinchbench",
+                    "solver": {
+                        "type": "openclaw",
+                        "service": "model",
+                    },
+                    "sandbox": {"type": "ecs_fargate", "region": "us-west-2"},
+                    "scoring": {
+                        "metrics": [
+                            {"type": "judge", "name": "pinchbench_rubric", "service": "judge"},
+                        ]
+                    },
+                }
+            ],
+        )
+        _, sidecars, _ = generate_sbatch(cfg)
+        assert len(sidecars) == 1
+        sidecar_dict = list(sidecars.values())[0]
+
+        assert "judge" in sidecar_dict["services"], sidecar_dict["services"]
+        judge_svc = sidecar_dict["services"]["judge"]
+        assert judge_svc["url"].startswith("https://inference-api.nvidia.com")
+        assert judge_svc["model"] == "aws/anthropic/claude-opus-4-5"
+        assert judge_svc["api_key"] == "sk-test"
+        assert judge_svc["proxy"]["extra_body"] == {"reasoning_effort": "low"}
+
+        bench_dict = sidecar_dict["benchmarks"][0]
+        assert "scoring" in bench_dict, bench_dict
+        assert bench_dict["scoring"]["metrics"][0]["service"] == "judge"
+
+        parsed = _validate_sidecar(sidecar_dict)
+        assert "judge" in parsed.services
+        assert parsed.benchmarks[0].scoring.metrics[0].service == "judge"
+
+    def test_unreferenced_judge_excluded_from_sidecar(self):
+        """A judge service declared but not referenced from scoring stays out."""
+        cfg = _make_slurm_config(
+            services={
+                "model": {
+                    "type": "api",
+                    "url": "http://x/v1/chat/completions",
+                    "protocol": "chat_completions",
+                },
+                "unused_judge": {
+                    "type": "api",
+                    "url": "https://judge/v1/chat/completions",
+                    "protocol": "chat_completions",
+                    "model": "judge-model",
+                },
+            },
+            benchmarks=[
+                {
+                    "name": "simpleqa",
+                    "solver": {"type": "simple", "service": "model"},
+                }
+            ],
+        )
+        _, sidecars, _ = generate_sbatch(cfg)
+        sidecar = _validate_sidecar(list(sidecars.values())[0])
+        assert "unused_judge" not in sidecar.services
+
+
+class TestSidecarSecretFilePermissions:
+    """Sidecar YAMLs that embed resolved ``api_key`` values must be 0600 on disk."""
+
+    def _cfg_with_judge(self, api_key: str | None):
+        judge_svc = {
+            "type": "api",
+            "url": "https://judge/v1/chat/completions",
+            "protocol": "chat_completions",
+            "model": "claude-opus-4-5",
+        }
+        if api_key is not None:
+            judge_svc["api_key"] = api_key
+        return _make_slurm_config(
+            services={
+                "model": {
+                    "type": "vllm",
+                    "model": "nvidia/test",
+                    "protocol": "chat_completions",
+                    "tensor_parallel_size": 4,
+                    "port": 8000,
+                    "node_pool": "gpu",
+                },
+                "judge": judge_svc,
+            },
+            benchmarks=[
+                {
+                    "name": "pinchbench",
+                    "solver": {"type": "openclaw", "service": "model"},
+                    "sandbox": {"type": "ecs_fargate", "region": "us-west-2"},
+                    "scoring": {
+                        "metrics": [
+                            {"type": "judge", "name": "rubric", "service": "judge"},
+                        ]
+                    },
+                }
+            ],
+        )
+
+    def test_sidecar_with_api_key_is_0600(self, tmp_path):
+        from nemo_evaluator.orchestration.slurm_gen import write_sbatch
+
+        cfg = self._cfg_with_judge(api_key="sk-secret")
+        _, extras = write_sbatch(cfg, output_dir=tmp_path)
+
+        config_yamls = [p for p in extras if p.name.startswith("config_") and p.suffix == ".yaml"]
+        assert config_yamls, f"expected a config_*.yaml in extras, got {extras}"
+        for cfg_path in config_yamls:
+            mode = cfg_path.stat().st_mode & 0o777
+            assert mode == 0o600, f"{cfg_path} has mode {oct(mode)}, expected 0o600"
+            assert "sk-secret" in cfg_path.read_text()
+
+    def test_sidecar_without_secrets_keeps_default_perms(self, tmp_path):
+        from nemo_evaluator.orchestration.slurm_gen import write_sbatch
+
+        cfg = self._cfg_with_judge(api_key=None)
+        _, extras = write_sbatch(cfg, output_dir=tmp_path)
+
+        config_yamls = [p for p in extras if p.name.startswith("config_") and p.suffix == ".yaml"]
+        assert config_yamls
+        for cfg_path in config_yamls:
+            mode = cfg_path.stat().st_mode & 0o777
+            assert mode != 0o600, f"{cfg_path} unexpectedly chmoded to 0600 without secret"
+
+    def test_helper_detects_api_key_in_any_service(self):
+        from nemo_evaluator.orchestration.slurm_gen import _sidecar_contains_secret
+
+        assert _sidecar_contains_secret({"services": {"a": {"api_key": "x"}}})
+        assert not _sidecar_contains_secret({"services": {"a": {"api_key": ""}}})
+        assert not _sidecar_contains_secret({"services": {"a": {}}})
+        assert not _sidecar_contains_secret({"services": {}})
+        assert not _sidecar_contains_secret({})

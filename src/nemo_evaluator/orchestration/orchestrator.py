@@ -339,6 +339,7 @@ def _make_solver(
             context_window=solver_cfg.context_window,
             max_tokens=gen.max_tokens if gen else None,
             max_concurrent=solver_cfg.max_concurrent,
+            idle_timeout_seconds=solver_cfg.idle_timeout_seconds,
             config_path=solver_cfg.config_path,
             skip_preflight=solver_cfg.skip_preflight or uses_sandbox,
         )
