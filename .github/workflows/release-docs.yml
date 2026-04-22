@@ -64,7 +64,23 @@ on:
         description: Email addresses to send the notification to. Format as "me@me.com,you@you.com".
         required: false
         type: string
-    secrets: inherit
+    secrets:
+      AWS_ASSUME_ROLE_ARN:
+        required: false
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+      AKAMAI_HOST:
+        required: false
+      AKAMAI_CLIENT_TOKEN:
+        required: false
+      AKAMAI_CLIENT_SECRET:
+        required: false
+      AKAMAI_ACCESS_TOKEN:
+        required: false
+      S3_BUCKET_NAME:
+        required: false
 
 jobs:
   build-docs:
