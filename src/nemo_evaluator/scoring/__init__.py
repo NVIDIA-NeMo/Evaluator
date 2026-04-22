@@ -22,6 +22,20 @@ from __future__ import annotations
 
 from typing import Callable
 
+from nemo_evaluator.scoring.contracts import (
+    CorpusMetric,
+    Metric,
+    MetricResult,
+    MetricScore,
+    MetricWithPreflight,
+    MetricWithSecrets,
+    RubricScoreStat,
+    RubricScoreValue,
+    ScoreStats,
+    SecretRefLike,
+    SecretResolver,
+    metric_as_scorer,
+)
 from nemo_evaluator.scoring.judge import (
     JudgeScoringConfig,
     build_judge_prompt,
