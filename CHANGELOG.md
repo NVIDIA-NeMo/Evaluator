@@ -2,6 +2,10 @@
 
 ## 0.13.0 (unreleased)
 
+### Fixes
+
+- **`HarborEnvironment` respects `task.toml [verifier] timeout_sec`**: previously the test script (`bash /tests/test.sh`) was hardcoded to a 600s timeout regardless of what the task declared. Now mirrors the existing `agent_timeout_sec` plumbing — `seed()` extracts the verifier timeout into `SeedResult.metadata["verifier_timeout_sec"]`, `verify()` reads it back via `**metadata` kwargs. Defaults to 600s when the task doesn't declare one. Fixes tasks like `torch-tensor-parallelism` (900s) and `mteb-leaderboard` (3600s) being killed prematurely.
+
 ### Adapter Proxy (Breaking — replaces LiteLLM)
 
 - **LiteLLM removed**: The `litellm` dependency, `proxy` and `proxy-full` extras, and `litellm_settings` config field are all removed. The adapter proxy is now built-in with zero external proxy dependencies.

@@ -65,6 +65,10 @@ logger = logging.getLogger(__name__)
 
 REGISTRY_URL = "https://raw.githubusercontent.com/laude-institute/harbor/main/registry.json"
 
+# Matches upstream harbor's VerifierConfig.timeout_sec default (harbor/models/task/config.py).
+# Applied when task.toml [verifier] does not declare its own timeout_sec.
+DEFAULT_HARBOR_VERIFIER_TIMEOUT = 600
+
 # ---------------------------------------------------------------------------
 # Registry data model
 # ---------------------------------------------------------------------------
@@ -737,6 +741,9 @@ class HarborEnvironment(EvalEnvironment):
         agent_timeout = config.get("agent", {}).get("timeout_sec")
         if agent_timeout is not None:
             metadata["agent_timeout_sec"] = agent_timeout
+        metadata["verifier_timeout_sec"] = config.get("verifier", {}).get(
+            "timeout_sec", DEFAULT_HARBOR_VERIFIER_TIMEOUT
+        )
         task_metadata = config.get("metadata", {})
         if task_metadata:
             metadata.update(task_metadata)
@@ -797,12 +804,13 @@ class HarborEnvironment(EvalEnvironment):
                 await sandbox.upload(test_file, f"/tests/{rel}")
 
         await sandbox.exec("chmod -R +x /tests/", timeout_sec=10)
+        verifier_timeout = float(metadata.get("verifier_timeout_sec", DEFAULT_HARBOR_VERIFIER_TIMEOUT))
         result = await sandbox.exec(
             'export PATH="/root/.local/bin:/root/.cargo/bin:/usr/local/go/bin'
             ":/usr/local/cargo/bin:$HOME/.local/bin:$HOME/.cargo/bin"
             ':$HOME/go/bin:$JAVA_HOME/bin:$PATH" && '
             "bash /tests/test.sh",
-            timeout_sec=600,
+            timeout_sec=verifier_timeout,
         )
 
         reward = 0.0
