@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.
+# Copyright (c) 2026, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,10 +30,41 @@ on:
         required: false
         type: string
         default: ""
+      update-version-picker:
+        description: Update version picker.
+        required: false
+        type: boolean
+        default: true
       notify-emails:
         description: Email addresses to send the notification to. Format as "me@me.com,you@you.com".
         required: false
         type: string
+  workflow_call:
+    inputs:
+      dry-run:
+        description: Whether to run the workflow in dry-run mode
+        required: true
+        type: boolean
+      publish-as-latest:
+        description: Publish as Latest stable version.
+        required: false
+        type: boolean
+        default: true
+      docs-version-override:
+        description: Docs version if commit is not tagged
+        required: false
+        type: string
+        default: ""
+      update-version-picker:
+        description: Update version picker.
+        required: false
+        type: boolean
+        default: true
+      notify-emails:
+        description: Email addresses to send the notification to. Format as "me@me.com,you@you.com".
+        required: false
+        type: string
+    secrets: inherit
 
 jobs:
   build-docs:
@@ -64,8 +95,9 @@ jobs:
           emails-csv: ${{ inputs.notify-emails && format('{0},{1}', vars.docs_release_emails, inputs.notify-emails) || vars.docs_release_emails }}
           overwrite-latest-on-tag: ${{ inputs.publish-as-latest }}
           docs-version-override: ${{ inputs.docs-version-override }}
+          update-version-picker: ${{ inputs.update-version-picker }}
           run-on-version-tag-only: ${{ github.ref_name != 'main' }}
-          request-name: megatron-bridge-publish-docs-${{ github.run_id }}
+          request-name: nemo-evaluator-publish-docs-${{ github.run_id }}
           aws-region: ${{ vars.DOCS_AWS_REGION }}
           aws-role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
