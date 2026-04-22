@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import IO, Any
 
 from nemo_evaluator.config import (
+    DEFAULT_EXEC_SERVER_PORT,
     AgentSolverConfig,
     ApptainerSandbox,
     ContainerSolverConfig,
@@ -144,7 +145,7 @@ def _build_ecs_sandbox_config(cfg: EcsFargateSandbox) -> Any:
             sshd_port=ssm_ssh.get("sshd_port", 2222),
             public_key_secret_arn=ssm_ssh["public_key_secret_arn"],
             private_key_secret_arn=ssm_ssh["private_key_secret_arn"],
-            exec_server_port=ssm_ssh.get("exec_server_port", 5000),
+            exec_server_port=ssm_ssh.get("exec_server_port", DEFAULT_EXEC_SERVER_PORT),
         )
 
     return SandboxEcsConfig(

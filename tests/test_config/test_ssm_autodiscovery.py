@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nemo_evaluator.config import EcsFargateSandbox, SshSidecarConfig
+from nemo_evaluator.config import DEFAULT_EXEC_SERVER_PORT, EcsFargateSandbox, SshSidecarConfig
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────
@@ -243,8 +243,8 @@ class TestBuildEcsSandboxConfigWithSsm:
         assert "pub" in result.ssh_sidecar.public_key_secret_arn
         assert "priv" in result.ssh_sidecar.private_key_secret_arn
 
-    def test_ssh_sidecar_exec_server_port_defaults_to_5000(self):
-        """When SSM omits exec_server_port, it defaults to 5000 (exec-server mode)."""
+    def test_ssh_sidecar_exec_server_port_falls_back_to_default(self):
+        """When SSM omits exec_server_port, it falls back to DEFAULT_EXEC_SERVER_PORT."""
         ssm_no_exec_port = dict(SSM_CONFIG)
         ssm_no_exec_port["ssh_sidecar"] = {
             "sshd_port": 2222,
@@ -260,7 +260,7 @@ class TestBuildEcsSandboxConfigWithSsm:
             result = self._build(cfg)
 
         assert result.ssh_sidecar is not None
-        assert result.ssh_sidecar.exec_server_port == 5000
+        assert result.ssh_sidecar.exec_server_port == DEFAULT_EXEC_SERVER_PORT
 
     def test_yaml_overrides_ssm(self):
         """Explicitly set YAML fields take precedence over SSM."""

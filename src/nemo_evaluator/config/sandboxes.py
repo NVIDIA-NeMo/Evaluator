@@ -21,6 +21,12 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, model_validator
 
+# Matches the exec-server script's own TB_EXEC_PORT fallback and the terraform SSM
+# default (frontierai-aws-terraform `exec_server_port` variable). Kept off 5000 to
+# avoid collisions with benchmark tasks that bind 5000 themselves (e.g. TB 2.0's
+# hf-model-inference Flask server).
+DEFAULT_EXEC_SERVER_PORT = 19542
+
 
 class _SandboxBase(BaseModel):
     """Shared sandbox fields used by the eval loop / lifecycle."""
@@ -63,7 +69,7 @@ class SshSidecarConfig(BaseModel):
     public_key_secret_arn: str
     private_key_secret_arn: str
     image: str | None = None
-    exec_server_port: int | None = 5000
+    exec_server_port: int | None = DEFAULT_EXEC_SERVER_PORT
 
 
 class EcsFargateSandbox(_SandboxBase):
