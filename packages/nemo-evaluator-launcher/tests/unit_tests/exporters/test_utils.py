@@ -343,19 +343,205 @@ results:
 
 
 class TestSSHHelpers:
-    def test_setup_and_cleanup_masters(self):
-        remotes = [("user", "host"), ("user", "host"), ("other", "otherhost")]
+    def test_ssh_socket_path_generation(self):
+        """Test that SSH socket paths are generated correctly with MD5 hashing."""
+        remotes = [("user", "hostname")]
 
         with patch(
-            "subprocess.run", return_value=SimpleNamespace(returncode=0)
-        ) as mock_run:
+            "nemo_evaluator_launcher.exporters.utils.open_master_connection",
+            return_value="/path/to/socket.sock",
+        ) as mock_open:
             cp = U.ssh_setup_masters(remotes)
-            assert len(cp) == 2  # Two unique remote combinations
+
+            # Verify socket path was generated
+            assert len(cp) == 1
+            assert ("user", "hostname") in cp
+
+            # Verify open_master_connection was called with proper parameters
+            mock_open.assert_called_once()
+            call_kwargs = mock_open.call_args
+            assert call_kwargs.kwargs["username"] == "user"
+            assert call_kwargs.kwargs["hostname"] == "hostname"
+            assert call_kwargs.kwargs["socket"].endswith(".sock")
+
+    def test_ssh_socket_name_uses_md5_hash(self):
+        """Test that socket name is derived from MD5 hash of username@hostname."""
+        import hashlib
+
+        remotes = [("testuser", "testhost")]
+
+        with patch(
+            "nemo_evaluator_launcher.exporters.utils.open_master_connection",
+            return_value="/path/to/socket.sock",
+        ) as mock_open:
+            U.ssh_setup_masters(remotes)
+
+            # Calculate expected hash
+            m = hashlib.md5()
+            m.update("testuser@testhost".encode("utf-8"))
+            expected_hash_int = int(m.hexdigest(), 16)
+
+            # Extract socket path from call
+            socket_path = mock_open.call_args.kwargs["socket"]
+            socket_name = Path(socket_path).stem  # Get filename without .sock
+
+            # Verify socket name starts with the hash conversion
+            assert socket_name == str(expected_hash_int)[: len(socket_name)]
+
+    def test_ssh_socket_path_length_limit(self):
+        """Test that socket paths respect UNIX_SOCKET_MAX_PATH_LEN limit."""
+        remotes = [("user", "host")]
+
+        with patch(
+            "nemo_evaluator_launcher.exporters.utils.open_master_connection",
+            return_value="/path/to/socket.sock",
+        ) as mock_open:
+            U.ssh_setup_masters(remotes)
+
+            socket_path = mock_open.call_args.kwargs["socket"]
+            # Socket path should be less than the max length
+            assert len(socket_path) <= U.UNIX_SOCKET_MAX_PATH_LEN
+
+    def test_ssh_socket_path_too_long_connections_dir(self, tmp_path: Path):
+        """Test that RuntimeError is raised when CONNECTIONS_DIR path is too long."""
+        # Create a very long path
+        long_base = tmp_path / ("x" * 200)
+
+        remotes = [("user", "host")]
+
+        with patch(
+            "nemo_evaluator_launcher.exporters.utils.CONNECTIONS_DIR", long_base
+        ):
+            with pytest.raises(
+                RuntimeError,
+                match="Base connections directory path is too long for SSH control socket",
+            ):
+                U.ssh_setup_masters(remotes)
+
+    def test_ssh_socket_name_truncation(self):
+        """Test that socket name is properly truncated to fit within path length limit."""
+
+        remotes = [("verylongusername", "verylonghostname.example.com")]
+
+        with patch(
+            "nemo_evaluator_launcher.exporters.utils.open_master_connection",
+            return_value="/path/to/socket.sock",
+        ) as mock_open:
+            U.ssh_setup_masters(remotes)
+
+            socket_path = mock_open.call_args.kwargs["socket"]
+            socket_name = Path(socket_path).stem
+
+            # Calculate expected maximum socket name length
+            connections_dir_len = len(str(U.CONNECTIONS_DIR))
+            max_socket_name_len = U.UNIX_SOCKET_MAX_PATH_LEN - connections_dir_len - 16
+
+            # Verify socket name length doesn't exceed the calculated maximum
+            assert len(socket_name) <= max_socket_name_len
+
+            # Verify it's still a valid integer string (truncated hash)
+            assert socket_name.isdigit()
+
+    def test_ssh_multiple_remotes_unique_sockets(self):
+        """Test that multiple remotes get unique socket paths."""
+        remotes = [("user1", "host1"), ("user2", "host2"), ("user1", "host2")]
+
+        socket_paths = []
+
+        def mock_open_connection(username, hostname, socket):
+            socket_paths.append(socket)
+            return socket
+
+        with patch(
+            "nemo_evaluator_launcher.exporters.utils.open_master_connection",
+            side_effect=mock_open_connection,
+        ):
+            cp = U.ssh_setup_masters(remotes)
+
+            # All socket paths should be unique
+            assert len(set(socket_paths)) == 3
+            assert len(cp) == 3
+
+            # Each remote should have its own socket
+            assert ("user1", "host1") in cp
+            assert ("user2", "host2") in cp
+            assert ("user1", "host2") in cp
+
+    def test_ssh_duplicate_remotes_deduplicated(self):
+        """Test that duplicate remote entries are handled correctly."""
+        # Note: Currently ssh_setup_masters doesn't deduplicate, it processes all
+        # This test documents current behavior
+        remotes = [("user", "host"), ("user", "host")]
+
+        call_count = 0
+
+        def mock_open_connection(username, hostname, socket):
+            nonlocal call_count
+            call_count += 1
+            return socket
+
+        with patch(
+            "nemo_evaluator_launcher.exporters.utils.open_master_connection",
+            side_effect=mock_open_connection,
+        ):
+            cp = U.ssh_setup_masters(remotes)
+
+            # Both calls are made (no deduplication in the function)
+            assert call_count == 2
+            # But only one entry in the dict (last one wins)
+            assert len(cp) == 1
             assert ("user", "host") in cp
-            assert ("other", "otherhost") in cp
-            assert cp[("user", "host")].endswith("user_host.sock")
-            U.ssh_cleanup_masters(cp)
-            assert mock_run.call_count >= 2
+
+    def test_ssh_socket_path_consistent_for_same_remote(self):
+        """Test that the same remote always generates the same socket path."""
+        import hashlib
+
+        username, hostname = "testuser", "testhost"
+        remotes = [(username, hostname)]
+
+        # Calculate expected socket name
+        m = hashlib.md5()
+        m.update(f"{username}@{hostname}".encode("utf-8"))
+        connections_dir_len = len(str(U.CONNECTIONS_DIR))
+        socket_length = U.UNIX_SOCKET_MAX_PATH_LEN - connections_dir_len - 16
+        expected_socket_name = str(int(m.hexdigest(), 16))[:socket_length]
+        expected_socket_path = str(U.CONNECTIONS_DIR / f"{expected_socket_name}.sock")
+
+        with patch(
+            "nemo_evaluator_launcher.exporters.utils.open_master_connection",
+            return_value=expected_socket_path,
+        ) as mock_open:
+            U.ssh_setup_masters(remotes)
+
+            # Verify the socket path matches expected
+            actual_socket_path = mock_open.call_args.kwargs["socket"]
+            assert actual_socket_path == expected_socket_path
+
+    def test_ssh_empty_remotes_list(self):
+        """Test that empty remotes list returns empty control_paths dict."""
+        cp = U.ssh_setup_masters([])
+        assert cp == {}
+
+    def test_ssh_socket_fails_open_connection_returns_none(self):
+        """Test that when open_master_connection returns None, socket is not added to control_paths."""
+        remotes = [("user1", "host1"), ("user2", "host2")]
+
+        def mock_open_connection(username, hostname, socket):
+            # First connection succeeds, second fails
+            if username == "user1":
+                return socket
+            return None
+
+        with patch(
+            "nemo_evaluator_launcher.exporters.utils.open_master_connection",
+            side_effect=mock_open_connection,
+        ):
+            cp = U.ssh_setup_masters(remotes)
+
+            # Only successful connection should be in control_paths
+            assert len(cp) == 1
+            assert ("user1", "host1") in cp
+            assert ("user2", "host2") not in cp
 
     def test_download_artifacts_only_required_with_logs(self, tmp_path: Path):
         class FakePopen:
