@@ -146,6 +146,98 @@ def _get_launcher_command() -> str:
     return shlex.join(argv)
 
 
+def _resolve_single_image_path(configured: str | None) -> dict | None:
+    """Return provenance metadata for a single container image reference.
+
+    For local file paths (``.sqsh`` or absolute), resolves symlinks to the
+    canonical target and records the target file's mtime. This makes runs
+    that point at a rolling symlink (e.g. ``rl.nightly.sqsh``) reproducible
+    after the fact — the exact ``.sqsh`` file used is captured in
+    ``metadata.yaml`` even though the symlink keeps rotating.
+
+    Returns ``None`` for empty values or registry references (which do not
+    need file-system resolution and carry their own version tag).
+    """
+    if not configured:
+        return None
+    if not is_local_image_path(configured):
+        # Registry reference (e.g. "gitlab-master.nvidia.com/...:tag") — the
+        # tag already pins the version; nothing to resolve on the filesystem.
+        return None
+
+    entry: dict = {"configured": configured}
+    try:
+        is_symlink = os.path.islink(configured)
+        resolved = os.path.realpath(configured)
+        entry["is_symlink"] = is_symlink
+        entry["resolved"] = resolved
+        try:
+            stat_result = os.stat(configured)  # follows symlinks
+            entry["mtime"] = (
+                datetime.datetime.fromtimestamp(
+                    stat_result.st_mtime, tz=datetime.timezone.utc
+                )
+                .isoformat()
+                .replace("+00:00", "Z")
+            )
+            entry["size_bytes"] = stat_result.st_size
+        except OSError as stat_err:
+            # Target of a broken symlink, or permissions issue. Keep the
+            # resolved path; omit mtime/size rather than fail the run.
+            entry["stat_error"] = str(stat_err)
+    except OSError as link_err:
+        # os.path.islink / realpath raise OSError when the path cannot be
+        # inspected (e.g. permission denied on a parent dir). Record what
+        # we attempted; the run itself is unaffected.
+        entry["resolve_error"] = str(link_err)
+    return entry
+
+
+def _collect_resolved_images(cfg: DictConfig) -> dict[str, dict]:
+    """Walk a launcher config and collect provenance for every container image.
+
+    Returns a mapping of ``<dotted.path.in.config>`` to a dict with at least
+    ``configured``, ``resolved``, ``is_symlink`` and (where available) ``mtime``
+    and ``size_bytes``. Keys not present in the config, or set to registry
+    references, are skipped.
+
+    Inspected keys:
+    - ``deployment.image``
+    - ``deployment.aux_deployments[*].image`` (each aux deployment)
+    - ``evaluation.tasks[*].container`` (each task's container)
+    """
+    resolved: dict[str, dict] = {}
+
+    deployment_image = (
+        cfg.get("deployment", {}).get("image") if hasattr(cfg, "get") else None
+    )
+    entry = _resolve_single_image_path(deployment_image)
+    if entry is not None:
+        resolved["deployment.image"] = entry
+
+    aux_deployments = (
+        cfg.get("deployment", {}).get("aux_deployments", []) or []
+        if hasattr(cfg, "get")
+        else []
+    )
+    for idx, aux in enumerate(aux_deployments):
+        aux_image = aux.get("image") if hasattr(aux, "get") else None
+        aux_entry = _resolve_single_image_path(aux_image)
+        if aux_entry is not None:
+            resolved[f"deployment.aux_deployments[{idx}].image"] = aux_entry
+
+    tasks = (
+        cfg.get("evaluation", {}).get("tasks", []) or [] if hasattr(cfg, "get") else []
+    )
+    for idx, task in enumerate(tasks):
+        task_container = task.get("container") if hasattr(task, "get") else None
+        task_entry = _resolve_single_image_path(task_container)
+        if task_entry is not None:
+            resolved[f"evaluation.tasks[{idx}].container"] = task_entry
+
+    return resolved
+
+
 def get_eval_factory_config(
     cfg: DictConfig,
     user_task_config: DictConfig,
@@ -269,6 +361,16 @@ def get_eval_factory_command(
         ["metadata", "launcher_command"],
         _get_launcher_command(),
     )
+    # Capture resolved container image paths so runs that point at a rolling
+    # symlink (e.g. rl.nightly.sqsh on a shared lustre mount) remain
+    # reproducible in metadata.yaml after the symlink target changes.
+    resolved_images = _collect_resolved_images(cfg)
+    if resolved_images:
+        _set_nested_optionally_overriding(
+            merged_nemo_evaluator_config,
+            ["metadata", "resolved_images"],
+            resolved_images,
+        )
 
     # Now get the pre_cmd/post_cmd either from `evaluation.*` or task-level. Note the
     # order -- task level wins.

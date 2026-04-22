@@ -705,3 +705,113 @@ class TestIsLocalImagePath:
         from nemo_evaluator_launcher.common.helpers import is_local_image_path
 
         assert is_local_image_path(image_path) is expected
+
+
+class TestCollectResolvedImages:
+    """Tests for _collect_resolved_images provenance capture."""
+
+    def test_resolves_symlink_for_deployment_image(self, tmp_path):
+        from nemo_evaluator_launcher.common.helpers import _collect_resolved_images
+
+        target = tmp_path / "rl.12345.sqsh"
+        target.write_bytes(b"x" * 1024)
+        link = tmp_path / "rl.nightly.sqsh"
+        link.symlink_to(target)
+
+        cfg = OmegaConf.create({"deployment": {"image": str(link)}})
+        result = _collect_resolved_images(cfg)
+
+        assert "deployment.image" in result
+        entry = result["deployment.image"]
+        assert entry["configured"] == str(link)
+        assert entry["resolved"] == str(target.resolve())
+        assert entry["is_symlink"] is True
+        assert entry["size_bytes"] == 1024
+        assert "mtime" in entry and entry["mtime"].endswith("Z")
+
+    def test_non_symlink_file(self, tmp_path):
+        from nemo_evaluator_launcher.common.helpers import _collect_resolved_images
+
+        real = tmp_path / "harness.sqsh"
+        real.write_bytes(b"y" * 512)
+
+        cfg = OmegaConf.create({"deployment": {"image": str(real)}})
+        entry = _collect_resolved_images(cfg)["deployment.image"]
+        assert entry["is_symlink"] is False
+        assert entry["configured"] == str(real)
+        assert entry["resolved"] == str(real.resolve())
+
+    def test_registry_reference_is_skipped(self):
+        from nemo_evaluator_launcher.common.helpers import _collect_resolved_images
+
+        cfg = OmegaConf.create(
+            {"deployment": {"image": "gitlab-master.nvidia.com/foo/bar:dev-2026-04-07"}}
+        )
+        assert _collect_resolved_images(cfg) == {}
+
+    def test_missing_deployment_image_is_absent(self):
+        from nemo_evaluator_launcher.common.helpers import _collect_resolved_images
+
+        cfg = OmegaConf.create({"evaluation": {"tasks": []}})
+        assert _collect_resolved_images(cfg) == {}
+
+    def test_task_containers_collected(self, tmp_path):
+        from nemo_evaluator_launcher.common.helpers import _collect_resolved_images
+
+        gym = tmp_path / "nemo-gym.sqsh"
+        gym.write_bytes(b"g")
+        skills = tmp_path / "nemo-skills.sqsh"
+        skills.write_bytes(b"s")
+
+        cfg = OmegaConf.create(
+            {
+                "evaluation": {
+                    "tasks": [
+                        {"name": "nemo_gym", "container": str(gym)},
+                        {
+                            "name": "skills",
+                            "container": "gitlab-master.nvidia.com/skills:v1",
+                        },
+                        {"name": "other", "container": str(skills)},
+                    ]
+                }
+            }
+        )
+        result = _collect_resolved_images(cfg)
+        assert "evaluation.tasks[0].container" in result
+        # Registry ref for task 1 is skipped
+        assert "evaluation.tasks[1].container" not in result
+        assert "evaluation.tasks[2].container" in result
+
+    def test_aux_deployments_collected(self, tmp_path):
+        from nemo_evaluator_launcher.common.helpers import _collect_resolved_images
+
+        aux_img = tmp_path / "judge.sqsh"
+        aux_img.write_bytes(b"j")
+        cfg = OmegaConf.create(
+            {
+                "deployment": {
+                    "image": None,
+                    "aux_deployments": [{"image": str(aux_img)}],
+                }
+            }
+        )
+        result = _collect_resolved_images(cfg)
+        assert "deployment.aux_deployments[0].image" in result
+        assert result["deployment.aux_deployments[0].image"]["configured"] == str(
+            aux_img
+        )
+
+    def test_broken_symlink_keeps_resolved_path_without_mtime(self, tmp_path):
+        from nemo_evaluator_launcher.common.helpers import _collect_resolved_images
+
+        link = tmp_path / "dangling.sqsh"
+        link.symlink_to(tmp_path / "does_not_exist.sqsh")
+
+        cfg = OmegaConf.create({"deployment": {"image": str(link)}})
+        entry = _collect_resolved_images(cfg)["deployment.image"]
+        assert entry["is_symlink"] is True
+        assert entry["configured"] == str(link)
+        # A broken symlink: resolved path is reported, but stat fails so no mtime.
+        assert "mtime" not in entry
+        assert "stat_error" in entry
