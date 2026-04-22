@@ -26,6 +26,7 @@ from typing import IO, Any
 
 from nemo_evaluator.config import (
     DEFAULT_EXEC_SERVER_PORT,
+    DEFAULT_SSHD_PORT,
     AgentSolverConfig,
     ApptainerSandbox,
     ContainerSolverConfig,
@@ -142,7 +143,7 @@ def _build_ecs_sandbox_config(cfg: EcsFargateSandbox) -> Any:
         )
     elif ssm_ssh.get("public_key_secret_arn") and ssm_ssh.get("private_key_secret_arn"):
         ssh_sidecar = SandboxSshConfig(
-            sshd_port=ssm_ssh.get("sshd_port", 2222),
+            sshd_port=ssm_ssh.get("sshd_port", DEFAULT_SSHD_PORT),
             public_key_secret_arn=ssm_ssh["public_key_secret_arn"],
             private_key_secret_arn=ssm_ssh["private_key_secret_arn"],
             exec_server_port=ssm_ssh.get("exec_server_port", DEFAULT_EXEC_SERVER_PORT),

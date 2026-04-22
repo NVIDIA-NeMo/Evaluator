@@ -19,7 +19,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nemo_evaluator.config import DEFAULT_EXEC_SERVER_PORT, EcsFargateSandbox, SshSidecarConfig
+from nemo_evaluator.config import (
+    DEFAULT_EXEC_SERVER_PORT,
+    DEFAULT_SSHD_PORT,
+    EcsFargateSandbox,
+    SshSidecarConfig,
+)
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────
@@ -261,6 +266,25 @@ class TestBuildEcsSandboxConfigWithSsm:
 
         assert result.ssh_sidecar is not None
         assert result.ssh_sidecar.exec_server_port == DEFAULT_EXEC_SERVER_PORT
+
+    def test_ssh_sidecar_sshd_port_falls_back_to_default(self):
+        """When SSM omits sshd_port, it falls back to DEFAULT_SSHD_PORT."""
+        ssm_no_sshd_port = dict(SSM_CONFIG)
+        ssm_no_sshd_port["ssh_sidecar"] = {
+            "exec_server_port": SSM_CONFIG["ssh_sidecar"]["exec_server_port"],
+            "public_key_secret_arn": SSM_CONFIG["ssh_sidecar"]["public_key_secret_arn"],
+            "private_key_secret_arn": SSM_CONFIG["ssh_sidecar"]["private_key_secret_arn"],
+        }
+        cfg = EcsFargateSandbox(region="us-west-2")
+
+        with patch(
+            "nemo_evaluator.sandbox.ecs_fargate.resolve_ecs_config_from_ssm",
+            return_value=ssm_no_sshd_port,
+        ):
+            result = self._build(cfg)
+
+        assert result.ssh_sidecar is not None
+        assert result.ssh_sidecar.sshd_port == DEFAULT_SSHD_PORT
 
     def test_yaml_overrides_ssm(self):
         """Explicitly set YAML fields take precedence over SSM."""

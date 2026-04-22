@@ -43,6 +43,7 @@ from .gate_policy import GatePolicy, default_policy, load_gate_policy
 from .output import OutputConfig
 from .sandboxes import (
     DEFAULT_EXEC_SERVER_PORT,
+    DEFAULT_SSHD_PORT,
     ApptainerSandbox,
     CustomSandbox,
     DockerSandbox,
@@ -110,6 +111,7 @@ __all__ = [
     "ServiceConfig",
     # Sandboxes
     "DEFAULT_EXEC_SERVER_PORT",
+    "DEFAULT_SSHD_PORT",
     "DockerSandbox",
     "SshSidecarConfig",
     "EcsFargateSandbox",
