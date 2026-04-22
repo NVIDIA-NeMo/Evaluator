@@ -26,12 +26,10 @@ import sys
 # Add custom extensions directory to Python path
 sys.path.insert(0, os.path.abspath("_extensions"))
 
-from nemo_evaluator_launcher.package_info import __version__
-
 project = "NeMo Evaluator SDK"
-copyright = "2025, NVIDIA Corporation"
+copyright = "2026, NVIDIA Corporation"
 author = "NVIDIA Corporation"
-release = __version__
+release = "nightly"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -197,7 +195,7 @@ html_theme = "nvidia_sphinx_theme"
 
 html_theme_options = {
     "switcher": {
-        "json_url": "./versions1.json",
+        "json_url": "../versions1.json",
         "version_match": release,
     },
     # Configure PyData theme search

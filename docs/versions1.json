@@ -1,5 +1,10 @@
 [
     {
+        "name": "nightly",
+        "version": "nightly",
+        "url": "../nightly"
+    },
+    {
         "name": "0.2.5 (latest)",
         "preferred": true,
         "version": "0.2.5",
