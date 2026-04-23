@@ -187,6 +187,42 @@ container-harbor-amd64:
         docker push "${REGISTRY}:latest-harbor-amd64"
       fi
 
+push-nel-harbor-to-aws-ecr:
+  stage: containers
+  extends: .container-build-amd64
+  needs: ["container-harbor-amd64"]
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  before_script:
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - TS=$(echo "$CI_COMMIT_TIMESTAMP" | sed 's/[-:]//g; s/T/-/; s/+.*//')
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        export TAG="${CI_COMMIT_TAG}"
+      elif [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        export TAG="${TS}-${CI_COMMIT_SHORT_SHA}"
+      else
+        export TAG="dev-${TS}-${CI_COMMIT_SHORT_SHA}"
+      fi
+    # Use amazon/aws-cli image via Docker to get ECR token — avoids install issues in docker:27
+    - docker run --rm
+        -e "AWS_ACCESS_KEY_ID=${ECR_AWS_ACCESS_KEY_ID}"
+        -e "AWS_SECRET_ACCESS_KEY=${ECR_AWS_SECRET_ACCESS_KEY}"
+        -e "AWS_DEFAULT_REGION=us-west-2"
+        amazon/aws-cli ecr get-login-password --region us-west-2
+        | docker login --username AWS --password-stdin
+          463701203462.dkr.ecr.us-west-2.amazonaws.com
+  script:
+    - docker pull "${REGISTRY}:${TAG}-harbor-amd64"
+    - docker tag "${REGISTRY}:${TAG}-harbor-amd64"
+        "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-us-west-2:oracle-test-nel-latest"
+    - docker push
+        "463701203462.dkr.ecr.us-west-2.amazonaws.com/harbor-us-west-2:oracle-test-nel-latest"
+  variables:
+    AWS_ACCESS_KEY_ID: $ECR_AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $ECR_AWS_SECRET_ACCESS_KEY
+    AWS_DEFAULT_REGION: us-west-2
+
 container-harbor-arm64:
   extends: .container-build-arm64
   needs: ["container-base-arm64"]
