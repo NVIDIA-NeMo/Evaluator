@@ -1,17 +1,17 @@
 [
-    {
-        "name": "nightly",
-        "version": "nightly",
-        "url": "../nightly"
-    },
-    {
-        "name": "0.2.5 (latest)",
-        "preferred": true,
-        "version": "0.2.5",
-        "url": "../0.2.5"
-    },
-    {
-        "version": "0.1.0",
-        "url": "../0.1.0"
-    }
+  {
+    "version": "nightly",
+    "url": "https://docs.nvidia.com/nemo/evaluator/nightly/"
+  },
+  {
+    "name": "0.2.5 (latest)",
+    "version": "0.2.5",
+    "url": "https://docs.nvidia.com/nemo/evaluator/latest/",
+    "preferred": true
+  },
+  {
+    "name": "0.1.0",
+    "version": "0.1.0",
+    "url": "https://docs.nvidia.com/nemo/evaluator/0.1.0/"
+  }
 ]
