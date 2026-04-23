@@ -20,17 +20,13 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../src"))
-
-from nemo_eval.package_info import __version__
-
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "NeMo Eval"
 copyright = "2025, NVIDIA Corporation"
 author = "NVIDIA Corporation"
-release = __version__
+release = "0.1.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -102,17 +98,3 @@ html_theme_options = {
     },
 }
 html_extra_path = ["project.json", "versions1.json"]
-
-
-def setup(app):
-    """Sphinx setup function that runs before building documentation."""
-    import json
-    import pathlib
-
-    docs_dir = pathlib.Path(__file__).parent.resolve()
-
-    project_json = docs_dir / "project.json"
-    project_json.write_text(
-        json.dumps({"name": "nemo-evaluator", "version": release}, indent=None) + "\n",
-        encoding="utf-8",
-    )
