@@ -51,6 +51,7 @@ if TYPE_CHECKING:
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.sandbox.base import ImageBuildRequest, SandboxSpec
 from nemo_evaluator.environments.registry import register
+from nemo_evaluator.scoring.contracts import Metric, metric_as_scorer
 from nemo_evaluator.scoring.types import ScorerInput
 
 logger = logging.getLogger(__name__)
@@ -265,9 +266,35 @@ def benchmark(
     requirements: list[str] | None = None,
     prepare_row: Callable | None = None,
     seed_fn: Callable | None = None,
+    metric: Metric | None = None,
     **kwargs,
 ):
-    """Register a benchmark. Decorate a scorer function."""
+    """Register a benchmark. Decorate a scorer function or a :class:`Metric` class.
+
+    The decoration target may be:
+
+    - a **function** ``(ScorerInput) -> dict`` (classic NEL BYOB)
+    - a **class** that satisfies :class:`Metric` (e.g. a :class:`TemplateMetric`
+      subclass with a no-arg constructor)
+    - a **function**, with an **instance** passed via ``metric=`` kwarg
+
+    Examples::
+
+        # classic — function scorer
+        @benchmark(name="my-bench", dataset="hf://...", prompt="{q}", target_field="a")
+        @scorer
+        def score(s): return {"correct": s.response == s.target}
+
+        # object-style — TemplateMetric class
+        @benchmark(name="my-bench", dataset="hf://...", prompt="{q}", target_field="a")
+        class MyMetric(TemplateMetric):
+            type: Literal["my-metric"] = "my-metric"
+            def _score(self, input): return 1.0 if input.response == input.target else 0.0
+
+        # object-style — pre-configured instance
+        @benchmark(name="my-bench", ..., metric=BLEU(references="{{ reference }}"))
+        def _placeholder(): ...
+    """
     defn = BenchmarkDefinition(
         name=name,
         dataset=dataset,
@@ -282,10 +309,48 @@ def benchmark(
         seed_fn=seed_fn,
     )
 
-    def decorator(fn):
-        defn.scorer_fn = fn
-        if hasattr(fn, "_image_builder_fn"):
-            defn.image_builder_fn = fn._image_builder_fn
+    def decorator(target):
+        # Resolve the scorer_fn from whichever form we got
+        scorer_fn: Callable[[ScorerInput], dict] | None = None
+
+        if metric is not None:
+            # explicit instance via kwarg
+            scorer_fn = metric_as_scorer(metric)
+            image_src = target
+        elif isinstance(target, type):
+            # A class: must satisfy the Metric surface, else reject.
+            if not _class_satisfies_metric(target):
+                raise TypeError(
+                    f"@benchmark target is a class ({target.__name__}) but does "
+                    f"not satisfy the Metric contract (needs 'type', "
+                    f"'compute_scores', 'score_names'). Provide a TemplateMetric "
+                    f"subclass, a function scorer, or pass metric= kwarg."
+                )
+            # a Metric class — instantiate with no args, wrap
+            try:
+                instance = target()
+            except Exception as e:  # ValidationError, TypeError, etc.
+                raise TypeError(
+                    f"@benchmark can only auto-instantiate Metric classes with "
+                    f"a no-arg constructor. {target.__name__} requires "
+                    f"arguments; pass a pre-configured instance via "
+                    f"@benchmark(..., metric=MyMetric(...))"
+                ) from e
+            scorer_fn = metric_as_scorer(instance)
+            image_src = target
+        elif callable(target):
+            # function-style scorer
+            scorer_fn = target
+            image_src = target
+        else:
+            raise TypeError(
+                f"@benchmark target must be a callable scorer function, a "
+                f"Metric class, or called with metric= kwarg. Got {type(target).__name__}."
+            )
+
+        defn.scorer_fn = scorer_fn
+        if hasattr(image_src, "_image_builder_fn"):
+            defn.image_builder_fn = image_src._image_builder_fn
         _BYOB_REGISTRY[name] = defn
 
         @register(name)
@@ -295,9 +360,26 @@ def benchmark(
 
         _Env.__name__ = f"Bench_{name}"
         _Env.__qualname__ = f"Bench_{name}"
-        return fn
+        return target
 
     return decorator
+
+
+def _class_satisfies_metric(cls: type) -> bool:
+    """Return True if a class has the method-name surface of :class:`Metric`.
+
+    Avoids ``isinstance()`` which requires an instance. Handles Pydantic
+    BaseModel subclasses where ``type`` is a field (not a class attr): in
+    that case we check ``model_fields`` instead of ``hasattr``. Runtime
+    Protocol checks happen post-instantiation inside the decorator.
+    """
+    if not (hasattr(cls, "compute_scores") and hasattr(cls, "score_names")):
+        return False
+    # Pydantic v2 fields live in model_fields, not as class-level attrs
+    model_fields = getattr(cls, "model_fields", None)
+    if model_fields and "type" in model_fields:
+        return True
+    return hasattr(cls, "type")
 
 
 def scorer(fn: Callable[[ScorerInput], dict]) -> Callable[[ScorerInput], dict]:

@@ -285,6 +285,7 @@ def test_metric_as_scorer_single_score():
     assert result["metric_type"] == "exact-match"
     assert result["exact-match"] == 1.0
     assert result["score"] == 1.0  # convenience for single-score case
+    assert result["reward"] == 1.0  # ByobEnvironment.verify() contract
 
 
 def test_metric_as_scorer_negative():

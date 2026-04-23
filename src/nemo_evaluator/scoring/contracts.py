@@ -494,11 +494,18 @@ def metric_as_scorer(metric: Metric) -> Scorer:
 
     def _scorer(input: MetricInput) -> dict:
         result = _run_sync(lambda: metric.compute_scores(input))
-        out: dict[str, Any] = {"metric_type": metric.type}
+        # Put numeric values first so ByobEnvironment's fallback picker
+        # (next(iter(scores.values()))) lands on a number, not the metric_type
+        # string. Also expose 'reward' / 'score' aliases for the single-score
+        # case so the ByobEnvironment.verify() contract is satisfied.
+        out: dict[str, Any] = {}
         for score in result.scores:
             out[score.name] = score.value
         if len(result.scores) == 1:
-            out["score"] = float(result.scores[0].value)
+            value = float(result.scores[0].value)
+            out["score"] = value
+            out["reward"] = value
+        out["metric_type"] = metric.type
         return out
 
     return _scorer
