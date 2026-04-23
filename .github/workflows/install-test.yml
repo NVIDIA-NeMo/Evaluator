@@ -45,7 +45,11 @@ jobs:
 
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+          for i in 1 2 3; do
+            curl -LsSf https://astral.sh/uv/install.sh | sh && break
+            echo "uv install attempt $i failed, retrying..."
+            sleep 10
+          done
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install nemo-evaluator
@@ -76,7 +80,11 @@ jobs:
 
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+          for i in 1 2 3; do
+            curl -LsSf https://astral.sh/uv/install.sh | sh && break
+            echo "uv install attempt $i failed, retrying..."
+            sleep 10
+          done
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install nemo-evaluator-launcher
@@ -118,7 +126,11 @@ jobs:
 
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+          for i in 1 2 3; do
+            curl -LsSf https://astral.sh/uv/install.sh | sh && break
+            echo "uv install attempt $i failed, retrying..."
+            sleep 10
+          done
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install package
