@@ -1,4 +1,4 @@
-# Copyright (c) 2026, NVIDIA CORPORATION.
+# Copyright (c) 2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,12 +39,18 @@ on:
         description: Email addresses to send the notification to. Format as "me@me.com,you@you.com".
         required: false
         type: string
+      github-ref:
+        description: Github ref to checkout
+        required: false
+        type: string
+        default: ""
   workflow_call:
     inputs:
       dry-run:
         description: Whether to run the workflow in dry-run mode
-        required: true
+        required: false
         type: boolean
+        default: true
       publish-as-latest:
         description: Publish as Latest stable version.
         required: false
@@ -64,6 +70,11 @@ on:
         description: Email addresses to send the notification to. Format as "me@me.com,you@you.com".
         required: false
         type: string
+      github-ref:
+        description: Github ref to checkout
+        required: false
+        type: string
+        default: ""
     secrets:
       AWS_ASSUME_ROLE_ARN:
         required: false
@@ -84,9 +95,9 @@ on:
 
 jobs:
   build-docs:
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_build_docs.yml@v0.66.6
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_build_docs.yml@v0.67.0
     with:
-      requirements-file: .github/config/requirements.txt
+      ref: ${{ inputs.github-ref }}
 
   publish-docs:
     runs-on: ubuntu-latest
@@ -95,15 +106,10 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: NVIDIA-NeMo/FW-CI-templates
-          ref: v0.72.0
+          ref: v0.74.0
           path: FW-CI-templates
 
       - uses: ./FW-CI-templates/.github/actions/publish-docs
-        # This workflow runs either on main, or on a version tag. Any other git ref will lead
-        # to an error.
-        # If its on main, it will publish to "latest" directory in Akamai.
-        # If its on a versioned tag, it will extract the version number from the tag (strip `v` prefix)
-        # and publish to the versioned directory in Akamai.
         with:
           dry-run: ${{ inputs.dry-run }}
           artifacts-name: docs-html
