@@ -24,6 +24,7 @@ from typing import Callable
 
 from nemo_evaluator.scoring.contracts import (
     CorpusMetric,
+    CorpusTemplateMetric,
     Metric,
     MetricInput,
     MetricOutput,
@@ -33,6 +34,7 @@ from nemo_evaluator.scoring.contracts import (
     Scorer,
     SecretRefLike,
     SecretResolver,
+    SecretsMixin,
     TemplateMetric,
     get_metric,
     list_metrics,
