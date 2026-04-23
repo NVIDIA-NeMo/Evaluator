@@ -98,3 +98,13 @@ html_theme_options = {
     },
 }
 html_extra_path = ["project.json", "versions1.json"]
+
+# -- Options for linkcheck builder -------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#confval-linkcheck_anchors
+linkcheck_anchors = False  # Disable checking for anchors in links
+linkcheck_ignore = [
+    r"https://nemo-framework-documentation\.gitlab-master-pages\.nvidia\.com/.*",  # Internal, not resolvable from CI
+    r"https://docs\.nvidia\.com/nemo-framework/user-guide/latest/nemo-2\.0/quickstart\.html.*",  # Page moved
+    r"https://github\.com/NVIDIA-NeMo/Eval/blob/main/pyproject\.toml",  # Repo renamed; file path changed
+    r"https://github\.com/NVIDIA-NeMo/Eval/blob/main/src/nemo_eval/utils/base\.py",  # Repo renamed; file path changed
+]
