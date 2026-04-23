@@ -73,10 +73,12 @@ For ~20-30 LOC per metric, subclass :class:`TemplateMetric` and implement
 from __future__ import annotations
 
 import math
+import os
 from abc import abstractmethod
 from typing import Any, Awaitable, Callable, ClassVar, Protocol, runtime_checkable
 
-from pydantic import BaseModel, Field, field_serializer, field_validator
+from jinja2 import Environment, StrictUndefined
+from pydantic import BaseModel, Field, PrivateAttr, SecretStr, field_serializer, field_validator
 
 from nemo_evaluator.scoring.types import ScorerInput
 
@@ -94,8 +96,11 @@ __all__ = [
     "Scorer",
     "SecretRefLike",
     "SecretResolver",
-    # Base class for easy authoring
+    # Base classes for easy authoring
     "TemplateMetric",
+    "CorpusTemplateMetric",
+    # Mixins
+    "SecretsMixin",
     # Bridge
     "metric_as_scorer",
     # Registry
@@ -287,6 +292,13 @@ class TemplateMetric(BaseModel):
 
     type: str = Field(description="Public string identifier for this metric.")
 
+    _jinja_env: ClassVar[Environment] = Environment(
+        undefined=StrictUndefined,
+        trim_blocks=False,
+        lstrip_blocks=False,
+        autoescape=False,
+    )
+
     @abstractmethod
     def _score(self, input: MetricInput) -> float:
         """Compute one raw score value. Subclass implements this."""
@@ -299,6 +311,147 @@ class TemplateMetric(BaseModel):
     def score_names(self) -> list[str]:
         """Default implementation: a single score named after ``self.type``."""
         return [self.type]
+
+    def _render(self, template: str, input: MetricInput) -> str:
+        """Render a Jinja2 template against a :class:`MetricInput`.
+
+        The rendering context exposes both NEL-native names and SDK-native
+        aliases, so templates authored against either vocabulary work::
+
+            # NEL-native
+            "{{ response }}", "{{ target }}", "{{ metadata.<key> }}"
+            # SDK-native aliases
+            "{{ output_text }}"  (== response)
+            "{{ reference }}"    (== target)
+
+        Raises :class:`jinja2.exceptions.UndefinedError` if the template
+        references a variable not in the context (strict mode).
+        """
+        ctx: dict[str, Any] = {
+            "response": input.response,
+            "target": input.target,
+            "output_text": input.response,
+            "reference": input.target,
+            "metadata": dict(input.metadata or {}),
+            "config": dict(input.config or {}),
+        }
+        return self._jinja_env.from_string(template).render(**ctx)
+
+
+# ============================================================================
+# CorpusTemplateMetric — base for metrics with corpus-level scoring
+# ============================================================================
+
+
+class CorpusTemplateMetric(TemplateMetric):
+    """Base class for metrics that emit both row-level and corpus-level scores.
+
+    Subclasses implement :meth:`_score` (row) and :meth:`_corpus_score`
+    (aggregate). Default :meth:`compute_corpus_scores` wraps ``_corpus_score``
+    in a single-score MetricResult named ``{type}_corpus``.
+
+    Example::
+
+        @register_metric
+        class Accuracy(CorpusTemplateMetric):
+            type: Literal["accuracy"] = "accuracy"
+
+            def _score(self, input):
+                return 1.0 if input.response == input.target else 0.0
+
+            def _corpus_score(self, inputs):
+                return sum(self._score(i) for i in inputs) / len(inputs)
+    """
+
+    @abstractmethod
+    def _corpus_score(self, inputs: list[MetricInput]) -> float:
+        """Compute one corpus-level score across inputs. Subclass implements this."""
+        ...
+
+    async def compute_corpus_scores(
+        self, inputs: list[MetricInput]
+    ) -> MetricResult | None:
+        """Default implementation: wrap ``_corpus_score`` in a single-score MetricResult."""
+        if not inputs:
+            return None
+        corpus_name = f"{self.type}_corpus"
+        return MetricResult(
+            scores=[MetricScore(name=corpus_name, value=self._corpus_score(inputs))]
+        )
+
+    def score_names(self) -> list[str]:
+        """Includes both the row-level and corpus-level score names."""
+        return [self.type, f"{self.type}_corpus"]
+
+
+# ============================================================================
+# SecretsMixin — ergonomics for metrics that need API keys
+# ============================================================================
+
+
+class _SimpleSecretRef(BaseModel):
+    """Plain SecretRef satisfying :class:`SecretRefLike` — NMP SDK has its own."""
+
+    root: str
+
+    @property
+    def env(self) -> str:
+        return self.root
+
+
+class SecretsMixin(BaseModel):
+    """Mixin for metrics that need secrets (API keys for remote judges, etc.).
+
+    Subclasses declare one or more env-var names via ``secret_env_vars``.
+    The mixin implements :meth:`secrets` and :meth:`resolve_secrets` so the
+    class satisfies :class:`MetricWithSecrets`.
+
+    Resolved values are stored in ``_resolved_secrets`` (a dict of env-var
+    name -> ``SecretStr``). Access via :meth:`get_secret`.
+
+    Example::
+
+        from typing import Literal, ClassVar
+        from nemo_evaluator.scoring import TemplateMetric, SecretsMixin, register_metric
+
+        @register_metric
+        class JudgeMetric(TemplateMetric, SecretsMixin):
+            type: Literal["judge"] = "judge"
+            secret_env_vars: ClassVar[tuple[str, ...]] = ("JUDGE_API_KEY",)
+
+            def _score(self, input):
+                key = self.get_secret("JUDGE_API_KEY")
+                # ... call remote judge with key ...
+                return 0.0
+    """
+
+    secret_env_vars: ClassVar[tuple[str, ...]] = ()
+    _resolved_secrets: dict[str, SecretStr] = PrivateAttr(default_factory=dict)
+
+    def model_post_init(self, __context: Any) -> None:
+        """Eagerly load any secrets already in os.environ at construction time."""
+        for var in self.secret_env_vars:
+            value = os.environ.get(var)
+            if value:
+                self._resolved_secrets[var] = SecretStr(value)
+
+    def secrets(self) -> dict[str, SecretRefLike]:
+        """Declared secret env-vars mapped to :class:`SecretRefLike` references."""
+        return {var: _SimpleSecretRef(root=var) for var in self.secret_env_vars}
+
+    async def resolve_secrets(self, resolver: SecretResolver) -> None:
+        """Resolve declared secrets via the provided async resolver."""
+        for var in self.secret_env_vars:
+            if var in self._resolved_secrets:
+                continue  # already populated from env
+            value = await resolver(var)
+            if value:
+                self._resolved_secrets[var] = SecretStr(value)
+
+    def get_secret(self, env_var: str) -> str | None:
+        """Return the resolved secret value for ``env_var``, or ``None``."""
+        secret = self._resolved_secrets.get(env_var)
+        return secret.get_secret_value() if secret else None
 
 
 # ============================================================================
