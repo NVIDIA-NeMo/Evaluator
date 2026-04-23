@@ -544,6 +544,30 @@ _PROGRAMMING_LANGUAGES = frozenset(
 )
 
 
+# Literal marker appended by harbor/adapters/swebench_multilingual/adapter.py
+# when concatenating hints_text onto problem_statement.  Official SWE-bench
+# excludes hints_text from the eval prompt (test_spec.py:192 # Unused).
+_SWEBENCH_HINTS_MARKER = "\n\n## Hints\n\n"
+
+
+def _is_swebench_multilingual(dataset_name: str) -> bool:
+    """True for dataset dir names matching the swebench multilingual registry entry."""
+    n = dataset_name.lower()
+    return n.startswith(("swebench_multilingual", "swebench-multilingual"))
+
+
+def _strip_swebench_hints_block(instruction: str) -> tuple[str, bool]:
+    """Drop the adapter's ``## Hints`` tail; no-op when absent."""
+    idx = instruction.find(_SWEBENCH_HINTS_MARKER)
+    if idx < 0:
+        short = "\n\n## Hints"
+        tail = instruction.rstrip()
+        if tail.endswith(short):
+            return tail[: -len(short)].rstrip(), True
+        return instruction, False
+    return instruction[:idx].rstrip(), True
+
+
 def _infer_repo_language(task_dir: Path, metadata: dict[str, Any]) -> None:
     """Populate ``metadata["repo_language"]`` from available signals.
 
@@ -589,6 +613,7 @@ class HarborEnvironment(EvalEnvironment):
         self._dataset_path = Path(dataset_path)
         self._tasks: list[Path] = []
         self.name = self._dataset_path.name
+        self._hints_strip_logged = False
 
         if not self._dataset_path.is_dir():
             raise FileNotFoundError(f"Harbor dataset directory not found: {self._dataset_path}")
@@ -658,7 +683,22 @@ class HarborEnvironment(EvalEnvironment):
 
     async def seed(self, idx: int) -> SeedResult:
         task_dir = self._tasks[idx]
-        instruction = (task_dir / "instruction.md").read_text(encoding="utf-8").strip()
+        instruction = (task_dir / "instruction.md").read_text(encoding="utf-8")
+        # TODO: remove once harbor/adapters/swebench_multilingual/adapter.py
+        # stops concatenating hints_text into instruction.md.
+        hints_stripped = False
+        if _is_swebench_multilingual(self.name):
+            instruction, hints_stripped = _strip_swebench_hints_block(instruction)
+            if hints_stripped and not self._hints_strip_logged:
+                logger.info(
+                    "Harbor %s: stripping '## Hints' block (first seen on %s)",
+                    self.name,
+                    task_dir.name,
+                )
+                self._hints_strip_logged = True
+            elif hints_stripped:
+                logger.debug("Harbor %s/%s: stripped '## Hints' block", self.name, task_dir.name)
+        instruction = instruction.strip()
 
         task_toml = task_dir / "task.toml"
         config = _parse_task_config(task_toml) if task_toml.exists() else {}
@@ -738,6 +778,8 @@ class HarborEnvironment(EvalEnvironment):
             "task_id": task_dir.name,
             "task_dir": str(task_dir),
         }
+        if hints_stripped:
+            metadata["hints_stripped"] = True
         agent_timeout = config.get("agent", {}).get("timeout_sec")
         if agent_timeout is not None:
             metadata["agent_timeout_sec"] = agent_timeout

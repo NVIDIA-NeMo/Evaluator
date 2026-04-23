@@ -181,7 +181,7 @@ class GymSolver:
                 k: v for k, v in result.items() if k not in ("responses_create_params", "response", "reward")
             }
 
-        trajectory = self._extract_trajectory(result)
+        trajectory = self._extract_trajectory(result, task_prompt=task.prompt)
 
         model_resp = ModelResponse(
             content=response_text,
@@ -216,7 +216,7 @@ class GymSolver:
             return extract_assistant_text({"output": output} if isinstance(output, list) else output)
         return ""
 
-    def _extract_trajectory(self, result: dict[str, Any]) -> list[dict[str, Any]]:
+    def _extract_trajectory(self, result: dict[str, Any], *, task_prompt: str | None = None) -> list[dict[str, Any]]:
         gym_resp = result.get("response", {})
         raw_items: list[dict[str, Any]] = []
         if isinstance(gym_resp, dict):
@@ -237,6 +237,7 @@ class GymSolver:
             steps,
             agent_name=self._gym_agent or "gym-agent",
             model_name=self._model_id or None,
+            user_prompt=task_prompt,
         )
 
     async def close(self) -> None:

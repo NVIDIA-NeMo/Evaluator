@@ -616,9 +616,11 @@ def eval_clean(older_than, filter_executor, dry_run, yes):
 # ---------------------------------------------------------------------------
 
 
-def _fetch_remote_results(run_id: str) -> tuple[Path, Path]:
+def _fetch_remote_results(run_id: str, *, include_results: bool = False) -> tuple[Path, Path]:
     """Fetch eval bundles from a remote SLURM run into a local temp directory.
 
+    Fetches only ``eval-*.json`` by default; pass ``include_results=True`` to
+    also pull the (often 100 MB+) ``results.jsonl`` per-sample shards.
     Returns ``(results_path, temp_dir)`` -- caller must clean up *temp_dir*.
     """
     import shlex
@@ -640,12 +642,19 @@ def _fetch_remote_results(run_id: str) -> tuple[Path, Path]:
 
     from nemo_evaluator.executors.ssh import ssh_run
 
-    click.echo(f"Fetching results from {hostname}:{rdir} ...", err=True)
+    click.echo(
+        f"Fetching {'bundles + results' if include_results else 'bundles'} from {hostname}:{rdir} ...",
+        err=True,
+    )
+
+    find_expr = "-name 'eval-*.json'"
+    if include_results:
+        find_expr += " -o -name 'results.jsonl'"
 
     try:
         file_list = ssh_run(
             hostname,
-            f"find {shlex.quote(rdir)} -name 'eval-*.json' -o -name 'results.jsonl' | head -500",
+            f"find {shlex.quote(rdir)} \\( {find_expr} \\) | head -500",
             username=username,
             timeout=30.0,
         )
@@ -656,7 +665,7 @@ def _fetch_remote_results(run_id: str) -> tuple[Path, Path]:
         raise click.ClickException(f"No eval bundles found on {hostname}:{rdir}")
 
     remote_files = [f for f in file_list.strip().splitlines() if f.strip()]
-    click.echo(f"Found {len(remote_files)} result file(s), downloading ...", err=True)
+    click.echo(f"Found {len(remote_files)} file(s), downloading ...", err=True)
 
     tmp = Path(tempfile.mkdtemp(prefix="nel_report_"))
     from nemo_evaluator.executors.ssh import _ssh_opts, _ensure_master, _ssh_target, _run
@@ -689,7 +698,13 @@ def _fetch_remote_results(run_id: str) -> tuple[Path, Path]:
 )
 @click.option("--output", "-o", type=click.Path(), default=None)
 @click.option("--all-formats", is_flag=True)
-def eval_report(results_dir, run_id, fmt, output, all_formats):
+@click.option(
+    "--with-results",
+    is_flag=True,
+    default=False,
+    help="Also pull per-sample results.jsonl from the remote host (off by default; can be 100 MB+).",
+)
+def eval_report(results_dir, run_id, fmt, output, all_formats, with_results):
     """Generate evaluation reports from completed results.
 
     Accepts a local RESULTS_DIR or --run-id to fetch results from a remote
@@ -704,7 +719,7 @@ def eval_report(results_dir, run_id, fmt, output, all_formats):
     if results_dir:
         results = Path(results_dir)
     else:
-        results, cleanup_dir = _fetch_remote_results(run_id)
+        results, cleanup_dir = _fetch_remote_results(run_id, include_results=with_results)
 
     try:
         bundle_files = sorted(results.rglob("eval-*.json"))
@@ -772,7 +787,7 @@ def eval_merge(output_dir, run_id, repeats):
         raise click.ClickException("Specify an OUTPUT_DIR or --run-id.")
 
     if output_dir is None:
-        results_path, _ = _fetch_remote_results(run_id)
+        results_path, _ = _fetch_remote_results(run_id, include_results=True)
         output_dir = str(results_path)
         click.echo(f"Results cached at {output_dir}", err=True)
 

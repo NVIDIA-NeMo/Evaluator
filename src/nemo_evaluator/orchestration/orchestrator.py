@@ -1031,6 +1031,7 @@ def run_local(
                 bench_name = bundle.get("benchmark", {}).get("name", bench.name)
                 task_dir = output_dir / _safe_name(bench_name)
                 ckpt.mark_completed(bench.name, str(task_dir))
+                bundle["_output_path"] = str(task_dir)
                 bundles.append(bundle)
 
                 bm = bundle.get("benchmark", {})

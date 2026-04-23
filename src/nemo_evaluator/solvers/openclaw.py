@@ -593,6 +593,7 @@ class OpenClawSolver:
             prompt_tokens=model_response.prompt_tokens or 0,
             completion_tokens=model_response.completion_tokens or 0,
             extra=oc_extra,
+            user_prompt=effective_prompt,
         )
 
         logger.info(
@@ -883,6 +884,7 @@ class OpenClawSolver:
             prompt_tokens=model_response.prompt_tokens or 0,
             completion_tokens=model_response.completion_tokens or 0,
             extra=oc_extra,
+            user_prompt=effective_prompt,
         )
 
         logger.info(

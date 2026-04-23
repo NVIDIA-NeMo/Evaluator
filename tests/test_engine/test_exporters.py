@@ -58,37 +58,88 @@ class TestWandBExporter:
         mock_wandb.init.assert_called_once()
 
 
-class TestMLflowExporter:
-    def test_init(self):
-        from nemo_evaluator.engine.exporters.mlflow_export import MLflowExporter
-
-        exp = MLflowExporter(experiment_name="test-exp")
-        assert exp._experiment_name == "test-exp"
-
-    def test_export_logs_metrics(self):
-        from nemo_evaluator.engine.exporters.mlflow_export import MLflowExporter
-
-        mock_mlflow = MagicMock()
-        exp = MLflowExporter(experiment_name="test-exp")
-        bundles = [
-            {
-                "benchmark": {
-                    "name": "gsm8k",
-                    "samples": 5,
-                    "scores": {"pass@1": {"value": 0.6}},
-                },
-                "_results": [],
-            }
-        ]
-        with patch.dict(sys.modules, {"mlflow": mock_mlflow}):
-            exp.export(bundles)
-        assert mock_mlflow.set_experiment.called or mock_mlflow.start_run.called
+# MLflow exporter tests live in tests/test_engine/test_mlflow_exporter.py.
 
 
 class TestInspectExporter:
-    def test_init(self):
+    def test_default_format_is_eval(self):
         pytest.importorskip("inspect_ai")
         from nemo_evaluator.engine.exporters.inspect_export import InspectExporter
 
-        exp = InspectExporter(format="json")
-        assert exp._format == "json"
+        assert InspectExporter()._format == "eval"
+        assert InspectExporter(format="json")._format == "json"
+
+    def test_unsupported_format_raises(self):
+        pytest.importorskip("inspect_ai")
+        from nemo_evaluator.engine.exporters.inspect_export import InspectExporter
+
+        with pytest.raises(ValueError, match="unsupported format"):
+            InspectExporter(format="yaml")
+
+    def test_atif_tool_calls_become_inspect_tool_calls(self):
+        pytest.importorskip("inspect_ai")
+        from nemo_evaluator.engine.exporters.inspect_export import (
+            _atif_steps_to_messages,
+        )
+
+        trajectory = [
+            {
+                "steps": [
+                    {"source": "user", "message": "hi"},
+                    {
+                        "source": "agent",
+                        "message": "Executed Bash toolu_bdrk_0151rmB4xGKjdDaM4eEbVmJh",
+                        "tool_calls": [
+                            {
+                                "tool_call_id": "toolu_bdrk_0151rmB4xGKjdDaM4eEbVmJh",
+                                "function_name": "Bash",
+                                "arguments": {"command": "ls /tmp", "description": "list"},
+                            }
+                        ],
+                        "observation": {
+                            "results": [
+                                {
+                                    "source_call_id": "toolu_bdrk_0151rmB4xGKjdDaM4eEbVmJh",
+                                    "content": "file1\nfile2\n",
+                                }
+                            ]
+                        },
+                    },
+                ]
+            }
+        ]
+
+        messages = _atif_steps_to_messages(trajectory)
+        assert [m.role for m in messages] == ["user", "assistant", "tool"]
+
+        assistant = messages[1]
+        assert assistant.content == "", "synthetic 'Executed …' label must be stripped"
+        assert assistant.tool_calls and len(assistant.tool_calls) == 1
+        call = assistant.tool_calls[0]
+        assert call.id == "toolu_bdrk_0151rmB4xGKjdDaM4eEbVmJh"
+        assert call.function == "Bash"
+        assert call.arguments == {"command": "ls /tmp", "description": "list"}
+
+        tool_msg = messages[2]
+        assert tool_msg.tool_call_id == "toolu_bdrk_0151rmB4xGKjdDaM4eEbVmJh"
+        assert tool_msg.function == "Bash"
+        assert tool_msg.content == "file1\nfile2\n"
+
+    def test_agent_message_without_tool_calls_preserved_verbatim(self):
+        pytest.importorskip("inspect_ai")
+        from nemo_evaluator.engine.exporters.inspect_export import (
+            _atif_steps_to_messages,
+        )
+
+        trajectory = [
+            {
+                "steps": [
+                    {"source": "agent", "message": "Thinking out loud here."},
+                ]
+            }
+        ]
+        messages = _atif_steps_to_messages(trajectory)
+        assert len(messages) == 1
+        assert messages[0].role == "assistant"
+        assert messages[0].content == "Thinking out loud here."
+        assert not messages[0].tool_calls

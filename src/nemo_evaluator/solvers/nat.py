@@ -268,6 +268,7 @@ class NatSolver:
             atif_steps,
             agent_name="nat-agent",
             completion_tokens=total_tokens,
+            user_prompt=task.prompt,
         )
 
         logger.info("NatSolver: %.0fms, %d events, %d chars response", latency, len(events), len(final_text))

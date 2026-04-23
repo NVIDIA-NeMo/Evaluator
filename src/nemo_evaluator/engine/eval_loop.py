@@ -28,8 +28,8 @@ from nemo_evaluator.environments.base import EvalEnvironment, VerifyResult
 from nemo_evaluator.errors import GracefulError, InfraError
 from nemo_evaluator.solvers.base import ErrorKind
 from nemo_evaluator.metrics.aggregation import category_breakdown, scoring_details_breakdown, summary_stats
-from nemo_evaluator.metrics.confidence import bootstrap_ci, sample_level_ci
-from nemo_evaluator.metrics.pass_at_k import aggregate_pass_at_k, pass_at_k
+from nemo_evaluator.metrics.confidence import bootstrap_ci
+from nemo_evaluator.metrics.headline import headline_score_metrics
 from nemo_evaluator.observability.collector import ArtifactCollector
 from nemo_evaluator.observability.progress import NoOpProgress, ProgressTracker
 from nemo_evaluator.observability.types import ModelResponse, StepRecord
@@ -249,6 +249,7 @@ async def run_evaluation(
                     "problem_idx": idx,
                     "repeat": rep,
                     "reward": reward,
+                    "prompt": seed_result.prompt,
                     "model_response": cached_verified.get("response", ""),
                     "extracted_answer": cached_verified.get("extracted_answer"),
                     "expected_answer": seed_result.expected_answer,
@@ -628,6 +629,7 @@ async def run_evaluation(
                     "repeat": rep,
                     "reward": vr.reward,
                     "scorer_rewards": scorer_rewards,
+                    "prompt": seed_result.prompt,
                     "model_response": response_text,
                     "extracted_answer": vr.extracted_answer,
                     "expected_answer": seed_result.expected_answer,
@@ -748,17 +750,11 @@ async def run_evaluation(
         raise RuntimeError(f"Evaluation aborted (skip_failed=False): {first_error}") from first_error
 
     all_rewards = [r["reward"] for r in results]
-    per_problem_means = [sum(rewards) / len(rewards) for rewards in problem_correct.values() if rewards]
-    has_fractional = any(r not in (0, 0.0, 1, 1.0) for r in all_rewards)
 
-    metrics: dict[str, Any] = {}
-    if per_problem_means and has_fractional:
-        ci = bootstrap_ci(per_problem_means)
-        metrics["mean_reward"] = {
-            "value": round(ci.mean, 4),
-            "ci_lower": round(ci.ci_lower, 4),
-            "ci_upper": round(ci.ci_upper, 4),
-        }
+    # Fractional-vs-binary metric selection lives in
+    # :mod:`nemo_evaluator.metrics.headline` so the single-shard path and
+    # :func:`nemo_evaluator.engine.sharding.merge_results` stay aligned.
+    metrics: dict[str, Any] = dict(headline_score_metrics(problem_correct, n_repeats))
 
     overall_mean = metrics["mean_reward"]["value"] if "mean_reward" in metrics else None
     pg.on_done(
@@ -768,22 +764,6 @@ async def run_evaluation(
         sum(s.model_response.total_tokens for s in collector.steps if s.model_response),
         mean_reward=overall_mean,
     )
-
-    # pass@k: useful for binary-scored benchmarks (code generation, etc.)
-    problem_list = [(n_repeats, sum(1 for r in rewards if r > 0)) for rewards in problem_correct.values()]
-    for k in [1] + ([n_repeats] if n_repeats > 1 else []):
-        if k <= n_repeats and problem_list:
-            pak = aggregate_pass_at_k(problem_list, k)
-            entry: dict[str, Any] = {"value": round(pak, 4)}
-            if k == 1:
-                sci = sample_level_ci(problem_list)
-                if sci is not None:
-                    entry["ci_lower"] = round(sci.ci_lower, 4)
-                    entry["ci_upper"] = round(sci.ci_upper, 4)
-            bci = bootstrap_ci([pass_at_k(n, c, k) for n, c in problem_list])
-            entry["bootstrap_ci_lower"] = round(bci.ci_lower, 4)
-            entry["bootstrap_ci_upper"] = round(bci.ci_upper, 4)
-            metrics[f"pass@{k}"] = entry
 
     metrics["summary"] = summary_stats(all_rewards)
 

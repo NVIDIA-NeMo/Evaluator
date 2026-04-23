@@ -15,6 +15,7 @@
 from nemo_evaluator.metrics.pass_at_k import pass_at_k
 from nemo_evaluator.metrics.confidence import bootstrap_ci, sample_level_ci
 from nemo_evaluator.metrics.aggregation import category_breakdown
+from nemo_evaluator.metrics.headline import headline_score_metrics, is_fractional
 from nemo_evaluator.metrics.paired_tests import (
     McNemarResult,
     POWER_80_FACTOR,
@@ -37,6 +38,8 @@ __all__ = [
     "bootstrap_ci",
     "category_breakdown",
     "detect_test",
+    "headline_score_metrics",
+    "is_fractional",
     "mcnemar_test",
     "mde_estimate",
     "pass_at_k",

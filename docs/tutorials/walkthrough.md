@@ -655,6 +655,25 @@ This is the least observable mode (no per-request trajectories), but it supports
 
 ---
 
+## 15. MLflow Exporter Traces
+
+The `mlflow` exporter emits scalar metrics plus per-sample MLflow GenAI Traces (`AGENT` / `LLM` / `TOOL` spans) built from the ATIF trajectory.
+
+```yaml
+output:
+  export:
+    - type: mlflow
+      tracking_uri: http://localhost:5000
+      experiment: nemotron-eval
+      emit_traces: true              # default
+      emit_traces_max_samples: 200   # cap per benchmark; null = no cap
+      emit_traces_content_max: 4000  # truncate long strings
+```
+
+Tiers (auto-selected): `rich` (agentic + tools) → `messages` (chat) → `response` (extractive) → `meta` (no trajectory / no response). For agent-only trajectories (e.g. PinchBench), a leading `user` span is synthesised from the prompt. The root span carries `nel.scoring_details`, per-scorer rewards (`nel.scorer.<name>`), and task metadata (`nel.task_id`, `nel.task_name`, `nel.category`, ...). Traces are skipped when MLflow is not installed, `emit_traces=false`, or the run is reused on re-export.
+
+---
+
 ## Config Anatomy Cheat Sheet
 
 Every NeMo Evaluator config follows this structure:
