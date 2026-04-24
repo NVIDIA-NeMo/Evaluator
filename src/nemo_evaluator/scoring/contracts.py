@@ -315,27 +315,21 @@ class TemplateMetric(BaseModel):
     def _render(self, template: str, input: MetricInput) -> str:
         """Render a Jinja2 template against a :class:`MetricInput`.
 
-        The rendering context exposes both NEL-native names and SDK-native
-        aliases, so templates authored against either vocabulary work::
+        Uses :meth:`MetricInput.jinja_context` so both NEL-native and
+        NMP-native template vocabularies work::
 
             # NEL-native
             "{{ response }}", "{{ target }}", "{{ metadata.<key> }}"
-            # SDK-native aliases
+            # NMP-native
+            "{{ item.reference }}", "{{ sample.output_text }}"
+            # Aliases for compatibility
             "{{ output_text }}"  (== response)
             "{{ reference }}"    (== target)
 
         Raises :class:`jinja2.exceptions.UndefinedError` if the template
         references a variable not in the context (strict mode).
         """
-        ctx: dict[str, Any] = {
-            "response": input.response,
-            "target": input.target,
-            "output_text": input.response,
-            "reference": input.target,
-            "metadata": dict(input.metadata or {}),
-            "config": dict(input.config or {}),
-        }
-        return self._jinja_env.from_string(template).render(**ctx)
+        return self._jinja_env.from_string(template).render(**input.jinja_context())
 
 
 # ============================================================================
