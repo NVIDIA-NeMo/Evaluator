@@ -127,6 +127,38 @@ execution:
 - **Home Mount**: Optional mounting of user home directory (enabled by default)
 
 
+### Evaluation GPU Access
+
+By default, evaluation containers have no GPU access (`NVIDIA_VISIBLE_DEVICES` is not exported). This is the right default for text benchmarks that talk to the deployment over HTTP and run no local CUDA code. Some benchmarks need GPU access in the eval container itself — for example, compute-eval compiles and runs CUDA kernels during scoring. For those, set `evaluation_gpu_visible`:
+
+```yaml
+execution:
+  evaluation_gpu_visible: true      # all GPUs allocated to the eval node
+  # evaluation_gpu_visible: "0,1"   # specific device indices
+  # evaluation_gpu_visible: "all"   # same as `true`
+  # evaluation_gpu_visible: false   # default: no GPU access
+```
+
+**Values:**
+
+- `false` / unset (default): no `NVIDIA_VISIBLE_DEVICES` export — eval container runs CPU-only.
+- `true`: exports `NVIDIA_VISIBLE_DEVICES=all`.
+- string (e.g. `"0"`, `"0,1"`, `"all"`): exported verbatim as the envvar value.
+
+**When to enable:**
+
+- Benchmarks that compile or execute CUDA code locally (e.g. compute-eval).
+- Evals that use GPU-accelerated local models (embeddings, tokenizers with `device="cuda"`).
+
+**When to keep disabled:**
+
+- Any eval that only calls the deployment's HTTP endpoint. GPU access adds container-startup overhead (NVIDIA driver mount) with no benefit, and can silently move GPU-aware Python libraries onto the GPU.
+
+:::{note}
+This applies to all eval tasks in an invocation uniformly — the export is written once into the bash script. Per-task GPU requests (different GPU visibility per benchmark in the same run) are not supported today.
+:::
+
+
 ## Complete Configuration Example
 
 Here's a complete Slurm executor configuration using HuggingFace models:
@@ -149,6 +181,7 @@ execution:
   walltime: "04:00:00"
   endpoint_readiness_timeout: 1200  # wait up to 20 minutes for model server
   gpus_per_node: 8
+  # evaluation_gpu_visible: false  # set true (or specific GPU IDs) for benchmarks that run CUDA in the eval container (e.g. compute-eval)
 
 deployment:
   hf_model_handle: meta-llama/Llama-3.1-8B-Instruct
