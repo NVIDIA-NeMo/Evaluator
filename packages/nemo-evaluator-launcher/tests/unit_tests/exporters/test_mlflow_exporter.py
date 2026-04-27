@@ -15,6 +15,7 @@
 #
 """MLFlow exporter tests."""
 
+import os
 from unittest.mock import patch
 
 import pytest
@@ -175,6 +176,85 @@ class TestMLflowExporter:
         assert logged_params["config.deployment.model"] == "test-model"
         assert logged_params.get("launcher_command") == "nel run test004"
         assert "results_dir" in logged_params
+
+    def test_exclude_patterns_extend_default_exclusions(
+        self, monkeypatch, mlflow_fake, make_mlflow_job, tmp_path
+    ):
+        """exclude_patterns config knob extends EXCLUDED_PATTERNS during recursive upload."""
+        _ML, _RunCtx = mlflow_fake
+        jd = make_mlflow_job("test006")
+
+        artifacts_dir = tmp_path / "test006" / "test006.0" / "artifacts"
+        (artifacts_dir / "deliverables").mkdir()
+        (artifacts_dir / "deliverables" / "out.txt").write_text("payload")
+        (artifacts_dir / "kept_dir").mkdir()
+        (artifacts_dir / "kept_dir" / "data.json").write_text("{}")
+        # default exclusion (matches "*cache*") must still apply
+        (artifacts_dir / "lm_cache_rank0.db").write_text("cache")
+
+        staged_contents: list[str] = []
+
+        def fake_log_artifacts(local_dir, artifact_path=None):
+            staged_contents.extend(sorted(os.listdir(local_dir)))
+
+        monkeypatch.setattr(
+            "nemo_evaluator_launcher.exporters.mlflow.mlflow.log_artifacts",
+            fake_log_artifacts,
+            raising=False,
+        )
+
+        result = MLflowExporter(
+            {
+                "tracking_uri": "http://mlflow",
+                "only_required": False,
+                "copy_artifacts": True,
+                "exclude_patterns": ["deliverables"],
+            }
+        ).export([jd.job_id])
+        assert result.successful_jobs == [jd.job_id]
+        # User-supplied pattern wins
+        assert "deliverables" not in staged_contents
+        # Default exclusion still applies (extends, doesn't replace)
+        assert "lm_cache_rank0.db" not in staged_contents
+        # Untouched files survive
+        assert "kept_dir" in staged_contents
+        assert "results.yml" in staged_contents
+
+    def test_exclude_patterns_default_empty_preserves_behavior(
+        self, monkeypatch, mlflow_fake, make_mlflow_job, tmp_path
+    ):
+        """Without exclude_patterns, only the hardcoded defaults are excluded."""
+        _ML, _RunCtx = mlflow_fake
+        jd = make_mlflow_job("test007")
+
+        artifacts_dir = tmp_path / "test007" / "test007.0" / "artifacts"
+        (artifacts_dir / "deliverables").mkdir()
+        (artifacts_dir / "deliverables" / "out.txt").write_text("payload")
+        (artifacts_dir / "lm_cache_rank0.db").write_text("cache")
+
+        staged_contents: list[str] = []
+
+        def fake_log_artifacts(local_dir, artifact_path=None):
+            staged_contents.extend(sorted(os.listdir(local_dir)))
+
+        monkeypatch.setattr(
+            "nemo_evaluator_launcher.exporters.mlflow.mlflow.log_artifacts",
+            fake_log_artifacts,
+            raising=False,
+        )
+
+        result = MLflowExporter(
+            {
+                "tracking_uri": "http://mlflow",
+                "only_required": False,
+                "copy_artifacts": True,
+            }
+        ).export([jd.job_id])
+        assert result.successful_jobs == [jd.job_id]
+        # Default exclusion applies
+        assert "lm_cache_rank0.db" not in staged_contents
+        # No user-supplied pattern: deliverables stays
+        assert "deliverables" in staged_contents
 
     def test_log_config_params_with_max_depth(
         self, monkeypatch, mlflow_fake, make_mlflow_job
