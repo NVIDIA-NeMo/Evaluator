@@ -186,6 +186,24 @@ class TestArtifactExclusions:
             is True
         )
 
+    def test_extra_patterns_fnmatch_syntax(self):
+        """Full fnmatch syntax is supported: prefix, ?, character classes."""
+        # prefix-only (X*)
+        assert should_exclude_artifact("foo_bar", extra_patterns=["foo*"]) is True
+        assert should_exclude_artifact("bar_foo", extra_patterns=["foo*"]) is False
+        # single-character wildcard
+        assert should_exclude_artifact("file1", extra_patterns=["file?"]) is True
+        assert should_exclude_artifact("file12", extra_patterns=["file?"]) is False
+        # character class
+        assert (
+            should_exclude_artifact("rank0.txt", extra_patterns=["rank[0-3].txt"])
+            is True
+        )
+        assert (
+            should_exclude_artifact("rank9.txt", extra_patterns=["rank[0-3].txt"])
+            is False
+        )
+
     def test_extra_patterns_default_unchanged(self):
         """Calling without extra_patterns matches the original behaviour exactly."""
         # Default-only call still excludes hardcoded patterns and lets others through
