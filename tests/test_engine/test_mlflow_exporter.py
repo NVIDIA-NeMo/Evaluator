@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import os
 import types
 from pathlib import Path
 
@@ -582,6 +583,139 @@ class TestArtifactPolicy:
         assert should_exclude_artifact("debug.json")
         assert not should_exclude_artifact("results.jsonl")
         assert not should_exclude_artifact("eval-foo.json")
+
+    def test_extra_patterns_extend_defaults(self):
+        """User-supplied patterns extend (not replace) the hardcoded defaults."""
+        from nemo_evaluator.engine.exporters.mlflow_export import (
+            should_exclude_artifact,
+        )
+
+        # Defaults still apply when extra_patterns is provided
+        assert should_exclude_artifact("response_stats_cache", extra_patterns=["deliverables"])
+        # Extra exact-match pattern excludes
+        assert should_exclude_artifact("deliverables", extra_patterns=["deliverables"])
+        # Unrelated names still pass through
+        assert not should_exclude_artifact("results.jsonl", extra_patterns=["deliverables"])
+
+    def test_extra_patterns_glob_styles(self):
+        """Extra patterns honor the same glob styles as EXCLUDED_PATTERNS."""
+        from nemo_evaluator.engine.exporters.mlflow_export import (
+            should_exclude_artifact,
+        )
+
+        assert should_exclude_artifact("my_deliverable_x", extra_patterns=["*deliverable*"])
+        assert should_exclude_artifact("trace.parquet", extra_patterns=["*.parquet"])
+        assert should_exclude_artifact("traces", extra_patterns=["traces"])
+        assert not should_exclude_artifact("traces_dir", extra_patterns=["traces"])
+
+    def test_extra_patterns_case_insensitive(self):
+        """Extra patterns match case-insensitively, like the defaults."""
+        from nemo_evaluator.engine.exporters.mlflow_export import (
+            should_exclude_artifact,
+        )
+
+        assert should_exclude_artifact("Deliverables", extra_patterns=["deliverables"])
+        assert should_exclude_artifact("deliverables", extra_patterns=["DELIVERABLES"])
+
+    def test_get_copytree_ignore_with_extra_patterns(self):
+        """get_copytree_ignore threads extra_patterns into the returned filter."""
+        from nemo_evaluator.engine.exporters.mlflow_export import get_copytree_ignore
+
+        ignore_func = get_copytree_ignore(["deliverables", "*.parquet"])
+        contents = [
+            "results.jsonl",
+            "response_stats_cache",  # default exclusion
+            "deliverables",
+            "trace.parquet",
+            "report.json",
+        ]
+        excluded = ignore_func("/some/dir", contents)
+        assert "response_stats_cache" in excluded
+        assert "deliverables" in excluded
+        assert "trace.parquet" in excluded
+        assert "results.jsonl" not in excluded
+        assert "report.json" not in excluded
+
+    def test_exporter_exclude_patterns_extends_defaults(self, mlflow_fake, tmp_path, monkeypatch):
+        """exclude_patterns on the exporter extends defaults during recursive upload."""
+        from nemo_evaluator.engine.exporters import mlflow_export
+
+        bench = "mmlu"
+        out_root = tmp_path / "out"
+        task_dir = out_root / bench
+        task_dir.mkdir(parents=True)
+        (task_dir / "eval-mmlu-000.json").write_text('{"run_id":"x"}')
+        (task_dir / "results.jsonl").write_text('{"problem_idx":0}\n')
+        (task_dir / "deliverables").mkdir()
+        (task_dir / "deliverables" / "out.txt").write_text("payload")
+        (task_dir / "kept_dir").mkdir()
+        (task_dir / "kept_dir" / "data.json").write_text("{}")
+        # default exclusion still applies
+        (task_dir / "response_stats_cache.db").write_text("cache")
+
+        staged_contents: list[str] = []
+
+        def fake_log_artifacts(local_dir, artifact_path=None):
+            staged_contents.extend(sorted(os.listdir(local_dir)))
+
+        monkeypatch.setattr(
+            mlflow_export.mlflow,
+            "log_artifacts",
+            staticmethod(fake_log_artifacts),
+            raising=False,
+        )
+
+        mlflow_export.MLflowExporter(
+            tracking_uri="http://mlflow",
+            only_required=False,
+            copy_artifacts=True,
+            exclude_patterns=["deliverables"],
+        ).export(
+            [_make_bundle(bench, run_id="eval-exclude-001")],
+            config={"output_dir": str(out_root)},
+        )
+
+        # User-supplied pattern wins
+        assert "deliverables" not in staged_contents
+        # Default exclusion still applies (extends, doesn't replace)
+        assert "response_stats_cache.db" not in staged_contents
+        # Untouched files/dirs survive
+        assert "kept_dir" in staged_contents
+        assert "results.jsonl" in staged_contents
+
+    def test_exporter_exclude_patterns_only_required_path(self, mlflow_fake, tmp_path, monkeypatch):
+        """exclude_patterns also gates files in the only_required code path."""
+        from nemo_evaluator.engine.exporters import mlflow_export
+
+        bench = "mmlu"
+        out_root = tmp_path / "out"
+        task_dir = out_root / bench
+        task_dir.mkdir(parents=True)
+        (task_dir / "eval-mmlu-000.json").write_text('{"run_id":"x"}')
+        (task_dir / "results.jsonl").write_text('{"problem_idx":0}\n')
+
+        logged_paths: list[str] = []
+        monkeypatch.setattr(
+            mlflow_export.mlflow,
+            "log_artifact",
+            staticmethod(lambda p, artifact_path=None: logged_paths.append(p)),
+            raising=False,
+        )
+
+        # Suppress results.jsonl via exclude_patterns even though it matches a required glob
+        mlflow_export.MLflowExporter(
+            tracking_uri="http://mlflow",
+            only_required=True,
+            copy_artifacts=True,
+            exclude_patterns=["results.jsonl"],
+        ).export(
+            [_make_bundle(bench, run_id="eval-exclude-onlyreq-001")],
+            config={"output_dir": str(out_root)},
+        )
+
+        names = [os.path.basename(p) for p in logged_paths]
+        assert "results.jsonl" not in names
+        assert "eval-mmlu-000.json" in names
 
 
 mlflow_real = pytest.importorskip("mlflow", reason="mlflow not installed")

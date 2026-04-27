@@ -17,7 +17,7 @@ import re
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -90,10 +90,14 @@ def flatten_config(
     return {parent_key: str(config)}
 
 
-def should_exclude_artifact(name: str) -> bool:
-    """True if ``name`` matches ``EXCLUDED_PATTERNS`` (case-insensitive)."""
+def should_exclude_artifact(name: str, extra_patterns: Sequence[str] = ()) -> bool:
+    """True if ``name`` matches the exclusion patterns (case-insensitive).
+
+    ``extra_patterns`` extends (does not replace) ``EXCLUDED_PATTERNS``; same
+    glob style is used for both.
+    """
     n = name.lower()
-    for pattern in EXCLUDED_PATTERNS:
+    for pattern in (*EXCLUDED_PATTERNS, *extra_patterns):
         p = pattern.lower()
         if p.startswith("*") and p.endswith("*"):
             if p[1:-1] in n:
@@ -106,9 +110,11 @@ def should_exclude_artifact(name: str) -> bool:
     return False
 
 
-def get_copytree_ignore() -> Callable[[str, list[str]], list[str]]:
+def get_copytree_ignore(
+    extra_patterns: Sequence[str] = (),
+) -> Callable[[str, list[str]], list[str]]:
     def ignore_func(_directory: str, contents: list[str]) -> list[str]:
-        return [name for name in contents if should_exclude_artifact(name)]
+        return [name for name in contents if should_exclude_artifact(name, extra_patterns)]
 
     return ignore_func
 
@@ -131,6 +137,7 @@ class MLflowExportSettings(BaseModel):
     copy_artifacts: bool = Field(default=True)
     only_required: bool = Field(default=True)
     copy_logs: bool = Field(default=False)
+    exclude_patterns: list[str] = Field(default_factory=list)
 
     emit_traces: bool = Field(default=True)
     emit_traces_max_samples: int | None = Field(default=None)
@@ -399,10 +406,11 @@ class MLflowExporter:
                 mlflow.log_artifact(str(bp), artifact_path=safe_name)
             return
 
+        extra_patterns = self._settings.exclude_patterns
         if self._settings.only_required:
             for pat in REQUIRED_ARTIFACT_GLOBS:
                 for p in sorted(task_dir.glob(pat)):
-                    if p.is_file() and not should_exclude_artifact(p.name):
+                    if p.is_file() and not should_exclude_artifact(p.name, extra_patterns):
                         mlflow.log_artifact(str(p), artifact_path=safe_name)
         else:
             with tempfile.TemporaryDirectory() as tmp:
@@ -410,7 +418,7 @@ class MLflowExporter:
                 shutil.copytree(
                     task_dir,
                     staged,
-                    ignore=get_copytree_ignore(),
+                    ignore=get_copytree_ignore(extra_patterns),
                     dirs_exist_ok=True,
                 )
                 mlflow.log_artifacts(str(staged), artifact_path=safe_name)
@@ -419,5 +427,5 @@ class MLflowExporter:
             logs_dir = output_dir / "logs"
             if logs_dir.exists():
                 for p in sorted(logs_dir.iterdir()):
-                    if p.is_file() and not should_exclude_artifact(p.name):
+                    if p.is_file() and not should_exclude_artifact(p.name, extra_patterns):
                         mlflow.log_artifact(str(p), artifact_path=f"{safe_name}/logs")
