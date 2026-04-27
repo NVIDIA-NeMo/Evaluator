@@ -668,9 +668,12 @@ output:
       emit_traces: true              # default
       emit_traces_max_samples: 200   # cap per benchmark; null = no cap
       emit_traces_content_max: 4000  # truncate long strings
+      exclude_patterns: ["deliverables"]  # extra patterns to skip when uploading artifacts
 ```
 
 Tiers (auto-selected): `rich` (agentic + tools) → `messages` (chat) → `response` (extractive) → `meta` (no trajectory / no response). For agent-only trajectories (e.g. PinchBench), a leading `user` span is synthesised from the prompt. The root span carries `nel.scoring_details`, per-scorer rewards (`nel.scorer.<name>`), and task metadata (`nel.task_id`, `nel.task_name`, `nel.category`, ...). Traces are skipped when MLflow is not installed, `emit_traces=false`, or the run is reused on re-export.
+
+`exclude_patterns` extends the always-on defaults (`*cache*`, `*.db`, `*.lock`, `synthetic`, `debug.json`) with extra glob-style patterns matched on basename, case-insensitive. Useful when `only_required: false` and you want to drop large sub-directories (e.g. `deliverables`) without losing the hardcoded exclusions. Pattern syntax: `*foo*` (contains), `*foo` (suffix), `foo` (exact).
 
 ---
 
