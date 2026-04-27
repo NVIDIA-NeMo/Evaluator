@@ -1031,6 +1031,28 @@ def _create_slurm_sbatch_script(
     if gpu_devices is not None:
         s += f"export NVIDIA_VISIBLE_DEVICES={gpu_devices}\n"
         extra_eval_env_names.append("NVIDIA_VISIBLE_DEVICES")
+    # Forward HEAD_NODE_IPS_CSV and HEAD_NODE_URLS_CSV (set in
+    # `_generate_deployment_srun` when num_instances > 1) into the eval
+    # container so eval-side code can do per-instance routing if it wants to
+    # bypass the haproxy load balancer. URLS_CSV is pre-formatted as
+    # `http://ip1:<port>/v1,http://ip2:<port>/v1,...` and is the easier
+    # variable to plug straight into `++policy_base_url=[$HEAD_NODE_URLS_CSV]`.
+    #
+    # On slurm + pyxis with env isolation, `--container-env VAR` only forwards
+    # the value if VAR is exported in the immediate parent shell of the srun
+    # command. They are exported earlier in
+    # `_generate_deployment_srun_command` after the per-instance loop, but
+    # ~hundreds of lines and a secrets-reexport block separate that export
+    # from the eval srun below. Re-export them here, right before the srun,
+    # following the same pattern that `build_reexport_commands` uses for
+    # YAML-declared env vars (HF_TOKEN, etc.).
+    if cfg.deployment.type != "none" and cfg.execution.get("num_instances", 1) > 1:
+        extra_eval_env_names.append("HEAD_NODE_IPS_CSV")
+        extra_eval_env_names.append("HEAD_NODE_URLS_CSV")
+        s += (
+            'export HEAD_NODE_IPS_CSV="${HEAD_NODE_IPS_CSV}" ; '
+            'export HEAD_NODE_URLS_CSV="${HEAD_NODE_URLS_CSV}"\n'
+        )
     s += "srun --mpi pmix --overlap "
     s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
     s += "--container-image {} ".format(eval_image)
@@ -1971,7 +1993,24 @@ def _generate_deployment_srun_command(
     s += "    SERVER_PIDS+=($!)\n"
     s += "done\n\n"
 
+    # Export HEAD_NODE_IPS as a comma-separated string so it can be propagated
+    # via `--container-env` to the evaluation client. Eval-side code that wants
+    # to do its own per-instance routing (e.g. consistent-hashing requests from
+    # the same agentic trajectory to the same vLLM instance, bypassing the
+    # haproxy round-robin) can read $HEAD_NODE_IPS_CSV and address each head
+    # directly.
+    s += 'export HEAD_NODE_IPS_CSV=$(IFS=,; echo "${HEAD_NODE_IPS[*]}")\n'
+    # Also export pre-formatted per-instance URLs so eval-side YAML can use
+    # `++policy_base_url=[$HEAD_NODE_URLS_CSV]` directly without bash sed
+    # juggling. Port comes from cfg.deployment.port (the same port the eval
+    # client would otherwise hit through haproxy).
+    deployment_port = cfg.deployment.get("port", 8000)
+    s += (
+        f'export HEAD_NODE_URLS_CSV=$(printf "http://%s:{deployment_port}/v1," '
+        f'"${{HEAD_NODE_IPS[@]}}" | sed "s/,$//")\n'
+    )
     s += 'echo "HEAD_NODE_IPS: ${HEAD_NODE_IPS[@]}"\n'
+    s += 'echo "HEAD_NODE_URLS_CSV: ${HEAD_NODE_URLS_CSV}"\n'
     s += "SERVER_PID=${SERVER_PIDS[0]}  # reference to first instance PID for health check\n\n"
 
     return s, is_potentially_unsafe, debug_comment
