@@ -617,6 +617,19 @@ class TestArtifactPolicy:
         assert should_exclude_artifact("Deliverables", extra_patterns=["deliverables"])
         assert should_exclude_artifact("deliverables", extra_patterns=["DELIVERABLES"])
 
+    def test_extra_patterns_fnmatch_syntax(self):
+        """Full fnmatch syntax is supported: prefix, ?, character classes."""
+        from nemo_evaluator.engine.exporters.mlflow_export import (
+            should_exclude_artifact,
+        )
+
+        assert should_exclude_artifact("foo_bar", extra_patterns=["foo*"])
+        assert not should_exclude_artifact("bar_foo", extra_patterns=["foo*"])
+        assert should_exclude_artifact("file1", extra_patterns=["file?"])
+        assert not should_exclude_artifact("file12", extra_patterns=["file?"])
+        assert should_exclude_artifact("rank0.txt", extra_patterns=["rank[0-3].txt"])
+        assert not should_exclude_artifact("rank9.txt", extra_patterns=["rank[0-3].txt"])
+
     def test_get_copytree_ignore_with_extra_patterns(self):
         """get_copytree_ignore threads extra_patterns into the returned filter."""
         from nemo_evaluator.engine.exporters.mlflow_export import get_copytree_ignore

@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import logging
 import os
@@ -93,21 +94,12 @@ def flatten_config(
 def should_exclude_artifact(name: str, extra_patterns: Sequence[str] = ()) -> bool:
     """True if ``name`` matches the exclusion patterns (case-insensitive).
 
-    ``extra_patterns`` extends (does not replace) ``EXCLUDED_PATTERNS``; same
-    glob style is used for both.
+    Match is on basename using ``fnmatch.fnmatchcase``, so patterns support
+    ``*``, ``?``, and ``[seq]``. ``extra_patterns`` extends (does not replace)
+    ``EXCLUDED_PATTERNS``.
     """
     n = name.lower()
-    for pattern in (*EXCLUDED_PATTERNS, *extra_patterns):
-        p = pattern.lower()
-        if p.startswith("*") and p.endswith("*"):
-            if p[1:-1] in n:
-                return True
-        elif p.startswith("*"):
-            if n.endswith(p[1:]):
-                return True
-        elif n == p:
-            return True
-    return False
+    return any(fnmatch.fnmatchcase(n, pattern.lower()) for pattern in (*EXCLUDED_PATTERNS, *extra_patterns))
 
 
 def get_copytree_ignore(
