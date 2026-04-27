@@ -648,20 +648,27 @@ class TestSlurmExecutorFeatures:
 
         # Always exported at the slurm-script level (no harm for single instance)
         assert 'export HEAD_NODE_IPS_CSV=$(IFS=,; echo "${HEAD_NODE_IPS[*]}")' in script
+        # Pre-formatted URL list using cfg.deployment.port (default 8000)
+        assert (
+            'export HEAD_NODE_URLS_CSV=$(printf "http://%s:8000/v1," '
+            '"${HEAD_NODE_IPS[@]}" | sed "s/,$//")'
+        ) in script
 
         # Only added to the eval-container --container-env when multi-instance.
         # The eval srun command spans multiple `s +=` calls but ends up as a
         # single shell command; we slice the script to the eval-client section
         # (between the "# evaluation client" marker and the closing `bash -c`)
-        # and check whether HEAD_NODE_IPS_CSV appears there.
+        # and check whether HEAD_NODE_IPS_CSV / HEAD_NODE_URLS_CSV appear there.
         eval_marker = "# evaluation client"
         eval_start = script.index(eval_marker)
         eval_end = script.index("bash -c", eval_start)
         eval_section = script[eval_start:eval_end]
         if expect_csv_in_eval_env:
             assert "HEAD_NODE_IPS_CSV" in eval_section
+            assert "HEAD_NODE_URLS_CSV" in eval_section
         else:
             assert "HEAD_NODE_IPS_CSV" not in eval_section
+            assert "HEAD_NODE_URLS_CSV" not in eval_section
 
     @pytest.mark.parametrize(
         "gres_value, expect_gres_in_script",
