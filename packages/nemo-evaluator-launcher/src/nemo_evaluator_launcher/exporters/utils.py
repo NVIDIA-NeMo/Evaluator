@@ -15,12 +15,13 @@
 #
 """Shared utilities for metrics and configuration handling."""
 
+import fnmatch
 import hashlib
 import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import yaml
 
@@ -99,30 +100,30 @@ def get_relevant_artifacts() -> List[str]:
     return REQUIRED_ARTIFACTS + OPTIONAL_ARTIFACTS
 
 
-def should_exclude_artifact(name: str) -> bool:
-    """Check if artifact should be excluded based on glob patterns."""
+def should_exclude_artifact(name: str, extra_patterns: Sequence[str] = ()) -> bool:
+    """Check if artifact should be excluded based on fnmatch-style patterns.
+
+    Match is on basename (case-insensitive) using ``fnmatch.fnmatchcase``,
+    so patterns support ``*`` (any run), ``?`` (single char), and ``[seq]``
+    character classes. ``extra_patterns`` extends (does not replace) the
+    always-on ``EXCLUDED_PATTERNS`` defaults.
+    """
     name_lower = name.lower()
-    for pattern in EXCLUDED_PATTERNS:
-        p = pattern.lower()
-        if p.startswith("*") and p.endswith("*"):
-            # *cache* - contains match
-            if p[1:-1] in name_lower:
-                return True
-        elif p.startswith("*"):
-            # *.db, *.lock - suffix match
-            if name_lower.endswith(p[1:]):
-                return True
-        elif name_lower == p:
-            # exact match at any depth (synthetic, debug.json)
-            return True
-    return False
+    return any(
+        fnmatch.fnmatchcase(name_lower, pattern.lower())
+        for pattern in (*EXCLUDED_PATTERNS, *extra_patterns)
+    )
 
 
-def get_copytree_ignore() -> Callable[[str, List[str]], List[str]]:
+def get_copytree_ignore(
+    extra_patterns: Sequence[str] = (),
+) -> Callable[[str, List[str]], List[str]]:
     """Return ignore function for shutil.copytree() that excludes artifacts recursively."""
 
     def ignore_func(directory: str, contents: List[str]) -> List[str]:
-        return [name for name in contents if should_exclude_artifact(name)]
+        return [
+            name for name in contents if should_exclude_artifact(name, extra_patterns)
+        ]
 
     return ignore_func
 

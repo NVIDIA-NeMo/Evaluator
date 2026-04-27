@@ -56,6 +56,7 @@ class MLflowExporterConfig(ExportConfig):
     description: Optional[str] = Field(default=None)
     tags: Optional[Dict[str, str]] = Field(default=None)
     extra_metadata: Optional[Dict[str, Any]] = Field(default=None)
+    exclude_patterns: List[str] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -299,7 +300,7 @@ class MLflowExporter(BaseExporter):
                 shutil.copytree(
                     job_data.artifacts_dir,
                     staged,
-                    ignore=get_copytree_ignore(),
+                    ignore=get_copytree_ignore(self.config.exclude_patterns),
                     dirs_exist_ok=True,
                 )
                 # Upload entire staged directory
