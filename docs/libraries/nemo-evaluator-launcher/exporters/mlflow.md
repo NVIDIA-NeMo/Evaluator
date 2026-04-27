@@ -269,6 +269,10 @@ nemo-evaluator-launcher export 8abcd123 --dest mlflow --log-metrics accuracy pas
   - bool
   - Copy only required artifacts
   - `true`
+* - `exclude_patterns`
+  - list[str]
+  - Extra glob-style patterns (matched on basename, case-insensitive) to exclude from artifact upload, in addition to the always-on defaults (`*cache*`, `*.db`, `*.lock`, `synthetic`, `debug.json`, ...). Useful when `only_required: false` and you want to drop large sub-directories such as `deliverables`. Same pattern syntax as the defaults: `*foo*` (contains), `*foo` (suffix), `foo` (exact).
+  - `[]`
 * - `log_config_params`
   - bool
   - Include flattened configuration settings in run parameters
