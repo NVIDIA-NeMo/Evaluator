@@ -1037,9 +1037,22 @@ def _create_slurm_sbatch_script(
     # bypass the haproxy load balancer. URLS_CSV is pre-formatted as
     # `http://ip1:<port>/v1,http://ip2:<port>/v1,...` and is the easier
     # variable to plug straight into `++policy_base_url=[$HEAD_NODE_URLS_CSV]`.
+    #
+    # On slurm + pyxis with env isolation, `--container-env VAR` only forwards
+    # the value if VAR is exported in the immediate parent shell of the srun
+    # command. They are exported earlier in
+    # `_generate_deployment_srun_command` after the per-instance loop, but
+    # ~hundreds of lines and a secrets-reexport block separate that export
+    # from the eval srun below. Re-export them here, right before the srun,
+    # following the same pattern that `build_reexport_commands` uses for
+    # YAML-declared env vars (HF_TOKEN, etc.).
     if cfg.deployment.type != "none" and cfg.execution.get("num_instances", 1) > 1:
         extra_eval_env_names.append("HEAD_NODE_IPS_CSV")
         extra_eval_env_names.append("HEAD_NODE_URLS_CSV")
+        s += (
+            'export HEAD_NODE_IPS_CSV="${HEAD_NODE_IPS_CSV}" ; '
+            'export HEAD_NODE_URLS_CSV="${HEAD_NODE_URLS_CSV}"\n'
+        )
     s += "srun --mpi pmix --overlap "
     s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
     s += "--container-image {} ".format(eval_image)

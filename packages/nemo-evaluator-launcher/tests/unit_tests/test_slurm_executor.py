@@ -663,12 +663,20 @@ class TestSlurmExecutorFeatures:
         eval_start = script.index(eval_marker)
         eval_end = script.index("bash -c", eval_start)
         eval_section = script[eval_start:eval_end]
+        immediate_reexport = (
+            'export HEAD_NODE_IPS_CSV="${HEAD_NODE_IPS_CSV}" ; '
+            'export HEAD_NODE_URLS_CSV="${HEAD_NODE_URLS_CSV}"'
+        )
         if expect_csv_in_eval_env:
             assert "HEAD_NODE_IPS_CSV" in eval_section
             assert "HEAD_NODE_URLS_CSV" in eval_section
+            # Re-export must be in the immediate scope of the eval srun so
+            # pyxis --container-env actually forwards the value.
+            assert immediate_reexport in eval_section
         else:
             assert "HEAD_NODE_IPS_CSV" not in eval_section
             assert "HEAD_NODE_URLS_CSV" not in eval_section
+            assert immediate_reexport not in eval_section
 
     @pytest.mark.parametrize(
         "gres_value, expect_gres_in_script",
