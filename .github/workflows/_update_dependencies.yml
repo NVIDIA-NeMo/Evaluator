@@ -93,6 +93,7 @@ jobs:
         with:
           token: ${{ secrets.PAT }}
           ref: ${{ env.TARGET_BRANCH }}
+          persist-credentials: false
 
       - name: Install GPG
         run: sudo apt-get install -y gnupg2
