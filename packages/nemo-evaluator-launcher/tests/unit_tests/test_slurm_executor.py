@@ -609,6 +609,61 @@ class TestSlurmExecutorFeatures:
         assert "proxy" not in script.lower()
 
     @pytest.mark.parametrize(
+        "num_instances,num_nodes,expect_csv_in_eval_env",
+        [
+            (1, 1, False),  # single instance — CSV exported but not forwarded to eval
+            (1, 2, False),  # single instance, 2 nodes — same
+            (2, 2, True),  # 2 instances → forward to eval
+            (4, 4, True),  # 4 instances → forward to eval
+        ],
+        ids=["ni1_n1", "ni1_n2", "ni2_n2", "ni4_n4"],
+    )
+    def test_head_node_ips_csv_exposed_to_eval_for_multi_instance(
+        self,
+        base_config,
+        mock_task,
+        mock_dependencies,
+        num_instances,
+        num_nodes,
+        expect_csv_in_eval_env,
+    ):
+        """HEAD_NODE_IPS_CSV is always exported in the slurm script after the
+        per-instance deployment-srun loop, but it is only forwarded into the
+        eval container env when num_instances > 1 (single-instance deployments
+        don't need it because there is no per-instance routing to do)."""
+        base_config["execution"]["num_nodes"] = num_nodes
+        base_config["execution"]["num_instances"] = num_instances
+
+        cfg = OmegaConf.create(base_config)
+
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+            task_idx=0,
+        ).cmd
+
+        # Always exported at the slurm-script level (no harm for single instance)
+        assert 'export HEAD_NODE_IPS_CSV=$(IFS=,; echo "${HEAD_NODE_IPS[*]}")' in script
+
+        # Only added to the eval-container --container-env when multi-instance.
+        # The eval srun command spans multiple `s +=` calls but ends up as a
+        # single shell command; we slice the script to the eval-client section
+        # (between the "# evaluation client" marker and the closing `bash -c`)
+        # and check whether HEAD_NODE_IPS_CSV appears there.
+        eval_marker = "# evaluation client"
+        eval_start = script.index(eval_marker)
+        eval_end = script.index("bash -c", eval_start)
+        eval_section = script[eval_start:eval_end]
+        if expect_csv_in_eval_env:
+            assert "HEAD_NODE_IPS_CSV" in eval_section
+        else:
+            assert "HEAD_NODE_IPS_CSV" not in eval_section
+
+    @pytest.mark.parametrize(
         "gres_value, expect_gres_in_script",
         [
             ("gpu:8", True),
