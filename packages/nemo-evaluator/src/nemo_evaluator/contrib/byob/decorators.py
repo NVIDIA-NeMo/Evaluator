@@ -47,7 +47,14 @@ class ScorerInput:
 
     This is the single argument passed to all BYOB scorer functions.
     Standard scorers use response, target, and metadata.
-    Advanced scorers (judge, multi-turn) use the optional fields.
+    Advanced scorers (judge, multi-turn, multiple-choice loglikelihood)
+    use the optional fields.
+
+    For multiple-choice loglikelihood evaluation (lm-eval-harness style),
+    ``MultipleChoiceStrategy`` populates ``choices``, ``choices_logprobs``,
+    and ``choices_is_greedy`` before invoking the scorer. ``response`` is
+    set to ``choices[argmax(choices_logprobs)]`` so legacy text-based
+    scorers also work.
     """
 
     response: str
@@ -58,6 +65,10 @@ class ScorerInput:
     config: Dict[str, Any] = field(default_factory=dict)
     conversation: Optional[List[dict]] = None
     turn_index: Optional[int] = None
+    # Multiple-choice loglikelihood fields (mirrors lm-eval-harness)
+    choices: Optional[List[str]] = None
+    choices_logprobs: Optional[List[float]] = None
+    choices_is_greedy: Optional[List[bool]] = None
 
 
 @dataclass
@@ -78,6 +89,14 @@ class BenchmarkDefinition:
     _is_jinja2: bool = False
     system_prompt: Optional[str] = None
     _is_system_prompt_jinja2: bool = False
+    # Multiple-choice loglikelihood support (mirrors lm-eval-harness)
+    choices: Optional[List[str]] = None
+    choices_field: Optional[str] = None
+    # Few-shot prompting (mirrors lm-eval-harness --num_fewshot)
+    num_fewshot: int = 0
+    fewshot_split: Optional[str] = None
+    fewshot_template: Optional[str] = None
+    fewshot_separator: str = "\n\n"
 
 
 _BENCHMARK_REGISTRY: Dict[str, BenchmarkDefinition] = {}
@@ -150,6 +169,12 @@ def benchmark(
     extra=None,
     response_field=None,
     system_prompt=None,
+    choices: Optional[List[str]] = None,
+    choices_field: Optional[str] = None,
+    num_fewshot: int = 0,
+    fewshot_split: Optional[str] = None,
+    fewshot_template: Optional[str] = None,
+    fewshot_separator: str = "\n\n",
     **kwargs,
 ):
     """Decorator that registers a function as a BYOB benchmark.
@@ -161,7 +186,10 @@ def benchmark(
         prompt: Python format string with {field} placeholders, or path to
                 a template file (.txt, .md, .jinja, .jinja2).
         target_field: JSONL field containing ground truth.
-        endpoint_type: "chat" or "completions".
+        endpoint_type: ``"chat"``, ``"completions"``, or
+            ``"completions_logprob"``. The last value enables per-choice
+            loglikelihood ranking (lm-evaluation-harness ``local-completions``
+            parity) and requires either ``choices`` or ``choices_field``.
         requirements: Pip dependencies. Either a list of specifiers
                       (e.g., ["rouge-score>=0.1.2"]) or a path to a
                       requirements.txt file. None means no extra deps.
@@ -177,6 +205,27 @@ def benchmark(
                         responses are read directly from the dataset (eval-only mode).
         system_prompt: Optional system prompt string or path to a template file.
                        When set, a system message is prepended to model calls.
+        choices: Static list of candidate continuations evaluated in
+            loglikelihood mode (e.g. ``["A", "B", "C", "D"]`` for MMLU).
+            Used for ``endpoint_type="completions_logprob"``.
+        choices_field: Per-row dataset field whose value is a list of
+            candidate continuations (e.g. ARC has variable-length choice
+            lists). Mutually exclusive with ``choices``; takes precedence
+            when both are set on a per-row basis.
+        num_fewshot: Number of few-shot examples to prepend to each
+            prompt. Examples are sampled deterministically from
+            ``fewshot_split`` (or the first ``num_fewshot`` rows of the
+            evaluation dataset when ``fewshot_split`` is None). Mirrors
+            lm-eval-harness's ``--num_fewshot`` flag.
+        fewshot_split: HuggingFace split name to sample few-shot examples
+            from (e.g. ``"train"`` or ``"dev"``). Only meaningful when the
+            primary ``dataset`` is an ``hf://`` URI.
+        fewshot_template: Optional template string used to render each
+            few-shot example. ``None`` reuses the main ``prompt`` template
+            and appends the rendered ``target_field`` value.
+        fewshot_separator: String inserted between rendered few-shot
+            examples and between the few-shot block and the test prompt.
+            Defaults to ``"\\n\\n"``.
         **kwargs: Also merged into extra config (for backward compat).
                   ``extra`` takes precedence over ``**kwargs`` on conflicts.
     """
@@ -191,6 +240,18 @@ def benchmark(
         if normalized in _BENCHMARK_REGISTRY:
             raise ValueError(
                 f"Benchmark '{name}' (normalized: '{normalized}') is already registered."
+            )
+        if endpoint_type not in ("chat", "completions", "completions_logprob"):
+            raise ValueError(
+                f"Invalid endpoint_type '{endpoint_type}'. "
+                f"Must be one of: 'chat', 'completions', 'completions_logprob'."
+            )
+        if endpoint_type == "completions_logprob" and not (choices or choices_field):
+            raise ValueError(
+                f"Benchmark '{name}' uses endpoint_type='completions_logprob' "
+                f"but neither 'choices' (static list) nor 'choices_field' "
+                f"(per-row field) is set. Loglikelihood ranking requires "
+                f"candidate continuations."
             )
 
         # Resolve base_dir from decorated function's source file
@@ -230,6 +291,11 @@ def benchmark(
         if extra:
             merged_extra.update(extra)
 
+        # Resolve few-shot template (file path or inline string)
+        resolved_fewshot_template = None
+        if fewshot_template is not None:
+            resolved_fewshot_template = _resolve_prompt(fewshot_template, base_dir)
+
         defn = BenchmarkDefinition(
             name=name,
             normalized_name=normalized,
@@ -245,6 +311,12 @@ def benchmark(
             _is_jinja2=is_jinja2,
             system_prompt=resolved_system_prompt,
             _is_system_prompt_jinja2=is_system_prompt_jinja2,
+            choices=list(choices) if choices is not None else None,
+            choices_field=choices_field,
+            num_fewshot=num_fewshot,
+            fewshot_split=fewshot_split,
+            fewshot_template=resolved_fewshot_template,
+            fewshot_separator=fewshot_separator,
         )
 
         _BENCHMARK_REGISTRY[normalized] = defn

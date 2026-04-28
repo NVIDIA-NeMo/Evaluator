@@ -16,6 +16,7 @@
 """Shared BYOB evaluation logic for both subprocess and native modes."""
 
 import importlib
+import random
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -133,8 +134,9 @@ def import_benchmark(benchmark_module: str, benchmark_name: str) -> BenchmarkDef
 class EvalStrategy(Protocol):
     """Protocol for evaluation strategies.
 
-    Different evaluation modes (standard, judge, multi-turn, agentic)
-    implement this protocol to define how each sample is evaluated.
+    Different evaluation modes (standard, judge, multi-turn, agentic,
+    multiple-choice loglikelihood) implement this protocol to define how
+    each sample is evaluated.
     """
 
     def evaluate_sample(
@@ -142,9 +144,10 @@ class EvalStrategy(Protocol):
         idx: int,
         row: Dict,
         bench: BenchmarkDefinition,
-        model_call_fn: Callable[[str, str], str],
+        model_call_fn: Callable[..., Any],
         endpoint_type: str,
         request_timeout: Optional[float] = None,
+        fewshot_prefix: str = "",
     ) -> Tuple[Optional[Dict], Optional[SampleResult]]:
         """Evaluate a single sample.
 
@@ -163,9 +166,10 @@ class StandardStrategy:
         idx: int,
         row: Dict,
         bench: BenchmarkDefinition,
-        model_call_fn: Callable[[str, str], str],
+        model_call_fn: Callable[..., Any],
         endpoint_type: str,
         request_timeout: Optional[float] = None,
+        fewshot_prefix: str = "",
     ) -> Tuple[Optional[Dict], Optional[SampleResult]]:
         """Render prompt, call model, score the response.
 
@@ -196,6 +200,9 @@ class StandardStrategy:
                 error=str(e),
                 metadata=row,
             )
+
+        if fewshot_prefix:
+            prompt = fewshot_prefix + prompt
 
         # Render system prompt if configured
         rendered_system_prompt = None
@@ -283,9 +290,10 @@ class EvalOnlyStrategy:
         idx: int,
         row: Dict,
         bench: BenchmarkDefinition,
-        model_call_fn: Callable[[str, str], str],
+        model_call_fn: Callable[..., Any],
         endpoint_type: str,
         request_timeout: Optional[float] = None,
+        fewshot_prefix: str = "",
     ) -> Tuple[Optional[Dict], Optional[SampleResult]]:
         """Score a pre-generated response from the dataset (no model call).
 
@@ -296,6 +304,7 @@ class EvalOnlyStrategy:
             model_call_fn: Not used (present for protocol compliance).
             endpoint_type: Not used (present for protocol compliance).
             request_timeout: Not used (present for protocol compliance).
+            fewshot_prefix: Not used (present for protocol compliance).
 
         Returns:
             Tuple of (scores_dict, SampleResult) on success, or
@@ -358,10 +367,286 @@ class EvalOnlyStrategy:
         return sample_scores, prediction
 
 
+def _resolve_choices_from_row(row: Dict, choices_field: str) -> Optional[List[str]]:
+    """Resolve per-row choices from a field name or dotted path.
+
+    Hugging Face multiple-choice datasets commonly store choices as
+    {"label": [...], "text": [...]}; dotted paths let benchmarks select the
+    actual candidate continuations without a preprocessing step.
+    """
+    raw: Any = row
+    for part in choices_field.split("."):
+        if isinstance(raw, dict) and part in raw:
+            raw = raw[part]
+        else:
+            raw = None
+            break
+
+    if raw is None:
+        raw = row.get(choices_field)
+
+    if isinstance(raw, dict):
+        raw = raw.get("text")
+
+    if isinstance(raw, list):
+        return [str(c) for c in raw]
+    return None
+
+
+class MultipleChoiceStrategy:
+    """Per-choice loglikelihood ranking (lm-eval-harness ``local-completions`` parity).
+
+    For each row:
+
+    1. Render the context from ``bench.prompt``.
+    2. Resolve the candidate continuations (from ``bench.choices`` or
+       ``row[bench.choices_field]``).
+    3. Call ``model_call_fn(context, "completions_logprob",
+       continuation=cont)`` for each candidate, collecting
+       ``(sum_logprob, is_greedy)`` tuples.
+    4. Set ``ScorerInput.choices``, ``choices_logprobs``,
+       ``choices_is_greedy``; ``response`` is set to the argmax choice so
+       legacy text-based scorers (``exact_match`` etc.) still work.
+    5. Hand off to the user scorer (commonly :func:`multiple_choice_acc`).
+    """
+
+    def evaluate_sample(
+        self,
+        idx: int,
+        row: Dict,
+        bench: BenchmarkDefinition,
+        model_call_fn: Callable[..., Any],
+        endpoint_type: str,
+        request_timeout: Optional[float] = None,
+        fewshot_prefix: str = "",
+    ) -> Tuple[Optional[Dict], Optional[SampleResult]]:
+        try:
+            prompt = render_prompt(bench.prompt, row, bench._is_jinja2)
+        except KeyError as e:
+            target = row.get(bench.target_field, "")
+            return None, SampleResult(
+                sample_id=idx,
+                prompt="",
+                response=None,
+                target=target,
+                scores=None,
+                status="skipped_missing_field",
+                error=str(e),
+                metadata=row,
+            )
+
+        if fewshot_prefix:
+            prompt = fewshot_prefix + prompt
+
+        # Resolve choices: per-row field takes precedence over static list
+        choices: Optional[List[str]] = None
+        if bench.choices_field:
+            choices = _resolve_choices_from_row(row, bench.choices_field)
+        if not choices and bench.choices:
+            choices = list(bench.choices)
+        if not choices:
+            target = row.get(bench.target_field, "")
+            return None, SampleResult(
+                sample_id=idx,
+                prompt=prompt,
+                response=None,
+                target=target,
+                scores=None,
+                status="skipped_missing_field",
+                error=(
+                    f"No choices available: choices_field "
+                    f"'{bench.choices_field}' missing from row and no static "
+                    f"choices declared on @benchmark."
+                ),
+                metadata=row,
+            )
+
+        rendered_system_prompt = None
+        if bench.system_prompt:
+            try:
+                rendered_system_prompt = render_prompt(
+                    bench.system_prompt, row, bench._is_system_prompt_jinja2
+                )
+            except KeyError as e:
+                logger.warning(
+                    "System prompt rendering failed, skipping",
+                    sample_id=idx,
+                    error=str(e),
+                )
+
+        choices_logprobs: List[float] = []
+        choices_is_greedy: List[bool] = []
+        for cont in choices:
+            try:
+                ll, greedy = model_call_fn(
+                    prompt,
+                    "completions_logprob",
+                    system_prompt=rendered_system_prompt,
+                    timeout=request_timeout,
+                    continuation=cont,
+                )
+            except Exception as e:
+                target = row.get(bench.target_field, "")
+                return None, SampleResult(
+                    sample_id=idx,
+                    prompt=prompt,
+                    response=None,
+                    target=target,
+                    scores=None,
+                    status="skipped_model_error",
+                    error=str(e),
+                    metadata=row,
+                )
+            choices_logprobs.append(float(ll))
+            choices_is_greedy.append(bool(greedy))
+
+        argmax_idx = max(range(len(choices)), key=lambda i: choices_logprobs[i])
+        response = choices[argmax_idx]
+
+        target = row.get(bench.target_field, "")
+        scorer_input = ScorerInput(
+            response=response,
+            target=target,
+            metadata=row,
+            model_call_fn=model_call_fn,
+            config=bench.extra_config,
+            choices=choices,
+            choices_logprobs=choices_logprobs,
+            choices_is_greedy=choices_is_greedy,
+        )
+
+        try:
+            sample_scores = bench.scorer_fn(scorer_input)
+        except Exception as e:
+            return None, SampleResult(
+                sample_id=idx,
+                prompt=prompt,
+                response=response,
+                target=target,
+                scores=None,
+                status="skipped_scorer_error",
+                error=str(e),
+                metadata=row,
+            )
+
+        prediction = SampleResult(
+            sample_id=idx,
+            prompt=prompt,
+            response=response,
+            target=target,
+            scores=sample_scores,
+            status="scored",
+            metadata={
+                **row,
+                "_choices": choices,
+                "_choices_logprobs": choices_logprobs,
+                "_choices_is_greedy": choices_is_greedy,
+            },
+        )
+        return sample_scores, prediction
+
+
+def render_fewshot_example(bench: BenchmarkDefinition, row: Dict) -> Optional[str]:
+    """Render a single few-shot example for *row*.
+
+    If ``bench.fewshot_template`` is set, render that with the row dict.
+    Otherwise reuse the main ``bench.prompt`` template and append the
+    target value (fetched from ``bench.target_field``).
+
+    Returns None on missing-field errors so the caller can skip cleanly.
+    """
+    try:
+        if bench.fewshot_template:
+            return render_prompt(bench.fewshot_template, row, bench._is_jinja2)
+        prompt_part = render_prompt(bench.prompt, row, bench._is_jinja2)
+        target_part = row.get(bench.target_field, "")
+        return f"{prompt_part} {target_part}".rstrip()
+    except KeyError:
+        return None
+
+
+def build_fewshot_prefix(bench: BenchmarkDefinition, examples: List[Dict]) -> str:
+    """Render *examples* into a prefix string ready to prepend to each prompt.
+
+    Skips examples that fail to render (missing fields). Always appends the
+    benchmark's ``fewshot_separator`` after the last example so the test
+    prompt starts on a fresh boundary.
+    """
+    if not examples:
+        return ""
+    rendered: List[str] = []
+    for ex in examples:
+        text = render_fewshot_example(bench, ex)
+        if text is not None:
+            rendered.append(text)
+    if not rendered:
+        return ""
+    sep = bench.fewshot_separator or "\n\n"
+    return sep.join(rendered) + sep
+
+
+def build_fewshot_examples(
+    primary_dataset_uri: str,
+    primary_dataset: List[Dict],
+    num_fewshot: int,
+    fewshot_split: Optional[str],
+    field_mapping: Optional[Dict[str, str]] = None,
+    seed: int = 42,
+) -> List[Dict]:
+    """Sample ``num_fewshot`` examples deterministically (lm-eval style).
+
+    Selection rules (in order):
+
+    1. If ``fewshot_split`` is set and the primary dataset URI is an
+       ``hf://`` URI, load that split via the dataset module and sample
+       ``num_fewshot`` rows.
+    2. Otherwise, sample ``num_fewshot`` rows from the head of
+       ``primary_dataset`` (deterministic offset; matches lm-eval's
+       behavior when no separate fewshot split is declared).
+    """
+    if num_fewshot <= 0:
+        return []
+
+    pool: List[Dict] = []
+    if fewshot_split and primary_dataset_uri.startswith("hf://"):
+        try:
+            from nemo_evaluator.contrib.byob.dataset import load_dataset
+
+            # Replace or inject ?split= in the URI
+            if "?" in primary_dataset_uri:
+                base, _ = primary_dataset_uri.split("?", 1)
+            else:
+                base = primary_dataset_uri
+            fs_uri = f"{base}?split={fewshot_split}"
+            pool = load_dataset(
+                fs_uri, limit=max(num_fewshot * 4, 16), field_mapping=field_mapping
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to load fewshot_split, falling back to primary dataset head",
+                fewshot_split=fewshot_split,
+                error=str(e),
+            )
+            pool = []
+
+    if not pool:
+        # Fall back to primary dataset (skip the first row to reduce
+        # exact contamination with the test prompt; lm-eval does similar).
+        pool = primary_dataset[: max(num_fewshot * 4, num_fewshot)]
+
+    if not pool:
+        return []
+
+    rng = random.Random(seed)
+    if len(pool) <= num_fewshot:
+        return list(pool)
+    return rng.sample(pool, num_fewshot)
+
+
 def run_eval_loop(
     bench: BenchmarkDefinition,
     dataset: List[Dict],
-    model_call_fn: Callable[[str, str], str],
+    model_call_fn: Callable[..., Any],
     endpoint_type: str,
     strategy: Optional[EvalStrategy] = None,
     save_predictions: bool = False,
@@ -370,6 +655,7 @@ def run_eval_loop(
     fail_on_skip: bool = False,
     parallelism: int = 1,
     request_timeout: Optional[float] = None,
+    fewshot_examples: Optional[List[Dict]] = None,
 ) -> Tuple[List[Dict], List[SampleResult]]:
     """Core evaluation loop shared between subprocess and native modes.
 
@@ -399,8 +685,19 @@ def run_eval_loop(
     if strategy is None:
         if bench.response_field:
             strategy = EvalOnlyStrategy(bench.response_field)
+        elif (
+            endpoint_type == "completions_logprob"
+            or bench.endpoint_type == "completions_logprob"
+            or bench.choices is not None
+            or bench.choices_field is not None
+        ):
+            strategy = MultipleChoiceStrategy()
         else:
             strategy = StandardStrategy()
+
+    fewshot_prefix = (
+        build_fewshot_prefix(bench, fewshot_examples) if fewshot_examples else ""
+    )
 
     if parallelism > 1 and len(dataset) > 1:
         if max_consecutive_errors > 0:
@@ -420,6 +717,7 @@ def run_eval_loop(
             fail_on_skip=fail_on_skip,
             parallelism=parallelism,
             request_timeout=request_timeout,
+            fewshot_prefix=fewshot_prefix,
         )
 
     return _run_eval_loop_sequential(
@@ -433,13 +731,14 @@ def run_eval_loop(
         max_consecutive_errors=max_consecutive_errors,
         fail_on_skip=fail_on_skip,
         request_timeout=request_timeout,
+        fewshot_prefix=fewshot_prefix,
     )
 
 
 def _run_eval_loop_sequential(
     bench: BenchmarkDefinition,
     dataset: List[Dict],
-    model_call_fn: Callable[[str, str], str],
+    model_call_fn: Callable[..., Any],
     endpoint_type: str,
     strategy: EvalStrategy,
     save_predictions: bool = False,
@@ -447,6 +746,7 @@ def _run_eval_loop_sequential(
     max_consecutive_errors: int = 0,
     fail_on_skip: bool = False,
     request_timeout: Optional[float] = None,
+    fewshot_prefix: str = "",
 ) -> Tuple[List[Dict], List[SampleResult]]:
     """Sequential evaluation loop. See :func:`run_eval_loop` for parameter docs."""
     if request_timeout is not None:
@@ -461,8 +761,17 @@ def _run_eval_loop_sequential(
     progress_interval = max(1, min(10, total // 10)) if total > 0 else 1
 
     for idx, row in enumerate(dataset):
+        # Pass fewshot_prefix only when non-empty so legacy strategy
+        # implementations (without the kwarg) continue to work.
+        kwargs = {"fewshot_prefix": fewshot_prefix} if fewshot_prefix else {}
         scores, prediction = strategy.evaluate_sample(
-            idx, row, bench, model_call_fn, endpoint_type, request_timeout
+            idx,
+            row,
+            bench,
+            model_call_fn,
+            endpoint_type,
+            request_timeout,
+            **kwargs,
         )
 
         if scores is None:
@@ -525,7 +834,7 @@ def _run_eval_loop_sequential(
 def _run_eval_loop_parallel(
     bench: BenchmarkDefinition,
     dataset: List[Dict],
-    model_call_fn: Callable[[str, str], str],
+    model_call_fn: Callable[..., Any],
     endpoint_type: str,
     strategy: EvalStrategy,
     save_predictions: bool = False,
@@ -534,6 +843,7 @@ def _run_eval_loop_parallel(
     fail_on_skip: bool = False,
     parallelism: int = 4,
     request_timeout: Optional[float] = None,
+    fewshot_prefix: str = "",
 ) -> Tuple[List[Dict], List[SampleResult]]:
     """Parallel evaluation loop. See :func:`run_eval_loop` for parameter docs."""
     if request_timeout is not None:
@@ -557,8 +867,15 @@ def _run_eval_loop_parallel(
     def evaluate_one(
         idx: int, row: Dict
     ) -> Tuple[int, Optional[Dict], Optional[SampleResult]]:
+        kwargs = {"fewshot_prefix": fewshot_prefix} if fewshot_prefix else {}
         scores, prediction = strategy.evaluate_sample(
-            idx, row, bench, model_call_fn, endpoint_type, request_timeout
+            idx,
+            row,
+            bench,
+            model_call_fn,
+            endpoint_type,
+            request_timeout,
+            **kwargs,
         )
         return idx, scores, prediction
 

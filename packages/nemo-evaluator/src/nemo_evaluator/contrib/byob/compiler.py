@@ -41,11 +41,27 @@ _logger = get_logger(__name__)
 
 # Jinja2 command template for runner invocation
 # NOTE: Use plain string concatenation to avoid f-string escaping issues with {{ }}
+#
+# Dataset resolution precedence (Req 2 - "swap the input file, keep same
+# task name / prompt / scoring"):
+#
+#   1. config.params.extra.dataset_uri   (override; hf:// URI or local path)
+#   2. config.params.extra.dataset       (compile-time default from @benchmark)
+#
+# When dataset_uri is set on a run (e.g. via
+# ``evaluation.tasks[0].nemo_evaluator_config.config.params.extra.dataset_uri=...``)
+# the runner fetches that URI instead, without any change to the benchmark
+# module, prompt template, scorer, or task name.
 COMMAND_TEMPLATE = (
     "python -m nemo_evaluator.contrib.byob.runner"
     " --benchmark-module {{config.params.extra.benchmark_module}}"
     " --benchmark-name {{config.params.task}}"
+    "{% if config.params.extra.dataset_uri is defined"
+    " and config.params.extra.dataset_uri is not none %}"
+    " --dataset {{config.params.extra.dataset_uri}}"
+    "{% else %}"
     " --dataset {{config.params.extra.dataset}}"
+    "{% endif %}"
     " --output-dir {{config.output_dir}}"
     " --model-url {{target.api_endpoint.url}}"
     " --model-id {{target.api_endpoint.model_id}}"
@@ -67,6 +83,10 @@ COMMAND_TEMPLATE = (
     "{% endif %}"
     "{% if config.params.request_timeout is not none %}"
     " --request-timeout {{config.params.request_timeout}}"
+    "{% endif %}"
+    "{% if config.params.extra.num_fewshot is defined"
+    " and config.params.extra.num_fewshot is not none %}"
+    " --num-fewshot {{config.params.extra.num_fewshot}}"
     "{% endif %}"
 )
 
@@ -91,11 +111,26 @@ def _build_fdf(
     extra_params: dict = {
         "benchmark_module": benchmark_module_ref,
         "dataset": dataset_path,
+        # ``dataset_uri`` is the Req 2 override slot: setting it at run
+        # time (e.g. to a different hf:// URI with the same schema) makes
+        # the BYOB runner load that dataset instead of ``dataset`` while
+        # keeping task name, prompt template, and scorer unchanged. Null
+        # by default so the compile-time ``dataset`` is used.
+        "dataset_uri": None,
         "requirements": bench.requirements,
     }
     # Propagate field_mapping if declared
     if bench.field_mapping:
         extra_params["field_mapping"] = bench.field_mapping
+    # Few-shot defaults (lm-eval-harness parity)
+    if bench.num_fewshot:
+        extra_params["num_fewshot"] = bench.num_fewshot
+    # Multiple-choice loglikelihood metadata (informational; the runner
+    # picks up choices/choices_field from the @benchmark itself)
+    if bench.choices is not None:
+        extra_params["choices"] = list(bench.choices)
+    if bench.choices_field is not None:
+        extra_params["choices_field"] = bench.choices_field
     # Propagate judge config(s) from @benchmark kwargs
     # Supports: judge={...}, judge_1={...}, judge_2={...}, etc.
     for key, value in bench.extra_config.items():

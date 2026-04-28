@@ -133,6 +133,151 @@ def call_model_chat(
     return response.json()["choices"][0]["message"]["content"]
 
 
+def call_model_loglikelihood(
+    url: str,
+    model_id: str,
+    context: str,
+    continuation: str,
+    api_key: Optional[str] = None,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    session: Optional[requests.Session] = None,
+    *,
+    system_prompt: Optional[str] = None,
+) -> tuple:
+    """Compute (sum_logprob, is_greedy) for ``continuation`` given ``context``.
+
+    This mirrors lm-evaluation-harness's ``loglikelihood`` contract for the
+    ``local-completions`` model adapter. It POSTs to ``/v1/completions`` with
+    ``prompt = context + continuation``, ``max_tokens=0``, ``echo=true``,
+    ``logprobs=1``, ``temperature=0`` so the server returns per-token log
+    probabilities for the entire prompt without generating new tokens.
+
+    The continuation token span is determined via the OpenAI-compatible
+    ``logprobs.text_offset`` field: the first token whose ``text_offset`` is
+    >= ``len(context)`` (in characters) marks the start of the continuation.
+    The summed log-prob over that span is the loglikelihood; ``is_greedy`` is
+    True when each continuation token equals the argmax of its
+    ``top_logprobs`` entry (i.e. the sequence would have been produced under
+    greedy decoding).
+
+    Args:
+        url: Base URL for the model endpoint.
+        model_id: Model identifier.
+        context: Prompt context (everything up to but not including the
+            continuation tokens).
+        continuation: The candidate continuation whose loglikelihood is
+            being scored.
+        api_key: Optional Bearer token.
+        timeout: Per-request timeout in seconds.
+        session: Optional requests.Session for connection pooling.
+        system_prompt: Optional system prompt prepended to ``context``.
+            Length is included when locating the continuation start, so the
+            same character-offset logic applies.
+
+    Returns:
+        Tuple of ``(sum_logprob, is_greedy)``:
+
+        * ``sum_logprob``: float, sum of ``token_logprobs`` over the
+          continuation token span. Returns ``-float('inf')`` if the server
+          response cannot be parsed.
+        * ``is_greedy``: bool, True if every continuation token equals the
+          top-1 token from its ``top_logprobs`` entry.
+
+    Raises:
+        requests.HTTPError: On non-2xx response.
+        requests.Timeout: On timeout.
+    """
+    endpoint = f"{url}/completions"
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    full_context = f"{system_prompt}\n{context}" if system_prompt else context
+    full_prompt = full_context + continuation
+
+    payload = {
+        "model": model_id,
+        "prompt": full_prompt,
+        "max_tokens": 0,
+        "temperature": 0.0,
+        "logprobs": 1,
+        "echo": True,
+    }
+
+    http = session or requests
+    response = http.post(endpoint, json=payload, headers=headers, timeout=timeout)
+    response.raise_for_status()
+
+    body = response.json()
+    return _parse_loglikelihood_response(body, full_context)
+
+
+def _parse_loglikelihood_response(body: dict, context: str) -> tuple:
+    """Parse an OpenAI-compatible /completions response into (sum_logprob, is_greedy).
+
+    Mirrors lm-eval-harness's ``local-completions`` parsing:
+
+    1. Locate the continuation start via ``text_offset >= len(context)``.
+    2. Sum ``token_logprobs`` from that index onward.
+    3. ``is_greedy`` is True if each continuation token matches the top-1
+       entry in ``top_logprobs`` for its position.
+
+    Returns ``(-inf, False)`` when the response is missing logprobs or the
+    continuation is empty (zero tokens).
+    """
+    try:
+        choice = body["choices"][0]
+        logprobs = choice.get("logprobs") or {}
+    except (KeyError, IndexError, TypeError):
+        return (float("-inf"), False)
+
+    tokens = logprobs.get("tokens") or []
+    token_logprobs = logprobs.get("token_logprobs") or []
+    text_offset = logprobs.get("text_offset") or []
+    top_logprobs = logprobs.get("top_logprobs") or []
+
+    if not tokens or not token_logprobs:
+        return (float("-inf"), False)
+
+    ctx_len = len(context)
+    start_idx = None
+    for i, off in enumerate(text_offset):
+        if off is not None and off >= ctx_len:
+            start_idx = i
+            break
+
+    # Fallback: if text_offset is missing or all offsets are < ctx_len
+    # (e.g. continuation tokenized into the last context token), assume
+    # the very last token is the continuation.
+    if start_idx is None:
+        start_idx = max(len(tokens) - 1, 0)
+
+    cont_token_logprobs = [lp for lp in token_logprobs[start_idx:] if lp is not None]
+    if not cont_token_logprobs:
+        return (float("-inf"), False)
+
+    sum_logprob = float(sum(cont_token_logprobs))
+
+    is_greedy = True
+    for i in range(start_idx, len(tokens)):
+        top = top_logprobs[i] if i < len(top_logprobs) else None
+        if not top:
+            is_greedy = False
+            break
+        # ``top_logprobs[i]`` is a dict {token: logprob}. The top-1 token
+        # is the one with the highest logprob value.
+        try:
+            best_token = max(top.items(), key=lambda kv: kv[1])[0]
+        except (AttributeError, ValueError):
+            is_greedy = False
+            break
+        if best_token != tokens[i]:
+            is_greedy = False
+            break
+
+    return (sum_logprob, is_greedy)
+
+
 def call_model_completions(
     url: str,
     model_id: str,
@@ -344,8 +489,26 @@ def _create_session_model_call_fn(
         *,
         system_prompt: Optional[str] = None,
         timeout: Optional[float] = None,
-    ) -> str:
+        continuation: Optional[str] = None,
+    ):
         effective_timeout = timeout if timeout is not None else default_timeout
+        if endpoint_type == "completions_logprob":
+            if continuation is None:
+                raise ValueError(
+                    "endpoint_type='completions_logprob' requires a "
+                    "'continuation' kwarg (the candidate continuation "
+                    "whose loglikelihood is being scored)."
+                )
+            return call_model_loglikelihood(
+                url=args.model_url,
+                model_id=args.model_id,
+                context=prompt,
+                continuation=continuation,
+                api_key=api_key,
+                timeout=effective_timeout,
+                session=session,
+                system_prompt=system_prompt,
+            )
         if endpoint_type == "chat":
             return call_model_chat(
                 url=args.model_url,
@@ -422,7 +585,33 @@ def create_client_model_call_fn(
         *,
         system_prompt: Optional[str] = None,
         timeout: Optional[float] = None,
-    ) -> str:
+        continuation: Optional[str] = None,
+    ):
+        if endpoint_type == "completions_logprob":
+            if continuation is None:
+                raise ValueError(
+                    "endpoint_type='completions_logprob' requires a "
+                    "'continuation' kwarg."
+                )
+            full_context = f"{system_prompt}\n{prompt}" if system_prompt else prompt
+            full_prompt = full_context + continuation
+
+            # The async OpenAI client returns ``.text``; use the raw
+            # ``.completions.create`` so we can request logprobs+echo.
+            async def _logprob_call():
+                async with client.semaphore:  # honour parallelism guard
+                    resp = await client.client.completions.create(
+                        model=client.model_id,
+                        prompt=full_prompt,
+                        max_tokens=0,
+                        temperature=0.0,
+                        logprobs=1,
+                        echo=True,
+                    )
+                return resp.model_dump()
+
+            body = asyncio.run(_logprob_call())
+            return _parse_loglikelihood_response(body, full_context)
         if endpoint_type == "chat":
             messages = []
             if system_prompt:
@@ -481,8 +670,14 @@ def main():
     parser.add_argument(
         "--model-type",
         default="chat",
-        choices=["chat", "completions"],
-        help="Endpoint type: 'chat' or 'completions'",
+        choices=["chat", "completions", "completions_logprob"],
+        help=(
+            "Endpoint type. 'chat' uses /v1/chat/completions, 'completions' "
+            "uses /v1/completions for text generation, and "
+            "'completions_logprob' uses /v1/completions with "
+            "echo=true,logprobs=1,max_tokens=0 for per-choice loglikelihood "
+            "ranking (lm-eval-harness 'local-completions' parity)."
+        ),
     )
     parser.add_argument(
         "--temperature",
@@ -561,6 +756,24 @@ def main():
         default=None,
         help="Per-request timeout in seconds (default: None, falls back to --timeout-per-sample)",
     )
+    parser.add_argument(
+        "--num-fewshot",
+        type=int,
+        default=0,
+        help=(
+            "Number of few-shot examples to prepend to each prompt "
+            "(default: 0). Examples are sampled deterministically from the "
+            "benchmark's fewshot_split (or the first --num-fewshot rows of "
+            "the same dataset when fewshot_split is not declared). Mirrors "
+            "lm-eval-harness's --num_fewshot semantics."
+        ),
+    )
+    parser.add_argument(
+        "--fewshot-seed",
+        type=int,
+        default=42,
+        help="Random seed for few-shot example sampling (default: 42).",
+    )
 
     args = parser.parse_args()
 
@@ -580,6 +793,37 @@ def main():
         limit=args.limit_samples,
         field_mapping=bench.field_mapping,
     )
+
+    # Resolve few-shot examples: precedence is CLI flag > benchmark default.
+    # Robust to mocked benchmark objects (tests use MagicMock) where
+    # ``bench.num_fewshot`` may not be a real int.
+    effective_num_fewshot = 0
+    try:
+        effective_num_fewshot = int(args.num_fewshot or 0)
+    except (TypeError, ValueError):
+        effective_num_fewshot = 0
+    if not effective_num_fewshot:
+        try:
+            effective_num_fewshot = int(getattr(bench, "num_fewshot", 0) or 0)
+        except (TypeError, ValueError):
+            effective_num_fewshot = 0
+    fewshot_examples: List[Dict] = []
+    if effective_num_fewshot > 0:
+        from nemo_evaluator.contrib.byob.eval_logic import build_fewshot_examples
+
+        fewshot_examples = build_fewshot_examples(
+            primary_dataset_uri=args.dataset,
+            primary_dataset=dataset,
+            num_fewshot=effective_num_fewshot,
+            fewshot_split=bench.fewshot_split,
+            field_mapping=bench.field_mapping,
+            seed=args.fewshot_seed,
+        )
+        logger.info(
+            "Few-shot examples prepared",
+            num_fewshot=effective_num_fewshot,
+            sampled=len(fewshot_examples),
+        )
 
     # Create model call function — try NeMoEvaluatorClient, fall back to raw HTTP
     cleanup_fn = None
@@ -622,6 +866,7 @@ def main():
                 if args.request_timeout is not None
                 else args.timeout_per_sample
             ),
+            fewshot_examples=fewshot_examples,
         )
 
         # Offset sample_id and add _repeat metadata for repeats
