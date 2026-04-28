@@ -594,7 +594,7 @@ def _safe(s: str) -> str:
 
 _MODEL_CMD = {
     "vllm": ("vllm serve", "", "--tensor-parallel-size", "--pipeline-parallel-size", "--data-parallel-size"),
-    "sglang": ("sglang serve", "", "--tp-size", "--pp-size", "--dp-size"),
+    "sglang": ("sglang serve", "--model-path", "--tp-size", "--pp-size", "--dp-size"),
 }
 
 

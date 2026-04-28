@@ -2158,3 +2158,55 @@ class TestPreflightImageChecks:
             if ln.startswith("srun --overlap --nodes 1 --ntasks 1 --container-image ") and " true 2>&1 \\" in ln
         )
         assert "--container-mounts=" not in preflight_line
+
+
+def _make_model_service_config(svc_type: str, model_path: str = "/lustre/checkpoints/fake-model"):
+    """Slurm config with a single model service of a given type for command-rendering tests."""
+    return EvalConfig.model_validate(
+        {
+            "services": {
+                "model": {
+                    "type": svc_type,
+                    "model": model_path,
+                    "served_model_name": "fake/model",
+                    "protocol": "chat_completions",
+                    "tensor_parallel_size": 8,
+                    "data_parallel_size": 1,
+                    "port": 8000,
+                    "node_pool": "compute",
+                },
+            },
+            "benchmarks": [
+                {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+            ],
+            "cluster": {
+                "type": "slurm",
+                "walltime": "02:00:00",
+                "node_pools": {
+                    "compute": {"partition": "batch", "nodes": 1, "gres": "gpu:8"},
+                },
+            },
+        }
+    )
+
+
+class TestModelServeCommand:
+    """Verify the rendered `<framework> serve ...` command line for vllm and sglang."""
+
+    def test_sglang_uses_model_path_flag(self):
+        """SGLang's CLI requires `--model-path`; positional model path is rejected by argparse."""
+        cfg = _make_model_service_config("sglang")
+        script, _, _ = generate_sbatch(cfg)
+        serve_line = next(ln for ln in script.splitlines() if ln.startswith("sglang serve "))
+        assert serve_line.startswith("sglang serve --model-path ")
+        assert " --port " in serve_line  # confirms the rest of the args still render
+
+    def test_vllm_keeps_positional_model_path(self):
+        """vLLM accepts both forms; we keep positional to avoid churn for vllm users."""
+        cfg = _make_model_service_config("vllm")
+        script, _, _ = generate_sbatch(cfg)
+        serve_line = next(ln for ln in script.splitlines() if ln.startswith("vllm serve "))
+        # First token after "vllm serve " should be a path, not a flag.
+        first_arg = serve_line.split()[2]
+        assert not first_arg.startswith("--"), f"expected positional model path, got {first_arg!r}"
+        assert "--model-path" not in serve_line
