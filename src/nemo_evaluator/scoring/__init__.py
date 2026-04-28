@@ -40,6 +40,7 @@ from nemo_evaluator.scoring.contracts import (
     list_metrics,
     metric_as_scorer,
     register_metric,
+    scorer_as_metric,
 )
 from nemo_evaluator.scoring.judge import (
     JudgeScoringConfig,

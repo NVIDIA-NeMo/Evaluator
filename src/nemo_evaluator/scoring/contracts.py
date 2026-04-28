@@ -103,6 +103,7 @@ __all__ = [
     "SecretsMixin",
     # Bridge
     "metric_as_scorer",
+    "scorer_as_metric",
     # Registry
     "register_metric",
     "get_metric",
@@ -503,6 +504,99 @@ def metric_as_scorer(metric: Metric) -> Scorer:
         return out
 
     return _scorer
+
+
+def scorer_as_metric(
+    fn: Scorer,
+    *,
+    name: str,
+    score_names: list[str],
+) -> Metric:
+    """Adapt a function-style :data:`Scorer` to the :class:`Metric` Protocol.
+
+    Closes the two-way bridge with :func:`metric_as_scorer`: NEL function
+    scorers (`exact_match`, `fuzzy_match`, `judge_score`, etc.) become objects
+    that satisfy the :class:`Metric` Protocol — usable wherever NMP-style
+    metric objects are expected (e.g., NMP's evaluator service consuming a
+    NEL-native scorer without rewriting it as a :class:`TemplateMetric`).
+
+    Args:
+        fn: callable ``(MetricInput) -> dict`` (sync or async). The dict
+            must contain at minimum every key listed in ``score_names``,
+            with values castable to ``float``.
+        name: public string identifier — becomes ``Metric.type``.
+        score_names: keys to extract from the scorer's dict output as named
+            :class:`MetricScore` entries. Required (no inference) — the
+            :class:`Metric` Protocol invariant
+            ``{s.name for s in result.scores} == set(metric.score_names())``
+            must hold, so the names must be known up front.
+
+    Returns:
+        Object satisfying the :class:`Metric` Protocol via structural typing.
+
+    Raises:
+        KeyError: if a key in ``score_names`` is missing from the scorer's
+            output at call time.
+        TypeError: if a value cannot be cast to ``float``.
+
+    Example::
+
+        from nemo_evaluator.scoring import scorer_as_metric
+        from nemo_evaluator.scoring.text import exact_match
+
+        m = scorer_as_metric(exact_match, name="exact_match", score_names=["correct"])
+        assert isinstance(m, Metric)
+        result = await m.compute_scores(MetricInput(response="x", target="x"))
+        # result.scores == [MetricScore(name="correct", value=1.0)]
+    """
+    import asyncio
+
+    if not score_names:
+        raise ValueError("score_names must be a non-empty list")
+
+    class _ScorerAsMetric:
+        type: ClassVar[str] = name
+        __doc__ = fn.__doc__
+
+        def __init__(self, _fn: Scorer, _names: list[str]) -> None:
+            self._fn = _fn
+            self._names = list(_names)
+
+        async def compute_scores(self, input: MetricInput) -> MetricResult:
+            out = self._fn(input)
+            if asyncio.iscoroutine(out):
+                out = await out
+            if not isinstance(out, dict):
+                raise TypeError(
+                    f"scorer {name!r} returned {type(out).__name__}, expected dict"
+                )
+            scores: list[MetricScore] = []
+            for n in self._names:
+                if n not in out:
+                    raise KeyError(
+                        f"scorer {name!r} did not emit {n!r}; got keys: {list(out)}"
+                    )
+                value = out[n]
+                if isinstance(value, bool):
+                    value = float(value)
+                else:
+                    try:
+                        value = float(value)
+                    except (TypeError, ValueError) as e:
+                        raise TypeError(
+                            f"scorer {name!r} emitted non-numeric value for {n!r}: "
+                            f"{type(out[n]).__name__}={out[n]!r}"
+                        ) from e
+                scores.append(MetricScore(name=n, value=value))
+            return MetricResult(scores=scores)
+
+        def score_names(self) -> list[str]:
+            return list(self._names)
+
+    fn_label = getattr(fn, "__name__", "<scorer>")
+    _ScorerAsMetric.__name__ = f"ScorerAsMetric[{fn_label}]"
+    _ScorerAsMetric.__qualname__ = _ScorerAsMetric.__name__
+    return _ScorerAsMetric(fn, score_names)
 
 
 # ============================================================================
