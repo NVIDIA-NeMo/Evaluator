@@ -2097,3 +2097,64 @@ class TestUpdateAggregateMeta:
 
         with patch("nemo_evaluator.executors.slurm_executor._jobs_store", return_value=tmp_path):
             _update_aggregate_meta("/nonexistent", ["100"])
+
+
+def _make_slurm_config_with_eval_image(container_mounts=None):
+    """Minimal Slurm config that triggers preflight via cluster.eval_image."""
+    return EvalConfig.model_validate(
+        {
+            "services": {
+                "model": {
+                    "type": "api",
+                    "url": "http://x/v1/chat/completions",
+                    "protocol": "chat_completions",
+                },
+            },
+            "benchmarks": [
+                {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+            ],
+            "cluster": {
+                "type": "slurm",
+                "walltime": "02:00:00",
+                "eval_image": "registry.example/eval:latest",
+                "container_mounts": container_mounts or [],
+                "node_pools": {
+                    "compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"},
+                },
+            },
+        }
+    )
+
+
+class TestPreflightImageChecks:
+    """The preflight `srun --container-image ... true` runs before any service.
+
+    Some clusters configure SLURM TaskProlog scripts that pyxis evaluates inside
+    the container namespace; without `cluster.container_mounts` on the preflight
+    srun, those clusters fail with "task_prolog can not be executed" before
+    services can start.
+    """
+
+    def test_preflight_includes_cluster_container_mounts(self):
+        cfg = _make_slurm_config_with_eval_image(
+            container_mounts=["/usr/local/bin/custom_scripts:/usr/local/bin/custom_scripts:ro"]
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "Checking container images..." in script
+        # The preflight srun line must carry the cluster mount.
+        preflight_line = next(
+            ln
+            for ln in script.splitlines()
+            if ln.startswith("srun --overlap --nodes 1 --ntasks 1 --container-image ") and " true 2>&1 \\" in ln
+        )
+        assert "--container-mounts=/usr/local/bin/custom_scripts:/usr/local/bin/custom_scripts:ro" in preflight_line
+
+    def test_preflight_omits_mount_flag_when_empty(self):
+        cfg = _make_slurm_config_with_eval_image(container_mounts=[])
+        script, _, _ = generate_sbatch(cfg)
+        preflight_line = next(
+            ln
+            for ln in script.splitlines()
+            if ln.startswith("srun --overlap --nodes 1 --ntasks 1 --container-image ") and " true 2>&1 \\" in ln
+        )
+        assert "--container-mounts=" not in preflight_line

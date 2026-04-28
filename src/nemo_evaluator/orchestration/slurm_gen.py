@@ -402,7 +402,7 @@ echo "  All images OK."
 
 _IMAGE_CHECK_LINE = """\
 echo "  {label}: {image}"
-srun --overlap --nodes 1 --ntasks 1 --container-image {image} true 2>&1 \\
+srun --overlap --nodes 1 --ntasks 1 --container-image {image} {mount_flag}true 2>&1 \\
     | head -5 || {{ echo "FATAL: cannot pull image for {label}: {image}"; exit 1; }}"""
 
 
@@ -420,7 +420,10 @@ def _preflight_image_checks(config: EvalConfig, cluster: SlurmCluster) -> str:
     if not images:
         return ""
 
-    checks = [_IMAGE_CHECK_LINE.format(label=label, image=img) for label, img in images.items()]
+    cluster_mounts = list(getattr(cluster, "container_mounts", None) or [])
+    mount_flag = f"--container-mounts={','.join(cluster_mounts)} " if cluster_mounts else ""
+
+    checks = [_IMAGE_CHECK_LINE.format(label=label, image=img, mount_flag=mount_flag) for label, img in images.items()]
     return _PREFLIGHT_IMAGE_CHECK.format(checks="\n".join(checks))
 
 
