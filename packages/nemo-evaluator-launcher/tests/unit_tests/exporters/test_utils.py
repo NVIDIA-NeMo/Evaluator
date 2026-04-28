@@ -139,6 +139,94 @@ class TestArtifactExclusions:
         assert "task_output" not in excluded
         assert "report.json" not in excluded
 
+    def test_extra_patterns_extend_defaults(self):
+        """User-supplied patterns extend (not replace) the hardcoded defaults."""
+        # Defaults still apply when extra_patterns is provided
+        assert should_exclude_artifact("cache", extra_patterns=["deliverables"]) is True
+        assert (
+            should_exclude_artifact("data.db", extra_patterns=["deliverables"]) is True
+        )
+        # Extra exact-match pattern excludes
+        assert (
+            should_exclude_artifact("deliverables", extra_patterns=["deliverables"])
+            is True
+        )
+        # Unrelated names still pass through
+        assert (
+            should_exclude_artifact("results.yml", extra_patterns=["deliverables"])
+            is False
+        )
+
+    def test_extra_patterns_glob_styles(self):
+        """Extra patterns honor the same glob styles as EXCLUDED_PATTERNS."""
+        # *foo* contains-match
+        assert (
+            should_exclude_artifact(
+                "my_deliverable_x", extra_patterns=["*deliverable*"]
+            )
+            is True
+        )
+        # *foo suffix-match
+        assert (
+            should_exclude_artifact("trace.parquet", extra_patterns=["*.parquet"])
+            is True
+        )
+        # exact match
+        assert should_exclude_artifact("traces", extra_patterns=["traces"]) is True
+        assert should_exclude_artifact("traces_dir", extra_patterns=["traces"]) is False
+
+    def test_extra_patterns_case_insensitive(self):
+        """Extra patterns match case-insensitively, like the defaults."""
+        assert (
+            should_exclude_artifact("Deliverables", extra_patterns=["deliverables"])
+            is True
+        )
+        assert (
+            should_exclude_artifact("deliverables", extra_patterns=["DELIVERABLES"])
+            is True
+        )
+
+    def test_extra_patterns_fnmatch_syntax(self):
+        """Full fnmatch syntax is supported: prefix, ?, character classes."""
+        # prefix-only (X*)
+        assert should_exclude_artifact("foo_bar", extra_patterns=["foo*"]) is True
+        assert should_exclude_artifact("bar_foo", extra_patterns=["foo*"]) is False
+        # single-character wildcard
+        assert should_exclude_artifact("file1", extra_patterns=["file?"]) is True
+        assert should_exclude_artifact("file12", extra_patterns=["file?"]) is False
+        # character class
+        assert (
+            should_exclude_artifact("rank0.txt", extra_patterns=["rank[0-3].txt"])
+            is True
+        )
+        assert (
+            should_exclude_artifact("rank9.txt", extra_patterns=["rank[0-3].txt"])
+            is False
+        )
+
+    def test_extra_patterns_default_unchanged(self):
+        """Calling without extra_patterns matches the original behaviour exactly."""
+        # Default-only call still excludes hardcoded patterns and lets others through
+        assert should_exclude_artifact("cache") is True
+        assert should_exclude_artifact("deliverables") is False
+
+    def test_get_copytree_ignore_with_extra_patterns(self):
+        """get_copytree_ignore threads extra_patterns into the returned filter."""
+        ignore_func = get_copytree_ignore(["deliverables", "*.parquet"])
+        contents = [
+            "results.yml",
+            "cache",  # default exclusion still applies
+            "deliverables",
+            "trace.parquet",
+            "report.json",
+        ]
+        excluded = ignore_func("/some/dir", contents)
+        assert "cache" in excluded
+        assert "deliverables" in excluded
+        assert "trace.parquet" in excluded
+        assert "results.yml" not in excluded
+        assert "report.json" not in excluded
+
 
 class TestArtifactUtils:
     def test_get_relevant_artifacts(self):

@@ -269,6 +269,10 @@ nemo-evaluator-launcher export 8abcd123 --dest mlflow --log-metrics accuracy pas
   - bool
   - Copy only required artifacts
   - `true`
+* - `exclude_patterns`
+  - list[str]
+  - Extra patterns (extends `EXCLUDED_PATTERNS`) to skip during artifact upload. See [Excluding extra artifacts](#excluding-extra-artifacts).
+  - `[]`
 * - `log_config_params`
   - bool
   - Include flattened configuration settings in run parameters
@@ -277,4 +281,23 @@ nemo-evaluator-launcher export 8abcd123 --dest mlflow --log-metrics accuracy pas
   - int
   - Max depth for nested config params logging
   - `10`
+```
+
+(excluding-extra-artifacts)=
+
+## Excluding extra artifacts
+
+Use `exclude_patterns` to extend the hardcoded `EXCLUDED_PATTERNS` defaults (defined in `nemo_evaluator_launcher.exporters.utils`) with patterns of your own. Match is on basename, case-insensitive, using `fnmatch.fnmatchcase` — so `*`, `?`, and `[seq]` character classes all work.
+
+**Applied only when `only_required: false`.** Under `only_required: true` the exporter uploads a fixed list of required artifacts (`results.yml`, `eval_factory_metrics.json`, `omni-info.json`, ...) and the patterns are not consulted.
+
+```yaml
+export:
+  mlflow:
+    tracking_uri: "http://mlflow.example.com:5000"
+    only_required: false
+    copy_artifacts: true
+    exclude_patterns:
+      - deliverables           # drop the gdpval deliverables sub-tree
+      - "*.parquet"            # drop large columnar dumps
 ```
