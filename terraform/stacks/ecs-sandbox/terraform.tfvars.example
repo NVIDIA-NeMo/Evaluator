@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------------
+# Example variable file for the ecs-sandbox stack.
+#
+# Copy to `terraform.tfvars` and edit. `*.tfvars` is gitignored — never commit
+# the populated copy.
+# ---------------------------------------------------------------------------
+
+# Resource name prefix. All AWS resource names are derived from this.
+# Keep it short, lowercase, and DNS-safe.
+project = "nel-sandbox"
+
+# Regions to provision in. The stack supports up to 11 regions out of the
+# box; start with one and add more as needed. The first region in this list
+# is also the default provider region used for IAM resources.
+regions = ["us-west-2"]
+
+# Number of public subnets per region (one per AZ). 2 is the minimum for ECS
+# Fargate availability; 3 is recommended for production.
+subnet_count = 2
+
+# Default ECS task sizing. Adjust per your workload — Fargate supports
+# CPU 256/512/1024/2048/4096/8192/16384 and matching memory ranges.
+ecs_task_cpu    = 4096
+ecs_task_memory = 16384
+
+# SSH sidecar port. Must match NEL DEFAULT_SSHD_PORT; avoid 2222 (TB2 QEMU hostfwd collision).
+ssh_tunnel_sshd_port = 52222
+
+# Per-task exec server port. Must match NEL DEFAULT_EXEC_SERVER_PORT; avoid 5000 (TB2 hf-model-inference Flask collision).
+exec_server_port = 19542
+
+# EFS shared workspace filesystem. Disabled by default for the MWE.
+# Enable if you need a shared volume between agent + verifier ECS tasks.
+enable_efs = false
+
+# Optional Docker Hub credentials, used by CodeBuild to avoid anonymous
+# pull rate limits. Leave empty to use anonymous pulls.
+# dockerhub_username = ""
+# dockerhub_token    = ""
+
+# Tags applied to every resource.
+tags = {
+  Project   = "nel-sandbox"
+  ManagedBy = "terraform"
+  Owner     = "REPLACE_ME"
+}

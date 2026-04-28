@@ -1,0 +1,22 @@
+# ---------------------------------------------------------------------------
+# Optional remote state backend.
+#
+# By default this stack uses local state (a `terraform.tfstate` file next to
+# this stack). If you want to share state across machines / CI runners, copy
+# this file to `backend.tf`, replace the placeholders, and run:
+#
+#   terraform init -reconfigure
+#
+# You will need a pre-existing S3 bucket and DynamoDB lock table. See:
+#   https://developer.hashicorp.com/terraform/language/settings/backends/s3
+# ---------------------------------------------------------------------------
+
+# terraform {
+#   backend "s3" {
+#     bucket         = "REPLACE_ME-terraform-state"
+#     key            = "ecs-sandbox/terraform.tfstate"
+#     region         = "us-west-2"
+#     dynamodb_table = "REPLACE_ME-terraform-locks"
+#     encrypt        = true
+#   }
+# }

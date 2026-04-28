@@ -151,6 +151,12 @@ Pyxis/Enroot-based execution with auto-selected container images per URI scheme.
 | `:latest-skills` | + NeMo Skills |
 | `:latest-full` | All harnesses |
 
+## AWS ECS Sandbox Executor (reference Terraform)
+
+NEL can run each per-problem sandbox as an AWS ECS Fargate task via its [`ECSFargateSandbox`](docs/architecture/sandbox.md#ecsfargatesandbox) backend. The orchestrator process itself runs wherever you launch `nel eval run`; only the per-task sandbox lives in ECS.
+
+A reference Terraform tree provisions the AWS-side infrastructure that backend expects (VPC, ECS cluster, ECR, S3, EFS, IAM, Secrets Manager, and SSM auto-discovery, in any of 11 regions). See [`terraform/README.md`](terraform/README.md).
+
 ## CLI
 
 | Command | Purpose |
