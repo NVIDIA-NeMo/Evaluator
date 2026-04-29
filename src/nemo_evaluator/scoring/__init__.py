@@ -22,6 +22,8 @@ from __future__ import annotations
 
 from typing import Callable
 
+from nemo_evaluator.scoring.code_execution import code_sandbox, code_sandbox_async
+from nemo_evaluator.scoring.json_schema import extract_json, validate_json_schema
 from nemo_evaluator.scoring.judge import (
     JudgeScoringConfig,
     build_judge_prompt,
@@ -29,9 +31,27 @@ from nemo_evaluator.scoring.judge import (
     needs_judge,
     parse_judge_response,
 )
-from nemo_evaluator.scoring.json_schema import extract_json, validate_json_schema
+from nemo_evaluator.scoring.metric import (
+    BooleanValue,
+    CandidateOutput,
+    ContinuousScore,
+    DatasetRow,
+    DiscreteScore,
+    Label,
+    Metric,
+    MetricDescriptor,
+    MetricInput,
+    MetricOutput,
+    MetricOutputSpec,
+    MetricResult,
+    MetricScorerFunction,
+    ScorerCallable,
+    ScorerConfig,
+    ScorerFunctionMetric,
+    ScorerReturn,
+    score_names_from_output_spec,
+)
 from nemo_evaluator.scoring.pattern import answer_line, multichoice_regex, numeric_match
-from nemo_evaluator.scoring.code_execution import code_sandbox, code_sandbox_async
 from nemo_evaluator.scoring.text import exact_match, extract_mcq_letter, fuzzy_match
 from nemo_evaluator.scoring.types import ScorerInput
 
@@ -65,6 +85,24 @@ def list_scorers() -> list[str]:
 
 __all__ = [
     "ScorerInput",
+    "Metric",
+    "BooleanValue",
+    "DatasetRow",
+    "ContinuousScore",
+    "CandidateOutput",
+    "DiscreteScore",
+    "Label",
+    "MetricInput",
+    "MetricOutput",
+    "MetricOutputSpec",
+    "MetricDescriptor",
+    "MetricResult",
+    "MetricScorerFunction",
+    "ScorerCallable",
+    "ScorerConfig",
+    "ScorerFunctionMetric",
+    "ScorerReturn",
+    "score_names_from_output_spec",
     "get_scorer",
     "list_scorers",
     # Text

@@ -16,22 +16,30 @@
 
 __version__ = "0.12.0"
 
+from nemo_evaluator.engine.eval_loop import run_evaluation
+from nemo_evaluator.engine.model_client import ModelClient
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.environments.registry import get_environment, list_environments, load_benchmark_file, register
-from nemo_evaluator.engine.eval_loop import run_evaluation
-from nemo_evaluator.engine.model_client import ModelClient
-from nemo_evaluator.solvers import (
-    ChatSolver,
-    CompletionSolver,
-    NatSolver,
-    OpenClawSolver,
-    Solver,
-    SolveResult,
-    VLMSolver,
-)
 from nemo_evaluator.scoring import (
+    BooleanValue,
+    CandidateOutput,
+    ContinuousScore,
+    DatasetRow,
+    DiscreteScore,
+    Label,
+    Metric,
+    MetricDescriptor,
+    MetricInput,
+    MetricOutput,
+    MetricOutputSpec,
+    MetricResult,
+    MetricScorerFunction,
+    ScorerCallable,
+    ScorerConfig,
+    ScorerFunctionMetric,
     ScorerInput,
+    ScorerReturn,
     answer_line,
     code_sandbox,
     code_sandbox_async,
@@ -40,6 +48,16 @@ from nemo_evaluator.scoring import (
     multichoice_regex,
     needs_judge,
     numeric_match,
+    score_names_from_output_spec,
+)
+from nemo_evaluator.solvers import (
+    ChatSolver,
+    CompletionSolver,
+    NatSolver,
+    OpenClawSolver,
+    Solver,
+    SolveResult,
+    VLMSolver,
 )
 
 __all__ = [
@@ -65,6 +83,24 @@ __all__ = [
     "benchmark",
     "scorer",
     "ScorerInput",
+    "Metric",
+    "BooleanValue",
+    "DatasetRow",
+    "CandidateOutput",
+    "ContinuousScore",
+    "DiscreteScore",
+    "Label",
+    "MetricInput",
+    "MetricOutput",
+    "MetricOutputSpec",
+    "MetricDescriptor",
+    "MetricResult",
+    "MetricScorerFunction",
+    "ScorerCallable",
+    "ScorerConfig",
+    "ScorerFunctionMetric",
+    "ScorerReturn",
+    "score_names_from_output_spec",
     # Scoring primitives
     "exact_match",
     "multichoice_regex",
