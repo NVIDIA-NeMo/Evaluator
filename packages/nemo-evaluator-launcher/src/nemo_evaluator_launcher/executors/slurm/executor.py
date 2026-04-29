@@ -1177,9 +1177,11 @@ def _generate_auto_export_section(
     auto_export_cfg = cfg.execution.get("auto_export", {}) or {}
     launcher_install_cmd = None
     export_mounts = {}
+    export_walltime = "04:00:00"
     if isinstance(auto_export_cfg, dict) or OmegaConf.is_config(auto_export_cfg):
         launcher_install_cmd = auto_export_cfg.get("launcher_install_cmd")
         export_mounts = auto_export_cfg.get("export_mounts") or {}
+        export_walltime = auto_export_cfg.get("export_walltime", export_walltime)
         configured_image = auto_export_cfg.get("export_image")
         if configured_image:
             export_image = configured_image
@@ -1197,7 +1199,7 @@ def _generate_auto_export_section(
     export_sbatch += f"#SBATCH --job-name=nel-export-{remote_task_subdir.name}\n"
     export_sbatch += "#SBATCH --nodes=1\n"
     export_sbatch += "#SBATCH --ntasks=1\n"
-    export_sbatch += "#SBATCH --time=00:30:00\n"
+    export_sbatch += f"#SBATCH --time={export_walltime}\n"
     export_sbatch += f"#SBATCH --account {cfg.execution.account}\n"
     export_sbatch += f"#SBATCH --partition {export_partition}\n"
     export_sbatch += "#SBATCH --no-requeue\n"
