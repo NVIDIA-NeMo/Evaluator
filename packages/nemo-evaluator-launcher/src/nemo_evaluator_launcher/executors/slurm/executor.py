@@ -1200,6 +1200,8 @@ def _generate_auto_export_section(
     export_sbatch += "#SBATCH --time=00:30:00\n"
     export_sbatch += f"#SBATCH --account {cfg.execution.account}\n"
     export_sbatch += f"#SBATCH --partition {export_partition}\n"
+    if not cpu_partition:
+        export_sbatch += "#SBATCH --gpus-per-node=0\n"
     export_sbatch += "#SBATCH --no-requeue\n"
     export_sbatch += (
         f"#SBATCH --output {remote_task_subdir / 'logs' / 'export-%A.log'}\n"
