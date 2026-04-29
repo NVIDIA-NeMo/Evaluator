@@ -30,14 +30,22 @@ from nemo_evaluator.adapters.types import (
 )
 from nemo_evaluator.logging import BaseLoggingParams, get_logger
 
+# Transport-level headers that must not be set by user config — they are
+# managed by the HTTP layer (Werkzeug / requests) and overriding them breaks
+# message framing or routing. Authorization is intentionally NOT included so
+# users can override auth for inference-gateway style deployments.
+_HOP_BY_HOP_HEADERS: frozenset[str] = frozenset(
+    {"host", "content-length", "connection", "transfer-encoding"}
+)
+
 
 @register_for_adapter(
     name="payload_modifier",
-    description="Modifies request payload by removing, adding, and renaming parameters",
+    description="Modifies request payload by removing, adding, and renaming parameters and headers",
 )
 @final
 class PayloadParamsModifierInterceptor(RequestInterceptor):
-    """Adapter for modifying request payload by removing, adding, and renaming parameters"""
+    """Adapter for modifying request payload by removing, adding, and renaming parameters and headers"""
 
     class Params(BaseLoggingParams):
         """Configuration parameters for payload modifier interceptor."""
@@ -52,10 +60,36 @@ class PayloadParamsModifierInterceptor(RequestInterceptor):
             default=None,
             description="Dictionary mapping old parameter names to new names",
         )
+        headers_to_add: Optional[Dict[str, str]] = Field(
+            default=None,
+            description=(
+                "Dictionary of HTTP headers to add to the upstream request. "
+                "Existing headers with the same name (case-insensitive) are overridden. "
+                "Hop-by-hop headers (Host, Content-Length, Connection, Transfer-Encoding) "
+                "are dropped with a warning."
+            ),
+        )
+        headers_to_remove: Optional[List[str]] = Field(
+            default=None,
+            description=(
+                "List of HTTP headers to remove from the upstream request "
+                "(case-insensitive)."
+            ),
+        )
+        headers_to_rename: Optional[Dict[str, str]] = Field(
+            default=None,
+            description=(
+                "Dictionary mapping old header names to new names (case-insensitive "
+                "match on the old name)."
+            ),
+        )
 
     _params_to_remove: List[str]
     _params_to_add: Dict[str, Any]
     _params_to_rename: Dict[str, str]
+    _headers_to_add: Dict[str, str]
+    _headers_to_remove_lc: set[str]
+    _headers_to_rename_lc: Dict[str, str]
 
     def __init__(self, params: Params):
         """
@@ -71,6 +105,25 @@ class PayloadParamsModifierInterceptor(RequestInterceptor):
         # Get logger for this interceptor with interceptor context
         self.logger = get_logger(self.__class__.__name__)
 
+        # Header config: validate against hop-by-hop list at init so the warning
+        # fires once instead of on every request.
+        self._headers_to_add = {}
+        for name, value in (params.headers_to_add or {}).items():
+            if name.lower() in _HOP_BY_HOP_HEADERS:
+                self.logger.warning(
+                    f"Dropping hop-by-hop header from headers_to_add: {name}"
+                )
+                continue
+            self._headers_to_add[name] = value
+
+        self._headers_to_remove_lc = {
+            name.lower() for name in (params.headers_to_remove or [])
+        }
+
+        self._headers_to_rename_lc = {
+            old.lower(): new for old, new in (params.headers_to_rename or {}).items()
+        }
+
         self.logger.info(
             "Payload modifier interceptor initialized",
             params_to_remove=self._params_to_remove,
@@ -80,6 +133,9 @@ class PayloadParamsModifierInterceptor(RequestInterceptor):
             params_to_rename=(
                 list(self._params_to_rename.keys()) if self._params_to_rename else []
             ),
+            headers_to_add=list(self._headers_to_add.keys()),
+            headers_to_remove=sorted(self._headers_to_remove_lc),
+            headers_to_rename=list(self._headers_to_rename_lc.keys()),
         )
 
     @final
@@ -146,12 +202,40 @@ class PayloadParamsModifierInterceptor(RequestInterceptor):
                 new_data[new_key] = new_data.pop(old_key)
                 self.logger.debug("Renamed parameter", old_key=old_key, new_key=new_key)
 
+        # Apply header modifications. Order matches body params (remove -> rename
+        # -> add) so add wins over rename, rename wins over remove. Header names
+        # are case-insensitive per RFC 7230 §3.2; we match accordingly but
+        # preserve user-specified casing on the output side.
+        new_headers: Dict[str, str] = dict(ar.r.headers)
+
+        if self._headers_to_remove_lc:
+            new_headers = {
+                k: v
+                for k, v in new_headers.items()
+                if k.lower() not in self._headers_to_remove_lc
+            }
+
+        if self._headers_to_rename_lc:
+            renamed: Dict[str, str] = {}
+            for k, v in new_headers.items():
+                new_name = self._headers_to_rename_lc.get(k.lower())
+                renamed[new_name if new_name is not None else k] = v
+            new_headers = renamed
+
+        if self._headers_to_add:
+            # Override existing values case-insensitively.
+            add_lc = {k.lower() for k in self._headers_to_add}
+            new_headers = {
+                k: v for k, v in new_headers.items() if k.lower() not in add_lc
+            }
+            new_headers.update(self._headers_to_add)
+
         # Create new request with modified data
         new_request = cast(
             Request,
             Request.from_values(
                 method=ar.r.method,
-                headers=dict(ar.r.headers),
+                headers=new_headers,
                 data=json.dumps(new_data),
             ),
         )
@@ -166,7 +250,10 @@ class PayloadParamsModifierInterceptor(RequestInterceptor):
             ),
             modifications_made=len(self._params_to_remove)
             + len(self._params_to_add)
-            + len(self._params_to_rename),
+            + len(self._params_to_rename)
+            + len(self._headers_to_add)
+            + len(self._headers_to_remove_lc)
+            + len(self._headers_to_rename_lc),
         )
 
         return AdapterRequest(
