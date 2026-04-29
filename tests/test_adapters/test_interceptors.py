@@ -183,7 +183,10 @@ async def test_turn_counter_periodic_user_appends_notice_every_step():
         result = await ic.intercept_request(r)
         last = result.body["messages"][-1]
         assert last["role"] == "user"
-        assert last["content"] == f"hi\n\nYou have {expected_remaining} steps remaining. Plan accordingly."
+        assert (
+            last["content"]
+            == f"hi\n\nENVIRONMENT REMINDER: You have {expected_remaining} turns left to complete the task."
+        )
 
 
 async def test_turn_counter_periodic_user_respects_interval():
@@ -199,7 +202,7 @@ async def test_turn_counter_periodic_user_respects_interval():
         result = await ic.intercept_request(r)
         last_content = result.body["messages"][-1]["content"]
         if turn in expected_modified:
-            assert "steps remaining" in last_content, f"turn {turn} should be modified"
+            assert "ENVIRONMENT REMINDER" in last_content, f"turn {turn} should be modified"
         else:
             assert last_content == "hi", f"turn {turn} should be untouched"
 
@@ -222,7 +225,9 @@ async def test_turn_counter_periodic_user_appends_to_last_user_only():
     r.ctx.extra["session_id"] = "multi-msg"
     result = await ic.intercept_request(r)
     assert result.body["messages"][1]["content"] == "first user"
-    assert result.body["messages"][3]["content"].startswith("latest user\n\nYou have 9 steps remaining.")
+    assert result.body["messages"][3]["content"].startswith(
+        "latest user\n\nENVIRONMENT REMINDER: You have 9 turns left"
+    )
 
 
 async def test_turn_counter_periodic_user_extends_existing_last_text_block():
@@ -249,7 +254,10 @@ async def test_turn_counter_periodic_user_extends_existing_last_text_block():
     blocks = result.body["messages"][-1]["content"]
     assert len(blocks) == 2
     assert blocks[0]["type"] == "image_url"
-    assert blocks[1] == {"type": "text", "text": "describe this\n\nYou have 9 steps remaining. Plan accordingly."}
+    assert blocks[1] == {
+        "type": "text",
+        "text": "describe this\n\nENVIRONMENT REMINDER: You have 9 turns left to complete the task.",
+    }
 
 
 async def test_turn_counter_periodic_user_appends_text_block_when_tail_is_nontext():
@@ -277,7 +285,10 @@ async def test_turn_counter_periodic_user_appends_text_block_when_tail_is_nontex
     assert len(blocks) == 3
     assert blocks[0] == {"type": "text", "text": "describe this"}
     assert blocks[1]["type"] == "image_url"
-    assert blocks[2] == {"type": "text", "text": "You have 9 steps remaining. Plan accordingly."}
+    assert blocks[2] == {
+        "type": "text",
+        "text": "ENVIRONMENT REMINDER: You have 9 turns left to complete the task.",
+    }
 
 
 async def test_turn_counter_periodic_user_still_enforces_max_turns():
@@ -311,7 +322,7 @@ async def test_turn_counter_periodic_system_emits_template_as_system_message():
         if turn % 2 == 0:
             last = result.body["messages"][-1]
             assert last["role"] == "system"
-            assert last["content"] == f"You have {10 - turn} steps remaining. Plan accordingly."
+            assert last["content"] == f"ENVIRONMENT REMINDER: You have {10 - turn} turns left to complete the task."
         else:
             assert result.body["messages"][-1]["role"] == "user"
 

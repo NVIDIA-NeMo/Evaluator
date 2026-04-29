@@ -48,7 +48,7 @@ class _Severity(str, Enum):
     NON_ACTIONABLE = "non_actionable"
 
 
-_REMINDER_TEMPLATE = "You have {remaining} steps remaining. Plan accordingly."
+_REMINDER_TEMPLATE = "ENVIRONMENT REMINDER: You have {remaining} turns left to complete the task."
 
 
 def _session_key_from_body(body: dict[str, Any]) -> str:
