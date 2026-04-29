@@ -66,7 +66,7 @@ class PayloadParamsModifierInterceptor(RequestInterceptor):
                 "Dictionary of HTTP headers to add to the upstream request. "
                 "Existing headers with the same name (case-insensitive) are overridden. "
                 "Hop-by-hop headers (Host, Content-Length, Connection, Transfer-Encoding) "
-                "are silently dropped."
+                "are dropped with a warning."
             ),
         )
         headers_to_remove: Optional[List[str]] = Field(
