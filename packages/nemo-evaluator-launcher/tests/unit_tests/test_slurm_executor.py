@@ -1488,6 +1488,60 @@ class TestSlurmExecutorDryRun:
         assert "my-registry.com/uv-git:latest" in section
         assert "python:3.12.7-slim" not in section
 
+    def test_generate_auto_export_section_with_custom_walltime(self):
+        cfg = OmegaConf.create(
+            {
+                "execution": {
+                    "account": "test_account",
+                    "partition": "gpu_partition",
+                    "output_dir": "/tmp/out",
+                    "auto_export": {
+                        "destinations": ["mlflow"],
+                        "export_walltime": "06:00:00",
+                    },
+                },
+                "export": {},
+            }
+        )
+
+        section = _generate_auto_export_section(
+            cfg=cfg,
+            job_id="abc12345.0",
+            destinations=["mlflow"],
+            env_var_names=[],
+            secrets=SecretsEnvResult(secrets_content=""),
+            remote_task_subdir=Path("/tmp/out/test_task"),
+        )
+
+        assert "#SBATCH --time=06:00:00" in section
+        assert "#SBATCH --time=04:00:00" not in section
+        assert "#SBATCH --time=00:30:00" not in section
+
+    def test_generate_auto_export_section_default_walltime_is_four_hours(self):
+        cfg = OmegaConf.create(
+            {
+                "execution": {
+                    "account": "test_account",
+                    "partition": "gpu_partition",
+                    "output_dir": "/tmp/out",
+                    "auto_export": {"destinations": ["mlflow"]},
+                },
+                "export": {},
+            }
+        )
+
+        section = _generate_auto_export_section(
+            cfg=cfg,
+            job_id="abc12345.0",
+            destinations=["mlflow"],
+            env_var_names=[],
+            secrets=SecretsEnvResult(secrets_content=""),
+            remote_task_subdir=Path("/tmp/out/test_task"),
+        )
+
+        assert "#SBATCH --time=04:00:00" in section
+        assert "#SBATCH --time=00:30:00" not in section
+
     def test_sbatch_script_exits_nonzero_on_interrupted_marker(
         self, sample_config, mock_tasks_mapping, tmpdir
     ):
