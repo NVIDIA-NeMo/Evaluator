@@ -142,13 +142,15 @@ Per-problem Docker/SLURM sandboxes for code execution and agentic evaluation. Tw
 
 ## SLURM
 
-Pyxis/Enroot-based execution with auto-selected container images per URI scheme. Uses `node_pools` topology for flexible resource allocation across model, agent, and sandbox nodes.
+Pyxis/Enroot-based execution with auto-selected container images per URI scheme. Uses `node_pools` topology for flexible resource allocation across model, agent, and sandbox nodes. All images are multiarch. 
 
 | Tag suffix | Contents |
 |------------|----------|
-| `:latest` | Base + gym + vlmevalkit |
-| `:latest-lm-eval` | + lm-evaluation-harness |
-| `:latest-skills` | + NeMo Skills |
+| `:latest` | Base image |
+| `:latest-gym` | Base + gym |
+| `:latest-harbor` | Base + Harbor agents |
+| `:latest-lm-eval` | Base + lm-evaluation-harness |
+| `:latest-skills` | Base + NeMo Skills |
 | `:latest-full` | All harnesses |
 
 ## AWS ECS Sandbox Executor (reference Terraform)
