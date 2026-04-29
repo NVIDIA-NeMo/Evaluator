@@ -112,7 +112,7 @@ runs:
       shell: bash
       env:
         AWS_RUNNER: ${{ contains(inputs.runner, 'aws') }}
-        MOUNT_FS: ${{ inputs.type_of_test == 'integration_tests' }}
+        MOUNT_FS: ${{ inputs.type_of_test == 'integration_tests' || inputs.type_of_test == 'functional_tests' }}
       run: |
         echo "::group::Start test container"
         if [[ "$MOUNT_FS" == "true" ]]; then

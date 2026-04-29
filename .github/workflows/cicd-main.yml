@@ -167,7 +167,7 @@ jobs:
   cicd-e2e-tests-nemo-evaluator:
     needs:
       [pre-flight, cicd-unit-tests-nemo-evaluator, validate-container-digests]
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.pre-flight.outputs.runner_prefix }}
     name: functional-tests
     environment: nemo-ci
     if: |
@@ -188,7 +188,7 @@ jobs:
           type_of_test: "functional_tests"
           cpu-only: true
           package: nemo-evaluator
-          runner: ubuntu-latest
+          runner: ${{ needs.pre-flight.outputs.runner_prefix }}
           test-data-path: ${{ needs.pre-flight.outputs.test_data_path }}
 
   cicd-integration-tests:
@@ -218,7 +218,7 @@ jobs:
           ngc-api-user: ${{ secrets.NGC_API_USER }}
           ngc-api-key: ${{ secrets.NGC_API_KEY }}
           test-data-path: ${{ needs.pre-flight.outputs.test_data_path }}
-          runner: ${{ needs.pre-flight.outputs.runner_prefix }}-gpu-x2
+          runner: ${{ needs.pre-flight.outputs.runner_prefix }}
 
   Nemo_CICD_Test:
     needs:
@@ -348,3 +348,20 @@ jobs:
           path: |
             .coverage
           include-hidden-files: true
+
+  cleanup-taint-node:
+    runs-on: ${{ needs.pre-flight.outputs.runner_prefix }}
+    needs:
+      - pre-flight
+      - Nemo_CICD_Test
+      - Coverage
+      - Coverage_Fake
+    if: |
+      always()
+      && !cancelled()
+      && needs.pre-flight.outputs.is_deployment_workflow != 'true'
+    steps:
+      - name: Taint node for cleanup
+        if: contains(runner.name, 'ephemeral')
+        shell: bash
+        run: taint-node.sh
