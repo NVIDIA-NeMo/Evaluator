@@ -247,6 +247,147 @@ def test_chat_template_kwargs_with_existing_payload(tmpdir):
     assert set(modified_data.keys()) == expected_keys
 
 
+def _make_request_with_headers(headers, body=None):
+    request = Request.from_values(
+        method="POST",
+        headers=headers,
+        data=json.dumps(body if body is not None else {"messages": []}),
+    )
+    return AdapterRequest(r=request, rctx=AdapterRequestContext())
+
+
+def test_headers_to_add(tmpdir):
+    interceptor = PayloadParamsModifierInterceptor(
+        params=PayloadParamsModifierInterceptor.Params(
+            headers_to_add={
+                "X-NMP-Principal-Id": "service:evaluator",
+                "X-Inference-Priority": "batch",
+            }
+        )
+    )
+    adapter_request = _make_request_with_headers(
+        {"Content-Type": "application/json", "Authorization": "Bearer original"}
+    )
+
+    result = interceptor.intercept_request(adapter_request, mock_context(tmpdir))
+
+    assert result.r.headers["X-NMP-Principal-Id"] == "service:evaluator"
+    assert result.r.headers["X-Inference-Priority"] == "batch"
+    # Existing headers untouched
+    assert result.r.headers["Authorization"] == "Bearer original"
+
+
+def test_headers_to_add_overrides_existing_case_insensitively(tmpdir):
+    interceptor = PayloadParamsModifierInterceptor(
+        params=PayloadParamsModifierInterceptor.Params(
+            headers_to_add={"authorization": "Bearer overridden"}
+        )
+    )
+    adapter_request = _make_request_with_headers(
+        {"Content-Type": "application/json", "Authorization": "Bearer original"}
+    )
+
+    result = interceptor.intercept_request(adapter_request, mock_context(tmpdir))
+
+    auth_values = [
+        v for k, v in result.r.headers.items() if k.lower() == "authorization"
+    ]
+    assert auth_values == ["Bearer overridden"]
+
+
+def test_headers_to_remove_case_insensitive(tmpdir):
+    interceptor = PayloadParamsModifierInterceptor(
+        params=PayloadParamsModifierInterceptor.Params(
+            headers_to_remove=["x-internal", "AUTHORIZATION"]
+        )
+    )
+    adapter_request = _make_request_with_headers(
+        {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer secret",
+            "X-Internal": "trace-1",
+            "X-Keep": "1",
+        }
+    )
+
+    result = interceptor.intercept_request(adapter_request, mock_context(tmpdir))
+
+    assert "Authorization" not in result.r.headers
+    assert "X-Internal" not in result.r.headers
+    assert result.r.headers["X-Keep"] == "1"
+
+
+def test_headers_to_rename_case_insensitive(tmpdir):
+    interceptor = PayloadParamsModifierInterceptor(
+        params=PayloadParamsModifierInterceptor.Params(
+            headers_to_rename={"X-Old-Auth": "X-New-Auth"}
+        )
+    )
+    adapter_request = _make_request_with_headers(
+        {"Content-Type": "application/json", "x-old-auth": "token123"}
+    )
+
+    result = interceptor.intercept_request(adapter_request, mock_context(tmpdir))
+
+    assert "x-old-auth" not in {k.lower() for k in result.r.headers.keys()}
+    assert result.r.headers["X-New-Auth"] == "token123"
+
+
+def test_hop_by_hop_headers_dropped_from_add(tmpdir, caplog):
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    interceptor = PayloadParamsModifierInterceptor(
+        params=PayloadParamsModifierInterceptor.Params(
+            headers_to_add={
+                "Host": "evil.example.com",
+                "Content-Length": "9999",
+                "Connection": "close",
+                "Transfer-Encoding": "chunked",
+                "X-Inference-Priority": "batch",
+            }
+        )
+    )
+    adapter_request = _make_request_with_headers({"Content-Type": "application/json"})
+
+    result = interceptor.intercept_request(adapter_request, mock_context(tmpdir))
+
+    # Werkzeug may auto-populate Host/Content-Length on Request.from_values;
+    # the contract is that the user-provided hop-by-hop values were not honoured.
+    assert result.r.headers["X-Inference-Priority"] == "batch"
+    assert "evil.example.com" not in result.r.headers.get("Host", "")
+    assert result.r.headers.get("Connection") != "close"
+    assert "chunked" not in result.r.headers.get("Transfer-Encoding", "")
+
+
+def test_combined_param_and_header_modifications(tmpdir):
+    interceptor = PayloadParamsModifierInterceptor(
+        params=PayloadParamsModifierInterceptor.Params(
+            params_to_add={"temperature": 0.0},
+            params_to_remove=["top_k"],
+            headers_to_add={"X-Inference-Priority": "batch"},
+            headers_to_remove=["X-Trace-Id"],
+        )
+    )
+    adapter_request = _make_request_with_headers(
+        headers={
+            "Content-Type": "application/json",
+            "X-Trace-Id": "abc",
+            "Authorization": "Bearer t",
+        },
+        body={"messages": [{"role": "user", "content": "hi"}], "top_k": 10},
+    )
+
+    result = interceptor.intercept_request(adapter_request, mock_context(tmpdir))
+
+    body = json.loads(result.r.get_data())
+    assert body["temperature"] == 0.0
+    assert "top_k" not in body
+    assert result.r.headers["X-Inference-Priority"] == "batch"
+    assert "X-Trace-Id" not in result.r.headers
+    assert result.r.headers["Authorization"] == "Bearer t"
+
+
 def test_remove_params_recursively(tmpdir):
     payload_modifier = PayloadParamsModifierInterceptor(
         params=PayloadParamsModifierInterceptor.Params(

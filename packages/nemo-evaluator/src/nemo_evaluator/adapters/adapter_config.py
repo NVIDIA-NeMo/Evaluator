@@ -127,6 +127,16 @@ class LegacyAdapterConfig(BaseModel):
     params_to_rename: dict[str, str] | None = Field(
         default=None, description="Parameters to rename"
     )
+    headers_to_add: dict[str, str] | None = Field(
+        default=None, description="HTTP headers to add to upstream requests"
+    )
+    headers_to_remove: list[str] | None = Field(
+        default=None, description="HTTP headers to remove (case-insensitive)"
+    )
+    headers_to_rename: dict[str, str] | None = Field(
+        default=None,
+        description="HTTP headers to rename (old -> new, case-insensitive)",
+    )
 
     # Optional integer limits
     max_logged_requests: int | None = Field(
@@ -393,12 +403,23 @@ class AdapterConfig(BaseModel):
                 )
             )
 
-        # Add payload modifier interceptor if any payload modification parameters are specified (RequestToResponse)
+        # Add payload modifier interceptor if any payload or header modification
+        # parameters are specified (RequestToResponse)
         params_to_add = legacy_config["params_to_add"]
         params_to_remove = legacy_config["params_to_remove"]
         params_to_rename = legacy_config["params_to_rename"]
+        headers_to_add = legacy_config["headers_to_add"]
+        headers_to_remove = legacy_config["headers_to_remove"]
+        headers_to_rename = legacy_config["headers_to_rename"]
 
-        if params_to_add or params_to_remove or params_to_rename:
+        if (
+            params_to_add
+            or params_to_remove
+            or params_to_rename
+            or headers_to_add
+            or headers_to_remove
+            or headers_to_rename
+        ):
             config = {}
             if params_to_add:
                 config["params_to_add"] = params_to_add
@@ -406,6 +427,12 @@ class AdapterConfig(BaseModel):
                 config["params_to_remove"] = params_to_remove
             if params_to_rename:
                 config["params_to_rename"] = params_to_rename
+            if headers_to_add:
+                config["headers_to_add"] = headers_to_add
+            if headers_to_remove:
+                config["headers_to_remove"] = headers_to_remove
+            if headers_to_rename:
+                config["headers_to_rename"] = headers_to_rename
 
             interceptors.append(
                 InterceptorConfig(
