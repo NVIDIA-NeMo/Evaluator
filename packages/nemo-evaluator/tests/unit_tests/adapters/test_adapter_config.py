@@ -1711,3 +1711,65 @@ def test_legacy_with_interceptors_validation(
         # Verify expected fields
         for field, expected_value in expected_fields.items():
             assert getattr(config, field) == expected_value
+
+
+def test_from_legacy_config_with_headers():
+    """headers_to_* in flat legacy config map to the payload_modifier interceptor."""
+    legacy_config = {
+        "headers_to_add": {
+            "X-NMP-Principal-Id": "service:evaluator",
+            "X-Inference-Priority": "batch",
+        },
+        "headers_to_remove": ["X-Trace-Id"],
+        "headers_to_rename": {"X-Old-Auth": "X-New-Auth"},
+    }
+
+    config = AdapterConfig.from_legacy_config(legacy_config)
+
+    payload_modifier = next(
+        (ic for ic in config.interceptors if ic.name == "payload_modifier"), None
+    )
+    assert payload_modifier is not None, (
+        "headers_to_* should produce a payload_modifier interceptor"
+    )
+    assert payload_modifier.config["headers_to_add"] == {
+        "X-NMP-Principal-Id": "service:evaluator",
+        "X-Inference-Priority": "batch",
+    }
+    assert payload_modifier.config["headers_to_remove"] == ["X-Trace-Id"]
+    assert payload_modifier.config["headers_to_rename"] == {"X-Old-Auth": "X-New-Auth"}
+    # Body-param fields should not appear when only headers were configured.
+    assert "params_to_add" not in payload_modifier.config
+    assert "params_to_remove" not in payload_modifier.config
+    assert "params_to_rename" not in payload_modifier.config
+
+
+def test_from_legacy_config_headers_merged_with_params():
+    """headers_to_* and params_to_* coexist on a single payload_modifier."""
+    legacy_config = {
+        "params_to_remove": ["max_tokens"],
+        "params_to_add": {"temperature": 0.0},
+        "headers_to_add": {"X-Inference-Priority": "batch"},
+    }
+
+    config = AdapterConfig.from_legacy_config(legacy_config)
+
+    payload_modifiers = [
+        ic for ic in config.interceptors if ic.name == "payload_modifier"
+    ]
+    assert len(payload_modifiers) == 1, (
+        "params and headers should share one payload_modifier interceptor"
+    )
+    cfg = payload_modifiers[0].config
+    assert cfg["params_to_remove"] == ["max_tokens"]
+    assert cfg["params_to_add"] == {"temperature": 0.0}
+    assert cfg["headers_to_add"] == {"X-Inference-Priority": "batch"}
+
+
+def test_from_legacy_config_no_payload_modifier_when_only_unrelated_fields():
+    """Without any params_to_*/headers_to_*, no payload_modifier is emitted."""
+    legacy_config = {"use_caching": True}
+
+    config = AdapterConfig.from_legacy_config(legacy_config)
+
+    assert not any(ic.name == "payload_modifier" for ic in config.interceptors)
