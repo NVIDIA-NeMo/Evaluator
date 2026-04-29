@@ -41,16 +41,34 @@ from __future__ import annotations
 import json
 import logging
 import random
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast, overload
+
+from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from nemo_evaluator.sandbox.base import Sandbox
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
-from nemo_evaluator.sandbox.base import ImageBuildRequest, SandboxSpec
 from nemo_evaluator.environments.registry import register
+from nemo_evaluator.sandbox.base import ImageBuildRequest, SandboxSpec
+from nemo_evaluator.scoring.metric import (
+    CandidateOutput,
+    DatasetRow,
+    Metric,
+    MetricDescriptor,
+    MetricInput,
+    MetricOutputSpec,
+    MetricResult,
+    MetricScorerFunction,
+    ScorerCallable,
+    ScorerConfig,
+    ScorerFunctionMetric,
+    ScorerReturn,
+    score_names_from_output_spec,
+)
 from nemo_evaluator.scoring.types import ScorerInput
 
 logger = logging.getLogger(__name__)
@@ -59,10 +77,14 @@ logger = logging.getLogger(__name__)
 # ── Data types ────────────────────────────────────────────────────────────
 
 
+ConfigT = TypeVar("ConfigT", bound=Mapping[str, object] | BaseModel)
+ConfigModelT = TypeVar("ConfigModelT", bound=BaseModel)
+
+
 @dataclass
 class BenchmarkDefinition:
     name: str
-    dataset: str | Callable[[], list[dict]]
+    dataset: str | Callable[..., list[dict[str, Any]]]
     prompt: str
     target_field: str = "target"
     endpoint_type: str = "chat"
@@ -70,10 +92,10 @@ class BenchmarkDefinition:
     field_mapping: dict[str, str] | None = None
     extra: dict[str, Any] = field(default_factory=dict)
     requirements: list[str] | None = None
-    scorer_fn: Callable[[ScorerInput], dict] | None = None
-    prepare_row: Callable[[dict, int, random.Random], dict] | None = None
-    seed_fn: Callable[[dict, int], SeedResult] | None = None
-    image_builder_fn: Callable[[list[dict]], ImageBuildRequest] | None = None
+    scorer_fn: Callable[..., ScorerReturn] | None = None
+    prepare_row: Callable[[dict[str, Any], int, random.Random], dict[str, Any]] | None = None
+    seed_fn: Callable[[dict[str, Any], int], SeedResult] | None = None
+    image_builder_fn: Callable[[list[dict[str, Any]]], ImageBuildRequest] | None = None
 
 
 _BYOB_REGISTRY: dict[str, BenchmarkDefinition] = {}
@@ -82,8 +104,11 @@ _BYOB_REGISTRY: dict[str, BenchmarkDefinition] = {}
 # ── Dataset loading ───────────────────────────────────────────────────────
 
 
-def _load_dataset_from_spec(spec: str | Callable, num_examples: int | None = None) -> list[dict[str, Any]]:
-    if callable(spec):
+def _load_dataset_from_spec(
+    spec: str | Callable[..., list[dict[str, Any]]],
+    num_examples: int | None = None,
+) -> list[dict[str, Any]]:
+    if not isinstance(spec, str):
         import inspect
 
         sig = inspect.signature(spec)
@@ -148,7 +173,7 @@ def _load_hf(spec: str, num_examples: int | None = None) -> list[dict[str, Any]]
     return [dict(row) for row in ds]
 
 
-def _format_prompt(template: str, row: dict, field_mapping: dict | None = None) -> str:
+def _format_prompt(template: str, row: dict[str, Any], field_mapping: dict[str, str] | None = None) -> str:
     data = dict(row)
     if field_mapping:
         for src, dst in field_mapping.items():
@@ -235,19 +260,99 @@ class ByobEnvironment(EvalEnvironment):
 
         import asyncio
 
+        to_metric = getattr(self._defn.scorer_fn, "to_metric", None)
+        if callable(to_metric):
+            metric = cast(ScorerFunctionMetric[ScorerConfig], to_metric()).bind_raw_config(
+                config=self._defn.extra,
+                sandbox=sandbox,
+                target=expected,
+            )
+            metric_input = _metric_input_from_verify(
+                response=response,
+                metadata=meta,
+            )
+            result = await metric.compute_scores(metric_input)
+            return _metric_result_to_verify_result(
+                metric=metric,
+                result=result,
+                benchmark_name=self._defn.name,
+                response=response,
+            )
+
         sample = ScorerInput(
             response=response, target=expected, metadata=meta, config=self._defn.extra, sandbox=sandbox
         )
-        scores = self._defn.scorer_fn(sample)
-        if asyncio.iscoroutine(scores):
-            scores = await scores
+        scores_result = self._defn.scorer_fn(sample)
+        if asyncio.iscoroutine(scores_result):
+            scores_result = await scores_result
+        scores = cast(Mapping[str, object], scores_result)
 
-        reward = float(scores.get("correct", scores.get("reward", next(iter(scores.values()), 0))))
+        reward_value = scores.get("correct", scores.get("reward", next(iter(scores.values()), 0)))
+        reward = float(reward_value) if isinstance(reward_value, bool | int | float) else 0.0
+        extracted = scores.get("extracted")
         return VerifyResult(
             reward=reward,
-            extracted_answer=scores.get("extracted", response.strip()[:200]),
-            scoring_details={"method": f"byob_{self._defn.name}", **scores},
+            extracted_answer=extracted if isinstance(extracted, str) else response.strip()[:200],
+            scoring_details={"method": f"byob_{self._defn.name}", **dict(scores)},
         )
+
+
+def _metric_input_from_verify(
+    *,
+    response: str,
+    metadata: dict[str, Any],
+) -> MetricInput:
+    row_data: dict[str, object] = dict(metadata)
+    return MetricInput(
+        row=DatasetRow(data=row_data),
+        candidate=CandidateOutput(output_text=response),
+    )
+
+
+def _metric_result_to_verify_result(
+    *,
+    metric: Metric,
+    result: MetricResult,
+    benchmark_name: str,
+    response: str,
+) -> VerifyResult:
+    outputs = {output.name: output.value for output in result.outputs}
+    score_names = score_names_from_output_spec(metric.output_spec())
+    scores = {name: _score_value(outputs[name]) for name in score_names if name in outputs}
+    reward_name = _select_reward_score_name(scores=scores, declared=score_names)
+    extracted = outputs.get("extracted")
+
+    scoring_details: dict[str, Any] = {
+        "method": f"byob_{benchmark_name}",
+        "metric_type": metric.type,
+        "outputs": outputs,
+    }
+    for name, value in outputs.items():
+        scoring_details.setdefault(name, value)
+
+    return VerifyResult(
+        reward=scores[reward_name] if reward_name is not None else 0.0,
+        extracted_answer=extracted if isinstance(extracted, str) else response.strip()[:200],
+        scoring_details=scoring_details,
+    )
+
+
+def _select_reward_score_name(*, scores: dict[str, float], declared: list[str]) -> str | None:
+    for preferred in ("reward", "correct"):
+        if preferred in scores:
+            return preferred
+    for name in declared:
+        if name in scores:
+            return name
+    return next(iter(scores), None)
+
+
+def _score_value(value: object) -> float:
+    if isinstance(value, bool):
+        return 1.0 if value else 0.0
+    if isinstance(value, int | float):
+        return float(value)
+    raise TypeError(f"Metric score output must be bool, int, or float, got {type(value).__name__}")
 
 
 # ── Decorators ────────────────────────────────────────────────────────────
@@ -255,7 +360,7 @@ class ByobEnvironment(EvalEnvironment):
 
 def benchmark(
     name: str,
-    dataset: str | Callable,
+    dataset: str | Callable[..., list[dict[str, Any]]],
     prompt: str = "",
     target_field: str = "target",
     endpoint_type: str = "chat",
@@ -263,9 +368,9 @@ def benchmark(
     field_mapping: dict[str, str] | None = None,
     extra: dict[str, Any] | None = None,
     requirements: list[str] | None = None,
-    prepare_row: Callable | None = None,
-    seed_fn: Callable | None = None,
-    **kwargs,
+    prepare_row: Callable[[dict[str, Any], int, random.Random], dict[str, Any]] | None = None,
+    seed_fn: Callable[[dict[str, Any], int], SeedResult] | None = None,
+    **kwargs: Any,
 ):
     """Register a benchmark. Decorate a scorer function."""
     defn = BenchmarkDefinition(
@@ -300,13 +405,133 @@ def benchmark(
     return decorator
 
 
-def scorer(fn: Callable[[ScorerInput], dict]) -> Callable[[ScorerInput], dict]:
-    """Marks a function as a scorer."""
-    fn._is_scorer = True  # type: ignore[attr-defined]
+@overload
+def scorer(
+    fn: None = None,
+    *,
+    metric_type: str,
+    outputs: list[MetricOutputSpec],
+    config_schema: type[ConfigModelT],
+) -> Callable[[ScorerCallable[ConfigModelT]], MetricScorerFunction[ConfigModelT]]: ...
+
+
+@overload
+def scorer(
+    fn: ScorerCallable[ConfigModelT],
+    *,
+    metric_type: str,
+    outputs: list[MetricOutputSpec],
+    config_schema: type[ConfigModelT],
+) -> MetricScorerFunction[ConfigModelT]: ...
+
+
+@overload
+def scorer(
+    fn: None = None,
+    *,
+    metric_type: str,
+    outputs: list[MetricOutputSpec],
+    config_schema: None = None,
+) -> Callable[[ScorerCallable[ConfigT]], MetricScorerFunction[ConfigT]]: ...
+
+
+@overload
+def scorer(
+    fn: ScorerCallable[ConfigT],
+    *,
+    metric_type: str,
+    outputs: list[MetricOutputSpec],
+    config_schema: None = None,
+) -> MetricScorerFunction[ConfigT]: ...
+
+
+@overload
+def scorer(fn: ScorerCallable[ConfigT]) -> ScorerCallable[ConfigT]: ...
+
+
+@overload
+def scorer(
+    fn: None = None,
+    *,
+    metric_type: None = None,
+    outputs: None = None,
+    config_schema: None = None,
+) -> Callable[[ScorerCallable[ConfigT]], ScorerCallable[ConfigT]]: ...
+
+
+def scorer(
+    fn: Callable[..., ScorerReturn] | None = None,
+    *,
+    metric_type: str | None = None,
+    outputs: list[MetricOutputSpec] | None = None,
+    config_schema: type[BaseModel] | None = None,
+) -> object:
+    """Marks a function as a scorer.
+
+    Plain ``@scorer`` keeps the current ``ScorerInput -> dict`` behavior.
+    ``@scorer(metric_type=..., outputs=...)`` exposes ``descriptor`` and
+    ``to_metric()`` for adapting scorer functions to the shared Metric protocol.
+    """
+    if outputs is None and (metric_type is not None or config_schema is not None):
+        metric_options = [
+            option
+            for option, value in (
+                ("metric_type=...", metric_type),
+                ("config_schema=...", config_schema),
+            )
+            if value is not None
+        ]
+        raise ValueError(
+            f"@scorer({', '.join(metric_options)}) opts into the Metric contract, but no outputs were declared. "
+            "Pass outputs=[MetricOutputSpec(...)] so the metric descriptor can declare and validate outputs."
+        )
+    if outputs is not None and metric_type is None:
+        raise ValueError(
+            "@scorer(outputs=...) opts into the Metric contract, but no metric_type was declared. "
+            "Pass metric_type='...' so the metric has a stable identity across refactors."
+        )
+
+    def decorate(fn: Callable[..., ScorerReturn]) -> object:
+        return _decorate_scorer(
+            cast(ScorerCallable[ScorerConfig], fn),
+            metric_type=metric_type,
+            outputs=outputs,
+            config_schema=config_schema,
+        )
+
+    return decorate(fn) if fn is not None else decorate
+
+
+def _decorate_scorer(
+    fn: ScorerCallable[ConfigT],
+    *,
+    metric_type: str | None = None,
+    outputs: list[MetricOutputSpec] | None = None,
+    config_schema: type[BaseModel] | None = None,
+):
+    setattr(fn, "_is_scorer", True)
+    if outputs is None:
+        return fn
+    if metric_type is None:
+        raise ValueError("metric_type is required when outputs are declared")
+
+    descriptor = MetricDescriptor(
+        type=metric_type,
+        outputs=outputs,
+        config_schema=config_schema,
+    )
+
+    def to_metric() -> ScorerFunctionMetric[ConfigT]:
+        return ScorerFunctionMetric(
+            descriptor=descriptor,
+            scorer_fn=fn,
+        )
+
+    setattr(fn, "descriptor", descriptor)
+    setattr(fn, "to_metric", to_metric)
     return fn
 
-
-def image_builder(builder_fn: Callable[[list[dict]], ImageBuildRequest]):
+def image_builder(builder_fn: Callable[[list[dict[str, Any]]], ImageBuildRequest]):
     """Declare images that need building, stacked with ``@benchmark``.
 
     ``builder_fn`` receives the dataset rows and returns an

@@ -15,11 +15,16 @@
 """Integration tests: run_evaluation end-to-end with mock solver."""
 
 import asyncio
+from typing import Any
 
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
+from nemo_evaluator.environments.custom import BenchmarkDefinition, ByobEnvironment, scorer
 from nemo_evaluator.engine.eval_loop import run_evaluation
 from nemo_evaluator.observability.types import ModelResponse
+from nemo_evaluator.scoring import ScorerInput
+from nemo_evaluator.scoring.metric import MetricOutputSpec
+from nemo_evaluator.sandbox.base import Sandbox
 from nemo_evaluator.solvers import SolveResult
 
 
@@ -38,7 +43,9 @@ class _MockEnv(EvalEnvironment):
         r = self._dataset[idx]
         return SeedResult(prompt=r["q"], expected_answer=r["a"], metadata={"idx": idx})
 
-    async def verify(self, response, expected, **meta):
+    async def verify(
+        self, response: str, expected: str, sandbox: Sandbox | None = None, **meta: Any
+    ) -> VerifyResult:
         correct = response.strip() == expected.strip()
         return VerifyResult(
             reward=1.0 if correct else 0.0, extracted_answer=response.strip(), scoring_details={"method": "exact"}
@@ -118,7 +125,7 @@ class TestRunEvaluationIntegration:
             closed.append(True)
             await original_close()
 
-        env.close = tracking_close
+        env.close = tracking_close  # type: ignore[method-assign]  # ty: ignore[invalid-assignment]
         solver = _MockSolver()
         asyncio.run(run_evaluation(env, solver, n_repeats=1))
         assert closed, "env.close() was not called"
@@ -190,6 +197,51 @@ class TestRunEvaluationIntegration:
         bundle = asyncio.run(run_evaluation(env, solver, n_repeats=2, max_concurrent=8))
         results = bundle["_results"]
         assert len(results) == 6
+
+    def test_typed_byob_metric_result_preserved_in_results(self):
+        outputs = [
+            MetricOutputSpec.continuous_score("reward"),
+            MetricOutputSpec.continuous_score("format"),
+            MetricOutputSpec.label("judge_label"),
+            MetricOutputSpec.label("rationale"),
+        ]
+
+        @scorer(metric_type="tests.eval_loop_typed", outputs=outputs)
+        def typed_scorer(sample: ScorerInput) -> dict[str, object]:
+            matched = sample.response == sample.target
+            return {
+                "reward": 0.8 if matched else 0.0,
+                "format": 1.0,
+                "judge_label": "pass",
+                "rationale": "answer matched",
+            }
+
+        env = ByobEnvironment(
+            BenchmarkDefinition(
+                name="typed_eval_loop",
+                dataset=lambda: [{"question": "1+1", "answer": "2"}],
+                prompt="{question}",
+                target_field="answer",
+                scorer_fn=typed_scorer,
+            )
+        )
+        solver = _MockSolver()
+
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1))
+
+        result = bundle["_results"][0]
+        assert result["reward"] == 0.8
+        assert result["scoring_details"]["reward"] == 0.8
+        assert result["scoring_details"]["format"] == 1.0
+        assert result["scoring_details"]["outputs"] == {
+            "reward": 0.8,
+            "format": 1.0,
+            "judge_label": "pass",
+            "rationale": "answer matched",
+        }
+        assert result["scoring_details"]["judge_label"] == "pass"
+        assert result["scoring_details"]["rationale"] == "answer matched"
+        assert result["scoring_details"]["metric_type"] == "tests.eval_loop_typed"
 
 
 class _MockSolverWithTrajectory:
