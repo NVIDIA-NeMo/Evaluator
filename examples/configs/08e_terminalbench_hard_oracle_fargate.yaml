@@ -1,0 +1,38 @@
+# Flavor: Terminal-Bench Hard (v1 leaderboard subset) replayed by OracleSolver
+# in ECS Fargate sandboxes.
+#
+# OracleSolver executes each task's own `solution/solve.sh` (the gold
+# trajectory) inside the sandbox instead of running an LLM agent. Used to
+# measure the infrastructure ceiling of TB-Hard — 47 tasks from the
+# terminal-bench v1 "original-tasks" directory. Tasks are auto-cloned from
+# HEAD of laude-institute/terminal-bench and mapped to Harbor format.
+#
+# Prerequisites:
+#   - AWS credentials configured (orchestrator IAM user)
+#   - pip install nemo-evaluator[harbor]
+#   - git (for cloning terminal-bench v1 repo on first run)
+# Run: nel eval run examples/configs/08e_terminalbench_hard_oracle_fargate.yaml
+
+services: {}
+
+benchmarks:
+  - name: terminal-bench-hard
+    repeats: 1
+    max_concurrent: 10
+    timeout: 3600.0
+    solver:
+      type: oracle
+      timeout_strategy: max
+    sandbox:
+      type: ecs_fargate
+      region: us-west-2
+      cpu: "4096"
+      memory: "16384"
+      ephemeral_storage_gib: 100
+      max_task_lifetime_sec: 14400
+      concurrency: 10
+      stateful: true
+      log_stream_prefix: terminalbench-hard-oracle
+
+output:
+  dir: ./oracle-runs

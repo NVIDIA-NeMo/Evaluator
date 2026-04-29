@@ -19,6 +19,10 @@ from unittest.mock import patch
 
 import pytest
 
+from nemo_evaluator.benchmarks.terminal_bench_hard import (
+    _TB_HARD_TASKS,
+    TerminalBenchHard,
+)
 from nemo_evaluator.benchmarks.terminal_bench_v1 import (
     _ensure_dataset,
     _find_tasks_dir,
@@ -144,3 +148,41 @@ class TestRegistration:
         env = TerminalBenchV1(num_examples=1)
         assert env.name == tmp_path.name
         mock_ensure.assert_called_once()
+
+
+class TestTerminalBenchHard:
+    def test_registered_as_builtin(self):
+        from nemo_evaluator.environments.registry import _REGISTRY
+
+        assert "terminal-bench-hard" in _REGISTRY
+        assert _REGISTRY["terminal-bench-hard"] is TerminalBenchHard
+
+    def test_task_list_has_47_entries(self):
+        assert len(_TB_HARD_TASKS) == 47
+
+    @patch("nemo_evaluator.benchmarks.terminal_bench_hard._ensure_dataset")
+    def test_init_calls_ensure_dataset(self, mock_ensure, tmp_path):
+        for name in ["task-a", "task-b"]:
+            task_dir = tmp_path / name
+            task_dir.mkdir()
+            (task_dir / "instruction.md").write_text("Do something")
+
+        mock_ensure.return_value = tmp_path
+
+        TerminalBenchHard()
+        mock_ensure.assert_called_once()
+
+    @patch("nemo_evaluator.benchmarks.terminal_bench_hard._ensure_dataset")
+    def test_filters_to_known_tasks(self, mock_ensure, tmp_path):
+        for name in ["aimo-airline-departures", "unknown-task", "blind-maze-explorer-5x5"]:
+            task_dir = tmp_path / name
+            task_dir.mkdir()
+            (task_dir / "instruction.md").write_text("Do something")
+
+        mock_ensure.return_value = tmp_path
+
+        env = TerminalBenchHard()
+        task_names = {t.name for t in env._tasks}
+        assert "aimo-airline-departures" in task_names
+        assert "blind-maze-explorer-5x5" in task_names
+        assert "unknown-task" not in task_names

@@ -70,7 +70,7 @@ def _git(cmd: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
 
 def _find_tasks_dir(repo: Path) -> Path | None:
     """Locate the directory containing v1 tasks (subdirs with ``task.yaml``)."""
-    for candidate in [repo, repo / "tasks", repo / "benchmarks"]:
+    for candidate in [repo, repo / "tasks", repo / "benchmarks", repo / "original-tasks"]:
         if candidate.is_dir() and any((d / "task.yaml").exists() for d in candidate.iterdir() if d.is_dir()):
             return candidate
     return None
