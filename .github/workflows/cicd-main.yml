@@ -39,7 +39,7 @@ jobs:
   pre-flight:
     uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@v0.80.1
     with:
-      default_runner_prefix: nemo-ci-aws-gpu-x2
+      default_runner_prefix: nemo-ci-aws-gpu-x2-ephemeral
       non_nvidia_runner_prefix: nemo-ci-aws-gpu-x2-ephemeral
       default_test_data_path: /mnt/datadrive/TestData/nemo-fw/TestData
       non_nvidia_test_data_path: /mnt/datadrive/TestData/nemo-fw/TestData
@@ -196,13 +196,13 @@ jobs:
       - pre-flight
       - cicd-unit-tests-nemo-evaluator
     runs-on: ${{ needs.pre-flight.outputs.runner_prefix }}-gpu-x2
-    if: |
-      (
-        github.event_name == 'schedule'
-        || github.event_name == 'workflow_dispatch'
-        || (github.event_name == 'push' && github.ref == 'refs/heads/main')
-      )
-      && !cancelled()
+    # if: |
+    #   (
+    #     github.event_name == 'schedule'
+    #     || github.event_name == 'workflow_dispatch'
+    #     || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    #   )
+    #   && !cancelled()
     name: integration-tests
     steps:
       - name: Checkout
