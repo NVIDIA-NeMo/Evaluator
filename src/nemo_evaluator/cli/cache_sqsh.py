@@ -32,7 +32,7 @@ _KNOWN_TARGETS = {
     "full": "docker/Dockerfile.full",
 }
 
-_DEFAULT_REGISTRY = "gitlab-master.nvidia.com:5005/dl/JoC/competitive_evaluation/nemo-evaluator-next"
+_DEFAULT_REGISTRY = "gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next"
 
 
 def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
