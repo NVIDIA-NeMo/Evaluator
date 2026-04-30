@@ -4,7 +4,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-green)](https://www.python.org/downloads/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-[**Documentation**](https://docs.nvidia.com/nemo/evaluator/latest/) | [**GitHub**](https://github.com/NVIDIA-NeMo/Evaluator) | [**Issues**](https://github.com/NVIDIA-NeMo/Evaluator/issues)
+[**Documentation**](https://github.com/NVIDIA-NeMo/Evaluator/tree/dev/0.3.0/docs) | [**GitHub**](https://github.com/NVIDIA-NeMo/Evaluator) | [**Issues**](https://github.com/NVIDIA-NeMo/Evaluator/issues)
 
 LLM evaluation framework with benchmark environments, pluggable solvers, composable interceptor proxy, and multi-format reporting.
 
