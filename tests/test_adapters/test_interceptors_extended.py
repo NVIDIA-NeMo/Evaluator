@@ -48,10 +48,62 @@ class TestEndpointInterceptorURLStripping:
         i = self._make("http://x", extra_body={"skip_special_tokens": False})
         assert i._extra_body == {"skip_special_tokens": False}
 
+    def test_extra_headers_stored(self):
+        i = self._make(
+            "http://x",
+            extra_headers={
+                "X-NMP-Principal-Id": "service:evaluator",
+                "X-Inference-Priority": "batch",
+            },
+        )
+        assert i._extra_headers == {
+            "X-NMP-Principal-Id": "service:evaluator",
+            "X-Inference-Priority": "batch",
+        }
+
+    def test_extra_headers_drops_hop_by_hop(self, caplog):
+        import logging
+
+        caplog.set_level(logging.WARNING)
+        i = self._make(
+            "http://x",
+            extra_headers={
+                "Host": "evil.example.com",
+                "Content-Length": "9999",
+                "Connection": "close",
+                "Transfer-Encoding": "chunked",
+                "X-Inference-Priority": "batch",
+            },
+        )
+        assert i._extra_headers == {"X-Inference-Priority": "batch"}
+        assert any("hop-by-hop" in r.message.lower() for r in caplog.records)
+
     def test_retry_on_status_default(self):
         i = self._make("http://x")
         assert 429 in i._retry_on_status
         assert 503 in i._retry_on_status
+
+
+class TestProxyConfigExtraHeaders:
+    def test_needs_proxy_with_extra_headers(self):
+        from nemo_evaluator.config.services import ProxyConfig
+
+        cfg = ProxyConfig(extra_headers={"X-Inference-Priority": "batch"})
+        assert cfg.needs_proxy is True
+
+    def test_needs_proxy_default_empty(self):
+        from nemo_evaluator.config.services import ProxyConfig
+
+        assert ProxyConfig().needs_proxy is False
+
+    def test_extra_headers_default_factory(self):
+        from nemo_evaluator.config.services import ProxyConfig
+
+        # Distinct instances must not share the same dict.
+        a = ProxyConfig()
+        b = ProxyConfig()
+        a.extra_headers["X-Test"] = "1"
+        assert "X-Test" not in b.extra_headers
 
 
 class TestCachingInterceptor:

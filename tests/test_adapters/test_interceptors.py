@@ -12,6 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
+
 import pytest
 
 from nemo_evaluator.adapters.registry import InterceptorRegistry
@@ -127,6 +129,106 @@ async def test_payload_modifier_add():
     req = _req({"model": "test", "messages": []})
     result = await ic.intercept_request(req)
     assert result.body["temperature"] == 0.5
+
+
+async def test_payload_modifier_headers_add():
+    ic = InterceptorRegistry.create(
+        "payload_modifier",
+        {
+            "headers_to_add": {
+                "X-NMP-Principal-Id": "service:evaluator",
+                "X-Inference-Priority": "batch",
+            }
+        },
+    )
+    req = _req()
+    result = await ic.intercept_request(req)
+    assert result.headers["X-NMP-Principal-Id"] == "service:evaluator"
+    assert result.headers["X-Inference-Priority"] == "batch"
+    assert result.headers["content-type"] == "application/json"
+
+
+async def test_payload_modifier_headers_add_overrides_case_insensitive():
+    ic = InterceptorRegistry.create("payload_modifier", {"headers_to_add": {"Authorization": "Bearer new"}})
+    req = _req()
+    req.headers["authorization"] = "Bearer old"
+    result = await ic.intercept_request(req)
+    auth_values = [v for k, v in result.headers.items() if k.lower() == "authorization"]
+    assert auth_values == ["Bearer new"]
+
+
+async def test_payload_modifier_headers_remove_case_insensitive():
+    ic = InterceptorRegistry.create("payload_modifier", {"headers_to_remove": ["X-Trace-Id", "AUTHORIZATION"]})
+    req = _req()
+    req.headers.update({"X-Trace-Id": "abc", "Authorization": "Bearer t", "X-Keep": "1"})
+    result = await ic.intercept_request(req)
+    assert "X-Trace-Id" not in result.headers
+    assert "Authorization" not in result.headers
+    assert result.headers["X-Keep"] == "1"
+
+
+async def test_payload_modifier_headers_rename_case_insensitive():
+    ic = InterceptorRegistry.create("payload_modifier", {"headers_to_rename": {"X-Old-Auth": "X-New-Auth"}})
+    req = _req()
+    req.headers["x-old-auth"] = "token123"
+    result = await ic.intercept_request(req)
+    assert "x-old-auth" not in {k.lower() for k in result.headers}
+    assert result.headers["X-New-Auth"] == "token123"
+
+
+async def test_payload_modifier_headers_drop_hop_by_hop(caplog):
+    caplog.set_level(logging.WARNING)
+    ic = InterceptorRegistry.create(
+        "payload_modifier",
+        {
+            "headers_to_add": {
+                "Host": "evil.example.com",
+                "Content-Length": "9999",
+                "Connection": "close",
+                "Transfer-Encoding": "chunked",
+                "X-Inference-Priority": "batch",
+            }
+        },
+    )
+    req = _req()
+    result = await ic.intercept_request(req)
+    assert result.headers["X-Inference-Priority"] == "batch"
+    assert result.headers.get("Host") != "evil.example.com"
+    assert result.headers.get("Connection") != "close"
+    assert result.headers.get("Transfer-Encoding") != "chunked"
+
+
+async def test_payload_modifier_headers_rename_drops_hop_by_hop(caplog):
+    """Renaming any header *to* a hop-by-hop name must be rejected at init —
+    otherwise it would be a backdoor around the headers_to_add guard."""
+    caplog.set_level(logging.WARNING)
+    ic = InterceptorRegistry.create(
+        "payload_modifier",
+        {
+            "headers_to_rename": {
+                "X-Foo": "Host",
+                "X-Bar": "Content-Length",
+                "X-Keep": "X-Allowed",
+            }
+        },
+    )
+    req = _req()
+    req.headers.update({"X-Foo": "evil", "X-Bar": "9999", "X-Keep": "yes"})
+    result = await ic.intercept_request(req)
+
+    # Hop-by-hop rename targets are dropped — original keys remain unrenamed.
+    assert "Host" not in result.headers
+    assert "Content-Length" not in result.headers
+    assert result.headers["X-Foo"] == "evil"
+    assert result.headers["X-Bar"] == "9999"
+    # Non-hop-by-hop rename still works.
+    assert "X-Keep" not in result.headers
+    assert result.headers["X-Allowed"] == "yes"
+
+    # Each disallowed rename target gets its own warning.
+    warnings = [r for r in caplog.records if "headers_to_rename" in r.message.lower()]
+    assert len(warnings) >= 2
+    assert any("hop-by-hop" in r.message.lower() for r in caplog.records)
 
 
 async def test_turn_counter_basic():

@@ -1,0 +1,35 @@
+# EVAL-878 — flat-config custom HTTP headers via `proxy.extra_headers`.
+#
+# Demonstrates the next-gen ergonomic shape for attaching custom HTTP headers
+# to every outgoing chat-completions request: drop `extra_headers` next to
+# `extra_body` under `proxy:`. No explicit `interceptors:` chain needed.
+#
+# Concrete use case: the NMP inference gateway requires
+# `X-NMP-Principal-Id: service:evaluator` on incoming traffic to route to the
+# right backend, and a dedicated `X-Inference-Priority: batch` lane keeps
+# heavy eval traffic off the realtime queue.
+#
+# Hop-by-hop headers (Host, Content-Length, Connection, Transfer-Encoding)
+# are dropped at startup with a warning. Authorization is allowed —
+# user-supplied values override the default `Bearer <api_key>`.
+#
+# Run: nel eval run examples/configs/09_extra_headers.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/nemotron-3-super-120b-a12b
+    api_key: ${NVIDIA_API_KEY}
+    proxy:
+      extra_headers:
+        X-NMP-Principal-Id: "service:evaluator"
+        X-Inference-Priority: "batch"
+
+benchmarks:
+  - name: gsm8k
+    max_problems: 5
+    solver:
+      type: simple
+      service: nemotron

@@ -711,6 +711,7 @@ def _start_proxy(
         proxy_kwargs.update(
             verbose=proxy_cfg.verbose,
             extra_body=proxy_cfg.extra_body or None,
+            extra_headers=proxy_cfg.extra_headers or None,
             request_timeout=proxy_cfg.request_timeout,
             max_retries=proxy_cfg.max_retries,
             retry_on_status=proxy_cfg.retry_on_status,
