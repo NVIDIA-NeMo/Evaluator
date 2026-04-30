@@ -7,7 +7,7 @@ name = "nemo-evaluator"
 version = "0.13.0"
 description = "NeMo Evaluator — benchmark environments, pluggable solvers, interceptor proxy, and decision-grade scoring for LLMs"
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.12,<3.14"
 license = "Apache-2.0"
 authors = [
     { name = "NVIDIA" },
@@ -35,8 +35,6 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -132,6 +130,13 @@ exclude_lines = [
     "if __name__ ==",
 ]
 
+[tool.uv]
+conflicts = [
+    [{ extra = "skills" }, { extra = "harbor" }],
+    [{ extra = "skills" }, { extra = "all" }],
+    [{ extra = "skills" }, { extra = "dev" }],
+]
+
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py312"
