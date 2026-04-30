@@ -43,6 +43,33 @@ from nemo_evaluator_launcher.exporters.utils import (
 
 DEFAULT_EXPERIMENT_NAME = "nemo-evaluator-launcher"
 
+# MLflow proxied multipart upload defaults. The MLflow client reads these env
+# vars just before each upload (mlflow/store/artifact/http_artifact_repo.py:75-83)
+# and, if the server does not advertise multipart endpoints, falls back to a
+# single streaming PUT via _UnsupportedMultipartUploadException — so flipping
+# the flag on by default is safe regardless of server version.
+#
+# We override upstream's defaults (False / 10 MiB / 500 MiB) to engage parallel
+# direct-to-S3 chunk upload on artifacts >= 100 MiB with 50 MiB chunks. Measured
+# 85x speed-up on 1 GiB vs single-part on prod (2026-04-30), and lifts the
+# effective cap above the ingress proxy-body-size for >2 GiB artifacts.
+_MLFLOW_MULTIPART_UPLOAD_DEFAULTS = {
+    "MLFLOW_ENABLE_PROXY_MULTIPART_UPLOAD": "true",
+    "MLFLOW_MULTIPART_UPLOAD_CHUNK_SIZE": str(50 * 1024 * 1024),
+    "MLFLOW_MULTIPART_UPLOAD_MINIMUM_FILE_SIZE": str(100 * 1024 * 1024),
+}
+
+
+def _enable_proxy_multipart_upload_defaults() -> None:
+    """Set proxied multipart upload defaults if the user hasn't overridden them.
+
+    Uses os.environ.setdefault so values from the calling environment
+    (including the launcher's export.env_vars config block, which arrives via
+    --container-env in the Slurm executor) take precedence.
+    """
+    for name, default in _MLFLOW_MULTIPART_UPLOAD_DEFAULTS.items():
+        os.environ.setdefault(name, default)
+
 
 class MLflowExporterConfig(ExportConfig):
     """Configuration for MLflowExporter."""
@@ -257,6 +284,8 @@ class MLflowExporter(BaseExporter):
         job_data: DataForExport,
     ) -> List[str]:
         """Log evaluation artifacts to MLflow using LocalExporter for transfer."""
+
+        _enable_proxy_multipart_upload_defaults()
 
         # Log config at root level (or synthesize)
         fname = "config.yml"
