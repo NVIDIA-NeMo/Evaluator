@@ -44,6 +44,8 @@ Registry resolution order:
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
 import logging
 import os
@@ -51,6 +53,7 @@ import shutil
 import subprocess
 import tempfile
 import tomllib
+from collections.abc import Iterator
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -208,6 +211,29 @@ def find_dataset(name: str, version: str | None = None) -> DatasetSpec:
 # ---------------------------------------------------------------------------
 
 
+@contextlib.contextmanager
+def _dataset_dir_lock(output_dir: Path) -> Iterator[None]:
+    """Hold an exclusive ``flock`` on ``<output_dir>.lock`` for the duration of the block.
+
+    Concurrent ``download_harbor_tasks`` callers targeting the same cache
+    directory race on the ``rmtree``/``copytree`` dance in
+    :func:`_download_task_group` and on the ``iterdir``-based cache scan.
+    Serializing them via a sibling lockfile means only the first caller
+    actually fetches; subsequent callers wait, then find the cache fully
+    populated and return immediately without re-downloading.
+    """
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = output_dir.parent / f".{output_dir.name}.lock"
+    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        with contextlib.suppress(OSError):
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
 def download_harbor_tasks(
     dataset: DatasetSpec,
     output_dir: Path,
@@ -215,10 +241,21 @@ def download_harbor_tasks(
 ) -> Path:
     """Download Harbor tasks via sparse git checkout.
 
-    Tasks that already exist on disk are skipped.
+    Tasks that already exist on disk are skipped.  Concurrent callers
+    targeting the same ``output_dir`` are serialized by a file lock so
+    the cache cannot be torn down mid-copy by a second process.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    with _dataset_dir_lock(output_dir):
+        return _download_harbor_tasks_locked(dataset, output_dir, limit=limit)
+
+
+def _download_harbor_tasks_locked(
+    dataset: DatasetSpec,
+    output_dir: Path,
+    limit: int | None = None,
+) -> Path:
     tasks = dataset.tasks
     if limit:
         tasks = tasks[:limit]
