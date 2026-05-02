@@ -188,8 +188,9 @@ class Interceptor(RequestToResponseInterceptor):
                 if attempt < self._max_retries:
                     delay = min(2**attempt, 60)
                     logger.warning(
-                        "endpoint: %s failed (%s), retry %d/%d in %.1fs",
+                        "endpoint: %s failed (exc_class=%s exc_msg=%s), retry %d/%d in %.1fs",
                         url,
+                        type(exc).__name__,
                         exc,
                         attempt + 1,
                         self._max_retries,
@@ -198,6 +199,13 @@ class Interceptor(RequestToResponseInterceptor):
                     attempt += 1
                     await asyncio.sleep(delay)
                     continue
+                logger.error(
+                    "endpoint: %s failed after %d attempts (exc_class=%s exc_msg=%s)",
+                    url,
+                    attempt + 1,
+                    type(exc).__name__,
+                    exc,
+                )
                 raise
 
     async def close(self) -> None:

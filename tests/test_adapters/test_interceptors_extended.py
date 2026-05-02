@@ -84,6 +84,106 @@ class TestEndpointInterceptorURLStripping:
         assert 503 in i._retry_on_status
 
 
+class TestEndpointInterceptorExceptionLogging:
+    """Verify exception class + message are logged on every error path.
+
+    Without these fields, debugging an upstream disconnect requires
+    cross-correlating multiple logs to guess which aiohttp.ClientError
+    subclass fired (ServerDisconnectedError, ClientPayloadError, etc).
+    """
+
+    def _make(self, **kw):
+        from nemo_evaluator.adapters.interceptors.endpoint import Interceptor
+
+        return Interceptor(upstream_url="http://upstream:8000/v1", **kw)
+
+    def _make_req(self):
+        return AdapterRequest(
+            method="POST",
+            path="/chat/completions",
+            headers={},
+            body={"messages": [{"role": "user", "content": "hi"}]},
+            ctx=InterceptorContext(),
+        )
+
+    class _RaisingSession:
+        """Minimal stand-in for aiohttp.ClientSession that raises on POST.
+
+        On each POST call, pops the next exception from `to_raise` and raises
+        it. Used to drive the interceptor's error-path branches.
+        """
+
+        def __init__(self, to_raise):
+            self._to_raise = list(to_raise)
+            self.closed = False
+
+        def post(self, *args, **kwargs):
+            exc = self._to_raise.pop(0)
+            raise exc
+
+        async def close(self):
+            self.closed = True
+
+    async def _run(self, interceptor, exceptions):
+        """Stub the interceptor's session and run intercept_request once."""
+
+        async def _stubbed_get_session():
+            return self._RaisingSession(exceptions)
+
+        interceptor._get_session = _stubbed_get_session  # type: ignore[assignment]
+        return await interceptor.intercept_request(self._make_req())
+
+    async def test_client_error_final_failure_logs_exc_class_and_message(self, caplog):
+        """When max_retries=0 and an aiohttp.ClientError fires, the exception
+        bubbles up — but a log line MUST identify the exception class and
+        message before re-raising. Otherwise the proxy log shows nothing.
+        """
+        import logging
+
+        import aiohttp
+        import pytest
+
+        caplog.set_level(logging.ERROR, logger="nemo_evaluator.adapters.interceptors.endpoint")
+
+        ic = self._make(max_retries=0)
+        with pytest.raises(aiohttp.ServerDisconnectedError):
+            await self._run(ic, [aiohttp.ServerDisconnectedError("upstream closed")])
+
+        records = [r for r in caplog.records if "endpoint" in r.message.lower()]
+        assert records, "expected at least one endpoint error log line on final ClientError failure"
+        msg = " ".join(r.getMessage() for r in records)
+        assert "ServerDisconnectedError" in msg, f"exc class missing from log; got: {msg!r}"
+        assert "upstream closed" in msg, f"exc message missing from log; got: {msg!r}"
+
+    async def test_client_error_retry_log_includes_exc_class(self, caplog):
+        """On a retry-then-succeed path, the retry-warning log must include
+        the exception class so we can categorize the error (e.g.
+        ClientPayloadError vs ServerDisconnectedError).
+        """
+        import logging
+
+        import aiohttp
+
+        caplog.set_level(logging.WARNING, logger="nemo_evaluator.adapters.interceptors.endpoint")
+
+        ic = self._make(max_retries=1)
+        # Force the second attempt to raise too — the test only inspects the
+        # retry-warning log, not the final outcome.
+        exceptions = [
+            aiohttp.ClientPayloadError("malformed chunk"),
+            aiohttp.ClientPayloadError("malformed chunk"),
+        ]
+        try:
+            await self._run(ic, exceptions)
+        except aiohttp.ClientError:
+            pass
+
+        retry_records = [r for r in caplog.records if r.levelno == logging.WARNING and "retry" in r.message.lower()]
+        assert retry_records, "expected at least one retry-warning log line"
+        msg = " ".join(r.getMessage() for r in retry_records)
+        assert "ClientPayloadError" in msg, f"exc class missing from retry log; got: {msg!r}"
+
+
 class TestProxyConfigExtraHeaders:
     def test_needs_proxy_with_extra_headers(self):
         from nemo_evaluator.config.services import ProxyConfig
