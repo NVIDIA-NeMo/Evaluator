@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 
 from nemo_evaluator.adapters.types import AdapterRequest, AdapterResponse, InterceptorContext
 
@@ -154,6 +155,45 @@ class TestEndpointInterceptorExceptionLogging:
         msg = " ".join(r.getMessage() for r in records)
         assert "ServerDisconnectedError" in msg, f"exc class missing from log; got: {msg!r}"
         assert "upstream closed" in msg, f"exc message missing from log; got: {msg!r}"
+        assert "t_in_flight_s=" in msg, f"t_in_flight_s missing from ClientError log; got: {msg!r}"
+
+    async def test_init_log_includes_request_timeout(self, caplog):
+        """The init log must record the configured request_timeout so we can
+        spot config-flow bugs (YAML says 1800s but interceptor got 120s default)
+        from the rendered run logs without rerunning with extra instrumentation.
+        """
+        import logging
+
+        caplog.set_level(logging.INFO, logger="nemo_evaluator.adapters.interceptors.endpoint")
+
+        self._make(request_timeout=1800)
+
+        init_records = [r for r in caplog.records if "Endpoint interceptor initialized" in r.getMessage()]
+        assert init_records, "expected an init log line"
+        msg = init_records[-1].getMessage()
+        assert "request_timeout=1800" in msg, f"request_timeout missing from init log; got: {msg!r}"
+
+    async def test_timeout_final_failure_logs_exc_class_and_t_in_flight(self, caplog):
+        """Final TimeoutError path must log the exception class AND the
+        wall-clock elapsed time at which the timeout fired. Several
+        aiohttp subclasses (SocketTimeoutError, ServerTimeoutError,
+        ConnectionTimeoutError) inherit from asyncio.TimeoutError —
+        without the class name we can't tell which one fired. Without
+        t_in_flight_s we can't compare the actual firing time against
+        the configured ClientTimeout.total to detect mismatches.
+        """
+        import logging
+
+        caplog.set_level(logging.ERROR, logger="nemo_evaluator.adapters.interceptors.endpoint")
+
+        ic = self._make(max_retries=0)
+        await self._run(ic, [asyncio.TimeoutError()])
+
+        records = [r for r in caplog.records if "timed out after" in r.getMessage()]
+        assert records, "expected at least one timeout-final error log line"
+        msg = " ".join(r.getMessage() for r in records)
+        assert "exc_class=TimeoutError" in msg, f"exc class missing from timeout log; got: {msg!r}"
+        assert "t_in_flight_s=" in msg, f"t_in_flight_s missing from timeout log; got: {msg!r}"
 
     async def test_client_error_retry_log_includes_exc_class(self, caplog):
         """On a retry-then-succeed path, the retry-warning log must include

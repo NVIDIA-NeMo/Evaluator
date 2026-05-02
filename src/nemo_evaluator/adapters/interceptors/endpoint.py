@@ -70,8 +70,10 @@ class Interceptor(RequestToResponseInterceptor):
         self._session: aiohttp.ClientSession | None = None
         self._lock = asyncio.Lock()
         logger.info(
-            "Endpoint interceptor initialized: upstream=%s extra_body_keys=%s extra_headers=%s",
+            "Endpoint interceptor initialized: upstream=%s request_timeout=%s max_retries=%d extra_body_keys=%s extra_headers=%s",
             self._upstream_url,
+            self._timeout.total,
+            self._max_retries,
             sorted(self._extra_body),
             sorted(self._extra_headers),
         )
@@ -160,13 +162,16 @@ class Interceptor(RequestToResponseInterceptor):
                         ctx=req.ctx,
                     )
 
-            except asyncio.TimeoutError:
+            except asyncio.TimeoutError as exc:
                 latency = (time.perf_counter() - t0) * 1000
                 if attempt < self._max_retries:
                     delay = min(2**attempt, 60)
                     logger.warning(
-                        "endpoint: %s timed out, retry %d/%d in %.1fs",
+                        "endpoint: %s timed out (exc_class=%s exc_msg=%s t_in_flight_s=%.1f), retry %d/%d in %.1fs",
                         url,
+                        type(exc).__name__,
+                        exc,
+                        latency / 1000,
                         attempt + 1,
                         self._max_retries,
                         delay,
@@ -174,7 +179,14 @@ class Interceptor(RequestToResponseInterceptor):
                     attempt += 1
                     await asyncio.sleep(delay)
                     continue
-                logger.error("endpoint: %s timed out after %d attempts", url, attempt + 1)
+                logger.error(
+                    "endpoint: %s timed out after %d attempts (exc_class=%s exc_msg=%s t_in_flight_s=%.1f)",
+                    url,
+                    attempt + 1,
+                    type(exc).__name__,
+                    exc,
+                    latency / 1000,
+                )
                 return AdapterResponse(
                     status_code=504,
                     headers={},
@@ -188,10 +200,11 @@ class Interceptor(RequestToResponseInterceptor):
                 if attempt < self._max_retries:
                     delay = min(2**attempt, 60)
                     logger.warning(
-                        "endpoint: %s failed (exc_class=%s exc_msg=%s), retry %d/%d in %.1fs",
+                        "endpoint: %s failed (exc_class=%s exc_msg=%s t_in_flight_s=%.1f), retry %d/%d in %.1fs",
                         url,
                         type(exc).__name__,
                         exc,
+                        latency / 1000,
                         attempt + 1,
                         self._max_retries,
                         delay,
@@ -200,11 +213,12 @@ class Interceptor(RequestToResponseInterceptor):
                     await asyncio.sleep(delay)
                     continue
                 logger.error(
-                    "endpoint: %s failed after %d attempts (exc_class=%s exc_msg=%s)",
+                    "endpoint: %s failed after %d attempts (exc_class=%s exc_msg=%s t_in_flight_s=%.1f)",
                     url,
                     attempt + 1,
                     type(exc).__name__,
                     exc,
+                    latency / 1000,
                 )
                 raise
 
