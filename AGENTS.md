@@ -2,6 +2,20 @@
 
 This file defines how AI coding agents (Claude Code, Cursor, etc.) should contribute features and fixes to this repository. Follow this process for every non-trivial change.
 
+## Agent skills
+
+### Issue tracker
+
+Issues live in Linear on the Frontier AI Evaluation team with `EVAL-` ticket IDs. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the canonical five triage labels unchanged. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Use a multi-context domain docs layout. See `docs/agents/domain.md`.
+
 ## Repository context
 
 NeMo Evaluator is a unified LLM evaluation framework. The core loop is: `seed -> solve -> verify -> score -> decide`. The evaluator **owns the loop** -- all scoring and aggregation happens inside NEL, never delegated to external servers.
