@@ -41,7 +41,7 @@ The data package passed to a **BYOB Scorer**, containing the solution response, 
 _Avoid_: Seed, sample, scoring config
 
 **Target Field**:
-The field name in a **Dataset Row** whose value becomes the common expected answer for verification.
+The field name in a **Dataset Row** whose value becomes the **Target** used for verification.
 _Avoid_: Target, expected answer
 
 **Target**:

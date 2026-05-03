@@ -14,7 +14,7 @@ Use the canonical five triage labels unchanged. See `docs/agents/triage-labels.m
 
 ### Domain docs
 
-Use a multi-context domain docs layout. See `docs/agents/domain.md`.
+Use `CONTEXT-MAP.md` as the entry point for domain context. See `docs/agents/domain.md` for the multi-context docs layout.
 
 ## Repository context
 
