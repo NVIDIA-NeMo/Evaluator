@@ -922,6 +922,64 @@ def _health_block(name: str, svc, *, pool_to_het: dict[str, int] | None = None) 
     )
 
 
+def _metrics_block(
+    name: str,
+    svc,
+    *,
+    eval_image: str | None = None,
+    pool_to_het: dict[str, int] | None = None,
+) -> str:
+    """Spawn a backgrounded Prometheus ``/metrics`` scraper for *svc*.
+
+    The scraper runs **inside the eval container** via ``srun --overlap
+    --container-image=<eval_image>`` so ``nemo_evaluator`` is on the path.
+    Without the container wrap, the bare batch node's system Python has no
+    ``nemo_evaluator`` package and the spawn fails immediately.
+
+    The srun is pinned to ``$MASTER_IP`` (``-w $MASTER_IP``) so the scraper
+    always lands on the head node where the model server's api server (and
+    therefore ``/metrics``) is bound. Without the pin, multi-node DP/TP
+    deployments would let srun land on a worker, and the ``localhost``
+    URL would refuse-connect.
+
+    Auto-skips at runtime if the endpoint isn't Prometheus-shaped (e.g.
+    OpenAI-compat-only servers without a ``/metrics`` path), so the spawn
+    is safe across all service types. The scraper inherits the global
+    ``trap "kill 0 EXIT"`` from the sbatch preamble; no explicit cleanup.
+
+    Returns ``""`` when:
+    * the service is external (we don't manage its lifecycle)
+    * the service is on a het-group pool that's not reachable from the batch node
+    * no eval_image is configured (no way to run the scraper with deps)
+    """
+    if isinstance(svc, ExternalApiService):
+        return ""
+    pool = getattr(svc, "node_pool", None)
+    if pool and pool_to_het and pool in pool_to_het and pool_to_het[pool] != 0:
+        return ""
+    if not eval_image:
+        return ""
+    port = getattr(svc, "port", 8000)
+    safe_name = _safe(name)
+    # Multi-node services bind their api server on the head node only, so the
+    # scraper must pin to ``$MASTER_IP``. Single-node services don't export
+    # ``MASTER_IP`` (only the multi-node Ray preamble does), and a bare
+    # ``-w $MASTER_IP`` would abort under ``set -u``. For single-node configs
+    # srun lands on the only allocated node anyway, so the pin is unnecessary.
+    pin_flag = "-w $MASTER_IP " if getattr(svc, "num_nodes", 1) > 1 else ""
+    return (
+        f'echo "Spawning Prometheus /metrics scraper for {name} -> $OUTPUT_DIR/{safe_name}_engine_metrics.jsonl"\n'
+        f"srun --overlap --nodes 1 --ntasks 1 {pin_flag}"
+        f"--container-image {eval_image} "
+        f'--container-mounts="$OUTPUT_DIR:$OUTPUT_DIR" '
+        f"--no-container-mount-home "
+        f"--container-env=NEL_TRACING_METRICS_DISABLED "
+        f"python -m nemo_evaluator.observability.scrape_metrics "
+        f'--url "http://localhost:{port}/metrics" '
+        f'--out "$OUTPUT_DIR/{safe_name}_engine_metrics.jsonl" &\n'
+    )
+
+
 def _get_solver_service(bench) -> str | None:
     return getattr(bench.solver, "service", None)
 
@@ -1247,6 +1305,17 @@ def generate_sbatch(
 
     for name, svc in config.services.items():
         block = _health_block(name, svc, pool_to_het=pool_to_het if use_het else None)
+        if block:
+            parts.append(block)
+
+    _eval_image_for_metrics = getattr(cluster, "eval_image", None)
+    for name, svc in config.services.items():
+        block = _metrics_block(
+            name,
+            svc,
+            eval_image=_eval_image_for_metrics,
+            pool_to_het=pool_to_het if use_het else None,
+        )
         if block:
             parts.append(block)
 
