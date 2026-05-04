@@ -7,7 +7,7 @@
 # Requires a service named "model" in your config's `services:` section.
 
 name: harbor://swebench_multilingual@1.0
-instruction_template: swebench_instruction.md
+instruction_template: swebench-instruction.md
 max_concurrent: 20
 timeout: 10800.0
 solver:

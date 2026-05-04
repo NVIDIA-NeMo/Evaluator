@@ -21,7 +21,7 @@ environment's ``seed()`` method.
 Resolution order
 ~~~~~~~~~~~~~~~~
 1. ``"off"`` / ``"none"`` / ``""``  →  no override.
-2. Bare filename (e.g. ``swebench_instruction.md``)  →  look in the
+2. Bare filename (e.g. ``swebench-instruction.md``)  →  look in the
    built-in ``templates/`` directory shipped with this package.
 3. Absolute or relative path  →  use that file directly.
 4. ``None``  →  no override.

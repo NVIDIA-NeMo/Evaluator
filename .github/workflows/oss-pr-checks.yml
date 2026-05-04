@@ -1,0 +1,125 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Lightweight OSS-side PR checks for the dev/0.3.0 release branch.
+#
+# The repo's heavier `cicd-main.yml` and friends only trigger on `main` and
+# the `pull-request/[0-9]+` mirror branches; PRs against `dev/0.3.0` get no
+# automated test coverage. This workflow fills that gap with five
+# essentials: pytest, ruff, install verification, copyright, and secrets.
+
+name: OSS PR checks (dev/0.3.0)
+
+on:
+  pull_request:
+    branches:
+      - dev/0.3.0
+  push:
+    branches:
+      - dev/0.3.0
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Ruff (lint + format)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "ruff>=0.1"
+      - run: ruff check src/ tests/
+      - run: ruff format --check src/ tests/
+
+  install-test:
+    name: Install (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e .
+      - name: Verify minimal import surface
+        run: |
+          python -c "import nemo_evaluator"
+          python -c "from nemo_evaluator import benchmark, scorer, ScorerInput"
+          python -c "from nemo_evaluator.scoring import exact_match, fuzzy_match"
+          python -c "from nemo_evaluator.environments import get_environment, list_environments"
+
+  test:
+    name: pytest (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ matrix.python }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-${{ matrix.python }}-
+      - run: pip install -e ".[dev]"
+      - run: pytest tests/ -m "not network and not slow and not e2e" --tb=short -q -n auto
+
+  copyright:
+    name: SPDX header check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: changed
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            FILES=$(git diff --name-only --diff-filter=AM "$BASE_SHA" "$HEAD_SHA" -- '*.py' | tr '\n' ' ')
+          else
+            FILES=$(git diff --name-only --diff-filter=AM HEAD~1 HEAD -- '*.py' | tr '\n' ' ')
+          fi
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
+      - if: steps.changed.outputs.files != ''
+        run: |
+          MISSING=()
+          for f in ${{ steps.changed.outputs.files }}; do
+            [[ -f "$f" ]] || continue
+            if ! head -3 "$f" | grep -q "SPDX-License-Identifier:"; then
+              MISSING+=("$f")
+            fi
+          done
+          if [[ ${#MISSING[@]} -gt 0 ]]; then
+            echo "::error::Files missing SPDX-License-Identifier header:"
+            printf '  %s\n' "${MISSING[@]}"
+            exit 1
+          fi
+          echo "All changed Python files carry SPDX headers."
+
+  secrets:
+    name: Secrets scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
+          GITLEAKS_ENABLE_SUMMARY: true
