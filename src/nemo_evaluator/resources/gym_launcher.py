@@ -59,9 +59,9 @@ def _download_from_gitlab(gl_id: dict, output_path: str) -> None:
             "MLFLOW_TRACKING_URI and MLFLOW_TRACKING_TOKEN must be set to download datasets from GitLab MLflow."
         )
 
+    import requests
     from mlflow import MlflowClient
     from mlflow.artifacts import get_artifact_repository
-    import requests
 
     os.environ["MLFLOW_TRACKING_TOKEN"] = tracking_token
     client = MlflowClient(tracking_uri=tracking_uri)
@@ -86,8 +86,9 @@ def _download_from_gitlab(gl_id: dict, output_path: str) -> None:
 
 def _download_from_hf(hf_id: dict, output_path: str) -> None:
     """Download a dataset from HuggingFace Hub without importing nemo_gym."""
-    from huggingface_hub import hf_hub_download
     import shutil
+
+    from huggingface_hub import hf_hub_download
 
     token = os.environ.get("HF_TOKEN")
     artifact = hf_id.get("artifact_fpath")

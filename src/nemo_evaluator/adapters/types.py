@@ -23,7 +23,6 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # InterceptorContext — per-request cross-cutting state via ContextVar
 # ---------------------------------------------------------------------------

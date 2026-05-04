@@ -430,8 +430,8 @@ class TestManagedGymEnvironment:
 @patch("nemo_evaluator.environments.gym._find_free_port", return_value=19999)
 class TestGymUriResolution:
     def test_host_port_evaluator(self, _mock_port):
-        from nemo_evaluator.environments.registry import _make_gym
         from nemo_evaluator.environments.gym import GymEnvironment
+        from nemo_evaluator.environments.registry import _make_gym
 
         env = _make_gym("localhost:8080")
         assert isinstance(env, GymEnvironment)
@@ -439,8 +439,8 @@ class TestGymUriResolution:
         assert env.protocol == "evaluator"
 
     def test_host_port_native_via_query(self, _mock_port, tmp_path):
-        from nemo_evaluator.environments.registry import _make_gym
         from nemo_evaluator.environments.gym import GymEnvironment
+        from nemo_evaluator.environments.registry import _make_gym
 
         data_path = tmp_path / "d.jsonl"
         data_path.write_text('{"responses_create_params":{"input":"x"}}\n')
@@ -452,15 +452,15 @@ class TestGymUriResolution:
         assert len(env._dataset) == 1
 
     def test_module_managed(self, _mock_port):
-        from nemo_evaluator.environments.registry import _make_gym
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
+        from nemo_evaluator.environments.registry import _make_gym
 
         env = _make_gym("module:my_app.server")
         assert isinstance(env, ManagedGymEnvironment)
 
     def test_module_native_via_query(self, _mock_port, tmp_path):
-        from nemo_evaluator.environments.registry import _make_gym
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
+        from nemo_evaluator.environments.registry import _make_gym
 
         data_path = tmp_path / "d.jsonl"
         data_path.write_text('{"responses_create_params":{"input":"x"}}\n')
@@ -470,15 +470,15 @@ class TestGymUriResolution:
         assert env._protocol == "native"
 
     def test_cmd_managed(self, _mock_port):
-        from nemo_evaluator.environments.registry import _make_gym
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
+        from nemo_evaluator.environments.registry import _make_gym
 
         env = _make_gym("cmd:python my_server.py")
         assert isinstance(env, ManagedGymEnvironment)
 
     def test_bare_name_managed(self, _mock_port):
-        from nemo_evaluator.environments.registry import _make_gym
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
+        from nemo_evaluator.environments.registry import _make_gym
 
         env = _make_gym("spider2_lite")
         assert isinstance(env, ManagedGymEnvironment)

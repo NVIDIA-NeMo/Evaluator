@@ -42,7 +42,8 @@ import threading
 import time
 import uuid
 import zipfile
-from dataclasses import dataclass, field, replace as _dc_replace
+from dataclasses import dataclass, field
+from dataclasses import replace as _dc_replace
 from pathlib import Path
 from typing import Any, Callable, Self, TypeVar
 from urllib.parse import ParseResult, urlparse

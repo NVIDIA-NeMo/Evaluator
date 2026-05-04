@@ -995,6 +995,7 @@ class HarborSolver:
             raise RuntimeError("HarborSolver requires a sandbox.")
 
         from harbor.models.agent.context import AgentContext
+
         from nemo_evaluator.solvers.harbor_adapter import SandboxEnvironmentAdapter
 
         _silence_harbor_debug()

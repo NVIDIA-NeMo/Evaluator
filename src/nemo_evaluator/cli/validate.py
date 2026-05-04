@@ -34,10 +34,10 @@ def validate_cmd(benchmark, samples, model_url, model_id, api_key, verbose):
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    from nemo_evaluator.environments.registry import get_environment
-    from nemo_evaluator.observability.progress import ConsoleProgress
     from nemo_evaluator.engine.eval_loop import run_evaluation
     from nemo_evaluator.engine.model_client import ModelClient
+    from nemo_evaluator.environments.registry import get_environment
+    from nemo_evaluator.observability.progress import ConsoleProgress
     from nemo_evaluator.solvers import ChatSolver
 
     try:

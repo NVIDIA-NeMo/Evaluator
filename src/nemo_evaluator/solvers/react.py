@@ -26,10 +26,10 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
+from nemo_evaluator.engine.model_client import ModelClient, ToolCallInfo, ToolCallingResponse
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.errors import GracefulError
 from nemo_evaluator.observability.types import ModelResponse
-from nemo_evaluator.engine.model_client import ModelClient, ToolCallInfo, ToolCallingResponse
 from nemo_evaluator.solvers.base import SolveResult
 from nemo_evaluator.solvers.tool_backend import (
     CompositeToolBackend,

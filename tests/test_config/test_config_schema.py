@@ -14,22 +14,23 @@
 # limitations under the License.
 """Tests for eval config schema validation and env var expansion."""
 
-import pytest
 import warnings
 
+import pytest
+
 from nemo_evaluator.config import (
+    BenchmarkConfig,
+    DockerSandbox,
     EvalConfig,
     ExternalApiService,
-    VllmService,
-    BenchmarkConfig,
-    SimpleSolver,
-    HarborSolverConfig,
-    DockerSandbox,
-    ScoringConfig,
-    JudgeMetric,
-    SlurmCluster,
-    LocalCluster,
     GenerationConfig,
+    HarborSolverConfig,
+    JudgeMetric,
+    LocalCluster,
+    ScoringConfig,
+    SimpleSolver,
+    SlurmCluster,
+    VllmService,
     parse_eval_config,
 )
 from nemo_evaluator.config.eval_config import _expand_env
@@ -808,6 +809,7 @@ class TestHarborSolverTimeoutConfig:
 
     def test_timeout_strategy_invalid_rejected(self):
         import pydantic
+
         from nemo_evaluator.config.solvers import HarborSolverConfig
 
         with pytest.raises(pydantic.ValidationError, match="timeout_strategy"):

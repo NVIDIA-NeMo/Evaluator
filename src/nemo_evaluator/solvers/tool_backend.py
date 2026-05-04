@@ -34,12 +34,12 @@ import logging
 import os
 import tempfile
 from dataclasses import dataclass, field
-
-from nemo_evaluator.errors import GracefulError
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 import aiohttp
+
+from nemo_evaluator.errors import GracefulError
 
 if TYPE_CHECKING:
     from nemo_evaluator.sandbox.base import Sandbox

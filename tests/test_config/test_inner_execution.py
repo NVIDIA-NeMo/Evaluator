@@ -19,17 +19,16 @@ from __future__ import annotations
 import os
 from unittest.mock import MagicMock, patch
 
-
 from nemo_evaluator.config import (
     BenchmarkConfig,
     DockerCluster,
     EvalConfig,
     ExternalApiService,
     LocalCluster,
+    NodePool,
     OutputConfig,
     SimpleSolver,
     SlurmCluster,
-    NodePool,
 )
 
 
@@ -134,6 +133,7 @@ class TestDockerEnvFlag:
 
     def test_config_not_mutated(self, tmp_path):
         import json
+
         from nemo_evaluator.executors.docker_executor import DockerExecutor
 
         config = _make_config("docker")

@@ -99,6 +99,7 @@ class TestNatSolver:
     @pytest.mark.asyncio
     async def test_solve_calls_nat_endpoint(self):
         from contextlib import asynccontextmanager
+
         from nemo_evaluator.solvers.nat import NatSolver
 
         solver = NatSolver(nat_url="http://fake-nat:8000")
@@ -153,8 +154,9 @@ class TestOpenClawSolver:
 
     @pytest.mark.asyncio
     async def test_solve_signature_accepts_sandbox(self):
-        from nemo_evaluator.solvers.openclaw import OpenClawSolver
         import inspect
+
+        from nemo_evaluator.solvers.openclaw import OpenClawSolver
 
         sig = inspect.signature(OpenClawSolver.solve)
         assert "sandbox" in sig.parameters

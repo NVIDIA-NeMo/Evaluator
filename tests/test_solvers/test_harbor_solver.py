@@ -20,7 +20,6 @@ import os
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
-
 import pytest
 
 from nemo_evaluator.solvers.harbor import (
@@ -31,7 +30,6 @@ from nemo_evaluator.solvers.harbor import (
     _resolve_agent_timeout,
     _resolve_api_key,
 )
-
 
 # ── Pure helpers ─────────────────────────────────────────────────────────
 

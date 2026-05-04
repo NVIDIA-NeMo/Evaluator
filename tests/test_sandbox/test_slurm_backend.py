@@ -24,7 +24,6 @@ import pytest
 from nemo_evaluator.sandbox.base import OutsideEndpoint, SandboxSpec, VolumeMount
 from nemo_evaluator.sandbox.slurm import SlurmSandbox
 
-
 # ── Helpers ───────────────────────────────────────────────────────────
 
 

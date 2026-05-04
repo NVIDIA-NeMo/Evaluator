@@ -88,6 +88,8 @@ def _resolve_generation(config: EvalConfig, solver_cfg: Any) -> GenerationConfig
 def _build_ecs_sandbox_config(cfg: EcsFargateSandbox) -> Any:
     from nemo_evaluator.sandbox.ecs_fargate import (
         EcsFargateConfig as SandboxEcsConfig,
+    )
+    from nemo_evaluator.sandbox.ecs_fargate import (
         SshSidecarConfig as SandboxSshConfig,
     )
 
@@ -409,7 +411,6 @@ class _NatServiceHandle:
         import os
         import subprocess
         import time
-
         import urllib.error
         import urllib.request
 

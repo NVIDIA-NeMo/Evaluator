@@ -19,8 +19,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.conftest import AVAILABLE_FIXTURES, FixturedEnvironment, load_fixture, FIXTURE_DIR
-
+from tests.conftest import AVAILABLE_FIXTURES, FIXTURE_DIR, FixturedEnvironment, load_fixture
 
 # ---------------------------------------------------------------------------
 # Offline: seed/verify round-trip from fixtures
@@ -72,8 +71,8 @@ SCORING_BENCHMARKS = {
 @pytest.mark.parametrize("bench", [b for b in AVAILABLE_FIXTURES if b in SCORING_BENCHMARKS])
 def test_scorer_determinism(bench: str):
     """Scoring the same response twice gives the same result."""
-    from nemo_evaluator.scoring.types import ScorerInput
     import nemo_evaluator.benchmarks  # noqa: F401
+    from nemo_evaluator.scoring.types import ScorerInput
 
     data = load_fixture(bench)
     row = data[0]

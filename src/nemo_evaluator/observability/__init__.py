@@ -12,15 +12,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from nemo_evaluator.observability.types import (
-    ModelResponse,
-    StepRecord,
-    RuntimeStats,
-    FailureReport,
-    RunArtifacts,
-)
-from nemo_evaluator.observability.progress import ProgressTracker, ConsoleProgress, NoOpProgress
 from nemo_evaluator.observability.collector import ArtifactCollector
+from nemo_evaluator.observability.progress import ConsoleProgress, NoOpProgress, ProgressTracker
+from nemo_evaluator.observability.types import (
+    FailureReport,
+    ModelResponse,
+    RunArtifacts,
+    RuntimeStats,
+    StepRecord,
+)
 
 __all__ = [
     "ModelResponse",

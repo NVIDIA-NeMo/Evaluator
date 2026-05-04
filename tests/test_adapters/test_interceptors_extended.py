@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-
 from nemo_evaluator.adapters.types import AdapterRequest, AdapterResponse, InterceptorContext
 
 

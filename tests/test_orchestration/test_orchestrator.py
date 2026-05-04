@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-
 from nemo_evaluator.config.sandboxes import NoSandbox as NoSandboxConfig
 
 
@@ -99,7 +98,7 @@ class TestGenerateReports:
 
 class TestResolveGeneration:
     def test_returns_generation_config(self):
-        from nemo_evaluator.config import GenerationConfig, EvalConfig
+        from nemo_evaluator.config import EvalConfig, GenerationConfig
         from nemo_evaluator.orchestration.orchestrator import _resolve_generation
 
         config = MagicMock(spec=EvalConfig)

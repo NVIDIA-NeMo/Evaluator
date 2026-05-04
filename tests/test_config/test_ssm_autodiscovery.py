@@ -21,7 +21,6 @@ import pytest
 
 from nemo_evaluator.config import EcsFargateSandbox, SshSidecarConfig
 
-
 # ── Fixtures ──────────────────────────────────────────────────────────
 
 SSM_CONFIG = {

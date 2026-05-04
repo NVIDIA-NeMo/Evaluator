@@ -25,9 +25,8 @@ from typing import Any
 import aiohttp
 
 from nemo_evaluator.errors import InfraError
-
-from nemo_evaluator.schemas import RetryConfig
 from nemo_evaluator.observability.types import ModelResponse
+from nemo_evaluator.schemas import RetryConfig
 
 logger = logging.getLogger(__name__)
 
