@@ -50,9 +50,11 @@ from nemo_evaluator.scoring import (
     numeric_match,
     score_names_from_output_spec,
 )
+from nemo_evaluator.scoring.multiple_choice import mcq_letter_extract, multiple_choice_acc
 from nemo_evaluator.solvers import (
     ChatSolver,
     CompletionSolver,
+    LogprobRankingSolver,
     NatSolver,
     OpenClawSolver,
     Solver,
@@ -75,6 +77,7 @@ __all__ = [
     "Solver",
     "ChatSolver",
     "CompletionSolver",
+    "LogprobRankingSolver",
     "NatSolver",
     "OpenClawSolver",
     "VLMSolver",
@@ -109,5 +112,7 @@ __all__ = [
     "numeric_match",
     "code_sandbox",
     "code_sandbox_async",
+    "mcq_letter_extract",
+    "multiple_choice_acc",
     "needs_judge",
 ]

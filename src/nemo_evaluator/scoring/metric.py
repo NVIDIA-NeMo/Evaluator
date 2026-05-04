@@ -291,10 +291,15 @@ class ScorerFunctionMetric(Generic[ConfigT]):
         return self._descriptor.outputs
 
     async def compute_scores(self, input: MetricInput) -> MetricResult:
+        # Merge row-level dataset data with per-row candidate metadata so legacy
+        # ``ScorerInput`` scorers see solver-produced payloads (logprobs,
+        # trajectories, etc.) alongside dataset fields. Candidate metadata
+        # wins on key collisions — it is the more specific source.
+        merged_metadata: dict[str, object] = {**dict(input.row.data), **dict(input.candidate.metadata)}
         sample: ScorerInput[ConfigT] = ScorerInput(
             response=input.candidate.output_text or "",
             target=self._target if self._target is not None else input.row.data.get(self._target_field),
-            metadata=dict(input.row.data),
+            metadata=merged_metadata,
             config=cast(ConfigT, self._resolve_config()),
             sandbox=self._sandbox,
         )

@@ -435,11 +435,18 @@ async def run_evaluation(
                         logger.debug("p%d r%d: using pre-computed reward=%.4f", idx, rep, vr.reward)
                     elif not _solve_failed:
                         verify_sandbox = await lifecycle.get_verify_sandbox()
+                        # Forward solver-emitted payload (e.g. logprobs, ranking
+                        # metadata) into verify alongside seed metadata. Keys
+                        # collide rarely in practice; solver payload wins on
+                        # collision because it is the more recent, more
+                        # specific source.
+                        solver_meta = solve_result.scoring_details if solve_result else {}
+                        merged_meta = {**seed_result.metadata, **solver_meta}
                         vr = await env.verify(
                             response_text,
                             seed_result.expected_answer,
                             sandbox=verify_sandbox,
-                            **seed_result.metadata,
+                            **merged_meta,
                         )
                     break  # success — exit retry loop
 

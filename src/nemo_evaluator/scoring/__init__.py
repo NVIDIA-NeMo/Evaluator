@@ -125,4 +125,15 @@ __all__ = [
     # JSON
     "extract_json",
     "validate_json_schema",
+    # Multiple-choice (lazy-loaded — depends on @scorer in environments.custom)
+    "multiple_choice_acc",
+    "mcq_letter_extract",
 ]
+
+
+def __getattr__(name: str):
+    if name in ("multiple_choice_acc", "mcq_letter_extract"):
+        from nemo_evaluator.scoring import multiple_choice as _mc
+
+        return getattr(_mc, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
