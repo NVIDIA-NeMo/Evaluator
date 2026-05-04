@@ -19,8 +19,11 @@ from typing import Any
 
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
-from nemo_evaluator.environments.custom import BenchmarkDefinition, ByobEnvironment, scorer
+from nemo_evaluator.environments.custom import BenchmarkDefinition, ByobEnvironment, benchmark, scorer
+from nemo_evaluator.environments.registry import get_environment
 from nemo_evaluator.engine.eval_loop import run_evaluation
+from nemo_evaluator.metrics import ExactMatchMetric
+from nemo_evaluator.scorers import ExactMatchScorer
 from nemo_evaluator.observability.types import ModelResponse
 from nemo_evaluator.scoring import ScorerInput
 from nemo_evaluator.scoring.metric import MetricOutputSpec
@@ -242,6 +245,42 @@ class TestRunEvaluationIntegration:
         assert result["scoring_details"]["judge_label"] == "pass"
         assert result["scoring_details"]["rationale"] == "answer matched"
         assert result["scoring_details"]["metric_type"] == "tests.eval_loop_typed"
+
+    def test_preannotated_metric_scorer_result_preserved_in_results(self):
+        benchmark(
+            name="exact_match_metric_eval_loop_adapter",
+            dataset=lambda: [{"question": "1+1", "answer": "2"}],
+            prompt="{question}",
+            target_field="answer",
+        )(ExactMatchScorer(reference="{{item.answer}}"))
+
+        env = get_environment("exact_match_metric_eval_loop_adapter")
+        solver = _MockSolver()
+
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1))
+
+        result = bundle["_results"][0]
+        assert result["reward"] == 1.0
+        assert result["scoring_details"]["metric_type"] == "exact-match"
+        assert result["scoring_details"]["outputs"] == {"correct": 1.0}
+
+    def test_configured_metric_instance_result_preserved_in_results(self):
+        benchmark(
+            name="exact_match_metric_instance_eval_loop_adapter",
+            dataset=lambda: [{"question": "1+1", "answer": "2"}],
+            prompt="{question}",
+            target_field="answer",
+        )(scorer(ExactMatchMetric(reference="{{item.answer}}")))
+
+        env = get_environment("exact_match_metric_instance_eval_loop_adapter")
+        solver = _MockSolver()
+
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1))
+
+        result = bundle["_results"][0]
+        assert result["reward"] == 1.0
+        assert result["scoring_details"]["metric_type"] == "exact-match"
+        assert result["scoring_details"]["outputs"] == {"correct": 1.0}
 
 
 class _MockSolverWithTrajectory:

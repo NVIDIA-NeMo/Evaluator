@@ -22,6 +22,8 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from nemo_evaluator.environments.custom import scorer
+from nemo_evaluator.metrics import ExactMatchMetric
+from nemo_evaluator.scorers import ExactMatchScorer
 from nemo_evaluator.scoring import ScorerInput
 from nemo_evaluator.scoring.metric import (
     CandidateOutput,
@@ -339,6 +341,99 @@ def test_validate_metric_result_rejects_value_that_does_not_match_schema() -> No
 
     with pytest.raises(ValidationError):
         validate_metric_result(result, outputs)
+
+
+def test_scorer_decorator_returns_subclass_without_mutating_original_metric_class() -> None:
+    scorer_cls = scorer(ExactMatchMetric)
+
+    assert scorer_cls is not ExactMatchMetric
+    assert issubclass(scorer_cls, ExactMatchMetric)
+    assert not hasattr(ExactMatchMetric(reference="{{item.answer}}"), "descriptor")
+    assert not hasattr(ExactMatchMetric(reference="{{item.answer}}"), "to_metric")
+
+    scorer_metric = cast(_MetricScorerForTest, scorer_cls(reference="{{item.answer}}"))
+    assert scorer_metric.descriptor == MetricDescriptor(
+        type="exact-match",
+        outputs=[MetricOutputSpec.continuous_score("correct")],
+    )
+    assert scorer_metric.to_metric() is scorer_metric
+
+
+@pytest.mark.asyncio
+async def test_exact_match_metric_is_undecorated_reusable_metric() -> None:
+    metric = ExactMatchMetric(reference="{{item.answer}}")
+
+    assert not hasattr(metric, "descriptor")
+    assert not hasattr(metric, "to_metric")
+    assert isinstance(metric, BaseModel)
+    assert metric.type == "exact-match"
+    assert metric.model_dump()["type"] == "exact-match"
+    assert metric.output_spec() == [MetricOutputSpec.continuous_score("correct")]
+
+    result = await metric.compute_scores(
+        MetricInput(
+            row=DatasetRow(data={"answer": "Paris"}),
+            candidate=CandidateOutput(output_text="Paris"),
+        )
+    )
+
+    assert result.outputs == [MetricOutput(name="correct", value=1.0)]
+
+
+@pytest.mark.asyncio
+async def test_exact_match_scorer_exposes_descriptor_and_to_metric() -> None:
+    scorer_metric = cast(_MetricScorerForTest, ExactMatchScorer(reference="{{item.answer}}"))
+
+    assert scorer_metric.descriptor == MetricDescriptor(
+        type="exact-match",
+        outputs=[MetricOutputSpec.continuous_score("correct")],
+    )
+
+    metric = scorer_metric.to_metric()
+    result = await metric.compute_scores(
+        MetricInput(
+            row=DatasetRow(data={"answer": "Paris"}),
+            candidate=CandidateOutput(output_text="Paris"),
+        )
+    )
+
+    assert metric.type == "exact-match"
+    assert result.outputs == [MetricOutput(name="correct", value=1.0)]
+
+
+@pytest.mark.asyncio
+async def test_scorer_decorator_adapts_exact_match_metric_instances() -> None:
+    scorer_metric = scorer(ExactMatchMetric(reference="{{item.answer}}"))
+
+    assert scorer_metric.descriptor == MetricDescriptor(
+        type="exact-match",
+        outputs=[MetricOutputSpec.continuous_score("correct")],
+    )
+
+    metric = scorer_metric.to_metric()
+    result = await metric.compute_scores(
+        MetricInput(
+            row=DatasetRow(data={"answer": "Paris"}),
+            candidate=CandidateOutput(output_text="Paris"),
+        )
+    )
+
+    assert metric.type == "exact-match"
+    assert result.outputs == [MetricOutput(name="correct", value=1.0)]
+
+
+@pytest.mark.asyncio
+async def test_exact_match_metric_supports_top_level_and_sample_template_aliases() -> None:
+    metric = ExactMatchMetric(reference="{{answer}}", candidate="{{sample.prediction}}")
+
+    result = await metric.compute_scores(
+        MetricInput(
+            row=DatasetRow(data={"answer": "New York"}),
+            candidate=CandidateOutput(metadata={"prediction": "new york"}),
+        )
+    )
+
+    assert result.outputs == [MetricOutput(name="correct", value=1.0)]
 
 
 @pytest.mark.asyncio

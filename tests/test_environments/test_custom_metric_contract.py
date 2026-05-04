@@ -22,6 +22,8 @@ import pytest
 from pydantic import BaseModel
 
 from nemo_evaluator.environments.custom import BenchmarkDefinition, ByobEnvironment, scorer
+from nemo_evaluator.metrics import ExactMatchMetric
+from nemo_evaluator.scorers import ExactMatchScorer
 from nemo_evaluator.scoring import ScorerInput
 from nemo_evaluator.scoring.metric import Metric, MetricDescriptor, MetricInput, MetricOutputSpec, MetricResult
 from nemo_evaluator.sandbox.base import Sandbox
@@ -120,6 +122,51 @@ async def test_typed_scorer_runs_as_metric_through_byob_verify() -> None:
         "judge_label": "partial",
         "extracted": "4",
     }
+
+
+@pytest.mark.asyncio
+async def test_preannotated_metric_scorer_runs_through_byob_verify() -> None:
+    env = ByobEnvironment(
+        BenchmarkDefinition(
+            name="exact_match_metric",
+            dataset=_dataset,
+            prompt="{question}",
+            target_field="answer",
+            scorer_fn=cast(_MetricScorerForTest, ExactMatchScorer(reference="{{item.answer}}")),
+        )
+    )
+
+    matched = await env.verify("4", "4", category="math", answer="4")
+    mismatched = await env.verify("5", "4", category="math", answer="4")
+
+    assert matched.reward == 1.0
+    assert matched.scoring_details == {
+        "method": "byob_exact_match_metric",
+        "metric_type": "exact-match",
+        "outputs": {"correct": 1.0},
+        "correct": 1.0,
+    }
+    assert mismatched.reward == 0.0
+    assert mismatched.scoring_details["outputs"] == {"correct": 0.0}
+
+
+@pytest.mark.asyncio
+async def test_configured_metric_instance_runs_through_byob_verify() -> None:
+    env = ByobEnvironment(
+        BenchmarkDefinition(
+            name="exact_match_metric_instance",
+            dataset=_dataset,
+            prompt="{question}",
+            target_field="answer",
+            scorer_fn=scorer(ExactMatchMetric(reference="{{item.answer}}")),
+        )
+    )
+
+    result = await env.verify("4", "4", category="math", answer="4")
+
+    assert result.reward == 1.0
+    assert result.scoring_details["metric_type"] == "exact-match"
+    assert result.scoring_details["outputs"] == {"correct": 1.0}
 
 
 @pytest.mark.asyncio
