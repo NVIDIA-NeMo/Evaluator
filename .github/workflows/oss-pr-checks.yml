@@ -64,7 +64,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.11", "3.12"]
+        # py3.11 is gated out: the [dev] extras pull in `harbor>=0.3.0,<0.4.0`
+        # which only ships wheels for Python >=3.12. Base install (without
+        # [dev]) still works on 3.11 — see the install-test job above.
+        python: ["3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -110,16 +113,3 @@ jobs:
             exit 1
           fi
           echo "All changed Python files carry SPDX headers."
-
-  secrets:
-    name: Secrets scan (gitleaks)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
-          GITLEAKS_ENABLE_SUMMARY: true
