@@ -980,6 +980,61 @@ def _metrics_block(
     )
 
 
+_DCGM_EXPORTER_PORT = 9400
+
+
+def _dcgm_metrics_block(*, eval_image: str | None = None) -> str:
+    """Spawn a per-node Prometheus scraper that polls a system ``dcgm-exporter``.
+
+    For each node in ``$SLURM_JOB_NODELIST``, one background srun task runs
+    ``nemo_evaluator.observability.scrape_metrics`` inside the eval
+    container, polling ``http://localhost:9400/metrics`` (DCGM's standard
+    port) and dumping JSONL to ``$OUTPUT_DIR/gpu_metrics_<host>.jsonl`` —
+    one file per node.
+
+    Why no ``dcgm-exporter`` spawn: NVIDIA production clusters (HSG, CW,
+    SVG) ship a system ``dcgm-exporter`` already running on :9400 — our
+    own spawn collides with it (``bind: address already in use``,
+    confirmed on HSG by smoke 2554268). Just scraping the existing
+    endpoint avoids the collision and removes the nvcr.io image
+    dependency entirely. On clusters without a system exporter, the
+    scraper's auto-detect logs ``no /metrics endpoint, skipping`` and
+    exits cleanly — no broken file, eval unaffected.
+
+    Captures: ``DCGM_FI_PROF_SM_ACTIVE`` (real SM occupancy),
+    ``DCGM_FI_PROF_PIPE_TENSOR_ACTIVE``, ``DCGM_FI_PROF_DRAM_ACTIVE``,
+    ``DCGM_FI_PROF_NVLINK_{TX,RX}_BYTES``, ``DCGM_FI_DEV_FB_{USED,FREE,TOTAL}``,
+    power, temp, clocks. Per-GPU labels ``{gpu="<n>", Hostname="<host>",
+    hpc_job="<slurm-job-id>"}`` — direct attribution.
+
+    The block is gated by ``$NEL_GPU_METRICS_DISABLED``; setting it to any
+    non-empty value at sbatch-submit time makes this a no-op. Inherits the
+    global ``trap "kill 0 EXIT"`` for cleanup.
+
+    Returns ``""`` when no eval_image is configured (no way to run the
+    scraper). Het-job worker pools are not yet covered: the loop iterates
+    over ``$SLURM_JOB_NODELIST`` only, which on multi-pool deployments
+    covers the head het-group only.
+    """
+    if not eval_image:
+        return ""
+    return (
+        'if [ -z "${NEL_GPU_METRICS_DISABLED:-}" ]; then\n'
+        '  for _NODE in $(scontrol show hostnames "$SLURM_JOB_NODELIST"); do\n'
+        '    echo "Spawning GPU /metrics scraper on $_NODE -> $OUTPUT_DIR/gpu_metrics_${_NODE}.jsonl"\n'
+        '    srun --overlap --nodes 1 --ntasks 1 --nodelist="$_NODE" '
+        f"--container-image {eval_image} "
+        '--container-mounts="$OUTPUT_DIR:$OUTPUT_DIR" '
+        "--no-container-mount-home "
+        "--container-env=NEL_TRACING_METRICS_DISABLED "
+        "python -m nemo_evaluator.observability.scrape_metrics "
+        f'--url "http://localhost:{_DCGM_EXPORTER_PORT}/metrics" '
+        '--out "$OUTPUT_DIR/gpu_metrics_${_NODE}.jsonl" &\n'
+        "  done\n"
+        "fi\n"
+    )
+
+
 def _get_solver_service(bench) -> str | None:
     return getattr(bench.solver, "service", None)
 
@@ -1318,6 +1373,10 @@ def generate_sbatch(
         )
         if block:
             parts.append(block)
+
+    dcgm_block = _dcgm_metrics_block(eval_image=_eval_image_for_metrics)
+    if dcgm_block:
+        parts.append(dcgm_block)
 
     sb_bench = _find_sandbox_bench(config)
     sandbox_pool_name = getattr(sb_bench.sandbox, "node_pool", None) if sb_bench else None
