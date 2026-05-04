@@ -2,6 +2,14 @@
 
 ## 0.13.0 (unreleased)
 
+### Shared Metric Contract
+
+- Added public `MetricInput -> MetricResult` scorer/metric runtime types and `ScorerFunctionMetric`.
+- Extended BYOB `@scorer` with typed scorer metadata and `to_metric()` while preserving current dict scorer behavior.
+- Added optional `config_schema` support for typed scorer configs while keeping raw dict configs as the default.
+- Split typed scorer config binding into strict `bind(config=ConfigModel(...))` and coercive `bind_raw_config(config={...})` paths.
+- Added `@scorer` support for class-based `Metric` objects.
+
 ### Adapter Proxy (Breaking — replaces LiteLLM)
 
 - **LiteLLM removed**: The `litellm` dependency, `proxy` and `proxy-full` extras, and `litellm_settings` config field are all removed. The adapter proxy is now built-in with zero external proxy dependencies.
