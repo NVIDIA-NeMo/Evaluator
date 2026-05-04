@@ -1,7 +1,56 @@
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        files: \.py$
+      - id: end-of-file-fixer
+        files: \.py$
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.0
+    rev: v0.9.9
     hooks:
       - id: ruff
         args: [--fix]
       - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: spdx-header
+        name: SPDX header on Python files
+        language: system
+        entry: |
+          bash -c '
+            missing=()
+            for f in "$@"; do
+              head -3 "$f" | grep -q "SPDX-License-Identifier:" || missing+=("$f")
+            done
+            if [ ${#missing[@]} -gt 0 ]; then
+              echo "Missing SPDX header in:" >&2
+              for f in "${missing[@]}"; do echo "  - $f" >&2; done
+              exit 1
+            fi
+          ' --
+        files: ^(src|tests)/.*\.py$
+        exclude: __init__\.py$
+
+      - id: no-underscore-md
+        name: "Disallow '_' in Markdown filenames"
+        language: system
+        entry: |
+          bash -c '
+            echo "[pre-commit] ERROR: Found Markdown files with underscores:" >&2
+            for file in "$@"; do
+              echo "  - $file (use hyphens instead)" >&2
+            done
+            exit 1
+          '
+        files: '.*\/[^\/]*_[^\/]*\.md$'
+        exclude: '^\.github/'
+        types: [file]
