@@ -9,6 +9,7 @@
 - Added optional `config_schema` support for typed scorer configs while keeping raw dict configs as the default.
 - Split typed scorer config binding into strict `bind(config=ConfigModel(...))` and coercive `bind_raw_config(config={...})` paths.
 - Added `@scorer` support for class-based `Metric` objects.
+- Added a reusable undecorated `ExactMatchMetric` and an `ExactMatchScorer` BYOB wrapper.
 
 ### Adapter Proxy (Breaking — replaces LiteLLM)
 

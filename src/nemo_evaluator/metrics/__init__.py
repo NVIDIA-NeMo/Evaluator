@@ -27,8 +27,10 @@ from nemo_evaluator.metrics.paired_tests import (
     permutation_test,
     sign_test,
 )
+from nemo_evaluator.metrics.exact_match import ExactMatchMetric
 
 __all__ = [
+    "ExactMatchMetric",
     "McNemarResult",
     "POWER_80_FACTOR",
     "PermutationResult",

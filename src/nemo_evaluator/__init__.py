@@ -21,6 +21,8 @@ from nemo_evaluator.engine.model_client import ModelClient
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.environments.registry import get_environment, list_environments, load_benchmark_file, register
+from nemo_evaluator.metrics import ExactMatchMetric
+from nemo_evaluator.scorers import ExactMatchScorer
 from nemo_evaluator.scoring import (
     BooleanValue,
     CandidateOutput,
@@ -83,6 +85,8 @@ __all__ = [
     "benchmark",
     "scorer",
     "ScorerInput",
+    "ExactMatchMetric",
+    "ExactMatchScorer",
     "Metric",
     "BooleanValue",
     "DatasetRow",
