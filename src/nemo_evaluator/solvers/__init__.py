@@ -17,6 +17,7 @@
 from nemo_evaluator.solvers.base import Solver, SolveResult
 from nemo_evaluator.solvers.chat import ChatSolver
 from nemo_evaluator.solvers.completion import CompletionSolver
+from nemo_evaluator.solvers.logprob import LogprobRankingSolver
 from nemo_evaluator.solvers.nat import NatSolver
 from nemo_evaluator.solvers.openclaw import OpenClawSolver
 from nemo_evaluator.solvers.vlm import VLMSolver
@@ -25,6 +26,7 @@ __all__ = [
     "ChatSolver",
     "CompletionSolver",
     "HarborSolver",
+    "LogprobRankingSolver",
     "NatSolver",
     "OpenClawSolver",
     "ReActSolver",

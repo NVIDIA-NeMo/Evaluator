@@ -9,6 +9,18 @@
 - Added optional `config_schema` support for typed scorer configs while keeping raw dict configs as the default.
 - Split typed scorer config binding into strict `bind(config=ConfigModel(...))` and coercive `bind_raw_config(config={...})` paths.
 
+### Multiple-Choice Loglikelihood + Few-Shot (lm-evaluation-harness parity)
+
+Demonstrates non-trivial benchmark machinery composing with the shared metric contract **without protocol-type changes**. `MetricInput`, `MetricResult`, `MetricDescriptor`, `MetricOutputSpec` shapes untouched.
+
+- **`@scorer`-typed `multiple_choice_acc`** in `nemo_evaluator.scoring.multiple_choice`: returns `acc`, `acc_norm`, `acc_greedy`. Reads candidate continuations + per-choice loglikelihoods from `MetricInput.candidate.metadata`.
+- **`@scorer`-typed `mcq_letter_extract`**: free-form letter extraction (A-J), returns `correct` (continuous) and `parsed` (boolean).
+- **`LogprobRankingSolver`** in `nemo_evaluator.solvers.logprob`: ranks candidate continuations via `/completions` (`max_tokens=0, echo=true, logprobs=1`), parses continuation spans via `text_offset`. Per-choice calls run concurrently behind `max_concurrent_choices`.
+- **`@benchmark` extensions**: `choices`, `choices_field` (with dotted-path resolution), `num_fewshot`, `fewshot_split`, `fewshot_template`, `fewshot_separator`, `fewshot_seed`. Few-shot prefix is rendered in `ByobEnvironment.seed()`.
+- **`_load_hf` dataset URI parsing**: path-segment configs (`hf://ns/name/config[/split]`) and row filters (`?filter_field=...&filter_value=...`). Required for namespaced multilingual datasets like `CohereForAI/Global-MMLU-Lite/en`.
+- **Eval loop forwards solver `scoring_details` to `env.verify` kwargs**: lets a solver push per-row payloads to the scorer. `_metric_input_from_verify` lifts `_mc_*`/`_solver_*` namespaced keys onto `MetricInput.candidate.metadata` rather than `row.data`.
+- **`ScorerFunctionMetric.compute_scores` merges `candidate.metadata` into legacy `ScorerInput.metadata`** so legacy `(ScorerInput) -> dict` scorers see solver-emitted payloads.
+
 ### Adapter Proxy (Breaking — replaces LiteLLM)
 
 - **LiteLLM removed**: The `litellm` dependency, `proxy` and `proxy-full` extras, and `litellm_settings` config field are all removed. The adapter proxy is now built-in with zero external proxy dependencies.

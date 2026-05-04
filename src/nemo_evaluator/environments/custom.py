@@ -96,6 +96,18 @@ class BenchmarkDefinition:
     prepare_row: Callable[[dict[str, Any], int, random.Random], dict[str, Any]] | None = None
     seed_fn: Callable[[dict[str, Any], int], SeedResult] | None = None
     image_builder_fn: Callable[[list[dict[str, Any]]], ImageBuildRequest] | None = None
+    # Multiple-choice loglikelihood support (lm-eval-harness parity).
+    # Either ``choices`` (static, e.g. ["A","B","C","D"]) or ``choices_field``
+    # (per-row dataset field, supports dotted paths like ``choices.text``)
+    # must be set when paired with LogprobRankingSolver.
+    choices: list[str] | None = None
+    choices_field: str | None = None
+    # Few-shot prompting (mirrors lm-eval-harness ``--num_fewshot``).
+    num_fewshot: int = 0
+    fewshot_split: str | None = None
+    fewshot_template: str | None = None
+    fewshot_separator: str = "\n\n"
+    fewshot_seed: int = 42
 
 
 _BYOB_REGISTRY: dict[str, BenchmarkDefinition] = {}
@@ -149,10 +161,26 @@ def _load_csv(path: Path, delimiter: str = ",") -> list[dict[str, Any]]:
 
 
 def _load_hf(spec: str, num_examples: int | None = None) -> list[dict[str, Any]]:
+    """Load a HuggingFace dataset.
+
+    Accepts both query-style and path-segment URIs::
+
+        google/boolq?split=validation                  # query split
+        CohereForAI/Global-MMLU-Lite/en?split=test     # path-segment config
+        CohereForAI/Global-MMLU-Lite/en/test           # path-segment config + split
+        boolq?split=validation&config=cfg              # explicit config kwarg
+
+    The first two path segments are always treated as ``namespace/name`` so
+    namespaced datasets work. A third segment is treated as the config when
+    no ``?config=`` is given; a fourth is treated as the split when no
+    ``?split=`` is given. Filter kwargs (``filter_field``,
+    ``filter_value``, optionally suffixed with ``_1``/``_2``/...) drop rows
+    that don't match.
+    """
     from datasets import load_dataset
 
-    parts = spec.split("?")
-    dataset_name = parts[0]
+    parts = spec.split("?", 1)
+    body = parts[0]
     params: dict[str, str] = {}
     if len(parts) > 1:
         for kv in parts[1].split("&"):
@@ -160,8 +188,26 @@ def _load_hf(spec: str, num_examples: int | None = None) -> list[dict[str, Any]]
                 k, v = kv.split("=", 1)
                 params[k] = v
 
-    split = params.get("split", "test")
-    config = params.get("config")
+    segments = [s for s in body.split("/") if s]
+    if not segments:
+        raise ValueError(f"Invalid HuggingFace spec (empty): {spec!r}")
+
+    config_from_path: str | None = None
+    split_from_path: str | None = None
+    if len(segments) == 1:
+        dataset_name = segments[0]
+    elif len(segments) == 2:
+        dataset_name = "/".join(segments[:2])
+    elif len(segments) == 3:
+        dataset_name = "/".join(segments[:2])
+        config_from_path = segments[2]
+    else:
+        dataset_name = "/".join(segments[:2])
+        config_from_path = segments[2]
+        split_from_path = segments[3]
+
+    split = params.get("split", split_from_path or "test")
+    config = params.get("config", config_from_path)
 
     if num_examples and "[" not in split:
         split = f"{split}[:{num_examples}]"
@@ -170,7 +216,30 @@ def _load_hf(spec: str, num_examples: int | None = None) -> list[dict[str, Any]]
     if config:
         args.append(config)
     ds = load_dataset(*args, split=split)
-    return [dict(row) for row in ds]
+    rows = [dict(row) for row in ds]
+
+    filters = _extract_filters(params)
+    if filters:
+        rows = [r for r in rows if all(str(r.get(field)) == value for field, value in filters)]
+
+    return rows
+
+
+def _extract_filters(params: dict[str, str]) -> list[tuple[str, str]]:
+    """Pull ``filter_field=...&filter_value=...`` pairs (with numeric suffixes)."""
+    filters: list[tuple[str, str]] = []
+    base_field = params.get("filter_field")
+    base_value = params.get("filter_value")
+    if base_field and base_value is not None:
+        filters.append((base_field, base_value))
+    for k, v in params.items():
+        if not k.startswith("filter_field_"):
+            continue
+        suffix = k.removeprefix("filter_field_")
+        value = params.get(f"filter_value_{suffix}")
+        if value is not None:
+            filters.append((v, value))
+    return filters
 
 
 def _format_prompt(template: str, row: dict[str, Any], field_mapping: dict[str, str] | None = None) -> str:
@@ -235,11 +304,20 @@ class ByobEnvironment(EvalEnvironment):
             return self._defn.seed_fn(row, idx)
 
         prompt = _format_prompt(self._defn.prompt, row, self._defn.field_mapping)
+        if self._defn.num_fewshot > 0:
+            prompt = self._fewshot_prefix() + prompt
         target = str(row.get(self._defn.target_field, ""))
 
         meta: dict[str, Any] = {"source": "byob", "benchmark": self._defn.name}
         for k, v in row.items():
             meta[k] = v
+
+        # Multiple-choice loglikelihood: surface candidate continuations on
+        # ``metadata["_mc_choices"]`` so a LogprobRankingSolver (or any
+        # solver that recognises the convention) can rank them.
+        choices = _resolve_mc_choices(row, self._defn)
+        if choices is not None:
+            meta["_mc_choices"] = choices
 
         messages = [{"role": "user", "content": prompt}]
         if self._defn.system_prompt:
@@ -248,6 +326,32 @@ class ByobEnvironment(EvalEnvironment):
         return SeedResult(
             prompt=prompt, expected_answer=target, messages=messages, system=self._defn.system_prompt, metadata=meta
         )
+
+    def _fewshot_prefix(self) -> str:
+        defn = self._defn
+        examples = self._fewshot_examples()
+        if not examples:
+            return ""
+        rendered: list[str] = []
+        for ex in examples:
+            text = _render_fewshot_example(defn, ex)
+            if text is not None:
+                rendered.append(text)
+        if not rendered:
+            return ""
+        return defn.fewshot_separator.join(rendered) + defn.fewshot_separator
+
+    def _fewshot_examples(self) -> list[dict[str, Any]]:
+        defn = self._defn
+        if defn.num_fewshot <= 0:
+            return []
+        pool = self._dataset[: max(defn.num_fewshot * 4, defn.num_fewshot)]
+        if not pool:
+            return []
+        rng = random.Random(defn.fewshot_seed)
+        if len(pool) <= defn.num_fewshot:
+            return list(pool)
+        return rng.sample(pool, defn.num_fewshot)
 
     async def verify(self, response: str, expected: str, sandbox: Sandbox | None = None, **meta: Any) -> VerifyResult:
         if self._defn.scorer_fn is None:
@@ -302,11 +406,63 @@ def _metric_input_from_verify(
     response: str,
     metadata: dict[str, Any],
 ) -> MetricInput:
-    row_data: dict[str, object] = dict(metadata)
+    """Build a MetricInput from BYOB verify kwargs.
+
+    Keys prefixed ``_mc_`` (and any other agreed-upon solver-side payload
+    namespace, e.g. ``_solver_*``) are lifted out of the dataset row and
+    placed on ``candidate.metadata`` — the slot the contract designates for
+    inference-time information about the model's output. Dataset-row keys
+    flow through ``row.data`` unchanged.
+    """
+    candidate_meta: dict[str, object] = {}
+    row_data: dict[str, object] = {}
+    for k, v in metadata.items():
+        if isinstance(k, str) and (k.startswith("_mc_") or k.startswith("_solver_")):
+            candidate_meta[k] = v
+        else:
+            row_data[k] = v
     return MetricInput(
         row=DatasetRow(data=row_data),
-        candidate=CandidateOutput(output_text=response),
+        candidate=CandidateOutput(output_text=response, metadata=candidate_meta),
     )
+
+
+def _resolve_mc_choices(row: dict[str, Any], defn: BenchmarkDefinition) -> list[str] | None:
+    """Resolve per-row candidate continuations from a benchmark definition.
+
+    Per-row ``choices_field`` (with optional dotted path support such as
+    ``choices.text``) takes precedence over the static ``choices`` list.
+    Returns ``None`` when neither source resolves to a non-empty list.
+    """
+    if defn.choices_field:
+        raw: object = row
+        for part in defn.choices_field.split("."):
+            if isinstance(raw, dict) and part in raw:
+                raw = raw[part]
+            else:
+                raw = None
+                break
+        if raw is None:
+            raw = row.get(defn.choices_field)
+        if isinstance(raw, dict):
+            raw = raw.get("text")
+        if isinstance(raw, list) and raw:
+            return [str(c) for c in raw]
+    if defn.choices:
+        return list(defn.choices)
+    return None
+
+
+def _render_fewshot_example(defn: BenchmarkDefinition, row: dict[str, Any]) -> str | None:
+    """Render one few-shot example. Returns None on missing-field errors."""
+    try:
+        if defn.fewshot_template:
+            return _format_prompt(defn.fewshot_template, row, defn.field_mapping)
+        prompt_part = _format_prompt(defn.prompt, row, defn.field_mapping)
+        target_part = row.get(defn.target_field, "")
+        return f"{prompt_part} {target_part}".rstrip()
+    except KeyError:
+        return None
 
 
 def _metric_result_to_verify_result(
@@ -370,6 +526,13 @@ def benchmark(
     requirements: list[str] | None = None,
     prepare_row: Callable[[dict[str, Any], int, random.Random], dict[str, Any]] | None = None,
     seed_fn: Callable[[dict[str, Any], int], SeedResult] | None = None,
+    choices: list[str] | None = None,
+    choices_field: str | None = None,
+    num_fewshot: int = 0,
+    fewshot_split: str | None = None,
+    fewshot_template: str | None = None,
+    fewshot_separator: str = "\n\n",
+    fewshot_seed: int = 42,
     **kwargs: Any,
 ):
     """Register a benchmark. Decorate a scorer function."""
@@ -385,6 +548,13 @@ def benchmark(
         requirements=requirements,
         prepare_row=prepare_row,
         seed_fn=seed_fn,
+        choices=choices,
+        choices_field=choices_field,
+        num_fewshot=num_fewshot,
+        fewshot_split=fewshot_split,
+        fewshot_template=fewshot_template,
+        fewshot_separator=fewshot_separator,
+        fewshot_seed=fewshot_seed,
     )
 
     def decorator(fn):
