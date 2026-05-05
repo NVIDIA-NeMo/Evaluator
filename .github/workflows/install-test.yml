@@ -1,0 +1,127 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This workflow verifies that the basic install works across all supported platforms.
+# For basic install, all imports need to either be successful or appropriately guarded.
+
+name: Installation Test
+
+on:
+  push:
+    branches:
+      - main
+      - dev/0.3.0
+      - "pull-request/[0-9]+"
+      - "deploy-release/*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-nemo-evaluator:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: |
+          for i in 1 2 3; do
+            curl -LsSf https://astral.sh/uv/install.sh | sh && break
+            echo "uv install attempt $i failed, retrying..."
+            sleep 10
+          done
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install nemo-evaluator
+        run: |
+          uv pip install --system -e .
+
+      - name: Verify installation
+        run: |
+          python -c "import nemo_evaluator; print(f'nemo-evaluator version: {nemo_evaluator.__version__}')"
+          which nel
+          nel --help
+
+  check-imports:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Checkout FW-CI-templates
+        uses: actions/checkout@v6
+        with:
+          repository: NVIDIA-NeMo/FW-CI-templates
+          path: ./FW-CI-templates
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: |
+          for i in 1 2 3; do
+            curl -LsSf https://astral.sh/uv/install.sh | sh && break
+            echo "uv install attempt $i failed, retrying..."
+            sleep 10
+          done
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install package
+        run: |
+          uv pip install --system -e .
+
+      - name: Check imports
+        uses: ./FW-CI-templates/.github/actions/check-imports
+        with:
+          package-name: nemo_evaluator
+          python-binary: python3
+
+  install-test-summary:
+    needs: [test-nemo-evaluator, check-imports]
+    runs-on: ubuntu-latest
+    name: Install test summary
+    if: always() && !cancelled()
+    steps:
+      - name: Get workflow result
+        id: result
+        shell: bash -x -e -u -o pipefail {0}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          FAILED_JOBS=$(gh run view $GITHUB_RUN_ID --json jobs --jq '[.jobs[] | select(.status == "completed" and .conclusion != "success")] | length') || echo 0
+
+          if [ "${FAILED_JOBS:-0}" -eq 0 ]; then
+              echo "✅ All previous jobs completed successfully"
+              exit 0
+          else
+              echo "❌ Found $FAILED_JOBS failed job(s)"
+              gh run view $GITHUB_RUN_ID --json jobs --jq '.jobs[] | select(.status == "completed" and .conclusion != "success") | .name'
+              exit 1
+          fi
