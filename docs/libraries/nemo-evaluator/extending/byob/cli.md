@@ -97,6 +97,19 @@ Use `nemo-evaluator-byob --list` to see the exact `eval_type` for each installed
 benchmark. This avoids guessing the normalized name.
 :::
 
+For logprob-based multiple-choice benchmarks, use a completions endpoint that
+supports `echo` and `logprobs`:
+
+```bash
+nemo-evaluator run_eval \
+  --eval_type byob_<normalized_name>.<normalized_name> \
+  --model_url http://localhost:8000 \
+  --model_id my-model \
+  --model_type completions_logprob \
+  --output_dir ./results \
+  --api_key_name API_KEY
+```
+
 ## See Also
 
 - {ref}`byob` -- BYOB overview and quickstart

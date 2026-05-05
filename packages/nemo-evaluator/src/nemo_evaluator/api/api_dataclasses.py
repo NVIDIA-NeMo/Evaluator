@@ -39,6 +39,7 @@ class EndpointType(str, Enum):
     UNDEFINED = "undefined"
     CHAT = "chat"
     COMPLETIONS = "completions"
+    COMPLETIONS_LOGPROB = "completions_logprob"
     EMBEDDING = "embedding"
 
 

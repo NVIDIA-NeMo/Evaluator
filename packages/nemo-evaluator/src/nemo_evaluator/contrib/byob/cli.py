@@ -202,7 +202,8 @@ def byob_compile(args=None):
         for name, fdf in compiled.items():
             eval_entry = fdf["evaluations"][0]
             print(f"  - {eval_entry['name']} (normalized: {name})")
-            ds = fdf["defaults"]["config"]["params"]["extra"]["dataset"]
+            ds_cfg = fdf["defaults"]["config"]["params"]["extra"]["dataset"]
+            ds = ds_cfg["path"] if isinstance(ds_cfg, dict) else ds_cfg
             print(f"    Dataset: {ds}")
             if os.path.exists(ds):
                 with open(ds) as f:

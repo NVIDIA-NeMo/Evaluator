@@ -45,6 +45,15 @@ hf://org/dataset?split=validation
 hf://org/dataset/config?split=test
 ```
 
+BYOB also accepts selected HuggingFace `load_dataset` options as query
+parameters:
+
+```
+hf://org/dataset?split=test&trust_remote_code=true
+hf://org/dataset?split=validation&filter_field=language&filter_value=hi
+hf://org/dataset?split=test&data_files=file.json&field=examples
+```
+
 ### Examples
 
 ```python
@@ -66,6 +75,39 @@ hf://org/dataset/config?split=test
 )
 ```
 
+Load a gated or custom-code dataset by allowing remote code execution:
+
+```python
+@benchmark(
+    name="indommlu",
+    dataset="hf://indolem/IndoMMLU?split=test&trust_remote_code=true",
+    prompt="{question}\n\n{options}\n\nAnswer:",
+    target_field="answer",
+)
+```
+
+Filter a multilingual dataset to one language:
+
+```python
+@benchmark(
+    name="boolq-hi",
+    dataset="hf://sarvamai/boolq-indic?split=validation&filter_field=language&filter_value=hi",
+    prompt="Passage: {passage}\nQuestion: {question}\nAnswer:",
+    target_field="answer",
+)
+```
+
+Load a nested JSON field from a specific dataset file:
+
+```python
+@benchmark(
+    name="flores-hi",
+    dataset="hf://google/IndicGenBench_flores_in?split=test&data_files=flores_en_hi_test.json&field=examples",
+    prompt="Translate to Hindi: {source}",
+    target_field="target",
+)
+```
+
 :::{note}
 HuggingFace dataset fetching requires the `datasets` pip package. Install it with `pip install datasets`.
 :::
@@ -77,6 +119,69 @@ Downloaded datasets are cached at `~/.cache/nemo_evaluator/hf_datasets/` by defa
 ### Split Selection
 
 When no split is specified, the HuggingFace `datasets` library defaults are used. If the result is a `DatasetDict` (multiple splits), the first available split is selected automatically.
+
+### Query Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `split` | Split passed to `datasets.load_dataset`, for example `test` or `validation`. |
+| `trust_remote_code=true` | Passes `trust_remote_code=True` to `datasets.load_dataset`. Required by some datasets with custom loading scripts. |
+| `filter_field` / `filter_value` | Filters rows after loading, keeping rows where `str(row[filter_field]) == filter_value`. |
+| `filter_field_1` / `filter_value_1`, etc. | Additional row filters applied in order. |
+| `data_files` | Passes `data_files` to `datasets.load_dataset`, useful for repositories that store examples in individual JSON files. |
+| `field` | Passes `field` to `datasets.load_dataset`, useful for JSON files where examples live under a top-level key such as `examples`. |
+
+::::{warning}
+If you put `hf://` URIs with `&` query parameters in shell command
+templates, quote the dataset argument:
+
+```bash
+--dataset "{{config.params.extra.dataset.path}}"
+```
+
+Otherwise the shell treats `&` as a background-command separator.
+::::
+
+### `extra.dataset.*` namespace
+
+BYOB groups dataset-related configuration under
+`config.params.extra.dataset.*` in the FDF / run_config:
+
+| Key | Description |
+|-----|-------------|
+| `path` | Dataset file path or `hf://` URI (compile-time default from `@benchmark(dataset=...)`). |
+| `num_fewshot` | Optional few-shot example count (lm-eval-harness parity). |
+| `field_mapping` | Informational mirror of `@benchmark(field_mapping=...)`. |
+| `choices` / `choices_field` | Informational mirror of `@benchmark(choices=...)` / `@benchmark(choices_field=...)`. |
+
+### Overriding the dataset at run time
+
+The `@benchmark` decorator's `dataset=` value is the compile-time default. To
+swap it for a single run without rebuilding the benchmark, set
+`config.params.extra.dataset.path` via the launcher's run_config or CLI. The
+launcher deep-merges via OmegaConf, so sibling keys under `extra.dataset`
+(`num_fewshot`, `field_mapping`, etc.) and under `extra` (`benchmark_module`,
+`requirements`, …) are preserved.
+
+```bash
+nemo-evaluator-launcher run --config my_config.yaml \
+  -o 'evaluation.tasks.<task_name>.nemo_evaluator_config.config.params.extra.dataset.path=hf://other/foo?split=test'
+```
+
+Or in a run_config YAML:
+
+```yaml
+evaluation:
+  tasks:
+    - name: <task_name>
+      nemo_evaluator_config:
+        config:
+          params:
+            extra:
+              dataset:
+                path: hf://other/foo?split=test
+                num_fewshot: 5
+```
 
 ## Field Mapping
 

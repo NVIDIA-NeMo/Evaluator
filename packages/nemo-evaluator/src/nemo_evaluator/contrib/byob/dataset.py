@@ -44,6 +44,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Protocol, runtime_checkable
+from urllib.parse import parse_qsl
 
 from nemo_evaluator.logging import get_logger
 
@@ -168,7 +169,7 @@ class HuggingFaceFetcher:
                 "Install it with:  pip install datasets"
             ) from exc
 
-        dataset_name, config, split = self._parse_uri(uri)
+        dataset_name, config, split, options = self._parse_uri(uri)
         cache = cache_dir or self._default_cache_dir
         cache.mkdir(parents=True, exist_ok=True)
 
@@ -179,6 +180,9 @@ class HuggingFaceFetcher:
             parts.append(config)
         if split is not None:
             parts.append(split)
+        filters = _extract_filters(options)
+        for field_name, value in filters:
+            parts.append(f"{field_name}-{value}")
         out_path = cache / ("_".join(parts) + ".jsonl")
 
         if out_path.exists():
@@ -191,6 +195,7 @@ class HuggingFaceFetcher:
                     "dataset": dataset_name,
                     "config": config,
                     "split": split,
+                    **options,
                 },
             )
 
@@ -201,11 +206,18 @@ class HuggingFaceFetcher:
             split=split,
         )
 
-        load_kwargs: Dict[str, str] = {}
+        load_kwargs: Dict[str, object] = {}
         if config is not None:
             load_kwargs["name"] = config
         if split is not None:
             load_kwargs["split"] = split
+        if options.get("data_files"):
+            data_files = options["data_files"]
+            load_kwargs["data_files"] = {split: data_files} if split else data_files
+        if options.get("field"):
+            load_kwargs["field"] = options["field"]
+        if options.get("trust_remote_code", "").lower() in {"1", "true", "yes"}:
+            load_kwargs["trust_remote_code"] = True
 
         ds = hf_datasets.load_dataset(dataset_name, **load_kwargs)
 
@@ -217,6 +229,19 @@ class HuggingFaceFetcher:
                 "No split specified; using first available split", split=first_split
             )
             ds = ds[first_split]
+
+        for filter_field, filter_value in filters:
+            before_count = len(ds)
+            ds = ds.filter(
+                lambda row, f=filter_field, v=filter_value: str(row.get(f)) == v
+            )
+            logger.info(
+                "Filtered HuggingFace dataset",
+                field=filter_field,
+                value=filter_value,
+                records_before=before_count,
+                records_after=len(ds),
+            )
 
         # Write out as JSONL.
         with open(out_path, "w", encoding="utf-8") as fout:
@@ -237,6 +262,7 @@ class HuggingFaceFetcher:
                 "dataset": dataset_name,
                 "config": config,
                 "split": split,
+                **options,
             },
         )
 
@@ -272,26 +298,58 @@ class HuggingFaceFetcher:
 
         # Extract ?split=X query parameter if present
         query_split = None
+        options: Dict[str, str] = {}
         if "?" in body:
             body, query = body.split("?", 1)
-            for param in query.split("&"):
-                if param.startswith("split="):
-                    query_split = param[len("split=") :]
+            for key, value in parse_qsl(query, keep_blank_values=True):
+                if key == "split":
+                    query_split = value
+                else:
+                    options[key] = value
 
         segments = [s for s in body.split("/") if s]
         if not segments:
             raise ValueError(f"Invalid HuggingFace URI (empty body): {uri}")
 
         if len(segments) == 1:
-            return (segments[0], None, query_split)
+            return (segments[0], None, query_split, options)
         elif len(segments) == 2:
-            return ("/".join(segments[:2]), None, query_split)
+            return ("/".join(segments[:2]), None, query_split, options)
         elif len(segments) == 3:
-            return ("/".join(segments[:2]), segments[2], query_split)
+            return ("/".join(segments[:2]), segments[2], query_split, options)
         elif len(segments) >= 4:
-            return ("/".join(segments[:2]), segments[2], query_split or segments[3])
+            return (
+                "/".join(segments[:2]),
+                segments[2],
+                query_split or segments[3],
+                options,
+            )
 
-        return (body, None, query_split)  # pragma: no cover
+        return (body, None, query_split, options)  # pragma: no cover
+
+
+def _extract_filters(options: Dict[str, str]) -> List[tuple[str, str]]:
+    """Return HuggingFace row filters encoded in a dataset URI.
+
+    Supports one filter via filter_field/filter_value and additional filters
+    with numeric suffixes, e.g. filter_field_1/filter_value_1.
+    """
+    filters = []
+    first_field = options.get("filter_field")
+    first_value = options.get("filter_value")
+    if first_field and first_value is not None:
+        filters.append((first_field, first_value))
+
+    idx = 1
+    while True:
+        field_name = options.get(f"filter_field_{idx}")
+        value = options.get(f"filter_value_{idx}")
+        if not field_name and value is None:
+            break
+        if field_name and value is not None:
+            filters.append((field_name, value))
+        idx += 1
+    return filters
 
 
 # --- Format detection ---
