@@ -7,7 +7,7 @@ name = "nemo-evaluator"
 version = "0.13.0"
 description = "NeMo Evaluator — benchmark environments, pluggable solvers, interceptor proxy, and decision-grade scoring for LLMs"
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.11,<3.14"
 license = "Apache-2.0"
 authors = [
     { name = "NVIDIA" },
