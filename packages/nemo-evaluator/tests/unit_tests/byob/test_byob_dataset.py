@@ -579,30 +579,223 @@ class TestHuggingFaceFetcher:
                 fetcher.fetch("hf://test/dataset")
 
     def test_uri_parsing(self) -> None:
-        """Validate _parse_uri with various URI patterns returns correct tuples."""
-        # hf://org/dataset/config/split -> (org/dataset, config, split)
+        """Validate _parse_uri with various URI patterns returns correct tuples.
+
+        The fetcher returns ``(dataset_name, config, split, options)`` where
+        ``options`` is a dict of pass-through query parameters (used for
+        ``trust_remote_code``, ``filter_field``/``filter_value``,
+        ``data_files``, ``field``, etc).
+        """
+        # hf://org/dataset/config/split -> (org/dataset, config, split, {})
         result = HuggingFaceFetcher._parse_uri("hf://org/dataset/config/split")
-        assert result == ("org/dataset", "config", "split"), (
-            f"Expected ('org/dataset', 'config', 'split'), got {result}"
+        assert result == ("org/dataset", "config", "split", {}), (
+            f"Expected ('org/dataset', 'config', 'split', {{}}), got {result}"
         )
 
-        # hf://org/dataset/config -> (org/dataset, config, None)
+        # hf://org/dataset/config -> (org/dataset, config, None, {})
         result = HuggingFaceFetcher._parse_uri("hf://org/dataset/config")
-        assert result == ("org/dataset", "config", None), (
-            f"Expected ('org/dataset', 'config', None), got {result}"
+        assert result == ("org/dataset", "config", None, {}), (
+            f"Expected ('org/dataset', 'config', None, {{}}), got {result}"
         )
 
-        # hf://org/dataset -> (org/dataset, None, None)
+        # hf://org/dataset -> (org/dataset, None, None, {})
         result = HuggingFaceFetcher._parse_uri("hf://org/dataset")
-        assert result == ("org/dataset", None, None), (
-            f"Expected ('org/dataset', None, None), got {result}"
+        assert result == ("org/dataset", None, None, {}), (
+            f"Expected ('org/dataset', None, None, {{}}), got {result}"
         )
 
-        # hf://single_name -> (single_name, None, None)
+        # hf://single_name -> (single_name, None, None, {})
         result = HuggingFaceFetcher._parse_uri("hf://single_name")
-        assert result == ("single_name", None, None), (
-            f"Expected ('single_name', None, None), got {result}"
+        assert result == ("single_name", None, None, {}), (
+            f"Expected ('single_name', None, None, {{}}), got {result}"
         )
+
+    def test_uri_parsing_query_split(self) -> None:
+        """`?split=X` overrides path-segment split."""
+        result = HuggingFaceFetcher._parse_uri("hf://google/boolq?split=validation")
+        assert result == ("google/boolq", None, "validation", {})
+
+        result = HuggingFaceFetcher._parse_uri(
+            "hf://CohereForAI/Global-MMLU-Lite/en?split=test"
+        )
+        assert result == ("CohereForAI/Global-MMLU-Lite", "en", "test", {})
+
+    def test_uri_parsing_extra_query_params_passthrough(self) -> None:
+        """Non-`split` query params surface on the options dict."""
+        result = HuggingFaceFetcher._parse_uri(
+            "hf://indolem/IndoMMLU?split=test&trust_remote_code=true"
+        )
+        assert result == (
+            "indolem/IndoMMLU",
+            None,
+            "test",
+            {"trust_remote_code": "true"},
+        )
+
+    def test_uri_parsing_data_files_and_field(self) -> None:
+        """`data_files` + `field` pass through for nested-JSON datasets."""
+        uri = (
+            "hf://google/IndicGenBench_flores_in"
+            "?split=test&data_files=flores_en_hi_test.json&field=examples"
+        )
+        result = HuggingFaceFetcher._parse_uri(uri)
+        assert result == (
+            "google/IndicGenBench_flores_in",
+            None,
+            "test",
+            {"data_files": "flores_en_hi_test.json", "field": "examples"},
+        )
+
+    def test_uri_parsing_filter_params(self) -> None:
+        """`filter_field`/`filter_value` (and numeric variants) survive parsing."""
+        uri = (
+            "hf://sarvamai/boolq-indic"
+            "?split=validation&filter_field=language&filter_value=hi"
+            "&filter_field_1=domain&filter_value_1=open"
+        )
+        result = HuggingFaceFetcher._parse_uri(uri)
+        assert result[0] == "sarvamai/boolq-indic"
+        assert result[1] is None
+        assert result[2] == "validation"
+        assert result[3] == {
+            "filter_field": "language",
+            "filter_value": "hi",
+            "filter_field_1": "domain",
+            "filter_value_1": "open",
+        }
+
+    def test_extract_filters_single_pair(self) -> None:
+        from nemo_evaluator.contrib.byob.dataset import _extract_filters
+
+        assert _extract_filters({"filter_field": "language", "filter_value": "hi"}) == [
+            ("language", "hi")
+        ]
+
+    def test_extract_filters_multiple_pairs(self) -> None:
+        from nemo_evaluator.contrib.byob.dataset import _extract_filters
+
+        opts = {
+            "filter_field": "language",
+            "filter_value": "hi",
+            "filter_field_1": "domain",
+            "filter_value_1": "open",
+            "filter_field_2": "split",
+            "filter_value_2": "test",
+        }
+        assert _extract_filters(opts) == [
+            ("language", "hi"),
+            ("domain", "open"),
+            ("split", "test"),
+        ]
+
+    def test_extract_filters_ignores_unpaired_keys(self) -> None:
+        from nemo_evaluator.contrib.byob.dataset import _extract_filters
+
+        # filter_value without filter_field is silently ignored
+        assert _extract_filters({"filter_value": "hi"}) == []
+        # filter_field without filter_value is silently ignored
+        assert _extract_filters({"filter_field": "language"}) == []
+
+    def test_fetch_passes_trust_remote_code_and_filters(self, tmp_path: Path) -> None:
+        """End-to-end: query params reach `load_dataset` kwargs and `ds.filter`."""
+        captured: dict = {}
+
+        class _FakeDataset:
+            def __init__(self, rows):
+                self._rows = rows
+
+            def __iter__(self):
+                return iter(self._rows)
+
+            def __len__(self):
+                return len(self._rows)
+
+            def filter(self, fn):
+                kept = [r for r in self._rows if fn(r)]
+                captured.setdefault("filter_calls", 0)
+                captured["filter_calls"] += 1
+                return _FakeDataset(kept)
+
+        rows = [
+            {"q": "Q1", "language": "hi"},
+            {"q": "Q2", "language": "en"},
+            {"q": "Q3", "language": "hi"},
+        ]
+
+        def fake_load_dataset(name, **kwargs):
+            captured["name"] = name
+            captured["kwargs"] = kwargs
+            return _FakeDataset(rows)
+
+        # Patch the lazy import used inside HuggingFaceFetcher.fetch()
+        fake_module = type(
+            "M",
+            (),
+            {"load_dataset": staticmethod(fake_load_dataset), "DatasetDict": dict},
+        )
+
+        fetcher = HuggingFaceFetcher()
+        with patch.dict("sys.modules", {"datasets": fake_module}):
+            uri = (
+                "hf://indolem/IndoMMLU?split=test"
+                "&trust_remote_code=true"
+                "&filter_field=language&filter_value=hi"
+            )
+            result = fetcher.fetch(uri, cache_dir=tmp_path)
+
+        assert captured["name"] == "indolem/IndoMMLU"
+        assert captured["kwargs"]["split"] == "test"
+        assert captured["kwargs"]["trust_remote_code"] is True
+        assert captured["filter_calls"] == 1
+
+        # Filtered JSONL should only contain the Hindi rows.
+        with open(result.local_path, encoding="utf-8") as fh:
+            kept = [json.loads(line) for line in fh]
+        assert kept == [
+            {"q": "Q1", "language": "hi"},
+            {"q": "Q3", "language": "hi"},
+        ]
+
+    def test_fetch_passes_data_files_and_field(self, tmp_path: Path) -> None:
+        """End-to-end: data_files + field reach `load_dataset` kwargs."""
+        captured: dict = {}
+
+        class _FakeDataset:
+            def __init__(self, rows):
+                self._rows = rows
+
+            def __iter__(self):
+                return iter(self._rows)
+
+            def __len__(self):
+                return len(self._rows)
+
+            def filter(self, fn):  # not used in this test
+                return _FakeDataset([r for r in self._rows if fn(r)])
+
+        rows = [{"source": "hello", "target": "हैलो"}]
+
+        def fake_load_dataset(name, **kwargs):
+            captured["name"] = name
+            captured["kwargs"] = kwargs
+            return _FakeDataset(rows)
+
+        fake_module = type(
+            "M",
+            (),
+            {"load_dataset": staticmethod(fake_load_dataset), "DatasetDict": dict},
+        )
+
+        fetcher = HuggingFaceFetcher()
+        with patch.dict("sys.modules", {"datasets": fake_module}):
+            uri = (
+                "hf://google/IndicGenBench_flores_in"
+                "?split=test&data_files=flores_en_hi_test.json&field=examples"
+            )
+            fetcher.fetch(uri, cache_dir=tmp_path)
+
+        assert captured["kwargs"]["data_files"] == {"test": "flores_en_hi_test.json"}
+        assert captured["kwargs"]["field"] == "examples"
 
 
 # ---------------------------------------------------------------------------

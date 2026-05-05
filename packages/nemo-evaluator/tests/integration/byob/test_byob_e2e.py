@@ -19,19 +19,33 @@ This module tests the full BYOB workflow including:
 - TruthfulQA scorer logic with mocked judge
 - Compiler integration (compile + install)
 - Runner E2E with mock server subprocess calls
+- Multiple-choice loglikelihood E2E with an in-process mock /v1/completions
 """
 
+import hashlib
 import importlib.util
 import json
 import subprocess
 import sys
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
+from nemo_evaluator.contrib.byob.aggregation import aggregate_scores
 from nemo_evaluator.contrib.byob.compiler import compile_benchmark, install_benchmark
-from nemo_evaluator.contrib.byob.decorators import ScorerInput
+from nemo_evaluator.contrib.byob.decorators import (
+    BenchmarkDefinition,
+    ScorerInput,
+)
+from nemo_evaluator.contrib.byob.eval_logic import run_eval_loop
+from nemo_evaluator.contrib.byob.runner import (
+    _create_session_model_call_fn,
+    create_session,
+)
+from nemo_evaluator.contrib.byob.scorers import multiple_choice_acc
 
 
 def _get_truthfulqa_benchmark_path():
@@ -299,3 +313,193 @@ def simple_scorer(sample):
             "Help output should mention --benchmark-module"
         )
         assert "--model-url" in result.stdout, "Help output should mention --model-url"
+
+
+# ---------------------------------------------------------------------------
+# Multiple-choice loglikelihood E2E
+#
+# Spins up an in-process OpenAI-compatible /v1/completions server that
+# returns deterministic ``echo+logprobs`` payloads, then runs
+# ``MultipleChoiceStrategy`` over a 4-question synthetic MMLU-style
+# dataset. Verifies the wire payload (``echo=true, logprobs=1, max_tokens=0``),
+# aggregated metrics (``acc``, ``acc_norm``, ``acc_greedy``), and
+# per-prediction diagnostics.
+# ---------------------------------------------------------------------------
+
+
+class _LogprobHandler(BaseHTTPRequestHandler):
+    """Deterministic mock that returns echo+logprobs payloads.
+
+    Tokenizes the incoming prompt by whitespace, assigns a fixed
+    log-prob to each token (``-len(token) * 0.5``), then patches the
+    log-prob of the token whose lowercase form matches ``GOLD_TOKEN``
+    to ``-0.1`` so a known choice wins argmax.
+    """
+
+    GOLD_TOKEN = "b"
+    requests_log: list = []
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = json.loads(self.rfile.read(length))
+        type(self).requests_log.append({"path": self.path, "body": body})
+
+        if self.path != "/completions":
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        prompt = body.get("prompt", "")
+        tokens, offsets = [], []
+        i = 0
+        n = len(prompt)
+        while i < n:
+            start = i
+            while i < n and prompt[i].isspace() and i == start:
+                i += 1
+            while i < n and not prompt[i].isspace():
+                i += 1
+            tok = prompt[start:i]
+            if tok:
+                tokens.append(tok)
+                offsets.append(start)
+
+        token_logprobs = [None]
+        top_logprobs = [None]
+        for tok in tokens[1:]:
+            stripped = tok.strip().lower()
+            if stripped == self.GOLD_TOKEN:
+                lp = -0.1
+            else:
+                h = hashlib.md5(stripped.encode()).hexdigest()
+                lp = -0.5 - (int(h[:4], 16) % 100) / 100.0
+            token_logprobs.append(lp)
+            top_logprobs.append({tok: lp})
+
+        resp = {
+            "choices": [
+                {
+                    "text": "",
+                    "logprobs": {
+                        "tokens": tokens,
+                        "token_logprobs": token_logprobs,
+                        "text_offset": offsets,
+                        "top_logprobs": top_logprobs,
+                    },
+                }
+            ]
+        }
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps(resp).encode())
+
+    def log_message(self, *_args, **_kwargs):  # silence
+        pass
+
+
+class _LogprobServer:
+    def __init__(self):
+        self.server = HTTPServer(("localhost", 0), _LogprobHandler)
+        self.port = self.server.server_address[1]
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+
+    def __enter__(self):
+        _LogprobHandler.requests_log = []
+        self.thread.start()
+        return self
+
+    def __exit__(self, *_):
+        self.server.shutdown()
+        self.thread.join(timeout=5)
+
+    @property
+    def url(self):
+        return f"http://localhost:{self.port}"
+
+
+@pytest.fixture
+def loglikelihood_server():
+    with _LogprobServer() as s:
+        yield s
+
+
+def _make_logprob_args(server_url: str):
+    """Build a minimal Namespace shaped like argparse output."""
+    import argparse
+
+    return argparse.Namespace(
+        model_url=server_url,
+        model_id="mock",
+        api_key_name=None,
+        temperature=0.0,
+        max_tokens=0,
+        top_p=None,
+        request_timeout=None,
+        timeout_per_sample=30.0,
+    )
+
+
+class TestMultipleChoiceLogprobE2E:
+    """End-to-end loglikelihood evaluation against an in-process server."""
+
+    def test_multiple_choice_loglikelihood_e2e(self, loglikelihood_server):
+        bench = BenchmarkDefinition(
+            name="mock-mmlu",
+            normalized_name="mock_mmlu",
+            dataset="x",
+            prompt="Q: {q} Answer:",
+            scorer_fn=multiple_choice_acc,
+            target_field="answer",
+            endpoint_type="completions_logprob",
+            # Leading space so each choice tokenizes as a single token in
+            # the mock server's whitespace-based tokenizer.
+            choices=[" A", " B", " C", " D"],
+        )
+
+        # Target stored as a verbatim choice so multiple_choice_acc
+        # resolves the gold index by string match.
+        dataset = [
+            {"q": "what?", "answer": " B"},
+            {"q": "where?", "answer": " B"},
+            {"q": "when?", "answer": " B"},
+            {"q": "why?", "answer": " B"},
+        ]
+
+        args = _make_logprob_args(loglikelihood_server.url)
+        session = create_session(max_retries=1, backoff_factor=0.0)
+        model_call_fn = _create_session_model_call_fn(args, None, session)
+
+        scores, predictions = run_eval_loop(
+            bench=bench,
+            dataset=dataset,
+            model_call_fn=model_call_fn,
+            endpoint_type="completions_logprob",
+            save_predictions=True,
+        )
+
+        # Rigged: token "B" gets the highest logprob so all 4 samples score 1.
+        assert len(scores) == 4
+        assert all(s["acc"] == 1.0 for s in scores), scores
+        assert all(s["acc_norm"] == 1.0 for s in scores), scores
+
+        # Each sample triggers exactly 4 server calls (one per choice).
+        assert len(_LogprobHandler.requests_log) == 16
+        payload = _LogprobHandler.requests_log[0]["body"]
+        assert payload["max_tokens"] == 0
+        assert payload["echo"] is True
+        assert payload["logprobs"] == 1
+        assert payload["temperature"] == 0.0
+
+        aggregated = aggregate_scores(scores, "mock_mmlu")
+        out_scores = aggregated["tasks"]["mock_mmlu"]["metrics"]["pass@1"]["scores"]
+        assert "acc" in out_scores
+        assert "acc_norm" in out_scores
+        assert "acc_greedy" in out_scores
+        assert out_scores["acc"]["value"] == 1.0
+        assert out_scores["acc_norm"]["value"] == 1.0
+
+        # All predictions captured per-choice diagnostic metadata.
+        for pred in predictions:
+            assert pred.metadata["_choices"] == [" A", " B", " C", " D"]
+            assert len(pred.metadata["_choices_logprobs"]) == 4

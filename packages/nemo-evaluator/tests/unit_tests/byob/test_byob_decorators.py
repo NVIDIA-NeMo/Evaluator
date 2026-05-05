@@ -850,3 +850,123 @@ class TestSystemPromptDecorator:
 
         resolved = _resolve_prompt("system.txt", tmp_path)
         assert resolved == "You are a domain expert in {domain}."
+
+
+# ---------------------------------------------------------------------------
+# Logprob / few-shot fields on ScorerInput and BenchmarkDefinition
+#
+# These cover the new per-choice loglikelihood plumbing wired up for
+# `endpoint_type="completions_logprob"`. They verify the dataclass +
+# decorator surface only; behavioural tests live in
+# test_byob_eval_logic.py and test_byob_scorers.py.
+# ---------------------------------------------------------------------------
+
+
+class TestScorerInputLogprobFields:
+    """Tests for logprob-related fields surfaced through ``metadata``.
+
+    Per the BYOB convention, ``MultipleChoiceStrategy`` writes
+    ``_choices``, ``_choices_logprobs``, and ``_choices_is_greedy`` into
+    ``ScorerInput.metadata`` (the shared row + response-metadata bag)
+    rather than as typed dataclass fields.
+    """
+
+    def test_metadata_starts_without_logprob_keys(self):
+        inp = ScorerInput(response="r", target="t", metadata={})
+        assert "_choices" not in inp.metadata
+        assert "_choices_logprobs" not in inp.metadata
+        assert "_choices_is_greedy" not in inp.metadata
+
+    def test_logprob_metadata_round_trip(self):
+        inp = ScorerInput(
+            response="B",
+            target="B",
+            metadata={
+                "_choices": ["A", "B", "C", "D"],
+                "_choices_logprobs": [-3.0, -1.0, -2.0, -4.0],
+                "_choices_is_greedy": [False, True, False, False],
+            },
+        )
+        assert inp.metadata["_choices"] == ["A", "B", "C", "D"]
+        assert inp.metadata["_choices_logprobs"] == [-3.0, -1.0, -2.0, -4.0]
+        assert inp.metadata["_choices_is_greedy"] == [False, True, False, False]
+
+
+class TestBenchmarkLogprobFields:
+    """Tests for the @benchmark decorator's logprob / few-shot params."""
+
+    def test_completions_logprob_endpoint_type_with_static_choices(self):
+        @benchmark(
+            name="mc-static",
+            dataset="d.jsonl",
+            prompt="Q: {q}\nA:",
+            target_field="answer",
+            endpoint_type="completions_logprob",
+            choices=[" A", " B", " C", " D"],
+        )
+        @scorer
+        def fn(sample):
+            return {"acc": 0.0}
+
+        defn = get_registered_benchmarks()["mc_static"]
+        assert defn.endpoint_type == "completions_logprob"
+        assert defn.choices == [" A", " B", " C", " D"]
+        assert defn.choices_field is None
+
+    def test_completions_logprob_endpoint_type_with_choices_field(self):
+        @benchmark(
+            name="mc-perrow",
+            dataset="d.jsonl",
+            prompt="Q: {q}\nA:",
+            target_field="answer",
+            endpoint_type="completions_logprob",
+            choices_field="choices.text",
+        )
+        @scorer
+        def fn(sample):
+            return {"acc": 0.0}
+
+        defn = get_registered_benchmarks()["mc_perrow"]
+        assert defn.endpoint_type == "completions_logprob"
+        assert defn.choices_field == "choices.text"
+        assert defn.choices is None
+
+    def test_fewshot_fields_round_trip(self):
+        @benchmark(
+            name="few",
+            dataset="d.jsonl",
+            prompt="Q: {q}\nA:",
+            target_field="answer",
+            num_fewshot=5,
+            fewshot_split="train",
+            fewshot_template="Q: {q}\nA: {answer}",
+            fewshot_separator="\n---\n",
+        )
+        @scorer
+        def fn(sample):
+            return {"correct": False}
+
+        defn = get_registered_benchmarks()["few"]
+        assert defn.num_fewshot == 5
+        assert defn.fewshot_split == "train"
+        assert defn.fewshot_template == "Q: {q}\nA: {answer}"
+        assert defn.fewshot_separator == "\n---\n"
+
+    def test_logprob_fields_default_unset_on_chat_benchmarks(self):
+        @benchmark(
+            name="plain-chat",
+            dataset="d.jsonl",
+            prompt="Q: {q}\nA:",
+            target_field="answer",
+        )
+        @scorer
+        def fn(sample):
+            return {"correct": False}
+
+        defn = get_registered_benchmarks()["plain_chat"]
+        assert defn.choices is None
+        assert defn.choices_field is None
+        assert defn.num_fewshot == 0
+        assert defn.fewshot_split is None
+        assert defn.fewshot_template is None
+        assert defn.fewshot_separator == "\n\n"

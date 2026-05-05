@@ -21,12 +21,18 @@ def check(sample: ScorerInput) -> dict:
 | `dataset` | `str` | required | Path to JSONL file or `hf://` URI |
 | `prompt` | `str` | required | Format string with `{field}` placeholders, or path to template file |
 | `target_field` | `str` | `"target"` | Dataset field containing ground truth |
-| `endpoint_type` | `str` | `"chat"` | `"chat"` or `"completions"` |
+| `endpoint_type` | `str` | `"chat"` | `"chat"`, `"completions"`, or `"completions_logprob"` |
 | `requirements` | `list` or `str` | `None` | Pip deps (list or path to requirements.txt) |
 | `field_mapping` | `dict` | `None` | Maps source columns to prompt field names |
 | `extra` | `dict` | `None` | Framework-specific params (judge config, etc.) |
 | `response_field` | `str` | `None` | JSONL field with pre-generated responses (eval-only mode) |
 | `system_prompt` | `str` | `None` | System prompt string or path to template file |
+| `choices` | `list[str]` | `None` | Static candidate continuations for `endpoint_type="completions_logprob"` |
+| `choices_field` | `str` | `None` | Dataset field containing per-row candidate continuations for `endpoint_type="completions_logprob"`; dotted paths such as `choices.text` are supported |
+| `num_fewshot` | `int` | `0` | Number of few-shot examples to prepend to each prompt |
+| `fewshot_split` | `str` | `None` | Optional split to sample few-shot examples from |
+| `fewshot_template` | `str` | `None` | Optional template for rendering few-shot examples |
+| `fewshot_separator` | `str` | `"\n\n"` | Separator between rendered few-shot examples |
 
 ## Name Normalization
 
@@ -140,6 +146,39 @@ def review(sample: ScorerInput) -> dict:
 :::{note}
 System prompts support Jinja2 templates with the same detection rules as user prompts.
 :::
+
+## Logprob Multiple-Choice Benchmarks
+
+Use `endpoint_type="completions_logprob"` when the benchmark should score
+candidate answers by likelihood instead of asking the model to generate a
+free-form answer. This mode calls an OpenAI-compatible `/v1/completions`
+endpoint with `max_tokens=0`, `echo=true`, and `logprobs=1`.
+
+Static choices:
+
+```python
+@benchmark(
+    name="mmlu-mini",
+    dataset="data.jsonl",
+    prompt="Question: {question}\nAnswer:",
+    target_field="answer",
+    endpoint_type="completions_logprob",
+    choices=[" A", " B", " C", " D"],
+)
+```
+
+Per-row choices, including nested HuggingFace fields:
+
+```python
+@benchmark(
+    name="arc-mini",
+    dataset="hf://my-org/arc-hi?split=test",
+    prompt="Question: {{question}}\nAnswer:",
+    target_field="answerKey",
+    endpoint_type="completions_logprob",
+    choices_field="choices.text",
+)
+```
 
 ## See Also
 

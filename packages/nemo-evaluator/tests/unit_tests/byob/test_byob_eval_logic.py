@@ -26,12 +26,16 @@ from nemo_evaluator.contrib.byob.decorators import (
 )
 from nemo_evaluator.contrib.byob.eval_logic import (
     EvalOnlyStrategy,
+    MultipleChoiceStrategy,
     SampleResult,
     StandardStrategy,
+    build_fewshot_examples,
+    build_fewshot_prefix,
     import_benchmark,
     render_prompt,
     run_eval_loop,
 )
+from nemo_evaluator.contrib.byob.scorers import multiple_choice_acc
 
 
 class TestImportBenchmark:
@@ -1360,3 +1364,342 @@ class TestSystemPromptInStrategy:
         assert len(scores) == 2
         assert prompts_seen[0] == "Domain: math"
         assert prompts_seen[1] == "Domain: science"
+
+
+# ---------------------------------------------------------------------------
+# MultipleChoiceStrategy
+#
+# Drives logprob-based MCQ benchmarks for `endpoint_type="completions_logprob"`.
+# Issues one model_call_fn invocation per choice, populates the new
+# ScorerInput vector fields, and exposes per-choice diagnostics on
+# `SampleResult.metadata`.
+# ---------------------------------------------------------------------------
+
+
+class TestMultipleChoiceStrategy:
+    def _bench(self, **overrides):
+        defaults = {
+            "name": "mc",
+            "normalized_name": "mc",
+            "dataset": "x",
+            "prompt": "Q: {q}\nA:",
+            "scorer_fn": multiple_choice_acc,
+            "target_field": "answer",
+            "endpoint_type": "completions_logprob",
+            "choices": ["A", "B", "C", "D"],
+        }
+        defaults.update(overrides)
+        return BenchmarkDefinition(**defaults)
+
+    def test_calls_one_per_choice_static_choices(self):
+        bench = self._bench()
+        calls = []
+
+        def fake_call(prompt, endpoint_type, **kwargs):
+            calls.append((prompt, endpoint_type, kwargs.get("continuation")))
+            cont = kwargs["continuation"]
+            return (-1.0 if cont == "B" else -3.0, cont == "B")
+
+        strategy = MultipleChoiceStrategy()
+        scores, pred = strategy.evaluate_sample(
+            idx=0,
+            row={"q": "what is 1+1?", "answer": "B"},
+            bench=bench,
+            model_call_fn=fake_call,
+            endpoint_type="completions_logprob",
+            request_timeout=None,
+        )
+        assert scores == {"acc": 1.0, "acc_norm": 1.0, "acc_greedy": 1.0}
+        assert len(calls) == 4
+        assert all(c[1] == "completions_logprob" for c in calls)
+        assert sorted(c[2] for c in calls) == ["A", "B", "C", "D"]
+        assert pred.response == "B"
+        assert pred.metadata["_choices"] == ["A", "B", "C", "D"]
+        assert pred.metadata["_choices_logprobs"] == [-3.0, -1.0, -3.0, -3.0]
+
+    def test_per_row_choices_field_takes_precedence(self):
+        bench = self._bench(choices=None, choices_field="cands")
+
+        def fake_call(prompt, endpoint_type, **kwargs):
+            return (-1.0 if kwargs["continuation"] == "x" else -2.0, False)
+
+        strategy = MultipleChoiceStrategy()
+        scores, pred = strategy.evaluate_sample(
+            idx=0,
+            row={"q": "?", "answer": "x", "cands": ["x", "y"]},
+            bench=bench,
+            model_call_fn=fake_call,
+            endpoint_type="completions_logprob",
+            request_timeout=None,
+        )
+        assert pred.response == "x"
+        assert pred.metadata["_choices"] == ["x", "y"]
+
+    def test_per_row_choices_field_supports_dotted_path(self):
+        """ARC-style HuggingFace schema: row["choices"]["text"] is a list."""
+        bench = self._bench(choices=None, choices_field="choices.text")
+
+        def fake_call(prompt, endpoint_type, **kwargs):
+            return (-1.0 if kwargs["continuation"] == "beta" else -2.0, False)
+
+        strategy = MultipleChoiceStrategy()
+        scores, pred = strategy.evaluate_sample(
+            idx=0,
+            row={
+                "q": "?",
+                "answer": "B",
+                "choices": {"label": ["A", "B"], "text": ["alpha", "beta"]},
+            },
+            bench=bench,
+            model_call_fn=fake_call,
+            endpoint_type="completions_logprob",
+            request_timeout=None,
+        )
+        assert scores["acc"] == 1.0
+        assert pred.response == "beta"
+        assert pred.metadata["_choices"] == ["alpha", "beta"]
+
+    def test_missing_choices_skips(self):
+        bench = self._bench(choices=None, choices_field="cands")
+
+        def fake_call(*a, **k):
+            raise AssertionError("unexpected call")
+
+        strategy = MultipleChoiceStrategy()
+        scores, pred = strategy.evaluate_sample(
+            idx=0,
+            row={"q": "?", "answer": "x"},  # no "cands"
+            bench=bench,
+            model_call_fn=fake_call,
+            endpoint_type="completions_logprob",
+            request_timeout=None,
+        )
+        assert scores is None
+        assert pred.status == "skipped_missing_field"
+
+    def test_model_error_propagates_as_skip(self):
+        bench = self._bench()
+
+        def boom(*a, **k):
+            raise RuntimeError("server down")
+
+        strategy = MultipleChoiceStrategy()
+        scores, pred = strategy.evaluate_sample(
+            idx=0,
+            row={"q": "?", "answer": "B"},
+            bench=bench,
+            model_call_fn=boom,
+            endpoint_type="completions_logprob",
+            request_timeout=None,
+        )
+        assert scores is None
+        assert pred.status == "skipped_model_error"
+        assert "server down" in pred.error
+
+
+# ---------------------------------------------------------------------------
+# build_fewshot_prefix
+# ---------------------------------------------------------------------------
+
+
+class TestFewshotPrefix:
+    def test_default_template_appends_target(self):
+        bench = BenchmarkDefinition(
+            name="x",
+            normalized_name="x",
+            dataset="x",
+            prompt="Q: {q}\nA:",
+            scorer_fn=lambda s: {},
+            target_field="a",
+        )
+        examples = [
+            {"q": "1+1?", "a": "2"},
+            {"q": "2+2?", "a": "4"},
+        ]
+        prefix = build_fewshot_prefix(bench, examples)
+        assert "Q: 1+1?\nA: 2" in prefix
+        assert "Q: 2+2?\nA: 4" in prefix
+        assert prefix.endswith("\n\n")
+
+    def test_custom_separator(self):
+        bench = BenchmarkDefinition(
+            name="x",
+            normalized_name="x",
+            dataset="x",
+            prompt="Q: {q}\nA:",
+            scorer_fn=lambda s: {},
+            target_field="a",
+            fewshot_separator="\n---\n",
+        )
+        prefix = build_fewshot_prefix(bench, [{"q": "x", "a": "y"}])
+        assert prefix == "Q: x\nA: y\n---\n"
+
+    def test_skip_unrenderable(self):
+        bench = BenchmarkDefinition(
+            name="x",
+            normalized_name="x",
+            dataset="x",
+            prompt="Q: {q}\nA:",
+            scorer_fn=lambda s: {},
+            target_field="a",
+        )
+        prefix = build_fewshot_prefix(bench, [{"q": "ok", "a": "1"}, {"a": "no q"}])
+        assert "Q: ok\nA: 1" in prefix
+        assert prefix.count("\n\n") == 1
+
+    def test_explicit_empty_separator_is_honoured(self):
+        """Regression: ``fewshot_separator=""`` was clobbered to ``"\\n\\n"``
+        by an ``or`` expression. It must concatenate with no delimiter."""
+        bench = BenchmarkDefinition(
+            name="x",
+            normalized_name="x",
+            dataset="x",
+            prompt="Q: {q}\nA:",
+            scorer_fn=lambda s: {},
+            target_field="a",
+            fewshot_separator="",
+        )
+        prefix = build_fewshot_prefix(
+            bench,
+            [{"q": "1", "a": "x"}, {"q": "2", "a": "y"}],
+        )
+        # No "\n\n" anywhere; examples are concatenated directly.
+        assert prefix == "Q: 1\nA: xQ: 2\nA: y"
+
+
+# ---------------------------------------------------------------------------
+# build_fewshot_examples — contamination guard
+# ---------------------------------------------------------------------------
+
+
+class TestBuildFewshotExamples:
+    def test_warns_when_no_fewshot_split_and_samples_from_tail(self, caplog):
+        """Regression: when no fewshot_split is declared, the function used
+        to slice the head of the primary dataset (which is exactly the eval
+        set), risking contamination. It must now sample from the tail and
+        warn loudly."""
+        primary = [{"q": f"q{i}", "a": str(i)} for i in range(20)]
+        with caplog.at_level("WARNING"):
+            examples = build_fewshot_examples(
+                primary_dataset_uri="local.jsonl",
+                primary_dataset=primary,
+                num_fewshot=2,
+                fewshot_split=None,
+                seed=42,
+            )
+        # All sampled examples must come from the tail slice (last 8 rows
+        # of a 20-row dataset given pool_size = max(2*4, 2) = 8).
+        tail = primary[-8:]
+        for ex in examples:
+            assert ex in tail, f"Sampled {ex} from outside tail slice"
+        assert len(examples) == 2
+        # Loud warning emitted.
+        assert any(
+            "fewshot_split not available" in rec.message for rec in caplog.records
+        ), "Contamination warning must be logged"
+
+    def test_no_warning_when_fewshot_split_resolves(self, monkeypatch, caplog):
+        """When fewshot_split loads cleanly, no contamination warning is
+        emitted (the pool comes from a disjoint split)."""
+        from nemo_evaluator.contrib.byob import dataset as ds_module
+
+        def fake_load(uri, **_):
+            return [{"q": f"dev{i}", "a": str(i)} for i in range(8)]
+
+        monkeypatch.setattr(ds_module, "load_dataset", fake_load)
+
+        primary = [{"q": f"test{i}", "a": str(i)} for i in range(50)]
+        with caplog.at_level("WARNING"):
+            examples = build_fewshot_examples(
+                primary_dataset_uri="hf://org/ds?split=test",
+                primary_dataset=primary,
+                num_fewshot=3,
+                fewshot_split="dev",
+                seed=42,
+            )
+        assert len(examples) == 3
+        # All examples come from the 'dev' fake split, not the primary set.
+        for ex in examples:
+            assert ex["q"].startswith("dev"), f"Sampled from primary: {ex}"
+        # No contamination warning.
+        assert not any(
+            "fewshot_split not available" in rec.message for rec in caplog.records
+        )
+
+    def test_returns_empty_when_num_fewshot_zero(self):
+        primary = [{"q": "1", "a": "1"}]
+        assert (
+            build_fewshot_examples(
+                primary_dataset_uri="x",
+                primary_dataset=primary,
+                num_fewshot=0,
+                fewshot_split=None,
+            )
+            == []
+        )
+
+
+# ---------------------------------------------------------------------------
+# Strategy auto-selection — declared choices with chat endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestStrategyAutoSelect:
+    def test_chat_endpoint_with_declared_choices_uses_standard_strategy(self):
+        """Regression: declaring ``choices=`` for documentation purposes
+        on a chat-endpoint benchmark must NOT auto-pick MCQ strategy.
+        Auto-selection of MCQ is tied to ``endpoint_type`` only."""
+        captured: list = []
+
+        def fake_model_call(prompt, endpoint_type, **kwargs):
+            captured.append((prompt, endpoint_type))
+            return "A"
+
+        bench = BenchmarkDefinition(
+            name="b",
+            normalized_name="b",
+            dataset="x",
+            prompt="Q: {q}\nA:",
+            scorer_fn=lambda s: {"acc": 1.0},
+            target_field="a",
+            endpoint_type="chat",
+            choices=["A", "B", "C", "D"],  # informational only
+        )
+        run_eval_loop(
+            bench=bench,
+            dataset=[{"q": "1+1?", "a": "A"}],
+            model_call_fn=fake_model_call,
+            endpoint_type="chat",
+        )
+        # StandardStrategy issues a single chat call; MCQ would fan out
+        # one ``completions_logprob`` call per declared choice.
+        assert len(captured) == 1
+        assert captured[0][1] == "chat"
+
+    def test_logprob_endpoint_uses_mcq_strategy(self):
+        """Sanity: when endpoint_type IS completions_logprob, MCQ is
+        still auto-selected (one call per choice)."""
+        calls: list = []
+
+        def fake_model_call(prompt, endpoint_type, **kwargs):
+            calls.append(kwargs.get("continuation"))
+            return (-1.0 if kwargs.get("continuation") == "A" else -3.0, False)
+
+        bench = BenchmarkDefinition(
+            name="b",
+            normalized_name="b",
+            dataset="x",
+            prompt="Q: {q}\nA:",
+            scorer_fn=lambda s: {"acc": 1.0},
+            target_field="a",
+            endpoint_type="completions_logprob",
+            choices=["A", "B", "C", "D"],
+        )
+        run_eval_loop(
+            bench=bench,
+            dataset=[{"q": "1+1?", "a": "A"}],
+            model_call_fn=fake_model_call,
+            endpoint_type="completions_logprob",
+        )
+        # MCQ fans out one call per choice.
+        assert sorted(calls) == ["A", "B", "C", "D"]
