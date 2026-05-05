@@ -797,6 +797,68 @@ class TestHuggingFaceFetcher:
         assert captured["kwargs"]["data_files"] == {"test": "flores_en_hi_test.json"}
         assert captured["kwargs"]["field"] == "examples"
 
+    def test_cache_key_distinguishes_data_files(self, tmp_path: Path) -> None:
+        """Different ``data_files=`` values must use distinct cache files.
+
+        Regression: previously the cache filename was built from
+        ``dataset_name + config + split + filters`` only, so two URIs that
+        differed only in ``data_files`` (e.g. per-language IndicGenBench
+        subsets) collided on the same cache entry. The first fetch's data
+        was returned for every subsequent language.
+        """
+
+        class _FakeDataset:
+            def __init__(self, rows):
+                self._rows = rows
+
+            def __iter__(self):
+                return iter(self._rows)
+
+            def __len__(self):
+                return len(self._rows)
+
+            def filter(self, fn):
+                return _FakeDataset([r for r in self._rows if fn(r)])
+
+        # Track each call so we can assert distinct cache files were written.
+        per_call_rows = {
+            "flores_en_hi_test.json": [{"source": "hi-src", "target": "hi-tgt"}],
+            "flores_en_ml_test.json": [{"source": "ml-src", "target": "ml-tgt"}],
+            "flores_en_te_test.json": [{"source": "te-src", "target": "te-tgt"}],
+        }
+
+        def fake_load_dataset(name, **kwargs):
+            df = kwargs["data_files"]["test"]
+            return _FakeDataset(per_call_rows[df])
+
+        fake_module = type(
+            "M",
+            (),
+            {"load_dataset": staticmethod(fake_load_dataset), "DatasetDict": dict},
+        )
+
+        fetcher = HuggingFaceFetcher()
+        cache_paths = []
+        with patch.dict("sys.modules", {"datasets": fake_module}):
+            for lang in ("hi", "ml", "te"):
+                uri = (
+                    "hf://google/IndicGenBench_flores_in"
+                    f"?split=test&data_files=flores_en_{lang}_test.json&field=examples"
+                )
+                result = fetcher.fetch(uri, cache_dir=tmp_path)
+                cache_paths.append(result.local_path)
+
+        # Three distinct URIs -> three distinct cache files.
+        assert len(set(cache_paths)) == 3, (
+            f"Expected unique cache files per data_files value; got {cache_paths}"
+        )
+        # And each cache file must contain its own language's rows.
+        for path, lang in zip(cache_paths, ("hi", "ml", "te")):
+            content = path.read_text(encoding="utf-8").strip()
+            assert f"{lang}-tgt" in content, (
+                f"Cache for {lang} should contain {lang}-tgt; got {content!r}"
+            )
+
 
 # ---------------------------------------------------------------------------
 # TestFieldRemapping

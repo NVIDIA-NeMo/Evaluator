@@ -180,6 +180,11 @@ class HuggingFaceFetcher:
             parts.append(config)
         if split is not None:
             parts.append(split)
+        if options.get("data_files"):
+            df = str(options["data_files"]).replace("/", "_").replace(".", "_")
+            parts.append(f"datafile-{df}")
+        if options.get("field"):
+            parts.append(f"field-{options['field']}")
         filters = _extract_filters(options)
         for field_name, value in filters:
             parts.append(f"{field_name}-{value}")
