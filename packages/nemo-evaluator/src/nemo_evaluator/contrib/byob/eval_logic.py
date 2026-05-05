@@ -455,6 +455,14 @@ class MultipleChoiceStrategy:
         if bench.choices_field:
             choices = _resolve_choices_from_row(row, bench.choices_field)
         if not choices and bench.choices:
+            if bench.choices_field:
+                logger.warning(
+                    f"choices_field '{bench.choices_field}' missing or empty "
+                    f"for sample {idx}; falling back to static "
+                    f"@benchmark(choices=...)",
+                    sample_id=idx,
+                    choices_field=bench.choices_field,
+                )
             choices = list(bench.choices)
         if not choices:
             target = row.get(bench.target_field, "")
