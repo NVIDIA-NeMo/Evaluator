@@ -138,12 +138,20 @@ jobs:
             --cov-report= \
             --cov-report=term-missing
 
+      # Suffix the .coverage file so the downstream Coverage job's
+      # ``coverage combine`` step recognises it. ``coverage combine``
+      # expects ``.coverage.<suffix>`` files (e.g. ``.coverage.unit-test``)
+      # and refuses to combine a bare ``.coverage`` ("No data to combine").
+      - name: Rename .coverage for combine compatibility
+        if: matrix.python-version == '3.12'
+        run: mv .coverage .coverage.unit-test
+
       - name: Upload coverage artifact
         if: matrix.python-version == '3.12'
         uses: actions/upload-artifact@v6
         with:
           name: coverage-unit-test-${{ github.run_id }}-py${{ matrix.python-version }}
-          path: .coverage
+          path: .coverage.unit-test
           include-hidden-files: true
 
   Nemo_CICD_Test:
