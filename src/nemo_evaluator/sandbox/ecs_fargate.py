@@ -191,6 +191,149 @@ class EcsFargateConfig:
     efs_access_point_id: str | None = None
 
 
+@dataclass(frozen=True)
+class _OutsideEndpointRoute:
+    endpoint: OutsideEndpoint
+    source_netloc: str
+    host: str
+    target_port: int
+    remote_port: int
+    scheme: str
+
+    @classmethod
+    def for_endpoint(cls, endpoint: OutsideEndpoint, *, remote_port: int | None = None) -> _OutsideEndpointRoute:
+        parsed = urlparse(endpoint.url)
+        host = parsed.hostname
+        if not host:
+            raise ValueError(f"Cannot resolve hostname from OutsideEndpoint: {endpoint.url}")
+        target_port = _port_from_url(parsed)
+        return cls(
+            endpoint=endpoint,
+            source_netloc=parsed.netloc,
+            host=host,
+            target_port=target_port,
+            remote_port=remote_port or target_port,
+            scheme=parsed.scheme or "http",
+        )
+
+    def resolved_endpoint_url(self) -> str:
+        return self._rewrite(urlparse(self.endpoint.url))
+
+    def resolve_url(self, url: str) -> str:
+        return self._rewrite(urlparse(url))
+
+    def _rewrite(self, parsed: ParseResult) -> str:
+        return parsed._replace(
+            scheme=self.scheme,
+            netloc=f"127.0.0.1:{self.remote_port}",
+        ).geturl()
+
+
+def _port_from_url(parsed: ParseResult) -> int:
+    return parsed.port or (443 if parsed.scheme == "https" else 80)
+
+
+@dataclass(frozen=True)
+class _OutsideEndpointRouting:
+    endpoints: tuple[OutsideEndpoint, ...] = ()
+    _routes_by_env: dict[str, _OutsideEndpointRoute] = field(default_factory=dict)
+    _reverse_specs: tuple[str, ...] = ()
+    _agent_tunnel_port: int | None = None
+
+    @classmethod
+    def empty(cls, endpoints: list[OutsideEndpoint] | None = None) -> _OutsideEndpointRouting:
+        return cls(endpoints=tuple(endpoints or []))
+
+    @classmethod
+    def for_exec_server(
+        cls,
+        endpoints: list[OutsideEndpoint],
+        sidecar: SshSidecarConfig,
+    ) -> _OutsideEndpointRouting:
+        reverse_specs: list[str] = []
+        routes_by_env: dict[str, _OutsideEndpointRoute] = {}
+        used_ports = {sidecar.sshd_port}
+        if sidecar.exec_server_port is not None:
+            used_ports.add(sidecar.exec_server_port)
+
+        target_port_map: dict[tuple[str, int], int] = {}
+        for ep in endpoints:
+            target = _OutsideEndpointRoute.for_endpoint(ep)
+            key = (target.host, target.target_port)
+            remote_port = target_port_map.get(key)
+            if remote_port is None:
+                remote_port = cls._allocate_reverse_port(target.target_port, used_ports)
+                target_port_map[key] = remote_port
+                reverse_specs.append(f"{remote_port}:{target.host}:{target.target_port}")
+            route = _OutsideEndpointRoute.for_endpoint(ep, remote_port=remote_port)
+            logger.info(
+                "Reverse tunnel: container :%d → host %s:%d (%s)",
+                route.remote_port,
+                route.host,
+                route.target_port,
+                ep.env_var,
+            )
+            routes_by_env[ep.env_var] = route
+
+        return cls(endpoints=tuple(endpoints), _routes_by_env=routes_by_env, _reverse_specs=tuple(reverse_specs))
+
+    @classmethod
+    def for_agent_server(cls, endpoints: list[OutsideEndpoint]) -> _OutsideEndpointRouting:
+        if len(endpoints) > 1:
+            raise ValueError("Agent-server mode supports only one OutsideEndpoint")
+        if not endpoints:
+            raise ValueError("Agent-server mode requires OutsideEndpoint passed to start()")
+        route = _OutsideEndpointRoute.for_endpoint(endpoints[0])
+        return cls(
+            endpoints=tuple(endpoints),
+            _routes_by_env={route.endpoint.env_var: route},
+            _agent_tunnel_port=route.target_port,
+        )
+
+    @property
+    def reverse_specs(self) -> list[str]:
+        return list(self._reverse_specs)
+
+    @property
+    def agent_tunnel_port(self) -> int | None:
+        return self._agent_tunnel_port
+
+    def agent_tunnel_target(self) -> tuple[str, int]:
+        if not self.endpoints:
+            raise ValueError("Agent-server mode requires OutsideEndpoint passed to start()")
+        route = self._routes_by_env[self.endpoints[0].env_var]
+        return route.host, route.target_port
+
+    def env_overrides(self) -> dict[str, str]:
+        return {env_var: route.resolved_endpoint_url() for env_var, route in self._routes_by_env.items()}
+
+    def resolved_endpoint_url(self, env_var: str) -> str | None:
+        route = self._routes_by_env.get(env_var)
+        if route is None:
+            return None
+        return route.resolved_endpoint_url()
+
+    def resolve_url(self, url: str) -> str:
+        parsed = urlparse(url)
+        for route in self._routes_by_env.values():
+            if route.source_netloc == parsed.netloc:
+                return route.resolve_url(url)
+        if self._agent_tunnel_port is not None:
+            return parsed._replace(netloc=f"127.0.0.1:{self._agent_tunnel_port}").geturl()
+        raise RuntimeError("resolve_outside_endpoint() requires SSH reverse tunnel")
+
+    @staticmethod
+    def _allocate_reverse_port(preferred: int, used_ports: set[int]) -> int:
+        if 0 < preferred <= 65535 and preferred not in used_ports:
+            used_ports.add(preferred)
+            return preferred
+        for candidate in range(20000, 61000):
+            if candidate not in used_ports:
+                used_ports.add(candidate)
+                return candidate
+        raise RuntimeError("No available local port for ECS reverse tunnel")
+
+
 # ── Retry utilities ──────────────────────────────────────────────────
 
 _RETRYABLE_CODES = frozenset(
@@ -1098,7 +1241,7 @@ class EcsFargateSandbox:
         self._ssh_tunnel_port: int | None = None
         self._agent_forward_port: int | None = None
         self._outside_endpoints: list[OutsideEndpoint] = []
-        self._reverse_port_map: dict[str, tuple[int, str]] = {}
+        self._outside_endpoint_routing = _OutsideEndpointRouting.empty()
         self._run_id = uuid.uuid4().hex[:12]
 
     # ── Protocol properties ──────────────────────────────────────────
@@ -1108,21 +1251,7 @@ class EcsFargateSandbox:
         return self._spec
 
     def resolved_endpoint_url(self, env_var: str) -> str | None:
-        for ep in self._outside_endpoints:
-            if ep.env_var != env_var:
-                continue
-            ep_parsed = urlparse(ep.url)
-            if ep.env_var in self._reverse_port_map:
-                remote_port, scheme = self._reverse_port_map[ep.env_var]
-                return ep_parsed._replace(
-                    scheme=scheme,
-                    netloc=f"127.0.0.1:{remote_port}",
-                ).geturl()
-            if self._ssh_tunnel_port is not None:
-                return ep_parsed._replace(
-                    netloc=f"127.0.0.1:{self._ssh_tunnel_port}",
-                ).geturl()
-        return None
+        return self._outside_endpoint_routing.resolved_endpoint_url(env_var)
 
     @property
     def is_running(self) -> bool:
@@ -1165,8 +1294,10 @@ class EcsFargateSandbox:
         if self._started:
             return
         self._outside_endpoints = outside_endpoints or []
-        if len(self._outside_endpoints) > 1:
-            raise ValueError("Only one OutsideEndpoint supported (SSH reverse tunnel targets single host:port)")
+        self._outside_endpoint_routing = _OutsideEndpointRouting.empty(self._outside_endpoints)
+        sidecar = self._cfg.ssh_sidecar
+        if sidecar and sidecar.exec_server_port is None:
+            _OutsideEndpointRouting.for_agent_server(self._outside_endpoints)
         try:
             await asyncio.to_thread(self._do_start)
             self._started = True
@@ -1240,18 +1371,7 @@ class EcsFargateSandbox:
         dest.write_bytes(data)
 
     def resolve_outside_endpoint(self, url: str) -> str:
-        parsed = urlparse(url)
-        for ep in self._outside_endpoints:
-            ep_parsed = urlparse(ep.url)
-            if ep_parsed.netloc == parsed.netloc and ep.env_var in self._reverse_port_map:
-                remote_port, scheme = self._reverse_port_map[ep.env_var]
-                return parsed._replace(
-                    scheme=scheme,
-                    netloc=f"127.0.0.1:{remote_port}",
-                ).geturl()
-        if self._ssh_tunnel_port is not None:
-            return parsed._replace(netloc=f"127.0.0.1:{self._ssh_tunnel_port}").geturl()
-        raise RuntimeError("resolve_outside_endpoint() requires SSH reverse tunnel")
+        return self._outside_endpoint_routing.resolve_url(url)
 
     async def __aenter__(self) -> Self:
         await self.start()
@@ -1298,7 +1418,10 @@ class EcsFargateSandbox:
 
         has_exec_server = sidecar.exec_server_port is not None
         if not has_exec_server:
-            self._ssh_tunnel_port = self._resolve_ssh_tunnel_port()
+            self._outside_endpoint_routing = _OutsideEndpointRouting.for_agent_server(self._outside_endpoints)
+            self._ssh_tunnel_port = self._outside_endpoint_routing.agent_tunnel_port
+        else:
+            self._outside_endpoint_routing = _OutsideEndpointRouting.for_exec_server(self._outside_endpoints, sidecar)
 
         command = self._build_container_command(sidecar)
         env = self._build_env_vars()
@@ -1366,25 +1489,6 @@ class EcsFargateSandbox:
             )
         return ""
 
-    def _parse_outside_url(self) -> ParseResult:
-        if not self._outside_endpoints:
-            raise ValueError("Agent-server mode requires OutsideEndpoint passed to start()")
-        return urlparse(self._outside_endpoints[0].url)
-
-    @staticmethod
-    def _port_from_parsed(parsed: ParseResult) -> int:
-        return parsed.port or (443 if parsed.scheme == "https" else 80)
-
-    def _resolve_ssh_tunnel_port(self) -> int:
-        return self._port_from_parsed(self._parse_outside_url())
-
-    def _resolve_tunnel_target(self) -> tuple[str, int]:
-        parsed = self._parse_outside_url()
-        host = parsed.hostname
-        if not host:
-            raise ValueError(f"Cannot resolve hostname from OutsideEndpoint: {self._outside_endpoints[0].url}")
-        return host, self._port_from_parsed(parsed)
-
     def _upload_exec_server(self) -> str:
         cfg = self._cfg
         if not cfg.s3_bucket:
@@ -1440,20 +1544,7 @@ class EcsFargateSandbox:
         if cfg.extra_env:
             for k, v in cfg.extra_env.items():
                 env[k] = self._render_env_value(v)
-        if self._ssh_tunnel_port and self._outside_endpoints:
-            ep = self._outside_endpoints[0]
-            parsed = urlparse(ep.url)
-            env[ep.env_var] = parsed._replace(
-                netloc=f"127.0.0.1:{self._ssh_tunnel_port}",
-            ).geturl()
-        for ep in self._outside_endpoints:
-            if ep.env_var in self._reverse_port_map:
-                remote_port, scheme = self._reverse_port_map[ep.env_var]
-                parsed = urlparse(ep.url)
-                env[ep.env_var] = parsed._replace(
-                    scheme=scheme,
-                    netloc=f"127.0.0.1:{remote_port}",
-                ).geturl()
+        env.update(self._outside_endpoint_routing.env_overrides())
         return env
 
     def _render_env_value(self, value: str) -> str:
@@ -1812,32 +1903,8 @@ class EcsFargateSandbox:
             time.sleep(2.0)
         raise TimeoutError(f"SSH not ready at {host}:{port} after {timeout:.0f}s")
 
-    def _build_reverse_specs(self) -> list[str]:
-        """Build ``-R`` specs for outside endpoints (proxy, model, etc.).
-
-        Uses the original URL port on the container side so that the agent's
-        ``LLM_BASE_URL`` (same host:port as the orchestrator proxy) works
-        unchanged through the reverse tunnel.
-        """
-        reverses: list[str] = []
-        for ep in self._outside_endpoints:
-            parsed = urlparse(ep.url)
-            host = parsed.hostname or "127.0.0.1"
-            port = parsed.port or (443 if parsed.scheme == "https" else 80)
-            self._reverse_port_map[ep.env_var] = (port, parsed.scheme or "http")
-            reverses.append(f"{port}:{host}:{port}")
-            logger.info(
-                "Reverse tunnel: container :%d → host %s:%d (%s)",
-                port,
-                host,
-                port,
-                ep.env_var,
-            )
-        return reverses
-
     def _open_tunnel(self, sidecar: SshSidecarConfig) -> None:
         assert self._task_ip is not None and self._ssh_key_file is not None
-        reverse_specs = self._build_reverse_specs()
         if sidecar.exec_server_port is not None:
             self._ssh_tunnel = SshTunnel(
                 host=self._task_ip,
@@ -1845,11 +1912,11 @@ class EcsFargateSandbox:
                 user="root",
                 key_file=self._ssh_key_file,
                 forward_port=sidecar.exec_server_port,
-                reverses=reverse_specs,
+                reverses=self._outside_endpoint_routing.reverse_specs,
             )
             self._ssh_tunnel.open()
         else:
-            remote_host, remote_port = self._resolve_tunnel_target()
+            remote_host, remote_port = self._outside_endpoint_routing.agent_tunnel_target()
             assert self._ssh_tunnel_port is not None
             self._agent_forward_port = _free_port()
             container_port = self._cfg.container_port

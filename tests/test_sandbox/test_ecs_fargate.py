@@ -9,6 +9,9 @@ import pytest
 from nemo_evaluator.sandbox.base import ExecResult, OutsideEndpoint, SandboxSpec
 
 
+_PATCH_PREFIX = "nemo_evaluator.sandbox.ecs_fargate"
+
+
 # ── Helpers ───────────────────────────────────────────────────────────
 
 
@@ -49,56 +52,95 @@ def _make_sandbox(ecs_config=None, **spec_kw):
     return EcsFargateSandbox(spec, ecs_config=ecs_config or _cfg())
 
 
+async def _start_with_mocked_ecs(sb, outside_endpoints):
+    tunnel = MagicMock()
+    tunnel.local_port = 19000
+    register_task_definition = MagicMock(return_value="task-def-arn")
+
+    with (
+        patch.object(sb, "_init_aws_clients"),
+        patch.object(sb, "_resolve_image", return_value="python:3.12"),
+        patch(f"{_PATCH_PREFIX}.download_secret_to_file", return_value="/tmp/key"),
+        patch(f"{_PATCH_PREFIX}.download_secret_to_string", return_value="ssh-rsa fake"),
+        patch(f"{_PATCH_PREFIX}.build_ssh_sidecar_container", return_value={"name": "ssh-tunnel"}),
+        patch.object(sb, "_register_task_definition", register_task_definition),
+        patch.object(sb, "_run_task", return_value="task-arn"),
+        patch.object(sb, "_register_for_cleanup"),
+        patch.object(sb, "_wait_for_running"),
+        patch.object(sb, "_get_task_public_ip", return_value="10.0.0.10"),
+        patch.object(sb, "_wait_for_ssh_ready"),
+        patch(f"{_PATCH_PREFIX}._free_port", return_value=19001),
+        patch(f"{_PATCH_PREFIX}.SshTunnel", return_value=tunnel) as tunnel_cls,
+        patch(f"{_PATCH_PREFIX}.ExecClient"),
+    ):
+        await sb.start(outside_endpoints=outside_endpoints)
+
+    return register_task_definition, tunnel_cls, tunnel
+
+
 # ── TestResolveOutsideEndpoint ────────────────────────────────────────
 
 
 class TestResolveOutsideEndpoint:
-    """Pure-logic tests — no AWS or SSH mocking needed."""
+    """Endpoint resolution through the sandbox public interface."""
 
     def _sb(self):
         sb = _make_sandbox()
         return sb
 
-    def test_match_by_netloc_with_reverse_port_map(self):
+    async def test_match_by_netloc_with_reverse_route(self):
         sb = self._sb()
-        sb._outside_endpoints = [OutsideEndpoint(url="http://127.0.0.1:4000/v1/s/abc123", env_var="MODEL_BASE_URL")]
-        sb._reverse_port_map = {"MODEL_BASE_URL": (4000, "http")}
+        await _start_with_mocked_ecs(
+            sb,
+            [OutsideEndpoint(url="http://127.0.0.1:4000/v1/s/abc123", env_var="MODEL_BASE_URL")],
+        )
 
         result = sb.resolve_outside_endpoint("http://127.0.0.1:4000/v1")
         assert result == "http://127.0.0.1:4000/v1"
 
-    def test_session_scoped_url_matches_base_url(self):
+    async def test_session_scoped_url_matches_base_url(self):
         """resolve_outside_endpoint preserves the caller's path (no session
         injection).  Use resolved_endpoint_url for session-scoped URLs."""
         sb = self._sb()
-        sb._outside_endpoints = [OutsideEndpoint(url="http://127.0.0.1:4000/v1/s/session42", env_var="MODEL_BASE_URL")]
-        sb._reverse_port_map = {"MODEL_BASE_URL": (4000, "http")}
+        await _start_with_mocked_ecs(
+            sb,
+            [OutsideEndpoint(url="http://127.0.0.1:4000/v1/s/session42", env_var="MODEL_BASE_URL")],
+        )
 
         result = sb.resolve_outside_endpoint("http://127.0.0.1:4000/v1")
         assert "127.0.0.1:4000" in result
         assert result.endswith("/v1")
 
-    def test_path_preserved_through_rewrite(self):
+    async def test_path_preserved_through_rewrite(self):
         sb = self._sb()
-        sb._outside_endpoints = [OutsideEndpoint(url="https://api.nvidia.com/v1/chat", env_var="LLM_URL")]
-        sb._reverse_port_map = {"LLM_URL": (443, "https")}
+        await _start_with_mocked_ecs(
+            sb,
+            [OutsideEndpoint(url="https://api.nvidia.com/v1/chat", env_var="LLM_URL")],
+        )
 
         result = sb.resolve_outside_endpoint("https://api.nvidia.com/v1/chat/completions")
         assert result == "https://127.0.0.1:443/v1/chat/completions"
 
-    def test_scheme_rewritten_from_port_map(self):
+    async def test_scheme_rewritten_from_reverse_route(self):
         sb = self._sb()
-        sb._outside_endpoints = [OutsideEndpoint(url="https://model.example.com:8443/v1", env_var="M")]
-        sb._reverse_port_map = {"M": (8443, "https")}
+        await _start_with_mocked_ecs(
+            sb,
+            [OutsideEndpoint(url="https://model.example.com:8443/v1", env_var="M")],
+        )
 
         result = sb.resolve_outside_endpoint("https://model.example.com:8443/v1")
         assert result.startswith("https://127.0.0.1:8443")
 
-    def test_fallback_to_ssh_tunnel_port(self):
-        sb = self._sb()
-        sb._ssh_tunnel_port = 9999
-        sb._outside_endpoints = []
-        sb._reverse_port_map = {}
+    async def test_agent_server_fallback_to_ssh_tunnel_port(self):
+        cfg = _cfg(
+            container_port=8080,
+            ssh_sidecar=_sidecar(exec_server_port=None),
+        )
+        sb = _make_sandbox(ecs_config=cfg)
+        await _start_with_mocked_ecs(
+            sb,
+            [OutsideEndpoint(url="http://proxy.local:9999/root", env_var="MODEL_BASE_URL")],
+        )
 
         result = sb.resolve_outside_endpoint("http://proxy.local:4000/v1")
         assert "127.0.0.1:9999" in result
@@ -106,27 +148,30 @@ class TestResolveOutsideEndpoint:
 
     def test_no_match_raises_runtime_error(self):
         sb = self._sb()
-        sb._outside_endpoints = []
-        sb._reverse_port_map = {}
-        sb._ssh_tunnel_port = None
 
         with pytest.raises(RuntimeError, match="requires SSH reverse tunnel"):
             sb.resolve_outside_endpoint("http://nowhere:1234/api")
 
-    def test_different_netloc_no_match(self):
+    async def test_different_netloc_no_match(self):
         sb = self._sb()
-        sb._outside_endpoints = [OutsideEndpoint(url="http://host-a:4000/v1", env_var="M")]
-        sb._reverse_port_map = {"M": (4000, "http")}
-        sb._ssh_tunnel_port = None
+        await _start_with_mocked_ecs(
+            sb,
+            [OutsideEndpoint(url="http://host-a:4000/v1", env_var="M")],
+        )
 
         with pytest.raises(RuntimeError, match="requires SSH reverse tunnel"):
             sb.resolve_outside_endpoint("http://host-b:5000/v1")
 
-    def test_env_var_not_in_port_map_skipped(self):
-        sb = self._sb()
-        sb._outside_endpoints = [OutsideEndpoint(url="http://127.0.0.1:4000/v1", env_var="MISSING_KEY")]
-        sb._reverse_port_map = {}
-        sb._ssh_tunnel_port = 7777
+    async def test_agent_server_resolves_any_url_through_single_endpoint_tunnel(self):
+        cfg = _cfg(
+            container_port=8080,
+            ssh_sidecar=_sidecar(exec_server_port=None),
+        )
+        sb = _make_sandbox(ecs_config=cfg)
+        await _start_with_mocked_ecs(
+            sb,
+            [OutsideEndpoint(url="http://127.0.0.1:7777/v1", env_var="MODEL_BASE_URL")],
+        )
 
         result = sb.resolve_outside_endpoint("http://127.0.0.1:4000/v1")
         assert "127.0.0.1:7777" in result
@@ -138,40 +183,50 @@ class TestResolvedEndpointUrl:
     def _sb(self):
         return _make_sandbox()
 
-    def test_returns_session_path_via_reverse_port_map(self):
+    async def test_returns_session_path_via_reverse_route(self):
         sb = self._sb()
-        sb._outside_endpoints = [OutsideEndpoint(url="http://localhost:4000/s/abc123", env_var="MODEL_BASE_URL")]
-        sb._reverse_port_map = {"MODEL_BASE_URL": (4000, "http")}
+        await _start_with_mocked_ecs(
+            sb,
+            [OutsideEndpoint(url="http://localhost:4000/s/abc123", env_var="MODEL_BASE_URL")],
+        )
 
         result = sb.resolved_endpoint_url("MODEL_BASE_URL")
         assert result == "http://127.0.0.1:4000/s/abc123"
 
-    def test_returns_session_path_via_ssh_tunnel(self):
-        sb = self._sb()
-        sb._outside_endpoints = [OutsideEndpoint(url="http://localhost:4000/s/xyz789", env_var="MODEL_BASE_URL")]
-        sb._reverse_port_map = {}
-        sb._ssh_tunnel_port = 9999
+    async def test_returns_session_path_via_ssh_tunnel(self):
+        cfg = _cfg(
+            container_port=8080,
+            ssh_sidecar=_sidecar(exec_server_port=None),
+        )
+        sb = _make_sandbox(ecs_config=cfg)
+        await _start_with_mocked_ecs(
+            sb,
+            [OutsideEndpoint(url="http://localhost:9999/s/xyz789", env_var="MODEL_BASE_URL")],
+        )
 
         result = sb.resolved_endpoint_url("MODEL_BASE_URL")
         assert result == "http://127.0.0.1:9999/s/xyz789"
 
-    def test_returns_none_for_unknown_env_var(self):
+    async def test_returns_none_for_unknown_env_var(self):
         sb = self._sb()
-        sb._outside_endpoints = [OutsideEndpoint(url="http://localhost:4000/s/abc", env_var="MODEL_BASE_URL")]
-        sb._reverse_port_map = {"MODEL_BASE_URL": (4000, "http")}
+        await _start_with_mocked_ecs(
+            sb,
+            [OutsideEndpoint(url="http://localhost:4000/s/abc", env_var="MODEL_BASE_URL")],
+        )
 
         assert sb.resolved_endpoint_url("UNKNOWN_VAR") is None
 
     def test_returns_none_when_no_endpoints(self):
         sb = self._sb()
-        sb._outside_endpoints = []
         assert sb.resolved_endpoint_url("MODEL_BASE_URL") is None
 
-    def test_harbor_scenario_base_url_gets_session_path(self):
+    async def test_harbor_scenario_base_url_gets_session_path(self):
         """The real bug: Harbor calls with base URL, needs session path back."""
         sb = self._sb()
-        sb._outside_endpoints = [OutsideEndpoint(url="http://localhost:4000/s/session42", env_var="MODEL_BASE_URL")]
-        sb._reverse_port_map = {"MODEL_BASE_URL": (4000, "http")}
+        await _start_with_mocked_ecs(
+            sb,
+            [OutsideEndpoint(url="http://localhost:4000/s/session42", env_var="MODEL_BASE_URL")],
+        )
 
         session_url = sb.resolved_endpoint_url("MODEL_BASE_URL")
         assert "/s/session42" in session_url
@@ -181,10 +236,62 @@ class TestResolvedEndpointUrl:
         assert "/s/" not in plain_url
 
 
-# ── TestEcsFargateLifecycle ───────────────────────────────────────────
+class TestReverseSpecs:
+    """ECS reverse tunnel endpoint mapping through sandbox startup."""
 
+    async def test_multiple_endpoints_get_distinct_reverse_ports(self):
+        sb = _make_sandbox()
+        eps = [
+            OutsideEndpoint(url="http://host-a:4000/v1", env_var="A"),
+            OutsideEndpoint(url="http://host-b:4000/form", env_var="B"),
+        ]
 
-_PATCH_PREFIX = "nemo_evaluator.sandbox.ecs_fargate"
+        register_task_definition, tunnel_cls, _ = await _start_with_mocked_ecs(sb, eps)
+
+        specs = tunnel_cls.call_args.kwargs["reverses"]
+        assert "4000:host-a:4000" in specs
+        assert "20000:host-b:4000" in specs
+        env = register_task_definition.call_args.kwargs["env"]
+        assert env["A"] == "http://127.0.0.1:4000/v1"
+        assert env["B"] == "http://127.0.0.1:20000/form"
+
+    async def test_duplicate_target_reuses_reverse_port(self):
+        sb = _make_sandbox()
+        eps = [
+            OutsideEndpoint(url="http://host-a:4000/v1", env_var="A"),
+            OutsideEndpoint(url="http://host-a:4000/health", env_var="B"),
+        ]
+
+        register_task_definition, tunnel_cls, _ = await _start_with_mocked_ecs(sb, eps)
+
+        specs = tunnel_cls.call_args.kwargs["reverses"]
+        assert specs == ["4000:host-a:4000"]
+        env = register_task_definition.call_args.kwargs["env"]
+        assert env["A"] == "http://127.0.0.1:4000/v1"
+        assert env["B"] == "http://127.0.0.1:4000/health"
+
+    async def test_exec_server_port_is_reserved(self):
+        sb = _make_sandbox()
+        eps = [OutsideEndpoint(url="http://host-a:5000/v1", env_var="MODEL_BASE_URL")]
+
+        _, tunnel_cls, _ = await _start_with_mocked_ecs(sb, eps)
+
+        specs = tunnel_cls.call_args.kwargs["reverses"]
+        assert specs == ["20000:host-a:5000"]
+        assert sb.resolved_endpoint_url("MODEL_BASE_URL") == "http://127.0.0.1:20000/v1"
+
+    async def test_env_vars_use_allocated_reverse_ports(self):
+        sb = _make_sandbox()
+        eps = [
+            OutsideEndpoint(url="http://host-a:4000/v1", env_var="A"),
+            OutsideEndpoint(url="http://host-b:4000/form", env_var="B"),
+        ]
+
+        register_task_definition, _, _ = await _start_with_mocked_ecs(sb, eps)
+
+        env = register_task_definition.call_args.kwargs["env"]
+        assert env["A"] == "http://127.0.0.1:4000/v1"
+        assert env["B"] == "http://127.0.0.1:20000/form"
 
 
 class TestEcsFargateLifecycle:
@@ -222,14 +329,44 @@ class TestEcsFargateLifecycle:
         await sb.start()
         assert sb._started
 
-    async def test_start_rejects_multiple_outside_endpoints(self):
+    async def test_start_accepts_multiple_outside_endpoints_in_exec_server_mode(self):
         sb = _make_sandbox()
         eps = [
             OutsideEndpoint(url="http://a:1/v1", env_var="A"),
             OutsideEndpoint(url="http://b:2/v1", env_var="B"),
         ]
-        with pytest.raises(ValueError, match="Only one OutsideEndpoint"):
+        with patch.object(sb, "_do_start") as mock_do_start:
             await sb.start(outside_endpoints=eps)
+
+        assert sb.is_running
+        assert sb._outside_endpoints == eps
+        mock_do_start.assert_called_once()
+
+    async def test_start_rejects_multiple_outside_endpoints_in_agent_server_mode(self):
+        cfg = _cfg(
+            container_port=8080,
+            ssh_sidecar=_sidecar(exec_server_port=None),
+        )
+        sb = _make_sandbox(ecs_config=cfg)
+        eps = [
+            OutsideEndpoint(url="http://a:1/v1", env_var="A"),
+            OutsideEndpoint(url="http://b:2/v1", env_var="B"),
+        ]
+
+        with pytest.raises(ValueError, match="Agent-server mode supports only one OutsideEndpoint"):
+            await sb.start(outside_endpoints=eps)
+
+    async def test_start_rejects_outside_endpoint_without_hostname(self):
+        sb = _make_sandbox()
+
+        with (
+            patch.object(sb, "_init_aws_clients"),
+            patch.object(sb, "_resolve_image", return_value="python:3.12"),
+            patch(f"{_PATCH_PREFIX}.download_secret_to_file", return_value="/tmp/key"),
+            patch(f"{_PATCH_PREFIX}.download_secret_to_string", return_value="ssh-rsa fake"),
+        ):
+            with pytest.raises(ValueError, match="Cannot resolve hostname from OutsideEndpoint"):
+                await sb.start(outside_endpoints=[OutsideEndpoint(url="http:///v1", env_var="MODEL_BASE_URL")])
 
     async def test_stop_calls_cleanup(self):
         sb = _make_sandbox()
