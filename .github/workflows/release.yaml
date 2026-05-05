@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,9 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-name: "Release NeMo-Eval"
+name: "Build, validate, and release NeMo-Eval"
 
 on:
+  push:
+    branches:
+      - main
+      - "r**"
+      - "pull-request/**"
+      - "deploy-release/*"
   workflow_dispatch:
     inputs:
       component:
@@ -29,7 +35,7 @@ on:
         required: true
         type: string
       dry-run:
-        description: "Dry Run: only publish to test PyPI"
+        description: "Dry Run: compute the release but do not publish"
         required: true
         default: true
         type: boolean
@@ -42,24 +48,34 @@ on:
         description: Branch to push the version bump
         required: true
         type: string
-  # schedule:
-  #   # Wed
-  #   - cron: "0 1 * * 3"
+  schedule:
+    # Wed
+    - cron: "0 1 * * 3"
+
+defaults:
+  run:
+    shell: bash -x -e -u -o pipefail {0}
 
 permissions:
-  contents: write # To read repository content
-  pull-requests: write # To create PRs
+  id-token: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
+  pre-flight:
+    if: github.event_name == 'push'
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@v0.94.1
+
   validate-inputs:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Validate inputs
         run: |
-          if [ "${{ github.event_name }}" == "schedule" ]; then
-            echo "Skipping validation for scheduled run"
-            exit 0
-          fi
           if [ "${{ inputs.version-bump-branch }}" == "${{ inputs.release-ref }}" ]; then
             echo "Error: version-bump-branch cannot be the same as release-ref"
             echo "version-bump-branch: ${{ inputs.version-bump-branch }}"
@@ -69,17 +85,29 @@ jobs:
           echo "Input validation passed"
 
   release:
-    if: ${{ github.event_name == 'schedule' || inputs.component == 'nemo-evaluator' }}
-    needs: validate-inputs
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.83.0
+    needs: [pre-flight, validate-inputs]
+    if: |
+      !cancelled()
+      && (needs.pre-flight.result == 'success' || needs.pre-flight.result == 'skipped')
+      && (needs.validate-inputs.result == 'success' || needs.validate-inputs.result == 'skipped')
+      && (
+        github.event_name == 'schedule'
+        || github.event_name == 'push'
+        || (github.event_name == 'workflow_dispatch' && inputs.component == 'nemo-evaluator')
+      )
+      && (
+        github.event_name != 'push'
+        || !(needs.pre-flight.outputs.docs_only == 'true' || needs.pre-flight.outputs.is_deployment_workflow == 'true')
+      )
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@b7091aadca729136b12c48d45b832633c681b131
     with:
       release-ref: ${{ github.event_name == 'schedule' && github.sha || inputs.release-ref || github.sha }}
       python-package: nemo_evaluator
       library-name: NeMo Evaluator
-      # Tricky, below is the exact rewrite of "if it's schedule, then false, else use the version of `inputs.dry-run`"
-      dry-run: ${{ github.event_name != 'schedule' && inputs.dry-run }}
+      validate-only: ${{ github.event_name == 'push' }}
+      dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run || false }}
       version-bump-branch: ${{ github.event_name == 'schedule' && 'main' || inputs.version-bump-branch || github.ref_name }}
-      create-gh-release: ${{ github.event_name == 'schedule' && true || inputs.create-gh-release }}
+      create-gh-release: ${{ github.event_name == 'schedule' && true || inputs.create-gh-release || true }}
       gh-release-tag-prefix: nemo-evaluator-
       gh-release-use-changelog-builder: true
       gh-release-changelog-included-paths: |
@@ -90,6 +118,7 @@ jobs:
       app-id: ${{ vars.BOT_ID }}
       has-src-dir: true
       root-dir: packages/nemo-evaluator
+      restrict-to-admins: true
     secrets:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
@@ -99,27 +128,31 @@ jobs:
       SSH_KEY: ${{ secrets.SSH_KEY }}
       SSH_PWD: ${{ secrets.SSH_PWD }}
       BOT_KEY: ${{ secrets.BOT_KEY }}
-      AWS_ASSUME_ROLE_ARN: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AKAMAI_HOST: ${{ secrets.AKAMAI_HOST }}
-      AKAMAI_CLIENT_TOKEN: ${{ secrets.AKAMAI_CLIENT_TOKEN }}
-      AKAMAI_CLIENT_SECRET: ${{ secrets.AKAMAI_CLIENT_SECRET }}
-      AKAMAI_ACCESS_TOKEN: ${{ secrets.AKAMAI_ACCESS_TOKEN }}
-      S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
 
   release-launcher:
-    if: ${{ github.event_name == 'schedule' || inputs.component == 'nemo-evaluator-launcher' }}
-    needs: validate-inputs
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.83.0
+    needs: [pre-flight, validate-inputs]
+    if: |
+      !cancelled()
+      && (needs.pre-flight.result == 'success' || needs.pre-flight.result == 'skipped')
+      && (needs.validate-inputs.result == 'success' || needs.validate-inputs.result == 'skipped')
+      && (
+        github.event_name == 'schedule'
+        || github.event_name == 'push'
+        || (github.event_name == 'workflow_dispatch' && inputs.component == 'nemo-evaluator-launcher')
+      )
+      && (
+        github.event_name != 'push'
+        || !(needs.pre-flight.outputs.docs_only == 'true' || needs.pre-flight.outputs.is_deployment_workflow == 'true')
+      )
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@b7091aadca729136b12c48d45b832633c681b131
     with:
       release-ref: ${{ github.event_name == 'schedule' && github.sha || inputs.release-ref || github.sha }}
       python-package: nemo_evaluator_launcher
       library-name: NeMo Evaluator Launcher
-      # Tricky, below is the exact rewrite of "if it's schedule, then false, else use the version of `inputs.dry-run`"
-      dry-run: ${{ github.event_name != 'schedule' && inputs.dry-run }}
+      validate-only: ${{ github.event_name == 'push' }}
+      dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run || false }}
       version-bump-branch: ${{ github.event_name == 'schedule' && 'main' || inputs.version-bump-branch || github.ref_name }}
-      create-gh-release: ${{ github.event_name == 'schedule' && true || inputs.create-gh-release }}
+      create-gh-release: ${{ github.event_name == 'schedule' && true || inputs.create-gh-release || true }}
       gh-release-tag-prefix: nemo-evaluator-launcher-
       gh-release-use-changelog-builder: true
       gh-release-changelog-included-paths: |
@@ -130,6 +163,7 @@ jobs:
       app-id: ${{ vars.BOT_ID }}
       has-src-dir: true
       root-dir: packages/nemo-evaluator-launcher
+      restrict-to-admins: true
     secrets:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
@@ -139,11 +173,23 @@ jobs:
       SSH_KEY: ${{ secrets.SSH_KEY }}
       SSH_PWD: ${{ secrets.SSH_PWD }}
       BOT_KEY: ${{ secrets.BOT_KEY }}
-      AWS_ASSUME_ROLE_ARN: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AKAMAI_HOST: ${{ secrets.AKAMAI_HOST }}
-      AKAMAI_CLIENT_TOKEN: ${{ secrets.AKAMAI_CLIENT_TOKEN }}
-      AKAMAI_CLIENT_SECRET: ${{ secrets.AKAMAI_CLIENT_SECRET }}
-      AKAMAI_ACCESS_TOKEN: ${{ secrets.AKAMAI_ACCESS_TOKEN }}
-      S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+
+  release-summary:
+    needs: [pre-flight, validate-inputs, release, release-launcher]
+    if: always() && !cancelled()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Result
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          FAILED_JOBS=$(gh run view $GITHUB_RUN_ID --repo ${{ github.repository }} --json jobs --jq '[.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "action_required")] | length')
+
+          if [ "${FAILED_JOBS:-0}" -eq 0 ]; then
+              echo "✅ All previous jobs completed successfully"
+              exit 0
+          else
+              echo "❌ Found $FAILED_JOBS failed job(s)"
+              gh run view $GITHUB_RUN_ID --repo ${{ github.repository }} --json jobs --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "action_required") | .name'
+              exit 1
+          fi
