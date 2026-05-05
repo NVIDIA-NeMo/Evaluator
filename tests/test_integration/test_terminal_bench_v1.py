@@ -20,9 +20,9 @@ from unittest.mock import patch
 import pytest
 
 from nemo_evaluator.benchmarks.terminal_bench_v1 import (
+    TerminalBenchV1,
     _ensure_dataset,
     _find_tasks_dir,
-    TerminalBenchV1,
 )
 
 MINIMAL_TASK_YAML = """\

@@ -49,8 +49,8 @@ if TYPE_CHECKING:
     from nemo_evaluator.sandbox.base import Sandbox
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
-from nemo_evaluator.sandbox.base import ImageBuildRequest, SandboxSpec
 from nemo_evaluator.environments.registry import register
+from nemo_evaluator.sandbox.base import ImageBuildRequest, SandboxSpec
 from nemo_evaluator.scoring.types import ScorerInput
 
 logger = logging.getLogger(__name__)

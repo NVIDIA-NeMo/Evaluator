@@ -24,7 +24,7 @@ import pytest
 
 class TestExporterRegistry:
     def test_lazy_load_populates(self):
-        from nemo_evaluator.engine.exporters import _lazy_load, _REGISTRY
+        from nemo_evaluator.engine.exporters import _REGISTRY, _lazy_load
 
         _lazy_load()
         assert "wandb" in _REGISTRY

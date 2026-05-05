@@ -17,7 +17,6 @@
 import click
 
 from nemo_evaluator.cli.cache_sqsh import cache_sqsh_cmd
-from nemo_evaluator.cli.settings import config_cmd
 from nemo_evaluator.cli.eval import eval_cmd
 from nemo_evaluator.cli.gate import gate_cmd
 from nemo_evaluator.cli.list import list_cmd
@@ -25,6 +24,7 @@ from nemo_evaluator.cli.package import package_cmd
 from nemo_evaluator.cli.regression import compare_cmd
 from nemo_evaluator.cli.report import report_cmd
 from nemo_evaluator.cli.serve import serve_cmd
+from nemo_evaluator.cli.settings import config_cmd
 from nemo_evaluator.cli.validate import validate_cmd
 
 

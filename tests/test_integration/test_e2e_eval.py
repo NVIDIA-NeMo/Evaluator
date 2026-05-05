@@ -24,8 +24,8 @@ import pytest
 
 from tests.conftest import (
     AVAILABLE_FIXTURES,
-    CachedSolver,
     FIXTURE_DIR,
+    CachedSolver,
     FixturedEnvironment,
     MockJudgeClient,
     MockSandboxManager,

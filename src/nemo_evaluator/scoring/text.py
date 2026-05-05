@@ -22,7 +22,6 @@ import unicodedata
 
 from nemo_evaluator.scoring.types import ScorerInput
 
-
 _MCQ_LETTER = re.compile(
     r"(?:"
     r"\\boxed\{([A-Za-z])\}"

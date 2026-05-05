@@ -16,8 +16,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from nemo_evaluator.schemas import RetryConfig
 from nemo_evaluator.engine.model_client import ModelClient
+from nemo_evaluator.schemas import RetryConfig
 
 MOCK_CHAT_RESPONSE = {
     "choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}],

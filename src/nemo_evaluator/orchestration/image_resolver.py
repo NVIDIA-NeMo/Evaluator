@@ -16,9 +16,10 @@
 
 from __future__ import annotations
 
-import tomllib
 from functools import lru_cache
 from typing import Any
+
+import tomllib
 
 
 @lru_cache(maxsize=1)

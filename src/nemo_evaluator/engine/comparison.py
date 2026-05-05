@@ -34,11 +34,11 @@ from pathlib import Path
 from typing import Any, Literal
 
 from nemo_evaluator.metrics.paired_tests import (
+    POWER_80_FACTOR,
+    SIGNIFICANCE_THRESHOLD,
     McNemarResult,
     PermutationResult,
     SignTestResult,
-    POWER_80_FACTOR,
-    SIGNIFICANCE_THRESHOLD,
     detect_test,
     mcnemar_test,
     mde_estimate,

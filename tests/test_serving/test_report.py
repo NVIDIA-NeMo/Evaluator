@@ -15,9 +15,10 @@
 """Tests for nel report command."""
 
 import json
-from click.testing import CliRunner
 
 import pytest
+from click.testing import CliRunner
+
 from nemo_evaluator.cli.report import report_cmd
 
 

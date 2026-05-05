@@ -24,24 +24,24 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
-from nemo_evaluator.environments.base import EvalEnvironment, VerifyResult
-from nemo_evaluator.errors import GracefulError, InfraError
-from nemo_evaluator.solvers.base import ErrorKind
-from nemo_evaluator.metrics.aggregation import category_breakdown, scoring_details_breakdown, summary_stats
-from nemo_evaluator.metrics.confidence import bootstrap_ci, sample_level_ci
-from nemo_evaluator.metrics.pass_at_k import aggregate_pass_at_k, pass_at_k
-from nemo_evaluator.observability.collector import ArtifactCollector
-from nemo_evaluator.observability.progress import NoOpProgress, ProgressTracker
-from nemo_evaluator.observability.types import ModelResponse, StepRecord
 from nemo_evaluator.engine.artifacts import build_artifact_bundle
-from nemo_evaluator.sandbox.strategies import pick_lifecycle
-from nemo_evaluator.solvers import Solver
 from nemo_evaluator.engine.step_log import (
     INFERENCE_LOG,
     VERIFIED_LOG,
     StepLog,
     config_hash,
 )
+from nemo_evaluator.environments.base import EvalEnvironment, VerifyResult
+from nemo_evaluator.errors import GracefulError, InfraError
+from nemo_evaluator.metrics.aggregation import category_breakdown, scoring_details_breakdown, summary_stats
+from nemo_evaluator.metrics.confidence import bootstrap_ci, sample_level_ci
+from nemo_evaluator.metrics.pass_at_k import aggregate_pass_at_k, pass_at_k
+from nemo_evaluator.observability.collector import ArtifactCollector
+from nemo_evaluator.observability.progress import NoOpProgress, ProgressTracker
+from nemo_evaluator.observability.types import ModelResponse, StepRecord
+from nemo_evaluator.sandbox.strategies import pick_lifecycle
+from nemo_evaluator.solvers import Solver
+from nemo_evaluator.solvers.base import ErrorKind
 
 if TYPE_CHECKING:
     from nemo_evaluator.sandbox.base import OutsideEndpoint
@@ -539,7 +539,7 @@ async def run_evaluation(
 
                 extra_scorers = (config or {}).get("scorers", [])
                 if extra_scorers:
-                    from nemo_evaluator.scoring import get_scorer, ScorerInput
+                    from nemo_evaluator.scoring import ScorerInput, get_scorer
 
                     for scorer_name in extra_scorers:
                         try:

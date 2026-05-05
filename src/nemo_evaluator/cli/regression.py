@@ -22,7 +22,6 @@ import click
 
 from nemo_evaluator.reports.regression import RENDERERS
 
-
 # ── Verdict severity for multi-benchmark worst-case ──────────────────
 
 _VERDICT_SEVERITY = {"PASS": 0, "INCONCLUSIVE": 1, "WARN": 2, "BLOCK": 3}

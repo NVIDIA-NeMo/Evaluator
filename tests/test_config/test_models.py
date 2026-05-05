@@ -16,11 +16,11 @@ import pytest
 from pydantic import ValidationError
 
 from nemo_evaluator.schemas import (
-    EvalBundle,
-    RunSnapshot,
     BenchmarkResult,
-    ShardConfig,
+    EvalBundle,
     RetryConfig,
+    RunSnapshot,
+    ShardConfig,
 )
 
 

@@ -1196,6 +1196,7 @@ class TestShardedStatus:
 class TestFetchEvalProgress:
     def test_parse_wc_output_sharded(self):
         import pytest
+
         from nemo_evaluator.executors.slurm_executor import _fetch_eval_progress
 
         ssh_output = (
@@ -1232,6 +1233,7 @@ class TestFetchEvalProgress:
 
     def test_non_sharded(self):
         import pytest
+
         from nemo_evaluator.executors.slurm_executor import _fetch_eval_progress
 
         ssh_output = (
@@ -1261,25 +1263,25 @@ class TestFetchEvalProgress:
 
 class TestProgressLabel:
     def test_with_expected(self):
-        from nemo_evaluator.executors.slurm_executor import _ShardProgress, _progress_label
+        from nemo_evaluator.executors.slurm_executor import _progress_label, _ShardProgress
 
         assert _progress_label(_ShardProgress(45, 100)) == "45/100 (45%)"
         assert _progress_label(_ShardProgress(100, 100)) == "100/100 (100%)"
         assert _progress_label(_ShardProgress(0, 100)) == "0/100 (0%)"
 
     def test_without_expected(self):
-        from nemo_evaluator.executors.slurm_executor import _ShardProgress, _progress_label
+        from nemo_evaluator.executors.slurm_executor import _progress_label, _ShardProgress
 
         assert _progress_label(_ShardProgress(42, None)) == "42 verified"
 
     def test_rounding(self):
-        from nemo_evaluator.executors.slurm_executor import _ShardProgress, _progress_label
+        from nemo_evaluator.executors.slurm_executor import _progress_label, _ShardProgress
 
         assert _progress_label(_ShardProgress(1, 3)) == "1/3 (33%)"
         assert _progress_label(_ShardProgress(2, 3)) == "2/3 (67%)"
 
     def test_with_reward(self):
-        from nemo_evaluator.executors.slurm_executor import _ShardProgress, _progress_label
+        from nemo_evaluator.executors.slurm_executor import _progress_label, _ShardProgress
 
         assert _progress_label(_ShardProgress(45, 100, 22.5, 45)) == "45/100 (45%), avg_reward=0.5000"
         assert _progress_label(_ShardProgress(10, None, 3.0, 10)) == "10 verified, avg_reward=0.3000"
@@ -1302,7 +1304,7 @@ class TestStatusWithProgress:
     @patch("nemo_evaluator.executors.slurm_executor._fetch_eval_progress")
     @patch("nemo_evaluator.executors.ssh.ssh_run", return_value="PENDING")
     def test_sharded_status_shows_progress(self, mock_ssh, mock_progress, mock_batch, mock_latest, mock_meta):
-        from nemo_evaluator.executors.slurm_executor import _ShardProgress, SlurmExecutor
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor, _ShardProgress
 
         job_ids = ["100", "101"]
         mock_meta.return_value = self._make_meta(job_ids)
@@ -1350,7 +1352,7 @@ class TestStatusWithProgress:
     @patch("nemo_evaluator.executors.ssh.check_job_status")
     @patch("nemo_evaluator.executors.slurm_executor._fetch_eval_progress")
     def test_non_sharded_status_shows_progress(self, mock_progress, mock_check, mock_meta):
-        from nemo_evaluator.executors.slurm_executor import _ShardProgress, SlurmExecutor
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor, _ShardProgress
 
         mock_meta.return_value = {"job_id": "100", "hostname": "h", "username": ""}
         mock_check.return_value = {"job_id": "100", "state": "RUNNING"}
@@ -1664,7 +1666,7 @@ class TestParentLevelMeta:
 class TestResolveRunJobIds:
     def test_resolve_by_shard_job_id(self, tmp_path):
         """resolve_run finds a run when given a non-primary shard job_id."""
-        from nemo_evaluator.run_store import RunMeta, resolve_run, _RUN_META
+        from nemo_evaluator.run_store import _RUN_META, RunMeta, resolve_run
 
         run_id = "test_20260326_000000_abc"
         rm = RunMeta(
@@ -1689,7 +1691,7 @@ class TestResolveRunJobIds:
         assert result.run_id == run_id
 
     def test_resolve_primary_shard_still_works(self, tmp_path):
-        from nemo_evaluator.run_store import RunMeta, resolve_run, _RUN_META
+        from nemo_evaluator.run_store import _RUN_META, RunMeta, resolve_run
 
         run_id = "test_run"
         rm = RunMeta(

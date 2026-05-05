@@ -18,10 +18,8 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
-
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.solvers.base import SolveResult
-
 
 # ── CompletionSolver ─────────────────────────────────────────────────────
 

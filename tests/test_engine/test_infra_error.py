@@ -16,14 +16,12 @@
 
 from __future__ import annotations
 
-
 import pytest
 
-from nemo_evaluator.errors import GracefulError, InfraError
-from nemo_evaluator.solvers.base import ErrorKind, SolveResult
 from nemo_evaluator.engine.eval_loop import _get_error_category
+from nemo_evaluator.errors import GracefulError, InfraError
 from nemo_evaluator.observability.types import StepRecord
-
+from nemo_evaluator.solvers.base import ErrorKind, SolveResult
 
 # ── Exception hierarchy ──────────────────────────────────────────────
 

@@ -34,16 +34,16 @@ from .scoring import (
     RewardModelMetric,
 )
 from .services import (
+    _MODEL_SERVICE_TYPES,
     GymResourceService,
     NatAgentService,
     ServiceConfig,
-    _MODEL_SERVICE_TYPES,
 )
 from .solvers import (
+    AgentSolverConfig,
     ContainerSolverConfig,
     GymDelegationSolverConfig,
     HarborSolverConfig,
-    AgentSolverConfig,
     NatSolverConfig,
     OpenClawSolverConfig,
     SimpleSolver,
@@ -434,8 +434,9 @@ def _resolve_playbooks(raw: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(benchmarks, list):
         return raw
 
-    import yaml
     from pathlib import Path
+
+    import yaml
 
     from nemo_evaluator.config.compose import _deep_merge
 

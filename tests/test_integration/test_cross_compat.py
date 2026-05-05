@@ -28,18 +28,17 @@ import pytest
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.sandbox.base import SandboxSpec
 from nemo_evaluator.sandbox.strategies import (
+    LifecycleContext,
     NoSandbox,
     StatefulSandbox,
     StatelessSandbox,
-    LifecycleContext,
     pick_lifecycle,
 )
 from tests.conftest import (
-    CachedSolver,
     FIXTURE_DIR,
+    CachedSolver,
     MockSandboxManager,
 )
-
 
 # ---------------------------------------------------------------------------
 # Environment types × Solver types (protocol-level compatibility)

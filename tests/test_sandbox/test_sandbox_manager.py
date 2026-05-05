@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.sandbox.base import SandboxSpec, VolumeMount
 

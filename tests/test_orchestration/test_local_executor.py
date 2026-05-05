@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-
 from nemo_evaluator.executors.local_executor import (
     LocalExecutor,
     _pid_alive,

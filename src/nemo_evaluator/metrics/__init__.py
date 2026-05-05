@@ -12,14 +12,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from nemo_evaluator.metrics.pass_at_k import pass_at_k
-from nemo_evaluator.metrics.confidence import bootstrap_ci, sample_level_ci
 from nemo_evaluator.metrics.aggregation import category_breakdown
+from nemo_evaluator.metrics.confidence import bootstrap_ci, sample_level_ci
 from nemo_evaluator.metrics.paired_tests import (
-    McNemarResult,
     POWER_80_FACTOR,
-    PermutationResult,
     SIGNIFICANCE_THRESHOLD,
+    McNemarResult,
+    PermutationResult,
     SignTestResult,
     detect_test,
     mcnemar_test,
@@ -27,6 +26,7 @@ from nemo_evaluator.metrics.paired_tests import (
     permutation_test,
     sign_test,
 )
+from nemo_evaluator.metrics.pass_at_k import pass_at_k
 
 __all__ = [
     "McNemarResult",

@@ -118,7 +118,7 @@ def eval_run(
 
 def _load_config(config_file: str, overrides: tuple[str, ...] = ()):
     from nemo_evaluator.config import parse_eval_config
-    from nemo_evaluator.config.compose import compose_config, _prune_nulls
+    from nemo_evaluator.config.compose import _prune_nulls, compose_config
 
     raw = compose_config(config_file)
     for ov in overrides:
@@ -659,7 +659,7 @@ def _fetch_remote_results(run_id: str) -> tuple[Path, Path]:
     click.echo(f"Found {len(remote_files)} result file(s), downloading ...", err=True)
 
     tmp = Path(tempfile.mkdtemp(prefix="nel_report_"))
-    from nemo_evaluator.executors.ssh import _ssh_opts, _ensure_master, _ssh_target, _run
+    from nemo_evaluator.executors.ssh import _ensure_master, _run, _ssh_opts, _ssh_target
 
     target = _ssh_target(hostname, username)
     _ensure_master(target)

@@ -212,12 +212,15 @@ class DockerExecutor(Executor):
             encoding="utf-8",
         )
 
+        from datetime import datetime, timezone
+
         from nemo_evaluator.run_store import (
             RunMeta,
-            config_summary as _config_summary,
             generate_run_id,
         )
-        from datetime import datetime, timezone
+        from nemo_evaluator.run_store import (
+            config_summary as _config_summary,
+        )
 
         run_id = generate_run_id(config)
         run_meta = RunMeta(

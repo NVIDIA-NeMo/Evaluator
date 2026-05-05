@@ -22,11 +22,10 @@ import signal
 import socket
 import subprocess
 import time
-from dataclasses import dataclass, field
-from typing import Protocol
-
 import urllib.error
 import urllib.request
+from dataclasses import dataclass, field
+from typing import Protocol
 
 logger = logging.getLogger(__name__)
 

@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-
 from nemo_evaluator.adapters.interceptors.consolidate_system import Interceptor, _content_to_str
 from nemo_evaluator.adapters.types import AdapterRequest, InterceptorContext
 

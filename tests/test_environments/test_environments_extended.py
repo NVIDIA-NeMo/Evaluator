@@ -22,7 +22,6 @@ import pytest
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 
-
 # ── CompositeEnvironment ─────────────────────────────────────────────────
 
 

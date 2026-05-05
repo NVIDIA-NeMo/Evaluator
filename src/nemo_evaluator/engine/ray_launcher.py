@@ -50,10 +50,10 @@ def run_shard(
     system_prompt: str | None,
     shuffle_seed: int | None = 42,
 ) -> dict:
-    from nemo_evaluator.environments.registry import get_environment
-    from nemo_evaluator.observability.progress import NoOpProgress
     from nemo_evaluator.engine.eval_loop import run_evaluation
     from nemo_evaluator.engine.model_client import ModelClient
+    from nemo_evaluator.environments.registry import get_environment
+    from nemo_evaluator.observability.progress import NoOpProgress
     from nemo_evaluator.solvers import ChatSolver
 
     env = get_environment(benchmark)
