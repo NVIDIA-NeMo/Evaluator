@@ -95,6 +95,50 @@ def _set_nested_optionally_overriding(
         temp[keys[-1]] = val
 
 
+def apply_task_deployment_overrides(cfg: DictConfig, task: DictConfig) -> DictConfig:
+    """Return cfg with ``task.deployment_overrides`` deeply merged into ``cfg.deployment``.
+
+    Tasks may override deployment fields (image, pre_cmd, command, extra_args,
+    env_vars, topology, etc.) by setting a ``deployment_overrides`` block. The
+    merge is deep (per OmegaConf semantics): nested dicts merge key-by-key,
+    scalars and lists in ``deployment_overrides`` replace the originals.
+
+    The returned cfg is a new object — the input ``cfg`` is not mutated, so
+    other tasks in the same invocation continue to see the unmodified
+    ``cfg.deployment``.
+
+    If the task has no ``deployment_overrides`` (or it is empty), ``cfg`` is
+    returned unchanged.
+    """
+    overrides = task.get("deployment_overrides")
+    if not overrides:
+        return cfg
+    # Disable struct mode on the merge target so overrides can introduce new
+    # keys (e.g. an env_var that the base ``cfg.deployment.env_vars`` does
+    # not declare). The struct-mode rejection happens both at the deployment
+    # level and inside its nested dicts (env_vars, etc.), so we open the
+    # entire subtree before merging.
+    base_deployment = OmegaConf.create(
+        OmegaConf.to_container(cfg.deployment, resolve=False)
+    )
+    OmegaConf.set_struct(base_deployment, False)
+    overrides_open = OmegaConf.create(
+        OmegaConf.to_container(overrides, resolve=False)
+        if isinstance(overrides, DictConfig)
+        else overrides
+    )
+    OmegaConf.set_struct(overrides_open, False)
+    merged_deployment = OmegaConf.merge(base_deployment, overrides_open)
+    OmegaConf.set_struct(merged_deployment, False)
+    # Replace cfg.deployment via merge into a struct-disabled copy so the
+    # nested struct flags do not propagate back when we merge into cfg.
+    base_cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=False))
+    OmegaConf.set_struct(base_cfg, False)
+    return OmegaConf.merge(
+        base_cfg, OmegaConf.create({"deployment": merged_deployment})
+    )
+
+
 _MIGRATION_MESSAGE = """
 `overrides` field is no longer supported. Use `nemo_evaluator_config` field instead, e.g.:
 

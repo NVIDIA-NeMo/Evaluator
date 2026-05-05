@@ -46,6 +46,7 @@ from nemo_evaluator_launcher.common.execdb import (
     generate_job_id,
 )
 from nemo_evaluator_launcher.common.helpers import (
+    apply_task_deployment_overrides,
     check_unlisted_tasks_safeguard,
     get_api_key_name,
     get_endpoint_url,
@@ -134,7 +135,17 @@ class LocalExecutor(BaseExecutor):
 
         deployment = None
 
-        for idx, task in enumerate(cfg.evaluation.tasks):
+        # Snapshot the unmodified cfg before the per-task loop. Each iteration
+        # rebinds `cfg` to a per-task effective copy via
+        # ``apply_task_deployment_overrides`` so deployment fields (image,
+        # pre_cmd, command, extra_args, env_vars, topology, ...) can differ
+        # between tasks. The rebind is reset from this snapshot at the top of
+        # every iteration; after the loop, `cfg` reflects the last task's
+        # effective deployment but only ``cfg.evaluation.tasks`` is read past
+        # that point, which is identical in every snapshot.
+        _outer_cfg = cfg
+        for idx, task in enumerate(_outer_cfg.evaluation.tasks):
+            cfg = apply_task_deployment_overrides(_outer_cfg, task)
             timestamp = get_timestamp_string()
             task_definition = get_task_definition_for_job(
                 task_query=task.name,

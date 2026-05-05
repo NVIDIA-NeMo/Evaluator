@@ -140,6 +140,18 @@ class TaskModel(BaseModel):
             "Runs even if evaluation fails (EXIT trap)."
         ),
     )
+    deployment_overrides: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Per-task overrides deeply merged into ``cfg.deployment`` for this "
+            "task only (other tasks in the same invocation see the unmodified "
+            "deployment). Useful when one benchmark needs a different image, "
+            "pre_cmd, command, extra_args, env_vars, or topology than the "
+            "default deployment, while keeping the rest of the invocation "
+            "unchanged. Free-form pass-through; the merge is the standard "
+            "OmegaConf deep merge."
+        ),
+    )
 
 
 class EvaluationModel(BaseModel):

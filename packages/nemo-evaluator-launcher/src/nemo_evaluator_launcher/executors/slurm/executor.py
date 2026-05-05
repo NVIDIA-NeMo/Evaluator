@@ -55,6 +55,7 @@ from nemo_evaluator_launcher.common.execdb import (
 from nemo_evaluator_launcher.common.helpers import (
     CmdAndReadableComment,
     _str_to_echo_command,
+    apply_task_deployment_overrides,
     check_unlisted_tasks_safeguard,
     get_api_key_name,
     get_eval_factory_command,
@@ -640,6 +641,12 @@ def _create_slurm_sbatch_script(
         CmdAndReadableComment: The sbatch script content.
     """
     uname = get_unique_task_name(task.name, task_idx)
+
+    # Apply per-task deployment overrides (no-op if task has no
+    # deployment_overrides field). The local rebind shadows the parameter so
+    # all subsequent cfg.deployment accesses below see the merged values; the
+    # caller's cfg is untouched (OmegaConf.merge returns a new object).
+    cfg = apply_task_deployment_overrides(cfg, task)
 
     # deployment.multiple_instances is deprecated — use execution.num_instances and execution.num_nodes
     if cfg.deployment.get("multiple_instances") is not None:
