@@ -32,12 +32,40 @@ import os
 import tempfile
 from pathlib import Path
 
-import ray
+# ``ray`` lives behind the optional ``[ray]`` extra. Importing this module
+# without ray installed should not raise — only attempts to actually launch
+# Ray tasks should fail with a clear hint about the missing extra. This lets
+# tools that walk the import graph (e.g. FW-CI-templates' check-imports
+# action) resolve nemo_evaluator.engine.ray_launcher cleanly on a base install.
+try:
+    import ray  # type: ignore[import-not-found]
+
+    _RAY_IMPORT_ERROR: ImportError | None = None
+except ImportError as _e:
+    ray = None  # type: ignore[assignment]
+    _RAY_IMPORT_ERROR = _e
 
 logger = logging.getLogger(__name__)
 
 
-@ray.remote
+def _require_ray() -> None:
+    if ray is None:
+        raise RuntimeError(
+            f"ray is not installed; install with `pip install -e '.[ray]'` (original ImportError: {_RAY_IMPORT_ERROR})"
+        )
+
+
+def _ray_remote(fn):
+    """Apply ``@ray.remote`` if ray is available, otherwise return ``fn`` unchanged.
+
+    The unwrapped form is never callable as a Ray task — calling
+    ``run_shard.remote(...)`` will AttributeError, which is fine because the
+    caller (``main()`` below) already routes through ``_require_ray()``.
+    """
+    return ray.remote(fn) if ray is not None else fn
+
+
+@_ray_remote
 def run_shard(
     benchmark: str,
     shard_idx: int,
@@ -85,6 +113,7 @@ def run_shard(
 
 
 def main():
+    _require_ray()
     parser = argparse.ArgumentParser()
     parser.add_argument("--benchmark", "-b", required=True)
     parser.add_argument("--shards", "-s", type=int, default=4)
