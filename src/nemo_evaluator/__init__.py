@@ -14,12 +14,12 @@
 # limitations under the License.
 """NeMo Evaluator -- environments, solvers, evaluation orchestration."""
 
-from nemo_evaluator.package_info import __package_name__, __version__
 from nemo_evaluator.engine.eval_loop import run_evaluation
 from nemo_evaluator.engine.model_client import ModelClient
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.environments.registry import get_environment, list_environments, load_benchmark_file, register
+from nemo_evaluator.package_info import __package_name__, __version__
 from nemo_evaluator.scoring import (
     ScorerInput,
     answer_line,
