@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 
 from nemo_evaluator.config.sandboxes import NoSandbox as NoSandboxConfig
@@ -30,6 +31,29 @@ class TestSafeName:
 
         result = _safe_name("  hello world  ")
         assert " " not in result
+
+
+class TestRunLocalArtifactAccess:
+    def test_registers_background_eval_log_as_artifact(self, tmp_path):
+        from nemo_evaluator.orchestration.orchestrator import run_local
+
+        config = SimpleNamespace(
+            cluster=SimpleNamespace(container_env={}),
+            output=SimpleNamespace(
+                dir=str(tmp_path),
+                report=[],
+                export=[],
+                export_config={},
+            ),
+            services={},
+            benchmarks=[],
+        )
+
+        with patch("nemo_evaluator.orchestration.orchestrator.apply_artifact_access") as apply_access:
+            run_local(config)
+
+        artifact_files = apply_access.call_args.kwargs["artifact_files"]
+        assert tmp_path / "nel_eval.log" in artifact_files
 
 
 class TestInterceptorSpecs:

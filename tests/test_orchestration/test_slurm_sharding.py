@@ -15,21 +15,26 @@
 """Tests for SLURM sharded job generation, eval_loop shard_info, and lifecycle."""
 
 import json
+import os
 from unittest.mock import MagicMock, patch
 
 from nemo_evaluator.config import EvalConfig
 from nemo_evaluator.orchestration.slurm_gen import generate_sbatch, write_sbatch
 
 
-def _make_slurm_config(shards=None, auto_resume=False):
+def _make_slurm_config(shards=None, auto_resume=False, api_key=None):
+    service = {
+        "type": "api",
+        "url": "http://x/v1/chat/completions",
+        "protocol": "chat_completions",
+    }
+    if api_key is not None:
+        service["api_key"] = api_key
+
     return EvalConfig.model_validate(
         {
             "services": {
-                "model": {
-                    "type": "api",
-                    "url": "http://x/v1/chat/completions",
-                    "protocol": "chat_completions",
-                },
+                "model": service,
             },
             "benchmarks": [
                 {"name": "gsm8k", "repeats": 5, "solver": {"type": "simple", "service": "model"}},
@@ -45,6 +50,10 @@ def _make_slurm_config(shards=None, auto_resume=False):
             },
         }
     )
+
+
+def _mode(path):
+    return path.stat().st_mode & 0o777
 
 
 class TestSbatchShardGeneration:
@@ -357,6 +366,18 @@ class TestPerServiceLogFiles:
         script, _, _ = generate_sbatch(cfg)
         assert 'mkdir -p "$OUTPUT_DIR/logs"' in script
 
+    def test_output_and_logs_dirs_are_chmoded(self):
+        cfg = _make_slurm_config()
+        script, _, _ = generate_sbatch(cfg)
+        assert 'chmod a+rx "$OUTPUT_DIR" "$OUTPUT_DIR/logs"' in script
+        assert 'chmod a+rx "$OUTPUT_DIR/logs" "$OUTPUT_DIR/logs"/*-"$SLURM_JOB_ID".log' in script
+        assert 'chmod -R a+rx "$OUTPUT_DIR/logs"' not in script
+
+    def test_benchmark_output_dir_is_chmoded_recursively(self):
+        cfg = _make_slurm_config()
+        script, _, _ = generate_sbatch(cfg)
+        assert 'chmod -R a+rx "$NEL_OUTPUT_DIR"' in script
+
     def test_eval_task_tees_to_log_file(self):
         cfg = _make_slurm_config()
         script, _, _ = generate_sbatch(cfg)
@@ -407,6 +428,79 @@ class TestWriteSbatchSharding:
             content = sp.read_text()
             assert f"export NEL_SHARD_IDX={i}" in content
             assert "export NEL_TOTAL_SHARDS=3" in content
+
+    def test_write_sbatch_dirs_are_traversable_with_restrictive_umask(self, tmp_path):
+        cfg = _make_slurm_config(shards=2)
+        cfg.output.dir = str(tmp_path / "run")
+        cfg.output.timestamped = False
+
+        old_umask = os.umask(0o077)
+        try:
+            script_paths, _ = write_sbatch(cfg, output_dir=tmp_path / "run")
+        finally:
+            os.umask(old_umask)
+
+        run_dir = tmp_path / "run"
+        assert run_dir.stat().st_mode & 0o055 == 0o055
+        for script_path in script_paths:
+            assert script_path.parent.stat().st_mode & 0o055 == 0o055
+            assert (script_path.parent / "logs").stat().st_mode & 0o055 == 0o055
+
+    def test_write_sbatch_checks_parent_chain_once(self, tmp_path):
+        cfg = _make_slurm_config(shards=2)
+        cfg.output.dir = str(tmp_path / "run")
+        cfg.output.timestamped = False
+
+        with patch("nemo_evaluator.orchestration.slurm_gen.warn_if_parent_chain_lacks_execute") as warn:
+            write_sbatch(cfg, output_dir=tmp_path / "run")
+
+        warn.assert_called_once_with(tmp_path / "run")
+
+    def test_write_sbatch_checks_configured_parent_chain_when_staging(self, tmp_path):
+        cfg = _make_slurm_config(shards=2)
+        remote_output = tmp_path / "remote-run"
+        cfg.output.dir = str(remote_output)
+        cfg.output.timestamped = False
+
+        with patch("nemo_evaluator.orchestration.slurm_gen.warn_if_parent_chain_lacks_execute") as warn:
+            write_sbatch(cfg, output_dir=tmp_path / "staging")
+
+        warn.assert_called_once_with(remote_output)
+
+    def test_write_sbatch_non_secret_sidecar_gets_artifact_access(self, tmp_path):
+        cfg = _make_slurm_config()
+        cfg.output.dir = str(tmp_path / "run")
+        cfg.output.timestamped = False
+
+        old_umask = os.umask(0o077)
+        try:
+            _, extra_paths = write_sbatch(cfg, output_dir=tmp_path / "run")
+        finally:
+            os.umask(old_umask)
+
+        sidecar = next(path for path in extra_paths if path.name.startswith("config_"))
+        assert _mode(sidecar) == 0o755
+
+    def test_write_sbatch_secret_sidecar_stays_private(self, tmp_path):
+        cfg = _make_slurm_config(api_key="secret")
+        cfg.output.dir = str(tmp_path / "run")
+        cfg.output.timestamped = False
+
+        old_umask = os.umask(0o077)
+        try:
+            _, extra_paths = write_sbatch(cfg, output_dir=tmp_path / "run")
+        finally:
+            os.umask(old_umask)
+
+        sidecar = next(path for path in extra_paths if path.name.startswith("config_"))
+        assert _mode(sidecar) == 0o600
+
+    def test_shard_merge_chmods_only_non_shard_output_dirs(self):
+        cfg = _make_slurm_config(shards=2)
+        script, _, _ = generate_sbatch(cfg, shard_idx=0, total_shards=2)
+        assert 'find "$_PARENT_DIR" -mindepth 1 -maxdepth 1 -type d' in script
+        assert "! -name 'shard_*'" in script
+        assert "-exec chmod -R a+rx {} +" in script
 
     def test_write_sbatch_no_shards_returns_single_list(self, tmp_path):
         cfg = _make_slurm_config(shards=None)

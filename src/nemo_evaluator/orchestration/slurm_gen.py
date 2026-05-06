@@ -38,6 +38,7 @@ from nemo_evaluator.orchestration.image_resolver import (
     resolve_deployment_image,
     resolve_eval_image,
 )
+from nemo_evaluator.orchestration.artifact_access import chmod_a_rx, warn_if_parent_chain_lacks_execute
 from nemo_evaluator.orchestration.secrets_env import (
     SecretsEnvResult,
     build_reexport_commands,
@@ -70,6 +71,7 @@ OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
 JOB_START_EPOCH=$(date +%s)
 mkdir -p "$OUTPUT_DIR/logs"
+chmod a+rx "$OUTPUT_DIR" "$OUTPUT_DIR/logs" 2>/dev/null || true
 
 echo "=== NeMo Evaluator ==="
 echo "Job ID: $SLURM_JOB_ID"
@@ -113,6 +115,8 @@ if [[ $NEL_EXIT_CODE -eq 0 ]]; then
             else
                 touch "$_PARENT_DIR/.merge_lock/.done"
                 {report_commands}
+                find "$_PARENT_DIR" -mindepth 1 -maxdepth 1 -type d ! -name 'shard_*' ! -name '.merge_lock' -exec chmod -R a+rx {{}} + 2>/dev/null || true
+                chmod a+rx "$_PARENT_DIR" "$_PARENT_DIR"/report.* 2>/dev/null || true
             fi
         fi
     fi
@@ -159,6 +163,7 @@ OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
 JOB_START_EPOCH=$(date +%s)
 mkdir -p "$OUTPUT_DIR/logs"
+chmod a+rx "$OUTPUT_DIR" "$OUTPUT_DIR/logs" 2>/dev/null || true
 
 echo "=== NeMo Evaluator (het-job) ==="
 echo "Job ID: $SLURM_JOB_ID"
@@ -355,6 +360,7 @@ mkdir -p "$NEL_OUTPUT_DIR"
 {run_prefix}nel eval run "$OUTPUT_DIR/config_{safe_name}.yaml" {extra_flags}2>&1 | stdbuf -oL tee -a "$OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log"
 _EVAL_RC=${{PIPESTATUS[0]}}
 ln -sf "eval-{safe_name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/eval-{safe_name}.log"
+chmod -R a+rx "$NEL_OUTPUT_DIR" 2>/dev/null || true
 if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
 """
 
@@ -379,6 +385,7 @@ wait $_EVAL_PID
 _EVAL_RC=$?
 kill $_PROBE_PID 2>/dev/null; wait $_PROBE_PID 2>/dev/null
 ln -sf "eval-{safe_name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/eval-{safe_name}.log"
+chmod -R a+rx "$NEL_OUTPUT_DIR" 2>/dev/null || true
 if [ -f "$_PROBE_SENTINEL" ]; then
     echo "FATAL: Model server died during {bench_name}. Aborting."
     exit 1
@@ -391,6 +398,7 @@ _REPORT = """\
 echo ""
 echo "=== Generating reports ==="
 {report_commands}
+chmod a+rx "$OUTPUT_DIR"/report.* 2>/dev/null || true
 """
 
 _PREFLIGHT_IMAGE_CHECK = """\
@@ -433,6 +441,8 @@ cleanup() {{
     echo ""
     echo "Shutting down services..."
     {kill_commands}
+    chmod a+rx "$OUTPUT_DIR" 2>/dev/null || true
+    chmod a+rx "$OUTPUT_DIR/logs" "$OUTPUT_DIR/logs"/*-"$SLURM_JOB_ID".log 2>/dev/null || true
     echo "=== Evaluation complete ==="
     echo "End: $(date -Iseconds)"
     echo "Results: $OUTPUT_DIR"
@@ -1671,7 +1681,10 @@ def _write_single_script(
 ) -> tuple[Path, list[Path]]:
     """Write one sbatch script + its sidecar/secrets into *out*."""
     out.mkdir(parents=True, exist_ok=True)
-    (out / "logs").mkdir(exist_ok=True)
+    logs_dir = out / "logs"
+    logs_dir.mkdir(exist_ok=True)
+    chmod_a_rx(out)
+    chmod_a_rx(logs_dir)
 
     path = out / "nel_eval.sbatch"
     path.write_text(script, encoding="utf-8")
@@ -1696,6 +1709,8 @@ def _write_single_script(
         cfg_path.write_text(yaml.dump(cfg_dict, default_flow_style=False, sort_keys=False), encoding="utf-8")
         if _sidecar_contains_secret(cfg_dict):
             cfg_path.chmod(0o600)
+        else:
+            chmod_a_rx(cfg_path)
         extra_paths.append(cfg_path)
 
     return path, extra_paths
@@ -1717,8 +1732,14 @@ def write_sbatch(
     entry per shard (or a single entry when not sharded).
     """
     out = Path(output_dir or config.output.dir)
+    artifact_root = Path(config.output.dir)
     cluster = config.cluster
     n_shards = getattr(cluster, "shards", None) if isinstance(cluster, SlurmCluster) else None
+
+    out.mkdir(parents=True, exist_ok=True)
+    chmod_a_rx(out)
+    # output_dir may be local staging for remote submissions; warn on the path users will access.
+    warn_if_parent_chain_lacks_execute(artifact_root)
 
     if n_shards:
         script_paths: list[Path] = []

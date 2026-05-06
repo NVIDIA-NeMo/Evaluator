@@ -80,6 +80,14 @@ _Avoid_: Reward
 Any persisted output of an **Evaluation Run** or **Benchmark Run**, including step logs, bundles, reports, exports, traces, and checkpoints.
 _Avoid_: Result, output file
 
+**Artifact Access**:
+The default expectation that non-credential **Artifacts** from an **Evaluation Run** are readable and traversable, but not writable, by other cluster users.
+_Avoid_: Output permissions, result permissions
+
+**Credential File**:
+A launch-time operational file that carries secret material and must stay private even when **Artifacts** are shared.
+_Avoid_: Artifact, output file
+
 **Comparison**:
 Paired analysis of two **Evaluation Runs** or **Benchmark Runs** to identify score deltas, behavioral flips, and statistical evidence of regression.
 _Avoid_: Gate, evaluation
@@ -129,6 +137,16 @@ _Avoid_: Status, result
 - **Scoring** produces one or more **Scores**.
 - An **Evaluation Run** produces one or more **Artifacts**.
 - A **Benchmark Run** may produce one or more **Artifacts**.
+- Non-credential **Artifacts** should have **Artifact Access** by default.
+- **Artifact Access** applies regardless of the **Execution Backend** that produced the **Artifacts**.
+- **Artifact Access** applies only to **Artifacts** produced or owned by the current **Evaluation Run**.
+- **Artifact Access** lets other cluster users inspect **Artifacts**, not mutate an **Evaluation Run**.
+- Failure to apply **Artifact Access** should not change the success or failure of an **Evaluation Run**.
+- Logs are **Artifacts** and should have **Artifact Access** by default.
+- Sharded **Evaluation Runs** should apply **Artifact Access** incrementally as shard **Artifacts** are produced, not only after final merge.
+- Non-credential operational metadata is an **Artifact** and should have **Artifact Access** by default.
+- A **Credential File** is not an **Artifact** even if it is stored near **Artifacts**.
+- **Artifact Access** must not make a **Credential File** readable by other cluster users.
 - A **Comparison** has exactly one **Baseline** and exactly one **Candidate**.
 - A **Baseline** and **Candidate** should evaluate the same **Problems** for valid paired analysis.
 - A **Quality Gate** evaluates one **Baseline** and one **Candidate** using a **Gate Policy**.
@@ -156,5 +174,7 @@ _Avoid_: Status, result
 - "verification" and "scoring" were used interchangeably; resolved: **Verification** is the environment-owned check, while **Scoring** is evaluator-owned metric computation.
 - "reward" and "score" were used interchangeably; resolved: **Reward** is per-attempt, while **Score** is aggregate or derived.
 - "result" was used as a broad persisted-output term; resolved: **Artifact** is the broad persisted-output term, while result remains local to code return objects and report schemas.
+- "output dirs" was used to include both run artifacts and credential-bearing sidecars; resolved: **Artifact Access** applies to non-credential **Artifacts**, while **Credential Files** stay private.
+- "output dir" was used as a permission boundary; resolved: the boundary is **Artifacts** produced or owned by the current **Evaluation Run**, not every filesystem entry under a configured directory.
 - "compare" and "gate" were used as generic release checks; resolved: **Comparison** is diagnostic paired analysis, while gate terminology is reserved for policy decisions.
 - "status", "result", and "verdict" were all used for gate outputs; resolved: **Verdict** is the top-level release decision from a **Quality Gate**.

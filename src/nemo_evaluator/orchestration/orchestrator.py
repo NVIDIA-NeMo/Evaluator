@@ -20,6 +20,7 @@ import asyncio
 import logging
 import os
 import re
+import subprocess
 import threading
 from pathlib import Path
 from typing import IO, Any
@@ -48,8 +49,41 @@ from nemo_evaluator.config import (
     ToolCallingSolverConfig,
 )
 from nemo_evaluator.config.services import _MODEL_SERVICE_TYPES
+from nemo_evaluator.orchestration.artifact_access import apply_artifact_access
 
 logger = logging.getLogger(__name__)
+
+
+def _snapshot_files(paths: set[Path]) -> dict[Path, tuple[int, int]]:
+    snapshot: dict[Path, tuple[int, int]] = {}
+    for root in paths:
+        if not root.exists():
+            continue
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            stat = path.stat()
+            snapshot[path] = (stat.st_mtime_ns, stat.st_size)
+    return snapshot
+
+
+def _changed_files_since(paths: set[Path], before: dict[Path, tuple[int, int]]) -> set[Path]:
+    after = _snapshot_files(paths)
+    return {path for path, signature in after.items() if before.get(path) != signature}
+
+
+def _known_benchmark_artifact_files(task_dir: Path, bundle: dict[str, Any] | None = None) -> set[Path]:
+    paths = {
+        task_dir / "inference_log.jsonl",
+        task_dir / "verified_log.jsonl",
+        task_dir / "results.jsonl",
+        task_dir / "trajectories.jsonl",
+        task_dir / "runtime_stats.json",
+        task_dir / "failure_analysis.json",
+    }
+    if bundle and bundle.get("run_id"):
+        paths.add(task_dir / f"{bundle['run_id']}.json")
+    return paths
 
 
 def _drain_pipe_to_file(pipe: IO[bytes], log_path: Path) -> threading.Thread:
@@ -412,8 +446,6 @@ def _start_gym_service(svc: GymResourceService):
 
 class _NatServiceHandle:
     def __init__(self, port: int, config_file: str | None) -> None:
-        import subprocess
-
         self.port = port
         self._config_file = config_file or "config.yml"
         self._process: subprocess.Popen | None = None
@@ -841,7 +873,9 @@ def _finalize_batch_result(
     name = getattr(env, "name", bench_name)
     task_dir = output_dir / _safe_name(name)
     task_dir.mkdir(parents=True, exist_ok=True)
-    write_all(batch_result, task_dir)
+    paths = write_all(batch_result, task_dir)
+    batch_result["_artifact_dirs"] = [str(task_dir)]
+    batch_result["_artifact_files"] = [str(path) for path in paths.values()]
     return batch_result
 
 
@@ -875,6 +909,7 @@ async def _run_single_benchmark(
     from nemo_evaluator.engine.artifacts import write_all
     from nemo_evaluator.engine.eval_loop import run_evaluation
     from nemo_evaluator.engine.sharding import shard_from_env
+    from nemo_evaluator.engine.step_log import INFERENCE_LOG, VERIFIED_LOG
     from nemo_evaluator.observability.progress import ConsoleProgress
     from nemo_evaluator.templates import resolve_template_path
 
@@ -941,7 +976,16 @@ async def _run_single_benchmark(
             shuffle_seed=bench.shuffle_seed,
         )
 
-        write_all(bundle, task_dir)
+        paths = write_all(bundle, task_dir)
+        bundle["_artifact_dirs"] = [str(task_dir)]
+        bundle["_artifact_files"] = [
+            str(path)
+            for path in (
+                *paths.values(),
+                task_dir / INFERENCE_LOG,
+                task_dir / VERIFIED_LOG,
+            )
+        ]
         return bundle
     finally:
         if judge_client is not None and hasattr(judge_client, "close"):
@@ -967,7 +1011,7 @@ def run_local(
 ) -> list[dict[str, Any]]:
     import click
 
-    from nemo_evaluator.engine.checkpoint import CheckpointManager
+    from nemo_evaluator.engine.checkpoint import CHECKPOINT_FILE, CheckpointManager
 
     os.environ.setdefault("PYTHONUNBUFFERED", "1")
 
@@ -980,6 +1024,12 @@ def run_local(
 
     log_dir = output_dir / "logs"
     log_dir.mkdir(exist_ok=True)
+    artifact_dirs: set[Path] = {log_dir}
+    artifact_files: set[Path] = {
+        output_dir / CHECKPOINT_FILE,
+        output_dir / "nel_run.json",
+        output_dir / "nel_eval.log",
+    }
 
     ckpt = CheckpointManager(output_dir)
     if not resume:
@@ -990,6 +1040,7 @@ def run_local(
 
     for name, svc in config.services.items():
         if svc.is_managed:
+            artifact_files.add(log_dir / f"server-{name}.log")
             handles[name] = _ServiceHandle(
                 name,
                 svc,
@@ -1010,7 +1061,11 @@ def run_local(
             if ckpt.is_completed(bench.name):
                 prior = ckpt.get_completed_result(bench.name)
                 click.echo("  Skipping (already completed)")
-                bundles.append(_load_prior_bundle(prior["bundle_path"]))
+                task_dir = Path(prior["bundle_path"])
+                artifact_dirs.add(task_dir)
+                bundle = _load_prior_bundle(prior["bundle_path"])
+                artifact_files.update(_known_benchmark_artifact_files(task_dir, bundle))
+                bundles.append(bundle)
                 continue
 
             if resume and ckpt.has_partial_progress(bench.name):
@@ -1031,7 +1086,10 @@ def run_local(
 
                 bench_name = bundle.get("benchmark", {}).get("name", bench.name)
                 task_dir = output_dir / _safe_name(bench_name)
+                artifact_dirs.update(Path(path) for path in bundle.get("_artifact_dirs", []))
+                artifact_files.update(Path(path) for path in bundle.get("_artifact_files", []))
                 ckpt.mark_completed(bench.name, str(task_dir))
+                artifact_files.add(output_dir / CHECKPOINT_FILE)
                 bundle["_output_path"] = str(task_dir)
                 bundles.append(bundle)
 
@@ -1047,6 +1105,9 @@ def run_local(
                 break
 
             except Exception as exc:
+                task_dir = output_dir / _safe_name(bench.name)
+                artifact_dirs.add(task_dir)
+                artifact_files.update(_known_benchmark_artifact_files(task_dir))
                 logger.error(
                     "Benchmark %s failed: %s",
                     bench.name,
@@ -1054,6 +1115,7 @@ def run_local(
                     exc_info=True,
                 )
                 ckpt.mark_failed(bench.name, str(exc))
+                artifact_files.add(output_dir / CHECKPOINT_FILE)
                 click.echo(f"  FAILED: {exc}", err=True)
                 bundles.append(
                     {
@@ -1072,7 +1134,12 @@ def run_local(
                 err=True,
             )
 
-        _generate_reports(config, output_dir, in_memory_bundles=bundles)
+        export_snapshot = _snapshot_files(artifact_dirs)
+        report_paths = _generate_reports(config, output_dir, in_memory_bundles=bundles)
+        artifact_files.update(report_paths)
+        changed_export_files = _changed_files_since(artifact_dirs, export_snapshot)
+        artifact_files.update(changed_export_files)
+        artifact_dirs.update(path.parent for path in changed_export_files)
 
     finally:
         for name, handle in reversed(list(handles.items())):
@@ -1083,6 +1150,11 @@ def run_local(
                 os.environ.pop(k, None)
             else:
                 os.environ[k] = v
+        apply_artifact_access(
+            root_dir=output_dir,
+            artifact_dirs=artifact_dirs,
+            artifact_files=artifact_files,
+        )
 
     return bundles
 
@@ -1092,19 +1164,20 @@ def _generate_reports(
     output_dir: Path,
     *,
     in_memory_bundles: list[dict[str, Any]] | None = None,
-) -> None:
+) -> list[Path]:
     import click
 
     from nemo_evaluator.reports.eval import RENDERERS, build_table, load_bundles
 
+    paths: list[Path] = []
     bundle_files = sorted(output_dir.rglob("eval-*.json"))
     if not bundle_files:
         click.echo("No bundles found for report generation.")
-        return
+        return paths
 
     bundles = load_bundles(bundle_files)
     if not bundles:
-        return
+        return paths
 
     table = build_table(bundles)
 
@@ -1124,6 +1197,7 @@ def _generate_reports(
         ext = extensions.get(fmt, fmt)
         path = output_dir / f"report.{ext}"
         path.write_text(renderer(table), encoding="utf-8")
+        paths.append(path)
         click.echo(f"Report: {path}")
 
     export_bundles = in_memory_bundles if in_memory_bundles else bundles
@@ -1145,3 +1219,5 @@ def _generate_reports(
         except Exception as exc:
             logger.error("Export to %s failed: %s", exporter_name, exc)
             click.echo(f"Export to {exporter_name} failed: {exc}", err=True)
+
+    return paths
