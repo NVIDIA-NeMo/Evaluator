@@ -152,6 +152,17 @@ class TaskModel(BaseModel):
             "OmegaConf deep merge."
         ),
     )
+    execution_overrides: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Per-task overrides deeply merged into ``cfg.execution`` for this "
+            "task only. Same semantics as ``deployment_overrides`` but targets "
+            "the execution section — lets a single task override topology "
+            "fields like ``num_instances`` and ``num_nodes`` (e.g. nemo_gym "
+            "CBRNE attaches to one Ray cluster and needs num_instances=1, "
+            "while sibling tasks fan out for throughput)."
+        ),
+    )
 
 
 class EvaluationModel(BaseModel):

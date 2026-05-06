@@ -110,33 +110,46 @@ def apply_task_deployment_overrides(cfg: DictConfig, task: DictConfig) -> DictCo
     If the task has no ``deployment_overrides`` (or it is empty), ``cfg`` is
     returned unchanged.
     """
-    overrides = task.get("deployment_overrides")
+    return _apply_task_section_overrides(cfg, task, "deployment")
+
+
+def apply_task_execution_overrides(cfg: DictConfig, task: DictConfig) -> DictConfig:
+    """Return cfg with ``task.execution_overrides`` deeply merged into ``cfg.execution``.
+
+    Same semantics as ``apply_task_deployment_overrides`` but targets the
+    ``execution`` section instead. Lets a single task in a multi-task config
+    override topology fields like ``num_instances`` and ``num_nodes`` —
+    needed when a task (e.g. nemo_gym CBRNE) only attaches to one Ray
+    cluster, while siblings (e.g. HLE) want multi-instance fan-out.
+    """
+    return _apply_task_section_overrides(cfg, task, "execution")
+
+
+def _apply_task_section_overrides(
+    cfg: DictConfig, task: DictConfig, section: str
+) -> DictConfig:
+    overrides = task.get(f"{section}_overrides")
     if not overrides:
         return cfg
     # Disable struct mode on the merge target so overrides can introduce new
-    # keys (e.g. an env_var that the base ``cfg.deployment.env_vars`` does
-    # not declare). The struct-mode rejection happens both at the deployment
-    # level and inside its nested dicts (env_vars, etc.), so we open the
-    # entire subtree before merging.
-    base_deployment = OmegaConf.create(
-        OmegaConf.to_container(cfg.deployment, resolve=False)
-    )
-    OmegaConf.set_struct(base_deployment, False)
+    # keys (e.g. an env_var that the base section does not declare). The
+    # struct-mode rejection happens both at the section level and inside its
+    # nested dicts, so we open the entire subtree before merging.
+    base_section = OmegaConf.create(OmegaConf.to_container(cfg[section], resolve=False))
+    OmegaConf.set_struct(base_section, False)
     overrides_open = OmegaConf.create(
         OmegaConf.to_container(overrides, resolve=False)
         if isinstance(overrides, DictConfig)
         else overrides
     )
     OmegaConf.set_struct(overrides_open, False)
-    merged_deployment = OmegaConf.merge(base_deployment, overrides_open)
-    OmegaConf.set_struct(merged_deployment, False)
-    # Replace cfg.deployment via merge into a struct-disabled copy so the
-    # nested struct flags do not propagate back when we merge into cfg.
+    merged_section = OmegaConf.merge(base_section, overrides_open)
+    OmegaConf.set_struct(merged_section, False)
+    # Replace cfg[section] via merge into a struct-disabled copy so the nested
+    # struct flags do not propagate back when we merge into cfg.
     base_cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=False))
     OmegaConf.set_struct(base_cfg, False)
-    return OmegaConf.merge(
-        base_cfg, OmegaConf.create({"deployment": merged_deployment})
-    )
+    return OmegaConf.merge(base_cfg, OmegaConf.create({section: merged_section}))
 
 
 _MIGRATION_MESSAGE = """

@@ -56,6 +56,7 @@ from nemo_evaluator_launcher.common.helpers import (
     CmdAndReadableComment,
     _str_to_echo_command,
     apply_task_deployment_overrides,
+    apply_task_execution_overrides,
     check_unlisted_tasks_safeguard,
     get_api_key_name,
     get_eval_factory_command,
@@ -121,7 +122,15 @@ class SlurmExecutor(BaseExecutor):
             unlisted_task_names: list[str] = []
 
             is_potentially_unsafe = False
-            for idx, task in enumerate(cfg.evaluation.tasks):
+            _outer_cfg = cfg
+            for idx, task in enumerate(_outer_cfg.evaluation.tasks):
+                # Apply both per-task overrides before any cfg.* read in this
+                # iteration. Deployment overrides handle image/pre_cmd/topology
+                # at the deployment level; execution overrides handle topology
+                # at the SLURM level (num_instances, num_nodes). Other tasks in
+                # the same invocation see the untouched _outer_cfg.
+                cfg = apply_task_deployment_overrides(_outer_cfg, task)
+                cfg = apply_task_execution_overrides(cfg, task)
                 # calculate job_id
                 job_id = f"{invocation_id}.{idx}"
 
@@ -647,6 +656,7 @@ def _create_slurm_sbatch_script(
     # all subsequent cfg.deployment accesses below see the merged values; the
     # caller's cfg is untouched (OmegaConf.merge returns a new object).
     cfg = apply_task_deployment_overrides(cfg, task)
+    cfg = apply_task_execution_overrides(cfg, task)
 
     # deployment.multiple_instances is deprecated — use execution.num_instances and execution.num_nodes
     if cfg.deployment.get("multiple_instances") is not None:

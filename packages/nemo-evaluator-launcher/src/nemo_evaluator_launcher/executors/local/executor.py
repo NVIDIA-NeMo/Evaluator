@@ -47,6 +47,7 @@ from nemo_evaluator_launcher.common.execdb import (
 )
 from nemo_evaluator_launcher.common.helpers import (
     apply_task_deployment_overrides,
+    apply_task_execution_overrides,
     check_unlisted_tasks_safeguard,
     get_api_key_name,
     get_endpoint_url,
@@ -146,6 +147,7 @@ class LocalExecutor(BaseExecutor):
         _outer_cfg = cfg
         for idx, task in enumerate(_outer_cfg.evaluation.tasks):
             cfg = apply_task_deployment_overrides(_outer_cfg, task)
+            cfg = apply_task_execution_overrides(cfg, task)
             timestamp = get_timestamp_string()
             task_definition = get_task_definition_for_job(
                 task_query=task.name,
