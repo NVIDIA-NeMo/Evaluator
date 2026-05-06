@@ -12,6 +12,7 @@ myst-parser # For our markdown docs
 sphinx-design # For our design elements
 swagger-plugin-for-sphinx # For Swagger API documentation
 
-# Editable local dependencies for autogen scripts and API docs
--e packages/nemo-evaluator
--e packages/nemo-evaluator-launcher
+# Editable install of nemo-evaluator itself (V2 layout: package at root, no
+# packages/ subdirectory). Required for sphinx-autodoc2 and for any
+# autogen scripts that import nemo_evaluator at docs build time.
+-e .
