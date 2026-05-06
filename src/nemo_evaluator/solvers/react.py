@@ -104,12 +104,12 @@ class ReActSolver:
 
         # 1. Build per-problem backend
         backend = self._build_backend(sandbox)
+        atif_steps: list[dict[str, Any]] = []
+        total_prompt_tokens = 0
+        total_completion_tokens = 0
+        turn = 0
 
         try:
-            atif_steps: list[dict[str, Any]] = []
-            total_prompt_tokens = 0
-            total_completion_tokens = 0
-
             # 2. Discover tools (prefer seed metadata, fall back to backend)
             tools = task.metadata.get("tools") if task.metadata else None
             if not tools:
@@ -182,9 +182,8 @@ class ReActSolver:
                             "observation": {
                                 "results": [
                                     {
-                                        "source_call_id": tc.id,
                                         "content": truncated,
-                                        "is_error": result.is_error,
+                                        "extra": {"source_call_id": tc.id, "is_error": result.is_error},
                                     }
                                 ],
                             },

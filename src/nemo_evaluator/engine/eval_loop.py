@@ -435,11 +435,14 @@ async def run_evaluation(
                         logger.debug("p%d r%d: using pre-computed reward=%.4f", idx, rep, vr.reward)
                     elif not _solve_failed:
                         verify_sandbox = await lifecycle.get_verify_sandbox()
+                        verify_metadata = dict(seed_result.metadata)
+                        if solve_result and solve_result.trajectory:
+                            verify_metadata["_candidate_trajectory"] = solve_result.trajectory
                         vr = await env.verify(
                             response_text,
                             seed_result.expected_answer,
                             sandbox=verify_sandbox,
-                            **seed_result.metadata,
+                            **verify_metadata,
                         )
                     break  # success — exit retry loop
 

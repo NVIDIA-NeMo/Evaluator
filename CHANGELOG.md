@@ -9,6 +9,8 @@
 - Added optional `config_schema` support for typed scorer configs while keeping raw dict configs as the default.
 - Split typed scorer config binding into strict `bind(config=ConfigModel(...))` and coercive `bind_raw_config(config={...})` paths.
 - Added `@scorer` support for class-based `Metric` objects.
+- Added an optional ATIF-backed retrieved context presence metric.
+- Added a parameterized exact-match scorer export to exercise scorer `config_schema` discovery and binding.
 
 ### Adapter Proxy (Breaking — replaces LiteLLM)
 

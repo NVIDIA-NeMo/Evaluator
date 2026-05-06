@@ -21,11 +21,13 @@ from typing import Any
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.environments.custom import BenchmarkDefinition, ByobEnvironment, scorer
 from nemo_evaluator.engine.eval_loop import run_evaluation
+from nemo_evaluator.metrics.retrieved_context import RetrievedContextPresenceMetric
 from nemo_evaluator.observability.types import ModelResponse
 from nemo_evaluator.scoring import ScorerInput
 from nemo_evaluator.scoring.metric import MetricOutputSpec
 from nemo_evaluator.sandbox.base import Sandbox
 from nemo_evaluator.solvers import SolveResult
+from nemo_evaluator.solvers.trajectory_util import build_atif_trajectory
 
 
 class _MockEnv(EvalEnvironment):
@@ -59,6 +61,28 @@ class _MockSolver:
         if task.expected_answer in ("2", "5"):
             return SolveResult(response=task.expected_answer)
         return SolveResult(response="wrong")
+
+    async def close(self):
+        pass
+
+
+class _MockRetrievalSolver:
+    """Returns ATIF observation contexts from the dataset metadata."""
+
+    async def solve(self, task):
+        contexts = task.metadata["retrieved_contexts"]
+        trajectory = build_atif_trajectory(
+            [
+                {"source": "user", "message": task.prompt},
+                {
+                    "source": "agent",
+                    "message": task.expected_answer,
+                    "observation": {"results": [{"content": context} for context in contexts]},
+                },
+            ],
+            agent_name="mock-retrieval-agent",
+        )
+        return SolveResult(response=task.expected_answer, trajectory=trajectory)
 
     async def close(self):
         pass
@@ -242,6 +266,43 @@ class TestRunEvaluationIntegration:
         assert result["scoring_details"]["judge_label"] == "pass"
         assert result["scoring_details"]["rationale"] == "answer matched"
         assert result["scoring_details"]["metric_type"] == "tests.eval_loop_typed"
+
+    def test_atif_retrieved_context_metric_scores_solver_trajectory(self):
+        dataset = [
+            {
+                "question": "What city is the Eiffel Tower in?",
+                "answer": "Paris",
+                "expected_context": "The Eiffel Tower is located in Paris.",
+                "retrieved_contexts": ["The Eiffel Tower is located in Paris.", "It opened in 1889."],
+            },
+            {
+                "question": "What planet has the Great Red Spot?",
+                "answer": "Jupiter",
+                "expected_context": "The Great Red Spot is a storm on Jupiter.",
+                "retrieved_contexts": ["Saturn has prominent rings.", "Mars is known as the red planet."],
+            },
+        ]
+        env = ByobEnvironment(
+            BenchmarkDefinition(
+                name="atif_retrieved_context_eval_loop",
+                dataset=lambda: dataset,
+                prompt="{question}",
+                target_field="answer",
+                scorer_fn=scorer(RetrievedContextPresenceMetric(expected_context="{{item.expected_context}}")),
+            )
+        )
+        solver = _MockRetrievalSolver()
+
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1))
+
+        results = bundle["_results"]
+        assert [result["reward"] for result in results] == [1.0, 0.0]
+        assert results[0]["scoring_details"]["metric_type"] == "retrieved-context-presence"
+        assert results[0]["scoring_details"]["outputs"]["context_found"] == 1.0
+        assert results[0]["scoring_details"]["outputs"]["retrieved_contexts"] == {
+            "contexts": ["The Eiffel Tower is located in Paris.", "It opened in 1889."]
+        }
+        assert results[1]["scoring_details"]["outputs"]["context_found"] == 0.0
 
 
 class _MockSolverWithTrajectory:

@@ -1,0 +1,2 @@
+{"question": "What city is the Eiffel Tower in?", "answer": "Paris", "expected_context": "The Eiffel Tower is located in Paris.", "retrieved_contexts": ["The Eiffel Tower is located in Paris.", "It opened in 1889."]}
+{"question": "What planet has the Great Red Spot?", "answer": "Jupiter", "expected_context": "The Great Red Spot is a storm on Jupiter.", "retrieved_contexts": ["Saturn has prominent rings.", "Mars is known as the red planet."]}

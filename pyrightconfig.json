@@ -1,0 +1,8 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "extraPaths": [
+    "src",
+    "../nat/packages/nvidia_nat_atif/src"
+  ]
+}

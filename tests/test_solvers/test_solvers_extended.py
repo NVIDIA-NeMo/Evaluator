@@ -80,6 +80,8 @@ class TestCompletionSolver:
 
 class TestTrajectoryUtil:
     def test_build_single_turn_atif(self):
+        from nat.atif import ATIFTrajectory
+
         from nemo_evaluator.solvers.trajectory_util import build_single_turn_atif
 
         traj = build_single_turn_atif(
@@ -91,6 +93,7 @@ class TestTrajectoryUtil:
         )
         assert isinstance(traj, list)
         assert len(traj) >= 1
+        ATIFTrajectory.model_validate(traj[0])
 
     def test_build_single_turn_atif_per_step_metrics(self):
         from nemo_evaluator.solvers.trajectory_util import build_single_turn_atif
@@ -148,10 +151,19 @@ class TestTrajectoryUtil:
     def test_build_atif_trajectory(self):
         from nemo_evaluator.solvers.trajectory_util import build_atif_trajectory
 
-        events = [
-            {"type": "text", "content": "thinking...", "role": "assistant"},
-            {"type": "tool_call", "name": "bash", "arguments": {"command": "ls"}, "role": "assistant"},
-            {"type": "tool_result", "content": "file.py", "role": "tool"},
+        steps = [
+            {"source": "user", "message": "list files"},
+            {"source": "agent", "message": "thinking..."},
+            {"source": "system", "message": "file.py"},
         ]
-        traj = build_atif_trajectory(events)
+        traj = build_atif_trajectory(steps)
         assert isinstance(traj, list)
+        assert traj[0]["schema_version"] == "ATIF-v1.6"
+
+    def test_build_atif_trajectory_rejects_non_atif_steps(self):
+        import pytest
+
+        from nemo_evaluator.solvers.trajectory_util import build_atif_trajectory
+
+        with pytest.raises(ValueError):
+            build_atif_trajectory([{"type": "text", "content": "thinking...", "role": "assistant"}])

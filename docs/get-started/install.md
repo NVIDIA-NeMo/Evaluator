@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.12+
 - An OpenAI-compatible model endpoint (NVIDIA API Catalog, vLLM, NIM, etc.)
 
 ## Install from Source

@@ -20,6 +20,7 @@ import inspect
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Generic, Protocol, TypeVar, cast, runtime_checkable
 
+from nat.atif import ATIFTrajectory
 from pydantic import BaseModel, ConfigDict, Field, RootModel, SkipValidation, field_validator, model_validator
 
 from nemo_evaluator.sandbox.base import Sandbox
@@ -45,7 +46,7 @@ class CandidateOutput(BaseModel):
 
     output_text: str | None = None
     response: object | None = None
-    trajectory: object | None = None
+    trajectory: ATIFTrajectory | None = None
     metadata: dict[str, object] = Field(default_factory=dict)
 
 
