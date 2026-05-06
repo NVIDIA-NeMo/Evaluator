@@ -99,7 +99,7 @@ jobs:
         github.event_name != 'push'
         || !(needs.pre-flight.outputs.docs_only == 'true' || needs.pre-flight.outputs.is_deployment_workflow == 'true')
       )
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@6afcae295503a63fdafed18ba127c7d6dda24c01
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@2a436194d7d678c163c28413b1294335cdb1b638
     with:
       release-ref: ${{ github.event_name == 'schedule' && github.sha || inputs.release-ref || github.sha }}
       python-package: nemo_evaluator
@@ -116,6 +116,8 @@ jobs:
       docs-target-path: nemo/evaluator
       publish-as-latest: true
       run-on-version-tag-only: ${{ github.ref_name != 'main' }}
+      docs-root-dir: "."
+      docs-requirements-file: .github/config/requirements.txt
       packaging: uv
       skip-test-wheel: true
       app-id: ${{ vars.BOT_ID }}
@@ -152,7 +154,7 @@ jobs:
         github.event_name != 'push'
         || !(needs.pre-flight.outputs.docs_only == 'true' || needs.pre-flight.outputs.is_deployment_workflow == 'true')
       )
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@6afcae295503a63fdafed18ba127c7d6dda24c01
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@2a436194d7d678c163c28413b1294335cdb1b638
     with:
       release-ref: ${{ github.event_name == 'schedule' && github.sha || inputs.release-ref || github.sha }}
       python-package: nemo_evaluator_launcher
