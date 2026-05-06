@@ -14,12 +14,18 @@
 # limitations under the License.
 """NeMo Evaluator -- environments, solvers, evaluation orchestration."""
 
+# Kept as literals (not imported from package_info) so that submodules below
+# can safely back-reference ``nemo_evaluator.__version__`` without triggering
+# a circular import while ``__init__.py`` is partially loaded. ``package_info``
+# remains the canonical source for the FW-CI-templates wheel patcher.
+__version__ = "0.13.0"
+__package_name__ = "nemo_evaluator"
+
 from nemo_evaluator.engine.eval_loop import run_evaluation
 from nemo_evaluator.engine.model_client import ModelClient
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.environments.registry import get_environment, list_environments, load_benchmark_file, register
-from nemo_evaluator.package_info import __package_name__, __version__
 from nemo_evaluator.scoring import (
     ScorerInput,
     answer_line,
