@@ -41,6 +41,8 @@ __contact_emails__ = "nemo-toolkit@nvidia.com"
 __homepage__ = "https://github.com/NVIDIA-NeMo/Evaluator"
 __repository_url__ = "https://github.com/NVIDIA-NeMo/Evaluator"
 __download_url__ = "https://github.com/NVIDIA-NeMo/Evaluator/releases"
-__description__ = "NeMo Evaluator — benchmark environments, pluggable solvers, interceptor proxy, and decision-grade scoring for LLMs"
+__description__ = (
+    "NeMo Evaluator — benchmark environments, pluggable solvers, interceptor proxy, and decision-grade scoring for LLMs"
+)
 __license__ = "Apache-2.0"
 __keywords__ = "deep learning, machine learning, NLP, evaluation, benchmarks, llm"

@@ -14,8 +14,7 @@
 # limitations under the License.
 """NeMo Evaluator -- environments, solvers, evaluation orchestration."""
 
-__version__ = "0.12.0"
-
+from nemo_evaluator.package_info import __package_name__, __version__
 from nemo_evaluator.engine.eval_loop import run_evaluation
 from nemo_evaluator.engine.model_client import ModelClient
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
@@ -43,6 +42,9 @@ from nemo_evaluator.solvers import (
 )
 
 __all__ = [
+    # Package metadata (re-exported from package_info)
+    "__package_name__",
+    "__version__",
     # Core
     "EvalEnvironment",
     "SeedResult",
