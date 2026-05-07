@@ -47,10 +47,11 @@ on:
 
 jobs:
   build-docs:
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_build_docs.yml@v0.67.0
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_build_docs.yml@v0.80.2
     with:
       ref: ${{ inputs.github-ref }}
       requirements-file: .github/config/requirements.txt
+      fail-on-warning: false
 
   publish-docs:
     runs-on: ubuntu-latest
