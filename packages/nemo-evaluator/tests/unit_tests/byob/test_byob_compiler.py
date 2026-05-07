@@ -586,6 +586,8 @@ from nemo_evaluator.contrib.byob.scorers import multiple_choice_acc
     endpoint_type="completions_logprob",
     choices=[" A", " B", " C", " D"],
     num_fewshot=5,
+    fewshot_dataset="hf://test/data?split=dev&filter_field=language&filter_value=hi",
+    fewshot_prefix="Examples:\\n\\n",
     field_mapping={"question": "q"},
 )
 @scorer
@@ -602,7 +604,14 @@ def s(sample):
         assert "benchmark_module" in extra
         assert "requirements" in extra
         # Dataset-shaped keys must not leak to the top level.
-        for stale_key in ("num_fewshot", "field_mapping", "choices", "choices_field"):
+        for stale_key in (
+            "num_fewshot",
+            "fewshot_dataset",
+            "fewshot_prefix",
+            "field_mapping",
+            "choices",
+            "choices_field",
+        ):
             assert stale_key not in extra, (
                 f"'{stale_key}' should be nested under extra.dataset.*, "
                 f"not at top level of extra."
@@ -613,6 +622,11 @@ def s(sample):
         assert isinstance(ds, dict), f"extra.dataset must be a dict, got {type(ds)}"
         assert ds["path"] == "hf://test/data?split=test"
         assert ds["num_fewshot"] == 5
+        assert (
+            ds["fewshot_dataset"]
+            == "hf://test/data?split=dev&filter_field=language&filter_value=hi"
+        )
+        assert ds["fewshot_prefix"] == "Examples:\n\n"
         assert ds["field_mapping"] == {"question": "q"}
         assert ds["choices"] == [" A", " B", " C", " D"]
 

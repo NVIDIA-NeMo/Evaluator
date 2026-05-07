@@ -29,6 +29,7 @@ from nemo_evaluator.contrib.byob.runner import (
     call_model_completions,
     create_session,
     load_dataset,
+    main,
 )
 
 
@@ -729,6 +730,123 @@ class TestTimeoutPerSample:
                                         )
 
 
+class TestFewshotOverride:
+    """Tests for CLI few-shot precedence."""
+
+    def test_explicit_zero_fewshot_overrides_benchmark_default(self, tmp_path):
+        """An explicit --num-fewshot 0 must not fall back to bench.num_fewshot."""
+        test_args = [
+            "runner.py",
+            "--benchmark-module",
+            "test.py",
+            "--benchmark-name",
+            "test",
+            "--dataset",
+            "test.jsonl",
+            "--output-dir",
+            str(tmp_path),
+            "--model-url",
+            "http://localhost:8000",
+            "--model-id",
+            "test-model",
+            "--num-fewshot",
+            "0",
+        ]
+
+        mock_benchmark = MagicMock()
+        mock_benchmark.requirements = []
+        mock_benchmark.normalized_name = "test"
+        mock_benchmark.num_fewshot = 5
+
+        with (
+            patch.object(sys, "argv", test_args),
+            patch(
+                "nemo_evaluator.contrib.byob.runner.create_client_model_call_fn",
+                return_value=(MagicMock(return_value="response"), None),
+            ),
+            patch(
+                "nemo_evaluator.contrib.byob.runner.import_benchmark",
+                return_value=mock_benchmark,
+            ),
+            patch(
+                "nemo_evaluator.contrib.byob.runner.load_dataset",
+                return_value=[{"question": "q", "answer": "a"}],
+            ),
+            patch(
+                "nemo_evaluator.contrib.byob.runner.build_fewshot_examples"
+            ) as mock_build_fewshot,
+            patch(
+                "nemo_evaluator.contrib.byob.runner.run_eval_loop",
+                return_value=([], []),
+            ) as mock_run,
+            patch(
+                "nemo_evaluator.contrib.byob.runner.aggregate_scores",
+                return_value={"tasks": {}},
+            ),
+        ):
+            main()
+
+        mock_build_fewshot.assert_not_called()
+        assert mock_run.call_args.kwargs["fewshot_examples"] == []
+
+    def test_missing_num_fewshot_uses_benchmark_default(self, tmp_path):
+        """Without the CLI flag, bench.num_fewshot remains the default."""
+        test_args = [
+            "runner.py",
+            "--benchmark-module",
+            "test.py",
+            "--benchmark-name",
+            "test",
+            "--dataset",
+            "test.jsonl",
+            "--output-dir",
+            str(tmp_path),
+            "--model-url",
+            "http://localhost:8000",
+            "--model-id",
+            "test-model",
+        ]
+
+        mock_benchmark = MagicMock()
+        mock_benchmark.requirements = []
+        mock_benchmark.normalized_name = "test"
+        mock_benchmark.num_fewshot = 2
+        fewshot_examples = [{"question": "fs1"}, {"question": "fs2"}]
+
+        with (
+            patch.object(sys, "argv", test_args),
+            patch(
+                "nemo_evaluator.contrib.byob.runner.create_client_model_call_fn",
+                return_value=(MagicMock(return_value="response"), None),
+            ),
+            patch(
+                "nemo_evaluator.contrib.byob.runner.import_benchmark",
+                return_value=mock_benchmark,
+            ),
+            patch(
+                "nemo_evaluator.contrib.byob.runner.load_dataset",
+                return_value=[{"question": "q", "answer": "a"}],
+            ),
+            patch(
+                "nemo_evaluator.contrib.byob.runner.build_fewshot_examples",
+                return_value=fewshot_examples,
+            ) as mock_build_fewshot,
+            patch(
+                "nemo_evaluator.contrib.byob.runner.run_eval_loop",
+                return_value=([], []),
+            ) as mock_run,
+            patch(
+                "nemo_evaluator.contrib.byob.runner.aggregate_scores",
+                return_value={"tasks": {}},
+            ),
+        ):
+            main()
+
+        mock_build_fewshot.assert_called_once()
+        assert mock_build_fewshot.call_args.kwargs["num_fewshot"] == 2
+        assert mock_run.call_args.kwargs["fewshot_examples"] == fewshot_examples
+
+
 class TestFailOnSkip:
     """Tests for --fail-on-skip functionality."""
 
@@ -1389,6 +1507,13 @@ class TestCommandTemplateExtensions:
 
         assert "n_repeats" in COMMAND_TEMPLATE
         assert "--n-repeats" in COMMAND_TEMPLATE
+
+    def test_command_template_saves_predictions_by_default(self):
+        """Test that COMMAND_TEMPLATE includes --save-predictions by default."""
+        from nemo_evaluator.contrib.byob.compiler import COMMAND_TEMPLATE
+
+        assert "save_predictions" in COMMAND_TEMPLATE
+        assert "--save-predictions" in COMMAND_TEMPLATE
 
 
 # ---------------------------------------------------------------------------

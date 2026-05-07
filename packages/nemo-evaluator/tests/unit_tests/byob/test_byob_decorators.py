@@ -938,6 +938,8 @@ class TestBenchmarkLogprobFields:
             prompt="Q: {q}\nA:",
             target_field="answer",
             num_fewshot=5,
+            fewshot_dataset="hf://org/data?split=train&filter_field=language&filter_value=hi",
+            fewshot_prefix="Examples:\n\n",
             fewshot_split="train",
             fewshot_template="Q: {q}\nA: {answer}",
             fewshot_separator="\n---\n",
@@ -948,6 +950,11 @@ class TestBenchmarkLogprobFields:
 
         defn = get_registered_benchmarks()["few"]
         assert defn.num_fewshot == 5
+        assert (
+            defn.fewshot_dataset
+            == "hf://org/data?split=train&filter_field=language&filter_value=hi"
+        )
+        assert defn.fewshot_prefix == "Examples:\n\n"
         assert defn.fewshot_split == "train"
         assert defn.fewshot_template == "Q: {q}\nA: {answer}"
         assert defn.fewshot_separator == "\n---\n"
@@ -967,6 +974,8 @@ class TestBenchmarkLogprobFields:
         assert defn.choices is None
         assert defn.choices_field is None
         assert defn.num_fewshot == 0
+        assert defn.fewshot_dataset is None
+        assert defn.fewshot_prefix == ""
         assert defn.fewshot_split is None
         assert defn.fewshot_template is None
         assert defn.fewshot_separator == "\n\n"

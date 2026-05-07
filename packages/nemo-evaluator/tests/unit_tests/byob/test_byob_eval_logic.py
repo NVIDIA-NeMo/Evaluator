@@ -1534,6 +1534,19 @@ class TestFewshotPrefix:
         prefix = build_fewshot_prefix(bench, [{"q": "x", "a": "y"}])
         assert prefix == "Q: x\nA: y\n---\n"
 
+    def test_fewshot_prefix_prepended_before_examples(self):
+        bench = BenchmarkDefinition(
+            name="x",
+            normalized_name="x",
+            dataset="x",
+            prompt="Q: {q}\nA:",
+            scorer_fn=lambda s: {},
+            target_field="a",
+            fewshot_prefix="Examples:\n\n",
+        )
+        prefix = build_fewshot_prefix(bench, [{"q": "x", "a": "y"}])
+        assert prefix == "Examples:\n\nQ: x\nA: y\n\n"
+
     def test_skip_unrenderable(self):
         bench = BenchmarkDefinition(
             name="x",
@@ -1626,6 +1639,74 @@ class TestBuildFewshotExamples:
             "fewshot_split not available" in rec.message for rec in caplog.records
         )
 
+    def test_fewshot_dataset_takes_precedence_over_split(self, monkeypatch, caplog):
+        """An explicit fewshot_dataset is loaded exactly and wins over split rewriting."""
+        from nemo_evaluator.contrib.byob import dataset as ds_module
+
+        seen_uris = []
+
+        def fake_load(uri, **_):
+            seen_uris.append(uri)
+            return [{"q": f"fs{i}", "a": str(i)} for i in range(8)]
+
+        monkeypatch.setattr(ds_module, "load_dataset", fake_load)
+
+        with caplog.at_level("WARNING"):
+            examples = build_fewshot_examples(
+                primary_dataset_uri=(
+                    "hf://org/ds?split=test&filter_field=language&filter_value=hi"
+                ),
+                primary_dataset=[{"q": "test", "a": "x"}],
+                num_fewshot=3,
+                fewshot_split="validation",
+                fewshot_dataset=(
+                    "hf://org/ds?split=train&filter_field=language&filter_value=hi"
+                ),
+                seed=42,
+            )
+
+        assert seen_uris == [
+            "hf://org/ds?split=train&filter_field=language&filter_value=hi"
+        ]
+        assert len(examples) == 3
+        assert all(ex["q"].startswith("fs") for ex in examples)
+        assert not any(
+            "fewshot_split not available" in rec.message for rec in caplog.records
+        )
+
+    def test_fewshot_dataset_falls_back_when_load_fails(self, monkeypatch, caplog):
+        """If fewshot_dataset fails, existing fewshot_split fallback still works."""
+        from nemo_evaluator.contrib.byob import dataset as ds_module
+
+        seen_uris = []
+
+        def fake_load(uri, **_):
+            seen_uris.append(uri)
+            if "missing" in uri:
+                raise ValueError("missing")
+            return [{"q": f"dev{i}", "a": str(i)} for i in range(8)]
+
+        monkeypatch.setattr(ds_module, "load_dataset", fake_load)
+
+        with caplog.at_level("WARNING"):
+            examples = build_fewshot_examples(
+                primary_dataset_uri="hf://org/ds?split=test",
+                primary_dataset=[{"q": "test", "a": "x"}],
+                num_fewshot=2,
+                fewshot_split="dev",
+                fewshot_dataset="hf://org/ds?split=missing",
+                seed=42,
+            )
+
+        assert seen_uris == ["hf://org/ds?split=missing", "hf://org/ds?split=dev"]
+        assert len(examples) == 2
+        assert any(
+            "Failed to load fewshot_dataset" in rec.message for rec in caplog.records
+        )
+        assert not any(
+            "fewshot_split not available" in rec.message for rec in caplog.records
+        )
+
     def test_returns_empty_when_num_fewshot_zero(self):
         primary = [{"q": "1", "a": "1"}]
         assert (
@@ -1636,6 +1717,42 @@ class TestBuildFewshotExamples:
                 fewshot_split=None,
             )
             == []
+        )
+
+    def test_fewshot_dataset_empty_falls_through_without_warning(
+        self, monkeypatch, caplog
+    ):
+        """fewshot_dataset that loads but returns 0 rows must fall through
+        to fewshot_split silently (debug-level log, no WARNING)."""
+        from nemo_evaluator.contrib.byob import dataset as ds_module
+
+        seen_uris = []
+
+        def fake_load(uri, **_):
+            seen_uris.append(uri)
+            if "empty" in uri:
+                return []
+            return [{"q": f"dev{i}", "a": str(i)} for i in range(8)]
+
+        monkeypatch.setattr(ds_module, "load_dataset", fake_load)
+
+        with caplog.at_level("WARNING"):
+            examples = build_fewshot_examples(
+                primary_dataset_uri="hf://org/ds?split=test",
+                primary_dataset=[{"q": "test", "a": "x"}],
+                num_fewshot=2,
+                fewshot_split="dev",
+                fewshot_dataset="hf://org/ds?split=empty",
+                seed=42,
+            )
+
+        # Both URIs were attempted, in order.
+        assert seen_uris == ["hf://org/ds?split=empty", "hf://org/ds?split=dev"]
+        assert len(examples) == 2
+        # Empty pool is *not* a load failure — no WARNING about
+        # "Failed to load fewshot_dataset" should be emitted.
+        assert not any(
+            "Failed to load fewshot_dataset" in rec.message for rec in caplog.records
         )
 
 

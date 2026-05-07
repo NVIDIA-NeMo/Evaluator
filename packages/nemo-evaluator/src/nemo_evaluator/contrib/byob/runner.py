@@ -747,10 +747,10 @@ def main():
     parser.add_argument(
         "--num-fewshot",
         type=int,
-        default=0,
+        default=None,
         help=(
             "Number of few-shot examples to prepend to each prompt "
-            "(default: 0). Examples are sampled deterministically from the "
+            "(default: benchmark default, usually 0). Examples are sampled deterministically from the "
             "benchmark's fewshot_split (or the first --num-fewshot rows of "
             "the same dataset when fewshot_split is not declared)."
         ),
@@ -781,15 +781,16 @@ def main():
         field_mapping=bench.field_mapping,
     )
 
-    # Resolve few-shot examples: precedence is CLI flag > benchmark default.
-    # Robust to mocked benchmark objects (tests use MagicMock) where
-    # ``bench.num_fewshot`` may not be a real int.
+    # Resolve few-shot examples: an explicit CLI value, including 0, must
+    # override the benchmark default. This is required for true 0-shot
+    # validation of benchmarks that declare a non-zero default.
     effective_num_fewshot = 0
-    try:
-        effective_num_fewshot = int(args.num_fewshot or 0)
-    except (TypeError, ValueError):
-        effective_num_fewshot = 0
-    if not effective_num_fewshot:
+    if args.num_fewshot is not None:
+        try:
+            effective_num_fewshot = int(args.num_fewshot)
+        except (TypeError, ValueError):
+            effective_num_fewshot = 0
+    else:
         try:
             effective_num_fewshot = int(getattr(bench, "num_fewshot", 0) or 0)
         except (TypeError, ValueError):
@@ -801,6 +802,7 @@ def main():
             primary_dataset=dataset,
             num_fewshot=effective_num_fewshot,
             fewshot_split=bench.fewshot_split,
+            fewshot_dataset=bench.fewshot_dataset,
             field_mapping=bench.field_mapping,
             seed=args.fewshot_seed,
         )

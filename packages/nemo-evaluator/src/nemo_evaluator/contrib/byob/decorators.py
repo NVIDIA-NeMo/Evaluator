@@ -92,6 +92,8 @@ class BenchmarkDefinition:
     choices: Optional[List[str]] = None
     choices_field: Optional[str] = None
     num_fewshot: int = 0
+    fewshot_dataset: Optional[str] = None
+    fewshot_prefix: str = ""
     fewshot_split: Optional[str] = None
     fewshot_template: Optional[str] = None
     fewshot_separator: str = "\n\n"
@@ -170,6 +172,8 @@ def benchmark(
     choices: Optional[List[str]] = None,
     choices_field: Optional[str] = None,
     num_fewshot: int = 0,
+    fewshot_dataset: Optional[str] = None,
+    fewshot_prefix: str = "",
     fewshot_split: Optional[str] = None,
     fewshot_template: Optional[str] = None,
     fewshot_separator: str = "\n\n",
@@ -209,11 +213,18 @@ def benchmark(
             when both are set on a per-row basis.
         num_fewshot: Number of few-shot examples to prepend to each
             prompt. Examples are sampled deterministically from
-            ``fewshot_split`` (or the first ``num_fewshot`` rows of the
-            evaluation dataset when ``fewshot_split`` is None).
+            ``fewshot_dataset`` if provided, then ``fewshot_split`` if
+            provided, otherwise from the evaluation dataset fallback pool.
+        fewshot_dataset: Optional explicit dataset path or URI to sample
+            few-shot examples from. Prefer this over ``fewshot_split`` when
+            the few-shot source requires filters, data files, configs, or
+            other URI options that cannot be represented by a split name.
+        fewshot_prefix: Optional static text prepended before rendered
+            few-shot examples. Useful for introducing or delimiting examples.
         fewshot_split: HuggingFace split name to sample few-shot examples
             from (e.g. ``"train"`` or ``"dev"``). Only meaningful when the
-            primary ``dataset`` is an ``hf://`` URI.
+            primary ``dataset`` is an ``hf://`` URI and ``fewshot_dataset``
+            is not set.
         fewshot_template: Optional template string used to render each
             few-shot example. ``None`` reuses the main ``prompt`` template
             and appends the rendered ``target_field`` value.
@@ -308,6 +319,8 @@ def benchmark(
             choices=list(choices) if choices is not None else None,
             choices_field=choices_field,
             num_fewshot=num_fewshot,
+            fewshot_dataset=fewshot_dataset,
+            fewshot_prefix=fewshot_prefix,
             fewshot_split=fewshot_split,
             fewshot_template=resolved_fewshot_template,
             fewshot_separator=fewshot_separator,

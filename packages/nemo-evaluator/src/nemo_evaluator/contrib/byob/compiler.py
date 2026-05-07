@@ -84,6 +84,10 @@ COMMAND_TEMPLATE = (
     " and config.params.extra.dataset.num_fewshot is not none %}"
     " --num-fewshot {{config.params.extra.dataset.num_fewshot}}"
     "{% endif %}"
+    "{% if config.params.extra.save_predictions is not defined"
+    " or config.params.extra.save_predictions %}"
+    " --save-predictions"
+    "{% endif %}"
 )
 
 
@@ -113,6 +117,10 @@ def _build_fdf(
         dataset_params["field_mapping"] = bench.field_mapping
     if bench.num_fewshot:
         dataset_params["num_fewshot"] = bench.num_fewshot
+    if bench.fewshot_dataset:
+        dataset_params["fewshot_dataset"] = bench.fewshot_dataset
+    if bench.fewshot_prefix:
+        dataset_params["fewshot_prefix"] = bench.fewshot_prefix
     # Multiple-choice loglikelihood metadata (informational; the runner
     # picks up choices/choices_field from the @benchmark registry itself).
     if bench.choices is not None:

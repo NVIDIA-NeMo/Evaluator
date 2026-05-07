@@ -144,28 +144,31 @@ Otherwise the shell treats `&` as a background-command separator.
 
 ### `extra.dataset.*` namespace
 
-BYOB groups dataset-related configuration under
-`config.params.extra.dataset.*` in the FDF / run_config:
+BYOB exposes two dataset-related keys under `config.params.extra.dataset.*`
+that can be overridden at run time without rebuilding the benchmark:
 
-| Key | Description |
-|-----|-------------|
-| `path` | Dataset file path or `hf://` URI (compile-time default from `@benchmark(dataset=...)`). |
-| `num_fewshot` | Optional few-shot example count (lm-eval-harness parity). |
-| `field_mapping` | Informational mirror of `@benchmark(field_mapping=...)`. |
-| `choices` / `choices_field` | Informational mirror of `@benchmark(choices=...)` / `@benchmark(choices_field=...)`. |
+| Key | CLI flag | Description |
+|-----|----------|-------------|
+| `path` | `--dataset` | Dataset file path or `hf://` URI. Compile-time default from `@benchmark(dataset=...)`. |
+| `num_fewshot` | `--num-fewshot` | Few-shot example count (lm-eval-harness parity). Pass `0` to force true 0-shot for a benchmark that declares a non-zero default. |
+
+All other dataset-related options (`field_mapping`, `choices`, `choices_field`,
+`fewshot_dataset`, `fewshot_prefix`, `fewshot_split`, etc.) are baked into the
+benchmark at compile time from the `@benchmark(...)` decorator and are not
+runtime-overridable — change them in your benchmark module and recompile with
+`nemo-evaluator-byob compile`.
 
 ### Overriding the dataset at run time
 
-The `@benchmark` decorator's `dataset=` value is the compile-time default. To
-swap it for a single run without rebuilding the benchmark, set
-`config.params.extra.dataset.path` via the launcher's run_config or CLI. The
-launcher deep-merges via OmegaConf, so sibling keys under `extra.dataset`
-(`num_fewshot`, `field_mapping`, etc.) and under `extra` (`benchmark_module`,
-`requirements`, …) are preserved.
+To swap `path` or `num_fewshot` for a single run, set the corresponding key
+under `config.params.extra.dataset.*` via the launcher's run_config or CLI.
+The launcher deep-merges via OmegaConf, so sibling keys (and unrelated keys
+under `extra` such as `benchmark_module`, `requirements`, …) are preserved.
 
 ```bash
 nemo-evaluator-launcher run --config my_config.yaml \
-  -o 'evaluation.tasks.<task_name>.nemo_evaluator_config.config.params.extra.dataset.path=hf://other/foo?split=test'
+  -o 'evaluation.tasks.<task_name>.nemo_evaluator_config.config.params.extra.dataset.path=hf://other/foo?split=test' \
+  -o 'evaluation.tasks.<task_name>.nemo_evaluator_config.config.params.extra.dataset.num_fewshot=0'
 ```
 
 Or in a run_config YAML:
@@ -182,6 +185,75 @@ evaluation:
                 path: hf://other/foo?split=test
                 num_fewshot: 5
 ```
+
+## Few-shot Examples
+
+BYOB resolves the few-shot example pool with this precedence:
+
+1. **`fewshot_dataset`** — explicit URI/path. Use this when the few-shot
+   source needs filters, `data_files`, configs, or any other URI options
+   that cannot be expressed by a split name (e.g.
+   `hf://my-org/foo?data_files=train.json&filter_field=lang&filter_value=hi`).
+2. **`fewshot_split`** — split name reused with the primary `hf://` dataset.
+   Used only when `fewshot_dataset` is unset *or* fails to load.
+3. **Tail of the primary dataset** — last-resort fallback. Logs a loud
+   warning because the few-shot pool overlaps with rows being evaluated,
+   risking gold-answer leakage into the prompt.
+
+### Examples
+
+Few-shot from a different split of the same HuggingFace dataset:
+
+```python
+@benchmark(
+    name="mmlu-mini",
+    dataset="hf://my-org/mmlu?split=test",
+    prompt="Question: {question}\nAnswer:",
+    target_field="answer",
+    num_fewshot=5,
+    fewshot_split="dev",
+)
+```
+
+Few-shot from a completely different dataset URI (filters, data_files, etc.):
+
+```python
+@benchmark(
+    name="boolq-hi",
+    dataset="hf://sarvamai/boolq-indic?split=validation&filter_field=language&filter_value=hi",
+    prompt="Passage: {passage}\nQuestion: {question}\nAnswer:",
+    target_field="answer",
+    num_fewshot=4,
+    fewshot_dataset="hf://sarvamai/boolq-indic?split=train&filter_field=language&filter_value=hi",
+)
+```
+
+Add a static introduction before the few-shot examples:
+
+```python
+@benchmark(
+    name="indommlu",
+    dataset="hf://indolem/IndoMMLU?split=test&trust_remote_code=true",
+    prompt="{question}\n\n{options}\n\nAnswer:",
+    target_field="answer",
+    num_fewshot=5,
+    fewshot_split="train",
+    fewshot_prefix="The following are multiple-choice questions. Choose the best answer.\n\n",
+)
+```
+
+The final prompt sent to the model is:
+
+```text
+<fewshot_prefix><example_1><fewshot_separator>...<example_N><fewshot_separator><test_prompt>
+```
+
+:::{tip}
+At run time you can force a true 0-shot evaluation against a benchmark
+that declares a non-zero `num_fewshot` by passing `--num-fewshot 0` on
+the `nemo-evaluator run_eval` CLI. The flag is `None` by default; an
+explicit `0` overrides the benchmark default.
+:::
 
 ## Field Mapping
 

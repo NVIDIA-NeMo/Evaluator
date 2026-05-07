@@ -589,8 +589,9 @@ def render_fewshot_example(bench: BenchmarkDefinition, row: Dict) -> Optional[st
 def build_fewshot_prefix(bench: BenchmarkDefinition, examples: List[Dict]) -> str:
     """Render *examples* into a prefix string ready to prepend to each prompt.
 
-    Skips examples that fail to render (missing fields). Always appends the
-    benchmark's ``fewshot_separator`` after the last example so the test
+    Skips examples that fail to render (missing fields). If configured,
+    ``bench.fewshot_prefix`` is prepended before the examples. Always appends
+    the benchmark's ``fewshot_separator`` after the last example so the test
     prompt starts on a fresh boundary.
     """
     if not examples:
@@ -602,10 +603,9 @@ def build_fewshot_prefix(bench: BenchmarkDefinition, examples: List[Dict]) -> st
             rendered.append(text)
     if not rendered:
         return ""
-    # Use ``is None`` rather than ``or`` so an explicit empty-string
-    # separator (concat with no delimiter) is honoured.
     sep = bench.fewshot_separator if bench.fewshot_separator is not None else "\n\n"
-    return sep.join(rendered) + sep
+    prefix = getattr(bench, "fewshot_prefix", "") or ""
+    return prefix + sep.join(rendered) + sep
 
 
 def build_fewshot_examples(
@@ -613,6 +613,7 @@ def build_fewshot_examples(
     primary_dataset: List[Dict],
     num_fewshot: int,
     fewshot_split: Optional[str],
+    fewshot_dataset: Optional[str] = None,
     field_mapping: Optional[Dict[str, str]] = None,
     seed: int = 42,
 ) -> List[Dict]:
@@ -620,27 +621,53 @@ def build_fewshot_examples(
 
     Selection rules (in order):
 
-    1. If ``fewshot_split`` is set and the primary dataset URI is an
+    1. If ``fewshot_dataset`` is set, load that exact dataset URI/path.
+       Use this when the safe few-shot source needs filters, data files,
+       configs, or other options that cannot be inferred from a split name.
+    2. If ``fewshot_split`` is set and the primary dataset URI is an
        ``hf://`` URI, load that split via the dataset module and sample
        ``num_fewshot`` rows. This is the **safe** path — examples come
        from a different split than the test set, so there is no
        contamination.
-    2. Otherwise, sample ``num_fewshot`` rows from the **tail** of
+    3. Otherwise, sample ``num_fewshot`` rows from the **tail** of
        ``primary_dataset`` (i.e. the rows least likely to be evaluated
        when ``--limit-samples`` is set). A loud warning is logged
        because the fewshot pool overlaps with the evaluation set when
        running the full dataset, which can leak gold answers into the
        prompt.
 
-    To guarantee no contamination, declare a ``fewshot_split`` on the
-    ``@benchmark`` (e.g. ``"train"`` or ``"dev"``) so this function
-    samples from a disjoint split.
+    To guarantee no contamination, declare a ``fewshot_dataset`` or
+    ``fewshot_split`` on the ``@benchmark`` so this function samples from a
+    disjoint source.
     """
     if num_fewshot <= 0:
         return []
 
     pool: List[Dict] = []
-    if fewshot_split and primary_dataset_uri.startswith("hf://"):
+    if fewshot_dataset:
+        try:
+            from nemo_evaluator.contrib.byob.dataset import load_dataset
+
+            pool = load_dataset(
+                fewshot_dataset,
+                limit=max(num_fewshot * 4, 16),
+                field_mapping=field_mapping,
+            )
+            if not pool:
+                logger.debug(
+                    "fewshot_dataset loaded successfully but returned 0 rows; "
+                    "falling back to fewshot_split or primary dataset",
+                    fewshot_dataset=fewshot_dataset,
+                )
+        except Exception as e:
+            logger.warning(
+                "Failed to load fewshot_dataset, falling back to fewshot_split or primary dataset",
+                fewshot_dataset=fewshot_dataset,
+                error=str(e),
+            )
+            pool = []
+
+    if not pool and fewshot_split and primary_dataset_uri.startswith("hf://"):
         try:
             from nemo_evaluator.contrib.byob.dataset import load_dataset
 
@@ -662,13 +689,6 @@ def build_fewshot_examples(
             pool = []
 
     if not pool:
-        # Fallback: no separate fewshot split is available. Sample from
-        # the tail of the primary dataset to minimise overlap with the
-        # eval set when the user passes --limit-samples (which iterates
-        # from the head). When the full dataset is evaluated, the
-        # fewshot pool is a strict subset of the eval set and gold
-        # answers can leak — warn loudly so the user knows to declare
-        # ``fewshot_split=`` on the @benchmark.
         logger.warning(
             "fewshot_split not available; sampling from primary dataset. "
             "This risks test-set contamination because the fewshot pool "
@@ -679,8 +699,6 @@ def build_fewshot_examples(
             primary_dataset_size=len(primary_dataset),
         )
         pool_size = max(num_fewshot * 4, num_fewshot)
-        # Tail slice — falls back to the head only if the dataset is
-        # smaller than the desired pool.
         if len(primary_dataset) > pool_size:
             pool = primary_dataset[-pool_size:]
         else:
@@ -741,11 +759,6 @@ def run_eval_loop(
             endpoint_type == "completions_logprob"
             or bench.endpoint_type == "completions_logprob"
         ):
-            # Logprob-mode MCQ ranking is the only strategy that requires
-            # ``choices`` / ``choices_field``; the @benchmark decorator
-            # already validates that pairing. Don't auto-pick MCQ just
-            # because choices are declared — a user may declare them as
-            # informational metadata while running the chat endpoint.
             strategy = MultipleChoiceStrategy()
         else:
             strategy = StandardStrategy()
@@ -816,8 +829,6 @@ def _run_eval_loop_sequential(
     progress_interval = max(1, min(10, total // 10)) if total > 0 else 1
 
     for idx, row in enumerate(dataset):
-        # Pass fewshot_prefix only when non-empty so legacy strategy
-        # implementations (without the kwarg) continue to work.
         kwargs = {"fewshot_prefix": fewshot_prefix} if fewshot_prefix else {}
         scores, prediction = strategy.evaluate_sample(
             idx,
