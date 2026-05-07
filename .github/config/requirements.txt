@@ -1,0 +1,18 @@
+sphinx==8.2.3
+sphinx-autobuild    # For live doc serving while editing docs
+sphinx-autodoc2     # For documenting Python API
+autodoc_pydantic    # For rendering pydantic dataclasses
+enum-tools[sphinx]  # for rendering enum classes
+sphinx-llms-txt      # Generate llms.txt from built docs
+sphinxcontrib-autoprogram
+sphinx-copybutton   # Adds a copy button for code blocks
+nvidia-sphinx-theme # Our NVIDIA theme
+sphinxcontrib-mermaid # For mermaid diagrams
+myst-parser # For our markdown docs
+sphinx-design # For our design elements
+swagger-plugin-for-sphinx # For Swagger API documentation
+
+# Editable install of nemo-evaluator itself (V2 layout: package at root, no
+# packages/ subdirectory). Required for sphinx-autodoc2 and for any
+# autogen scripts that import nemo_evaluator at docs build time.
+-e .
