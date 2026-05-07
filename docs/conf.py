@@ -54,6 +54,7 @@ myst_substitutions = {
     "product_name_short": "NeMo Evaluator",
     "company": "NVIDIA",
     "version": release,
+    "docs_url": "https://docs.nvidia.com/nemo/evaluator/0.3.0/index.html",
 }
 
 # -- HTML output (NVIDIA Sphinx Theme) -----------------------------------------
@@ -61,7 +62,7 @@ html_theme = "nvidia_sphinx_theme"
 
 html_theme_options = {
     "switcher": {
-        "json_url": "./versions1.json",
+        "json_url": "../versions1.json",
         "version_match": release,
     },
     "search_bar_text": "Search NeMo Evaluator docs...",
