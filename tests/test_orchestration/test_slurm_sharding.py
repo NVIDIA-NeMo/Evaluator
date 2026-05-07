@@ -1328,6 +1328,26 @@ class TestShardedStatus:
     @patch("nemo_evaluator.executors.slurm_executor._read_meta")
     @patch("nemo_evaluator.executors.slurm_executor._resolve_shard_latest_ids")
     @patch("nemo_evaluator.executors.ssh.batch_check_job_status")
+    @patch("nemo_evaluator.executors.slurm_executor._find_pending_successors")
+    @patch("nemo_evaluator.executors.ssh.ssh_run", return_value="DONE")
+    def test_status_shows_original_and_chain_ids(self, mock_ssh, mock_succ, mock_batch, mock_latest, mock_meta):
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+
+        job_ids = ["10"]
+        mock_meta.return_value = self._make_meta(job_ids)
+        mock_latest.return_value = job_ids
+        mock_succ.return_value = {"10": ("20", "RUNNING")}
+        mock_batch.return_value = {
+            "10": {"job_id": "10", "state": "FAILED"},
+        }
+
+        state = SlurmExecutor().status("/run/parent")
+        assert state.running is True
+        assert "job 10, chain 20" in state.details["shard_0"]
+
+    @patch("nemo_evaluator.executors.slurm_executor._read_meta")
+    @patch("nemo_evaluator.executors.slurm_executor._resolve_shard_latest_ids")
+    @patch("nemo_evaluator.executors.ssh.batch_check_job_status")
     @patch("nemo_evaluator.executors.ssh.ssh_run", return_value="DONE")
     def test_status_merge_done(self, mock_ssh, mock_batch, mock_latest, mock_meta):
         from nemo_evaluator.executors.slurm_executor import SlurmExecutor
@@ -1933,6 +1953,13 @@ class TestResolveLatestJobId:
         mock_ssh.return_value = ""
         assert _resolve_latest_job_id("h", "/run", "100") == "100"
 
+    @patch("nemo_evaluator.executors.ssh.ssh_run")
+    def test_noisy_chain_uses_last_numeric_line(self, mock_ssh):
+        from nemo_evaluator.executors.slurm_executor import _resolve_latest_job_id
+
+        mock_ssh.return_value = "Warning: banner\n86716\n"
+        assert _resolve_latest_job_id("h", "/run", "100") == "86716"
+
     @patch("nemo_evaluator.executors.ssh.ssh_run", side_effect=Exception("SSH down"))
     def test_ssh_error_returns_fallback(self, mock_ssh):
         from nemo_evaluator.executors.slurm_executor import _resolve_latest_job_id
@@ -1967,6 +1994,14 @@ class TestResolveShardLatestIds:
         result = _resolve_shard_latest_ids("h", "/run", ["10", "11", "12"])
         assert result == ["10", "11", "12"]
 
+    @patch("nemo_evaluator.executors.ssh.ssh_run")
+    def test_noisy_output_keeps_numeric_ids(self, mock_ssh):
+        from nemo_evaluator.executors.slurm_executor import _resolve_shard_latest_ids
+
+        mock_ssh.return_value = "ssh-banner\n200\n201\n202\n"
+        result = _resolve_shard_latest_ids("h", "/run", ["10", "11", "12"])
+        assert result == ["200", "201", "202"]
+
     @patch("nemo_evaluator.executors.ssh.ssh_run", side_effect=Exception("SSH down"))
     def test_ssh_error_returns_fallback(self, mock_ssh):
         from nemo_evaluator.executors.slurm_executor import _resolve_shard_latest_ids
@@ -1986,6 +2021,15 @@ class TestResolveShardLatestIds:
         mock_ssh.return_value = "999\n"
         result = _resolve_shard_latest_ids("h", "/run", ["10"])
         assert result == ["999"]
+
+    @patch("nemo_evaluator.executors.slurm_executor._resolve_latest_job_id")
+    def test_single_shard_reads_chain_from_shard_dir(self, mock_latest):
+        from nemo_evaluator.executors.slurm_executor import _resolve_shard_latest_ids
+
+        mock_latest.return_value = "999"
+        result = _resolve_shard_latest_ids("h", "/run_parent", ["10"], "user")
+        assert result == ["999"]
+        mock_latest.assert_called_once_with("h", "/run_parent/shard_0", "10", "user")
 
 
 # ---------------------------------------------------------------------------

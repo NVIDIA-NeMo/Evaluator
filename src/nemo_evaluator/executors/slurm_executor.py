@@ -36,6 +36,10 @@ _RUNNING_STATES = {"PENDING", "RUNNING", "CONFIGURING", "COMPLETING"}
 _RESUMABLE_STATES = {"FAILED", "TIMEOUT", "NODE_FAIL", "OUT_OF_MEMORY", "PREEMPTED"}
 
 
+def _extract_job_id_lines(output: str) -> list[str]:
+    return [line.strip() for line in output.splitlines() if line.strip().isdigit()]
+
+
 def _jobs_store() -> Path:
     """Canonical local jobs store, respecting XDG_DATA_HOME."""
     base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
@@ -74,8 +78,9 @@ def _resolve_latest_job_id(
             f"tail -1 {shlex.quote(remote_dir + '/.nel_job_chain')} 2>/dev/null",
             username=username,
             timeout=10.0,
-        ).strip()
-        return chain if chain else fallback_id
+        )
+        parsed = _extract_job_id_lines(chain)
+        return parsed[-1] if parsed else fallback_id
     except Exception:
         return fallback_id
 
@@ -91,7 +96,7 @@ def _resolve_shard_latest_ids(
     if n == 0:
         return []
     if n == 1:
-        return [_resolve_latest_job_id(hostname, parent_dir, job_ids[0], username)]
+        return [_resolve_latest_job_id(hostname, f"{parent_dir}/shard_0", job_ids[0], username)]
 
     cmds = []
     for i, fb in enumerate(job_ids):
@@ -101,9 +106,9 @@ def _resolve_shard_latest_ids(
         from nemo_evaluator.executors.ssh import ssh_run
 
         output = ssh_run(hostname, "; ".join(cmds), username=username, timeout=15.0)
-        lines = output.strip().splitlines()
+        lines = _extract_job_id_lines(output)
         if len(lines) == n:
-            return [ln.strip() or fb for ln, fb in zip(lines, job_ids)]
+            return [ln or fb for ln, fb in zip(lines, job_ids)]
     except Exception:
         pass
     return list(job_ids)
@@ -581,14 +586,14 @@ class SlurmExecutor(Executor):
             if succ_id:
                 # Auto-resume successor found — show the successor status
                 state = succ_state or "PENDING"
-                label = f"{state} (job {succ_id})"
+                label = f"{state} (job {orig_id}, chain {succ_id})"
                 latest_ids[i] = succ_id
             else:
                 info = all_status.get(latest_id, {"job_id": latest_id, "state": "UNKNOWN"})
                 state = info.get("state", "UNKNOWN")
                 elapsed = info.get("time", "")
                 attempt = f", chain {latest_id}" if latest_id != orig_id else ""
-                label = f"{state} (job {latest_id}{attempt})"
+                label = f"{state} (job {orig_id}{attempt})"
                 if elapsed and state in _RUNNING_STATES:
                     label += f" {elapsed} elapsed"
             states.append(state)
