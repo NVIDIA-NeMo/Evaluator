@@ -58,6 +58,7 @@ services:
             params:
               - max_tokens
               - max_completion_tokens
+        - name: reasoning_replay
     max_output_tokens: 131072
     node_pool: gpu
 

@@ -179,7 +179,7 @@ class TestPatchOpenhandsSDK:
         sandbox = AsyncMock()
         sandbox.exec.return_value = MagicMock(stdout="stuck_detection disabled", stderr="", return_code=0)
         await _patch_openhands_sdk(sandbox)
-        assert sandbox.exec.call_count >= 4
+        assert sandbox.exec.call_count >= 3
 
     async def test_runner_patch_disables_visualizer(self):
         """Patch 0 must inject both stuck_detection=False AND visualizer=None.

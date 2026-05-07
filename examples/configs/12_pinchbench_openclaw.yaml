@@ -13,6 +13,7 @@ services:
       verbose: true
       interceptors:
         - name: turn_counter
+        - name: reasoning_replay
 
   judge:
     type: api

@@ -16,6 +16,7 @@ from pathlib import Path
 
 from nemo_evaluator.solvers.openclaw import (
     _TRANSCRIPT_FILENAME,
+    _parse_session_jsonl,
     _persist_session_transcript,
 )
 
@@ -107,3 +108,71 @@ class TestPersistSessionTranscript:
         _persist_session_transcript(tmp_path, raw)
         out = (tmp_path / _TRANSCRIPT_FILENAME).read_text(encoding="utf-8")
         assert json.loads(out)["message"]["content"].startswith("emoji 🦀")
+
+
+class TestParseSessionJsonl:
+    def test_captures_thinking_block(self) -> None:
+        raw = json.dumps(
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "the chain of thought"},
+                    {"type": "text", "text": "answer"},
+                    {"type": "tool_use", "id": "t1", "name": "bash", "input": {"cmd": "ls"}},
+                ],
+            },
+        )
+        steps = _parse_session_jsonl(raw)
+        assert len(steps) == 1
+        assert steps[0]["reasoning_content"] == "the chain of thought"
+        assert steps[0]["message"] == "answer"
+        assert steps[0]["tool_calls"][0]["tool_call_id"] == "t1"
+
+    def test_redacted_thinking_is_marked(self) -> None:
+        raw = json.dumps(
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "redacted_thinking", "data": "<opaque>"},
+                    {"type": "text", "text": "ok"},
+                ],
+            },
+        )
+        steps = _parse_session_jsonl(raw)
+        assert steps[0]["reasoning_content"] == "[redacted_thinking]"
+
+    def test_multiple_thinking_blocks_joined(self) -> None:
+        raw = json.dumps(
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "first"},
+                    {"type": "text", "text": "answer"},
+                    {"type": "thinking", "thinking": "second"},
+                ],
+            },
+        )
+        steps = _parse_session_jsonl(raw)
+        assert steps[0]["reasoning_content"] == "first\nsecond"
+
+    def test_thinking_only_message_is_kept(self) -> None:
+        raw = json.dumps(
+            {
+                "role": "assistant",
+                "content": [{"type": "thinking", "thinking": "just a thought"}],
+            },
+        )
+        steps = _parse_session_jsonl(raw)
+        assert len(steps) == 1
+        assert steps[0]["reasoning_content"] == "just a thought"
+        assert steps[0]["message"] == ""
+
+    def test_no_reasoning_field_when_absent(self) -> None:
+        raw = json.dumps(
+            {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "plain"}],
+            },
+        )
+        steps = _parse_session_jsonl(raw)
+        assert "reasoning_content" not in steps[0]

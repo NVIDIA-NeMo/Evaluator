@@ -396,10 +396,15 @@ def _parse_session_jsonl(raw: str) -> list[dict[str, Any]]:
             content = record.get("content", [])
             text_parts: list[str] = []
             tool_calls: list[dict[str, Any]] = []
+            reasoning_parts: list[str] = []
             for block in content if isinstance(content, list) else []:
                 btype = block.get("type", "")
                 if btype == "text" and block.get("text"):
                     text_parts.append(block["text"])
+                elif btype == "thinking" and block.get("thinking"):
+                    reasoning_parts.append(block["thinking"])
+                elif btype == "redacted_thinking":
+                    reasoning_parts.append("[redacted_thinking]")
                 elif btype == "tool_use":
                     tool_calls.append(
                         {
@@ -412,9 +417,11 @@ def _parse_session_jsonl(raw: str) -> list[dict[str, Any]]:
                 "source": "agent",
                 "message": "\n".join(text_parts),
             }
+            if reasoning_parts:
+                step["reasoning_content"] = "\n".join(reasoning_parts)
             if tool_calls:
                 step["tool_calls"] = tool_calls
-            if text_parts or tool_calls:
+            if text_parts or tool_calls or reasoning_parts:
                 steps.append(step)
         elif role == "tool":
             content = record.get("content", "")

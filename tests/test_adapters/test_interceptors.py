@@ -547,3 +547,498 @@ async def test_reasoning_normalize():
     msg = result.body["choices"][0]["message"]
     assert msg["reasoning_content"] == "reason"
     assert msg["content"] == "answer"
+
+
+def _resp_with_tool_call(reasoning: str, call_id: str = "call_1", text: str = ""):
+    return _resp(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": text,
+                        "reasoning_content": reasoning,
+                        "tool_calls": [
+                            {
+                                "id": call_id,
+                                "type": "function",
+                                "function": {"name": "f", "arguments": "{}"},
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+    )
+
+
+def _assistant_with_tool_call(call_id: str = "call_1", content=None, reasoning=None):
+    msg = {
+        "role": "assistant",
+        "content": content,
+        "tool_calls": [
+            {
+                "id": call_id,
+                "type": "function",
+                "function": {"name": "f", "arguments": "{}"},
+            }
+        ],
+    }
+    if reasoning is not None:
+        msg["reasoning_content"] = reasoning
+    return msg
+
+
+async def test_reasoning_replay_invalid_mode():
+    with pytest.raises(ValueError, match="mode must be one of"):
+        InterceptorRegistry.create("reasoning_replay", {"mode": "bogus"})
+
+
+async def test_reasoning_replay_rejects_empty_tags():
+    with pytest.raises(ValueError, match="tag_open and tag_close"):
+        InterceptorRegistry.create("reasoning_replay", {"tag_open": "", "tag_close": "</think>"})
+
+
+async def test_reasoning_replay_custom_tag():
+    ic = InterceptorRegistry.create(
+        "reasoning_replay",
+        {"mode": "think_tags", "tag_open": "<thought>", "tag_close": "</thought>"},
+    )
+    await ic.intercept_response(_resp_with_tool_call("hidden chain", "call_abc"))
+
+    req = _req(
+        {
+            "messages": [
+                _assistant_with_tool_call("call_abc", content="visible answer"),
+            ],
+        }
+    )
+    result = await ic.intercept_request(req)
+    assert result.body["messages"][0]["content"] == "<thought>hidden chain</thought>\nvisible answer"
+
+
+async def test_reasoning_replay_custom_tag_idempotent():
+    ic = InterceptorRegistry.create(
+        "reasoning_replay",
+        {"mode": "think_tags", "tag_open": "<thought>", "tag_close": "</thought>"},
+    )
+    await ic.intercept_response(_resp_with_tool_call("cached", "call_x"))
+
+    req = _req(
+        {
+            "messages": [
+                _assistant_with_tool_call(
+                    "call_x",
+                    content="<thought>existing</thought>\nrest",
+                ),
+            ],
+        }
+    )
+    result = await ic.intercept_request(req)
+    assert result.body["messages"][0]["content"] == "<thought>existing</thought>\nrest"
+
+
+async def test_reasoning_replay_caches_response():
+    ic = InterceptorRegistry.create("reasoning_replay")
+    await ic.intercept_response(_resp_with_tool_call("hidden chain", "call_abc"))
+    assert ic._get("|c:call_abc") == "hidden chain"
+
+
+async def test_reasoning_replay_think_tags_round_trip():
+    ic = InterceptorRegistry.create("reasoning_replay", {"mode": "think_tags"})
+    await ic.intercept_response(_resp_with_tool_call("hidden chain", "call_abc"))
+
+    req = _req(
+        {
+            "messages": [
+                {"role": "user", "content": "go"},
+                _assistant_with_tool_call("call_abc", content="visible answer"),
+                {"role": "tool", "tool_call_id": "call_abc", "content": "ok"},
+                {"role": "user", "content": "next"},
+            ],
+        }
+    )
+    result = await ic.intercept_request(req)
+    assistant = result.body["messages"][1]
+    assert assistant["content"] == "<think>hidden chain</think>\nvisible answer"
+    assert "reasoning_content" not in assistant
+    assert req.ctx.extra["reasoning_replay_hits"] == 1
+
+
+async def test_reasoning_replay_native_round_trip():
+    ic = InterceptorRegistry.create("reasoning_replay", {"mode": "native"})
+    await ic.intercept_response(_resp_with_tool_call("hidden chain", "call_abc"))
+
+    req = _req(
+        {
+            "messages": [
+                _assistant_with_tool_call("call_abc", content="visible answer"),
+            ],
+        }
+    )
+    result = await ic.intercept_request(req)
+    assistant = result.body["messages"][0]
+    assert assistant["reasoning_content"] == "hidden chain"
+    assert assistant["content"] == "visible answer"
+
+
+async def test_reasoning_replay_both_mode():
+    ic = InterceptorRegistry.create("reasoning_replay", {"mode": "both"})
+    await ic.intercept_response(_resp_with_tool_call("hidden", "call_abc"))
+
+    req = _req(
+        {"messages": [_assistant_with_tool_call("call_abc", content="text")]},
+    )
+    result = await ic.intercept_request(req)
+    assistant = result.body["messages"][0]
+    assert assistant["reasoning_content"] == "hidden"
+    assert assistant["content"] == "<think>hidden</think>\ntext"
+
+
+async def test_reasoning_replay_native_skips_when_already_set():
+    ic = InterceptorRegistry.create("reasoning_replay", {"mode": "native"})
+    await ic.intercept_response(_resp_with_tool_call("from-cache", "call_abc"))
+
+    req = _req(
+        {
+            "messages": [
+                _assistant_with_tool_call("call_abc", content="x", reasoning="agent-set"),
+            ],
+        }
+    )
+    result = await ic.intercept_request(req)
+    assert result.body["messages"][0]["reasoning_content"] == "agent-set"
+    assert "reasoning_replay_hits" not in req.ctx.extra
+
+
+async def test_reasoning_replay_both_preserves_existing_native():
+    ic = InterceptorRegistry.create("reasoning_replay", {"mode": "both"})
+    await ic.intercept_response(_resp_with_tool_call("from-cache", "call_abc"))
+
+    req = _req(
+        {
+            "messages": [
+                _assistant_with_tool_call("call_abc", content="x", reasoning="agent-set"),
+            ],
+        }
+    )
+    result = await ic.intercept_request(req)
+    assistant = result.body["messages"][0]
+    assert assistant["reasoning_content"] == "agent-set"
+    assert assistant["content"] == "<think>from-cache</think>\nx"
+
+
+async def test_reasoning_replay_content_hash_fallback():
+    ic = InterceptorRegistry.create("reasoning_replay", {"mode": "think_tags"})
+    resp = _resp(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "the visible answer",
+                        "reasoning_content": "thought",
+                    },
+                }
+            ],
+        }
+    )
+    await ic.intercept_response(resp)
+
+    req = _req(
+        {
+            "messages": [
+                {"role": "assistant", "content": "the visible answer"},
+            ],
+        }
+    )
+    result = await ic.intercept_request(req)
+    assert result.body["messages"][0]["content"] == "<think>thought</think>\nthe visible answer"
+
+
+async def test_reasoning_replay_multiple_tool_calls_share_reasoning():
+    ic = InterceptorRegistry.create("reasoning_replay", {"mode": "native"})
+    resp = _resp(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "",
+                        "reasoning_content": "shared",
+                        "tool_calls": [
+                            {"id": "a", "type": "function", "function": {"name": "f", "arguments": "{}"}},
+                            {"id": "b", "type": "function", "function": {"name": "g", "arguments": "{}"}},
+                        ],
+                    },
+                }
+            ],
+        }
+    )
+    await ic.intercept_response(resp)
+    assert ic._get("|c:a") == "shared"
+    assert ic._get("|c:b") == "shared"
+
+
+async def test_reasoning_replay_lru_eviction():
+    ic = InterceptorRegistry.create("reasoning_replay", {"cache_max_entries": 2})
+    await ic.intercept_response(_resp_with_tool_call("r1", "call_1"))
+    await ic.intercept_response(_resp_with_tool_call("r2", "call_2"))
+    await ic.intercept_response(_resp_with_tool_call("r3", "call_3"))
+    assert ic._get("|c:call_1") is None
+    assert ic._get("|c:call_2") == "r2"
+    assert ic._get("|c:call_3") == "r3"
+
+
+async def test_reasoning_replay_list_content():
+    ic = InterceptorRegistry.create("reasoning_replay", {"mode": "think_tags"})
+    await ic.intercept_response(_resp_with_tool_call("hidden", "call_abc"))
+
+    req = _req(
+        {
+            "messages": [
+                _assistant_with_tool_call(
+                    "call_abc",
+                    content=[{"type": "text", "text": "answer"}],
+                ),
+            ],
+        }
+    )
+    result = await ic.intercept_request(req)
+    content = result.body["messages"][0]["content"]
+    assert content[0] == {"type": "text", "text": "<think>hidden</think>\n"}
+    assert content[1] == {"type": "text", "text": "answer"}
+
+
+async def test_reasoning_replay_no_match_is_noop():
+    ic = InterceptorRegistry.create("reasoning_replay", {"mode": "think_tags"})
+    req = _req(
+        {
+            "messages": [
+                _assistant_with_tool_call("call_unknown", content="text"),
+            ],
+        }
+    )
+    result = await ic.intercept_request(req)
+    assert result.body["messages"][0]["content"] == "text"
+    assert "reasoning_replay_hits" not in req.ctx.extra
+
+
+async def test_reasoning_replay_handles_malformed_body():
+    ic = InterceptorRegistry.create("reasoning_replay")
+    req = _req({"messages": "not-a-list"})
+    result = await ic.intercept_request(req)
+    assert result.body["messages"] == "not-a-list"
+
+    resp = _resp(b"raw bytes")
+    out = await ic.intercept_response(resp)
+    assert out.body == b"raw bytes"
+
+
+async def test_reasoning_replay_session_isolation():
+    """Two concurrent sessions with the same hash-key text must not cross-talk."""
+    ic = InterceptorRegistry.create("reasoning_replay", {"mode": "think_tags"})
+
+    resp_a = _resp(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "the answer",
+                        "reasoning_content": "session-A-thought",
+                    },
+                }
+            ],
+        }
+    )
+    resp_a.ctx.extra["session_id"] = "A"
+    await ic.intercept_response(resp_a)
+
+    resp_b = _resp(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "the answer",
+                        "reasoning_content": "session-B-thought",
+                    },
+                }
+            ],
+        }
+    )
+    resp_b.ctx.extra["session_id"] = "B"
+    await ic.intercept_response(resp_b)
+
+    req_a = _req({"messages": [{"role": "assistant", "content": "the answer"}]})
+    req_a.ctx.extra["session_id"] = "A"
+    out_a = await ic.intercept_request(req_a)
+    assert out_a.body["messages"][0]["content"] == "<think>session-A-thought</think>\nthe answer"
+
+    req_b = _req({"messages": [{"role": "assistant", "content": "the answer"}]})
+    req_b.ctx.extra["session_id"] = "B"
+    out_b = await ic.intercept_request(req_b)
+    assert out_b.body["messages"][0]["content"] == "<think>session-B-thought</think>\nthe answer"
+
+
+async def test_reasoning_replay_idempotent_in_think_tags():
+    """If content already begins with <think>, do not double-wrap."""
+    ic = InterceptorRegistry.create("reasoning_replay", {"mode": "think_tags"})
+    await ic.intercept_response(_resp_with_tool_call("cached", "call_x"))
+
+    req = _req(
+        {
+            "messages": [
+                _assistant_with_tool_call(
+                    "call_x",
+                    content="<think>already-there</think>\nvisible",
+                ),
+            ],
+        }
+    )
+    result = await ic.intercept_request(req)
+    assert result.body["messages"][0]["content"] == "<think>already-there</think>\nvisible"
+    assert "reasoning_replay_hits" not in req.ctx.extra
+
+
+async def test_reasoning_replay_idempotent_list_content():
+    ic = InterceptorRegistry.create("reasoning_replay", {"mode": "think_tags"})
+    await ic.intercept_response(_resp_with_tool_call("cached", "call_x"))
+
+    req = _req(
+        {
+            "messages": [
+                _assistant_with_tool_call(
+                    "call_x",
+                    content=[
+                        {"type": "text", "text": "<think>existing</think>"},
+                        {"type": "text", "text": "rest"},
+                    ],
+                ),
+            ],
+        }
+    )
+    result = await ic.intercept_request(req)
+    content = result.body["messages"][0]["content"]
+    assert content[0]["text"] == "<think>existing</think>"
+    assert len(content) == 2
+
+
+async def test_reasoning_replay_ignores_whitespace_only_reasoning():
+    """Whitespace-only reasoning_content must not poison the cache."""
+    ic = InterceptorRegistry.create("reasoning_replay")
+    resp = _resp(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "answer",
+                        "reasoning_content": "   \n\t  ",
+                        "tool_calls": [
+                            {"id": "call_x", "type": "function", "function": {"name": "f", "arguments": "{}"}},
+                        ],
+                    },
+                }
+            ],
+        }
+    )
+    await ic.intercept_response(resp)
+    assert ic._get("|c:call_x") is None
+
+
+async def test_reasoning_replay_ignores_empty_tool_call_id():
+    """Empty-string tool_call.id must fall through to content-hash, not collide."""
+    ic = InterceptorRegistry.create("reasoning_replay")
+    resp = _resp(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "the visible text",
+                        "reasoning_content": "thought",
+                        "tool_calls": [
+                            {"id": "", "type": "function", "function": {"name": "f", "arguments": "{}"}},
+                        ],
+                    },
+                }
+            ],
+        }
+    )
+    await ic.intercept_response(resp)
+    assert ic._get("|c:") is None
+
+
+async def test_reasoning_replay_pipeline_dual_stage():
+    """Through AdapterPipeline: same instance must run on request AND response side."""
+    from nemo_evaluator.adapters.pipeline import AdapterPipeline
+    from nemo_evaluator.adapters.types import AdapterResponse, RequestToResponseInterceptor
+
+    class _FakeEndpoint(RequestToResponseInterceptor):
+        def __init__(self, body: dict):
+            self._body = body
+            self.last_req: AdapterRequest | None = None
+
+        async def intercept_request(self, req: AdapterRequest):
+            self.last_req = req
+            return AdapterResponse(status_code=200, headers={}, body=self._body, ctx=req.ctx)
+
+    replay = InterceptorRegistry.create("reasoning_replay", {"mode": "think_tags"})
+    endpoint = _FakeEndpoint(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "answer",
+                        "reasoning_content": "captured",
+                        "tool_calls": [
+                            {"id": "call_z", "type": "function", "function": {"name": "f", "arguments": "{}"}},
+                        ],
+                    },
+                }
+            ],
+        }
+    )
+    pipeline = AdapterPipeline([replay, endpoint])
+
+    resp1 = await pipeline.process(_req({"messages": [{"role": "user", "content": "go"}]}))
+    assert resp1.status_code == 200
+    assert replay._get("|c:call_z") == "captured"
+
+    req2 = _req(
+        {
+            "messages": [
+                _assistant_with_tool_call("call_z", content="answer"),
+                {"role": "user", "content": "next"},
+            ],
+        }
+    )
+    await pipeline.process(req2)
+    forwarded = endpoint.last_req.body["messages"][0]
+    assert forwarded["content"] == "<think>captured</think>\nanswer"
+
+
+async def test_reasoning_replay_composes_with_normalize():
+    norm = InterceptorRegistry.create("reasoning")
+    replay = InterceptorRegistry.create("reasoning_replay", {"mode": "think_tags"})
+    resp = _resp(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "<think>cot</think>visible",
+                        "tool_calls": [
+                            {"id": "c1", "type": "function", "function": {"name": "f", "arguments": "{}"}},
+                        ],
+                    },
+                }
+            ],
+        }
+    )
+    await norm.intercept_response(resp)
+    await replay.intercept_response(resp)
+    assert replay._get("|c:c1") == "cot"

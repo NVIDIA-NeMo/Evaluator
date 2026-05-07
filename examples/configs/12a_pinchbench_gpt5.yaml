@@ -15,6 +15,7 @@ services:
         reasoning_effort: medium
       interceptors:
         - name: turn_counter
+        - name: reasoning_replay
 
   judge:
     type: api

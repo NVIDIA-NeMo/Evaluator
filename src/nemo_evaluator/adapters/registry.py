@@ -48,6 +48,7 @@ _BUILTIN: dict[str, str] = {
     "log_tokens": "nemo_evaluator.adapters.interceptors.log_tokens",
     "response_stats": "nemo_evaluator.adapters.interceptors.response_stats",
     "reasoning": "nemo_evaluator.adapters.interceptors.reasoning",
+    "reasoning_replay": "nemo_evaluator.adapters.interceptors.reasoning_replay",
     "progress_tracking": "nemo_evaluator.adapters.interceptors.progress_tracking",
     "logging": "nemo_evaluator.adapters.interceptors.request_logging",
 }
