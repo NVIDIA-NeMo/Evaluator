@@ -125,6 +125,51 @@ def apply_task_execution_overrides(cfg: DictConfig, task: DictConfig) -> DictCon
     return _apply_task_section_overrides(cfg, task, "execution")
 
 
+def apply_evaluation_task_overrides(cfg: DictConfig) -> DictConfig:
+    """Return cfg with ``cfg.evaluation.task_overrides[name]`` deeply merged into
+    matching ``cfg.evaluation.tasks[]`` entries.
+
+    Lets a downstream config override specific tasks of an inherited evaluation
+    list without redefining the whole list. Each value is deep-merged into the
+    matching task entry; subsequent ``apply_task_deployment_overrides`` and
+    ``apply_task_execution_overrides`` see the merged result.
+
+    Match is by task ``name``. If multiple tasks share the same name (e.g. the
+    same benchmark configured twice with different parameters), the override
+    applies to every matching entry.
+
+    No-op if ``cfg.evaluation.task_overrides`` is missing or empty.
+    """
+    evaluation = cfg.get("evaluation") if isinstance(cfg, DictConfig) else None
+    if evaluation is None:
+        return cfg
+    overrides = evaluation.get("task_overrides")
+    if not overrides:
+        return cfg
+    new_tasks = []
+    for task in evaluation.tasks:
+        name = task.get("name") if isinstance(task, DictConfig) else task["name"]
+        ovr = overrides.get(name)
+        if ovr:
+            task_open = OmegaConf.create(OmegaConf.to_container(task, resolve=False))
+            OmegaConf.set_struct(task_open, False)
+            ovr_open = OmegaConf.create(
+                OmegaConf.to_container(ovr, resolve=False)
+                if isinstance(ovr, DictConfig)
+                else ovr
+            )
+            OmegaConf.set_struct(ovr_open, False)
+            task = OmegaConf.merge(task_open, ovr_open)
+            OmegaConf.set_struct(task, False)
+        new_tasks.append(task)
+    base_cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=False))
+    OmegaConf.set_struct(base_cfg, False)
+    return OmegaConf.merge(
+        base_cfg,
+        OmegaConf.create({"evaluation": {"tasks": list(new_tasks)}}),
+    )
+
+
 def _apply_task_section_overrides(
     cfg: DictConfig, task: DictConfig, section: str
 ) -> DictConfig:

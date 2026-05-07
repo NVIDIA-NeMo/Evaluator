@@ -55,6 +55,7 @@ from nemo_evaluator_launcher.common.execdb import (
 from nemo_evaluator_launcher.common.helpers import (
     CmdAndReadableComment,
     _str_to_echo_command,
+    apply_evaluation_task_overrides,
     apply_task_deployment_overrides,
     apply_task_execution_overrides,
     check_unlisted_tasks_safeguard,
@@ -122,6 +123,9 @@ class SlurmExecutor(BaseExecutor):
             unlisted_task_names: list[str] = []
 
             is_potentially_unsafe = False
+            # Apply evaluation.task_overrides BEFORE the per-task loop so
+            # subsequent apply_task_*_overrides calls see the merged tasks.
+            cfg = apply_evaluation_task_overrides(cfg)
             _outer_cfg = cfg
             for idx, task in enumerate(_outer_cfg.evaluation.tasks):
                 # Apply both per-task overrides before any cfg.* read in this

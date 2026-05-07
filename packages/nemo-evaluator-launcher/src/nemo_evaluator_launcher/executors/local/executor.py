@@ -46,6 +46,7 @@ from nemo_evaluator_launcher.common.execdb import (
     generate_job_id,
 )
 from nemo_evaluator_launcher.common.helpers import (
+    apply_evaluation_task_overrides,
     apply_task_deployment_overrides,
     apply_task_execution_overrides,
     check_unlisted_tasks_safeguard,
@@ -136,6 +137,9 @@ class LocalExecutor(BaseExecutor):
 
         deployment = None
 
+        # Apply evaluation.task_overrides BEFORE the per-task loop so
+        # subsequent apply_task_*_overrides calls see the merged tasks.
+        cfg = apply_evaluation_task_overrides(cfg)
         # Snapshot the unmodified cfg before the per-task loop. Each iteration
         # rebinds `cfg` to a per-task effective copy via
         # ``apply_task_deployment_overrides`` so deployment fields (image,

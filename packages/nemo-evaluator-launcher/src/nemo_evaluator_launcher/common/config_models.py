@@ -207,3 +207,16 @@ class EvaluationModel(BaseModel):
             "Task-level ``post_cmd`` overrides this per task. Runs even if evaluation fails."
         ),
     )
+    task_overrides: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description=(
+            "Per-task overrides keyed by task name. Each value is deep-merged "
+            "into the matching ``evaluation.tasks[]`` entry before any of the "
+            "existing ``task.deployment_overrides`` / "
+            "``task.execution_overrides`` machinery runs. Lets a downstream "
+            "config (e.g. an inheriting profile) override specific tasks of a "
+            "shared evaluation list without redefining the entire list. If "
+            "multiple tasks share a name, the override applies to every "
+            "matching entry."
+        ),
+    )
