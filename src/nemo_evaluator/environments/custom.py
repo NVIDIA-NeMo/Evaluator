@@ -71,8 +71,10 @@ from nemo_evaluator.scoring.metric import (
     validate_metric_result,
 )
 from nemo_evaluator.scoring.types import ScorerInput
+from nemo_evaluator.solvers.trajectory_util import parse_atif_trajectory_payload
 
 logger = logging.getLogger(__name__)
+_CANDIDATE_TRAJECTORY_META_KEY = "_candidate_trajectory"
 
 
 # ── Data types ────────────────────────────────────────────────────────────
@@ -102,7 +104,7 @@ class BenchmarkDefinition:
     field_mapping: dict[str, str] | None = None
     extra: dict[str, Any] = field(default_factory=dict)
     requirements: list[str] | None = None
-    scorer_fn: Callable[..., ScorerReturn] | _MetricScorer | None = None
+    scorer_fn: Callable[..., ScorerReturn] | type[Metric] | _MetricScorer | None = None
     prepare_row: Callable[[dict[str, Any], int, random.Random], dict[str, Any]] | None = None
     seed_fn: Callable[[dict[str, Any], int], SeedResult] | None = None
     image_builder_fn: Callable[[list[dict[str, Any]]], ImageBuildRequest] | None = None
@@ -297,8 +299,10 @@ class ByobEnvironment(EvalEnvironment):
 
         import asyncio
 
-        if isinstance(self._defn.scorer_fn, _MetricScorer):
-            metric = self._defn.scorer_fn.to_metric()
+        scorer_fn = self._defn.scorer_fn
+        metric_scorer = scorer_fn(**self._defn.extra) if isinstance(scorer_fn, type) else scorer_fn
+        if isinstance(metric_scorer, _MetricScorer):
+            metric = metric_scorer.to_metric()
             if isinstance(metric, ScorerFunctionMetric):
                 metric = metric.bind_raw_config(
                     config=self._defn.extra,
@@ -317,10 +321,14 @@ class ByobEnvironment(EvalEnvironment):
                 response=response,
             )
 
+        if isinstance(scorer_fn, type) or not callable(scorer_fn):
+            raise TypeError("scorer_fn must be a callable scorer function or Metric scorer")
+
         sample = ScorerInput(
             response=response, target=expected, metadata=meta, config=self._defn.extra, sandbox=sandbox
         )
-        scores_result = self._defn.scorer_fn(sample)
+        scorer_callable = cast(Callable[[ScorerInput], ScorerReturn], scorer_fn)
+        scores_result = scorer_callable(sample)
         if asyncio.iscoroutine(scores_result):
             scores_result = await scores_result
         scores = cast(Mapping[str, object], scores_result)
@@ -341,9 +349,11 @@ def _metric_input_from_verify(
     metadata: dict[str, Any],
 ) -> MetricInput:
     row_data: dict[str, object] = dict(metadata)
+    trajectory_payload = row_data.pop(_CANDIDATE_TRAJECTORY_META_KEY, None)
+    trajectory = parse_atif_trajectory_payload(trajectory_payload) if trajectory_payload is not None else None
     return MetricInput(
         row=DatasetRow(data=row_data),
-        candidate=CandidateOutput(output_text=response),
+        candidate=CandidateOutput(output_text=response, trajectory=trajectory),
     )
 
 

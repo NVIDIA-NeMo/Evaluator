@@ -13,6 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from nemo_evaluator.metrics.pass_at_k import pass_at_k
+from nemo_evaluator.metrics.retrieved_context import (
+    RetrievedContextPresenceMetric,
+    RetrievedContextPresenceReasoning,
+    RetrievedContexts,
+)
+from nemo_evaluator.metrics.scorers import ExactMatchScorer
+from nemo_evaluator.metrics.scorers import ParameterizedExactMatchConfig
+from nemo_evaluator.metrics.scorers import ParameterizedExactMatchScorer
 from nemo_evaluator.metrics.confidence import bootstrap_ci, sample_level_ci
 from nemo_evaluator.metrics.aggregation import category_breakdown
 from nemo_evaluator.metrics.paired_tests import (
@@ -32,6 +40,12 @@ __all__ = [
     "McNemarResult",
     "POWER_80_FACTOR",
     "PermutationResult",
+    "ExactMatchScorer",
+    "ParameterizedExactMatchConfig",
+    "ParameterizedExactMatchScorer",
+    "RetrievedContextPresenceMetric",
+    "RetrievedContextPresenceReasoning",
+    "RetrievedContexts",
     "SIGNIFICANCE_THRESHOLD",
     "SignTestResult",
     "bootstrap_ci",

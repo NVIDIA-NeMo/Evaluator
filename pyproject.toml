@@ -7,7 +7,7 @@ name = "nemo-evaluator"
 version = "0.13.0"
 description = "NeMo Evaluator — benchmark environments, pluggable solvers, interceptor proxy, and decision-grade scoring for LLMs"
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.12,<3.14"
 license = "Apache-2.0"
 authors = [
     { name = "NVIDIA" },
@@ -35,8 +35,6 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -54,6 +52,7 @@ dependencies = [
     "jinja2>=3.0",
     "starlette>=0.27",
     "boto3>=1.28",
+    "nvidia-nat-atif>=0.0.0",
 ]
 
 [project.optional-dependencies]
@@ -98,6 +97,28 @@ nel = "nemo_evaluator.cli.main:cli"
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[tool.uv]
+conflicts = [
+    [
+        { extra = "all" },
+        { extra = "skills" },
+    ],
+    [
+        { extra = "dev" },
+        { extra = "skills" },
+    ],
+    [
+        { extra = "harbor" },
+        { extra = "skills" },
+    ],
+]
+
+[tool.uv.sources]
+nvidia-nat-atif = { path = "../nat/packages/nvidia_nat_atif", editable = true }
+
+[tool.ty.environment]
+extra-paths = ["../nat/packages/nvidia_nat_atif/src"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nemo_evaluator"]

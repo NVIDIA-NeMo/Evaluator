@@ -23,6 +23,10 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from nat.atif import ATIFAgentConfig
+from nat.atif import ATIFFinalMetrics
+from nat.atif import ATIFTrajectory
+
 
 def build_atif_trajectory(
     steps: list[dict[str, Any]],
@@ -60,33 +64,40 @@ def build_atif_trajectory(
         prompt_tokens = prompt_tokens or 0
         completion_tokens = completion_tokens or 0
 
-    agent_obj: dict[str, Any] = {
-        "name": agent_name,
-        "version": agent_version,
-    }
-    if model_name:
-        agent_obj["model_name"] = model_name
+    trajectory = ATIFTrajectory(
+        schema_version="ATIF-v1.6",
+        session_id=session_id or uuid.uuid4().hex[:16],
+        agent=ATIFAgentConfig(name=agent_name, version=agent_version, model_name=model_name),
+        steps=numbered_steps,
+        final_metrics=ATIFFinalMetrics(
+            total_prompt_tokens=prompt_tokens,
+            total_completion_tokens=completion_tokens,
+            total_steps=len(numbered_steps),
+        ),
+        extra={"status": status} if status else None,
+    )
 
-    doc: dict[str, Any] = {
-        "schema_version": "ATIF-v1.6",
-        "session_id": session_id or uuid.uuid4().hex[:16],
-        "agent": agent_obj,
-        "steps": numbered_steps,
-    }
-
-    doc["final_metrics"] = {
-        "total_prompt_tokens": prompt_tokens,
-        "total_completion_tokens": completion_tokens,
-        "total_steps": len(numbered_steps),
-    }
-
-    if status:
-        doc.setdefault("extra", {})["status"] = status
+    doc = trajectory.to_json_dict()
 
     if extra:
         doc.setdefault("extra", {}).update(extra)
+        doc = ATIFTrajectory.model_validate(doc).to_json_dict()
 
     return [doc]
+
+
+def parse_atif_trajectory_payload(trajectory: object) -> ATIFTrajectory:
+    """Parse the trajectory payload convention used by ``SolveResult``.
+
+    ``SolveResult.trajectory`` stores a single ATIF document wrapped in a list.
+    Metrics may also receive an ``ATIFTrajectory`` directly in unit tests and
+    adapters.
+    """
+    if isinstance(trajectory, ATIFTrajectory):
+        return trajectory
+    if isinstance(trajectory, list) and len(trajectory) == 1:
+        return ATIFTrajectory.model_validate(trajectory[0])
+    return ATIFTrajectory.model_validate(trajectory)
 
 
 def build_single_turn_atif(
