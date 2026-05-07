@@ -124,7 +124,7 @@ jobs:
       has-src-dir: true
       root-dir: packages/nemo-evaluator
       restrict-to-admins: true
-    secrets: inherit
+    secrets: inherit  # pragma: allowlist secret
 
   release-launcher:
     needs: [pre-flight, validate-inputs]
@@ -161,7 +161,7 @@ jobs:
       has-src-dir: true
       root-dir: packages/nemo-evaluator-launcher
       restrict-to-admins: true
-    secrets: inherit
+    secrets: inherit  # pragma: allowlist secret
 
   release-summary:
     needs: [pre-flight, validate-inputs, release, release-launcher]
