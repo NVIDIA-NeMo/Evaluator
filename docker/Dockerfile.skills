@@ -5,6 +5,11 @@ FROM ${BASE_IMAGE}
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir ".[scoring,stats,skills]"
+COPY docker/skills-uv-overrides.txt /tmp/skills-uv-overrides.txt
+
+RUN pip install --no-cache-dir "uv==0.6.1" \
+    && uv pip install --system --break-system-packages --no-cache \
+        --overrides /tmp/skills-uv-overrides.txt \
+        ".[scoring,stats,skills]"
 
 CMD ["nel", "--help"]

@@ -1,0 +1,4 @@
+# Mirrors the upstream NeMo Skills uv overrides for transitive packages whose
+# pinned dependencies conflict under plain pip resolution.
+httpx[http2]>=0.28.1
+urllib3>=2.6.3
