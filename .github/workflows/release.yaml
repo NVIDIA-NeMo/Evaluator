@@ -125,7 +125,6 @@ jobs:
       root-dir: packages/nemo-evaluator
       restrict-to-admins: true
     secrets: inherit
-      S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
 
   release-launcher:
     needs: [pre-flight, validate-inputs]
