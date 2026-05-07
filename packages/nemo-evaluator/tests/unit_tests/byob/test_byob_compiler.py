@@ -205,7 +205,7 @@ class TestInstallBenchmark:
                         "extra": {
                             "benchmark_module": "/path/to/module.py",
                             "benchmark_name": "test_pkg",
-                            "dataset": "/path/to/data.jsonl",
+                            "dataset": {"path": "/path/to/data.jsonl"},
                         },
                     }
                 },
@@ -223,7 +223,7 @@ class TestInstallBenchmark:
                                 "extra": {
                                     "benchmark_module": "/path/to/module.py",
                                     "benchmark_name": "test_pkg",
-                                    "dataset": "/path/to/data.jsonl",
+                                    "dataset": {"path": "/path/to/data.jsonl"},
                                 }
                             },
                         }
@@ -394,7 +394,7 @@ class TestInstallWithRequirements:
         extra = {
             "benchmark_module": "/path/to/module.py",
             "benchmark_name": "test_pkg",
-            "dataset": "/path/to/data.jsonl",
+            "dataset": {"path": "/path/to/data.jsonl"},
         }
         if requirements is not None:
             extra["requirements"] = requirements
@@ -565,4 +565,83 @@ def check(sample):
         assert params["temperature"] == DEFAULT_TEMPERATURE, (
             f"FDF temperature should be {DEFAULT_TEMPERATURE}, "
             f"got {params['temperature']}"
+        )
+
+    def test_fdf_groups_dataset_config_under_extra_dataset(self, tmp_path):
+        """Locks in the `extra.dataset.*` namespace contract.
+
+        Dataset path, num_fewshot, field_mapping, choices, choices_field
+        all live under ``extra.dataset.*``. Top-level ``extra`` only
+        carries ``benchmark_module``, ``dataset``, and ``requirements``.
+        """
+        benchmark_code = """
+from nemo_evaluator.contrib.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob.scorers import multiple_choice_acc
+
+@benchmark(
+    name="ds-namespace",
+    dataset="hf://test/data?split=test",
+    prompt="Q: {q}\\nA:",
+    target_field="answer",
+    endpoint_type="completions_logprob",
+    choices=[" A", " B", " C", " D"],
+    num_fewshot=5,
+    field_mapping={"question": "q"},
+)
+@scorer
+def s(sample):
+    return multiple_choice_acc(sample)
+"""
+        benchmark_file = tmp_path / "ds_namespace.py"
+        benchmark_file.write_text(benchmark_code)
+
+        result = compile_benchmark(str(benchmark_file))
+        extra = result["ds_namespace"]["defaults"]["config"]["params"]["extra"]
+
+        # Top-level extra carries only non-dataset config.
+        assert "benchmark_module" in extra
+        assert "requirements" in extra
+        # Dataset-shaped keys must not leak to the top level.
+        for stale_key in ("num_fewshot", "field_mapping", "choices", "choices_field"):
+            assert stale_key not in extra, (
+                f"'{stale_key}' should be nested under extra.dataset.*, "
+                f"not at top level of extra."
+            )
+
+        # extra.dataset is a dict carrying path + dataset-shaped keys.
+        ds = extra["dataset"]
+        assert isinstance(ds, dict), f"extra.dataset must be a dict, got {type(ds)}"
+        assert ds["path"] == "hf://test/data?split=test"
+        assert ds["num_fewshot"] == 5
+        assert ds["field_mapping"] == {"question": "q"}
+        assert ds["choices"] == [" A", " B", " C", " D"]
+
+    def test_fdf_command_template_references_nested_dataset(self, tmp_path):
+        """The Jinja COMMAND_TEMPLATE must use the nested path/num_fewshot keys."""
+        benchmark_code = """
+from nemo_evaluator.contrib.byob import benchmark, scorer
+
+@benchmark(name="cmd-ds", dataset="d.jsonl", prompt="{q}", num_fewshot=3)
+@scorer
+def s(sample):
+    return {"acc": 1.0}
+"""
+        benchmark_file = tmp_path / "cmd_ds.py"
+        benchmark_file.write_text(benchmark_code)
+
+        result = compile_benchmark(str(benchmark_file))
+        cmd = result["cmd_ds"]["defaults"]["command"]
+
+        assert "config.params.extra.dataset.path" in cmd, (
+            "COMMAND_TEMPLATE should reference extra.dataset.path"
+        )
+        assert "config.params.extra.dataset.num_fewshot" in cmd, (
+            "COMMAND_TEMPLATE should reference extra.dataset.num_fewshot"
+        )
+        # No flat extra.dataset (string) or extra.num_fewshot reference.
+        assert '{{config.params.extra.dataset}}"' not in cmd, (
+            "COMMAND_TEMPLATE should not reference flat extra.dataset (string)"
+        )
+        assert "config.params.extra.num_fewshot" not in cmd, (
+            "COMMAND_TEMPLATE should not reference top-level extra.num_fewshot"
         )

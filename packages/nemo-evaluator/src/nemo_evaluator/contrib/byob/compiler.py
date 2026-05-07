@@ -41,11 +41,23 @@ _logger = get_logger(__name__)
 
 # Jinja2 command template for runner invocation
 # NOTE: Use plain string concatenation to avoid f-string escaping issues with {{ }}
+#
+# Dataset-related config is grouped under ``config.params.extra.dataset.*``:
+#
+#   - ``path``        -- dataset file path or ``hf://`` URI (compile-time
+#                        default from ``@benchmark(dataset=...)``)
+#   - ``num_fewshot`` -- optional few-shot example count (lm-eval-harness
+#                        parity)
+#   - ``field_mapping``, ``choices``, ``choices_field`` -- informational
+#                        metadata; the runner picks up the live values from
+#                        the ``@benchmark`` registry, but they appear in the
+#                        FDF for inspection / override.
+#
 COMMAND_TEMPLATE = (
     "python -m nemo_evaluator.contrib.byob.runner"
     " --benchmark-module {{config.params.extra.benchmark_module}}"
     " --benchmark-name {{config.params.task}}"
-    " --dataset {{config.params.extra.dataset}}"
+    ' --dataset "{{config.params.extra.dataset.path}}"'
     " --output-dir {{config.output_dir}}"
     " --model-url {{target.api_endpoint.url}}"
     " --model-id {{target.api_endpoint.model_id}}"
@@ -68,6 +80,10 @@ COMMAND_TEMPLATE = (
     "{% if config.params.request_timeout is not none %}"
     " --request-timeout {{config.params.request_timeout}}"
     "{% endif %}"
+    "{% if config.params.extra.dataset.num_fewshot is defined"
+    " and config.params.extra.dataset.num_fewshot is not none %}"
+    " --num-fewshot {{config.params.extra.dataset.num_fewshot}}"
+    "{% endif %}"
 )
 
 
@@ -88,14 +104,27 @@ def _build_fdf(
     Returns:
         FDF dict ready for YAML serialization.
     """
+    # Dataset-specific config grouped under ``extra.dataset.*`` so that all
+    # dataset-shaped settings (path, fewshot count, field mapping, candidate
+    # choices) live under one namespace and don't pollute the top level of
+    # ``extra``.
+    dataset_params: dict = {"path": dataset_path}
+    if bench.field_mapping:
+        dataset_params["field_mapping"] = bench.field_mapping
+    if bench.num_fewshot:
+        dataset_params["num_fewshot"] = bench.num_fewshot
+    # Multiple-choice loglikelihood metadata (informational; the runner
+    # picks up choices/choices_field from the @benchmark registry itself).
+    if bench.choices is not None:
+        dataset_params["choices"] = list(bench.choices)
+    if bench.choices_field is not None:
+        dataset_params["choices_field"] = bench.choices_field
+
     extra_params: dict = {
         "benchmark_module": benchmark_module_ref,
-        "dataset": dataset_path,
+        "dataset": dataset_params,
         "requirements": bench.requirements,
     }
-    # Propagate field_mapping if declared
-    if bench.field_mapping:
-        extra_params["field_mapping"] = bench.field_mapping
     # Propagate judge config(s) from @benchmark kwargs
     # Supports: judge={...}, judge_1={...}, judge_2={...}, etc.
     for key, value in bench.extra_config.items():

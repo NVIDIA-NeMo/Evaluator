@@ -335,7 +335,7 @@ def get_api_key_from_env(api_key_env_var_name: Optional[str]) -> Optional[str]:
 
 def check_endpoint(
     endpoint_url: str,
-    endpoint_type: Literal["completions", "chat"],
+    endpoint_type: Literal["completions", "completions_logprob", "chat"],
     model_name: str,
     api_key_name: Optional[str] = None,
     max_retries: int = 600,
@@ -345,13 +345,13 @@ def check_endpoint(
 
     Args:
         endpoint_url (str): Full endpoint URL. For most servers that means either ``/v1/chat/completions`` or ``/completions`` must be provided
-        endpoint_type (Literal[completions, chat]): indicates if the model is instruction-tuned (chat) or a base model (completions). Used to constuct a proper payload structure.
+        endpoint_type (Literal[completions, completions_logprob, chat]): indicates if the model is instruction-tuned (chat) or a base model/completions-logprob endpoint. Used to constuct a proper payload structure.
         model_name (str): model name that is linked to payload. Might be required by some endpoint.
         max_retries (int, optional): How many attempt before returning false. Defaults to 600.
         retry_interval (int, optional): How many seconds to wait between attempts. Defaults to 2.
 
     Raises:
-        ValueError: if endpoint_type was not one of "completions", "chat"
+        ValueError: if endpoint_type was not one of "completions", "completions_logprob", "chat"
 
     Returns:
         bool: whether the endpoint is alive
@@ -364,7 +364,7 @@ def check_endpoint(
     if api_key is not None:
         headers["Authorization"] = f"Bearer {api_key}"
     payload = {"model": model_name, "max_tokens": 1}
-    if endpoint_type == "completions":
+    if endpoint_type in ("completions", "completions_logprob"):
         payload["prompt"] = "hello, my name is"
     elif endpoint_type == "chat":
         payload["messages"] = [{"role": "user", "content": "hello, what is your name?"}]

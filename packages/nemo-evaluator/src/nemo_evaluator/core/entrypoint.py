@@ -56,7 +56,7 @@ def get_parser():
         "--model_type",
         type=str,
         help="Run config.: endpoint type",
-        choices=["chat", "completions", "embedding"],
+        choices=["chat", "completions", "completions_logprob", "embedding"],
     )
     parser_run.add_argument("--model_url", type=str, help="Run config.: model URI")
     parser_run.add_argument(
@@ -185,7 +185,7 @@ def run_eval() -> None:
         --eval_type: Type of evaluation to run (e.g., "mmlu_pro", "gsm8k")
         --model_id: Model identifier (e.g "meta/llama-3.1-8b-instruct")
         --model_url: API endpoint URL (e.g "https://integrate.api.nvidia.com/v1/chat/completions" for chat endpoint type)
-        --model_type: Endpoint type ("chat", "completions", "vlm", "embedding")
+        --model_type: Endpoint type ("chat", "completions", "completions_logprob", "vlm", "embedding")
         --api_key_name: Environment variable name for API key integration with endpoints (optional)
         --output_dir: Output directory for results
         --run_config: Path to YAML Run Configuration file (optional)

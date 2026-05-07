@@ -48,6 +48,26 @@ Scorer composition::
 
 from nemo_evaluator.contrib.byob.decorators import ScorerInput, benchmark, scorer
 from nemo_evaluator.contrib.byob.judge import judge_score
-from nemo_evaluator.contrib.byob.scorers import all_of, any_of
+from nemo_evaluator.contrib.byob.scorers import (
+    all_of,
+    any_of,
+    boolean_yesno,
+    chrf,
+    gsm8k_answer,
+    mcq_letter_extract,
+    multiple_choice_acc,
+)
 
-__all__ = ["benchmark", "scorer", "ScorerInput", "any_of", "all_of", "judge_score"]
+__all__ = [
+    "benchmark",
+    "scorer",
+    "ScorerInput",
+    "any_of",
+    "all_of",
+    "judge_score",
+    "multiple_choice_acc",
+    "mcq_letter_extract",
+    "gsm8k_answer",
+    "boolean_yesno",
+    "chrf",
+]

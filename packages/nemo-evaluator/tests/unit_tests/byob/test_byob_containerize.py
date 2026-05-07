@@ -107,7 +107,7 @@ class TestRewriteFdfPaths:
                     "params": {
                         "extra": {
                             "benchmark_module": "/home/user/benchmarks/benchmark.py",
-                            "dataset": "/home/user/data/test.jsonl",
+                            "dataset": {"path": "/home/user/data/test.jsonl"},
                         }
                     }
                 }
@@ -116,7 +116,7 @@ class TestRewriteFdfPaths:
         result = rewrite_fdf_paths(fdf, "byob_test")
         extra = result["defaults"]["config"]["params"]["extra"]
         assert extra["benchmark_module"] == "/opt/byob/code/benchmark.py"
-        assert extra["dataset"] == "/opt/byob/data/test.jsonl"
+        assert extra["dataset"]["path"] == "/opt/byob/data/test.jsonl"
 
     def test_does_not_mutate_original(self):
         """Test that original FDF is not mutated."""
@@ -127,7 +127,7 @@ class TestRewriteFdfPaths:
                     "params": {
                         "extra": {
                             "benchmark_module": "/original/path.py",
-                            "dataset": "/original/data.jsonl",
+                            "dataset": {"path": "/original/data.jsonl"},
                         }
                     }
                 }
@@ -136,7 +136,7 @@ class TestRewriteFdfPaths:
         rewrite_fdf_paths(fdf, "byob_test")
         extra = fdf["defaults"]["config"]["params"]["extra"]
         assert extra["benchmark_module"] == "/original/path.py"
-        assert extra["dataset"] == "/original/data.jsonl"
+        assert extra["dataset"]["path"] == "/original/data.jsonl"
 
     def test_handles_empty_extra(self):
         """Test graceful handling when extra is empty."""
@@ -174,7 +174,7 @@ class TestPrepareBuildContext:
                     "params": {
                         "extra": {
                             "benchmark_module": str(benchmark_file),
-                            "dataset": str(dataset_file),
+                            "dataset": {"path": str(dataset_file)},
                         }
                     }
                 }

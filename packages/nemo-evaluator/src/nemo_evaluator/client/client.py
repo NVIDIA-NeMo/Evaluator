@@ -232,6 +232,36 @@ class NeMoEvaluatorClient:
         response = await self._retry_with_backoff(_make_request)
         return response.choices[0].text or ""
 
+    async def loglikelihood(self, prompt: str, **kwargs) -> dict:
+        """Score *prompt* for per-token loglikelihoods (lm-eval-harness contract).
+
+        Posts ``/v1/completions`` with ``echo=true, logprobs=1, max_tokens=0``
+        so the server returns per-token log-probabilities for the entire
+        prompt without generating new tokens. Returns the full response body
+        as a dict so callers can inspect ``logprobs.tokens``,
+        ``logprobs.token_logprobs``, ``logprobs.text_offset``, and
+        ``logprobs.top_logprobs``.
+
+        Honours ``self.semaphore`` and ``self._retry_with_backoff`` exactly
+        like ``chat_completion`` / ``completion``.
+        """
+        params = {
+            "model": self.model_id,
+            "prompt": prompt,
+            "max_tokens": 0,
+            "temperature": 0.0,
+            "logprobs": 1,
+            "echo": True,
+            **kwargs,
+        }
+
+        async def _make_request():
+            async with self.semaphore:
+                return await self.client.completions.create(**params)
+
+        response = await self._retry_with_backoff(_make_request)
+        return response.model_dump()
+
     def completions(
         self,
         prompts: List[str],

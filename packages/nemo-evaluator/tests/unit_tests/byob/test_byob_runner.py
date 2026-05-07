@@ -1389,3 +1389,273 @@ class TestCommandTemplateExtensions:
 
         assert "n_repeats" in COMMAND_TEMPLATE
         assert "--n-repeats" in COMMAND_TEMPLATE
+
+
+# ---------------------------------------------------------------------------
+# _parse_loglikelihood_response — lm-evaluation-harness parity
+#
+# Pins down the contract that lm-eval's `local-completions` adapter
+# expects from an OpenAI-compatible `/v1/completions` endpoint with
+# `echo=true, logprobs=1, max_tokens=0`. Critical invariants:
+#   1. continuation span = tokens whose `text_offset >= len(context)`
+#   2. `sum_logprob` excludes context tokens
+#   3. `is_greedy` is True iff every continuation token equals the top-1
+#      key in its `top_logprobs` entry.
+# Reference: lm_eval/models/openai_completions.py::loglikelihood
+# ---------------------------------------------------------------------------
+
+
+def _build_loglikelihood_payload(
+    context_tokens: list,
+    continuation_tokens: list,
+    ctx_logprobs: list = None,
+    cont_logprobs: list = None,
+    cont_top1_match: bool = True,
+):
+    """Build a fake OpenAI /completions response with echo+logprobs=1."""
+    if ctx_logprobs is None:
+        ctx_logprobs = [None] + [-1.0] * (len(context_tokens) - 1)
+    assert len(ctx_logprobs) == len(context_tokens)
+    assert len(cont_logprobs) == len(continuation_tokens)
+
+    tokens = list(context_tokens) + list(continuation_tokens)
+    token_logprobs = list(ctx_logprobs) + list(cont_logprobs)
+
+    text_offset, off = [], 0
+    for tok in tokens:
+        text_offset.append(off)
+        off += len(tok)
+
+    top_logprobs = [None] * len(context_tokens)
+    for tok, lp in zip(continuation_tokens, cont_logprobs):
+        if cont_top1_match:
+            top_logprobs.append({tok: lp})
+        else:
+            top_logprobs.append({"OTHER": lp + 0.001, tok: lp})
+
+    return {
+        "choices": [
+            {
+                "text": "",
+                "logprobs": {
+                    "tokens": tokens,
+                    "token_logprobs": token_logprobs,
+                    "text_offset": text_offset,
+                    "top_logprobs": top_logprobs,
+                },
+            }
+        ]
+    }
+
+
+class TestParseLoglikelihoodResponse:
+    """Test parsing of OpenAI-style /completions echo+logprobs payloads."""
+
+    def test_basic_continuation_span(self):
+        from nemo_evaluator.contrib.byob.runner import _parse_loglikelihood_response
+
+        body = {
+            "choices": [
+                {
+                    "logprobs": {
+                        "tokens": ["The", " cat", " sat"],
+                        "token_logprobs": [None, -1.2, -2.5],
+                        "text_offset": [0, 3, 7],
+                        "top_logprobs": [
+                            None,
+                            {" cat": -1.2},
+                            {" sat": -2.5},
+                        ],
+                    }
+                }
+            ]
+        }
+        ll, greedy = _parse_loglikelihood_response(body, context="The cat")
+        assert ll == pytest.approx(-2.5)
+        assert greedy is True
+
+    def test_multi_token_continuation_sums(self):
+        from nemo_evaluator.contrib.byob.runner import _parse_loglikelihood_response
+
+        body = {
+            "choices": [
+                {
+                    "logprobs": {
+                        "tokens": ["Q:", " 2+2=", "4", " because"],
+                        "token_logprobs": [None, -0.1, -0.5, -1.5],
+                        "text_offset": [0, 2, 7, 8],
+                        "top_logprobs": [
+                            None,
+                            {" 2+2=": -0.1},
+                            {"4": -0.5},
+                            {" because": -1.5},
+                        ],
+                    }
+                }
+            ]
+        }
+        ll, greedy = _parse_loglikelihood_response(body, context="Q: 2+2=")
+        assert ll == pytest.approx(-2.0)
+        assert greedy is True
+
+    def test_non_greedy_continuation(self):
+        from nemo_evaluator.contrib.byob.runner import _parse_loglikelihood_response
+
+        body = {
+            "choices": [
+                {
+                    "logprobs": {
+                        "tokens": ["Q", " is", " B"],
+                        "token_logprobs": [None, -0.5, -2.0],
+                        "text_offset": [0, 1, 4],
+                        "top_logprobs": [
+                            None,
+                            {" is": -0.5},
+                            {" A": -1.0, " B": -2.0},
+                        ],
+                    }
+                }
+            ]
+        }
+        ll, greedy = _parse_loglikelihood_response(body, context="Q is")
+        assert ll == pytest.approx(-2.0)
+        assert greedy is False
+
+    def test_missing_logprobs_returns_inf(self):
+        from nemo_evaluator.contrib.byob.runner import _parse_loglikelihood_response
+
+        body = {"choices": [{"text": "no logprobs"}]}
+        ll, greedy = _parse_loglikelihood_response(body, context="anything")
+        assert ll == float("-inf")
+        assert greedy is False
+
+    # ---- lm-eval parity invariants -----------------------------------------
+
+    def test_sum_excludes_context_tokens(self):
+        """`sum_logprob` is over continuation tokens only, never context."""
+        from nemo_evaluator.contrib.byob.runner import _parse_loglikelihood_response
+
+        body = _build_loglikelihood_payload(
+            context_tokens=["The", " quick", " brown"],
+            continuation_tokens=[" fox"],
+            ctx_logprobs=[None, -2.0, -3.0],
+            cont_logprobs=[-0.5],
+        )
+        ll, greedy = _parse_loglikelihood_response(body, "The quick brown")
+        assert ll == pytest.approx(-0.5)
+        assert greedy is True
+
+    def test_multi_token_continuation_sums_correctly(self):
+        from nemo_evaluator.contrib.byob.runner import _parse_loglikelihood_response
+
+        body = _build_loglikelihood_payload(
+            context_tokens=["Q:", " 2+2="],
+            continuation_tokens=["4", " is", " correct"],
+            ctx_logprobs=[None, -0.1],
+            cont_logprobs=[-0.3, -0.5, -0.7],
+        )
+        ll, greedy = _parse_loglikelihood_response(body, "Q: 2+2=")
+        assert ll == pytest.approx(-0.3 + -0.5 + -0.7)
+        assert greedy is True
+
+    def test_is_greedy_false_when_any_cont_token_not_top1(self):
+        from nemo_evaluator.contrib.byob.runner import _parse_loglikelihood_response
+
+        body = _build_loglikelihood_payload(
+            context_tokens=["A"],
+            continuation_tokens=[" B", " C"],
+            ctx_logprobs=[None],
+            cont_logprobs=[-0.5, -0.5],
+            cont_top1_match=False,
+        )
+        ll, greedy = _parse_loglikelihood_response(body, "A")
+        assert ll == pytest.approx(-1.0)
+        assert greedy is False
+
+    def test_text_offset_locates_continuation_start(self):
+        """Use `text_offset >= len(context)` even when context spans
+        multiple tokens but happens to end exactly on a token boundary."""
+        from nemo_evaluator.contrib.byob.runner import _parse_loglikelihood_response
+
+        body = _build_loglikelihood_payload(
+            context_tokens=["He", "llo"],
+            continuation_tokens=[" world"],
+            ctx_logprobs=[None, -0.2],
+            cont_logprobs=[-1.5],
+        )
+        ll, _ = _parse_loglikelihood_response(body, "Hello")
+        assert ll == pytest.approx(-1.5)
+
+
+# ---------------------------------------------------------------------------
+# _create_session_model_call_fn — completions_logprob dispatch
+# ---------------------------------------------------------------------------
+
+
+class TestSessionModelCallFnCompletionsLogprob:
+    def test_completions_logprob_routes_to_loglikelihood(self):
+        """The HTTP-session model_call_fn calls call_model_loglikelihood
+        when endpoint_type is 'completions_logprob'."""
+        from nemo_evaluator.contrib.byob import runner
+
+        args = MagicMock()
+        args.model_url = "http://localhost"
+        args.model_id = "x"
+        args.timeout_per_sample = 30.0
+        args.request_timeout = None
+
+        captured = {}
+
+        def fake_loglikelihood(**kwargs):
+            captured.update(kwargs)
+            return (-1.5, True)
+
+        session = MagicMock()
+
+        original = runner.call_model_loglikelihood
+        runner.call_model_loglikelihood = fake_loglikelihood
+        try:
+            fn = runner._create_session_model_call_fn(args, "key", session)
+            out = fn(
+                "context-here",
+                "completions_logprob",
+                continuation=" answer",
+            )
+        finally:
+            runner.call_model_loglikelihood = original
+
+        assert out == (-1.5, True)
+        assert captured["context"] == "context-here"
+        assert captured["continuation"] == " answer"
+
+    def test_completions_logprob_requires_continuation(self):
+        from nemo_evaluator.contrib.byob import runner
+
+        args = MagicMock()
+        args.timeout_per_sample = 30.0
+        args.request_timeout = None
+        session = MagicMock()
+        fn = runner._create_session_model_call_fn(args, "key", session)
+        with pytest.raises(ValueError, match="continuation"):
+            fn("ctx", "completions_logprob")
+
+
+# ---------------------------------------------------------------------------
+# aggregate_scores — surfaces the new logprob metric keys
+# ---------------------------------------------------------------------------
+
+
+class TestAggregateLogprobMetrics:
+    def test_aggregate_includes_acc_acc_norm_acc_greedy(self):
+        scores = [
+            {"acc": 1.0, "acc_norm": 1.0, "acc_greedy": 1.0},
+            {"acc": 0.0, "acc_norm": 1.0, "acc_greedy": 0.0},
+            {"acc": 1.0, "acc_norm": 0.0, "acc_greedy": 1.0},
+        ]
+        out = aggregate_scores(scores, "test")
+        keys = out["tasks"]["test"]["metrics"]["pass@1"]["scores"]
+        assert "acc" in keys
+        assert "acc_norm" in keys
+        assert "acc_greedy" in keys
+        assert keys["acc"]["value"] == pytest.approx(2.0 / 3, abs=1e-3)
+        assert keys["acc_norm"]["value"] == pytest.approx(2.0 / 3, abs=1e-3)

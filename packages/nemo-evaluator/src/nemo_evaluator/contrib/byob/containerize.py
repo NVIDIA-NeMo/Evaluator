@@ -118,7 +118,7 @@ LABEL com.nvidia.nemo-evaluator.integration-type=".nemo_evaluator"
 def rewrite_fdf_paths(fdf: dict, pkg_name: str) -> dict:
     """Rewrite host-local paths in an FDF dict to container paths.
 
-    Transforms ``extra.benchmark_module`` and ``extra.dataset`` from
+    Transforms ``extra.benchmark_module`` and ``extra.dataset.path`` from
     absolute host paths to container-relative paths under ``/opt/byob/``.
 
     Args:
@@ -136,12 +136,13 @@ def rewrite_fdf_paths(fdf: dict, pkg_name: str) -> dict:
         filename = os.path.basename(benchmark_module)
         extra["benchmark_module"] = f"/opt/byob/code/{filename}"
 
-    dataset = extra.get("dataset", "")
+    dataset_cfg = extra.get("dataset") or {}
+    dataset = dataset_cfg.get("path", "") if isinstance(dataset_cfg, dict) else ""
     if dataset and not dataset.startswith(
         ("hf://", "s3://", "gs://", "http://", "https://")
     ):
         filename = os.path.basename(dataset)
-        extra["dataset"] = f"/opt/byob/data/{filename}"
+        dataset_cfg["path"] = f"/opt/byob/data/{filename}"
 
     return fdf
 
@@ -193,7 +194,8 @@ def prepare_build_context(
     # Copy or fetch dataset to data/
     data_dir = context / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
-    dataset = extra.get("dataset", "")
+    dataset_cfg = extra.get("dataset") or {}
+    dataset = dataset_cfg.get("path", "") if isinstance(dataset_cfg, dict) else ""
     if dataset:
         if os.path.isfile(dataset):
             # Local file — copy directly
@@ -207,7 +209,7 @@ def prepare_build_context(
                 result = fetcher.fetch(dataset, cache_dir=data_dir)
                 # Update the FDF to point to the local filename inside /opt/byob/data/
                 local_name = result.local_path.name
-                extra["dataset"] = f"/opt/byob/data/{local_name}"
+                dataset_cfg["path"] = f"/opt/byob/data/{local_name}"
                 # Move/copy if fetched to a different location than data_dir
                 if result.local_path.parent != data_dir:
                     shutil.copy2(str(result.local_path), str(data_dir / local_name))

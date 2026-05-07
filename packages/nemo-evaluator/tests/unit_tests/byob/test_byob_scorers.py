@@ -15,15 +15,22 @@
 
 """Unit tests for BYOB built-in scorer functions."""
 
+import pytest
+
 from nemo_evaluator.contrib.byob.decorators import ScorerInput
 from nemo_evaluator.contrib.byob.scorers import (
     BUILTIN_SCORERS,
     all_of,
     any_of,
     bleu,
+    boolean_yesno,
+    chrf,
     contains,
     exact_match,
     f1_token,
+    gsm8k_answer,
+    mcq_letter_extract,
+    multiple_choice_acc,
     regex_match,
     retrieval_metrics,
     rouge,
@@ -643,3 +650,349 @@ class TestMultiTurnConversation:
         assert inp.conversation is None, (
             f"Expected conversation default to be None, got {inp.conversation}"
         )
+
+
+# ---------------------------------------------------------------------------
+# multiple_choice_acc
+#
+# lm-evaluation-harness-style multiple-choice loglikelihood ranking.
+# These tests pin down both the basic argmax/normalization formulas and
+# the lm-eval-harness contract (per-byte length normalization, target
+# resolution from letter / int / verbatim choice text).
+# Reference: lm_eval/models/openai_completions.py::loglikelihood
+# ---------------------------------------------------------------------------
+
+
+class TestMultipleChoiceAcc:
+    """Cover argmax over raw and per-byte-normalized loglikelihoods."""
+
+    def test_acc_argmax_match(self):
+        s = ScorerInput(
+            response="B",
+            target="B",
+            metadata={
+                "_choices": ["A", "B", "C", "D"],
+                "_choices_logprobs": [-3.0, -1.0, -2.0, -4.0],
+                "_choices_is_greedy": [False, True, False, False],
+            },
+        )
+        out = multiple_choice_acc(s)
+        assert out == {"acc": 1.0, "acc_norm": 1.0, "acc_greedy": 1.0}
+
+    def test_acc_norm_breaks_ties_with_per_byte_normalization(self):
+        """A long correct choice loses raw argmax but wins on per-byte norm."""
+        s = ScorerInput(
+            response="B",
+            target="B",
+            metadata={
+                "_choices": ["A", "B" * 40],
+                "_choices_logprobs": [-3.0, -2.5],
+                "_choices_is_greedy": [False, False],
+            },
+        )
+        out = multiple_choice_acc(s)
+        assert out["acc"] == 1.0
+        assert out["acc_norm"] == 1.0
+
+    def test_acc_norm_overrides_acc_when_short_choice_dominates_raw(self):
+        s = ScorerInput(
+            response="A",
+            target="B",
+            metadata={
+                "_choices": ["A", "B" * 100],
+                "_choices_logprobs": [-1.0, -50.0],
+                "_choices_is_greedy": [False, False],
+            },
+        )
+        out = multiple_choice_acc(s)
+        assert out["acc"] == 0.0
+        assert out["acc_norm"] == 1.0
+
+    def test_int_target(self):
+        s = ScorerInput(
+            response="",
+            target=2,
+            metadata={
+                "_choices": ["A", "B", "C", "D"],
+                "_choices_logprobs": [-3.0, -2.0, -1.0, -4.0],
+                "_choices_is_greedy": [False, False, True, False],
+            },
+        )
+        assert multiple_choice_acc(s)["acc"] == 1.0
+
+    def test_string_int_target(self):
+        s = ScorerInput(
+            response="",
+            target="0",
+            metadata={
+                "_choices": ["A", "B"],
+                "_choices_logprobs": [-1.0, -2.0],
+                "_choices_is_greedy": [True, False],
+            },
+        )
+        assert multiple_choice_acc(s)["acc"] == 1.0
+
+    def test_verbatim_target(self):
+        s = ScorerInput(
+            response="",
+            target="The cat",
+            metadata={
+                "_choices": ["The dog", "The cat", "The fish"],
+                "_choices_logprobs": [-3.0, -1.0, -2.0],
+                "_choices_is_greedy": [False, True, False],
+            },
+        )
+        assert multiple_choice_acc(s)["acc"] == 1.0
+
+    def test_no_choices_returns_zero(self):
+        s = ScorerInput(response="", target="A", metadata={})
+        assert multiple_choice_acc(s) == {
+            "acc": 0.0,
+            "acc_norm": 0.0,
+            "acc_greedy": 0.0,
+        }
+
+    def test_unresolvable_target_returns_zero(self):
+        s = ScorerInput(
+            response="",
+            target=None,
+            metadata={
+                "_choices": ["A", "B"],
+                "_choices_logprobs": [-1.0, -2.0],
+            },
+        )
+        assert multiple_choice_acc(s)["acc"] == 0.0
+
+    # ---- lm-eval-harness parity invariants ---------------------------------
+
+    def test_acc_is_argmax_of_raw_logprobs(self):
+        s = ScorerInput(
+            response="",
+            target=1,
+            metadata={
+                "_choices": [" red", " blue", " green", " yellow"],
+                "_choices_logprobs": [-3.5, -1.2, -2.1, -4.0],
+                "_choices_is_greedy": [False, True, False, False],
+            },
+        )
+        assert multiple_choice_acc(s)["acc"] == 1.0
+
+    def test_acc_norm_is_argmax_of_per_byte_normalized(self):
+        """ARC/BoolQ formula: argmax(ll[i] / max(len(choice[i].encode("utf-8")), 1))."""
+        choices = [" cat", " elephant", " dog", " hippopotamus"]
+        choices_logprobs = [-2.0, -8.0, -2.5, -10.0]
+        byte_lens = [max(len(c.encode("utf-8")), 1) for c in choices]
+        norm = [choices_logprobs[i] / byte_lens[i] for i in range(4)]
+        expected_norm_argmax = max(range(4), key=lambda i: norm[i])
+
+        s = ScorerInput(
+            response="",
+            target=expected_norm_argmax,
+            metadata={
+                "_choices": choices,
+                "_choices_logprobs": choices_logprobs,
+                "_choices_is_greedy": [False] * 4,
+            },
+        )
+        assert multiple_choice_acc(s)["acc_norm"] == 1.0
+
+    def test_acc_and_acc_norm_diverge_when_choices_differ_in_length(self):
+        """ARC/BoolQ canonical: short choice wins raw argmax, long choice
+        with high enough total-logprob loses raw but wins per-byte norm."""
+        choices = [" no", " " + "x " * 50 + "yes"]
+        choices_logprobs = [-2.0, -50.0]
+        # raw: -2.0 vs -50.0 -> argmax = 0 (acc favors "no")
+        # norm: -2.0/3=-0.667 vs -50.0/103=-0.485 -> argmax = 1
+        meta = {
+            "_choices": choices,
+            "_choices_logprobs": choices_logprobs,
+            "_choices_is_greedy": [False, False],
+        }
+        s_acc = ScorerInput(response="", target=0, metadata=meta)
+        out_acc = multiple_choice_acc(s_acc)
+        assert out_acc["acc"] == 1.0
+        assert out_acc["acc_norm"] == 0.0
+
+        s_norm = ScorerInput(response="", target=1, metadata=meta)
+        out_norm = multiple_choice_acc(s_norm)
+        assert out_norm["acc"] == 0.0
+        assert out_norm["acc_norm"] == 1.0
+
+    @pytest.mark.parametrize(
+        "choice,expected_bytes",
+        [
+            (" yes", 4),
+            (" no", 3),
+            (" café", 6),
+            ("हाँ", 9),
+        ],
+    )
+    def test_per_byte_normalization_uses_utf8_byte_count(self, choice, expected_bytes):
+        """Confirm the byte denominator uses utf-8 encoding (matches lm-eval)."""
+        assert len(choice.encode("utf-8")) == expected_bytes
+
+    def test_per_byte_norm_formula_explicit_with_multibyte_choice(self):
+        """Verify acc_norm uses ``len(choice.encode("utf-8"))``, not char count."""
+        choices = ["A", "हाँ"]  # 1 byte vs 9 bytes
+        choices_logprobs = [-3.0, -3.0]
+        # Per-char would tie (-3/1 vs -3/3 = -1.0)
+        # Per-byte: -3/1=-3 vs -3/9=-0.333 -> idx 1 wins
+        meta = {
+            "_choices": choices,
+            "_choices_logprobs": choices_logprobs,
+            "_choices_is_greedy": [False, False],
+        }
+        s = ScorerInput(response="", target=1, metadata=meta)
+        assert multiple_choice_acc(s)["acc_norm"] == 1.0
+
+        s2 = ScorerInput(response="", target=0, metadata=meta)
+        assert multiple_choice_acc(s2)["acc_norm"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# gsm8k_answer
+# ---------------------------------------------------------------------------
+
+
+class TestGsm8kAnswer:
+    def test_hash_marker(self):
+        s = ScorerInput(
+            response="...calculation...\n#### 42", target="#### 42", metadata={}
+        )
+        assert gsm8k_answer(s) == {"correct": True, "parsed": True}
+
+    def test_boxed_marker(self):
+        s = ScorerInput(response="\\boxed{42}", target=42, metadata={})
+        assert gsm8k_answer(s) == {"correct": True, "parsed": True}
+
+    def test_last_number_fallback(self):
+        s = ScorerInput(response="2 plus 2 is 4", target=4, metadata={})
+        assert gsm8k_answer(s) == {"correct": True, "parsed": True}
+
+    def test_comma_stripping(self):
+        s = ScorerInput(response="#### 1,234", target=1234, metadata={})
+        assert gsm8k_answer(s) == {"correct": True, "parsed": True}
+
+    def test_decimal_normalization(self):
+        s = ScorerInput(response="#### 12.300", target="12.3", metadata={})
+        assert gsm8k_answer(s) == {"correct": True, "parsed": True}
+
+    def test_wrong_answer(self):
+        s = ScorerInput(response="#### 7", target=42, metadata={})
+        assert gsm8k_answer(s) == {"correct": False, "parsed": True}
+
+    def test_unparseable(self):
+        s = ScorerInput(response="no numbers here", target=42, metadata={})
+        out = gsm8k_answer(s)
+        assert out["correct"] is False
+        assert out["parsed"] is False
+
+
+# ---------------------------------------------------------------------------
+# mcq_letter_extract
+# ---------------------------------------------------------------------------
+
+
+class TestMcqLetterExtract:
+    @pytest.mark.parametrize(
+        "response,target,expected",
+        [
+            ("A", "A", True),
+            ("A)", "A", True),
+            ("The answer is B.", "B", True),
+            ("(C)", "C", True),
+            ("D. Because xyz", "D", True),
+            (r"\boxed{E}", "E", True),
+            ("Option A", "A", True),
+            ("D", 3, True),
+            ("A", 0, True),
+            ("not an answer", "A", False),
+        ],
+    )
+    def test_extraction(self, response, target, expected):
+        s = ScorerInput(response=response, target=target, metadata={})
+        assert mcq_letter_extract(s)["correct"] is expected
+
+    def test_none_response_is_unparsed(self):
+        """None response is treated as unparsed, not a hard error."""
+        s = ScorerInput(response=None, target="A", metadata={})
+        out = mcq_letter_extract(s)
+        assert out["correct"] is False
+        assert out["parsed"] is False
+
+    @pytest.mark.parametrize(
+        "response,target,expected_correct",
+        [
+            # Regression: prose responses starting with letters in A-J
+            # used to be returned as the answer by a first-character
+            # shortcut. The fix relies on the regex patterns instead, so
+            # the actual answer must come from a recognisable cue.
+            ("Hello, B is correct", "B", True),
+            ("Hello, B is correct", "H", False),
+            ("I think the answer is C", "C", True),
+            ("I think the answer is C", "I", False),
+            ("Definitely the answer is C", "C", True),
+            ("Definitely the answer is C", "D", False),
+            ("A nuclear reaction releases energy", "A", True),
+        ],
+    )
+    def test_first_char_shortcut_no_longer_misleads(
+        self, response, target, expected_correct
+    ):
+        """Prose starting with A-J must not be returned as the letter."""
+        s = ScorerInput(response=response, target=target, metadata={})
+        assert mcq_letter_extract(s)["correct"] is expected_correct
+
+
+# ---------------------------------------------------------------------------
+# boolean_yesno (English-only)
+# ---------------------------------------------------------------------------
+
+
+class TestBooleanYesNo:
+    @pytest.mark.parametrize(
+        "response,target,expected",
+        [
+            ("Yes, definitely.", True, True),
+            ("No, that is wrong.", False, True),
+            ("Yes!", "yes", True),
+            ("nope", False, True),
+            ("maybe", True, False),
+        ],
+    )
+    def test_extraction(self, response, target, expected):
+        s = ScorerInput(response=response, target=target, metadata={})
+        assert boolean_yesno(s)["correct"] is expected
+
+
+# ---------------------------------------------------------------------------
+# chrf — sacrebleu-style smoke
+# ---------------------------------------------------------------------------
+
+
+class TestChrf:
+    def test_identical_strings_max_score(self):
+        s = ScorerInput(
+            response="the cat sat on the mat",
+            target="the cat sat on the mat",
+            metadata={},
+        )
+        out = chrf(s)
+        assert out["chrf"] == pytest.approx(100.0, rel=1e-3)
+        assert out["chrf_pp"] == pytest.approx(100.0, rel=1e-3)
+
+    def test_disjoint_strings_low_score(self):
+        s = ScorerInput(response="abcdefg", target="zyxwvut", metadata={})
+        out = chrf(s)
+        assert out["chrf"] < 5.0
+        assert out["chrf_pp"] < 5.0
+
+    def test_partial_overlap(self):
+        s = ScorerInput(
+            response="the cat sat on the mat",
+            target="the cat sat on a mat",
+            metadata={},
+        )
+        out = chrf(s)
+        assert 50.0 < out["chrf"] < 100.0
+        assert 50.0 < out["chrf_pp"] < 100.0
