@@ -30,7 +30,9 @@ def check(sample: ScorerInput) -> dict:
 | `choices` | `list[str]` | `None` | Static candidate continuations for `endpoint_type="completions_logprob"` |
 | `choices_field` | `str` | `None` | Dataset field containing per-row candidate continuations for `endpoint_type="completions_logprob"`; dotted paths such as `choices.text` are supported |
 | `num_fewshot` | `int` | `0` | Number of few-shot examples to prepend to each prompt |
-| `fewshot_split` | `str` | `None` | Optional split to sample few-shot examples from |
+| `fewshot_dataset` | `str` | `None` | Optional explicit dataset URI/path to sample few-shot examples from. Use when the few-shot source needs filters, `data_files`, configs, or other URI options that cannot be expressed by a split name alone. Takes precedence over `fewshot_split`. |
+| `fewshot_split` | `str` | `None` | Optional split name to sample few-shot examples from when the primary `dataset` is an `hf://` URI. Used only if `fewshot_dataset` is not set or fails to load. |
+| `fewshot_prefix` | `str` | `""` | Optional static text prepended once before the rendered few-shot examples (e.g. `"The following are multiple-choice questions...\n\n"`). |
 | `fewshot_template` | `str` | `None` | Optional template for rendering few-shot examples |
 | `fewshot_separator` | `str` | `"\n\n"` | Separator between rendered few-shot examples |
 
