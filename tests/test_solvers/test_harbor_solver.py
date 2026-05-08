@@ -140,9 +140,9 @@ class TestClaudeCodeAgent:
     def test_ensure_claude_host_env_sets_anthropic_vars(self, monkeypatch):
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
-        _ensure_claude_host_env("sk-abc", "https://integrate.api.nvidia.com")
+        _ensure_claude_host_env("sk-abc", "https://inference-api.nvidia.com")
         assert os.environ["ANTHROPIC_API_KEY"] == "sk-abc"
-        assert os.environ["ANTHROPIC_BASE_URL"] == "https://integrate.api.nvidia.com"
+        assert os.environ["ANTHROPIC_BASE_URL"] == "https://inference-api.nvidia.com"
 
     def test_ensure_claude_host_env_setdefault(self, monkeypatch):
         """Existing values must not be overwritten."""
@@ -191,7 +191,7 @@ class TestPatchOpenhandsSDK:
         sandbox = AsyncMock()
         sandbox.exec.return_value = MagicMock(stdout="stuck_detection disabled", stderr="", return_code=0)
         await _patch_openhands_sdk(sandbox)
-        assert sandbox.exec.call_count >= 4
+        assert sandbox.exec.call_count >= 3
 
     async def test_runner_patch_disables_visualizer(self):
         """Patch 0 must inject both stuck_detection=False AND visualizer=None.

@@ -254,21 +254,13 @@ async def _patch_openhands_sdk(sandbox: "Sandbox", *, cmd_timeout: float | None 
        Both the event-to-dict conversion and ``build_trajectory`` are
        patched so reasoning appears in the output JSON.
 
-    3. **Preserve reasoning in conversation history** — some reasoning
-       parsers move ``<tool_call>`` blocks inside ``<think>`` tags into
-       ``reasoning_content`` instead of ``tool_calls``.  The SDK then
-       drops ``reasoning_content`` on the next serialization pass,
-       causing the model to lose its chain-of-thought.  The patch wraps
-       ``reasoning_content`` in ``<think>`` tags and prepends it to
-       ``content`` so it survives round-trips.
-
-    4. **Enforce 300 s hard timeout on terminal commands** — the SDK
+    3. **Enforce 300 s hard timeout on terminal commands** — the SDK
        only applies a hard timeout when the model passes an explicit
        ``timeout`` parameter.  The patch imposes a 300 s ceiling on
        every command to prevent a single long-running process from
        consuming the entire ``run_timeout`` budget.
 
-    5. **Disable default visualizer + stuck detection** — the SDK's
+    4. **Disable default visualizer + stuck detection** — the SDK's
        ``DefaultConversationVisualizer`` renders every event through
        ``rich``, whose grapheme splitter is pathologically slow on long
        text containing U+200B adjacent to URLs.  Observed on 26 django
@@ -482,68 +474,7 @@ print(f'reasoning+metrics: msg={ok_a} action={ok_b} traj={ok_c}')
             stdout3 or (r3.stderr or "")[:300],
         )
 
-    # -- Patch 3: preserve reasoning_content in conversation history -------
-    # When send_reasoning_content is False (nemotron is not in the list),
-    # the SDK silently drops reasoning_content from assistant messages.
-    # Patch to_chat_dict() to wrap reasoning_content in <think> tags and
-    # prepend to content so it survives LiteLLM serialization round-trips.
-
-    _reasoning_in_content_script = """\
-import glob, sys
-fs = glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/llm/message.py')
-p = fs[0] if fs else ''
-assert p, 'message.py not found'
-c = open(p).read()
-
-old = (
-    '        # Required for model like kimi-k2-thinking\\n'
-    '        if send_reasoning_content and self.reasoning_content:\\n'
-    '            message_dict["reasoning_content"] = self.reasoning_content\\n'
-    '\\n'
-    '        return message_dict'
-)
-
-new = (
-    '        # Required for model like kimi-k2-thinking\\n'
-    '        if send_reasoning_content and self.reasoning_content:\\n'
-    '            message_dict["reasoning_content"] = self.reasoning_content\\n'
-    '\\n'
-    '        # [NEL] Wrap reasoning_content in <think> tags in content so the\\n'
-    '        # model sees its previous chain-of-thought on retry turns.\\n'
-    '        if not send_reasoning_content and self.role == "assistant" and self.reasoning_content:\\n'
-    '            _wrapped = f"<think>{self.reasoning_content}</think>"\\n'
-    '            _c = message_dict.get("content")\\n'
-    '            if isinstance(_c, list):\\n'
-    '                _c.insert(0, {"type": "text", "text": _wrapped})\\n'
-    '            elif isinstance(_c, str):\\n'
-    '                message_dict["content"] = _wrapped + _c\\n'
-    '            else:\\n'
-    '                message_dict["content"] = _wrapped\\n'
-    '\\n'
-    '        return message_dict'
-)
-
-ok = old in c
-if ok:
-    c = c.replace(old, new, 1)
-    open(p, 'w').write(c)
-print(f'reasoning_in_content={ok} at {p}')
-"""
-    encoded4 = base64.b64encode(_reasoning_in_content_script.encode()).decode()
-    r4 = await sandbox.exec(
-        f"echo {encoded4} | base64 -d | python3",
-        timeout_sec=10,
-    )
-    stdout4 = (r4.stdout or "").strip()
-    logger.info("Reasoning-in-content patch: %s", stdout4)
-    if r4.return_code != 0 or "False" in stdout4:
-        logger.warning(
-            "Reasoning-in-content patch problem (rc=%d): %s",
-            r4.return_code,
-            stdout4 or (r4.stderr or "")[:300],
-        )
-
-    # -- Patch 4: hard timeout ceiling on terminal commands ------------------
+    # -- Patch 3: hard timeout ceiling on terminal commands ------------------
     if cmd_timeout is not None and cmd_timeout > 0:
         _cmd_timeout_script = f"""\
 import glob, sys

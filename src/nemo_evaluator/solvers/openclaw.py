@@ -64,7 +64,8 @@ _OPENCLAW_CONFIG_DIR = "/home/node/.openclaw"
 _CONTAINER_WORKSPACE = "/home/node/workspace"
 _CONTAINER_SESSIONS_DIR = f"{_OPENCLAW_CONFIG_DIR}/agents/main/sessions"
 
-_DEFAULT_CONTEXT_WINDOW = 131_072
+_DEFAULT_CONTEXT_WINDOW: int | None = None
+_DEFAULT_IDLE_TIMEOUT_SECONDS = 600
 _DEFAULT_MAX_TOKENS = 16_384
 _DEFAULT_MAX_CONCURRENT = 4
 
@@ -74,9 +75,10 @@ def _build_openclaw_config(
     model_id: str,
     *,
     api_key: str = "",
-    context_window: int = _DEFAULT_CONTEXT_WINDOW,
+    context_window: int | None = _DEFAULT_CONTEXT_WINDOW,
     max_tokens: int | None = None,
     max_concurrent: int = _DEFAULT_MAX_CONCURRENT,
+    idle_timeout_seconds: int = _DEFAULT_IDLE_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
     """Build an OpenClaw config for an OpenAI-compatible provider.
 
@@ -99,8 +101,9 @@ def _build_openclaw_config(
         "id": model_id,
         "name": model_id,
         "input": ["text"],
-        "contextWindow": context_window,
     }
+    if context_window is not None:
+        model_entry["contextWindow"] = context_window
     if max_tokens is not None:
         model_entry["maxTokens"] = max_tokens
 
@@ -110,6 +113,7 @@ def _build_openclaw_config(
         "skipBootstrap": True,
         "compaction": {"mode": "safeguard"},
         "maxConcurrent": max_concurrent,
+        "llm": {"idleTimeoutSeconds": idle_timeout_seconds},
     }
 
     provider_entry: dict[str, Any] = {
@@ -198,6 +202,29 @@ def _read_workspace_files(
             continue
         parts.append(f"--- {rel} ---\n{content}")
     return "\n\n".join(parts)
+
+
+_TRANSCRIPT_FILENAME = ".nel_transcript.jsonl"
+
+
+def _persist_session_transcript(workspace: Path, raw_jsonl: str) -> None:
+    """Write OpenClaw's session JSONL verbatim to ``<workspace>/.nel_transcript.jsonl``.
+
+    Verifiers / scorers (notably PinchBench's ``grade()`` functions) expect
+    the upstream ``{"type": "message", "message": {...}}`` envelope shape,
+    so we persist the bytes unchanged.  This is separate from the ATIF
+    trajectory written to the eval artifact bundle: the trajectory is for
+    observability/dashboards; this file is the *scoring contract* with
+    task-authored grader code.
+
+    Best-effort: a failure here must not fail the solve.
+    """
+    try:
+        if not workspace.is_dir():
+            return
+        (workspace / _TRANSCRIPT_FILENAME).write_text(raw_jsonl, encoding="utf-8")
+    except OSError as exc:
+        logger.warning("Failed to persist session transcript to %s: %s", workspace, exc)
 
 
 def _check_prerequisites(openclaw_bin: str) -> None:
@@ -369,10 +396,15 @@ def _parse_session_jsonl(raw: str) -> list[dict[str, Any]]:
             content = record.get("content", [])
             text_parts: list[str] = []
             tool_calls: list[dict[str, Any]] = []
+            reasoning_parts: list[str] = []
             for block in content if isinstance(content, list) else []:
                 btype = block.get("type", "")
                 if btype == "text" and block.get("text"):
                     text_parts.append(block["text"])
+                elif btype == "thinking" and block.get("thinking"):
+                    reasoning_parts.append(block["thinking"])
+                elif btype == "redacted_thinking":
+                    reasoning_parts.append("[redacted_thinking]")
                 elif btype == "tool_use":
                     tool_calls.append(
                         {
@@ -385,9 +417,11 @@ def _parse_session_jsonl(raw: str) -> list[dict[str, Any]]:
                 "source": "agent",
                 "message": "\n".join(text_parts),
             }
+            if reasoning_parts:
+                step["reasoning_content"] = "\n".join(reasoning_parts)
             if tool_calls:
                 step["tool_calls"] = tool_calls
-            if text_parts or tool_calls:
+            if text_parts or tool_calls or reasoning_parts:
                 steps.append(step)
         elif role == "tool":
             content = record.get("content", "")
@@ -432,9 +466,10 @@ class OpenClawSolver:
         model_url: str = "",
         model_id: str = "",
         api_key: str | None = None,
-        context_window: int = _DEFAULT_CONTEXT_WINDOW,
+        context_window: int | None = _DEFAULT_CONTEXT_WINDOW,
         max_tokens: int | None = None,
         max_concurrent: int = _DEFAULT_MAX_CONCURRENT,
+        idle_timeout_seconds: int = _DEFAULT_IDLE_TIMEOUT_SECONDS,
         config_path: str | None = None,
         *,
         skip_preflight: bool = False,
@@ -448,6 +483,7 @@ class OpenClawSolver:
         self._context_window = context_window
         self._max_tokens = max_tokens
         self._max_concurrent = max_concurrent
+        self._idle_timeout_seconds = idle_timeout_seconds
         self._config_path = Path(config_path) if config_path else None
         if self._config_path and not self._config_path.is_file():
             raise FileNotFoundError(f"openclaw_config points to {self._config_path} which does not exist")
@@ -549,9 +585,13 @@ class OpenClawSolver:
             if file_addendum:
                 response_text = f"{response_text}\n\n{file_addendum}" if response_text else file_addendum
 
-        transcript_steps = await self._read_session_transcript(sandbox, session_id)
-        if transcript_steps:
-            steps = transcript_steps + steps
+        raw_session_jsonl = await self._fetch_session_jsonl_sandbox(sandbox, session_id)
+        if raw_session_jsonl:
+            transcript_steps = _parse_session_jsonl(raw_session_jsonl)
+            if transcript_steps:
+                steps = transcript_steps + steps
+            if workspace_path:
+                _persist_session_transcript(Path(workspace_path), raw_session_jsonl)
 
         trajectory = build_atif_trajectory(
             steps,
@@ -560,6 +600,7 @@ class OpenClawSolver:
             prompt_tokens=model_response.prompt_tokens or 0,
             completion_tokens=model_response.completion_tokens or 0,
             extra=oc_extra,
+            user_prompt=effective_prompt,
         )
 
         logger.info(
@@ -575,23 +616,30 @@ class OpenClawSolver:
             trajectory=trajectory,
         )
 
-    async def _read_session_transcript(
+    async def _fetch_session_jsonl_sandbox(
         self,
         sandbox: Sandbox,
         session_id: str,
-    ) -> list[dict[str, Any]]:
-        """Read the OpenClaw session JSONL from the container."""
+    ) -> str:
+        """Return the OpenClaw session JSONL from the container as raw text.
+
+        Returns an empty string when the session file is missing or
+        unreadable.  The raw text is persisted verbatim to
+        ``<workspace>/.nel_transcript.jsonl`` so downstream graders see
+        the upstream ``{"type":"message", ...}`` envelope shape; our own
+        :func:`_parse_session_jsonl` converts it into ATIF steps for the
+        trajectory artifact.
+        """
         import base64
 
         remote_path = f"{_CONTAINER_SESSIONS_DIR}/{session_id}.jsonl"
         try:
             result = await sandbox.exec(f"base64 {shlex.quote(remote_path)} 2>/dev/null")
             if result.return_code != 0 or not result.stdout.strip():
-                return []
-            raw = base64.b64decode(result.stdout.strip()).decode("utf-8", errors="replace")
+                return ""
+            return base64.b64decode(result.stdout.strip()).decode("utf-8", errors="replace")
         except Exception:
-            return []
-        return _parse_session_jsonl(raw)
+            return ""
 
     async def _setup_config(self, sandbox: Sandbox, *, model_url_override: str | None = None) -> None:
         """Write an OpenClaw config into the container.
@@ -610,6 +658,7 @@ class OpenClawSolver:
                 context_window=self._context_window,
                 max_tokens=self._max_tokens,
                 max_concurrent=self._max_concurrent,
+                idle_timeout_seconds=self._idle_timeout_seconds,
             )
             config_json = json.dumps(config, indent=2)
         await self._write_file(sandbox, f"{_OPENCLAW_CONFIG_DIR}/openclaw.json", config_json)
@@ -827,9 +876,13 @@ class OpenClawSolver:
                 response_text = f"{response_text}\n\n{file_addendum}" if response_text else file_addendum
 
         home = env.get("HOME", str(Path.home()))
-        transcript_steps = self._read_local_session_transcript(home, session_id)
-        if transcript_steps:
-            steps = transcript_steps + steps
+        raw_session_jsonl = self._fetch_session_jsonl_local(home, session_id)
+        if raw_session_jsonl:
+            transcript_steps = _parse_session_jsonl(raw_session_jsonl)
+            if transcript_steps:
+                steps = transcript_steps + steps
+            if workspace_path:
+                _persist_session_transcript(Path(workspace_path), raw_session_jsonl)
 
         trajectory = build_atif_trajectory(
             steps,
@@ -838,6 +891,7 @@ class OpenClawSolver:
             prompt_tokens=model_response.prompt_tokens or 0,
             completion_tokens=model_response.completion_tokens or 0,
             extra=oc_extra,
+            user_prompt=effective_prompt,
         )
 
         logger.info(
@@ -858,16 +912,13 @@ class OpenClawSolver:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _read_local_session_transcript(
-        home: str,
-        session_id: str,
-    ) -> list[dict[str, Any]]:
-        """Read a session transcript from the local filesystem."""
+    def _fetch_session_jsonl_local(home: str, session_id: str) -> str:
+        """Return a local session transcript as raw JSONL text, or empty."""
         sessions_dir = Path(home) / ".openclaw" / "agents" / "main" / "sessions"
         transcript_path = sessions_dir / f"{session_id}.jsonl"
         if not transcript_path.exists():
-            return []
-        return _parse_session_jsonl(transcript_path.read_text(encoding="utf-8", errors="replace"))
+            return ""
+        return transcript_path.read_text(encoding="utf-8", errors="replace")
 
     @staticmethod
     def _build_prompt(raw_prompt: str, workspace_path: str | None) -> str:

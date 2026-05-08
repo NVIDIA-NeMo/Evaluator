@@ -44,6 +44,8 @@ Registry resolution order:
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
 import logging
 import os
@@ -51,6 +53,7 @@ import shutil
 import subprocess
 import tempfile
 from collections import defaultdict
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -65,6 +68,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 REGISTRY_URL = "https://raw.githubusercontent.com/laude-institute/harbor/main/registry.json"
+
+# Matches upstream harbor's VerifierConfig.timeout_sec default (harbor/models/task/config.py).
+# Applied when task.toml [verifier] does not declare its own timeout_sec.
+DEFAULT_HARBOR_VERIFIER_TIMEOUT = 600
 
 # ---------------------------------------------------------------------------
 # Registry data model
@@ -205,6 +212,29 @@ def find_dataset(name: str, version: str | None = None) -> DatasetSpec:
 # ---------------------------------------------------------------------------
 
 
+@contextlib.contextmanager
+def _dataset_dir_lock(output_dir: Path) -> Iterator[None]:
+    """Hold an exclusive ``flock`` on ``<output_dir>.lock`` for the duration of the block.
+
+    Concurrent ``download_harbor_tasks`` callers targeting the same cache
+    directory race on the ``rmtree``/``copytree`` dance in
+    :func:`_download_task_group` and on the ``iterdir``-based cache scan.
+    Serializing them via a sibling lockfile means only the first caller
+    actually fetches; subsequent callers wait, then find the cache fully
+    populated and return immediately without re-downloading.
+    """
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = output_dir.parent / f".{output_dir.name}.lock"
+    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        with contextlib.suppress(OSError):
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
 def download_harbor_tasks(
     dataset: DatasetSpec,
     output_dir: Path,
@@ -212,10 +242,21 @@ def download_harbor_tasks(
 ) -> Path:
     """Download Harbor tasks via sparse git checkout.
 
-    Tasks that already exist on disk are skipped.
+    Tasks that already exist on disk are skipped.  Concurrent callers
+    targeting the same ``output_dir`` are serialized by a file lock so
+    the cache cannot be torn down mid-copy by a second process.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    with _dataset_dir_lock(output_dir):
+        return _download_harbor_tasks_locked(dataset, output_dir, limit=limit)
+
+
+def _download_harbor_tasks_locked(
+    dataset: DatasetSpec,
+    output_dir: Path,
+    limit: int | None = None,
+) -> Path:
     tasks = dataset.tasks
     if limit:
         tasks = tasks[:limit]
@@ -541,6 +582,30 @@ _PROGRAMMING_LANGUAGES = frozenset(
 )
 
 
+# Literal marker appended by harbor/adapters/swebench_multilingual/adapter.py
+# when concatenating hints_text onto problem_statement.  Official SWE-bench
+# excludes hints_text from the eval prompt (test_spec.py:192 # Unused).
+_SWEBENCH_HINTS_MARKER = "\n\n## Hints\n\n"
+
+
+def _is_swebench_multilingual(dataset_name: str) -> bool:
+    """True for dataset dir names matching the swebench multilingual registry entry."""
+    n = dataset_name.lower()
+    return n.startswith(("swebench_multilingual", "swebench-multilingual"))
+
+
+def _strip_swebench_hints_block(instruction: str) -> tuple[str, bool]:
+    """Drop the adapter's ``## Hints`` tail; no-op when absent."""
+    idx = instruction.find(_SWEBENCH_HINTS_MARKER)
+    if idx < 0:
+        short = "\n\n## Hints"
+        tail = instruction.rstrip()
+        if tail.endswith(short):
+            return tail[: -len(short)].rstrip(), True
+        return instruction, False
+    return instruction[:idx].rstrip(), True
+
+
 def _infer_repo_language(task_dir: Path, metadata: dict[str, Any]) -> None:
     """Populate ``metadata["repo_language"]`` from available signals.
 
@@ -586,6 +651,7 @@ class HarborEnvironment(EvalEnvironment):
         self._dataset_path = Path(dataset_path)
         self._tasks: list[Path] = []
         self.name = self._dataset_path.name
+        self._hints_strip_logged = False
 
         if not self._dataset_path.is_dir():
             raise FileNotFoundError(f"Harbor dataset directory not found: {self._dataset_path}")
@@ -655,7 +721,22 @@ class HarborEnvironment(EvalEnvironment):
 
     async def seed(self, idx: int) -> SeedResult:
         task_dir = self._tasks[idx]
-        instruction = (task_dir / "instruction.md").read_text(encoding="utf-8").strip()
+        instruction = (task_dir / "instruction.md").read_text(encoding="utf-8")
+        # TODO: remove once harbor/adapters/swebench_multilingual/adapter.py
+        # stops concatenating hints_text into instruction.md.
+        hints_stripped = False
+        if _is_swebench_multilingual(self.name):
+            instruction, hints_stripped = _strip_swebench_hints_block(instruction)
+            if hints_stripped and not self._hints_strip_logged:
+                logger.info(
+                    "Harbor %s: stripping '## Hints' block (first seen on %s)",
+                    self.name,
+                    task_dir.name,
+                )
+                self._hints_strip_logged = True
+            elif hints_stripped:
+                logger.debug("Harbor %s/%s: stripped '## Hints' block", self.name, task_dir.name)
+        instruction = instruction.strip()
 
         task_toml = task_dir / "task.toml"
         config = _parse_task_config(task_toml) if task_toml.exists() else {}
@@ -735,9 +816,14 @@ class HarborEnvironment(EvalEnvironment):
             "task_id": task_dir.name,
             "task_dir": str(task_dir),
         }
+        if hints_stripped:
+            metadata["hints_stripped"] = True
         agent_timeout = config.get("agent", {}).get("timeout_sec")
         if agent_timeout is not None:
             metadata["agent_timeout_sec"] = agent_timeout
+        metadata["verifier_timeout_sec"] = config.get("verifier", {}).get(
+            "timeout_sec", DEFAULT_HARBOR_VERIFIER_TIMEOUT
+        )
         task_metadata = config.get("metadata", {})
         if task_metadata:
             metadata.update(task_metadata)
@@ -798,12 +884,13 @@ class HarborEnvironment(EvalEnvironment):
                 await sandbox.upload(test_file, f"/tests/{rel}")
 
         await sandbox.exec("chmod -R +x /tests/", timeout_sec=10)
+        verifier_timeout = float(metadata.get("verifier_timeout_sec", DEFAULT_HARBOR_VERIFIER_TIMEOUT))
         result = await sandbox.exec(
             'export PATH="/root/.local/bin:/root/.cargo/bin:/usr/local/go/bin'
             ":/usr/local/cargo/bin:$HOME/.local/bin:$HOME/.cargo/bin"
             ':$HOME/go/bin:$JAVA_HOME/bin:$PATH" && '
             "bash /tests/test.sh",
-            timeout_sec=600,
+            timeout_sec=verifier_timeout,
         )
 
         reward = 0.0
