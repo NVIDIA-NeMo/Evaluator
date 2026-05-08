@@ -26,11 +26,13 @@ reviews:
       instructions: >
         Enforce rules from AGENTS.md:
 
-        1. Commit messages should use the format: <type>: [EVAL-XXXX] <description>.
-           Types: feat, fix, refactor, test, docs, chore. Commits should include
-           a message body explaining the commit concisely.
-           If no [EVAL-XXXX] ticket reference is present, ask (as a non-blocking
-           comment) whether there is a Linear ticket that should be linked.
+        1. Commit messages should use the format: <type>: [PREFIX-XXXX] <description>.
+           Types: feat, fix, refactor, test, docs, chore. The Linear ticket
+           prefix may be any active project (e.g. EVAL, FEP, COML1KNX); both
+           are in active use in this repo. Commits should include a message body
+           explaining the commit concisely. If no [PREFIX-XXXX] ticket reference
+           is present, ask (as a non-blocking comment) whether there is a Linear
+           ticket that should be linked.
 
         2. No narration comments — do not add comments that just describe what the
            code does. Comments should explain non-obvious intent or constraints.

@@ -1165,6 +1165,69 @@ class TestMultinodeRay:
         assert "--tensor-parallel-size 4" in script
 
 
+class TestMultinodeSglang:
+    """Multi-node SGLang deployment uses native torch.distributed rendezvous,
+    not Ray. SGLang doesn't accept ``--distributed-executor-backend ray``."""
+
+    def _cfg(self, **svc_overrides):
+        svc = {
+            "type": "sglang",
+            "model": "nvidia/glm",
+            "protocol": "chat_completions",
+            "port": 8000,
+            "tensor_parallel_size": 8,
+            "num_nodes": 2,
+        }
+        svc.update(svc_overrides)
+        return EvalConfig.model_validate(
+            {
+                "services": {"model": svc},
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "04:00:00",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 2, "gres": "gpu:4"}},
+                },
+            }
+        )
+
+    def test_multinode_sglang_emits_torch_distributed_flags(self):
+        script, _, _ = generate_sbatch(self._cfg())
+        assert "--nnodes 2" in script
+        assert "--node-rank" in script
+        assert "--dist-init-addr" in script
+
+    def test_multinode_sglang_does_not_emit_ray_flag(self):
+        script, _, _ = generate_sbatch(self._cfg())
+        assert "--distributed-executor-backend ray" not in script
+
+    def test_multinode_sglang_has_no_ray_bootstrap(self):
+        script, _, _ = generate_sbatch(self._cfg())
+        assert "ray start --head" not in script
+        assert "ray start --address" not in script
+
+    def test_multinode_sglang_master_ip_discovery_present(self):
+        script, _, _ = generate_sbatch(self._cfg())
+        assert "MASTER_IP=" in script
+        assert "scontrol show hostname" in script
+
+    def test_multinode_sglang_uses_multi_task_srun(self):
+        """Each node runs the same launch with explicit rank passed positionally
+        through a per-node srun loop (no head/worker distinction like Ray needs)."""
+        script, _, _ = generate_sbatch(self._cfg(num_nodes=4))
+        assert "--nnodes 4" in script
+        assert "for _NODE in $_NODES" in script
+        assert 'NEL_NODE_RANK="${1:-0}"' in script
+
+    def test_singlenode_sglang_no_torch_dist_flags(self):
+        script, _, _ = generate_sbatch(self._cfg(num_nodes=1))
+        assert "--nnodes" not in script
+        assert "--node-rank" not in script
+        assert "--dist-init-addr" not in script
+
+
 # ---------------------------------------------------------------------------
 # Lifecycle helpers
 # ---------------------------------------------------------------------------

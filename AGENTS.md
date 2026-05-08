@@ -6,7 +6,7 @@ This file defines how AI coding agents (Claude Code, Cursor, etc.) should contri
 
 ### Issue tracker
 
-Issues live in Linear on the Frontier AI Evaluation team with `EVAL-` ticket IDs. See `docs/agents/issue-tracker.md`.
+Issues live in Linear on the Frontier AI Evaluation team. Common ticket prefixes include `EVAL-` and `FEP-`; any active Linear project prefix is accepted. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -108,7 +108,7 @@ Only after all checks pass, create the commit.
 
 Use clear, imperative commit messages. Focus on "why" not "what".
 
-Format: `<type>: [EVAL-XXXX] <short imperative description>` where `EVAL-XXXX` is the Linear ticket ID (omit the bracket if there is no ticket).
+Format: `<type>: [PREFIX-XXXX] <short imperative description>` where `PREFIX-XXXX` is the Linear ticket ID. Any active Linear project prefix is accepted (e.g. `EVAL-`, `FEP-`, `COML1KNX-`); both `EVAL-` and `FEP-` are in active use in this repo. Omit the bracket if there is no ticket.
 
 ```
 feat: [EVAL-1017] add server_cmd support for native Gym servers on SLURM
