@@ -165,7 +165,7 @@ jobs:
 
   release-summary:
     needs: [pre-flight, validate-inputs, release, release-launcher]
-    if: always() && !cancelled()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Result
