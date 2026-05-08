@@ -165,6 +165,7 @@ tutorials/adapters
 
 architecture/index
 architecture/sandbox
+architecture/aws-ecs-sandbox
 :::
 
 :::{toctree}

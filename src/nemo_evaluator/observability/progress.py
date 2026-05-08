@@ -19,6 +19,8 @@ import sys
 import time
 from typing import Protocol
 
+from nemo_evaluator.metrics.headline import is_fractional
+
 logger = logging.getLogger(__name__)
 
 
@@ -66,6 +68,8 @@ class ConsoleProgress:
         self._tokens = 0
         self._steps = 0
         self._correct = 0
+        self._sum_reward = 0.0
+        self._has_fractional = False
         self._total = 0
         self._line_len = 0
         self._is_tty = hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
@@ -96,8 +100,11 @@ class ConsoleProgress:
     ) -> None:
         self._tokens += tokens
         self._steps += 1
+        self._sum_reward += float(reward)
         if reward > 0:
             self._correct += 1
+        if not self._has_fractional and is_fractional((reward,)):
+            self._has_fractional = True
         self._phases.pop((problem, repeat), None)
         elapsed = time.monotonic() - self._t0
 
@@ -112,15 +119,18 @@ class ConsoleProgress:
                 eta = (total - self._steps) / rate if rate > 0 else 0
                 eta_str = _fmt_duration(eta) if eta > 0 else "—"
                 elapsed_str = _fmt_duration(elapsed)
-                acc = self._correct / self._steps if self._steps else 0
+                if self._has_fractional:
+                    mean = self._sum_reward / self._steps if self._steps else 0.0
+                    score_str = f"mean_reward={mean:.4f} (n={self._steps})"
+                else:
+                    acc = self._correct / self._steps if self._steps else 0
+                    score_str = f"pass@1={100 * acc:.1f}% ({self._correct}/{self._steps})"
                 logger.info(
-                    "progress: %d/%d (%.1f%%) | pass@1=%.1f%% (%d/%d) | %.1f/s | %s elapsed | ETA %s | %d tok",
+                    "progress: %d/%d (%.1f%%) | %s | %.1f/s | %s elapsed | ETA %s | %d tok",
                     self._steps,
                     total,
                     pct,
-                    100 * acc,
-                    self._correct,
-                    self._steps,
+                    score_str,
                     rate,
                     elapsed_str,
                     eta_str,
@@ -174,9 +184,15 @@ class ConsoleProgress:
     def on_done(
         self, correct: int, total: int, elapsed: float, total_tokens: int, mean_reward: float | None = None
     ) -> None:
-        mr = f" | mean_reward={mean_reward:.4f}" if mean_reward is not None else ""
-        acc = correct / total if total else 0
-        msg = f"Done {elapsed:.1f}s | pass@1={acc:.1%} ({correct}/{total}){mr} | {total_tokens:,} tok"
+        # Prefer ``mean_reward`` as the headline for fractional benchmarks
+        # (matches what goes into the bundle); fall back to the pass@1
+        # rate for binary benchmarks.
+        if mean_reward is not None:
+            score_str = f"mean_reward={mean_reward:.4f} (n={total})"
+        else:
+            acc = correct / total if total else 0
+            score_str = f"pass@1={acc:.1%} ({correct}/{total})"
+        msg = f"Done {elapsed:.1f}s | {score_str} | {total_tokens:,} tok"
         if self._is_tty:
             sys.stderr.write(f"\n\n{'=' * 60}\n  {msg}\n{'=' * 60}\n\n")
             sys.stderr.flush()

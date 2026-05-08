@@ -28,6 +28,7 @@ __all__ = [
     "NatSolver",
     "OpenClawSolver",
     "ReActSolver",
+    "OracleSolver",
     "Solver",
     "SolveResult",
     "VLMSolver",
@@ -43,4 +44,8 @@ def __getattr__(name: str):
         from nemo_evaluator.solvers.react import ReActSolver
 
         return ReActSolver
+    if name == "OracleSolver":
+        from nemo_evaluator.solvers.oracle import OracleSolver
+
+        return OracleSolver
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

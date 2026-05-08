@@ -70,7 +70,7 @@ A fragment file contains the content for its section, not the wrapping key:
 # conf/clusters/slurm_oci_8gpu.yaml
 type: slurm
 hostname: slurm-login.example.com
-account: your-slurm-account
+account: <your-slurm-account>
 walltime: "04:00:00"
 node_pools:
   gpu:

@@ -23,11 +23,11 @@ services:
     api_key: ${NVIDIA_API_KEY}
 
 benchmarks:
-  - name: "container://<your-registry>/nemo-skills:26.03#gsm8k"
+  - name: "container://<your-registry>/nemo-skills:<tag>#gsm8k"
     solver:
       type: container
       service: nemotron
-      uri: "container://<your-registry>/nemo-skills:26.03#gsm8k"
+      uri: "container://<your-registry>/nemo-skills:<tag>#gsm8k"
       # Optional: pass legacy params into config.params (merged with framework.yml defaults)
       # params:
       #   temperature: 0.0

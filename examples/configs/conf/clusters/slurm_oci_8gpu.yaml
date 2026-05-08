@@ -1,6 +1,6 @@
 type: slurm
 hostname: slurm-login.example.com
-account: your-slurm-account
+account: <your-slurm-account>
 walltime: "04:00:00"
 container_mounts:
   - ${SHARED_ROOT}/${USER}/cache/huggingface:/cache/huggingface

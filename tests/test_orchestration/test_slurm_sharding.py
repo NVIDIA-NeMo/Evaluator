@@ -15,21 +15,26 @@
 """Tests for SLURM sharded job generation, eval_loop shard_info, and lifecycle."""
 
 import json
+import os
 from unittest.mock import MagicMock, patch
 
 from nemo_evaluator.config import EvalConfig
 from nemo_evaluator.orchestration.slurm_gen import generate_sbatch, write_sbatch
 
 
-def _make_slurm_config(shards=None, auto_resume=False):
+def _make_slurm_config(shards=None, auto_resume=False, api_key=None):
+    service = {
+        "type": "api",
+        "url": "http://x/v1/chat/completions",
+        "protocol": "chat_completions",
+    }
+    if api_key is not None:
+        service["api_key"] = api_key
+
     return EvalConfig.model_validate(
         {
             "services": {
-                "model": {
-                    "type": "api",
-                    "url": "http://x/v1/chat/completions",
-                    "protocol": "chat_completions",
-                },
+                "model": service,
             },
             "benchmarks": [
                 {"name": "gsm8k", "repeats": 5, "solver": {"type": "simple", "service": "model"}},
@@ -45,6 +50,10 @@ def _make_slurm_config(shards=None, auto_resume=False):
             },
         }
     )
+
+
+def _mode(path):
+    return path.stat().st_mode & 0o777
 
 
 class TestSbatchShardGeneration:
@@ -357,6 +366,18 @@ class TestPerServiceLogFiles:
         script, _, _ = generate_sbatch(cfg)
         assert 'mkdir -p "$OUTPUT_DIR/logs"' in script
 
+    def test_output_and_logs_dirs_are_chmoded(self):
+        cfg = _make_slurm_config()
+        script, _, _ = generate_sbatch(cfg)
+        assert 'chmod a+rx "$OUTPUT_DIR" "$OUTPUT_DIR/logs"' in script
+        assert 'chmod a+rx "$OUTPUT_DIR/logs" "$OUTPUT_DIR/logs"/*-"$SLURM_JOB_ID".log' in script
+        assert 'chmod -R a+rx "$OUTPUT_DIR/logs"' not in script
+
+    def test_benchmark_output_dir_is_chmoded_recursively(self):
+        cfg = _make_slurm_config()
+        script, _, _ = generate_sbatch(cfg)
+        assert 'chmod -R a+rx "$NEL_OUTPUT_DIR"' in script
+
     def test_eval_task_tees_to_log_file(self):
         cfg = _make_slurm_config()
         script, _, _ = generate_sbatch(cfg)
@@ -407,6 +428,79 @@ class TestWriteSbatchSharding:
             content = sp.read_text()
             assert f"export NEL_SHARD_IDX={i}" in content
             assert "export NEL_TOTAL_SHARDS=3" in content
+
+    def test_write_sbatch_dirs_are_traversable_with_restrictive_umask(self, tmp_path):
+        cfg = _make_slurm_config(shards=2)
+        cfg.output.dir = str(tmp_path / "run")
+        cfg.output.timestamped = False
+
+        old_umask = os.umask(0o077)
+        try:
+            script_paths, _ = write_sbatch(cfg, output_dir=tmp_path / "run")
+        finally:
+            os.umask(old_umask)
+
+        run_dir = tmp_path / "run"
+        assert run_dir.stat().st_mode & 0o055 == 0o055
+        for script_path in script_paths:
+            assert script_path.parent.stat().st_mode & 0o055 == 0o055
+            assert (script_path.parent / "logs").stat().st_mode & 0o055 == 0o055
+
+    def test_write_sbatch_checks_parent_chain_once(self, tmp_path):
+        cfg = _make_slurm_config(shards=2)
+        cfg.output.dir = str(tmp_path / "run")
+        cfg.output.timestamped = False
+
+        with patch("nemo_evaluator.orchestration.slurm_gen.warn_if_parent_chain_lacks_execute") as warn:
+            write_sbatch(cfg, output_dir=tmp_path / "run")
+
+        warn.assert_called_once_with(tmp_path / "run")
+
+    def test_write_sbatch_checks_configured_parent_chain_when_staging(self, tmp_path):
+        cfg = _make_slurm_config(shards=2)
+        remote_output = tmp_path / "remote-run"
+        cfg.output.dir = str(remote_output)
+        cfg.output.timestamped = False
+
+        with patch("nemo_evaluator.orchestration.slurm_gen.warn_if_parent_chain_lacks_execute") as warn:
+            write_sbatch(cfg, output_dir=tmp_path / "staging")
+
+        warn.assert_called_once_with(remote_output)
+
+    def test_write_sbatch_non_secret_sidecar_gets_artifact_access(self, tmp_path):
+        cfg = _make_slurm_config()
+        cfg.output.dir = str(tmp_path / "run")
+        cfg.output.timestamped = False
+
+        old_umask = os.umask(0o077)
+        try:
+            _, extra_paths = write_sbatch(cfg, output_dir=tmp_path / "run")
+        finally:
+            os.umask(old_umask)
+
+        sidecar = next(path for path in extra_paths if path.name.startswith("config_"))
+        assert _mode(sidecar) == 0o755
+
+    def test_write_sbatch_secret_sidecar_stays_private(self, tmp_path):
+        cfg = _make_slurm_config(api_key="secret")
+        cfg.output.dir = str(tmp_path / "run")
+        cfg.output.timestamped = False
+
+        old_umask = os.umask(0o077)
+        try:
+            _, extra_paths = write_sbatch(cfg, output_dir=tmp_path / "run")
+        finally:
+            os.umask(old_umask)
+
+        sidecar = next(path for path in extra_paths if path.name.startswith("config_"))
+        assert _mode(sidecar) == 0o600
+
+    def test_shard_merge_chmods_only_non_shard_output_dirs(self):
+        cfg = _make_slurm_config(shards=2)
+        script, _, _ = generate_sbatch(cfg, shard_idx=0, total_shards=2)
+        assert 'find "$_PARENT_DIR" -mindepth 1 -maxdepth 1 -type d' in script
+        assert "! -name 'shard_*'" in script
+        assert "-exec chmod -R a+rx {} +" in script
 
     def test_write_sbatch_no_shards_returns_single_list(self, tmp_path):
         cfg = _make_slurm_config(shards=None)
@@ -2099,3 +2193,116 @@ class TestUpdateAggregateMeta:
 
         with patch("nemo_evaluator.executors.slurm_executor._jobs_store", return_value=tmp_path):
             _update_aggregate_meta("/nonexistent", ["100"])
+
+
+def _make_slurm_config_with_eval_image(container_mounts=None):
+    """Minimal Slurm config that triggers preflight via cluster.eval_image."""
+    return EvalConfig.model_validate(
+        {
+            "services": {
+                "model": {
+                    "type": "api",
+                    "url": "http://x/v1/chat/completions",
+                    "protocol": "chat_completions",
+                },
+            },
+            "benchmarks": [
+                {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+            ],
+            "cluster": {
+                "type": "slurm",
+                "walltime": "02:00:00",
+                "eval_image": "registry.example/eval:latest",
+                "container_mounts": container_mounts or [],
+                "node_pools": {
+                    "compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"},
+                },
+            },
+        }
+    )
+
+
+class TestPreflightImageChecks:
+    """The preflight `srun --container-image ... true` runs before any service.
+
+    Some clusters configure SLURM TaskProlog scripts that pyxis evaluates inside
+    the container namespace; without `cluster.container_mounts` on the preflight
+    srun, those clusters fail with "task_prolog can not be executed" before
+    services can start.
+    """
+
+    def test_preflight_includes_cluster_container_mounts(self):
+        cfg = _make_slurm_config_with_eval_image(
+            container_mounts=["/usr/local/bin/custom_scripts:/usr/local/bin/custom_scripts:ro"]
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "Checking container images..." in script
+        # The preflight srun line must carry the cluster mount.
+        preflight_line = next(
+            ln
+            for ln in script.splitlines()
+            if ln.startswith("srun --overlap --nodes 1 --ntasks 1 --container-image ") and " true 2>&1 \\" in ln
+        )
+        assert "--container-mounts=/usr/local/bin/custom_scripts:/usr/local/bin/custom_scripts:ro" in preflight_line
+
+    def test_preflight_omits_mount_flag_when_empty(self):
+        cfg = _make_slurm_config_with_eval_image(container_mounts=[])
+        script, _, _ = generate_sbatch(cfg)
+        preflight_line = next(
+            ln
+            for ln in script.splitlines()
+            if ln.startswith("srun --overlap --nodes 1 --ntasks 1 --container-image ") and " true 2>&1 \\" in ln
+        )
+        assert "--container-mounts=" not in preflight_line
+
+
+def _make_model_service_config(svc_type: str, model_path: str = "/lustre/checkpoints/fake-model"):
+    """Slurm config with a single model service of a given type for command-rendering tests."""
+    return EvalConfig.model_validate(
+        {
+            "services": {
+                "model": {
+                    "type": svc_type,
+                    "model": model_path,
+                    "served_model_name": "fake/model",
+                    "protocol": "chat_completions",
+                    "tensor_parallel_size": 8,
+                    "data_parallel_size": 1,
+                    "port": 8000,
+                    "node_pool": "compute",
+                },
+            },
+            "benchmarks": [
+                {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+            ],
+            "cluster": {
+                "type": "slurm",
+                "walltime": "02:00:00",
+                "node_pools": {
+                    "compute": {"partition": "batch", "nodes": 1, "gres": "gpu:8"},
+                },
+            },
+        }
+    )
+
+
+class TestModelServeCommand:
+    """Verify the rendered `<framework> serve ...` command line for vllm and sglang."""
+
+    def test_sglang_uses_model_path_flag(self):
+        """SGLang's CLI requires `--model-path`; positional model path is rejected by argparse."""
+        cfg = _make_model_service_config("sglang")
+        script, _, _ = generate_sbatch(cfg)
+        serve_line = next(ln for ln in script.splitlines() if ln.startswith("sglang serve "))
+        assert serve_line.startswith("sglang serve --model-path ")
+        assert " --port " in serve_line  # confirms the rest of the args still render
+
+    def test_vllm_keeps_positional_model_path(self):
+        """vLLM accepts both forms; we keep positional to avoid churn for vllm users."""
+        cfg = _make_model_service_config("vllm")
+        script, _, _ = generate_sbatch(cfg)
+        serve_line = next(ln for ln in script.splitlines() if ln.startswith("vllm serve "))
+        # First token after "vllm serve " should be a path, not a flag.
+        first_arg = serve_line.split()[2]
+        assert not first_arg.startswith("--"), f"expected positional model path, got {first_arg!r}"
+        assert "--model-path" not in serve_line
