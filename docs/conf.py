@@ -107,3 +107,17 @@ mermaid_version = "10.9.0"
 mermaid_init_js = "mermaid.initialize({startOnLoad:true, theme:'neutral'});"
 
 suppress_warnings = ["myst.header"]
+
+# -- Linkcheck -----------------------------------------------------------------
+# Skip own-repo GitHub URLs. They cost ~6 min per linkcheck pass because GitHub
+# rate-limits after ~30 fast requests, and the workflow retries the whole pass
+# up to 3 times on broken links — a single rate-limited 429 cascades into a
+# 25-min CI run. If a link to our own repo is wrong, code review catches it
+# more cheaply than a paid Actions runner. Other external links still get
+# checked. Tighten this list (e.g. drop `tree/main`, keep only the rate-limit-
+# prone patterns) once we have a local linkcheck pre-commit hook in place.
+linkcheck_ignore = [
+    r"^https://github\.com/NVIDIA-NeMo/Evaluator/",
+]
+linkcheck_anchors = False
+linkcheck_workers = 8
