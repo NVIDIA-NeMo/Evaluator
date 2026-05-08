@@ -30,6 +30,11 @@ from nemo_evaluator.adapters.types import (
 
 logger = logging.getLogger(__name__)
 
+# Transport-level headers that are managed by aiohttp / the runtime; user
+# config must not override them. Authorization is intentionally not in this
+# set so callers can override auth for inference-gateway style deployments.
+_HOP_BY_HOP_HEADERS: frozenset[str] = frozenset({"host", "content-length", "connection", "transfer-encoding"})
+
 
 class Interceptor(RequestToResponseInterceptor):
     def __init__(
@@ -38,6 +43,7 @@ class Interceptor(RequestToResponseInterceptor):
         upstream_url: str,
         api_key: str | None = None,
         extra_body: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
         request_timeout: float = 120,
         max_retries: int = 0,
         retry_on_status: list[int] | None = None,
@@ -51,12 +57,26 @@ class Interceptor(RequestToResponseInterceptor):
         self._upstream_url = clean
         self._api_key = api_key
         self._extra_body = extra_body or {}
+        self._extra_headers: dict[str, str] = {}
+        for name, value in (extra_headers or {}).items():
+            if name.lower() in _HOP_BY_HOP_HEADERS:
+                logger.warning("Dropping hop-by-hop header from extra_headers: %s", name)
+                continue
+            self._extra_headers[name] = value
         self._timeout = aiohttp.ClientTimeout(total=request_timeout)
         self._max_retries = max_retries
         self._retry_on_status = set(retry_on_status or [429, 502, 503, 504])
         self._max_concurrent = max_concurrent
         self._session: aiohttp.ClientSession | None = None
         self._lock = asyncio.Lock()
+        logger.info(
+            "Endpoint interceptor initialized: upstream=%s request_timeout=%s max_retries=%d extra_body_keys=%s extra_headers=%s",
+            self._upstream_url,
+            self._timeout.total,
+            self._max_retries,
+            sorted(self._extra_body),
+            sorted(self._extra_headers),
+        )
 
     async def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -87,12 +107,15 @@ class Interceptor(RequestToResponseInterceptor):
         url = f"{self._upstream_url}{req.path}"
 
         body = {**req.body, **self._extra_body}
-        headers = {
-            k: v for k, v in req.headers.items() if k.lower() not in ("host", "content-length", "transfer-encoding")
-        }
+        headers = {k: v for k, v in req.headers.items() if k.lower() not in _HOP_BY_HOP_HEADERS}
         if self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
         headers.setdefault("Content-Type", "application/json")
+        if self._extra_headers:
+            # Override case-insensitively so user-set Authorization wins.
+            override_lc = {k.lower() for k in self._extra_headers}
+            headers = {k: v for k, v in headers.items() if k.lower() not in override_lc}
+            headers.update(self._extra_headers)
 
         attempt = 0
         while True:
@@ -139,13 +162,16 @@ class Interceptor(RequestToResponseInterceptor):
                         ctx=req.ctx,
                     )
 
-            except asyncio.TimeoutError:
+            except asyncio.TimeoutError as exc:
                 latency = (time.perf_counter() - t0) * 1000
                 if attempt < self._max_retries:
                     delay = min(2**attempt, 60)
                     logger.warning(
-                        "endpoint: %s timed out, retry %d/%d in %.1fs",
+                        "endpoint: %s timed out (exc_class=%s exc_msg=%s t_in_flight_s=%.1f), retry %d/%d in %.1fs",
                         url,
+                        type(exc).__name__,
+                        exc,
+                        latency / 1000,
                         attempt + 1,
                         self._max_retries,
                         delay,
@@ -153,7 +179,14 @@ class Interceptor(RequestToResponseInterceptor):
                     attempt += 1
                     await asyncio.sleep(delay)
                     continue
-                logger.error("endpoint: %s timed out after %d attempts", url, attempt + 1)
+                logger.error(
+                    "endpoint: %s timed out after %d attempts (exc_class=%s exc_msg=%s t_in_flight_s=%.1f)",
+                    url,
+                    attempt + 1,
+                    type(exc).__name__,
+                    exc,
+                    latency / 1000,
+                )
                 return AdapterResponse(
                     status_code=504,
                     headers={},
@@ -167,9 +200,11 @@ class Interceptor(RequestToResponseInterceptor):
                 if attempt < self._max_retries:
                     delay = min(2**attempt, 60)
                     logger.warning(
-                        "endpoint: %s failed (%s), retry %d/%d in %.1fs",
+                        "endpoint: %s failed (exc_class=%s exc_msg=%s t_in_flight_s=%.1f), retry %d/%d in %.1fs",
                         url,
+                        type(exc).__name__,
                         exc,
+                        latency / 1000,
                         attempt + 1,
                         self._max_retries,
                         delay,
@@ -177,6 +212,14 @@ class Interceptor(RequestToResponseInterceptor):
                     attempt += 1
                     await asyncio.sleep(delay)
                     continue
+                logger.error(
+                    "endpoint: %s failed after %d attempts (exc_class=%s exc_msg=%s t_in_flight_s=%.1f)",
+                    url,
+                    attempt + 1,
+                    type(exc).__name__,
+                    exc,
+                    latency / 1000,
+                )
                 raise
 
     async def close(self) -> None:
