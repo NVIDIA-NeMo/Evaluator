@@ -1,0 +1,26 @@
+# Local Terraform working state
+.terraform/
+.terraform.lock.hcl
+
+# State files (must never be committed)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# User-supplied variable files (.example variants are tracked)
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+!*.tfvars.json.example
+
+# Plan/diagnostic output (may contain account IDs and resource names)
+*.tfplan
+plan.out
+crash.log
+crash.*.log
+
+# Generated docs / overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
