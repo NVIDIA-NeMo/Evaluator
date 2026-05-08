@@ -655,6 +655,44 @@ This is the least observable mode (no per-request trajectories), but it supports
 
 ---
 
+## 15. MLflow Exporter
+
+### Per-sample traces
+
+The `mlflow` exporter emits scalar metrics plus per-sample MLflow GenAI Traces (`AGENT` / `LLM` / `TOOL` spans) built from the ATIF trajectory.
+
+```yaml
+output:
+  export:
+    - type: mlflow
+      tracking_uri: http://localhost:5000
+      experiment: nemotron-eval
+      emit_traces: true              # default
+      emit_traces_max_samples: 200   # cap per benchmark; null = no cap
+      emit_traces_content_max: 4000  # truncate long strings
+```
+
+Tiers (auto-selected): `rich` (agentic + tools) → `messages` (chat) → `response` (extractive) → `meta` (no trajectory / no response). For agent-only trajectories (e.g. PinchBench), a leading `user` span is synthesised from the prompt. The root span carries `nel.scoring_details`, per-scorer rewards (`nel.scorer.<name>`), and task metadata (`nel.task_id`, `nel.task_name`, `nel.category`, ...). Traces are skipped when MLflow is not installed, `emit_traces=false`, or the run is reused on re-export.
+
+### Artifact upload filtering
+
+`exclude_patterns` adds user-defined patterns to the always-on `EXCLUDED_PATTERNS` defaults (`*cache*`, `*.db`, `*.lock`, `synthetic`, `debug.json`). Match is on basename, case-insensitive, using `fnmatch.fnmatchcase` (so `*`, `?`, and `[seq]` character classes all work). The patterns are applied in **all** artifact paths the exporter walks: `only_required=true` (gates which required-glob hits get uploaded), `only_required=false` (`shutil.copytree` filter), and `copy_logs=true` (per-file gate under `logs/`).
+
+```yaml
+output:
+  export:
+    - type: mlflow
+      tracking_uri: http://localhost:5000
+      copy_artifacts: true
+      only_required: false             # upload everything except excluded
+      copy_logs: true
+      exclude_patterns:
+        - deliverables                 # drop the gdpval deliverables sub-tree
+        - "*.parquet"                  # drop large columnar dumps
+```
+
+---
+
 ## Config Anatomy Cheat Sheet
 
 Every NeMo Evaluator config follows this structure:

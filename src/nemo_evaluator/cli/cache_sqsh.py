@@ -32,7 +32,7 @@ _KNOWN_TARGETS = {
     "full": "docker/Dockerfile.full",
 }
 
-_DEFAULT_REGISTRY = ""
+_DEFAULT_REGISTRY = "nvcr.io/nvidia/nemo-evaluator"
 
 
 def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess[str]:

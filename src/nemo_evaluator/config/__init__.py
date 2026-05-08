@@ -42,6 +42,8 @@ from .eval_config import EvalConfig, parse_eval_config
 from .gate_policy import GatePolicy, default_policy, load_gate_policy
 from .output import OutputConfig
 from .sandboxes import (
+    DEFAULT_EXEC_SERVER_PORT,
+    DEFAULT_SSHD_PORT,
     ApptainerSandbox,
     CustomSandbox,
     DockerSandbox,
@@ -85,6 +87,7 @@ from .solvers import (
     HarborSolverConfig,
     NatSolverConfig,
     OpenClawSolverConfig,
+    OracleSolverConfig,
     SimpleSolver,
     SolverConfig,
     ToolCallingSolverConfig,
@@ -108,6 +111,8 @@ __all__ = [
     "CustomService",
     "ServiceConfig",
     # Sandboxes
+    "DEFAULT_EXEC_SERVER_PORT",
+    "DEFAULT_SSHD_PORT",
     "DockerSandbox",
     "SshSidecarConfig",
     "EcsFargateSandbox",
@@ -125,6 +130,7 @@ __all__ = [
     "NatSolverConfig",
     "OpenClawSolverConfig",
     "ContainerSolverConfig",
+    "OracleSolverConfig",
     "CustomSolverConfig",
     "SolverConfig",
     # Scoring

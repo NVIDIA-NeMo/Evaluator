@@ -54,7 +54,7 @@ Async client for OpenAI-compatible endpoints.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `base_url` | `str` | `https://integrate.api.nvidia.com/v1` | API base URL |
+| `base_url` | `str` | `https://inference-api.nvidia.com/v1` | API base URL |
 | `model` | `str` | `azure/openai/gpt-5.2` | Model identifier |
 | `api_key` | `str \| None` | `None` (uses `NEMO_API_KEY`) | API key |
 | `temperature` | `float \| None` | `None` | Sampling temperature (0.0-2.0) |
@@ -71,7 +71,7 @@ Async client for OpenAI-compatible endpoints.
 from nemo_evaluator.engine import ModelClient
 
 client = ModelClient(
-    base_url="https://integrate.api.nvidia.com/v1",
+    base_url="https://inference-api.nvidia.com/v1",
     model="azure/openai/gpt-5.2",
     api_key="sk-...",
     max_concurrent=16,

@@ -21,6 +21,21 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, model_validator
 
+# Matches the exec-server script's own TB_EXEC_PORT fallback and the
+# `exec_server_port` written by the reference Terraform (see /terraform/).
+# Kept off 5000 to avoid collisions with benchmark tasks that bind 5000
+# themselves (e.g. TB 2.0's hf-model-inference Flask server).
+DEFAULT_EXEC_SERVER_PORT = 19542
+
+# SSH sidecar port matching the `ssh_tunnel_sshd_port` written by the
+# reference Terraform (see /terraform/). Chosen in the Linux dynamic/private
+# ephemeral range (49152-65535) to avoid collisions with benchmark tasks that
+# bind specific ports themselves. TB 2.0's `qemu-alpine-ssh` and
+# `qemu-startup` use `hostfwd=tcp::2222-:22` — the sidecar must not squat
+# 2222 or QEMU's hostfwd bind fails with `Could not set up host forwarding
+# rule`.
+DEFAULT_SSHD_PORT = 52222
+
 
 class _SandboxBase(BaseModel):
     """Shared sandbox fields used by the eval loop / lifecycle."""
@@ -58,12 +73,12 @@ class DockerSandbox(_SandboxBase):
 class SshSidecarConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    sshd_port: int = 2222
+    sshd_port: int = DEFAULT_SSHD_PORT
     ssh_ready_timeout_sec: float = 300.0
     public_key_secret_arn: str
     private_key_secret_arn: str
     image: str | None = None
-    exec_server_port: int | None = 5000
+    exec_server_port: int | None = DEFAULT_EXEC_SERVER_PORT
 
 
 class EcsFargateSandbox(_SandboxBase):

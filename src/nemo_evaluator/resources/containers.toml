@@ -7,10 +7,9 @@
 # Users can override via cluster.container_image in their config.
 
 [defaults]
-# Default container registry. Override with cluster.container_image in config —
-# variants are derived automatically. Set to an empty string to require explicit
-# per-config overrides.
-registry = ""
+# Built by CI and published to the public container registry.
+# Override with cluster.container_image in config — variants are derived automatically.
+registry = "nvcr.io/nvidia/nemo-evaluator"
 tag = "latest"
 
 # Deployment containers (model servers — public/external images).

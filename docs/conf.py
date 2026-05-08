@@ -1,5 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -55,7 +54,6 @@ myst_substitutions = {
     "product_name_short": "NeMo Evaluator",
     "company": "NVIDIA",
     "version": release,
-    "docs_url": "https://docs.nvidia.com/nemo/evaluator/0.3.0/index.html",
 }
 
 # -- HTML output (NVIDIA Sphinx Theme) -----------------------------------------
@@ -63,7 +61,7 @@ html_theme = "nvidia_sphinx_theme"
 
 html_theme_options = {
     "switcher": {
-        "json_url": "../versions1.json",
+        "json_url": "./versions1.json",
         "version_match": release,
     },
     "search_bar_text": "Search NeMo Evaluator docs...",

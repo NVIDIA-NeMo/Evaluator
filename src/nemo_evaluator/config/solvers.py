@@ -151,8 +151,9 @@ class OpenClawSolverConfig(BaseModel):
     type: Literal["openclaw"] = "openclaw"
     service: str
     thinking: str = "high"
-    context_window: int = 131072
+    context_window: int | None = None
     max_concurrent: int = 4
+    idle_timeout_seconds: int = 600
     config_path: str | None = None
     skip_preflight: bool = False
     openclaw_bin: str = "openclaw"
@@ -180,6 +181,35 @@ class ContainerSolverConfig(BaseModel):
         if not v.startswith("container://"):
             raise ValueError("container solver uri must start with 'container://'")
         return v
+
+
+class OracleSolverConfig(BaseModel):
+    """Replays the task's ``solution/solve.sh`` as a gold-trajectory "solve".
+
+    Runs the gold trajectory inside the sandbox the environment prepared.
+    Used to measure the infra ceiling of a benchmark — what fraction of
+    tasks pass when the "agent" already knows the answer.  No LLM service
+    is required.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["oracle"] = "oracle"
+    run_timeout: float | None = Field(
+        default=None,
+        description=("Wall-clock timeout (seconds) for solution/solve.sh. Defaults to benchmark-level timeout."),
+    )
+    timeout_strategy: Literal["override", "task", "max"] = Field(
+        default="override",
+        description=(
+            "How to resolve script timeout when the task defines its own "
+            "timeout_sec in task.toml. Semantics match HarborSolverConfig."
+        ),
+    )
+    max_agent_timeout: float | None = Field(
+        default=None,
+        description="Hard ceiling (seconds) on solve.sh execution regardless of strategy.",
+    )
 
 
 class CustomSolverConfig(BaseModel):
@@ -214,6 +244,7 @@ SolverConfig = Annotated[
     | Annotated[NatSolverConfig, Tag("nat")]
     | Annotated[OpenClawSolverConfig, Tag("openclaw")]
     | Annotated[ContainerSolverConfig, Tag("container")]
+    | Annotated[OracleSolverConfig, Tag("oracle")]
     | Annotated[CustomSolverConfig, Tag("custom")],
     Discriminator(_solver_discriminator),
 ]
