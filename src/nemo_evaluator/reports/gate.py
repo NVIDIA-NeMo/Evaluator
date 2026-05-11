@@ -34,6 +34,7 @@ from typing import Any
 
 from nemo_evaluator.reports._formatting import style, verdict_color
 
+
 # ── Text renderer ─────────────────────────────────────────────────────
 
 
