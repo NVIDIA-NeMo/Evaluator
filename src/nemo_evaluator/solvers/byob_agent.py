@@ -34,7 +34,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment as JinjaEnv, select_autoescape
+from jinja2 import Environment as JinjaEnv
+from jinja2 import select_autoescape
 
 logger = logging.getLogger(__name__)
 

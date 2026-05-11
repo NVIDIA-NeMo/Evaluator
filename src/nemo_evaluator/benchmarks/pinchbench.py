@@ -38,11 +38,10 @@ import random
 import re
 import shutil
 import tempfile
+import urllib.request
 import zipfile
 from pathlib import Path
 from typing import Any
-
-import urllib.request
 
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.environments.custom import benchmark, scorer
