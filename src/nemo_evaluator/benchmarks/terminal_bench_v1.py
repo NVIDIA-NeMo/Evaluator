@@ -47,6 +47,30 @@ logger = logging.getLogger(__name__)
 
 _GIT_URL = "https://github.com/laude-institute/terminal-bench.git"
 _DATASET_DIR_NAME = "terminal-bench@1.0"
+_XP_TASK = "install-windows-xp"
+_XP_ENTRYPOINT = 'ENTRYPOINT [ "supervisord", "-c", "/etc/supervisor/supervisord.conf" ]'
+_XP_WRAPPER_ENTRYPOINT = 'ENTRYPOINT ["/nel-entrypoint.sh"]'
+_XP_DOCKERFILE_PATCH = f"""\
+# NEL patch: upstream compose passes no command, but NEL sandboxes do.
+# The wrapper starts supervisord, then execs "$@".
+COPY nel-entrypoint.sh /nel-entrypoint.sh
+RUN chmod +x /nel-entrypoint.sh
+{_XP_WRAPPER_ENTRYPOINT}"""
+_XP_WRAPPER = """\
+#!/bin/sh
+set -e
+
+supervisord -c /etc/supervisor/supervisord.conf &
+pid=$!
+
+sleep 2
+if ! kill -0 "$pid" 2>/dev/null; then
+    wait "$pid"
+    exit $?
+fi
+
+exec "$@"
+"""
 
 
 def _git(cmd: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
@@ -70,10 +94,31 @@ def _git(cmd: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
 
 def _find_tasks_dir(repo: Path) -> Path | None:
     """Locate the directory containing v1 tasks (subdirs with ``task.yaml``)."""
-    for candidate in [repo, repo / "tasks", repo / "benchmarks"]:
+    for candidate in [repo, repo / "tasks", repo / "benchmarks", repo / "original-tasks"]:
         if candidate.is_dir() and any((d / "task.yaml").exists() for d in candidate.iterdir() if d.is_dir()):
             return candidate
     return None
+
+
+def _patch_install_windows_xp_entrypoint(output_dir: Path) -> None:
+    """Patch upstream's service ENTRYPOINT into a command-friendly wrapper."""
+    env_dir = output_dir / _XP_TASK / "environment"
+    dockerfile = env_dir / "Dockerfile"
+    if not dockerfile.exists():
+        return
+
+    text = dockerfile.read_text(encoding="utf-8")
+    already_patched = _XP_WRAPPER_ENTRYPOINT in text
+    needs_patch = _XP_ENTRYPOINT in text
+    if not (already_patched or needs_patch):
+        logger.warning("%s Dockerfile did not match expected supervisord ENTRYPOINT; skipping patch", _XP_TASK)
+        return
+
+    wrapper = env_dir / "nel-entrypoint.sh"
+    if not wrapper.exists() or wrapper.read_text(encoding="utf-8") != _XP_WRAPPER:
+        wrapper.write_text(_XP_WRAPPER, encoding="utf-8")
+    if needs_patch:
+        dockerfile.write_text(text.replace(_XP_ENTRYPOINT, _XP_DOCKERFILE_PATCH, 1), encoding="utf-8")
 
 
 def _ensure_dataset(datasets_dir: str | None = None) -> Path:
@@ -85,6 +130,7 @@ def _ensure_dataset(datasets_dir: str | None = None) -> Path:
     marker = output_dir / ".tbv1_mapped"
 
     if marker.exists():
+        _patch_install_windows_xp_entrypoint(output_dir)
         n = sum(1 for d in output_dir.iterdir() if d.is_dir() and (d / "instruction.md").exists())
         logger.info("terminal-bench-v1: %d cached tasks", n)
         return output_dir
@@ -121,6 +167,7 @@ def _ensure_dataset(datasets_dir: str | None = None) -> Path:
                 logger.warning("Failed to map task %s", src.name, exc_info=True)
                 failed += 1
 
+        _patch_install_windows_xp_entrypoint(output_dir)
         logger.info(
             "terminal-bench-v1: mapped %d tasks (%d failed)",
             mapped,
