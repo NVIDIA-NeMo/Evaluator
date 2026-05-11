@@ -12,9 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from nemo_evaluator.reports.regression import RENDERERS as REGRESSION_RENDERERS
-from nemo_evaluator.reports.gate import RENDERERS as GATE_RENDERERS
 from nemo_evaluator.reports.eval import RENDERERS as EVAL_RENDERERS
+from nemo_evaluator.reports.gate import RENDERERS as GATE_RENDERERS
+from nemo_evaluator.reports.regression import RENDERERS as REGRESSION_RENDERERS
 
 __all__ = [
     "REGRESSION_RENDERERS",
