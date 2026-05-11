@@ -52,13 +52,12 @@ import os
 import shutil
 import subprocess
 import tempfile
+import tomllib
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-
-import tomllib
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 
