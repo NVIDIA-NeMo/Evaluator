@@ -33,6 +33,7 @@ from nemo_evaluator.config import (
     SlurmSandbox,
 )
 from nemo_evaluator.config.clusters import _parse_walltime
+from nemo_evaluator.orchestration.artifact_access import chmod_a_rx, warn_if_parent_chain_lacks_execute
 from nemo_evaluator.orchestration.image_resolver import (
     default_base_image,
     resolve_deployment_image,
@@ -70,6 +71,7 @@ OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
 JOB_START_EPOCH=$(date +%s)
 mkdir -p "$OUTPUT_DIR/logs"
+chmod a+rx "$OUTPUT_DIR" "$OUTPUT_DIR/logs" 2>/dev/null || true
 
 echo "=== NeMo Evaluator ==="
 echo "Job ID: $SLURM_JOB_ID"
@@ -113,6 +115,8 @@ if [[ $NEL_EXIT_CODE -eq 0 ]]; then
             else
                 touch "$_PARENT_DIR/.merge_lock/.done"
                 {report_commands}
+                find "$_PARENT_DIR" -mindepth 1 -maxdepth 1 -type d ! -name 'shard_*' ! -name '.merge_lock' -exec chmod -R a+rx {{}} + 2>/dev/null || true
+                chmod a+rx "$_PARENT_DIR" "$_PARENT_DIR"/report.* 2>/dev/null || true
             fi
         fi
     fi
@@ -159,6 +163,7 @@ OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
 JOB_START_EPOCH=$(date +%s)
 mkdir -p "$OUTPUT_DIR/logs"
+chmod a+rx "$OUTPUT_DIR" "$OUTPUT_DIR/logs" 2>/dev/null || true
 
 echo "=== NeMo Evaluator (het-job) ==="
 echo "Job ID: $SLURM_JOB_ID"
@@ -348,13 +353,14 @@ echo "============================================================"
 echo "  Benchmark {idx}/{total}: {bench_name} (repeats={repeats})"
 echo "============================================================"
 echo "  Logs: $OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log"
-export {svc_url_var}="${{{model_url_bash}}}"
-export {svc_model_var}="${{{model_id_bash}}}"
+export {svc_url_var}="${{{model_url_bash}:-}}"
+export {svc_model_var}="${{{model_id_bash}:-}}"
 export NEL_OUTPUT_DIR="$OUTPUT_DIR/{safe_name}"
 mkdir -p "$NEL_OUTPUT_DIR"
 {run_prefix}nel eval run "$OUTPUT_DIR/config_{safe_name}.yaml" {extra_flags}2>&1 | stdbuf -oL tee -a "$OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log"
 _EVAL_RC=${{PIPESTATUS[0]}}
 ln -sf "eval-{safe_name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/eval-{safe_name}.log"
+chmod -R a+rx "$NEL_OUTPUT_DIR" 2>/dev/null || true
 if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
 """
 
@@ -365,8 +371,8 @@ echo "============================================================"
 echo "  Benchmark {idx}/{total}: {bench_name} (repeats={repeats})"
 echo "============================================================"
 echo "  Logs: $OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log"
-export {svc_url_var}="${{{model_url_bash}}}"
-export {svc_model_var}="${{{model_id_bash}}}"
+export {svc_url_var}="${{{model_url_bash}:-}}"
+export {svc_model_var}="${{{model_id_bash}:-}}"
 export NEL_OUTPUT_DIR="$OUTPUT_DIR/{safe_name}"
 mkdir -p "$NEL_OUTPUT_DIR"
 _PROBE_SENTINEL="$OUTPUT_DIR/.nel_model_died"
@@ -379,6 +385,7 @@ wait $_EVAL_PID
 _EVAL_RC=$?
 kill $_PROBE_PID 2>/dev/null; wait $_PROBE_PID 2>/dev/null
 ln -sf "eval-{safe_name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/eval-{safe_name}.log"
+chmod -R a+rx "$NEL_OUTPUT_DIR" 2>/dev/null || true
 if [ -f "$_PROBE_SENTINEL" ]; then
     echo "FATAL: Model server died during {bench_name}. Aborting."
     exit 1
@@ -391,6 +398,7 @@ _REPORT = """\
 echo ""
 echo "=== Generating reports ==="
 {report_commands}
+chmod a+rx "$OUTPUT_DIR"/report.* 2>/dev/null || true
 """
 
 _PREFLIGHT_IMAGE_CHECK = """\
@@ -402,7 +410,7 @@ echo "  All images OK."
 
 _IMAGE_CHECK_LINE = """\
 echo "  {label}: {image}"
-srun --overlap --nodes 1 --ntasks 1 --container-image {image} true 2>&1 \\
+srun --overlap --nodes 1 --ntasks 1 --container-image {image} {mount_flag}true 2>&1 \\
     | head -5 || {{ echo "FATAL: cannot pull image for {label}: {image}"; exit 1; }}"""
 
 
@@ -420,7 +428,10 @@ def _preflight_image_checks(config: EvalConfig, cluster: SlurmCluster) -> str:
     if not images:
         return ""
 
-    checks = [_IMAGE_CHECK_LINE.format(label=label, image=img) for label, img in images.items()]
+    cluster_mounts = list(getattr(cluster, "container_mounts", None) or [])
+    mount_flag = f"--container-mounts={','.join(cluster_mounts)} " if cluster_mounts else ""
+
+    checks = [_IMAGE_CHECK_LINE.format(label=label, image=img, mount_flag=mount_flag) for label, img in images.items()]
     return _PREFLIGHT_IMAGE_CHECK.format(checks="\n".join(checks))
 
 
@@ -430,6 +441,8 @@ cleanup() {{
     echo ""
     echo "Shutting down services..."
     {kill_commands}
+    chmod a+rx "$OUTPUT_DIR" 2>/dev/null || true
+    chmod a+rx "$OUTPUT_DIR/logs" "$OUTPUT_DIR/logs"/*-"$SLURM_JOB_ID".log 2>/dev/null || true
     echo "=== Evaluation complete ==="
     echo "End: $(date -Iseconds)"
     echo "Results: $OUTPUT_DIR"
@@ -591,7 +604,7 @@ def _safe(s: str) -> str:
 
 _MODEL_CMD = {
     "vllm": ("vllm serve", "", "--tensor-parallel-size", "--pipeline-parallel-size", "--data-parallel-size"),
-    "sglang": ("sglang serve", "", "--tp-size", "--pp-size", "--dp-size"),
+    "sglang": ("sglang serve", "--model-path", "--tp-size", "--pp-size", "--dp-size"),
 }
 
 
@@ -919,6 +932,119 @@ def _health_block(name: str, svc, *, pool_to_het: dict[str, int] | None = None) 
     )
 
 
+def _metrics_block(
+    name: str,
+    svc,
+    *,
+    eval_image: str | None = None,
+    pool_to_het: dict[str, int] | None = None,
+) -> str:
+    """Spawn a backgrounded Prometheus ``/metrics`` scraper for *svc*.
+
+    The scraper runs **inside the eval container** via ``srun --overlap
+    --container-image=<eval_image>`` so ``nemo_evaluator`` is on the path.
+    Without the container wrap, the bare batch node's system Python has no
+    ``nemo_evaluator`` package and the spawn fails immediately.
+
+    The srun is pinned to ``$MASTER_IP`` (``-w $MASTER_IP``) so the scraper
+    always lands on the head node where the model server's api server (and
+    therefore ``/metrics``) is bound. Without the pin, multi-node DP/TP
+    deployments would let srun land on a worker, and the ``localhost``
+    URL would refuse-connect.
+
+    Auto-skips at runtime if the endpoint isn't Prometheus-shaped (e.g.
+    OpenAI-compat-only servers without a ``/metrics`` path), so the spawn
+    is safe across all service types. The scraper inherits the global
+    ``trap "kill 0 EXIT"`` from the sbatch preamble; no explicit cleanup.
+
+    Returns ``""`` when:
+    * the service is external (we don't manage its lifecycle)
+    * the service is on a het-group pool that's not reachable from the batch node
+    * no eval_image is configured (no way to run the scraper with deps)
+    """
+    if isinstance(svc, ExternalApiService):
+        return ""
+    pool = getattr(svc, "node_pool", None)
+    if pool and pool_to_het and pool in pool_to_het and pool_to_het[pool] != 0:
+        return ""
+    if not eval_image:
+        return ""
+    port = getattr(svc, "port", 8000)
+    safe_name = _safe(name)
+    # Multi-node services bind their api server on the head node only, so the
+    # scraper must pin to ``$MASTER_IP``. Single-node services don't export
+    # ``MASTER_IP`` (only the multi-node Ray preamble does), and a bare
+    # ``-w $MASTER_IP`` would abort under ``set -u``. For single-node configs
+    # srun lands on the only allocated node anyway, so the pin is unnecessary.
+    pin_flag = "-w $MASTER_IP " if getattr(svc, "num_nodes", 1) > 1 else ""
+    return (
+        f'echo "Spawning Prometheus /metrics scraper for {name} -> $OUTPUT_DIR/{safe_name}_engine_metrics.jsonl"\n'
+        f"srun --overlap --nodes 1 --ntasks 1 {pin_flag}"
+        f"--container-image {eval_image} "
+        f'--container-mounts="$OUTPUT_DIR:$OUTPUT_DIR" '
+        f"--no-container-mount-home "
+        f"--container-env=NEL_TRACING_METRICS_DISABLED "
+        f"python -m nemo_evaluator.observability.scrape_metrics "
+        f'--url "http://localhost:{port}/metrics" '
+        f'--out "$OUTPUT_DIR/{safe_name}_engine_metrics.jsonl" &\n'
+    )
+
+
+_DCGM_EXPORTER_PORT = 9400
+
+
+def _dcgm_metrics_block(*, eval_image: str | None = None) -> str:
+    """Spawn a per-node Prometheus scraper that polls a system ``dcgm-exporter``.
+
+    For each node in ``$SLURM_JOB_NODELIST``, one background srun task runs
+    ``nemo_evaluator.observability.scrape_metrics`` inside the eval
+    container, polling ``http://localhost:9400/metrics`` (DCGM's standard
+    port) and dumping JSONL to ``$OUTPUT_DIR/gpu_metrics_<host>.jsonl`` —
+    one file per node.
+
+    Why no ``dcgm-exporter`` spawn: NVIDIA production clusters (HSG, CW,
+    SVG) ship a system ``dcgm-exporter`` already running on :9400 — our
+    own spawn collides with it (``bind: address already in use``,
+    confirmed on HSG by smoke 2554268). Just scraping the existing
+    endpoint avoids the collision and removes the nvcr.io image
+    dependency entirely. On clusters without a system exporter, the
+    scraper's auto-detect logs ``no /metrics endpoint, skipping`` and
+    exits cleanly — no broken file, eval unaffected.
+
+    Captures: ``DCGM_FI_PROF_SM_ACTIVE`` (real SM occupancy),
+    ``DCGM_FI_PROF_PIPE_TENSOR_ACTIVE``, ``DCGM_FI_PROF_DRAM_ACTIVE``,
+    ``DCGM_FI_PROF_NVLINK_{TX,RX}_BYTES``, ``DCGM_FI_DEV_FB_{USED,FREE,TOTAL}``,
+    power, temp, clocks. Per-GPU labels ``{gpu="<n>", Hostname="<host>",
+    hpc_job="<slurm-job-id>"}`` — direct attribution.
+
+    The block is gated by ``$NEL_GPU_METRICS_DISABLED``; setting it to any
+    non-empty value at sbatch-submit time makes this a no-op. Inherits the
+    global ``trap "kill 0 EXIT"`` for cleanup.
+
+    Returns ``""`` when no eval_image is configured (no way to run the
+    scraper). Het-job worker pools are not yet covered: the loop iterates
+    over ``$SLURM_JOB_NODELIST`` only, which on multi-pool deployments
+    covers the head het-group only.
+    """
+    if not eval_image:
+        return ""
+    return (
+        'if [ -z "${NEL_GPU_METRICS_DISABLED:-}" ]; then\n'
+        '  for _NODE in $(scontrol show hostnames "$SLURM_JOB_NODELIST"); do\n'
+        '    echo "Spawning GPU /metrics scraper on $_NODE -> $OUTPUT_DIR/gpu_metrics_${_NODE}.jsonl"\n'
+        '    srun --overlap --nodes 1 --ntasks 1 --nodelist="$_NODE" '
+        f"--container-image {eval_image} "
+        '--container-mounts="$OUTPUT_DIR:$OUTPUT_DIR" '
+        "--no-container-mount-home "
+        "--container-env=NEL_TRACING_METRICS_DISABLED "
+        "python -m nemo_evaluator.observability.scrape_metrics "
+        f'--url "http://localhost:{_DCGM_EXPORTER_PORT}/metrics" '
+        '--out "$OUTPUT_DIR/gpu_metrics_${_NODE}.jsonl" &\n'
+        "  done\n"
+        "fi\n"
+    )
+
+
 def _get_solver_service(bench) -> str | None:
     return getattr(bench.solver, "service", None)
 
@@ -1009,8 +1135,25 @@ def _extract_bench_config(config: EvalConfig, bench_idx: int, svc_url_var: str, 
                     "url": extra_svc.base_url,
                 }
 
+    scoring = getattr(bench, "scoring", None)
+    if scoring is not None:
+        referenced: list[str] = []
+        for metric in scoring.metrics or []:
+            for fld in ("service", "judge_service", "baseline_service"):
+                name = getattr(metric, fld, None)
+                if name:
+                    referenced.append(name)
+            for name in getattr(metric, "services", []) or []:
+                referenced.append(name)
+        for name in referenced:
+            if name in services:
+                continue
+            extra_svc = config.services.get(name)
+            if extra_svc is None:
+                continue
+            services[name] = extra_svc.model_dump(exclude_none=True)
+
     bench_dict = bench.model_dump(exclude_none=True)
-    bench_dict.pop("scoring", None)
 
     return {
         "services": services,
@@ -1229,6 +1372,21 @@ def generate_sbatch(
         block = _health_block(name, svc, pool_to_het=pool_to_het if use_het else None)
         if block:
             parts.append(block)
+
+    _eval_image_for_metrics = getattr(cluster, "eval_image", None)
+    for name, svc in config.services.items():
+        block = _metrics_block(
+            name,
+            svc,
+            eval_image=_eval_image_for_metrics,
+            pool_to_het=pool_to_het if use_het else None,
+        )
+        if block:
+            parts.append(block)
+
+    dcgm_block = _dcgm_metrics_block(eval_image=_eval_image_for_metrics)
+    if dcgm_block:
+        parts.append(dcgm_block)
 
     sb_bench = _find_sandbox_bench(config)
     sandbox_pool_name = getattr(sb_bench.sandbox, "node_pool", None) if sb_bench else None
@@ -1504,6 +1662,15 @@ def stamp_output_dir(config: EvalConfig) -> str | None:
     return rid
 
 
+def _sidecar_contains_secret(cfg_dict: dict) -> bool:
+    """Whether a sidecar config embeds any non-empty ``api_key`` value."""
+    services = cfg_dict.get("services") or {}
+    for svc in services.values():
+        if isinstance(svc, dict) and svc.get("api_key"):
+            return True
+    return False
+
+
 def _write_single_script(
     out: Path,
     script: str,
@@ -1514,7 +1681,10 @@ def _write_single_script(
 ) -> tuple[Path, list[Path]]:
     """Write one sbatch script + its sidecar/secrets into *out*."""
     out.mkdir(parents=True, exist_ok=True)
-    (out / "logs").mkdir(exist_ok=True)
+    logs_dir = out / "logs"
+    logs_dir.mkdir(exist_ok=True)
+    chmod_a_rx(out)
+    chmod_a_rx(logs_dir)
 
     path = out / "nel_eval.sbatch"
     path.write_text(script, encoding="utf-8")
@@ -1537,6 +1707,10 @@ def _write_single_script(
     for safe_name, cfg_dict in sidecar_configs.items():
         cfg_path = out / f"config_{safe_name}.yaml"
         cfg_path.write_text(yaml.dump(cfg_dict, default_flow_style=False, sort_keys=False), encoding="utf-8")
+        if _sidecar_contains_secret(cfg_dict):
+            cfg_path.chmod(0o600)
+        else:
+            chmod_a_rx(cfg_path)
         extra_paths.append(cfg_path)
 
     return path, extra_paths
@@ -1558,8 +1732,14 @@ def write_sbatch(
     entry per shard (or a single entry when not sharded).
     """
     out = Path(output_dir or config.output.dir)
+    artifact_root = Path(config.output.dir)
     cluster = config.cluster
     n_shards = getattr(cluster, "shards", None) if isinstance(cluster, SlurmCluster) else None
+
+    out.mkdir(parents=True, exist_ok=True)
+    chmod_a_rx(out)
+    # output_dir may be local staging for remote submissions; warn on the path users will access.
+    warn_if_parent_chain_lacks_execute(artifact_root)
 
     if n_shards:
         script_paths: list[Path] = []

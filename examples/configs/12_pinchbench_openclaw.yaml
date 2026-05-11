@@ -1,14 +1,6 @@
-# Flavor: Agentic benchmark (PinchBench) + OpenClaw solver + ECS sandbox
-# Tasks with embedded grading code are scored automatically; the rest
-# fall through to LLM-as-judge.
-#
-# ECS infrastructure auto-discovered from AWS SSM Parameter Store.
-#
-# Prerequisites:
-#   - NVIDIA_API_KEY set in environment
-#   - AWS credentials configured (orchestrator IAM user)
-#   - Terraform applied for target region (creates SSM parameter)
-# Run: nel eval run examples/configs/12_pinchbench_openclaw.yaml
+# PinchBench + OpenClaw solver + ECS Fargate sandbox.
+# Requires NVIDIA_API_KEY (solver), ANTHROPIC_API_KEY (judge), and AWS
+# credentials. ECS infra auto-discovered from SSM.
 
 services:
   model:
@@ -21,6 +13,17 @@ services:
       verbose: true
       interceptors:
         - name: turn_counter
+        - name: reasoning_replay
+
+  judge:
+    type: api
+    url: https://inference-api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: aws/anthropic/claude-opus-4-5
+    api_key: ${ANTHROPIC_API_KEY}
+    generation:
+      temperature: 0.0
+      max_tokens: 2048
 
 benchmarks:
   - playbook: pinchbench

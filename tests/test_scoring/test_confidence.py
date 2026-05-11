@@ -111,16 +111,11 @@ class TestClusteredCI:
 
     def test_mmlu_style_grouping(self):
         """Simulate MMLU-like structure: 4 subjects, 25 questions each.
-        Within each subject, scores are correlated (all high or all low).
-
-        Uses index-based seeding (not ``hash(subj)``) for determinism —
-        Python's ``hash(str)`` is randomized per-process via PYTHONHASHSEED,
-        which made this test flake on the SE-ratio assertion below.
-        """
+        Within each subject, scores are correlated (all high or all low)."""
         scores = []
         clusters = []
-        for i, (subj, acc) in enumerate([("math", 0.9), ("history", 0.6), ("science", 0.8), ("art", 0.5)]):
-            rng = np.random.default_rng(42 + i)
+        for subj, acc in [("math", 0.9), ("history", 0.6), ("science", 0.8), ("art", 0.5)]:
+            rng = np.random.default_rng(hash(subj) % 2**32)
             scores.extend(list(rng.choice([0.0, 1.0], size=25, p=[1 - acc, acc])))
             clusters.extend([subj] * 25)
 

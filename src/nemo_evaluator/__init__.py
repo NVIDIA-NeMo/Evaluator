@@ -48,7 +48,7 @@ from nemo_evaluator.solvers import (
 )
 
 __all__ = [
-    # Package metadata (re-exported from package_info)
+    # Package metadata
     "__package_name__",
     "__version__",
     # Core

@@ -34,3 +34,9 @@ benchmarks:
       type: docker
       timeout: 1800.0
       concurrency: 8
+
+output:
+  export: [inspect]
+  export_config:
+    inspect:
+      format: eval

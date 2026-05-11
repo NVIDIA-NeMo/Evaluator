@@ -239,10 +239,11 @@ class TestResumeTrajectories:
     def test_trajectories_preserved_on_full_resume(self, tmp_path):
         """All steps in verified_cache on resume → collector never called → 0-byte trajectories.jsonl.
 
-        Regression test: shard killed after all tasks complete (inference +
-        verification) but before write_all() flushes trajectories.jsonl to disk.
-        On resume every step hits the verified_cache early-return path at
-        eval_loop.py:202–225 which never calls collector.record().
+        Reproduces a regression where a shard killed after all tasks complete
+        (inference + verification) but before write_all() flushes
+        trajectories.jsonl to disk caused trajectory loss. On resume every step
+        hits the verified_cache early-return path at eval_loop.py:202–225 which
+        never calls collector.record().
         """
         env = _MockEnv()
         solver = _MockSolverWithTrajectory()
@@ -263,10 +264,11 @@ class TestResumeTrajectories:
     def test_trajectories_preserved_on_verify_only_resume(self, tmp_path):
         """Inference cached but verify not done → trajectory silently dropped.
 
-        Regression test for the partial-crash case: shard killed after all
-        inference but before verification. On resume, tasks hit the inferred_cache
-        path at eval_loop.py:272–278 which restores response/tokens but never sets
-        step.trajectory, so collector.record() records the step without trajectory.
+        Reproduces a regression where a shard killed after all inference but
+        before verification dropped trajectories on resume. On resume, tasks
+        hit the inferred_cache path at eval_loop.py:272–278 which restores
+        response/tokens but never sets step.trajectory, so collector.record()
+        records the step without trajectory.
         """
         env = _MockEnv()
         solver = _MockSolverWithTrajectory()
@@ -291,9 +293,9 @@ class TestResumeRuntimeStats:
     def test_total_tokens_complete_on_full_resume(self, tmp_path):
         """On resume with all steps in verified_cache, total_tokens must reflect ALL steps.
 
-        Regression test: inference_log only stores total token count, not the full
-        ModelResponse breakdown, so cached steps have model_response=None and contribute
-        0 to total_tokens in runtime_stats.
+        Reproduces a regression where inference_log only stored total token
+        count, not the full ModelResponse breakdown, so cached steps had
+        model_response=None and contributed 0 to total_tokens in runtime_stats.
         """
         env = _MockEnv()
         solver = _MockSolverWithModelResponse()
@@ -328,3 +330,112 @@ class TestResumeRuntimeStats:
             f"expected p50={_MockSolverWithModelResponse.LATENCY_MS}ms from cached steps, "
             f"got {runtime['latency_percentiles_ms']['p50']} — latency not restored from cache"
         )
+
+
+class _JudgeFnEnv(EvalEnvironment):
+    """Env whose verify() attaches a ``_judge_fn`` closure and ``needs_judge``."""
+
+    name = "mock_judge_fn"
+
+    def __init__(self, judge_fn):
+        super().__init__()
+        self._dataset = [{"idx": 0}]
+        self._judge_fn = judge_fn
+
+    async def seed(self, idx):
+        return SeedResult(prompt="q", expected_answer="a", metadata={"idx": idx})
+
+    async def verify(self, response, expected, **meta):  # noqa: ARG002
+        return VerifyResult(
+            reward=0.0,
+            extracted_answer=response,
+            scoring_details={
+                "needs_judge": True,
+                "_judge_fn": self._judge_fn,
+                "task_id": f"t{meta.get('idx', 0)}",
+            },
+        )
+
+
+class _OneProblemSolver:
+    async def solve(self, task):  # noqa: ARG002
+        return SolveResult(response="resp")
+
+    async def close(self):
+        pass
+
+
+class TestJudgeFnSerialization:
+    def test_judge_fn_popped_on_happy_path(self, tmp_path):
+        async def ok_fn(client):  # noqa: ARG001
+            return {"reward": 0.9, "judge": {"total": 0.9}}
+
+        env = _JudgeFnEnv(ok_fn)
+
+        class _FakeJudgeClient:
+            pass
+
+        bundle = asyncio.run(
+            run_evaluation(
+                env,
+                _OneProblemSolver(),
+                n_repeats=1,
+                judge_client=_FakeJudgeClient(),
+                step_log_dir=tmp_path,
+            )
+        )
+
+        (result,) = bundle["_results"]
+        assert "_judge_fn" not in result["scoring_details"]
+        assert result["scoring_details"]["needs_judge"] is False
+        assert result["reward"] == 0.9
+        assert result["scoring_details"]["judge"] == {"total": 0.9}
+
+    def test_judge_fn_popped_when_no_judge_client(self, tmp_path, caplog):
+        import logging
+
+        async def unused_fn(client):  # noqa: ARG001
+            raise AssertionError("must not be invoked without a judge_client")
+
+        env = _JudgeFnEnv(unused_fn)
+        with caplog.at_level(logging.WARNING, logger="nemo_evaluator.engine.eval_loop"):
+            bundle = asyncio.run(
+                run_evaluation(
+                    env,
+                    _OneProblemSolver(),
+                    n_repeats=1,
+                    judge_client=None,
+                    step_log_dir=tmp_path,
+                )
+            )
+
+        (result,) = bundle["_results"]
+        assert "_judge_fn" not in result["scoring_details"]
+        assert result["scoring_details"]["needs_judge"] is False
+        assert "error" in result["scoring_details"]["judge"]
+        assert any("needs_judge" in rec.message and "no judge_client" in rec.message for rec in caplog.records)
+
+    def test_judge_closure_exception_recorded_not_swallowed(self, tmp_path):
+        async def broken_fn(client):  # noqa: ARG001
+            raise RuntimeError("judge exploded")
+
+        env = _JudgeFnEnv(broken_fn)
+
+        class _FakeJudgeClient:
+            pass
+
+        bundle = asyncio.run(
+            run_evaluation(
+                env,
+                _OneProblemSolver(),
+                n_repeats=1,
+                judge_client=_FakeJudgeClient(),
+                step_log_dir=tmp_path,
+            )
+        )
+
+        (result,) = bundle["_results"]
+        assert "_judge_fn" not in result["scoring_details"]
+        judge = result["scoring_details"]["judge"]
+        assert judge["total"] is None
+        assert "judge exploded" in judge["error"]
