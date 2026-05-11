@@ -65,6 +65,9 @@ class ProxyConfig(BaseModel):
     """Adapter proxy settings for a service.
 
     ``extra_body`` is merged into every outgoing request body.
+    ``extra_headers`` is merged into every outgoing request's headers
+    (hop-by-hop headers — Host, Content-Length, Connection,
+    Transfer-Encoding — are dropped with a warning).
     ``request_timeout`` sets the HTTP timeout for upstream requests.
     ``max_retries`` and ``retry_on_status`` control retry behavior.
     ``max_concurrent_upstream`` limits concurrent requests to the upstream.
@@ -75,6 +78,7 @@ class ProxyConfig(BaseModel):
     interceptors: list[InterceptorConfig] = Field(default_factory=list)
     verbose: bool = False
     extra_body: dict[str, Any] = Field(default_factory=dict)
+    extra_headers: dict[str, str] = Field(default_factory=dict)
     request_timeout: float = 120.0
     max_retries: int = 0
     retry_on_status: list[int] = Field(default_factory=lambda: [429, 502, 503, 504])
@@ -83,7 +87,7 @@ class ProxyConfig(BaseModel):
     @property
     def needs_proxy(self) -> bool:
         """Whether any proxy-relevant config is present."""
-        return bool(self.interceptors or self.extra_body or self.verbose)
+        return bool(self.interceptors or self.extra_body or self.extra_headers or self.verbose)
 
 
 class _ModelServerBase(BaseModel):
