@@ -39,6 +39,100 @@ def load_bundles(paths: list[Path]) -> list[dict[str, Any]]:
     return bundles
 
 
+def load_bundles_for_export(paths: list[Path]) -> list[dict[str, Any]]:
+    """Like :func:`load_bundles` but also reattaches ``results.jsonl`` rows
+    as ``bundle["_results"]`` and records ``_output_path`` for exporters.
+
+    ``_output_path`` points at the **bench dir** (``<run_dir>/<bench>``),
+    matching what the orchestrator sets for in-memory bundles. The *run dir*
+    itself (what exporters expect as ``config["output_dir"]``) is its parent.
+
+    For backward compatibility with runs produced before result rows carried
+    the user prompt, each ``_results`` entry missing a non-empty ``prompt``
+    is enriched by cross-referencing ``inference_log.jsonl`` on
+    ``(problem_idx, repeat)``.
+    """
+    bundles = load_bundles(paths)
+    for bundle in bundles:
+        source = Path(bundle.get("_source", ""))
+        if not source.is_file():
+            continue
+        bundle["_output_path"] = str(source.parent)
+        results_path = source.parent / "results.jsonl"
+        if results_path.is_file():
+            results: list[dict[str, Any]] = []
+            for line in results_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    results.append(json.loads(line))
+                except Exception as exc:
+                    logger.warning("Skipping malformed line in %s: %s", results_path, exc)
+            if results:
+                _enrich_results_with_prompts(results, source.parent / "inference_log.jsonl")
+                bundle["_results"] = results
+    return bundles
+
+
+def _enrich_results_with_prompts(results: list[dict[str, Any]], inference_log_path: Path) -> None:
+    """Populate missing ``prompt`` fields on result rows from ``inference_log.jsonl``.
+
+    No-op when the log file is absent. Matches on ``(problem_idx, repeat)``.
+    Safe on malformed lines and records without the expected keys.
+    """
+    if not any(not row.get("prompt") for row in results):
+        return
+    if not inference_log_path.is_file():
+        return
+    index: dict[tuple[Any, Any], str] = {}
+    try:
+        for line in inference_log_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except Exception:
+                continue
+            prompt = rec.get("prompt")
+            if not prompt:
+                continue
+            key = (rec.get("problem_idx"), rec.get("repeat", 0) or 0)
+            index.setdefault(key, prompt)
+    except OSError as exc:
+        logger.warning("Could not read %s for prompt enrichment: %s", inference_log_path, exc)
+        return
+    if not index:
+        return
+    enriched = 0
+    for row in results:
+        if row.get("prompt"):
+            continue
+        key = (row.get("problem_idx"), row.get("repeat", 0) or 0)
+        prompt = index.get(key)
+        if prompt:
+            row["prompt"] = prompt
+            enriched += 1
+    if enriched:
+        logger.debug("Enriched %d result rows with prompts from %s", enriched, inference_log_path)
+
+
+def discover_bundle_paths(paths: list[Path]) -> list[Path]:
+    """Expand files/directories into ``eval-*.json`` paths (recurses one level)."""
+    expanded: list[Path] = []
+    for p in paths:
+        if p.is_dir():
+            top = sorted(p.glob("eval-*.json"))
+            if top:
+                expanded.extend(top)
+            else:
+                expanded.extend(sorted(p.glob("*/eval-*.json")))
+        else:
+            expanded.append(p)
+    return expanded
+
+
 def build_table(bundles: list[dict[str, Any]]) -> dict[str, Any]:
     benchmarks: dict[str, dict[str, Any]] = {}
     model_name = ""

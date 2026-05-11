@@ -48,11 +48,47 @@ def _iso_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
 
+def _atif_tool_calls_to_inspect(raw_calls: list[dict[str, Any]]) -> list[Any]:
+    """Convert ATIF tool_calls into inspect_ai ToolCall objects."""
+    from inspect_ai.tool import ToolCall
+
+    out: list[Any] = []
+    for call in raw_calls or []:
+        args = call.get("arguments", {})
+        if not isinstance(args, dict):
+            args = {"value": args}
+        out.append(
+            ToolCall(
+                id=str(call.get("tool_call_id") or call.get("id") or ""),
+                function=str(call.get("function_name") or call.get("function") or "tool"),
+                arguments=args,
+            )
+        )
+    return out
+
+
+_SYNTHETIC_TOOL_LABEL_RE = re.compile(r"^Executed \S+ \S+$")
+
+
+def _strip_synthetic_tool_label(text: str, tool_calls: list[dict[str, Any]]) -> str:
+    # ATIF stamps "Executed <fn> <id>" on tool-only turns; the ToolCall dropdown
+    # already carries that info, so drop the duplicate label.
+    if not text or not tool_calls:
+        return text
+    return "" if _SYNTHETIC_TOOL_LABEL_RE.match(text.strip()) else text
+
+
 def _atif_steps_to_messages(trajectory: list[dict[str, Any]]) -> list[Any]:
-    """Convert ATIF trajectory steps into inspect_ai ChatMessage objects."""
+    """Convert ATIF steps to inspect_ai ChatMessages.
+
+    Agent steps with ``tool_calls`` / ``observation`` become a
+    ``ChatMessageAssistant`` (with ToolCalls attached) + one
+    ``ChatMessageTool`` per observation result.
+    """
     from inspect_ai.model import (
         ChatMessageAssistant,
         ChatMessageSystem,
+        ChatMessageTool,
         ChatMessageUser,
     )
 
@@ -60,13 +96,52 @@ def _atif_steps_to_messages(trajectory: list[dict[str, Any]]) -> list[Any]:
     for doc in trajectory:
         for step in doc.get("steps", []):
             source = step.get("source", "")
-            text = step.get("message", "")
+            text = step.get("message", "") or ""
+
             if source == "system":
                 messages.append(ChatMessageSystem(content=text))
-            elif source == "user":
+                continue
+            if source == "user":
                 messages.append(ChatMessageUser(content=text))
-            elif source == "agent":
-                messages.append(ChatMessageAssistant(content=text))
+                continue
+            if source != "agent":
+                continue
+
+            raw_tool_calls = step.get("tool_calls") or []
+            tool_calls = _atif_tool_calls_to_inspect(raw_tool_calls) if raw_tool_calls else None
+
+            content = _strip_synthetic_tool_label(text, raw_tool_calls)
+
+            messages.append(
+                ChatMessageAssistant(
+                    content=content,
+                    tool_calls=tool_calls,
+                    model=step.get("model_name"),
+                )
+            )
+
+            observation = step.get("observation") or {}
+            results = observation.get("results") if isinstance(observation, dict) else None
+            if not results:
+                continue
+
+            call_fn_by_id = {
+                str(c.get("tool_call_id") or ""): str(c.get("function_name") or "tool") for c in raw_tool_calls
+            }
+            for res in results:
+                if not isinstance(res, dict):
+                    continue
+                call_id = str(res.get("source_call_id") or res.get("tool_call_id") or "")
+                res_content = res.get("content", "")
+                if not isinstance(res_content, str):
+                    res_content = json.dumps(res_content, default=str)
+                messages.append(
+                    ChatMessageTool(
+                        content=res_content,
+                        tool_call_id=call_id,
+                        function=call_fn_by_id.get(call_id, "tool"),
+                    )
+                )
     return messages
 
 
@@ -111,11 +186,11 @@ def _build_sample(
     from inspect_ai.model import ModelUsage
     from inspect_ai.scorer import Score
 
+    from nemo_evaluator.engine.exporters._trace_emit import _resolve_prompt
+
     sample_id = result.get("problem_idx", 0)
     epoch = result.get("repeat", 0) + 1
-    prompt = result.get("metadata", {}).get("prompt", "")
-    if not prompt:
-        prompt = result.get("expected_answer", "")
+    prompt = _resolve_prompt(result)
     target = result.get("expected_answer", "")
 
     trajectory = result.get("trajectory", [])
@@ -272,10 +347,16 @@ def _build_eval_log(bundle: dict[str, Any]) -> Any:
 
 
 class InspectExporter:
-    """Export NEL evaluation results as inspect_ai-compatible log files."""
+    """Export NEL results as inspect_ai logs.
 
-    def __init__(self, format: str = "json", **kwargs: Any) -> None:
+    Defaults to ``.eval`` (inspect's native streamable format); ``format="json"``
+    is an opt-in escape hatch for jq/diff workflows.
+    """
+
+    def __init__(self, format: str = "eval", **kwargs: Any) -> None:
         _try_import_inspect()
+        if format not in ("eval", "json"):
+            raise ValueError(f"InspectExporter: unsupported format {format!r}, expected 'eval' or 'json'")
         self._format = format
 
     def export(self, bundles: list[dict[str, Any]], config: dict[str, Any] | None = None) -> None:
@@ -293,10 +374,10 @@ class InspectExporter:
 
             log = _build_eval_log(bundle)
 
-            if self._format == "eval":
-                self._write_eval_format(log, task_dir, safe_name)
-            else:
+            if self._format == "json":
                 self._write_json_format(log, task_dir, safe_name)
+            else:
+                self._write_eval_format(log, task_dir, safe_name)
 
     def _write_json_format(self, log: Any, task_dir: Path, name: str) -> None:
         path = task_dir / f"{name}_inspect.json"
