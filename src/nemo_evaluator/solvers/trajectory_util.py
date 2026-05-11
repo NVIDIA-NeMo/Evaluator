@@ -35,20 +35,32 @@ def build_atif_trajectory(
     completion_tokens: int | None = None,
     status: str | None = None,
     extra: dict[str, Any] | None = None,
+    user_prompt: str | None = None,
+    system_prompt: str | None = None,
 ) -> list[dict[str, Any]]:
     """Build a single-element list containing one ATIF-v1.6 trajectory document.
 
-    Returns ``[atif_doc]`` — the list wrapper that ``SolveResult.trajectory``
-    expects.  Each step is auto-numbered (``step_id`` 1, 2, 3, ...) and must
-    have at minimum ``source`` and ``message``.
+    Steps are auto-numbered (``step_id`` 1, 2, 3, ...). When ``user_prompt``
+    is supplied and ``steps`` does not already begin with a user/system
+    step, an initiating user step (optionally preceded by ``system_prompt``)
+    is prepended. Idempotent when the caller already seeds a user turn.
     """
+    normalized = [dict(s) for s in steps]
+    if user_prompt:
+        leading_source = normalized[0].get("source") if normalized else None
+        if leading_source not in ("user", "system"):
+            prelude: list[dict[str, Any]] = []
+            if system_prompt:
+                prelude.append({"source": "system", "message": system_prompt})
+            prelude.append({"source": "user", "message": user_prompt})
+            normalized = prelude + normalized
+
     numbered_steps = []
-    for i, step in enumerate(steps, start=1):
+    for i, step in enumerate(normalized, start=1):
         s = dict(step)
-        s.setdefault("step_id", i)
+        s["step_id"] = i
         numbered_steps.append(s)
 
-    # Auto-derive totals from per-step metrics when caller didn't provide them.
     if prompt_tokens is None and completion_tokens is None:
         prompt_tokens = 0
         completion_tokens = 0
@@ -98,12 +110,7 @@ def build_single_turn_atif(
     system: str | None = None,
     model_name: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Build an ATIF trajectory for a single-turn model call (chat/completion/VLM).
-
-    Produces 2-3 steps: optional system, user prompt, and agent response.
-    The agent response ``message`` is the model output (may be empty string
-    for agent benchmarks where the result is file modifications).
-    """
+    """Build an ATIF trajectory for a single-turn model call."""
     steps: list[dict[str, Any]] = []
     if system:
         steps.append({"source": "system", "message": system})
