@@ -1165,6 +1165,69 @@ class TestMultinodeRay:
         assert "--tensor-parallel-size 4" in script
 
 
+class TestMultinodeSglang:
+    """Multi-node SGLang deployment uses native torch.distributed rendezvous,
+    not Ray. SGLang doesn't accept ``--distributed-executor-backend ray``."""
+
+    def _cfg(self, **svc_overrides):
+        svc = {
+            "type": "sglang",
+            "model": "nvidia/glm",
+            "protocol": "chat_completions",
+            "port": 8000,
+            "tensor_parallel_size": 8,
+            "num_nodes": 2,
+        }
+        svc.update(svc_overrides)
+        return EvalConfig.model_validate(
+            {
+                "services": {"model": svc},
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "04:00:00",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 2, "gres": "gpu:4"}},
+                },
+            }
+        )
+
+    def test_multinode_sglang_emits_torch_distributed_flags(self):
+        script, _, _ = generate_sbatch(self._cfg())
+        assert "--nnodes 2" in script
+        assert "--node-rank" in script
+        assert "--dist-init-addr" in script
+
+    def test_multinode_sglang_does_not_emit_ray_flag(self):
+        script, _, _ = generate_sbatch(self._cfg())
+        assert "--distributed-executor-backend ray" not in script
+
+    def test_multinode_sglang_has_no_ray_bootstrap(self):
+        script, _, _ = generate_sbatch(self._cfg())
+        assert "ray start --head" not in script
+        assert "ray start --address" not in script
+
+    def test_multinode_sglang_master_ip_discovery_present(self):
+        script, _, _ = generate_sbatch(self._cfg())
+        assert "MASTER_IP=" in script
+        assert "scontrol show hostname" in script
+
+    def test_multinode_sglang_uses_multi_task_srun(self):
+        """Each node runs the same launch with explicit rank passed positionally
+        through a per-node srun loop (no head/worker distinction like Ray needs)."""
+        script, _, _ = generate_sbatch(self._cfg(num_nodes=4))
+        assert "--nnodes 4" in script
+        assert "for _NODE in $_NODES" in script
+        assert 'NEL_NODE_RANK="${1:-0}"' in script
+
+    def test_singlenode_sglang_no_torch_dist_flags(self):
+        script, _, _ = generate_sbatch(self._cfg(num_nodes=1))
+        assert "--nnodes" not in script
+        assert "--node-rank" not in script
+        assert "--dist-init-addr" not in script
+
+
 # ---------------------------------------------------------------------------
 # Lifecycle helpers
 # ---------------------------------------------------------------------------
@@ -1261,6 +1324,26 @@ class TestShardedStatus:
         state = SlurmExecutor().status("/out")
         assert state.running is True
         assert state.details["state"] == "RUNNING"
+
+    @patch("nemo_evaluator.executors.slurm_executor._read_meta")
+    @patch("nemo_evaluator.executors.slurm_executor._resolve_shard_latest_ids")
+    @patch("nemo_evaluator.executors.ssh.batch_check_job_status")
+    @patch("nemo_evaluator.executors.slurm_executor._find_pending_successors")
+    @patch("nemo_evaluator.executors.ssh.ssh_run", return_value="DONE")
+    def test_status_shows_original_and_chain_ids(self, mock_ssh, mock_succ, mock_batch, mock_latest, mock_meta):
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+
+        job_ids = ["10"]
+        mock_meta.return_value = self._make_meta(job_ids)
+        mock_latest.return_value = job_ids
+        mock_succ.return_value = {"10": ("20", "RUNNING")}
+        mock_batch.return_value = {
+            "10": {"job_id": "10", "state": "FAILED"},
+        }
+
+        state = SlurmExecutor().status("/run/parent")
+        assert state.running is True
+        assert "job 10, chain 20" in state.details["shard_0"]
 
     @patch("nemo_evaluator.executors.slurm_executor._read_meta")
     @patch("nemo_evaluator.executors.slurm_executor._resolve_shard_latest_ids")
@@ -1872,6 +1955,13 @@ class TestResolveLatestJobId:
         mock_ssh.return_value = ""
         assert _resolve_latest_job_id("h", "/run", "100") == "100"
 
+    @patch("nemo_evaluator.executors.ssh.ssh_run")
+    def test_noisy_chain_uses_last_numeric_line(self, mock_ssh):
+        from nemo_evaluator.executors.slurm_executor import _resolve_latest_job_id
+
+        mock_ssh.return_value = "Warning: banner\n86716\n"
+        assert _resolve_latest_job_id("h", "/run", "100") == "86716"
+
     @patch("nemo_evaluator.executors.ssh.ssh_run", side_effect=Exception("SSH down"))
     def test_ssh_error_returns_fallback(self, mock_ssh):
         from nemo_evaluator.executors.slurm_executor import _resolve_latest_job_id
@@ -1906,6 +1996,14 @@ class TestResolveShardLatestIds:
         result = _resolve_shard_latest_ids("h", "/run", ["10", "11", "12"])
         assert result == ["10", "11", "12"]
 
+    @patch("nemo_evaluator.executors.ssh.ssh_run")
+    def test_noisy_output_keeps_numeric_ids(self, mock_ssh):
+        from nemo_evaluator.executors.slurm_executor import _resolve_shard_latest_ids
+
+        mock_ssh.return_value = "ssh-banner\n200\n201\n202\n"
+        result = _resolve_shard_latest_ids("h", "/run", ["10", "11", "12"])
+        assert result == ["200", "201", "202"]
+
     @patch("nemo_evaluator.executors.ssh.ssh_run", side_effect=Exception("SSH down"))
     def test_ssh_error_returns_fallback(self, mock_ssh):
         from nemo_evaluator.executors.slurm_executor import _resolve_shard_latest_ids
@@ -1925,6 +2023,15 @@ class TestResolveShardLatestIds:
         mock_ssh.return_value = "999\n"
         result = _resolve_shard_latest_ids("h", "/run", ["10"])
         assert result == ["999"]
+
+    @patch("nemo_evaluator.executors.slurm_executor._resolve_latest_job_id")
+    def test_single_shard_reads_chain_from_shard_dir(self, mock_latest):
+        from nemo_evaluator.executors.slurm_executor import _resolve_shard_latest_ids
+
+        mock_latest.return_value = "999"
+        result = _resolve_shard_latest_ids("h", "/run_parent", ["10"], "user")
+        assert result == ["999"]
+        mock_latest.assert_called_once_with("h", "/run_parent/shard_0", "10", "user")
 
 
 # ---------------------------------------------------------------------------

@@ -233,6 +233,32 @@ echo "Master IP: $MASTER_IP"
 export MASTER_IP
 """
 
+_SGLANG_MULTINODE_SERVICE = """\
+# Service: {name} ({svc_type}, multi-node torch.distributed: {num_nodes} nodes)
+echo "Starting multi-node {svc_type} server: {name}..."
+echo "  Logs: $OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log"
+
+# All N nodes run identical `sglang serve --node-rank <R> --dist-init-addr
+# $MASTER_IP:$DIST_PORT` in parallel. SGLang's torch.distributed rendezvous
+# synchronizes them at init. Only rank 0 (on MASTER_IP) hosts the HTTP API;
+# other ranks are TP workers without an HTTP server.
+DIST_PORT={dist_port}
+export DIST_PORT
+_NODES=$(scontrol show hostnames "{nodelist_var}")
+_RANK=0
+for _NODE in $_NODES; do
+    {srun_prefix_single_node}--container-name=nel-{safe_name}-rank$_RANK -w $_NODE bash "$OUTPUT_DIR/logs/{script_file}" $_RANK >> "$OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log" 2>&1 &
+    if [ $_RANK -eq 0 ]; then
+        {name_upper}_PID=$!
+    fi
+    _RANK=$((_RANK + 1))
+done
+
+ln -sf "server-{name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/server-{name}.log"
+{name_upper}_URL="http://localhost:{port}/v1"
+{name_upper}_MODEL={model}
+"""
+
 _RAY_MULTINODE_SERVICE = """\
 # Service: {name} ({svc_type}, multi-node Ray: {num_nodes} nodes)
 echo "Starting multi-node Ray {svc_type} server: {name}..."
@@ -752,12 +778,24 @@ def _service_block(
         num_nodes = getattr(svc, "num_nodes", 1)
         safe_name = _safe(name)
 
+        sglang_dist_port = 29500
         if num_nodes > 1:
-            full_cmd = f"{main_cmd} --distributed-executor-backend ray"
+            if svc.type == "sglang":
+                full_cmd = (
+                    f"{main_cmd} --nnodes {num_nodes} "
+                    f'--node-rank "${{NEL_NODE_RANK:-0}}" '
+                    f'--dist-init-addr "${{MASTER_IP}}:{sglang_dist_port}"'
+                )
+            else:
+                full_cmd = f"{main_cmd} --distributed-executor-backend ray"
         else:
             full_cmd = main_cmd
 
-        script_lines = ["set -euo pipefail"] + list(setup_list) + [full_cmd]
+        script_lines = ["set -euo pipefail"] + list(setup_list)
+        if num_nodes > 1 and svc.type == "sglang":
+            script_lines.append('NEL_NODE_RANK="${1:-0}"')
+            script_lines.append("export NEL_NODE_RANK")
+        script_lines.append(full_cmd)
         script_file = f"_svc_{safe_name}_cmd_$SLURM_JOB_ID.sh"
         script_heredoc = (
             f"cat > \"$OUTPUT_DIR/logs/{script_file}\" <<'_NEMO_SVC_CMD_EOF_'\n"
@@ -791,6 +829,29 @@ def _service_block(
             if het_flag:
                 het_idx = het_flag.strip().split("=")[-1]
                 nodelist_var = f"$SLURM_JOB_NODELIST_HET_GROUP_{het_idx}"
+
+            if svc.type == "sglang":
+                # Per-node srun prefix WITHOUT the Ray head/worker baked-in
+                # naming or pinning. The for-loop in _SGLANG_MULTINODE_SERVICE
+                # appends `--container-name=...rank$_RANK -w $_NODE` itself.
+                sglang_per_node_srun = head_srun.rstrip() + " "
+                return (
+                    reexport_block
+                    + script_heredoc
+                    + _SGLANG_MULTINODE_SERVICE.format(
+                        name=name,
+                        name_upper=upper,
+                        svc_type=svc.type,
+                        model=shlex.quote(model_api_name or ""),
+                        port=svc.port,
+                        num_nodes=num_nodes,
+                        dist_port=sglang_dist_port,
+                        srun_prefix_single_node=sglang_per_node_srun,
+                        nodelist_var=nodelist_var,
+                        safe_name=safe,
+                        script_file=script_file,
+                    )
+                )
 
             return (
                 reexport_block
