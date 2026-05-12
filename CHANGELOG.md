@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.13.0 (unreleased)
+## 0.3.0 (unreleased)
 
 ### Adapter Proxy (Breaking — replaces LiteLLM)
 
