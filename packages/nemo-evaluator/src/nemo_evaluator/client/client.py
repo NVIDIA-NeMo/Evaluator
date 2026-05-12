@@ -18,10 +18,10 @@
 import asyncio
 from typing import Any, List, Optional
 
-from openai import AsyncOpenAI
+from openai import APITimeoutError, AsyncOpenAI
 from tenacity import (
     AsyncRetrying,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
 )
@@ -29,10 +29,60 @@ from tqdm.asyncio import tqdm_asyncio
 
 from nemo_evaluator.api.api_dataclasses import EndpointModelConfig
 from nemo_evaluator.client.adapter_transport import create_async_adapter_http_client
+from nemo_evaluator.common.nvcf import DEFAULT_NVCF_POLL_SECONDS, is_nvcf_url
 from nemo_evaluator.core.utils import get_api_key_from_env
 from nemo_evaluator.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def _prepare_request_headers(
+    model_url: str,
+    *,
+    stream: bool | None,
+    headers: dict[str, str] | None,
+) -> dict[str, str]:
+    prepared_headers = dict(headers or {})
+    if is_nvcf_url(model_url) and not stream:
+        prepared_headers.setdefault("NVCF-POLL-SECONDS", DEFAULT_NVCF_POLL_SECONDS)
+    return prepared_headers
+
+
+def _should_retry_exception(exc: Exception, *, is_nvcf: bool) -> bool:
+    status_code = getattr(exc, "status_code", None)
+    if status_code is not None:
+        if 400 <= status_code < 500 and status_code != 429:
+            return False
+        if is_nvcf and status_code == 504:
+            return False
+    if is_nvcf and isinstance(exc, APITimeoutError):
+        return False
+    return True
+
+
+async def _consume_chat_stream(stream: Any) -> str:
+    chunks: list[str] = []
+    async for event in stream:
+        if not getattr(event, "choices", None):
+            continue
+        delta = getattr(event.choices[0], "delta", None)
+        if delta is None:
+            continue
+        content = getattr(delta, "content", None)
+        if content:
+            chunks.append(content)
+    return "".join(chunks)
+
+
+async def _consume_completion_stream(stream: Any) -> str:
+    chunks: list[str] = []
+    async for event in stream:
+        if not getattr(event, "choices", None):
+            continue
+        text = getattr(event.choices[0], "text", None)
+        if text:
+            chunks.append(text)
+    return "".join(chunks)
 
 
 class NeMoEvaluatorClient:
@@ -60,8 +110,19 @@ class NeMoEvaluatorClient:
         self.top_p = endpoint_model_config.top_p
         self.max_new_tokens = endpoint_model_config.max_new_tokens
         self.request_timeout = endpoint_model_config.request_timeout
-        self.max_retries = endpoint_model_config.max_retries or 5
+        self.max_retries = (
+            endpoint_model_config.max_retries
+            if endpoint_model_config.max_retries is not None
+            else 5
+        )
         self.parallelism = endpoint_model_config.parallelism or 1
+        self.stream = endpoint_model_config.stream
+        self.extra_headers = _prepare_request_headers(
+            self.model_url,
+            stream=self.stream,
+            headers=endpoint_model_config.headers,
+        )
+        self.is_nvcf = is_nvcf_url(self.model_url)
         self.output_dir = output_dir
 
         is_base_url = endpoint_model_config.is_base_url or False
@@ -101,9 +162,9 @@ class NeMoEvaluatorClient:
         """Execute function with retry logic and exponential backoff."""
         attempt = 0
         async for attempt_state in AsyncRetrying(
-            stop=stop_after_attempt(self.max_retries),
+            stop=stop_after_attempt(max(self.max_retries, 1)),
             wait=wait_exponential(multiplier=2, min=2, max=120),
-            retry=retry_if_exception_type(Exception),
+            retry=retry_if_exception(lambda exc: _should_retry_exception(exc, is_nvcf=self.is_nvcf)),
             reraise=True,
         ):
             with attempt_state:
@@ -111,7 +172,14 @@ class NeMoEvaluatorClient:
                 try:
                     return await func(*args, **kwargs)
                 except Exception as e:
-                    if attempt < self.max_retries:
+                    if not _should_retry_exception(e, is_nvcf=self.is_nvcf):
+                        logger.error(
+                            "Request failure is not retryable; will not retry",
+                            error_type=type(e).__name__,
+                            status_code=getattr(e, "status_code", None),
+                            is_nvcf=self.is_nvcf,
+                        )
+                    elif attempt < self.max_retries:
                         logger.warning(
                             f"Request failed (attempt {attempt}/{self.max_retries}): {type(e).__name__}: {str(e)}"
                         )
@@ -137,14 +205,25 @@ class NeMoEvaluatorClient:
             params["max_tokens"] = self.max_new_tokens
         if self.top_p is not None:
             params["top_p"] = self.top_p
+        if self.stream is not None and "stream" not in params:
+            params["stream"] = self.stream
+        if self.extra_headers and "extra_headers" not in params:
+            params["extra_headers"] = self.extra_headers
         if seed is not None:
             params["seed"] = seed
 
+        streaming = bool(params.get("stream"))
+
         async def _make_request():
             async with self.semaphore:
-                return await self.client.chat.completions.create(**params)
+                result = await self.client.chat.completions.create(**params)
+                if streaming:
+                    return await _consume_chat_stream(result)
+                return result
 
         response = await self._retry_with_backoff(_make_request)
+        if streaming:
+            return response or ""
         response_text = response.choices[0].message.content
         return response_text or ""
 
@@ -222,14 +301,25 @@ class NeMoEvaluatorClient:
             params["max_tokens"] = self.max_new_tokens
         if self.top_p is not None:
             params["top_p"] = self.top_p
+        if self.stream is not None and "stream" not in params:
+            params["stream"] = self.stream
+        if self.extra_headers and "extra_headers" not in params:
+            params["extra_headers"] = self.extra_headers
         if seed is not None:
             params["seed"] = seed
 
+        streaming = bool(params.get("stream"))
+
         async def _make_request():
             async with self.semaphore:
-                return await self.client.completions.create(**params)
+                result = await self.client.completions.create(**params)
+                if streaming:
+                    return await _consume_completion_stream(result)
+                return result
 
         response = await self._retry_with_backoff(_make_request)
+        if streaming:
+            return response or ""
         return response.choices[0].text or ""
 
     async def loglikelihood(self, prompt: str, **kwargs) -> dict:
