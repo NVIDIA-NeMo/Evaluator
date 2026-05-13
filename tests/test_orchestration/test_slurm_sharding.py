@@ -1228,6 +1228,636 @@ class TestMultinodeSglang:
         assert "--dist-init-addr" not in script
 
 
+class TestDynamoAggregated:
+    """Aggregated dynamo: one ``python3 -m dynamo.sglang`` worker behind a
+    ``python3 -m dynamo.frontend`` HTTP frontend, coordinated through NATS+etcd.
+    Mode is implicit: presence of ``prefill``/``decode`` switches to disagg, their
+    absence is aggregated."""
+
+    def _cfg(self, num_nodes=1, **svc_overrides):
+        svc = {
+            "type": "dynamo",
+            "model": "nvidia/glm",
+            "protocol": "chat_completions",
+            "port": 8000,
+            "tensor_parallel_size": 8,
+            "num_nodes": num_nodes,
+        }
+        svc.update(svc_overrides)
+        return EvalConfig.model_validate(
+            {
+                "services": {"model": svc},
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "04:00:00",
+                    "node_pools": {
+                        "compute": {"partition": "batch", "nodes": num_nodes, "gres": "gpu:8"},
+                    },
+                },
+            }
+        )
+
+    def test_emits_worker_module(self):
+        script, _, _ = generate_sbatch(self._cfg())
+        assert "python3 -m dynamo.sglang" in script
+
+    def test_emits_frontend(self):
+        script, _, _ = generate_sbatch(self._cfg())
+        assert "python3 -m dynamo.frontend" in script
+        assert "--http-port 8000" in script
+
+    def test_emits_nats_and_etcd(self):
+        script, _, _ = generate_sbatch(self._cfg())
+        assert "nats-server" in script
+        assert "etcd" in script
+
+    def test_dynamo_env_block(self):
+        script, _, _ = generate_sbatch(self._cfg())
+        assert "DYN_REQUEST_PLANE=nats" in script
+        assert "NATS_SERVER" in script
+        assert "ETCD_ENDPOINTS" in script
+
+    def test_singlenode_emits_tp_flag(self):
+        script, _, _ = generate_sbatch(self._cfg(num_nodes=1))
+        assert "--tp-size 8" in script
+
+    def test_singlenode_no_rendezvous_flags(self):
+        script, _, _ = generate_sbatch(self._cfg(num_nodes=1))
+        assert "--nnodes" not in script
+        assert "--node-rank" not in script
+        assert "--dist-init-addr" not in script
+
+    def test_singlenode_no_disagg_flag(self):
+        script, _, _ = generate_sbatch(self._cfg(num_nodes=1))
+        assert "--disaggregation-mode" not in script
+
+    def test_multinode_emits_torch_distributed_flags(self):
+        script, _, _ = generate_sbatch(self._cfg(num_nodes=2, tensor_parallel_size=16))
+        assert "--nnodes 2" in script
+        assert "--node-rank" in script
+        assert "--dist-init-addr" in script
+
+    def test_multinode_no_ray_flag(self):
+        script, _, _ = generate_sbatch(self._cfg(num_nodes=2, tensor_parallel_size=16))
+        assert "--distributed-executor-backend ray" not in script
+        assert "ray start --head" not in script
+
+    def test_multinode_frontend_gated_to_rank_zero(self):
+        """NATS+etcd+frontend run once. On multi-node aggregated they must be
+        gated by node rank so only rank 0 launches them — otherwise N nodes
+        would each spawn a frontend trying to bind the same port."""
+        script, _, _ = generate_sbatch(self._cfg(num_nodes=2, tensor_parallel_size=16))
+        assert 'if [ "$NEL_NODE_RANK" -eq 0 ]' in script or 'if [ "${NEL_NODE_RANK}" -eq 0 ]' in script
+
+    def test_container_env_propagates_output_dir_and_jobid(self):
+        """The worker script writes nats/etcd/frontend logs to
+        ``$OUTPUT_DIR/logs/dynamo-*-$SLURM_JOB_ID.log``. Both vars must be
+        propagated into the container via ``--container-env`` or the script
+        dies with ``unbound variable`` under ``set -euo pipefail``."""
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "dynamo",
+                        "model": "nvidia/glm",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                        "tensor_parallel_size": 8,
+                    }
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "04:00:00",
+                    "container_mounts": ["/lustre:/lustre"],
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1, "gres": "gpu:8"}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "--container-env=OUTPUT_DIR" in script
+        assert "--container-env=SLURM_JOB_ID" in script
+
+    def test_default_image_resolved_from_containers_toml(self):
+        """No explicit image → falls back to containers.toml ``deployment.dynamo``.
+        Container-mount on the cluster forces the use-containers path so the
+        resolved image lands in the generated srun prefix."""
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "dynamo",
+                        "model": "nvidia/glm",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                        "tensor_parallel_size": 8,
+                    }
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "04:00:00",
+                    "container_mounts": ["/lustre:/lustre"],
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1, "gres": "gpu:8"}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "ai-dynamo/sglang-runtime" in script
+
+    def test_health_check_on_frontend_port(self):
+        script, _, _ = generate_sbatch(self._cfg())
+        assert "localhost:8000/health" in script
+
+    def test_health_check_waits_for_worker_registration(self):
+        """The dynamo frontend's /health returns 200 the moment the HTTP
+        server binds — well before any worker has registered via NATS. The
+        health probe must parse the JSON body and count instances per
+        component (mirroring srt-slurm's ``check_dynamo_health``), otherwise
+        the eval kicks off against a not-yet-loaded model and all requests
+        404. Caught by SVG 99094 — model was at 39% of weight loading when
+        the eval finished scoring 10/10 as infra errors."""
+        script, _, _ = generate_sbatch(self._cfg())
+        # The readiness probe parses /health JSON and counts registered
+        # workers per component (prefill / decode / backend), matching
+        # srt-slurm's check_dynamo_health rule.
+        assert "python3" in script
+        assert '"instances"' in script
+        assert '"component"' in script
+        # The generic /health-200-is-enough probe used by vllm/sglang must NOT
+        # appear for dynamo.
+        assert 'curl -sf "http://localhost:8000/health" > /dev/null 2>&1' not in script
+
+    def test_aggregated_health_expects_backend_worker(self):
+        """Aggregated mode reports component=backend on the /health
+        response (per srt-slurm convention). The readiness gate should
+        require at least 1 such worker (expected_decode=1, expected_prefill=0)."""
+        script, _, _ = generate_sbatch(self._cfg())
+        # Aggregated: 0 prefills, 1 decode/backend.
+        assert "n_p >= 0 and n_d >= 1" in script
+
+
+class TestDynamoDisaggregated:
+    """Disaggregated dynamo: separate prefill and decode workers, both running
+    ``python3 -m dynamo.sglang ... --disaggregation-mode {prefill|decode}``.
+    NATS+etcd+frontend run once on the first prefill node."""
+
+    def _cfg(self, prefill=None, decode=None, **svc_overrides):
+        svc = {
+            "type": "dynamo",
+            "model": "nvidia/glm",
+            "protocol": "chat_completions",
+            "port": 8000,
+        }
+        if prefill is not None:
+            svc["prefill"] = prefill
+        if decode is not None:
+            svc["decode"] = decode
+        svc.update(svc_overrides)
+        return EvalConfig.model_validate(
+            {
+                "services": {"model": svc},
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "04:00:00",
+                    "node_pools": {
+                        "prefill_pool": {"partition": "batch", "nodes": 1, "gres": "gpu:8"},
+                        "decode_pool": {"partition": "batch", "nodes": 1, "gres": "gpu:8"},
+                    },
+                },
+            }
+        )
+
+    def _basic_disagg_cfg(self):
+        return self._cfg(
+            prefill={"tensor_parallel_size": 8, "num_nodes": 1, "node_pool": "prefill_pool"},
+            decode={"tensor_parallel_size": 8, "num_nodes": 1, "node_pool": "decode_pool"},
+        )
+
+    def test_emits_both_role_flags(self):
+        script, _, _ = generate_sbatch(self._basic_disagg_cfg())
+        assert "--disaggregation-mode prefill" in script
+        assert "--disaggregation-mode decode" in script
+
+    def test_prefill_emits_bootstrap_port(self):
+        """SGLang's CommonKVBootstrapServer needs an explicit non-default port
+        on prefill workers — the sglang default 8998 collides with dynamo's NATS
+        on the head node and silently breaks multi-node prefill."""
+        script, _, _ = generate_sbatch(self._basic_disagg_cfg())
+        assert "--disaggregation-bootstrap-port" in script
+
+    def test_decode_has_no_bootstrap_port(self):
+        """Only prefill workers run the KV bootstrap server; decode workers
+        connect to it. Putting --disaggregation-bootstrap-port on decode is a
+        no-op at best and confusing at worst — keep it off."""
+        script, _, _ = generate_sbatch(self._basic_disagg_cfg())
+        decode_idx = script.find("--disaggregation-mode decode")
+        prefill_idx = script.find("--disaggregation-mode prefill")
+        assert decode_idx >= 0 and prefill_idx >= 0
+        # Slice the decode launch block (between decode marker and end of file
+        # or next major marker) and assert no bootstrap-port there.
+        decode_block = script[decode_idx : decode_idx + 800]
+        assert "--disaggregation-bootstrap-port" not in decode_block
+
+    def test_emits_two_role_sruns(self):
+        """Disagg requires two per-role srun fan-outs, not a single shared one."""
+        script, _, _ = generate_sbatch(self._basic_disagg_cfg())
+        assert script.count("dynamo.sglang") >= 2
+
+    def test_frontend_runs_once(self):
+        script, _, _ = generate_sbatch(self._basic_disagg_cfg())
+        assert script.count("python3 -m dynamo.frontend") == 1
+
+    def test_emits_worker_tp_flags_per_role(self):
+        cfg = self._cfg(
+            prefill={"tensor_parallel_size": 8, "num_nodes": 1, "node_pool": "prefill_pool"},
+            decode={"tensor_parallel_size": 4, "num_nodes": 1, "node_pool": "decode_pool"},
+        )
+        script, _, _ = generate_sbatch(cfg)
+        assert "--tp-size 8" in script
+        assert "--tp-size 4" in script
+
+    def test_health_check_on_frontend_port(self):
+        script, _, _ = generate_sbatch(self._basic_disagg_cfg())
+        assert "localhost:8000/health" in script
+
+    def test_multinode_per_role_emits_master_ip_discovery(self):
+        """When a per-role worker spans multiple nodes (TP=8 on 4-GPU nodes →
+        num_nodes=2), the worker script references ``${MASTER_IP}`` for NATS,
+        etcd and the torch-distributed init address. ``_any_multinode_service``
+        must look at prefill/decode sub-configs, not just the service-level
+        ``num_nodes``, or the discovery block is dropped and the worker fails
+        with ``MASTER_IP: unbound variable``. Caught by HSG 2670865."""
+        cfg = self._cfg(
+            prefill={"tensor_parallel_size": 8, "num_nodes": 2, "node_pool": "prefill_pool"},
+            decode={"tensor_parallel_size": 8, "num_nodes": 2, "node_pool": "decode_pool"},
+        )
+        # Adjust node_pools to declare 2 nodes per pool for this case.
+        cfg.cluster.node_pools["prefill_pool"].nodes = 2
+        cfg.cluster.node_pools["decode_pool"].nodes = 2
+        script, _, _ = generate_sbatch(cfg)
+        assert "MASTER_IP=$(scontrol show hostname" in script
+        # MASTER_IP must resolve from the prefill pool — that's where
+        # NATS+etcd+frontend live.
+        assert "SLURM_JOB_NODELIST_HET_GROUP_0" in script
+
+    def test_multinode_per_role_uses_distinct_dist_init_leaders(self):
+        """Each worker (prefill, decode) forms its own torch.distributed TP
+        rendezvous and must NOT share ``--dist-init-addr``. Verified against
+        srt-slurm's HSG 2664281 production run, where prefill_w0 / prefill_w1 /
+        decode_w0 each had distinct leader IPs in their dumped server_args.
+        Originally I shared ``MASTER_IP`` between roles and the decode TP
+        group never assembled (Gloo Rank 0 with 'Expected 0 peer ranks').
+
+        New shape: the per-node script reads its leader IP from positional
+        arg ``$2``, and the outer fan-out computes ``_LEADER`` per worker
+        slice — so leaders are per-WORKER (multi-worker-ready), not per-role
+        globals."""
+        cfg = self._cfg(
+            prefill={"tensor_parallel_size": 8, "num_nodes": 2, "node_pool": "prefill_pool"},
+            decode={"tensor_parallel_size": 8, "num_nodes": 2, "node_pool": "decode_pool"},
+        )
+        cfg.cluster.node_pools["prefill_pool"].nodes = 2
+        cfg.cluster.node_pools["decode_pool"].nodes = 2
+        cfg.cluster.container_mounts = ["/lustre:/lustre"]
+        script, _, _ = generate_sbatch(cfg)
+        # Per-role nodelists discovered from each het-group.
+        assert '_PREFILL_NODES=$(scontrol show hostnames "$SLURM_JOB_NODELIST_HET_GROUP_0")' in script
+        assert '_DECODE_NODES=$(scontrol show hostnames "$SLURM_JOB_NODELIST_HET_GROUP_1")' in script
+        # Per-worker leader computed inside the outer loop and passed to the
+        # per-node script as positional arg $2.
+        assert '_LEADER=$(echo "$_SLICE" | head -n 1)' in script
+        assert 'bash "$OUTPUT_DIR/logs/_svc_model_prefill_cmd_$SLURM_JOB_ID.sh" $_NR $_LEADER $_IS_INFRA' in script
+        assert 'bash "$OUTPUT_DIR/logs/_svc_model_decode_cmd_$SLURM_JOB_ID.sh" $_NR $_LEADER $_IS_INFRA' in script
+        # The per-node script binds LEADER_IP from $2 and the worker command
+        # references it (NOT a shared MASTER_IP).
+        assert 'LEADER_IP="${2:-$MASTER_IP}"' in script
+        assert '--dist-init-addr "${LEADER_IP}:29500"' in script
+
+    def test_single_pool_disagg_slices_nodelist(self):
+        """When prefill.node_pool == decode.node_pool, the sbatch is flat
+        (no het-job) and the disagg block must SLICE the pool's nodelist via
+        head/tail — otherwise both roles iterate the SAME nodelist and overlap.
+        This is the shape srt-slurm production recipes use (single allocation
+        with `--segment=N` for rack co-location)."""
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "dynamo",
+                        "model": "nvidia/glm",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                        "prefill": {"tensor_parallel_size": 8, "num_nodes": 2, "node_pool": "compute"},
+                        "decode": {"tensor_parallel_size": 8, "num_nodes": 2, "node_pool": "compute"},
+                    }
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "04:00:00",
+                    "sbatch_extra_flags": {"segment": 4},
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 4, "gres": "gpu:4"}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        # Single flat SBATCH header (no #SBATCH hetjob), `--segment=4`
+        # ensures all 4 nodes land on one NVL72 rack.
+        assert "#SBATCH hetjob" not in script
+        assert "#SBATCH --segment=4" in script
+        # Disagg block slices the pool's nodelist into prefill (first 2) +
+        # decode (next 2) — sed range works for both N=2 and arbitrary sizes.
+        assert '_ALL_NODES=$(scontrol show hostnames "$SLURM_JOB_NODELIST")' in script
+        assert '_PREFILL_NODES=$(echo "$_ALL_NODES" | head -n 2)' in script
+        assert '_DECODE_NODES=$(echo "$_ALL_NODES" | sed -n "3,4p")' in script
+        # Pool sizing: _compute_pool_nodes sums prefill+decode for single-pool
+        # disagg, so the SBATCH allocates 4 nodes.
+        assert "#SBATCH --nodes=4" in script
+
+    def test_health_expects_one_prefill_and_one_decode(self):
+        """Disagg readiness needs BOTH roles registered — gating on either
+        alone would green when /v1/chat/completions still can't generate
+        (prefill-only can't return tokens, decode-only has no KV to consume)."""
+        script, _, _ = generate_sbatch(self._basic_disagg_cfg())
+        assert "n_p >= 1 and n_d >= 1" in script
+
+    def test_multi_worker_disagg_spawns_per_worker_with_distinct_leader(self):
+        """2P+1D wide-EP shape: prefill.num_workers=2, decode.num_workers=1.
+        Each prefill worker gets its OWN node slice and its OWN TP-rendezvous
+        leader (slice[0]); the inner per-node loop ranks 0..num_nodes-1 within
+        that worker. Verified against srt-slurm's HSG 2664281 production run
+        where prefill_w0=10.109.24.19, prefill_w1=10.109.30.165 (distinct).
+
+        With num_nodes=1 per worker the slices are single-host; with num_nodes>1
+        the inner loop emits multi-host TP rendezvous against the slice's
+        leader. The container name encodes worker AND node-rank so two srun's
+        for the same role don't collide on container names."""
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "dynamo",
+                        "model": "nvidia/glm",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                        "prefill": {
+                            "tensor_parallel_size": 4,
+                            "num_workers": 2,
+                            "num_nodes": 1,
+                            "node_pool": "compute",
+                        },
+                        "decode": {
+                            "tensor_parallel_size": 4,
+                            "num_workers": 1,
+                            "num_nodes": 1,
+                            "node_pool": "compute",
+                        },
+                    }
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "04:00:00",
+                    "sbatch_extra_flags": {"segment": 3},
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 3, "gres": "gpu:4"}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        # Pool sized for 2 prefill + 1 decode workers (each 1 node) = 3 nodes.
+        assert "#SBATCH --nodes=3" in script
+        # Single-pool slice: prefill claims first 2 hosts, decode claims host 3.
+        assert '_PREFILL_NODES=$(echo "$_ALL_NODES" | head -n 2)' in script
+        assert '_DECODE_NODES=$(echo "$_ALL_NODES" | sed -n "3,3p")' in script
+        # Outer loop over workers + inner over per-worker nodes.
+        assert "while [ $_W -lt 2 ]; do" in script  # prefill
+        assert "while [ $_W -lt 1 ]; do" in script  # decode
+        # Each worker computes its own leader from its slice.
+        assert '_LEADER=$(echo "$_SLICE" | head -n 1)' in script
+        # Container names include worker AND rank to avoid collisions when a
+        # role spawns multiple workers.
+        assert "--container-name=nel-model-prefill-w$_W-r$_NR" in script
+        assert "--container-name=nel-model-decode-w$_W-r$_NR" in script
+
+    def test_multi_worker_infra_runs_only_on_prefill_worker0_rank0(self):
+        """NATS + etcd + dynamo frontend must run on exactly ONE host across
+        the whole allocation. With multi-prefill (2P+) the rank-0 gate alone
+        is not enough — both prefill workers have a rank 0. The fix is to
+        gate on (worker_idx == 0 AND node_rank == 0) for prefill only; decode
+        workers never run infra."""
+        cfg = self._multi_worker_cfg(prefill_workers=2, decode_workers=1)
+        script, _, _ = generate_sbatch(cfg)
+        # Prefill fan-out flips _IS_INFRA=1 only when both _W and _NR are 0.
+        assert 'if [ "$_W" -eq 0 ] && [ "$_NR" -eq 0 ]; then\n            _IS_INFRA=1' in script
+        # Decode fan-out never sets _IS_INFRA — it stays at the loop default 0.
+        decode_start = script.find("# Decode workers")
+        decode_block = script[decode_start : decode_start + 1500]
+        assert "_IS_INFRA=1" not in decode_block
+        # Per-node script gates the infra block on $IS_INFRA_HOST=="1", NOT
+        # the bare node-rank (multi-worker would otherwise spin up infra per
+        # worker).
+        assert 'if [ "$IS_INFRA_HOST" = "1" ]; then' in script
+        assert "nats-server -js" in script
+
+    def test_multi_worker_health_check_counts_workers(self):
+        """Readiness must gate on the FULL worker count per role — otherwise
+        we declare ready while only one prefill worker has registered, and
+        the dynamo prefill router round-robins traffic to a worker that's
+        still loading weights."""
+        cfg = self._multi_worker_cfg(prefill_workers=2, decode_workers=1)
+        script, _, _ = generate_sbatch(cfg)
+        assert "n_p >= 2 and n_d >= 1" in script
+
+    def test_multi_worker_with_multi_node_per_worker(self):
+        """Production shape: 2 prefill workers × 2 nodes each (TP=8 spanning
+        2 GB200 nodes per worker) + 1 decode worker × 2 nodes. Total = 6 nodes,
+        matching srt-slurm's gb200-fp8-nvl72-port `#SBATCH --nodes=6
+        --segment=6`. Per-worker node slices are 2-long, leader is slice[0],
+        inner loop assigns ranks 0..1 within each worker."""
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "dynamo",
+                        "model": "nvidia/glm",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                        "prefill": {
+                            "tensor_parallel_size": 8,
+                            "num_workers": 2,
+                            "num_nodes": 2,
+                            "node_pool": "compute",
+                        },
+                        "decode": {
+                            "tensor_parallel_size": 8,
+                            "num_workers": 1,
+                            "num_nodes": 2,
+                            "node_pool": "compute",
+                        },
+                    }
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "04:00:00",
+                    "sbatch_extra_flags": {"segment": 6},
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 6, "gres": "gpu:4"}},
+                },
+            }
+        )
+        script, _, _ = generate_sbatch(cfg)
+        # 2*2 + 1*2 = 6 nodes.
+        assert "#SBATCH --nodes=6" in script
+        # Prefill: 2 workers × 2 nodes = 4 first hosts; decode = next 2.
+        assert '_PREFILL_NODES=$(echo "$_ALL_NODES" | head -n 4)' in script
+        assert '_DECODE_NODES=$(echo "$_ALL_NODES" | sed -n "5,6p")' in script
+        # Outer/inner loop bounds reflect the worker × nodes-per-worker shape.
+        assert "_OFF=$((_W * 2 + 1))" in script  # both roles
+        assert "while [ $_W -lt 2 ]; do" in script  # prefill workers
+        assert "while [ $_W -lt 1 ]; do" in script  # decode workers
+        # All 4 workers should form their OWN TP groups against their slice's
+        # leader — multi-node sglang flags must be present.
+        assert "--nnodes 2" in script
+        assert '--node-rank "${NEL_NODE_RANK:-0}"' in script
+        # Health gate matches: 2 prefill workers + 1 decode worker registered.
+        assert "n_p >= 2 and n_d >= 1" in script
+
+    def _multi_worker_cfg(self, *, prefill_workers: int, decode_workers: int):
+        total = prefill_workers + decode_workers
+        return EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "dynamo",
+                        "model": "nvidia/glm",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                        "prefill": {
+                            "tensor_parallel_size": 4,
+                            "num_workers": prefill_workers,
+                            "num_nodes": 1,
+                            "node_pool": "compute",
+                        },
+                        "decode": {
+                            "tensor_parallel_size": 4,
+                            "num_workers": decode_workers,
+                            "num_nodes": 1,
+                            "node_pool": "compute",
+                        },
+                    }
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "04:00:00",
+                    "sbatch_extra_flags": {"segment": total},
+                    "node_pools": {"compute": {"partition": "batch", "nodes": total, "gres": "gpu:4"}},
+                },
+            }
+        )
+
+
+class TestDynamoSchema:
+    def test_partial_disagg_config_rejected(self):
+        """prefill set without decode (or vice versa) is a config error."""
+        import pytest
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError, match="prefill.*decode.*both be set"):
+            EvalConfig.model_validate(
+                {
+                    "services": {
+                        "model": {
+                            "type": "dynamo",
+                            "model": "nvidia/glm",
+                            "protocol": "chat_completions",
+                            "port": 8000,
+                            "tensor_parallel_size": 8,
+                            "prefill": {"tensor_parallel_size": 8},
+                            # decode intentionally missing
+                        }
+                    },
+                    "benchmarks": [
+                        {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                    ],
+                    "cluster": {
+                        "type": "slurm",
+                        "walltime": "04:00:00",
+                        "node_pools": {"compute": {"partition": "batch", "nodes": 1, "gres": "gpu:8"}},
+                    },
+                }
+            )
+
+    def test_aggregated_config_validates(self):
+        EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "dynamo",
+                        "model": "nvidia/glm",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                        "tensor_parallel_size": 8,
+                    }
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "04:00:00",
+                    "node_pools": {"compute": {"partition": "batch", "nodes": 1, "gres": "gpu:8"}},
+                },
+            }
+        )
+
+    def test_disagg_config_validates(self):
+        EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "dynamo",
+                        "model": "nvidia/glm",
+                        "protocol": "chat_completions",
+                        "port": 8000,
+                        "prefill": {"tensor_parallel_size": 8, "node_pool": "prefill_pool"},
+                        "decode": {"tensor_parallel_size": 8, "node_pool": "decode_pool"},
+                    }
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "04:00:00",
+                    "node_pools": {
+                        "prefill_pool": {"partition": "batch", "nodes": 1, "gres": "gpu:8"},
+                        "decode_pool": {"partition": "batch", "nodes": 1, "gres": "gpu:8"},
+                    },
+                },
+            }
+        )
+
+
 # ---------------------------------------------------------------------------
 # Lifecycle helpers
 # ---------------------------------------------------------------------------

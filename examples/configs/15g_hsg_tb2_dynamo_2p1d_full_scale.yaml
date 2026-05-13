@@ -1,0 +1,196 @@
+# Flavor: HSG SLURM + ai-dynamo (sglang, disaggregated, 2P+1D wide-EP, PREFIX CACHE ON)
+#         + Terminal-Bench 2.0 full-scale, conc=600, 3h per-task timeout
+#
+# Seeded from srt-slurm's trajectory-sweep recipe:
+#   srt-slurm-main/recipes/gb200-fp8-nvl72-port/glm5_eagle_traj_sweep.yaml
+#   :override_traj_2p1d
+#
+# Differences from the source recipe:
+#   - `--disable-radix-cache` REMOVED on both roles (enables sglang's radix /
+#     prefix cache — the entire reason for this run; TB2 shares long system-
+#     prompt prefixes across tasks).
+#   - decode `max-running-requests` and `cuda-graph-max-bs` bumped 256 → 768
+#     to comfortably exceed conc=600 with margin.
+#   - context-length stays at 131072 (the model's max; agent eval needs the
+#     full window, unlike sa-bench-tuned recipes).
+#   - benchmark replaced from `traj-replay` (perf sweep) with `terminal_bench_2`
+#     (NEL agent eval) at conc=600 + 3h per-task timeout.
+#
+# Topology (unchanged from source): 2P × 2-nodes-per-worker + 1D × 2-nodes =
+# 6 nodes / 24 GPUs, single NVL72 rack via `--segment=6`.
+#
+# Prerequisites:
+#   - HSG SLURM access (oci-hsg-cs-001)
+#   - AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY env vars for Fargate
+#   - AWS ECS Fargate quota in us-east-1 sufficient for 600 concurrent tasks
+#     (default per-region quota ~100; verify or request increase before submit)
+#   - `batch_long` partition (walltime > 4h)
+#
+# Run:
+#   nel eval run examples/configs/15g_hsg_tb2_dynamo_2p1d_full_scale.yaml --dry-run
+#   nel eval run examples/configs/15g_hsg_tb2_dynamo_2p1d_full_scale.yaml
+
+services:
+  model:
+    type: dynamo
+    model: /lustre/fsw/portfolios/coreai/projects/coreai_dlalgo_compeval/checkpoints/hf_cache/GLM-5.1-FP8
+    served_model_name: GLM-5-FP8
+    protocol: chat_completions
+    port: 8000
+    startup_timeout: 2400.0
+    image: /lustre/fsw/portfolios/coreai/users/iguehring/containers/sglang-runtime-1.1.1-cuda13-nvidia.sqsh
+
+    prefill:
+      tensor_parallel_size: 8
+      num_workers: 2
+      num_nodes: 2
+      node_pool: compute
+      extra_args:
+        - "--quantization=fp8"
+        - "--kv-cache-dtype=fp8_e4m3"
+        - "--disaggregation-transfer-backend=nixl"
+        - "--max-running-requests=256"
+        - "--cuda-graph-max-bs=256"
+        - "--mem-fraction-static=0.7"
+        - "--context-length=131072"
+        - "--chunked-prefill-size=65536"
+        - "--max-prefill-tokens=8192"
+        # Wide-EP knobs:
+        - "--data-parallel-size=8"
+        - "--expert-parallel-size=1"
+        - "--enable-dp-attention"
+        - "--enable-dp-lm-head"
+        - "--load-balance-method=total_tokens"
+        - "--nsa-decode-backend=trtllm"
+        - "--nsa-prefill-backend=trtllm"
+        - "--moe-runner-backend=flashinfer_trtllm"
+        # MNNVL fusion off-switch (auto-enable on SM10X GLM-5 needs the
+        # explicit force-off; bare `enable-flashinfer-allreduce-fusion` is a
+        # store_true flag, so omitting it leaves the default off).
+        - "--enforce-disable-flashinfer-allreduce-fusion"
+        # NOTE: `--disable-radix-cache` intentionally DROPPED → prefix cache ENABLED.
+        - "--disable-flashinfer-autotune"
+        - "--stream-interval=30"
+        - "--watchdog-timeout=1000000"
+        - "--model-loader-extra-config={\"enable_multithread_load\": true}"
+      extra_env:
+        TORCH_DISTRIBUTED_DEFAULT_TIMEOUT: "1800"
+        SGLANG_DISAGGREGATION_HEARTBEAT_MAX_FAILURE: "100000"
+        SGLANG_DISAGGREGATION_BOOTSTRAP_TIMEOUT: "100000"
+        SGLANG_DISAGGREGATION_WAITING_TIMEOUT: "100000"
+        SGLANG_MOONCAKE_CUSTOM_MEM_POOL: "True"
+        SGLANG_USE_MESSAGE_QUEUE_BROADCASTER: "0"
+        SGLANG_ENABLE_JIT_DEEPGEMM: "false"
+        SGLANG_ENABLE_FLASHINFER_GEMM: "1"
+        NCCL_CUMEM_ENABLE: "1"
+        MC_FORCE_MNNVL: "1"
+        NCCL_MNNVL_ENABLE: "1"
+        MC_TE_METRIC: "true"
+        SGLANG_DISABLE_TP_MEMORY_INBALANCE_CHECK: "1"
+        LD_LIBRARY_PATH: "/usr/local/lib/python3.12/dist-packages/nixl_cu13.libs/ucx"
+        UCX_TLS: "rc_x,rc,dc_x,dc,cuda_copy,cuda_ipc"
+        UCX_NET_DEVICES: "mlx5_0:1"
+        UCX_RNDV_SCHEME: "get_zcopy"
+        UCX_RNDV_THRESH: "0"
+        UCX_IB_REG_METHODS: "odp,rcache"
+        UCX_RC_TIMEOUT: "600s"
+        UCX_KEEPALIVE_INTERVAL: "300s"
+        UCX_MEMTYPE_CACHE: "n"
+
+    decode:
+      tensor_parallel_size: 8
+      num_workers: 1
+      num_nodes: 2
+      node_pool: compute
+      extra_args:
+        - "--quantization=fp8"
+        - "--kv-cache-dtype=fp8_e4m3"
+        - "--disaggregation-transfer-backend=nixl"
+        - "--mem-fraction-static=0.8"
+        - "--context-length=131072"
+        # Wide-EP knobs (matches the override_traj_2p1d decode block):
+        - "--data-parallel-size=8"
+        - "--expert-parallel-size=1"
+        - "--enable-dp-attention"
+        - "--enable-dp-lm-head"
+        - "--load-balance-method=total_tokens"
+        # Sized for conc=600: source recipe had 256 (sa-bench-tuned for ≤512
+        # streams). Bumped to 768 so the decode worker accepts 600 in-flight
+        # with margin for spec-decode queue depth + radix-cache lookups.
+        - "--max-running-requests=768"
+        - "--cuda-graph-max-bs=768"
+        - "--nsa-decode-backend=trtllm"
+        - "--nsa-prefill-backend=trtllm"
+        - "--moe-runner-backend=flashinfer_trtllm"
+        - "--enforce-disable-flashinfer-allreduce-fusion"
+        # NOTE: `--disable-radix-cache` intentionally DROPPED → prefix cache ENABLED.
+        - "--disable-flashinfer-autotune"
+        - "--stream-interval=30"
+        - "--watchdog-timeout=1000000"
+        - "--model-loader-extra-config={\"enable_multithread_load\": true}"
+        # EAGLE-3 speculative decoding (production recipe).
+        - "--speculative-algorithm=EAGLE"
+        - "--speculative-num-steps=3"
+        - "--speculative-eagle-topk=1"
+        - "--speculative-num-draft-tokens=4"
+      extra_env:
+        SGLANG_ENABLE_SPEC_V2: "1"
+        TORCH_DISTRIBUTED_DEFAULT_TIMEOUT: "1800"
+        SGLANG_DISAGGREGATION_HEARTBEAT_MAX_FAILURE: "100000"
+        SGLANG_DISAGGREGATION_BOOTSTRAP_TIMEOUT: "100000"
+        SGLANG_DISAGGREGATION_WAITING_TIMEOUT: "100000"
+        SGLANG_MOONCAKE_CUSTOM_MEM_POOL: "True"
+        SGLANG_USE_MESSAGE_QUEUE_BROADCASTER: "0"
+        SGLANG_ENABLE_JIT_DEEPGEMM: "false"
+        SGLANG_ENABLE_FLASHINFER_GEMM: "1"
+        NCCL_CUMEM_ENABLE: "1"
+        MC_FORCE_MNNVL: "1"
+        NCCL_MNNVL_ENABLE: "1"
+        MC_TE_METRIC: "true"
+        SGLANG_DISABLE_TP_MEMORY_INBALANCE_CHECK: "1"
+        LD_LIBRARY_PATH: "/usr/local/lib/python3.12/dist-packages/nixl_cu13.libs/ucx"
+        UCX_TLS: "rc_x,rc,dc_x,dc,cuda_copy,cuda_ipc"
+        UCX_NET_DEVICES: "mlx5_0:1"
+        UCX_RNDV_SCHEME: "get_zcopy"
+        UCX_RNDV_THRESH: "0"
+        UCX_IB_REG_METHODS: "odp,rcache"
+        UCX_RC_TIMEOUT: "600s"
+        UCX_KEEPALIVE_INTERVAL: "300s"
+        UCX_MEMTYPE_CACHE: "n"
+
+benchmarks:
+  - playbook: terminal_bench_2
+    max_concurrent: 600
+    timeout: 10800.0      # 3 h per task
+    sandbox:
+      region: us-east-1
+      ecr_repository: "463701203462.dkr.ecr.us-east-1.amazonaws.com/harbor-us-east-1"
+      concurrency: 600
+      log_stream_prefix: terminalbench-fep856-2p1d-fullscale
+
+cluster:
+  type: slurm
+  hostname: oci-hsg-cs-001-login-01.nvidia.com
+  account: coreai_dlalgo_llm
+  # batch partition is ≤4h on HSG; with ~30 min boot + up to 3h per-task we
+  # need a longer window. batch_long is the right partition for this run.
+  walltime: "05:00:00"
+  eval_image: gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nemo-evaluator-next:0.18.3-harbor-arm64
+  container_mounts:
+    - /lustre:/lustre
+  container_env:
+    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+    AWS_DEFAULT_REGION: us-east-1
+    LLM_API_KEY: "no-key-needed"
+  mount_home: false
+  sbatch_extra_flags:
+    segment: 6
+  node_pools:
+    compute:
+      partition: batch_long
+      nodes: 6
+      gres: "gpu:4"
+
+output:
+  dir: /home/iguehring/nel-eval-fep856-2p1d-fullscale

@@ -1,0 +1,70 @@
+# Flavor: SLURM + ai-dynamo (sglang engine, aggregated mode) + gsm8k smoke
+#
+# Deploys NVIDIA ai-dynamo with its sglang engine on a single SVG B200 node
+# (TP=8). NEL starts NATS + etcd + python3 -m dynamo.frontend in the
+# background, then runs the worker (python3 -m dynamo.sglang). Workers
+# self-register via NATS; the frontend exposes the OpenAI-compatible /v1
+# endpoint at localhost:8000.
+#
+# Prerequisites:
+#   - SVG SLURM cluster access
+#   - GLM-5.1-FP8 weights at the lustre path below (update if your copy
+#     lives elsewhere)
+#   - The dynamo runtime container is pulled lazily by pyxis from NGC
+#
+# Run:
+#   nel eval run examples/configs/15c_slurm_gsm8k_dynamo.yaml --dry-run
+#   nel eval run examples/configs/15c_slurm_gsm8k_dynamo.yaml
+
+services:
+  glm5-dynamo:
+    type: dynamo
+    model: /lustre/fsw/portfolios/coreai/projects/coreai_dlalgo_compeval/checkpoints/hf_cache/GLM-5.1-FP8
+    served_model_name: glm5
+    protocol: chat_completions
+    port: 8000
+    tensor_parallel_size: 8
+    startup_timeout: 1800.0
+    # Local pre-imported sqsh on SVG. Skip the 22 GB NGC pull. The
+    # containers.toml default (`nvcr.io/nvidia/ai-dynamo/sglang-runtime:1.1.1-cuda13`)
+    # still works as a fallback on clusters that don't have the sqsh staged.
+    image: /lustre/fsw/portfolios/coreai/users/iguehring/containers/sglang-runtime-1.1.0-cuda13-amd64.sqsh
+    # GLM-5.1-FP8 on SVG B200 single-node TP=8 needs:
+    #   - disable-flashinfer-autotune  → without it the autotune loop hangs
+    #   - SGLANG_ENABLE_JIT_DEEPGEMM=false → falls back to pre-compiled flashinfer
+    #     GEMM kernels; the JIT path silently hangs on this GPU/model combo
+    # (Both are documented in field-notes 2026-05-11 as the prerequisites that
+    # unblocked the GLM-5 single-node TP=8 serving path on SVG.)
+    extra_args:
+      - "--trust-remote-code"
+      - "--mem-fraction-static=0.85"
+      - "--disable-flashinfer-autotune"
+    extra_env:
+      SGLANG_ENABLE_JIT_DEEPGEMM: "false"
+      SGLANG_ENABLE_FLASHINFER_GEMM: "1"
+      # UCX/NIxl agent init runs at dynamo worker startup even in aggregated
+      # mode. On SVG nodes (12 active mlx5_* HCAs), the default UCX device
+      # probe overflows UCX's 128-transport cap and the worker hangs in
+      # do_poll forever. Pin to mlx5_0:1 + restricted TLS per field-notes
+      # 2026-05-11 "winning combo on SVG B200 single-node TP=8".
+      UCX_TLS: "rc_x,rc,dc_x,dc,cuda_copy,cuda_ipc"
+      UCX_NET_DEVICES: "mlx5_0:1"
+
+benchmarks:
+  - name: gsm8k
+    max_problems: 10
+    solver:
+      type: simple
+      service: glm5-dynamo
+
+cluster:
+  type: slurm
+  walltime: "01:00:00"
+  account: coreai_dlalgo_compeval
+  container_mounts:
+    - "/lustre:/lustre"
+  node_pools:
+    compute:
+      partition: batch
+      nodes: 1
+      gres: "gpu:8"
