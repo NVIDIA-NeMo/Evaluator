@@ -115,6 +115,67 @@ If a benchmark fails within a multi-benchmark SLURM suite, re-submit with `--res
 nel eval run slurm_eval.yaml --resume
 ```
 
+## ai-dynamo deployment
+
+Deploy NVIDIA `ai-dynamo` (sglang engine) as a managed service. Dynamo is multi-process by design — NEL launches the NATS broker, etcd, the `dynamo.frontend` HTTP server, and the `dynamo.sglang` worker(s) in one sbatch job. The OpenAI-compatible endpoint is the frontend on `svc.port`.
+
+**Aggregated** (one worker):
+
+```yaml
+services:
+  glm:
+    type: dynamo
+    model: /lustre/path/to/GLM-5.1-FP8
+    served_model_name: glm
+    protocol: chat_completions
+    port: 8000
+    tensor_parallel_size: 8
+```
+
+For multi-node TP the worker rendezvouses via sglang's torch.distributed (`--nnodes/--node-rank/--dist-init-addr`); set `num_nodes: 2` and `tensor_parallel_size: 16` and NEL gates the NATS/etcd/frontend bootstrap on rank 0.
+
+**Disaggregated** (separate prefill + decode workers, KV transfer over NIxl/UCX-CUDA):
+
+```yaml
+services:
+  glm:
+    type: dynamo
+    model: /lustre/path/to/GLM-5.1-FP8
+    served_model_name: glm
+    protocol: chat_completions
+    port: 8000
+    prefill:
+      tensor_parallel_size: 8
+      num_nodes: 1
+      node_pool: prefill_pool
+      extra_env:
+        UCX_TLS: "rc_x,rc,cuda_copy,cuda_ipc"
+        UCX_NET_DEVICES: "mlx5_0:1"
+    decode:
+      tensor_parallel_size: 8
+      num_nodes: 1
+      node_pool: decode_pool
+      extra_env:
+        UCX_TLS: "rc_x,rc,cuda_copy,cuda_ipc"
+        UCX_NET_DEVICES: "mlx5_0:1"
+
+cluster:
+  type: slurm
+  node_pools:
+    prefill_pool:
+      partition: batch
+      nodes: 1
+      gres: "gpu:8"
+    decode_pool:
+      partition: batch
+      nodes: 1
+      gres: "gpu:8"
+```
+
+Mode is implicit: presence of `prefill` AND `decode` switches to disaggregated; their absence (default) is aggregated. Setting only one of the pair is a validation error.
+
+Default image: `nvcr.io/nvidia/ai-dynamo/sglang-runtime:1.1.1-cuda13` from NGC. Override per service with `image:` or globally via `containers.toml`.
+
 ## Heterogeneous jobs
 
 For configurations that require separate GPU and CPU nodes (e.g., model on GPU + sandboxes on CPU), define multiple node pools:

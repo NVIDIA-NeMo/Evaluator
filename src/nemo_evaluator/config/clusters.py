@@ -65,6 +65,13 @@ class NodePool(BaseModel):
     ntasks_per_node: int = 1
     gres: str | None = None
     gpus_per_node: int | None = None
+    # Per-pool sbatch directives, emitted alongside this pool's #SBATCH --nodes
+    # / --partition / etc. in het-job mode. Use for topology constraints like
+    # ``segment: <nodes>`` on GB200 NVL72 clusters so the het-group's nodes
+    # land on the same NVL72 rack — required for cross-node TP=8 via the
+    # NVLink Switch System (without it, ranks fall back to IB and intra-worker
+    # collectives are significantly slower).
+    sbatch_extra_flags: dict[str, str | int | float | bool] = Field(default_factory=dict)
 
 
 class SlurmCluster(BaseModel):
