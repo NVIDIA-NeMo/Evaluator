@@ -56,8 +56,10 @@ jobs:
         id: version
         run: |
           N=$(git rev-list --count HEAD)
+          # pyproject.toml is what uv build reads for the wheel filename
+          sed -i "s/^version = \"0\.3\.0\"/version = \"0.3.0.dev${N}\"/" pyproject.toml
+          # Keep package_info.py and __init__.py in sync for runtime
           sed -i "s/^PRE_RELEASE = .*/PRE_RELEASE = \".dev${N}\"/" src/nemo_evaluator/package_info.py
-          # Also keep __init__.py in sync at runtime
           sed -i "s/^__version__ = .*/__version__ = \"0.3.0.dev${N}\"/" src/nemo_evaluator/__init__.py
           VERSION="0.3.0.dev${N}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
