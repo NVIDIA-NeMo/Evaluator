@@ -1,0 +1,126 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Build and publish dev wheel
+
+# Runs on every push to dev/0.3.0, or on-demand from any branch via
+# workflow_dispatch (Actions → "Build and publish dev wheel" → "Run workflow").
+#
+# Stamps a PEP 440 .devN pre-release version (N = commit count), builds the
+# wheel, and uploads it to the rolling GitHub pre-release tag `v0.3.0-dev`.
+#
+# Install the latest dev build:
+#   pip install https://github.com/NVIDIA-NeMo/Evaluator/releases/download/v0.3.0-dev/nemo_evaluator-<version>-py3-none-any.whl
+#
+# When TestPyPI/PyPI credentials are available, flip no-publish in
+# build-test-publish-wheel.yml to also fire on dev/0.3.0 and retire this.
+
+on:
+  push:
+    branches:
+      - dev/0.3.0
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Upload wheel to v0.3.0-dev release (uncheck to build only)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write   # needed to create/update GitHub releases
+
+jobs:
+  dev-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history for accurate commit count
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Stamp .devN pre-release version
+        id: version
+        run: |
+          N=$(git rev-list --count HEAD)
+          sed -i "s/^PRE_RELEASE = .*/PRE_RELEASE = \".dev${N}\"/" src/nemo_evaluator/package_info.py
+          # Also keep __init__.py in sync at runtime
+          sed -i "s/^__version__ = .*/__version__ = \"0.3.0.dev${N}\"/" src/nemo_evaluator/__init__.py
+          VERSION="0.3.0.dev${N}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Stamped version: ${VERSION}"
+
+      - name: Build wheel
+        run: uv build --wheel --no-sources
+
+      - name: Verify wheel version
+        run: |
+          WHL=$(ls dist/*.whl)
+          echo "Built: $WHL"
+          unzip -p "$WHL" "*/METADATA" | grep "^Version:"
+
+      - name: Publish to rolling dev pre-release
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          WHL=$(ls dist/*.whl)
+          WHLNAME=$(basename "$WHL")
+
+          # Create the rolling pre-release if it doesn't exist yet
+          if ! gh release view v0.3.0-dev --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create v0.3.0-dev \
+              --repo "$GITHUB_REPOSITORY" \
+              --prerelease \
+              --title "0.3.0 dev builds" \
+              --notes "Rolling dev builds from the \`dev/0.3.0\` branch."
+          fi
+
+          # Remove any previous .whl assets (keep the release clean — one wheel at a time)
+          gh release view v0.3.0-dev --repo "$GITHUB_REPOSITORY" --json assets \
+            -q '.assets[] | select(.name | endswith(".whl")) | .name' \
+            | xargs -r -I{} gh release delete-asset v0.3.0-dev {} \
+                --repo "$GITHUB_REPOSITORY" --yes || true
+
+          # Upload the new wheel
+          gh release upload v0.3.0-dev "$WHL" --repo "$GITHUB_REPOSITORY"
+
+          # Update the release body with install instructions
+          gh release edit v0.3.0-dev \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "0.3.0 dev builds (latest: ${VERSION})" \
+            --notes "Rolling dev builds from the \`dev/0.3.0\` branch.
+
+          **Latest:** \`${VERSION}\`
+
+          ### Install
+
+          \`\`\`bash
+          pip install https://github.com/${GITHUB_REPOSITORY}/releases/download/v0.3.0-dev/${WHLNAME}
+          \`\`\`
+
+          ### Versioning
+
+          | Branch | Version format | Published |
+          |---|---|---|
+          | \`dev/0.3.0\` | \`0.3.0.devN\` (N = commit count) | here (GitHub pre-release) |
+          | \`main\` | \`0.3.0\` | PyPI |
+
+          ---
+          _Auto-updated on every push to \`dev/0.3.0\` or manual workflow dispatch. Not for production use._"
+
+          echo "Published ${VERSION} to https://github.com/${GITHUB_REPOSITORY}/releases/tag/v0.3.0-dev"
