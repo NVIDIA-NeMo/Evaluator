@@ -12,23 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Build and publish dev wheel (dev/0.3.0)
+name: Build and publish dev wheel
 
-# Runs on every push to dev/0.3.0.
-# Stamps a PEP 440 .devN pre-release version, builds the wheel, and uploads
-# it to a rolling GitHub pre-release tag `v0.3.0-dev`.
+# Runs on every push to dev/0.3.0, or on-demand from any branch via
+# workflow_dispatch (Actions → "Build and publish dev wheel" → "Run workflow").
+#
+# Stamps a PEP 440 .devN pre-release version (N = commit count), builds the
+# wheel, and uploads it to the rolling GitHub pre-release tag `v0.3.0-dev`.
 #
 # Install the latest dev build:
 #   pip install https://github.com/NVIDIA-NeMo/Evaluator/releases/download/v0.3.0-dev/nemo_evaluator-<version>-py3-none-any.whl
 #
-# When TestPyPI/PyPI credentials are available, change `no-publish` in
-# build-test-publish-wheel.yml to also fire on dev/0.3.0 — this workflow
-# can then be removed or repurposed.
+# When TestPyPI/PyPI credentials are available, flip no-publish in
+# build-test-publish-wheel.yml to also fire on dev/0.3.0 and retire this.
 
 on:
   push:
     branches:
       - dev/0.3.0
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Upload wheel to v0.3.0-dev release (uncheck to build only)"
+        type: boolean
+        default: true
 
 permissions:
   contents: write   # needed to create/update GitHub releases
@@ -66,6 +73,7 @@ jobs:
           unzip -p "$WHL" "*/METADATA" | grep "^Version:"
 
       - name: Publish to rolling dev pre-release
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
@@ -111,9 +119,8 @@ jobs:
           |---|---|---|
           | \`dev/0.3.0\` | \`0.3.0.devN\` (N = commit count) | here (GitHub pre-release) |
           | \`main\` | \`0.3.0\` | PyPI |
-          | \`r/0.3\` | \`0.3.1\`, \`0.3.2\`, … | PyPI |
 
           ---
-          _Auto-updated on every push to \`dev/0.3.0\`. Not for production use._"
+          _Auto-updated on every push to \`dev/0.3.0\` or manual workflow dispatch. Not for production use._"
 
           echo "Published ${VERSION} to https://github.com/${GITHUB_REPOSITORY}/releases/tag/v0.3.0-dev"
