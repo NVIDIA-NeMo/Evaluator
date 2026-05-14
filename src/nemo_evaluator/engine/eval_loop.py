@@ -25,8 +25,11 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from nemo_evaluator.engine.artifacts import build_artifact_bundle
+from nemo_evaluator.engine.model_call_context import AttemptContext, attempt_context
+from nemo_evaluator.engine.model_traffic_log import append_model_traffic_records, drain_model_traffic_session
 from nemo_evaluator.engine.step_log import (
     INFERENCE_LOG,
+    MODEL_TRAFFIC_LOG,
     VERIFIED_LOG,
     StepLog,
     config_hash,
@@ -37,6 +40,10 @@ from nemo_evaluator.metrics.aggregation import category_breakdown, scoring_detai
 from nemo_evaluator.metrics.confidence import bootstrap_ci
 from nemo_evaluator.metrics.headline import headline_score_metrics
 from nemo_evaluator.observability.collector import ArtifactCollector
+from nemo_evaluator.observability.model_traffic import (
+    ModelTrafficStore,
+    aggregate_model_traffic_stats,
+)
 from nemo_evaluator.observability.progress import NoOpProgress, ProgressTracker
 from nemo_evaluator.observability.types import ModelResponse, StepRecord
 from nemo_evaluator.sandbox.strategies import pick_lifecycle
@@ -79,6 +86,7 @@ async def run_evaluation(
     shard_info: tuple[int, int] | None = None,
     instruction_template: Path | None = None,
     shuffle_seed: int | None = None,
+    model_traffic_store: ModelTrafficStore | None = None,
 ) -> dict[str, Any]:
     config = config or {}
     max_system_retries = max(1, max_system_retries)
@@ -145,12 +153,14 @@ async def run_evaluation(
 
     inference_log: StepLog | None = None
     verified_log: StepLog | None = None
+    model_traffic_log: StepLog | None = None
     inferred_cache: dict[tuple[int, int], dict[str, Any]] = {}
     verified_cache: dict[tuple[int, int], dict[str, Any]] = {}
 
     if step_log_dir is not None:
         inference_log = StepLog(step_log_dir / INFERENCE_LOG)
         verified_log = StepLog(step_log_dir / VERIFIED_LOG)
+        model_traffic_log = StepLog(step_log_dir / MODEL_TRAFFIC_LOG)
 
         cfg_hash = config_hash(config)
 
@@ -172,6 +182,7 @@ async def run_evaluation(
                     verified_log.compact(verified_cache)
                 verified_log.open()
                 inference_log.open(truncate=True)
+                model_traffic_log.open(truncate=True)
                 inference_log.write_meta({"config_hash": cfg_hash})
             else:
                 inferred_cache_raw = inference_log.load()
@@ -188,6 +199,7 @@ async def run_evaluation(
                     verified_log.compact(verified_cache)
                 inference_log.open()
                 verified_log.open()
+                model_traffic_log.open()
 
             n_from_cache = len(verified_cache)
             n_verify_only = len(inferred_cache) - len(set(inferred_cache) & set(verified_cache))
@@ -197,6 +209,7 @@ async def run_evaluation(
             inference_log.open(truncate=True)
             inference_log.write_meta({"config_hash": cfg_hash})
             verified_log.open(truncate=True)
+            model_traffic_log.open(truncate=True)
 
     pg = progress or NoOpProgress()
     collector = ArtifactCollector()
@@ -314,14 +327,15 @@ async def run_evaluation(
                 response_text = ""
                 tokens = 0
                 latency_ms = 0.0
+                model_stats: dict[str, Any] | None = None
                 step.model_error = None
                 vr = None
 
                 outside_eps: list[OutsideEndpoint] = []
+                step_session_id = uuid4().hex[:16] if model_url else None
                 if model_url:
                     from nemo_evaluator.sandbox.base import OutsideEndpoint as OE
 
-                    step_session_id = uuid4().hex[:16]
                     step_url = f"{model_url.rstrip('/')}/s/{step_session_id}"
                     outside_eps.append(OE(url=step_url, env_var="MODEL_BASE_URL"))
 
@@ -352,10 +366,16 @@ async def run_evaluation(
                         try:
                             if _solver_accepts_sandbox(solver):
                                 sandbox = await lifecycle.get_agent_sandbox()
-                            if sandbox is not None:
-                                solve_result = await solver.solve(seed_result, sandbox=sandbox)
-                            else:
-                                solve_result = await solver.solve(seed_result)
+                            adapter_ctx = (
+                                AttemptContext(adapter_session_id=step_session_id)
+                                if step_session_id and model_traffic_store is not None
+                                else None
+                            )
+                            with attempt_context(adapter_ctx):
+                                if sandbox is not None:
+                                    solve_result = await solver.solve(seed_result, sandbox=sandbox)
+                                else:
+                                    solve_result = await solver.solve(seed_result)
                             if solve_result.model_response:
                                 step.model_response = solve_result.model_response
                                 step.model_ms = solve_result.model_response.latency_ms
@@ -373,6 +393,16 @@ async def run_evaluation(
                             raise  # system error — outer loop will retry
 
                         response_text = solve_result.response if solve_result else ""
+                        model_traffic = drain_model_traffic_session(model_traffic_store, step_session_id)
+                        if model_traffic:
+                            await append_model_traffic_records(
+                                model_traffic_log,
+                                model_traffic,
+                                benchmark=name,
+                                problem_idx=idx,
+                                repeat=rep,
+                            )
+                            model_stats = aggregate_model_traffic_stats(model_traffic)
                         tokens = (
                             solve_result.model_response.total_tokens
                             if solve_result and solve_result.model_response
@@ -402,6 +432,8 @@ async def run_evaluation(
                                 "seed_metadata": seed_result.metadata,
                                 "trajectory": solve_result.trajectory if solve_result else None,
                             }
+                            if model_stats is not None:
+                                inf_record["model_stats"] = model_stats
                             await inference_log.append(inf_record)
 
                     # ── Verify ───────────────────────────────────────
@@ -446,6 +478,7 @@ async def run_evaluation(
 
                 except InfraError as e:
                     await lifecycle.teardown()
+                    failed_model_traffic = drain_model_traffic_session(model_traffic_store, step_session_id)
                     if _attempt < max_system_retries:
                         delay = min(30, 5 * (2 ** (_attempt - 1)))
                         logger.warning(
@@ -459,6 +492,14 @@ async def run_evaluation(
                         )
                         await asyncio.sleep(delay)
                         continue
+                    if failed_model_traffic:
+                        await append_model_traffic_records(
+                            model_traffic_log,
+                            failed_model_traffic,
+                            benchmark=name,
+                            problem_idx=idx,
+                            repeat=rep,
+                        )
                     logger.warning(
                         "p%d r%d: infra error exhausted %d retries, scoring 0.0: %s",
                         idx,
@@ -479,6 +520,7 @@ async def run_evaluation(
 
                 except GracefulError as e:
                     await lifecycle.teardown()
+                    drain_model_traffic_session(model_traffic_store, step_session_id)
                     logger.warning(
                         "p%d r%d: graceful error, grading 0.0: %s",
                         idx,
@@ -497,6 +539,7 @@ async def run_evaluation(
 
                 except Exception as e:
                     await lifecycle.teardown()
+                    drain_model_traffic_session(model_traffic_store, step_session_id)
                     if _attempt < max_system_retries:
                         delay = min(30, 5 * (2 ** (_attempt - 1)))
                         logger.warning(
@@ -735,6 +778,8 @@ async def run_evaluation(
             inference_log.close()
         if verified_log is not None:
             verified_log.close()
+        if model_traffic_log is not None:
+            model_traffic_log.close()
         if sandbox_manager:
             await sandbox_manager.shutdown()
         if hasattr(solver, "close"):

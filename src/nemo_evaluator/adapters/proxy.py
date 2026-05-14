@@ -223,6 +223,7 @@ def start_adapter_proxy(
     max_retries: int = 0,
     retry_on_status: list[int] | None = None,
     max_concurrent_upstream: int = 64,
+    model_traffic_store_id: str | None = None,
     verbose: bool = False,
 ) -> ProxyHandle:
     from nemo_evaluator.adapters.types import Stage
@@ -236,6 +237,7 @@ def start_adapter_proxy(
         "max_retries": max_retries,
         "retry_on_status": retry_on_status,
         "max_concurrent": max_concurrent_upstream,
+        "model_traffic_store_id": model_traffic_store_id,
     }
     endpoint_spec = {"name": "endpoint", "config": endpoint_config}
 
