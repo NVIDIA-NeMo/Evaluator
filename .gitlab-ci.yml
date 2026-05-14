@@ -1,0 +1,17 @@
+# Minimal GitLab CI trigger for dev/0.3.0.
+#
+# This file is intentionally public and contains no internal configuration.
+# Its sole purpose: when GitLab's pull-mirror updates dev/0.3.0 from GitHub,
+# this triggers the full CI pipeline (lint, test, containers) on nv-internal-main.
+#
+# The actual CI config — container builds, lint, test — lives on nv-internal-main
+# (internal partition, not mirrored to GitHub). This file is the bridge that
+# allows nv-internal-main to react to public dev/0.3.0 changes instantly.
+
+trigger-internal-build:
+  trigger:
+    project: $CI_PROJECT_PATH
+    branch: nv-internal-main
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev/0.3.0"
+      when: always
