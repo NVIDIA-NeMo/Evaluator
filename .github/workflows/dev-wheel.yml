@@ -18,13 +18,15 @@ name: Build and publish dev wheel
 # workflow_dispatch (Actions → "Build and publish dev wheel" → "Run workflow").
 #
 # Stamps a PEP 440 .devN pre-release version (N = commit count), builds the
-# wheel, and uploads it to the rolling GitHub pre-release tag `v0.3.0-dev`.
+# wheel, publishes it to TestPyPI, and also uploads it to the rolling GitHub
+# pre-release tag `v0.3.0-dev` as a convenience download.
 #
 # Install the latest dev build:
-#   pip install https://github.com/NVIDIA-NeMo/Evaluator/releases/download/v0.3.0-dev/nemo_evaluator-<version>-py3-none-any.whl
+#   pip install --index-url https://test.pypi.org/simple/ nemo-evaluator
+#   pip install --index-url https://test.pypi.org/simple/ nemo-evaluator==0.3.0.devN
 #
-# When TestPyPI/PyPI credentials are available, flip no-publish in
-# build-test-publish-wheel.yml to also fire on dev/0.3.0 and retire this.
+# TestPyPI trusted publisher setup (one-time, done in the TestPyPI UI):
+#   Owner: NVIDIA-NeMo  Repo: Evaluator  Workflow: dev-wheel.yml  Environment: testpypi
 
 on:
   push:
@@ -33,12 +35,13 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: "Upload wheel to v0.3.0-dev release (uncheck to build only)"
+        description: "Publish to TestPyPI + GitHub release (uncheck to build only)"
         type: boolean
         default: true
 
 permissions:
-  contents: write   # needed to create/update GitHub releases
+  contents: write    # create/update GitHub releases
+  id-token: write    # OIDC token for TestPyPI trusted publisher
 
 jobs:
   dev-wheel:
@@ -73,6 +76,14 @@ jobs:
           WHL=$(ls dist/*.whl)
           echo "Built: $WHL"
           unzip -p "$WHL" "*/METADATA" | grep "^Version:"
+
+      - name: Publish to TestPyPI
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: dist/
+          skip-existing: true   # idempotent: same version won't fail the run
 
       - name: Publish to rolling dev pre-release
         if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish)
@@ -119,7 +130,7 @@ jobs:
 
           | Branch | Version format | Published |
           |---|---|---|
-          | \`dev/0.3.0\` | \`0.3.0.devN\` (N = commit count) | here (GitHub pre-release) |
+          | \`dev/0.3.0\` | \`0.3.0.devN\` (N = commit count) | TestPyPI + here |
           | \`main\` | \`0.3.0\` | PyPI |
 
           ---
