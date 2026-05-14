@@ -1,17 +1,5 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 """Tests for interceptors not covered by test_interceptors.py."""
 
 from __future__ import annotations
@@ -170,6 +158,45 @@ class TestEndpointInterceptorExceptionLogging:
         assert "ServerDisconnectedError" in msg, f"exc class missing from log; got: {msg!r}"
         assert "upstream closed" in msg, f"exc message missing from log; got: {msg!r}"
         assert "t_in_flight_s=" in msg, f"t_in_flight_s missing from ClientError log; got: {msg!r}"
+
+    async def test_client_error_final_failure_records_model_traffic(self):
+        import aiohttp
+        import pytest
+
+        from nemo_evaluator.observability.model_traffic import ModelTrafficStore, register_store
+
+        store = ModelTrafficStore(service_name="solver")
+        register_store(store)
+        try:
+            ic = self._make(max_retries=0, model_traffic_store_id=store.store_id)
+
+            async def _stubbed_get_session():
+                return self._RaisingSession([aiohttp.ServerDisconnectedError("upstream closed")])
+
+            ctx = InterceptorContext()
+            ctx.extra["session_id"] = "abc123"
+            req = AdapterRequest(
+                method="POST",
+                path="/chat/completions",
+                headers={},
+                body={"model": "solver-model", "messages": [{"role": "user", "content": "hi"}]},
+                ctx=ctx,
+            )
+            ic._get_session = _stubbed_get_session  # type: ignore[assignment]
+
+            with pytest.raises(aiohttp.ServerDisconnectedError):
+                await ic.intercept_request(req)
+
+            records = store.drain_session("abc123")
+            assert len(records) == 1
+            assert records[0]["request_id"] == req.ctx.request_id
+            assert records[0]["status_code"] is None
+            assert records[0]["error_type"] == "ServerDisconnectedError"
+            assert records[0]["usage"] == {}
+            assert records[0]["tool_calls"] == {"count": 0, "names": {}}
+            assert store._pending == {}
+        finally:
+            store.close()
 
     async def test_init_log_includes_request_timeout(self, caplog):
         """The init log must record the configured request_timeout so we can

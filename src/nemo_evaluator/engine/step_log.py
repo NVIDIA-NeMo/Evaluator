@@ -35,6 +35,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 INFERENCE_LOG = "inference_log.jsonl"
+MODEL_TRAFFIC_LOG = "model_traffic.jsonl"
 VERIFIED_LOG = "verified_log.jsonl"
 META_TYPE = "meta"
 MAX_TRAJECTORY_BYTES = 5 * 1024 * 1024

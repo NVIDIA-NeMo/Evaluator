@@ -24,6 +24,7 @@ from typing import Any
 
 import aiohttp
 
+from nemo_evaluator.engine.model_call_context import url_for_current_adapter_session
 from nemo_evaluator.errors import InfraError
 from nemo_evaluator.observability.types import ModelResponse
 from nemo_evaluator.schemas import RetryConfig
@@ -331,6 +332,7 @@ class ModelClient:
     async def _post_with_retry(self, url: str, payload: dict[str, Any]) -> dict:
         """Shared retry logic for all HTTP endpoints."""
         last_exc: Exception | None = None
+        url = url_for_current_adapter_session(url)
 
         for attempt in range(self.retry.max_retries + 1):
             async with self._sem:

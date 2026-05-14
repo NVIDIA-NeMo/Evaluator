@@ -23,7 +23,6 @@ from nemo_evaluator.adapters.registry import InterceptorRegistry
 from nemo_evaluator.adapters.types import (
     AdapterRequest,
     AdapterResponse,
-    InterceptorContext,
     RequestInterceptor,
     RequestToResponseInterceptor,
     ResponseInterceptor,
@@ -111,8 +110,7 @@ class AdapterPipeline:
            ``AdapterResponse`` short-circuits the chain.
         3. Response interceptors run in **reverse** order on success only.
         """
-        ctx = InterceptorContext(request_id=request.ctx.request_id)
-        set_context(ctx)
+        set_context(request.ctx)
 
         current: AdapterRequest | AdapterResponse = request
 
