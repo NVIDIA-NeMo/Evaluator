@@ -78,6 +78,20 @@ class HarborSolverConfig(BaseModel):
             "Useful with 'task' or 'max' strategy to cap runaway timeouts."
         ),
     )
+    skill: str | None = Field(
+        default=None,
+        description=(
+            "Skill name to inject into the task. NEL prepends a 'read /skills/<name>/SKILL.md' "
+            "trigger to the task instruction before the agent runs."
+        ),
+    )
+    skill_dir: str | None = Field(
+        default=None,
+        description=(
+            "Local path to a skill directory. Files are uploaded to /skills/<skill>/ "
+            "inside the container before the agent starts. Requires skill to also be set."
+        ),
+    )
 
 
 class AgentSolverConfig(BaseModel):

@@ -817,3 +817,23 @@ class TestHarborSolverTimeoutConfig:
                 agent="terminus-2",
                 timeout_strategy="foo",
             )
+
+    def test_skill_fields_default_none(self):
+        from nemo_evaluator.config.solvers import HarborSolverConfig
+
+        cfg = HarborSolverConfig(type="harbor", service="model", agent="terminus-2")
+        assert cfg.skill is None
+        assert cfg.skill_dir is None
+
+    def test_skill_fields_parse(self):
+        from nemo_evaluator.config.solvers import HarborSolverConfig
+
+        cfg = HarborSolverConfig(
+            type="harbor",
+            service="model",
+            agent="terminus-2",
+            skill="caveman",
+            skill_dir="/path/to/skills/caveman",
+        )
+        assert cfg.skill == "caveman"
+        assert cfg.skill_dir == "/path/to/skills/caveman"

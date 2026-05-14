@@ -295,6 +295,8 @@ def _make_solver(
             cmd_timeout=getattr(solver_cfg, "cmd_timeout", None),
             timeout_strategy=getattr(solver_cfg, "timeout_strategy", "override"),
             max_agent_timeout=getattr(solver_cfg, "max_agent_timeout", None),
+            skill=getattr(solver_cfg, "skill", None),
+            skill_dir=getattr(solver_cfg, "skill_dir", None),
         )
 
     if isinstance(solver_cfg, GymDelegationSolverConfig):
