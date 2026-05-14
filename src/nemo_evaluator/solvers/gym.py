@@ -28,6 +28,7 @@ from nemo_evaluator.environments.gym_protocol import (
     extract_assistant_text,
     wrap_text_as_responses_create_params,
 )
+from nemo_evaluator.engine.model_call_context import url_for_current_adapter_session
 from nemo_evaluator.observability.types import ModelResponse
 
 from .base import SolveResult
@@ -106,7 +107,7 @@ class GymSolver:
         if self._api_key:
             rcp["metadata"]["api_key"] = self._api_key
         if self._model_url:
-            rcp["metadata"]["model_url"] = self._model_url
+            rcp["metadata"]["model_url"] = url_for_current_adapter_session(self._model_url)
         return {"responses_create_params": rcp}
 
     def _build_miniswe_request(self, task: SeedResult, meta: dict) -> dict[str, Any]:

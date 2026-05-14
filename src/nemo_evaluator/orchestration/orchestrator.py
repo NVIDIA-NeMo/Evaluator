@@ -23,7 +23,7 @@ import re
 import subprocess
 import threading
 from pathlib import Path
-from typing import IO, Any
+from typing import IO, TYPE_CHECKING, Any
 
 from nemo_evaluator.config import (
     DEFAULT_EXEC_SERVER_PORT,
@@ -49,9 +49,14 @@ from nemo_evaluator.config import (
     ToolCallingSolverConfig,
 )
 from nemo_evaluator.config.services import _MODEL_SERVICE_TYPES
+from nemo_evaluator.engine.step_log import INFERENCE_LOG, MODEL_TRAFFIC_LOG, VERIFIED_LOG
 from nemo_evaluator.orchestration.artifact_access import apply_artifact_access
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from nemo_evaluator.adapters.proxy import ProxyHandle
+    from nemo_evaluator.observability.model_traffic import ModelTrafficStore
 
 
 def _snapshot_files(paths: set[Path]) -> dict[Path, tuple[int, int]]:
@@ -74,8 +79,9 @@ def _changed_files_since(paths: set[Path], before: dict[Path, tuple[int, int]]) 
 
 def _known_benchmark_artifact_files(task_dir: Path, bundle: dict[str, Any] | None = None) -> set[Path]:
     paths = {
-        task_dir / "inference_log.jsonl",
-        task_dir / "verified_log.jsonl",
+        task_dir / INFERENCE_LOG,
+        task_dir / MODEL_TRAFFIC_LOG,
+        task_dir / VERIFIED_LOG,
         task_dir / "results.jsonl",
         task_dir / "trajectories.jsonl",
         task_dir / "runtime_stats.json",
@@ -724,19 +730,25 @@ def _start_proxy(
     model_id: str,
     api_key: str | None,
     svc: Any,
-) -> tuple[str, Any]:
+    service_name: str | None = None,
+) -> tuple[str, "ProxyHandle | None", "ModelTrafficStore | None"]:
     """Start the adapter proxy when *model_url* is set.
 
-    Returns ``(effective_url, proxy_handle | None)``.
+    Returns ``(effective_url, proxy_handle | None, model_traffic_store | None)``.
     """
     if not model_url:
-        return model_url, None
+        return model_url, None, None
 
     from nemo_evaluator.adapters.proxy import start_adapter_proxy
 
-    proxy_kwargs: dict[str, Any] = dict(upstream_url=model_url, model_id=model_id, api_key=api_key)
+    proxy_kwargs: dict[str, Any] = {
+        "upstream_url": model_url,
+        "model_id": model_id,
+        "api_key": api_key,
+    }
     proxy_cfg = getattr(svc, "proxy", None) if svc else None
     interceptor_specs: list[dict[str, Any]] = []
+    traffic_store = None
 
     if proxy_cfg is not None and proxy_cfg.needs_proxy:
         interceptor_specs = _interceptor_specs(proxy_cfg.interceptors)
@@ -750,6 +762,12 @@ def _start_proxy(
             max_concurrent_upstream=proxy_cfg.max_concurrent_upstream,
         )
 
+    from nemo_evaluator.observability.model_traffic import ModelTrafficStore, register_store
+
+    traffic_store = ModelTrafficStore(service_name=service_name)
+    register_store(traffic_store)
+    proxy_kwargs["model_traffic_store_id"] = traffic_store.store_id
+
     gen = getattr(svc, "generation", None)
     if gen is not None:
         overrides = {k: v for k, v in gen.model_dump().items() if v is not None}
@@ -759,8 +777,12 @@ def _start_proxy(
     if interceptor_specs:
         proxy_kwargs["interceptor_specs"] = interceptor_specs
 
-    handle = start_adapter_proxy(**proxy_kwargs)
-    return handle.url, handle
+    try:
+        handle = start_adapter_proxy(**proxy_kwargs)
+    except Exception:
+        traffic_store.close()
+        raise
+    return handle.url, handle, traffic_store
 
 
 def _build_environment(
@@ -909,7 +931,6 @@ async def _run_single_benchmark(
     from nemo_evaluator.engine.artifacts import write_all
     from nemo_evaluator.engine.eval_loop import run_evaluation
     from nemo_evaluator.engine.sharding import shard_from_env
-    from nemo_evaluator.engine.step_log import INFERENCE_LOG, VERIFIED_LOG
     from nemo_evaluator.observability.progress import ConsoleProgress
     from nemo_evaluator.templates import resolve_template_path
 
@@ -917,7 +938,7 @@ async def _run_single_benchmark(
     service_name: str | None = getattr(solver_cfg, "service", None)
 
     model_url, model_id, api_key, svc = _resolve_service_connection(config, handles, service_name)
-    model_url, proxy_handle = _start_proxy(model_url, model_id, api_key, svc)
+    model_url, proxy_handle, model_traffic_store = _start_proxy(model_url, model_id, api_key, svc, service_name)
 
     judge_client = None
     try:
@@ -974,6 +995,7 @@ async def _run_single_benchmark(
             shard_info=shard_info,
             instruction_template=resolve_template_path(bench.instruction_template),
             shuffle_seed=bench.shuffle_seed,
+            model_traffic_store=model_traffic_store,
         )
 
         paths = write_all(bundle, task_dir)
@@ -984,6 +1006,7 @@ async def _run_single_benchmark(
                 *paths.values(),
                 task_dir / INFERENCE_LOG,
                 task_dir / VERIFIED_LOG,
+                *([task_dir / MODEL_TRAFFIC_LOG] if (task_dir / MODEL_TRAFFIC_LOG).exists() else []),
             )
         ]
         return bundle
@@ -992,6 +1015,8 @@ async def _run_single_benchmark(
             await judge_client.close()
         if proxy_handle is not None:
             await proxy_handle.async_stop()
+        if model_traffic_store is not None:
+            model_traffic_store.close()
 
 
 def _load_prior_bundle(task_dir: str) -> dict[str, Any]:

@@ -27,6 +27,7 @@ from nemo_evaluator.adapters.types import (
     AdapterResponse,
     RequestToResponseInterceptor,
 )
+from nemo_evaluator.observability.model_traffic import get_store
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ class Interceptor(RequestToResponseInterceptor):
         max_retries: int = 0,
         retry_on_status: list[int] | None = None,
         max_concurrent: int = 64,
+        model_traffic_store_id: str | None = None,
     ) -> None:
         clean = upstream_url.rstrip("/")
         for suffix in ("/chat/completions", "/completions", "/embeddings"):
@@ -67,6 +69,7 @@ class Interceptor(RequestToResponseInterceptor):
         self._max_retries = max_retries
         self._retry_on_status = set(retry_on_status or [429, 502, 503, 504])
         self._max_concurrent = max_concurrent
+        self._model_traffic_store = get_store(model_traffic_store_id) if model_traffic_store_id else None
         self._session: aiohttp.ClientSession | None = None
         self._lock = asyncio.Lock()
         logger.info(
@@ -99,6 +102,28 @@ class Interceptor(RequestToResponseInterceptor):
             if "content" in msg and msg["content"] is None:
                 msg["content"] = ""
 
+    @staticmethod
+    def _request_stream_usage_chunks(path: str, body: dict[str, Any]) -> None:
+        if body.get("stream") is not True:
+            return
+        if not path.rstrip("/").endswith("/chat/completions"):
+            return
+
+        stream_options = body.get("stream_options")
+        if stream_options is None:
+            body["stream_options"] = {"include_usage": True}
+        elif isinstance(stream_options, dict) and "include_usage" not in stream_options:
+            body["stream_options"] = {**stream_options, "include_usage": True}
+
+    def _capture_response(self, resp: AdapterResponse) -> AdapterResponse:
+        if self._model_traffic_store is not None:
+            self._model_traffic_store.finish_response(resp)
+        return resp
+
+    def _capture_error(self, req: AdapterRequest, *, latency_ms: float, error_type: str) -> None:
+        if self._model_traffic_store is not None:
+            self._model_traffic_store.finish_error(req, latency_ms=latency_ms, error_type=error_type)
+
     async def intercept_request(
         self,
         req: AdapterRequest,
@@ -107,6 +132,12 @@ class Interceptor(RequestToResponseInterceptor):
         url = f"{self._upstream_url}{req.path}"
 
         body = {**req.body, **self._extra_body}
+        # Capture the effective upstream request, including endpoint-level
+        # body overrides, before sending it.
+        self._request_stream_usage_chunks(req.path, body)
+        req.ctx.extra["upstream_request_body"] = body
+        if self._model_traffic_store is not None:
+            self._model_traffic_store.start_request(req)
         headers = {k: v for k, v in req.headers.items() if k.lower() not in _HOP_BY_HOP_HEADERS}
         if self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
@@ -154,12 +185,14 @@ class Interceptor(RequestToResponseInterceptor):
                     if isinstance(parsed, dict):
                         self._normalize_content(parsed)
 
-                    return AdapterResponse(
-                        status_code=status,
-                        headers=resp_headers,
-                        body=parsed,
-                        latency_ms=latency,
-                        ctx=req.ctx,
+                    return self._capture_response(
+                        AdapterResponse(
+                            status_code=status,
+                            headers=resp_headers,
+                            body=parsed,
+                            latency_ms=latency,
+                            ctx=req.ctx,
+                        )
                     )
 
             except asyncio.TimeoutError as exc:
@@ -187,12 +220,16 @@ class Interceptor(RequestToResponseInterceptor):
                     exc,
                     latency / 1000,
                 )
-                return AdapterResponse(
-                    status_code=504,
-                    headers={},
-                    body={"error": {"message": f"Upstream timed out after {self._timeout.total}s", "type": "timeout"}},
-                    latency_ms=latency,
-                    ctx=req.ctx,
+                return self._capture_response(
+                    AdapterResponse(
+                        status_code=504,
+                        headers={},
+                        body={
+                            "error": {"message": f"Upstream timed out after {self._timeout.total}s", "type": "timeout"}
+                        },
+                        latency_ms=latency,
+                        ctx=req.ctx,
+                    )
                 )
 
             except aiohttp.ClientError as exc:
@@ -220,6 +257,7 @@ class Interceptor(RequestToResponseInterceptor):
                     exc,
                     latency / 1000,
                 )
+                self._capture_error(req, latency_ms=latency, error_type=type(exc).__name__)
                 raise
 
     async def close(self) -> None:
