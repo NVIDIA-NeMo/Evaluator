@@ -1028,6 +1028,13 @@ def _create_slurm_sbatch_script(
                 ]
             )
         )
+        # `.secrets.env` defines task-scoped names like `PERSIST_DELIVERABLES_DIR_<sha>_NEMO_GYM_0`;
+        # `eval_reexport_cmd` re-exports them under their unsuffixed names.
+        # Pyxis's `--container-env <NAME>` reads the unsuffixed value from the
+        # sbatch shell, so the re-export must happen BEFORE the bootstrap srun.
+        # The eval-client srun re-exports again later — idempotent.
+        if eval_reexport_cmd:
+            s += f"{eval_reexport_cmd}\n\n"
         ray_bootstrap = _generate_eval_ray_cluster_bootstrap(
             cfg,
             eval_image=eval_image,
