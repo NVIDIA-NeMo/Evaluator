@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import http.server
 import json
 import threading
@@ -263,6 +264,42 @@ class TestIntegration:
     def test_model_injected(self, proxy):
         _, body = _http_post(f"{proxy.url}/v1/chat/completions", {"messages": []})
         assert body["echo_body"]["model"] == "test-model"
+
+    def test_async_stop_closes_endpoint_on_proxy_loop(self, echo_upstream, monkeypatch):
+        from nemo_evaluator.adapters.interceptors import endpoint as endpoint_mod
+
+        original_close = endpoint_mod.Interceptor.close
+        close_calls: list[tuple[int, int, int | None]] = []
+
+        async def close_spy(self):
+            session = self._session
+            session_loop_id = id(session._loop) if session is not None else None
+            close_calls.append((threading.get_ident(), id(asyncio.get_running_loop()), session_loop_id))
+            await original_close(self)
+
+        monkeypatch.setattr(endpoint_mod.Interceptor, "close", close_spy)
+
+        caller_thread_id = threading.get_ident()
+        caller_loop_ids: list[int] = []
+        handle = start_adapter_proxy(upstream_url=echo_upstream, model_id="m", port=0)
+
+        status, _body = _http_post(f"{handle.url}/v1/chat/completions", {"messages": []})
+        assert status == 200
+        proxy_thread_id = handle._thread.ident
+
+        async def stop_from_caller_loop() -> None:
+            caller_loop_ids.append(id(asyncio.get_running_loop()))
+            await handle.async_stop()
+
+        asyncio.run(stop_from_caller_loop())
+
+        assert len(close_calls) == 1
+        close_thread_id, close_loop_id, session_loop_id = close_calls[0]
+        assert session_loop_id is not None
+        assert close_thread_id == proxy_thread_id
+        assert close_loop_id == session_loop_id
+        assert close_thread_id != caller_thread_id
+        assert close_loop_id not in caller_loop_ids
 
     def test_interceptors(self, echo_upstream):
         handle = start_adapter_proxy(

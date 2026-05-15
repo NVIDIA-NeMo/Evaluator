@@ -1014,11 +1014,20 @@ async def _run_single_benchmark(
         return bundle
     finally:
         if judge_client is not None and hasattr(judge_client, "close"):
-            await judge_client.close()
+            try:
+                await judge_client.close()
+            except Exception:
+                logger.exception("Failed to close judge client for benchmark %s", bench.name)
         if proxy_handle is not None:
-            await proxy_handle.async_stop()
+            try:
+                await proxy_handle.async_stop()
+            except Exception:
+                logger.exception("Failed to stop adapter proxy for benchmark %s", bench.name)
         if model_traffic_store is not None:
-            model_traffic_store.close()
+            try:
+                model_traffic_store.close()
+            except Exception:
+                logger.exception("Failed to close model traffic store for benchmark %s", bench.name)
 
 
 def _load_prior_bundle(task_dir: str) -> dict[str, Any]:
