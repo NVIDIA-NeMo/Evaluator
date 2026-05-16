@@ -25,7 +25,6 @@ import yaml
 
 from nemo_evaluator.config import (
     ApptainerSandbox,
-    DynamoService,
     EvalConfig,
     ExternalApiService,
     GymResourceService,
@@ -68,7 +67,7 @@ set -uo pipefail
 export NEL_INNER_EXECUTION=1
 export PYTHONUNBUFFERED=1
 
-export OUTPUT_DIR="{output_dir}"
+OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
 JOB_START_EPOCH=$(date +%s)
 mkdir -p "$OUTPUT_DIR/logs"
@@ -140,7 +139,6 @@ _HEADER_HETJOB_POOL = """\
 {gpus_per_node_line}
 {partition_line}
 {account_line}
-{pool_extra_lines}
 """
 
 _HEADER_HETJOB_SEPARATOR = """\
@@ -161,7 +159,7 @@ set -uo pipefail
 export NEL_INNER_EXECUTION=1
 export PYTHONUNBUFFERED=1
 
-export OUTPUT_DIR="{output_dir}"
+OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
 JOB_START_EPOCH=$(date +%s)
 mkdir -p "$OUTPUT_DIR/logs"
@@ -261,76 +259,6 @@ ln -sf "server-{name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/server-{name}.log"
 {name_upper}_MODEL={model}
 """
 
-# ---------------------------------------------------------------------------
-# Dynamo (ai-dynamo) templates
-# ---------------------------------------------------------------------------
-#
-# Dynamo's HTTP frontend (`python3 -m dynamo.frontend`) is the user-facing
-# OpenAI-compatible endpoint. Workers (`python3 -m dynamo.sglang`) self-register
-# via NATS using DYN_REQUEST_PLANE=nats; the frontend dispatches requests.
-#
-# Aggregated: one worker, possibly multi-node TP via sglang's rendezvous.
-# Disaggregated: separate prefill + decode workers; frontend lives on the
-# first prefill node. KV transfer goes over NIxl (RDMA) between roles.
-
-_DYNAMO_NATS_PORT = 4222
-_DYNAMO_ETCD_PORT = 2379
-# Worker's internal HTTP port (not user-facing — frontend is on svc.port).
-_DYNAMO_WORKER_PORT_OFFSET = 1
-# Prefill workers run SGLang's CommonKVBootstrapServer; the sglang default
-# (8998) needs an explicit override to keep the contract obvious and avoid
-# surprises with future SGLang version drift (srt-slurm makes the same choice).
-_DYNAMO_PREFILL_BOOTSTRAP_PORT_OFFSET = 2
-_DYNAMO_DIST_INIT_PORT = 29500
-
-_DYNAMO_AGG_SERVICE = """\
-# Service: {name} (dynamo, aggregated{multinode_note})
-echo "Starting dynamo aggregated service: {name}..."
-echo "  Logs: $OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log"
-{launch_block}
-ln -sf "server-{name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/server-{name}.log"
-{name_upper}_URL="http://localhost:{port}/v1"
-{name_upper}_MODEL={model}
-"""
-
-_DYNAMO_AGG_SINGLENODE_LAUNCH = """\
-{srun_prefix}bash "$OUTPUT_DIR/logs/{script_file}" >> "$OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log" 2>&1 &
-{name_upper}_PID=$!"""
-
-_DYNAMO_AGG_MULTINODE_LAUNCH = """\
-_NODES=$(scontrol show hostnames "{nodelist_var}")
-_RANK=0
-for _NODE in $_NODES; do
-    {srun_prefix_single_node}--container-name=nel-{safe_name}-rank$_RANK -w $_NODE bash "$OUTPUT_DIR/logs/{script_file}" $_RANK >> "$OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log" 2>&1 &
-    if [ $_RANK -eq 0 ]; then
-        {name_upper}_PID=$!
-    fi
-    _RANK=$((_RANK + 1))
-done"""
-
-_DYNAMO_DISAGG_SERVICE = """\
-# Service: {name} (dynamo, disaggregated: {num_prefill_workers}P × {prefill_nodes_per_worker}n + {num_decode_workers}D × {decode_nodes_per_worker}n)
-echo "Starting dynamo disaggregated service: {name}..."
-echo "  Logs: $OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log"
-
-# Each worker (prefill or decode) forms its OWN torch.distributed TP
-# rendezvous; they MUST NOT share --dist-init-addr — verified against
-# srt-slurm's HSG 2664281 production run (distinct leader IP per worker).
-# The leader IP is passed to each per-node script as a positional arg so
-# every worker spawned by the outer loop gets its slice's first hostname.
-# MASTER_IP (set earlier from the prefill nodelist) is still used by
-# NATS/etcd/frontend; that runs only on prefill worker 0, rank 0.
-{nodelist_split_block}
-
-{prefill_fanout}
-
-{decode_fanout}
-
-ln -sf "server-{name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/server-{name}.log"
-{name_upper}_URL="http://localhost:{port}/v1"
-{name_upper}_MODEL={model}
-"""
-
 _RAY_MULTINODE_SERVICE = """\
 # Service: {name} ({svc_type}, multi-node Ray: {num_nodes} nodes)
 echo "Starting multi-node Ray {svc_type} server: {name}..."
@@ -418,46 +346,6 @@ for _i in $(seq 1 {max_attempts}); do
 done
 if [ ${name_upper}_READY -eq 0 ]; then
     echo "ERROR: {name} did not become healthy after {max_attempts} attempts."
-    exit 1
-fi
-"""
-
-_HEALTH_WAIT_DYNAMO = """\
-# Wait for {name} (dynamo: >={expected_prefill} prefill + >={expected_decode} decode/backend workers registered)
-echo "Waiting for {name} at {url} (workers registered via NATS)..."
-{name_upper}_READY=0
-for _i in $(seq 1 {max_attempts}); do
-    # Dynamo frontend /health returns 200 the moment its FastAPI binds,
-    # well before any worker registers. Parse the JSON body and count
-    # instances per ``component`` — matches the readiness rule srt-slurm's
-    # ``check_dynamo_health`` uses (srtctl/core/health.py). Aggregated
-    # workers report as ``component="backend"``; disagg as ``"prefill"`` or
-    # ``"decode"``/``"tensorrt_llm"``.
-    _RESP=$(curl -sf "{url}/health" 2>/dev/null)
-    if [ -n "$_RESP" ] && echo "$_RESP" | python3 -c '
-import json, sys
-try:
-    d = json.load(sys.stdin)
-except Exception:
-    sys.exit(1)
-inst = d.get("instances") or []
-gens = [i for i in inst if i.get("endpoint") == "generate"]
-n_p = sum(1 for i in gens if i.get("component") == "prefill")
-n_d = sum(1 for i in gens if i.get("component") in ("decode", "tensorrt_llm", "backend"))
-sys.exit(0 if (n_p >= {expected_prefill} and n_d >= {expected_decode}) else 1)
-' 2>/dev/null; then
-        echo "  {name} ready (>={expected_prefill} prefill + >={expected_decode} decode/backend registered)."
-        {name_upper}_READY=1
-        break
-    fi
-    if [ -n "${{{name_upper}_PID:-}}" ] && ! kill -0 ${name_upper}_PID 2>/dev/null; then
-        echo "  {name} died during startup."
-        exit 1
-    fi
-    sleep 5
-done
-if [ ${name_upper}_READY -eq 0 ]; then
-    echo "ERROR: {name} did not have the expected workers register after {max_attempts} attempts."
     exit 1
 fi
 """
@@ -757,14 +645,6 @@ def _collect_used_pools(config: EvalConfig) -> list[str]:
         pool = getattr(svc, "node_pool", None)
         if pool:
             used.add(pool)
-        # Dynamo disagg exposes a node_pool per role (prefill/decode) rather
-        # than a single service-level pool; surface both so they each get
-        # their own het-group when they differ.
-        for role_attr in ("prefill", "decode"):
-            role_cfg = getattr(svc, role_attr, None)
-            role_pool = getattr(role_cfg, "node_pool", None) if role_cfg else None
-            if role_pool:
-                used.add(role_pool)
     for sb in config.sandboxes.values():
         pool = getattr(sb, "node_pool", None)
         if pool:
@@ -832,538 +712,6 @@ def _build_srun_prefix(
     )
 
 
-def _dynamo_worker_command(
-    *,
-    model_for_cmd: str,
-    model_api_name: str,
-    worker_port: int,
-    tp: int | None,
-    pp: int | None,
-    dp: int | None,
-    role: str | None,
-    bootstrap_port: int | None,
-    dist_init_var: str = "MASTER_IP",
-    num_nodes: int,
-    extra_args: list[str],
-) -> str:
-    """Build a single ``python3 -m dynamo.sglang`` command.
-
-    ``role`` is None for aggregated, "prefill" or "decode" for disagg.
-    ``bootstrap_port`` is only meaningful for prefill workers (the
-    CommonKVBootstrapServer port that decode workers connect to).
-    ``dist_init_var`` is the env-var name holding the worker's TP-rendezvous
-    leader (``MASTER_IP`` for aggregated; ``LEADER_IP`` for disagg, which the
-    per-node script sets from positional arg ``$2`` so every worker spawned
-    by the disagg fan-out picks up its OWN slice's leader). The production
-    multi-node disagg shape (HSG GB200 2664281) confirms each worker dumps
-    its own ``dist_init_addr`` IP."""
-    parts = [
-        "python3 -m dynamo.sglang",
-        f"--model-path {model_for_cmd}" if model_for_cmd else "",
-        f"--served-model-name {shlex.quote(model_api_name)}" if model_api_name else "",
-        "--host 0.0.0.0",
-        f"--port {worker_port}",
-    ]
-    if tp:
-        parts.append(f"--tp-size {tp}")
-    if pp:
-        parts.append(f"--pp-size {pp}")
-    if dp:
-        parts.append(f"--dp-size {dp}")
-    if role in ("prefill", "decode"):
-        parts.append(f"--disaggregation-mode {role}")
-    if role == "prefill" and bootstrap_port is not None:
-        parts.append(f"--disaggregation-bootstrap-port {bootstrap_port}")
-    if num_nodes > 1:
-        parts.extend(
-            [
-                f"--nnodes {num_nodes}",
-                '--node-rank "${NEL_NODE_RANK:-0}"',
-                f'--dist-init-addr "${{{dist_init_var}}}:{_DYNAMO_DIST_INIT_PORT}"',
-            ]
-        )
-    if extra_args:
-        parts.append(" ".join(shlex.quote(a) for a in extra_args))
-    return " ".join(p for p in parts if p)
-
-
-def _dynamo_infra_env_exports(infra_host: str = "${MASTER_IP}") -> list[str]:
-    """Env vars every dynamo process (frontend + workers) needs.
-
-    ``infra_host`` defaults to ``${MASTER_IP}`` so workers on non-rank-0 nodes
-    can reach the NATS broker and etcd that rank 0 brings up. For single-node
-    aggregated runs ``${MASTER_IP}`` resolves to the lone allocated node."""
-    return [
-        "export DYN_REQUEST_PLANE=nats",
-        f'export NATS_SERVER="nats://{infra_host}:{_DYNAMO_NATS_PORT}"',
-        f'export ETCD_ENDPOINTS="http://{infra_host}:{_DYNAMO_ETCD_PORT}"',
-        "export DYN_SKIP_SGLANG_LOG_FORMATTING=1",
-    ]
-
-
-def _dynamo_infra_bootstrap_block(name: str, frontend_port: int) -> list[str]:
-    """Lines that start NATS broker + etcd + dynamo frontend in the background.
-
-    Caller is responsible for gating this on rank 0 in multi-node setups —
-    only one node should run the broker/etcd/frontend or they'll fight over
-    ports.
-
-    The trailing readiness loop waits for NATS and etcd to actually accept
-    TCP connections before returning, so the worker spawn that follows can
-    safely register with NATS. The frontend's own readiness is gated later
-    by the eval-side ``/health`` poll (which only succeeds once a worker
-    has registered)."""
-    safe = _safe(name)
-    return [
-        f'nats-server -js >> "$OUTPUT_DIR/logs/dynamo-nats-{safe}-$SLURM_JOB_ID.log" 2>&1 &',
-        (
-            f"etcd "
-            f"--listen-client-urls http://0.0.0.0:{_DYNAMO_ETCD_PORT} "
-            f"--advertise-client-urls http://localhost:{_DYNAMO_ETCD_PORT} "
-            f'>> "$OUTPUT_DIR/logs/dynamo-etcd-{safe}-$SLURM_JOB_ID.log" 2>&1 &'
-        ),
-        (
-            f"python3 -m dynamo.frontend --http-port {frontend_port} "
-            f'>> "$OUTPUT_DIR/logs/dynamo-frontend-{safe}-$SLURM_JOB_ID.log" 2>&1 &'
-        ),
-        "for _i in $(seq 1 60); do",
-        (
-            f"    (exec 3<>/dev/tcp/localhost/{_DYNAMO_NATS_PORT}) 2>/dev/null"
-            f" && (exec 3<>/dev/tcp/localhost/{_DYNAMO_ETCD_PORT}) 2>/dev/null && break"
-        ),
-        "    sleep 1",
-        "done",
-    ]
-
-
-_DYNAMO_EXTRA_ENV_KEYS = ("OUTPUT_DIR", "SLURM_JOB_ID")
-
-
-def _dynamo_service_block(
-    name: str,
-    svc: DynamoService,
-    *,
-    use_containers: bool,
-    cluster_mounts: list[str],
-    env_keys: list[str],
-    reexport_cmds: str,
-    mount_home: bool,
-    pool_to_het: dict[str, int] | None,
-) -> str:
-    """Emit the bash for a ``type: dynamo`` service (aggregated or disagg).
-
-    Mode is implicit: ``svc.prefill is None`` → aggregated; otherwise disagg
-    (the schema validator guarantees prefill and decode are both set or both
-    None)."""
-    upper = _safe(name).upper()
-    safe_name = _safe(name)
-    deploy_image = _resolve_service_image(svc)
-
-    model_for_cmd = svc.model
-    model_mount: list[str] = []
-    if svc.model and svc.model.startswith("/") and use_containers:
-        model_for_cmd = "/model"
-        model_mount = [f"{svc.model}:/model:ro"]
-    model_api_name = getattr(svc, "served_model_name", None) or name
-
-    reexport_block = f"{reexport_cmds}\n" if reexport_cmds else ""
-    worker_port = svc.port + _DYNAMO_WORKER_PORT_OFFSET
-    bootstrap_port = svc.port + _DYNAMO_PREFILL_BOOTSTRAP_PORT_OFFSET
-
-    if svc.prefill is None:
-        return _dynamo_aggregated_block(
-            name=name,
-            upper=upper,
-            safe_name=safe_name,
-            svc=svc,
-            deploy_image=deploy_image,
-            model_for_cmd=model_for_cmd or "",
-            model_mount=model_mount,
-            model_api_name=model_api_name,
-            worker_port=worker_port,
-            use_containers=use_containers,
-            cluster_mounts=cluster_mounts,
-            env_keys=env_keys,
-            mount_home=mount_home,
-            pool_to_het=pool_to_het,
-            reexport_block=reexport_block,
-        )
-
-    return _dynamo_disaggregated_block(
-        name=name,
-        upper=upper,
-        safe_name=safe_name,
-        svc=svc,
-        deploy_image=deploy_image,
-        model_for_cmd=model_for_cmd or "",
-        model_mount=model_mount,
-        model_api_name=model_api_name,
-        worker_port=worker_port,
-        bootstrap_port=bootstrap_port,
-        use_containers=use_containers,
-        cluster_mounts=cluster_mounts,
-        env_keys=env_keys,
-        mount_home=mount_home,
-        pool_to_het=pool_to_het,
-        reexport_block=reexport_block,
-    )
-
-
-def _dynamo_aggregated_block(
-    *,
-    name: str,
-    upper: str,
-    safe_name: str,
-    svc: DynamoService,
-    deploy_image: str,
-    model_for_cmd: str,
-    model_mount: list[str],
-    model_api_name: str,
-    worker_port: int,
-    use_containers: bool,
-    cluster_mounts: list[str],
-    env_keys: list[str],
-    mount_home: bool,
-    pool_to_het: dict[str, int] | None,
-    reexport_block: str,
-) -> str:
-    num_nodes = svc.num_nodes
-    pool = getattr(svc, "node_pool", None)
-    het_flag = ""
-    if pool and pool_to_het and pool in pool_to_het:
-        het_flag = f" --het-group={pool_to_het[pool]}"
-
-    srun_prefix = ""
-    if use_containers:
-        srun_prefix = _build_srun_prefix(
-            svc,
-            deploy_image,
-            het_flag=het_flag,
-            cluster_mounts=cluster_mounts,
-            env_keys=list(env_keys) + list(_DYNAMO_EXTRA_ENV_KEYS),
-            mount_home=mount_home,
-            extra_mounts=model_mount + ["$OUTPUT_DIR:$OUTPUT_DIR"],
-        )
-
-    worker_cmd = _dynamo_worker_command(
-        model_for_cmd=model_for_cmd,
-        model_api_name=model_api_name,
-        worker_port=worker_port,
-        tp=svc.tensor_parallel_size,
-        pp=svc.pipeline_parallel_size,
-        dp=svc.data_parallel_size,
-        role=None,
-        bootstrap_port=None,
-        num_nodes=num_nodes,
-        extra_args=list(svc.extra_args),
-    )
-
-    infra_host = "${MASTER_IP}" if num_nodes > 1 else "localhost"
-    infra_lines = _dynamo_infra_bootstrap_block(name, svc.port)
-    env_exports = _dynamo_infra_env_exports(infra_host)
-
-    script_lines = ["set -euo pipefail"]
-    setup_list = getattr(svc, "setup_commands", []) or []
-    script_lines.extend(setup_list)
-    if num_nodes > 1:
-        script_lines.append('NEL_NODE_RANK="${1:-0}"')
-        script_lines.append("export NEL_NODE_RANK")
-    script_lines.extend(env_exports)
-    if num_nodes > 1:
-        script_lines.append('if [ "$NEL_NODE_RANK" -eq 0 ]; then')
-        script_lines.extend(f"    {line}" for line in infra_lines)
-        script_lines.append("fi")
-    else:
-        script_lines.extend(infra_lines)
-    script_lines.append(worker_cmd)
-
-    script_file = f"_svc_{safe_name}_cmd_$SLURM_JOB_ID.sh"
-    script_heredoc = (
-        f"cat > \"$OUTPUT_DIR/logs/{script_file}\" <<'_NEMO_SVC_CMD_EOF_'\n"
-        + "\n".join(script_lines)
-        + "\n_NEMO_SVC_CMD_EOF_\n"
-    )
-
-    if num_nodes > 1:
-        head_srun = srun_prefix.replace(f"--nodes {num_nodes} --ntasks {num_nodes}", "--nodes 1 --ntasks 1").replace(
-            " --label", ""
-        )
-        per_node_srun = head_srun.rstrip() + " "
-        nodelist_var = "$SLURM_JOB_NODELIST"
-        if het_flag:
-            het_idx = het_flag.strip().split("=")[-1]
-            nodelist_var = f"$SLURM_JOB_NODELIST_HET_GROUP_{het_idx}"
-        launch_block = _DYNAMO_AGG_MULTINODE_LAUNCH.format(
-            name=name,
-            name_upper=upper,
-            safe_name=safe_name,
-            srun_prefix_single_node=per_node_srun,
-            nodelist_var=nodelist_var,
-            script_file=script_file,
-        )
-        multinode_note = f", multi-node torch.distributed: {num_nodes} nodes"
-    else:
-        launch_block = _DYNAMO_AGG_SINGLENODE_LAUNCH.format(
-            name=name,
-            name_upper=upper,
-            srun_prefix=srun_prefix,
-            script_file=script_file,
-        )
-        multinode_note = ""
-
-    return (
-        reexport_block
-        + script_heredoc
-        + _DYNAMO_AGG_SERVICE.format(
-            name=name,
-            name_upper=upper,
-            port=svc.port,
-            model=shlex.quote(model_api_name or ""),
-            multinode_note=multinode_note,
-            launch_block=launch_block,
-        )
-    )
-
-
-def _dynamo_disagg_role_fanout(
-    *,
-    role: str,
-    name: str,
-    name_upper: str,
-    safe_name: str,
-    num_workers: int,
-    nodes_per_worker: int,
-    srun_prefix: str,
-    script_file: str,
-    nodes_var: str,
-    set_pid_var: bool,
-) -> str:
-    """Emit the bash that spawns ``num_workers`` workers for a role.
-
-    Each worker is one independent dynamo.sglang process group with its own
-    TP rendezvous. We carve the role's nodelist into contiguous slices of
-    ``nodes_per_worker`` hosts; worker ``w`` claims slice
-    ``[w * nodes_per_worker + 1 : (w+1) * nodes_per_worker]`` (1-based to
-    match ``sed -n`` semantics), with the slice's first host serving as the
-    worker's torch.distributed leader.
-
-    For prefill, worker 0 / rank 0 is the global infra host (NATS + etcd +
-    dynamo frontend). For decode, no worker runs infra. ``set_pid_var`` ties
-    ``${{NAME_UPPER}}_PID`` to that infra-host srun so the cleanup trap can
-    track the service. The per-node script receives positional args
-    ``$1=rank``, ``$2=leader_ip``, ``$3=is_infra_host``."""
-    is_infra_assign = (
-        '        if [ "$_W" -eq 0 ] && [ "$_NR" -eq 0 ]; then\n            _IS_INFRA=1\n        fi'
-        if role == "prefill"
-        else ""
-    )
-    pid_assign = (
-        f'\n        if [ "$_W" -eq 0 ] && [ "$_NR" -eq 0 ]; then\n            {name_upper}_PID=$!\n        fi'
-        if set_pid_var
-        else ""
-    )
-    container_suffix = f"{role}-w$_W-r$_NR"
-    return (
-        f"# {role.capitalize()} workers ({num_workers} worker(s) × {nodes_per_worker} node(s) each)\n"
-        f"_W=0\n"
-        f"while [ $_W -lt {num_workers} ]; do\n"
-        f"    _OFF=$((_W * {nodes_per_worker} + 1))\n"
-        f"    _END=$((_OFF + {nodes_per_worker} - 1))\n"
-        f'    _SLICE=$(echo "${nodes_var}" | sed -n "${{_OFF}},${{_END}}p")\n'
-        f'    _LEADER=$(echo "$_SLICE" | head -n 1)\n'
-        f"    echo \"  {role} worker $_W: leader=$_LEADER nodes=$(echo \"$_SLICE\" | tr '\\n' ' ')\"\n"
-        f"    _NR=0\n"
-        f"    for _NODE in $_SLICE; do\n"
-        f"        _IS_INFRA=0\n"
-        + (is_infra_assign + "\n" if is_infra_assign else "")
-        + f"        {srun_prefix}--container-name=nel-{safe_name}-{container_suffix} -w $_NODE "
-        f'bash "$OUTPUT_DIR/logs/{script_file}" $_NR $_LEADER $_IS_INFRA '
-        f'>> "$OUTPUT_DIR/logs/server-{name}-$SLURM_JOB_ID.log" 2>&1 &' + pid_assign + "\n        _NR=$((_NR + 1))\n"
-        "    done\n"
-        "    _W=$((_W + 1))\n"
-        "done"
-    )
-
-
-def _dynamo_disaggregated_block(
-    *,
-    name: str,
-    upper: str,
-    safe_name: str,
-    svc: DynamoService,
-    deploy_image: str,
-    model_for_cmd: str,
-    model_mount: list[str],
-    model_api_name: str,
-    worker_port: int,
-    bootstrap_port: int,
-    use_containers: bool,
-    cluster_mounts: list[str],
-    env_keys: list[str],
-    mount_home: bool,
-    pool_to_het: dict[str, int] | None,
-    reexport_block: str,
-) -> str:
-    assert svc.prefill is not None
-    assert svc.decode is not None
-    prefill = svc.prefill
-    decode = svc.decode
-
-    def _role_script(role: str, role_cfg, *, run_infra: bool) -> tuple[str, str]:
-        """Build the per-node script + script_file for a role.
-
-        Returns ``(script_file, heredoc)``. ``run_infra`` is True for prefill
-        (only the very first prefill rank — worker 0, node-rank 0 — runs
-        NATS+etcd+frontend); False for decode.
-
-        Each worker forms its OWN TP=N rendezvous on its own leader, so the
-        leader IP is injected per invocation as positional arg ``$2``. The
-        worker command uses ``LEADER_IP`` (set from that arg) — NOT a shared
-        ``MASTER_IP`` or per-role global. Verified against srt-slurm's HSG
-        2664281 logs (prefill_w0=10.109.24.19, prefill_w1=10.109.30.165,
-        decode_w0=10.109.31.91 — distinct per worker).
-
-        Positional args: ``$1`` = node-rank within this worker's TP group;
-        ``$2`` = the worker's leader IP (== first host of its node slice);
-        ``$3`` = 1 iff this is the global infra host (prefill w0, rank 0)."""
-        worker_cmd = _dynamo_worker_command(
-            model_for_cmd=model_for_cmd,
-            model_api_name=model_api_name,
-            worker_port=worker_port,
-            tp=role_cfg.tensor_parallel_size,
-            pp=role_cfg.pipeline_parallel_size,
-            dp=role_cfg.data_parallel_size,
-            role=role,
-            bootstrap_port=bootstrap_port if role == "prefill" else None,
-            dist_init_var="LEADER_IP",
-            num_nodes=role_cfg.num_nodes,
-            extra_args=list(role_cfg.extra_args),
-        )
-
-        lines = ["set -euo pipefail"]
-        lines.append('NEL_NODE_RANK="${1:-0}"')
-        lines.append('LEADER_IP="${2:-$MASTER_IP}"')
-        lines.append('IS_INFRA_HOST="${3:-0}"')
-        lines.append("export NEL_NODE_RANK LEADER_IP IS_INFRA_HOST")
-        lines.extend(_dynamo_infra_env_exports("${MASTER_IP}"))
-        for k, v in role_cfg.extra_env.items():
-            lines.append(f"export {k}={shlex.quote(v)}")
-        if run_infra:
-            lines.append('if [ "$IS_INFRA_HOST" = "1" ]; then')
-            lines.extend(f"    {line}" for line in _dynamo_infra_bootstrap_block(name, svc.port))
-            lines.append("fi")
-        lines.append(worker_cmd)
-
-        script_file = f"_svc_{safe_name}_{role}_cmd_$SLURM_JOB_ID.sh"
-        heredoc = (
-            f"cat > \"$OUTPUT_DIR/logs/{script_file}\" <<'_NEMO_SVC_CMD_EOF_'\n"
-            + "\n".join(lines)
-            + "\n_NEMO_SVC_CMD_EOF_\n"
-        )
-        return script_file, heredoc
-
-    prefill_script_file, prefill_heredoc = _role_script("prefill", prefill, run_infra=True)
-    decode_script_file, decode_heredoc = _role_script("decode", decode, run_infra=False)
-
-    def _role_srun(role_cfg) -> str:
-        pool = role_cfg.node_pool
-        het_flag = ""
-        if pool and pool_to_het and pool in pool_to_het:
-            het_flag = f" --het-group={pool_to_het[pool]}"
-        if not use_containers:
-            return ""
-        srun = _build_srun_prefix(
-            role_cfg,
-            deploy_image,
-            het_flag=het_flag,
-            cluster_mounts=cluster_mounts,
-            env_keys=list(env_keys) + list(_DYNAMO_EXTRA_ENV_KEYS),
-            mount_home=mount_home,
-            extra_mounts=model_mount + ["$OUTPUT_DIR:$OUTPUT_DIR"],
-        )
-        srun = srun.replace(
-            f"--nodes {role_cfg.num_nodes} --ntasks {role_cfg.num_nodes}", "--nodes 1 --ntasks 1"
-        ).replace(" --label", "")
-        return srun.rstrip() + " "
-
-    prefill_srun = _role_srun(prefill)
-    decode_srun = _role_srun(decode)
-
-    def _role_nodelist_var(role_cfg) -> str:
-        pool = role_cfg.node_pool
-        if pool and pool_to_het and pool in pool_to_het:
-            return f"$SLURM_JOB_NODELIST_HET_GROUP_{pool_to_het[pool]}"
-        return "$SLURM_JOB_NODELIST"
-
-    # Two modes for splitting the allocation between prefill and decode:
-    # (a) HET-JOB MODE (different pools): each role has its own het-group
-    #     nodelist — emit `scontrol show hostnames` per role.
-    # (b) SINGLE-POOL MODE (same pool): the SBATCH header is flat, so the
-    #     pool's nodelist contains BOTH roles. Slice it with head/tail to
-    #     give prefill the first N and decode the rest. This is what
-    #     srt-slurm production recipes do (e.g. gb200-fp8-nvl72-port:
-    #     #SBATCH --nodes=6 --segment=6 with the orchestrator splitting
-    #     workers across the 6 nodes). Required to get all roles on one
-    #     NVL72 rack via `cluster.sbatch_extra_flags.segment: <total>`.
-    p_total = prefill.num_workers * prefill.num_nodes
-    d_total = decode.num_workers * decode.num_nodes
-    same_pool = prefill.node_pool is not None and prefill.node_pool == decode.node_pool
-    if same_pool:
-        pool_nodelist = _role_nodelist_var(prefill)  # same for both
-        nodelist_split_block = (
-            f'_ALL_NODES=$(scontrol show hostnames "{pool_nodelist}")\n'
-            f'_PREFILL_NODES=$(echo "$_ALL_NODES" | head -n {p_total})\n'
-            f'_DECODE_NODES=$(echo "$_ALL_NODES" | sed -n "{p_total + 1},{p_total + d_total}p")'
-        )
-    else:
-        nodelist_split_block = (
-            f'_PREFILL_NODES=$(scontrol show hostnames "{_role_nodelist_var(prefill)}")\n'
-            f'_DECODE_NODES=$(scontrol show hostnames "{_role_nodelist_var(decode)}")'
-        )
-
-    prefill_fanout = _dynamo_disagg_role_fanout(
-        role="prefill",
-        name=name,
-        name_upper=upper,
-        safe_name=safe_name,
-        num_workers=prefill.num_workers,
-        nodes_per_worker=prefill.num_nodes,
-        srun_prefix=prefill_srun,
-        script_file=prefill_script_file,
-        nodes_var="_PREFILL_NODES",
-        set_pid_var=True,
-    )
-    decode_fanout = _dynamo_disagg_role_fanout(
-        role="decode",
-        name=name,
-        name_upper=upper,
-        safe_name=safe_name,
-        num_workers=decode.num_workers,
-        nodes_per_worker=decode.num_nodes,
-        srun_prefix=decode_srun,
-        script_file=decode_script_file,
-        nodes_var="_DECODE_NODES",
-        set_pid_var=False,
-    )
-
-    body = _DYNAMO_DISAGG_SERVICE.format(
-        name=name,
-        name_upper=upper,
-        safe_name=safe_name,
-        port=svc.port,
-        model=shlex.quote(model_api_name or ""),
-        num_prefill_workers=prefill.num_workers,
-        num_decode_workers=decode.num_workers,
-        prefill_nodes_per_worker=prefill.num_nodes,
-        decode_nodes_per_worker=decode.num_nodes,
-        nodelist_split_block=nodelist_split_block,
-        prefill_fanout=prefill_fanout,
-        decode_fanout=decode_fanout,
-    )
-
-    return reexport_block + prefill_heredoc + decode_heredoc + body
-
-
 def _service_block(
     name: str,
     svc,
@@ -1384,18 +732,6 @@ def _service_block(
     # (like Gym) to $MASTER_IP so they share the host network namespace with
     # the batch script and eval srun, enabling localhost communication.
     _pin = not pool_to_het and use_containers
-
-    if isinstance(svc, DynamoService):
-        return _dynamo_service_block(
-            name,
-            svc,
-            use_containers=use_containers,
-            cluster_mounts=cluster_mounts or [],
-            env_keys=env_keys or [],
-            reexport_cmds=reexport_cmds,
-            mount_home=mount_home,
-            pool_to_het=pool_to_het,
-        )
 
     if svc.type in _MODEL_CMD:
         cmd, model_flag, tp_flag_name, pp_flag_name, dp_flag_name = _MODEL_CMD[svc.type]
@@ -1645,28 +981,6 @@ def _health_block(name: str, svc, *, pool_to_het: dict[str, int] | None = None) 
             name_upper=upper,
             url=svc.base_url or url,
             max_attempts=max_attempts,
-        )
-
-    if isinstance(svc, DynamoService):
-        # Aggregated mode: one ``backend`` worker, counted as decode by the
-        # frontend's /health response (matches srt-slurm's
-        # ``check_dynamo_health`` convention). Disagg: gate on the configured
-        # per-role ``num_workers`` so 2P+1D etc. only flips ready once every
-        # worker has registered (a partial registration round-robins traffic
-        # to a worker that isn't actually serving).
-        if svc.prefill is None:
-            expected_prefill = 0
-            expected_decode = 1
-        else:
-            expected_prefill = svc.prefill.num_workers
-            expected_decode = svc.decode.num_workers
-        return _HEALTH_WAIT_DYNAMO.format(
-            name=name,
-            name_upper=upper,
-            url=url,
-            max_attempts=max_attempts,
-            expected_prefill=expected_prefill,
-            expected_decode=expected_decode,
         )
 
     health = getattr(svc, "health_path", "/health") or "/health"
@@ -1921,30 +1235,15 @@ def _format_sbatch_extra_flags(flags: dict) -> str:
 
 
 def _any_multinode_service(config: EvalConfig) -> bool:
-    """Return True if any service requests multiple nodes.
-
-    Dynamo disagg surfaces per-role ``num_nodes`` on ``prefill`` / ``decode``
-    sub-configs; the service-level ``num_nodes`` stays at the 1-default for
-    those configs, so the role sub-blocks have to be checked too — otherwise
-    the batch script's ``MASTER_IP=$(scontrol ...)`` discovery never gets
-    emitted and the worker scripts hit ``MASTER_IP: unbound variable``."""
-    for svc in config.services.values():
-        if getattr(svc, "num_nodes", 1) > 1:
-            return True
-        for role_attr in ("prefill", "decode"):
-            role_cfg = getattr(svc, role_attr, None)
-            if role_cfg and getattr(role_cfg, "num_nodes", 1) > 1:
-                return True
-    return False
+    """Return True if any service requests multiple nodes."""
+    return any(getattr(svc, "num_nodes", 1) > 1 for svc in config.services.values())
 
 
 def _compute_pool_nodes(config: EvalConfig, pool_name: str) -> int:
     """Compute total nodes needed for a pool, accounting for multi-node services.
 
-    Returns the max of the pool's declared nodes and the largest sizing among
-    services referencing this pool. For dynamo disagg with prefill+decode
-    BOTH pointing at the same pool (the single-rack-enforcement shape), sums
-    their per-role ``num_nodes`` since they share the allocation.
+    Returns the max of the pool's declared nodes and any service's num_nodes
+    requirement, so that the SBATCH header always requests enough.
     """
     cluster = config.cluster
     if not isinstance(cluster, SlurmCluster):
@@ -1955,22 +1254,6 @@ def _compute_pool_nodes(config: EvalConfig, pool_name: str) -> int:
         svc_pool = getattr(svc, "node_pool", None)
         if svc_pool == pool_name:
             svc_max = max(svc_max, getattr(svc, "num_nodes", 1))
-        # Sum prefill + decode if both share this pool (single-pool disagg).
-        # Per-role footprint = num_workers * num_nodes (each worker forms its
-        # own TP-rendezvous group, so the allocation must cover all of them).
-        prefill = getattr(svc, "prefill", None)
-        decode = getattr(svc, "decode", None)
-        if prefill is not None and decode is not None:
-            p_total = prefill.num_workers * prefill.num_nodes
-            d_total = decode.num_workers * decode.num_nodes
-            p_pool = getattr(prefill, "node_pool", None)
-            d_pool = getattr(decode, "node_pool", None)
-            if p_pool == pool_name and d_pool == pool_name:
-                svc_max = max(svc_max, p_total + d_total)
-            elif p_pool == pool_name:
-                svc_max = max(svc_max, p_total)
-            elif d_pool == pool_name:
-                svc_max = max(svc_max, d_total)
     return max(base, svc_max)
 
 
@@ -2033,7 +1316,6 @@ def generate_sbatch(
             gpus_per_node_line = f"#SBATCH --gpus-per-node={pool.gpus_per_node}" if pool.gpus_per_node else ""
             partition_line = f"#SBATCH --partition={pool.partition}" if pool.partition else ""
             account_line = f"#SBATCH --account={cluster.account}" if cluster.account else ""
-            pool_extra_lines = _format_sbatch_extra_flags(getattr(pool, "sbatch_extra_flags", {}) or {})
             parts.append(
                 _HEADER_HETJOB_POOL.format(
                     het_idx=i,
@@ -2043,7 +1325,6 @@ def generate_sbatch(
                     walltime=cluster.walltime,
                     gres_line=gres_line,
                     gpus_per_node_line=gpus_per_node_line,
-                    pool_extra_lines=pool_extra_lines,
                     partition_line=partition_line,
                     account_line=account_line,
                 )
@@ -2107,15 +1388,6 @@ def generate_sbatch(
                     svc_pool = getattr(svc, "node_pool", None)
                     if svc_pool and svc_pool in pool_to_het:
                         nodelist_var = f"SLURM_JOB_NODELIST_HET_GROUP_{pool_to_het[svc_pool]}"
-                    break
-                # Dynamo disagg: NATS+etcd+frontend live on the prefill rank-0
-                # node, so MASTER_IP must resolve to the prefill pool's first
-                # host. ``prefill`` is checked first regardless of which is
-                # multi-node so disagg + decode-only-multi-node still works.
-                prefill = getattr(svc, "prefill", None)
-                prefill_pool = getattr(prefill, "node_pool", None) if prefill else None
-                if prefill_pool and prefill_pool in pool_to_het:
-                    nodelist_var = f"SLURM_JOB_NODELIST_HET_GROUP_{pool_to_het[prefill_pool]}"
                     break
         parts.append(_MULTINODE_IP_DISCOVERY.format(nodelist_var=nodelist_var))
 

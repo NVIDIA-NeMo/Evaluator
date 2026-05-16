@@ -150,68 +150,6 @@ class DockerModelService(_ModelServerBase):
     type: Literal["docker_model"] = "docker_model"
 
 
-class DynamoWorkerConfig(BaseModel):
-    """Per-role worker config for disaggregated dynamo deployments.
-
-    Used only inside ``DynamoService.prefill`` / ``DynamoService.decode``.
-    Mirrors the shape of the relevant ``_ModelServerBase`` fields, scoped
-    to the prefill or decode worker rather than the whole service."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    tensor_parallel_size: int | None = None
-    pipeline_parallel_size: int | None = None
-    data_parallel_size: int | None = None
-    num_nodes: int = 1
-    num_workers: int = Field(
-        default=1,
-        ge=1,
-        description=(
-            "Number of independent worker processes for this role. Each worker "
-            "forms its own torch.distributed TP rendezvous and registers "
-            "separately with NATS. Total nodes for the role = num_workers * "
-            "num_nodes. Use >1 for production wide-EP shapes (e.g. 2P+1D)."
-        ),
-    )
-    node_pool: str | None = None
-    extra_args: list[str] = Field(default_factory=list)
-    extra_env: dict[str, str] = Field(default_factory=dict)
-
-
-class DynamoService(_ModelServerBase):
-    """NVIDIA ai-dynamo deployment (sglang engine).
-
-    Dynamo is intrinsically multi-process: NATS broker + etcd + HTTP frontend
-    (``python3 -m dynamo.frontend``) + one or more workers (``python3 -m
-    dynamo.sglang``). Workers self-register via NATS using
-    ``DYN_REQUEST_PLANE=nats``; the frontend dispatches OpenAI requests.
-
-    Mode is implicit:
-    - ``prefill`` and ``decode`` both unset (default) → aggregated: a single
-      worker handles both prefill and decode. Base-level fields
-      (``tensor_parallel_size`` etc.) apply to the worker.
-    - ``prefill`` and ``decode`` both set → disaggregated: two separate sets
-      of workers; per-role TP/DP/etc. live on the sub-blocks.
-
-    Setting only one of ``prefill``/``decode`` is rejected by validation."""
-
-    type: Literal["dynamo"] = "dynamo"
-    engine: Literal["sglang"] = "sglang"
-    prefill: DynamoWorkerConfig | None = None
-    decode: DynamoWorkerConfig | None = None
-
-    @model_validator(mode="after")
-    def _check_disagg_pair(self) -> DynamoService:
-        if (self.prefill is None) != (self.decode is None):
-            raise ValueError(
-                "dynamo: 'prefill' and 'decode' must both be set (disaggregated) "
-                "or both be None (aggregated); got prefill="
-                f"{'set' if self.prefill else 'None'}, decode="
-                f"{'set' if self.decode else 'None'}"
-            )
-        return self
-
-
 class ExternalApiService(BaseModel):
     """Pre-deployed model / judge behind an HTTP endpoint.
 
@@ -368,7 +306,6 @@ ServiceConfig = Annotated[
     | Annotated[SglangService, Tag("sglang")]
     | Annotated[NimService, Tag("nim")]
     | Annotated[DockerModelService, Tag("docker_model")]
-    | Annotated[DynamoService, Tag("dynamo")]
     | Annotated[ExternalApiService, Tag("api")]
     | Annotated[GymResourceService, Tag("gym")]
     | Annotated[NatAgentService, Tag("nat")]
@@ -381,6 +318,5 @@ _MODEL_SERVICE_TYPES = (
     SglangService,
     NimService,
     DockerModelService,
-    DynamoService,
     ExternalApiService,
 )
