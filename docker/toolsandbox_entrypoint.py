@@ -59,6 +59,11 @@ def _register_nvidia_roles() -> None:
     agent_model = _require_env("NVIDIA_AGENT_MODEL")
     user_model = os.environ.get("NVIDIA_USER_MODEL", "meta/llama-3.1-70b-instruct")
 
+    # OpenAIAPIAgent/User.__init__ reads OPENAI_API_KEY to create a temporary
+    # client that NVIDIANIMAgent immediately replaces.  Set a placeholder so
+    # the parent __init__ doesn't raise when the env var is absent.
+    os.environ.setdefault("OPENAI_API_KEY", api_key or "not-used")
+
     def _client() -> OpenAI:
         return OpenAI(base_url=base_url, api_key=api_key)
 
