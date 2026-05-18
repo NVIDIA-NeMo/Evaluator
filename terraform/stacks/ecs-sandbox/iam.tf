@@ -354,6 +354,12 @@ resource "aws_iam_policy" "orchestrator" {
         Resource = "arn:aws:ssm:*:${data.aws_caller_identity.current.account_id}:parameter/${var.project}/ecs-sandbox/*"
       },
       {
+        Sid      = "SSMTaskDefCache"
+        Effect   = "Allow"
+        Action   = ["ssm:GetParameter", "ssm:PutParameter"]
+        Resource = "arn:aws:ssm:*:${data.aws_caller_identity.current.account_id}:parameter/${var.project}/task-defs/*"
+      },
+      {
         Sid      = "EC2DescribeENI"
         Effect   = "Allow"
         Action   = ["ec2:DescribeNetworkInterfaces"]

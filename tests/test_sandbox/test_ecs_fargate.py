@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -246,14 +248,15 @@ class TestReverseSpecs:
             OutsideEndpoint(url="http://host-b:4000/form", env_var="B"),
         ]
 
-        register_task_definition, tunnel_cls, _ = await _start_with_mocked_ecs(sb, eps)
+        _, tunnel_cls, _ = await _start_with_mocked_ecs(sb, eps)
 
         specs = tunnel_cls.call_args.kwargs["reverses"]
         assert "4000:host-a:4000" in specs
         assert "20000:host-b:4000" in specs
-        env = register_task_definition.call_args.kwargs["env"]
-        assert env["A"] == "http://127.0.0.1:4000/v1"
-        assert env["B"] == "http://127.0.0.1:20000/form"
+        # OutsideEndpoint env vars are routed via RunTask containerOverrides
+        # (per-invocation), so they don't leak into the cached task definition.
+        assert sb._runtime_container_env["A"] == "http://127.0.0.1:4000/v1"
+        assert sb._runtime_container_env["B"] == "http://127.0.0.1:20000/form"
 
     async def test_duplicate_target_reuses_reverse_port(self):
         sb = _make_sandbox()
@@ -262,13 +265,12 @@ class TestReverseSpecs:
             OutsideEndpoint(url="http://host-a:4000/health", env_var="B"),
         ]
 
-        register_task_definition, tunnel_cls, _ = await _start_with_mocked_ecs(sb, eps)
+        _, tunnel_cls, _ = await _start_with_mocked_ecs(sb, eps)
 
         specs = tunnel_cls.call_args.kwargs["reverses"]
         assert specs == ["4000:host-a:4000"]
-        env = register_task_definition.call_args.kwargs["env"]
-        assert env["A"] == "http://127.0.0.1:4000/v1"
-        assert env["B"] == "http://127.0.0.1:4000/health"
+        assert sb._runtime_container_env["A"] == "http://127.0.0.1:4000/v1"
+        assert sb._runtime_container_env["B"] == "http://127.0.0.1:4000/health"
 
     async def test_exec_server_port_is_reserved(self):
         sb = _make_sandbox()
@@ -287,11 +289,10 @@ class TestReverseSpecs:
             OutsideEndpoint(url="http://host-b:4000/form", env_var="B"),
         ]
 
-        register_task_definition, _, _ = await _start_with_mocked_ecs(sb, eps)
+        await _start_with_mocked_ecs(sb, eps)
 
-        env = register_task_definition.call_args.kwargs["env"]
-        assert env["A"] == "http://127.0.0.1:4000/v1"
-        assert env["B"] == "http://127.0.0.1:20000/form"
+        assert sb._runtime_container_env["A"] == "http://127.0.0.1:4000/v1"
+        assert sb._runtime_container_env["B"] == "http://127.0.0.1:20000/form"
 
 
 class TestEcsFargateLifecycle:
@@ -386,7 +387,7 @@ class TestEcsFargateLifecycle:
         assert sb._stopped
         tunnel_mock.close.assert_called_once()
         ecs_mock.stop_task.assert_called_once()
-        ecs_mock.deregister_task_definition.assert_called_once()
+        ecs_mock.deregister_task_definition.assert_not_called()
 
     async def test_stop_idempotent(self):
         sb = _make_sandbox()
@@ -744,3 +745,282 @@ class TestImageBuilder:
 
         assert "123.dkr.ecr.us-west-2.amazonaws.com/repo:" in result
         mock_exists.assert_called_once()
+
+
+# ── TestTaskDefCache ──────────────────────────────────────────────────
+
+
+@pytest.fixture
+def clear_task_def_cache():
+    from nemo_evaluator.sandbox import ecs_fargate
+
+    ecs_fargate._task_def_cache.clear()
+    ecs_fargate._task_def_inflight.clear()
+    yield
+    ecs_fargate._task_def_cache.clear()
+    ecs_fargate._task_def_inflight.clear()
+
+
+def _ssm_param_not_found_error():
+    from botocore.exceptions import ClientError
+
+    return ClientError({"Error": {"Code": "ParameterNotFound", "Message": "not found"}}, "GetParameter")
+
+
+def _make_cache_sandbox():
+    sb = _make_sandbox()
+    sb._ecs = MagicMock()
+    sb._ssm = MagicMock()
+    sb._ssm.get_parameter.side_effect = _ssm_param_not_found_error()
+    return sb
+
+
+def _make_ssm_sandbox():
+    sb = _make_sandbox()
+    sb._ecs = MagicMock()
+    sb._ssm = MagicMock()
+    return sb
+
+
+class TestTaskDefCache:
+    def test_same_payload_reuses_cached_arn(self, clear_task_def_cache):
+        sb = _make_cache_sandbox()
+        sb._ecs.register_task_definition.return_value = {
+            "taskDefinition": {"taskDefinitionArn": "arn:aws:ecs:us-east-1:1234:task-definition/test:1"}
+        }
+        payload = {
+            "family": "test-abc",
+            "cpu": "4096",
+            "memory": "8192",
+            "containerDefinitions": [{"name": "main", "image": "python:3.12"}],
+        }
+
+        arn1 = sb._do_register(payload)
+        arn2 = sb._do_register({**payload, "family": "test-xyz"})
+
+        assert arn1 == arn2
+        sb._ecs.register_task_definition.assert_called_once()
+
+    def test_different_payload_registers_new_task_def(self, clear_task_def_cache):
+        sb = _make_cache_sandbox()
+        sb._ecs.register_task_definition.side_effect = [
+            {"taskDefinition": {"taskDefinitionArn": "arn:aws:ecs:us-east-1:1234:task-definition/test:1"}},
+            {"taskDefinition": {"taskDefinitionArn": "arn:aws:ecs:us-east-1:1234:task-definition/test:2"}},
+        ]
+        payload_a = {"family": "test", "cpu": "4096", "containerDefinitions": []}
+        payload_b = {"family": "test", "cpu": "8192", "containerDefinitions": []}
+
+        arn1 = sb._do_register(payload_a)
+        arn2 = sb._do_register(payload_b)
+
+        assert arn1 != arn2
+        assert sb._ecs.register_task_definition.call_count == 2
+
+    def test_concurrent_identical_payloads_register_once(self, clear_task_def_cache):
+        sb = _make_cache_sandbox()
+        gate = threading.Event()
+
+        def slow_register(**_kwargs):
+            gate.wait(timeout=5.0)
+            return {"taskDefinition": {"taskDefinitionArn": "arn:aws:ecs:us-east-1:1234:task-definition/test:1"}}
+
+        sb._ecs.register_task_definition.side_effect = slow_register
+
+        payload = {"family": "test", "cpu": "4096", "memory": "8192", "containerDefinitions": []}
+        results: list[str] = []
+        errors: list[BaseException] = []
+
+        def call():
+            try:
+                results.append(sb._do_register(payload))
+            except BaseException as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=call) for _ in range(8)]
+        for t in threads:
+            t.start()
+        # Poll until the elected registrant has entered slow_register (under the cache
+        # lock it has already added the inflight entry the other threads will wait on).
+        # Avoids a flaky time.sleep that may be too short under CI load.
+        deadline = time.monotonic() + 5.0
+        while sb._ecs.register_task_definition.call_count == 0:
+            if time.monotonic() > deadline:
+                pytest.fail("registrant never reached slow_register within 5s")
+            time.sleep(0.005)
+        gate.set()
+        for t in threads:
+            t.join(timeout=5.0)
+
+        assert not errors, f"thread errors: {errors}"
+        assert sb._ecs.register_task_definition.call_count == 1
+        assert len(results) == 8
+        assert all(r == results[0] for r in results)
+
+
+# ── TestSsmTaskDefCache ───────────────────────────────────────────────
+
+
+class TestSsmTaskDefCache:
+    def test_ssm_hit_active_skips_register(self, clear_task_def_cache):
+        sb = _make_ssm_sandbox()
+        sb._ssm.get_parameter.return_value = {"Parameter": {"Value": "arn:cached:1"}}
+        sb._ecs.describe_task_definition.return_value = {
+            "taskDefinition": {"taskDefinitionArn": "arn:cached:1", "status": "ACTIVE"}
+        }
+        payload = {"family": "test", "cpu": "4096", "containerDefinitions": []}
+
+        arn = sb._do_register(payload)
+
+        assert arn == "arn:cached:1"
+        sb._ssm.get_parameter.assert_called_once()
+        sb._ecs.describe_task_definition.assert_called_once()
+        sb._ecs.register_task_definition.assert_not_called()
+        sb._ssm.put_parameter.assert_not_called()
+
+    def test_ssm_hit_inactive_falls_through_to_register(self, clear_task_def_cache):
+        sb = _make_ssm_sandbox()
+        sb._ssm.get_parameter.return_value = {"Parameter": {"Value": "arn:stale:1"}}
+        sb._ecs.describe_task_definition.return_value = {
+            "taskDefinition": {"taskDefinitionArn": "arn:stale:1", "status": "INACTIVE"}
+        }
+        sb._ecs.register_task_definition.return_value = {"taskDefinition": {"taskDefinitionArn": "arn:fresh:2"}}
+        payload = {"family": "test", "cpu": "4096", "containerDefinitions": []}
+
+        arn = sb._do_register(payload)
+
+        assert arn == "arn:fresh:2"
+        sb._ecs.register_task_definition.assert_called_once()
+        sb._ssm.put_parameter.assert_called_once()
+
+    def test_ssm_miss_registers_and_writes(self, clear_task_def_cache):
+        sb = _make_ssm_sandbox()
+        sb._ssm.get_parameter.side_effect = _ssm_param_not_found_error()
+        sb._ecs.register_task_definition.return_value = {"taskDefinition": {"taskDefinitionArn": "arn:new:1"}}
+        payload = {"family": "test", "cpu": "4096", "containerDefinitions": []}
+
+        arn = sb._do_register(payload)
+
+        assert arn == "arn:new:1"
+        sb._ecs.register_task_definition.assert_called_once()
+        put_kwargs = sb._ssm.put_parameter.call_args.kwargs
+        assert put_kwargs["Value"] == "arn:new:1"
+        assert put_kwargs["Overwrite"] is True
+        assert put_kwargs["Name"].startswith("/harbor/task-defs/")
+
+    def test_ssm_read_error_falls_through_gracefully(self, clear_task_def_cache):
+        from botocore.exceptions import ClientError
+
+        sb = _make_ssm_sandbox()
+        sb._ssm.get_parameter.side_effect = ClientError(
+            {"Error": {"Code": "AccessDeniedException", "Message": "denied"}}, "GetParameter"
+        )
+        sb._ecs.register_task_definition.return_value = {"taskDefinition": {"taskDefinitionArn": "arn:fallback:1"}}
+        payload = {"family": "test", "cpu": "4096", "containerDefinitions": []}
+
+        arn = sb._do_register(payload)
+
+        assert arn == "arn:fallback:1"
+        sb._ecs.register_task_definition.assert_called_once()
+
+    def test_ssm_write_error_does_not_fail_run(self, clear_task_def_cache):
+        from botocore.exceptions import ClientError
+
+        sb = _make_ssm_sandbox()
+        sb._ssm.get_parameter.side_effect = _ssm_param_not_found_error()
+        sb._ecs.register_task_definition.return_value = {"taskDefinition": {"taskDefinitionArn": "arn:ok:1"}}
+        sb._ssm.put_parameter.side_effect = ClientError(
+            {"Error": {"Code": "AccessDeniedException", "Message": "denied"}}, "PutParameter"
+        )
+        payload = {"family": "test", "cpu": "4096", "containerDefinitions": []}
+
+        arn = sb._do_register(payload)
+
+        assert arn == "arn:ok:1"
+        sb._ecs.register_task_definition.assert_called_once()
+
+    def test_ssm_hit_populates_local_cache(self, clear_task_def_cache):
+        from nemo_evaluator.sandbox import ecs_fargate
+
+        sb = _make_ssm_sandbox()
+        sb._ssm.get_parameter.return_value = {"Parameter": {"Value": "arn:cached:1"}}
+        sb._ecs.describe_task_definition.return_value = {
+            "taskDefinition": {"taskDefinitionArn": "arn:cached:1", "status": "ACTIVE"}
+        }
+        payload = {"family": "test", "cpu": "4096", "containerDefinitions": []}
+
+        arn1 = sb._do_register(payload)
+        arn2 = sb._do_register(payload)
+
+        assert arn1 == arn2 == "arn:cached:1"
+        assert sb._ssm.get_parameter.call_count == 1
+        assert sb._ecs.describe_task_definition.call_count == 1
+        h = ecs_fargate._compute_task_def_hash(payload)
+        assert ecs_fargate._task_def_cache[h] == "arn:cached:1"
+
+
+# ── TestTaskDefHashStability ─────────────────────────────────────────
+
+
+class TestTaskDefHashStability:
+    """logConfiguration is stripped before hashing so cross-run cache hits work."""
+
+    def test_different_log_stream_prefix_same_hash(self):
+        from nemo_evaluator.sandbox.ecs_fargate import _compute_task_def_hash
+
+        base_cd = [{"name": "main", "image": "python:3.12", "environment": []}]
+        payload_a = {
+            "family": "run-a",
+            "cpu": "4096",
+            "containerDefinitions": base_cd
+            + [{"name": "ssh-tunnel", "logConfiguration": {"awslogs-stream-prefix": "run-A"}}],
+        }
+        payload_b = {
+            "family": "run-b",
+            "cpu": "4096",
+            "containerDefinitions": base_cd
+            + [{"name": "ssh-tunnel", "logConfiguration": {"awslogs-stream-prefix": "run-B"}}],
+        }
+        assert _compute_task_def_hash(payload_a) == _compute_task_def_hash(payload_b)
+
+    def test_different_image_still_different_hash(self):
+        from nemo_evaluator.sandbox.ecs_fargate import _compute_task_def_hash
+
+        payload_a = {"family": "x", "containerDefinitions": [{"name": "main", "image": "python:3.12"}]}
+        payload_b = {"family": "x", "containerDefinitions": [{"name": "main", "image": "python:3.13"}]}
+        assert _compute_task_def_hash(payload_a) != _compute_task_def_hash(payload_b)
+
+
+# ── TestPerInvocationEnvSplit ─────────────────────────────────────────
+
+
+class TestPerInvocationEnvSplit:
+    def test_split_routes_efs_session_and_outside_endpoint_overrides(self):
+        from nemo_evaluator.sandbox.ecs_fargate import _OutsideEndpointRouting
+
+        sb = _make_sandbox()
+        sb._outside_endpoint_routing = _OutsideEndpointRouting.for_exec_server(
+            [OutsideEndpoint(url="http://api.local:4000/s/abc123", env_var="MODEL_BASE_URL")],
+            _sidecar(),
+        )
+        env = {
+            "HARBOR_TASK_DIR": "harbor_datasets/terminal-bench@2.0/regex-chess",
+            "_NEL_EFS_SESSION": "1779033306_abc",
+            "MODEL_BASE_URL": "http://127.0.0.1:4000/s/abc123",
+        }
+
+        stable, runtime = sb._split_env(env)
+
+        assert stable == {"HARBOR_TASK_DIR": "harbor_datasets/terminal-bench@2.0/regex-chess"}
+        assert runtime == {
+            "_NEL_EFS_SESSION": "1779033306_abc",
+            "MODEL_BASE_URL": "http://127.0.0.1:4000/s/abc123",
+        }
+
+    def test_split_keeps_unrelated_env_in_stable(self):
+        sb = _make_sandbox()
+        env = {"FOO": "bar", "HARBOR_TASK_DIR": "x"}
+
+        stable, runtime = sb._split_env(env)
+
+        assert stable == env
+        assert runtime == {}

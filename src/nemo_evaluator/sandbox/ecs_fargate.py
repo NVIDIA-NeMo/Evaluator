@@ -47,6 +47,7 @@ from pathlib import Path
 from typing import Any, Callable, Self, TypeVar
 from urllib.parse import ParseResult, urlparse
 
+from nemo_evaluator.config.sandboxes import DEFAULT_SSM_PROJECT
 from nemo_evaluator.sandbox.base import ExecResult, OutsideEndpoint, SandboxSpec
 
 logger = logging.getLogger(__name__)
@@ -77,7 +78,7 @@ _ssm_config_cache: dict[str, dict[str, Any]] = {}
 
 def resolve_ecs_config_from_ssm(
     region: str,
-    project: str = "harbor",
+    project: str = DEFAULT_SSM_PROJECT,
 ) -> dict[str, Any]:
     """Read ECS sandbox config from SSM Parameter Store.
 
@@ -189,6 +190,7 @@ class EcsFargateConfig:
     build_parallelism: int = 50
     efs_filesystem_id: str | None = None
     efs_access_point_id: str | None = None
+    ssm_project: str = DEFAULT_SSM_PROJECT
 
 
 @dataclass(frozen=True)
@@ -1212,6 +1214,34 @@ _atexit_registered = False
 _PROCESS_NONCE = f"{int(time.time())}-{uuid.uuid4().hex[:8]}"
 _exec_server_url_cache: dict[str, str] = {}
 
+_task_def_cache: dict[str, str] = {}
+_task_def_cache_lock = threading.Lock()
+_task_def_inflight: dict[str, threading.Event] = {}
+
+# Env vars whose values vary per sandbox invocation (workspace session id, etc).
+# Routed via RunTask containerOverrides so the underlying task definition stays
+# content-stable and the FEP-866 hash cache hits across invocations of the same
+# task. Per-invocation env keys discovered dynamically from OutsideEndpoint
+# routing (e.g. MODEL_BASE_URL with session-scoped URLs) are merged in at call
+# time; this set holds the keys that are NOT visible to OutsideEndpoint routing.
+_PER_INVOCATION_ENV_KEYS: frozenset[str] = frozenset({"_NEL_EFS_SESSION"})
+
+
+def _compute_task_def_hash(payload: dict[str, Any]) -> str:
+    # Strip logConfiguration from every container definition before hashing.
+    # Log config (group, stream-prefix, region) is a visibility annotation — it has
+    # no effect on what the sandbox does. Two task defs that differ only in
+    # log_stream_prefix or log_group are functionally identical and should share
+    # a cache entry so cross-run SSM cache hits work across differently-named runs.
+    def _strip_log_cfg(containers: list) -> list:
+        return [{k: v for k, v in c.items() if k != "logConfiguration"} for c in containers]
+
+    canonical = {
+        k: (_strip_log_cfg(v) if k == "containerDefinitions" else v) for k, v in payload.items() if k != "family"
+    }
+    blob = json.dumps(canonical, sort_keys=True, default=str).encode()
+    return hashlib.sha256(blob).hexdigest()[:24]
+
 
 def _emergency_cleanup() -> None:
     with _cleanup_lock:
@@ -1238,6 +1268,8 @@ class EcsFargateSandbox:
         self._stopped = False
         self._ecs: Any = None
         self._ec2: Any = None
+        self._ssm: Any = None
+        self._runtime_container_env: dict[str, str] = {}
         self._ssh_tunnel_port: int | None = None
         self._agent_forward_port: int | None = None
         self._outside_endpoints: list[OutsideEndpoint] = []
@@ -1425,6 +1457,7 @@ class EcsFargateSandbox:
 
         command = self._build_container_command(sidecar)
         env = self._build_env_vars()
+        stable_env, self._runtime_container_env = self._split_env(env)
         log_region = cfg.region or os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
         sidecar_def = build_ssh_sidecar_container(
             sidecar,
@@ -1435,7 +1468,7 @@ class EcsFargateSandbox:
             log_stream_prefix=cfg.log_stream_prefix or "ecs-sandbox",
         )
         self._task_def_arn = self._register_task_definition(
-            image=image, command=command, env=env, sidecar_def=sidecar_def
+            image=image, command=command, env=stable_env, sidecar_def=sidecar_def
         )
         self._task_arn = self._run_task(self._task_def_arn)
         self._register_for_cleanup()
@@ -1456,6 +1489,7 @@ class EcsFargateSandbox:
         boto_cfg = Config(connect_timeout=30, read_timeout=60, retries={"max_attempts": 8, "mode": "adaptive"})
         self._ecs = boto3.client("ecs", region_name=self._cfg.region, config=boto_cfg)
         self._ec2 = boto3.client("ec2", region_name=self._cfg.region, config=boto_cfg)
+        self._ssm = boto3.client("ssm", region_name=self._cfg.region, config=boto_cfg)
 
     def _resolve_image(self, built_image: str | None = None) -> str:
         if built_image:
@@ -1546,6 +1580,12 @@ class EcsFargateSandbox:
                 env[k] = self._render_env_value(v)
         env.update(self._outside_endpoint_routing.env_overrides())
         return env
+
+    def _split_env(self, env: dict[str, str]) -> tuple[dict[str, str], dict[str, str]]:
+        runtime_keys = _PER_INVOCATION_ENV_KEYS | set(self._outside_endpoint_routing.env_overrides().keys())
+        stable = {k: v for k, v in env.items() if k not in runtime_keys}
+        runtime = {k: v for k, v in env.items() if k in runtime_keys}
+        return stable, runtime
 
     def _render_env_value(self, value: str) -> str:
         if self._ssh_tunnel_port is not None:
@@ -1733,15 +1773,84 @@ class EcsFargateSandbox:
             )
         return task_volumes, mount_points
 
+    def _ssm_lookup_task_def(self, h: str) -> str | None:
+        _, _, ClientError = _require_aws_sdks()
+        param_name = f"/{self._cfg.ssm_project}/task-defs/{h}"
+        try:
+            resp = self._ssm.get_parameter(Name=param_name)
+        except ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            if code == "ParameterNotFound":
+                return None
+            logger.warning("SSM GetParameter %s failed (%s); falling through to register", param_name, code)
+            return None
+
+        arn = resp["Parameter"]["Value"]
+        try:
+            desc = self._ecs.describe_task_definition(taskDefinition=arn)
+        except ClientError as exc:
+            logger.warning(
+                "Cached task def %s no longer describable (%s); re-registering",
+                arn,
+                exc.response["Error"]["Code"],
+            )
+            return None
+        if desc["taskDefinition"]["status"] != "ACTIVE":
+            logger.info("SSM cache entry %s is not ACTIVE; re-registering (hash %s)", arn, h)
+            return None
+        logger.info("Reusing task def from SSM cache: %s (hash %s)", arn, h)
+        return arn
+
+    def _ssm_write_task_def(self, h: str, arn: str) -> None:
+        _, _, ClientError = _require_aws_sdks()
+        param_name = f"/{self._cfg.ssm_project}/task-defs/{h}"
+        try:
+            self._ssm.put_parameter(Name=param_name, Value=arn, Type="String", Overwrite=True)
+            logger.debug("Wrote SSM task-def cache entry: %s -> %s", param_name, arn)
+        except ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            logger.warning("SSM PutParameter %s failed (%s); cache entry not written", param_name, code)
+
     def _do_register(self, payload: dict[str, Any]) -> str:
+        h = _compute_task_def_hash(payload)
+
+        while True:
+            with _task_def_cache_lock:
+                if h in _task_def_cache:
+                    arn = _task_def_cache[h]
+                    logger.info("Reusing cached task def %s (hash %s)", arn, h)
+                    return arn
+                if h in _task_def_inflight:
+                    event = _task_def_inflight[h]
+                else:
+                    event = threading.Event()
+                    _task_def_inflight[h] = event
+                    break
+            event.wait()
+
+        try:
+            arn = self._ssm_lookup_task_def(h) or self._register_task_def_fresh(payload, h)
+            with _task_def_cache_lock:
+                _task_def_cache[h] = arn
+            return arn
+        finally:
+            self._release_inflight(h, event)
+
+    def _register_task_def_fresh(self, payload: dict[str, Any], h: str) -> str:
         resp = _retry_with_backoff(
             lambda: self._ecs.register_task_definition(**payload),
             operation_name="register_task_definition",
             max_retries=25,
         )
         arn = resp["taskDefinition"]["taskDefinitionArn"]
-        logger.info("Registered task def: %s", arn)
+        logger.info("Registered task def: %s (hash %s)", arn, h)
+        self._ssm_write_task_def(h, arn)
         return arn
+
+    def _release_inflight(self, h: str, event: threading.Event) -> None:
+        with _task_def_cache_lock:
+            _task_def_inflight.pop(h, None)
+        event.set()
 
     def _make_family_name(self) -> str:
         nonce = uuid.uuid4().hex[:12]
@@ -1767,6 +1876,17 @@ class EcsFargateSandbox:
                 }
             },
         }
+        if self._runtime_container_env:
+            run_kwargs["overrides"] = {
+                "containerOverrides": [
+                    {
+                        "name": cfg.container_name,
+                        "environment": [
+                            {"name": k, "value": v} for k, v in sorted(self._runtime_container_env.items())
+                        ],
+                    }
+                ]
+            }
         has_efs = any(v.is_efs for v in self._spec.volumes)
         if cfg.platform_version:
             run_kwargs["platformVersion"] = cfg.platform_version
@@ -1954,16 +2074,6 @@ class EcsFargateSandbox:
                 logger.info("Stopped ECS task: %s", self._task_arn)
             except Exception as exc:
                 logger.warning("Failed to stop task %s: %s", self._task_arn, exc)
-        if self._task_def_arn and self._ecs:
-            try:
-                _retry_with_backoff(
-                    lambda: self._ecs.deregister_task_definition(taskDefinition=self._task_def_arn),
-                    operation_name="deregister_task_definition",
-                    max_retries=5,
-                )
-                logger.info("Deregistered task def: %s", self._task_def_arn)
-            except Exception as exc:
-                logger.warning("Failed to deregister task def %s: %s", self._task_def_arn, exc)
         if self._ssh_key_file:
             try:
                 os.remove(self._ssh_key_file)
