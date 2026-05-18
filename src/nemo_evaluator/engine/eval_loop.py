@@ -366,12 +366,14 @@ async def run_evaluation(
                         try:
                             if _solver_accepts_sandbox(solver):
                                 sandbox = await lifecycle.get_agent_sandbox()
+                                logger.info("p%d r%d: sandbox-ready at +%.1fs", idx, rep, time.monotonic() - step_t0)
                             adapter_ctx = (
                                 AttemptContext(adapter_session_id=step_session_id)
                                 if step_session_id and model_traffic_store is not None
                                 else None
                             )
                             with attempt_context(adapter_ctx):
+                                logger.info("p%d r%d: solver-entry at +%.1fs", idx, rep, time.monotonic() - step_t0)
                                 if sandbox is not None:
                                     solve_result = await solver.solve(seed_result, sandbox=sandbox)
                                 else:

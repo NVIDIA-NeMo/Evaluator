@@ -22,6 +22,7 @@ import os
 import re
 import subprocess
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any
 
@@ -53,6 +54,15 @@ from nemo_evaluator.engine.step_log import INFERENCE_LOG, MODEL_TRAFFIC_LOG, VER
 from nemo_evaluator.orchestration.artifact_access import apply_artifact_access
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_EXECUTOR_MAX_WORKERS = 200
+
+
+def _install_default_executor(max_workers: int) -> ThreadPoolExecutor:
+    executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="nel-loop")
+    asyncio.get_running_loop().set_default_executor(executor)
+    return executor
+
 
 if TYPE_CHECKING:
     from nemo_evaluator.adapters.proxy import ProxyHandle
@@ -936,6 +946,9 @@ async def _run_single_benchmark(
     from nemo_evaluator.engine.sharding import shard_from_env
     from nemo_evaluator.observability.progress import ConsoleProgress
     from nemo_evaluator.templates import resolve_template_path
+
+    _install_default_executor(_DEFAULT_EXECUTOR_MAX_WORKERS)
+    logger.info("asyncio default ThreadPoolExecutor set to max_workers=%d", _DEFAULT_EXECUTOR_MAX_WORKERS)
 
     solver_cfg = bench.solver
     service_name: str | None = getattr(solver_cfg, "service", None)

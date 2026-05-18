@@ -242,3 +242,16 @@ class TestResolveGeneration:
         result = _resolve_generation(config, solver_cfg)
         assert result.temperature == 0.7
         assert result.max_tokens == 100
+
+
+class TestInstallDefaultExecutor:
+    def test_replaces_default_executor_with_given_max_workers(self):
+        from nemo_evaluator.orchestration.orchestrator import _install_default_executor
+
+        async def _runner():
+            executor = _install_default_executor(50)
+            loop = asyncio.get_running_loop()
+            assert loop._default_executor is executor  # type: ignore[attr-defined]
+            assert executor._max_workers == 50
+
+        asyncio.run(_runner())
