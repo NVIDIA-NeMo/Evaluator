@@ -65,6 +65,13 @@ class NodePool(BaseModel):
     ntasks_per_node: int = 1
     gres: str | None = None
     gpus_per_node: int | None = None
+    # Per-pool sbatch directives, emitted alongside this pool's #SBATCH --nodes
+    # / --partition / etc. in het-job mode. Use for topology constraints like
+    # ``segment: <nodes>`` on GB200 NVL72 clusters so the het-group's nodes
+    # land on the same NVL72 rack — required for cross-node TP=8 via the
+    # NVLink Switch System (without it, ranks fall back to IB and intra-worker
+    # collectives are significantly slower).
+    sbatch_extra_flags: dict[str, str | int | float | bool] = Field(default_factory=dict)
 
 
 class SlurmCluster(BaseModel):
@@ -111,6 +118,36 @@ class SlurmCluster(BaseModel):
 
     hostname: str | None = None
     username: str | None = None
+    srtctl_bin: str | None = Field(
+        default=None,
+        description=(
+            "Path to srtctl binary on the login node. If unset, NEL auto-bootstraps "
+            "srtctl via git clone into ~/.nel/srtctl/ on first use."
+        ),
+    )
+    srtctl_work_dir: str | None = Field(
+        default=None,
+        description=(
+            "Working directory for srtctl on the login node (must contain srtslurm.yaml "
+            "and configs/nats-server + configs/etcd). If unset, defaults to ~/.nel/srtctl/ "
+            "after auto-bootstrap."
+        ),
+    )
+    srtctl_compute_arch: str = Field(
+        default="aarch64",
+        description=(
+            "Compute node architecture for srtctl make setup (aarch64 or x86_64). "
+            "Used only during auto-bootstrap. GB200/Grace nodes are aarch64."
+        ),
+    )
+    srtctl_version: str = Field(
+        default="69d04b2",
+        description=(
+            "srt-slurm git ref (commit SHA or branch) to bootstrap. "
+            "NVIDIA/srt-slurm has no release tags — pin by commit SHA. "
+            "Used only when srtctl_bin is not set and auto-bootstrap runs."
+        ),
+    )
 
 
 def _cluster_discriminator(v: Any) -> str:

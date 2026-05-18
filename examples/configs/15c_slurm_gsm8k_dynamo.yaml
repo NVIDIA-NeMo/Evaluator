@@ -1,0 +1,81 @@
+# Flavor: SLURM + ai-dynamo (sglang aggregated) + gsm8k smoke
+#
+# NEL is agnostic to srtctl's recipe schema: the `recipe:` block under the
+# service is passed through to srtctl verbatim. NEL only adds the `benchmark`
+# step (which runs NEL eval inside the eval-runner container).
+#
+# Workflow:
+#   nel eval run examples/configs/15c_slurm_gsm8k_dynamo.yaml --submit
+#
+#   1. NEL serializes the recipe block + adds benchmark
+#   2. NEL bootstraps srtctl on the cluster (if not present), runs `srtctl apply`
+#   3. srtctl deploys the model + runs NEL eval inside the same job
+#
+# Prerequisites:
+#   - SVG SLURM cluster access (set cluster.hostname below)
+#   - GLM-5.1-FP8 weights at the lustre path
+#   - cluster has internet to clone NVIDIA/srt-slurm on first use (or set srtctl_bin)
+
+services:
+  model:
+    type: dynamo
+    # NEL-side: how to reach the deployed model
+    served_model_name: glm5
+    port: 8000
+    protocol: chat_completions
+    # srtctl recipe passthrough — any srtctl feature works here without NEL changes
+    recipe:
+      model:
+        path: /lustre/fsw/portfolios/coreai/projects/coreai_dlalgo_compeval/checkpoints/hf_cache/GLM-5.1-FP8
+        container: /lustre/fsw/portfolios/coreai/users/iguehring/containers/sglang-runtime-1.1.0-cuda13-amd64.sqsh
+        precision: fp8
+      resources:
+        gpu_type: b200
+        gpus_per_node: 8
+        agg_nodes: 1
+        agg_workers: 1
+      backend:
+        type: sglang
+        aggregated_environment:
+          # GLM-5.1-FP8 on SVG B200 TP=8: JIT path silently hangs; pre-compiled
+          # FlashInfer GEMM kernels work. UCX pinned to mlx5_0:1 (12 active HCAs
+          # on SVG would overflow UCX's 128-transport cap and hang in do_poll).
+          SGLANG_ENABLE_JIT_DEEPGEMM: "false"
+          SGLANG_ENABLE_FLASHINFER_GEMM: "1"
+          UCX_TLS: "rc_x,rc,dc_x,dc,cuda_copy,cuda_ipc"
+          UCX_NET_DEVICES: "mlx5_0:1"
+        sglang_config:
+          aggregated:
+            served-model-name: glm5
+            tensor-parallel-size: 8
+            trust-remote-code: true
+            mem-fraction-static: 0.85
+            # Required: without it the autotune loop hangs on SVG B200.
+            disable-flashinfer-autotune: true
+
+benchmarks:
+  - name: gsm8k
+    max_problems: 10
+    solver:
+      type: simple
+      service: model
+
+cluster:
+  type: slurm
+  hostname: <svg-login-node>  # e.g. oci-svg-cs-001-login-01.nvidia.com
+  walltime: "04:00:00"
+  account: coreai_dlalgo_compeval
+  srtctl_compute_arch: x86_64
+  container_env:
+    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    AWS_DEFAULT_REGION: us-east-1
+    LLM_API_KEY: "no-key-needed"
+  node_pools:
+    compute:
+      partition: batch
+      nodes: 1
+      gres: "gpu:8"
+
+output:
+  dir: /lustre/fsw/portfolios/coreai/users/${USER}/nemo-evaluator-rundirs/gsm8k-dynamo-smoke

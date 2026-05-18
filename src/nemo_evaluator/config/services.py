@@ -150,6 +150,48 @@ class DockerModelService(_ModelServerBase):
     type: Literal["docker_model"] = "docker_model"
 
 
+class DynamoService(BaseModel):
+    """Dynamo deployment delegated to srtctl (NVIDIA/srt-slurm).
+
+    NEL is agnostic to srtctl's recipe schema. The ``recipe`` field is passed
+    through to srtctl verbatim — any srtctl feature (aggregated/disaggregated,
+    KV routing, sglang/vllm/trtllm, multi-frontend) works without NEL changes.
+    NEL only adds the ``benchmark`` step (which runs NEL eval inside the
+    eval-runner container) and sets ``dynamo.install: false`` as an invariant.
+
+    NEL-side fields (``served_model_name``, ``port``, ``protocol``, ``proxy``,
+    ``generation``) are used to construct the inner NEL config that talks to
+    the deployed model at ``http://localhost:<port>``. They are NOT injected
+    into the recipe — set them in ``recipe.backend.<engine>_config`` too if
+    your backend needs them (e.g. ``served-model-name``).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["dynamo"] = "dynamo"
+    # NEL-side fields (used to build the inner NEL config that calls the model)
+    served_model_name: str
+    port: int = 8000
+    protocol: Protocol = "chat_completions"
+    startup_timeout: float = 1800.0
+    generation: GenerationConfig | None = None
+    proxy: ProxyConfig | None = None
+    # srtctl recipe passthrough (NEL adds only the benchmark step)
+    recipe: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def is_model_server(self) -> bool:
+        return True
+
+    @property
+    def is_managed(self) -> bool:
+        return True
+
+    @property
+    def base_url(self) -> str:
+        return f"http://localhost:{self.port}/v1"
+
+
 class ExternalApiService(BaseModel):
     """Pre-deployed model / judge behind an HTTP endpoint.
 
@@ -306,6 +348,7 @@ ServiceConfig = Annotated[
     | Annotated[SglangService, Tag("sglang")]
     | Annotated[NimService, Tag("nim")]
     | Annotated[DockerModelService, Tag("docker_model")]
+    | Annotated[DynamoService, Tag("dynamo")]
     | Annotated[ExternalApiService, Tag("api")]
     | Annotated[GymResourceService, Tag("gym")]
     | Annotated[NatAgentService, Tag("nat")]
@@ -318,5 +361,6 @@ _MODEL_SERVICE_TYPES = (
     SglangService,
     NimService,
     DockerModelService,
+    DynamoService,
     ExternalApiService,
 )

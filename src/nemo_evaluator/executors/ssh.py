@@ -181,6 +181,24 @@ def copy_to_remote(
         logger.info("Copied %s -> %s:%s/", p.name, target, remote_dir)
 
 
+def apply_srtctl(
+    target: str,
+    staging_dir: str,
+    recipe_filename: str,
+    srtctl_bin: str,
+) -> str:
+    """Run ``srtctl apply`` on the remote host from staging_dir.
+
+    Returns the full stdout/stderr from srtctl (for display to user).
+    ``target`` is ``hostname`` or ``user@hostname``.
+    """
+    cmd = (
+        f"cd {shlex.quote(staging_dir)} && "
+        f"echo 'y' | {shlex.quote(srtctl_bin)} apply -f {shlex.quote(recipe_filename)} 2>&1"
+    )
+    return _ssh(target, cmd, timeout=120.0)
+
+
 def submit_sbatch(
     hostname: str,
     remote_script: str,

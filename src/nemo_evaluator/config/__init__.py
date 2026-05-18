@@ -67,6 +67,7 @@ from .scoring import (
 from .services import (
     CustomService,
     DockerModelService,
+    DynamoService,
     ExternalApiService,
     GenerationConfig,
     GymResourceService,
@@ -105,6 +106,7 @@ __all__ = [
     "SglangService",
     "NimService",
     "DockerModelService",
+    "DynamoService",
     "ExternalApiService",
     "GymResourceService",
     "NatAgentService",

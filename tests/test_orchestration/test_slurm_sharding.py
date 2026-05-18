@@ -1228,6 +1228,215 @@ class TestMultinodeSglang:
         assert "--dist-init-addr" not in script
 
 
+class TestDynamoSrtctlRecipe:
+    """generate_srtctl_recipe is a thin passthrough: it carries the user's
+    srtctl recipe verbatim and only adds NEL-managed bits (benchmark step,
+    dynamo.install=false, default name)."""
+
+    _SAMPLE_RECIPE = {
+        "model": {"path": "/lustre/Qwen3-30B", "container": "/lustre/sglang.sqsh", "precision": "bf16"},
+        "resources": {"gpu_type": "gb200", "gpus_per_node": 4, "agg_nodes": 1, "agg_workers": 1},
+        "backend": {
+            "type": "sglang",
+            "aggregated_environment": {"MY_VAR": "1"},
+            "sglang_config": {
+                "aggregated": {
+                    "served-model-name": "Qwen/Qwen3-30B",
+                    "tensor-parallel-size": 4,
+                    "disable-cuda-graph": True,
+                }
+            },
+        },
+    }
+
+    def _make_config(self, recipe=None, served_model_name="Qwen/Qwen3-30B"):
+        return EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "dynamo",
+                        "served_model_name": served_model_name,
+                        "port": 8000,
+                        "protocol": "chat_completions",
+                        "recipe": recipe if recipe is not None else self._SAMPLE_RECIPE,
+                    }
+                },
+                "benchmarks": [
+                    {"name": "gsm8k", "solver": {"type": "simple", "service": "model"}},
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "01:00:00",
+                    "eval_image": "registry/nemo-evaluator-next:0.18.4",
+                    "srtctl_bin": "/home/user/.venv/bin/srtctl",
+                    "node_pools": {"gpu": {"partition": "batch", "nodes": 1, "gpus_per_node": 4}},
+                },
+            }
+        )
+
+    def test_recipe_passed_through_verbatim(self):
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        recipe = generate_srtctl_recipe(self._make_config(), "/configs/nel_inner.yaml")
+        # Every user key survives unchanged
+        assert recipe["model"] == self._SAMPLE_RECIPE["model"]
+        assert recipe["resources"] == self._SAMPLE_RECIPE["resources"]
+        assert recipe["backend"] == self._SAMPLE_RECIPE["backend"]
+
+    def test_benchmark_step_injected(self):
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        recipe = generate_srtctl_recipe(self._make_config(), "/configs/nel_inner.yaml")
+        assert recipe["benchmark"]["type"] == "custom"
+        assert recipe["benchmark"]["container_image"] == "registry/nemo-evaluator-next:0.18.4"
+        assert (
+            recipe["benchmark"]["command"]
+            == "source /configs/nel_credentials.sh && nel eval run /configs/nel_inner.yaml"
+        )
+
+    def test_benchmark_overrides_user_benchmark(self):
+        """If a user puts a benchmark in their recipe, NEL replaces it."""
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        recipe_with_bench = dict(self._SAMPLE_RECIPE)
+        recipe_with_bench["benchmark"] = {"type": "custom", "command": "echo not me"}
+        recipe = generate_srtctl_recipe(self._make_config(recipe=recipe_with_bench), "/configs/nel_inner.yaml")
+        assert "nel eval run" in recipe["benchmark"]["command"]
+        assert recipe["benchmark"]["command"] != "echo not me"
+
+    def test_dynamo_install_forced_false(self):
+        """NEL invariant: dynamo.install is always False (srtctl version is pinned via bootstrap)."""
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        # User sets install=True; NEL must override.
+        recipe_user = dict(self._SAMPLE_RECIPE)
+        recipe_user["dynamo"] = {"install": True, "version": "0.8.1"}
+        recipe = generate_srtctl_recipe(self._make_config(recipe=recipe_user), "/configs/nel_inner.yaml")
+        assert recipe["dynamo"]["install"] is False
+        # Other user-set dynamo fields preserved
+        assert recipe["dynamo"]["version"] == "0.8.1"
+
+    def test_default_name_from_benchmark(self):
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        recipe = generate_srtctl_recipe(self._make_config(), "/configs/nel_inner.yaml")
+        assert "gsm8k" in recipe["name"]
+
+    def test_user_name_preserved(self):
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        recipe_user = dict(self._SAMPLE_RECIPE)
+        recipe_user["name"] = "my-custom-name"
+        recipe = generate_srtctl_recipe(self._make_config(recipe=recipe_user), "/configs/nel_inner.yaml")
+        assert recipe["name"] == "my-custom-name"
+
+    def test_arbitrary_user_sections_passthrough(self):
+        """Any srtctl section the user adds — frontend, dist_init_port, etc — flows through."""
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        recipe_user = dict(self._SAMPLE_RECIPE)
+        recipe_user["frontend"] = {"type": "dynamo", "args": {"router-mode": "kv"}}
+        recipe_user["backend"] = {**recipe_user["backend"], "dist_init_port": 49500}
+        recipe = generate_srtctl_recipe(self._make_config(recipe=recipe_user), "/configs/nel_inner.yaml")
+        assert recipe["frontend"]["args"]["router-mode"] == "kv"
+        assert recipe["backend"]["dist_init_port"] == 49500
+
+    def test_walltime_propagated_to_slurm_time_limit(self):
+        """cluster.walltime must flow to recipe.slurm.time_limit, else srtctl
+        falls back to its srtslurm.yaml default and silently caps the job."""
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        recipe = generate_srtctl_recipe(self._make_config(), "/configs/nel_inner.yaml")
+        assert recipe["slurm"]["time_limit"] == "01:00:00"
+
+    def test_walltime_does_not_clobber_user_slurm_section(self):
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        recipe_user = dict(self._SAMPLE_RECIPE)
+        recipe_user["slurm"] = {"time_limit": "02:00:00", "account": "explicit"}
+        recipe = generate_srtctl_recipe(self._make_config(recipe=recipe_user), "/configs/nel_inner.yaml")
+        assert recipe["slurm"]["time_limit"] == "02:00:00"
+        assert recipe["slurm"]["account"] == "explicit"
+
+    def test_account_propagated_to_slurm_block(self):
+        """cluster.account must flow to recipe.slurm.account, else srtctl falls
+        back to its srtslurm.yaml default_account."""
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        cfg_dict = {
+            "services": {
+                "model": {
+                    "type": "dynamo",
+                    "served_model_name": "Qwen/Qwen3-30B",
+                    "port": 8000,
+                    "protocol": "chat_completions",
+                    "recipe": self._SAMPLE_RECIPE,
+                }
+            },
+            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+            "cluster": {
+                "type": "slurm",
+                "walltime": "01:00:00",
+                "account": "my_explicit_account",
+                "eval_image": "registry/nemo-evaluator-next:0.18.4",
+                "srtctl_bin": "/home/user/.venv/bin/srtctl",
+                "node_pools": {"gpu": {"partition": "batch", "nodes": 1, "gpus_per_node": 4}},
+            },
+        }
+        recipe = generate_srtctl_recipe(EvalConfig.model_validate(cfg_dict), "/configs/nel_inner.yaml")
+        assert recipe["slurm"]["account"] == "my_explicit_account"
+
+    def test_inner_config_uses_api_type(self):
+        from nemo_evaluator.orchestration.slurm_gen import generate_dynamo_inner_config
+        import yaml
+
+        inner_yaml = generate_dynamo_inner_config(self._make_config())
+        inner = yaml.safe_load(inner_yaml)
+        svc = inner["services"]["model"]
+        assert svc["type"] == "api"
+        assert "localhost:8000" in svc["url"]
+        assert svc["model"] == "Qwen/Qwen3-30B"
+        assert inner["cluster"]["type"] == "local"
+
+    def test_inner_config_benchmarks_preserved(self):
+        from nemo_evaluator.orchestration.slurm_gen import generate_dynamo_inner_config
+        import yaml
+
+        inner_yaml = generate_dynamo_inner_config(self._make_config())
+        inner = yaml.safe_load(inner_yaml)
+        assert len(inner["benchmarks"]) == 1
+        assert inner["benchmarks"][0]["name"] == "gsm8k"
+
+    def test_dynamo_service_requires_served_model_name(self):
+        """served_model_name is the only required NEL-side field on DynamoService."""
+        import pytest
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            EvalConfig.model_validate(
+                {
+                    "services": {
+                        "model": {"type": "dynamo", "recipe": {}},  # missing served_model_name
+                    },
+                    "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+                    "cluster": {
+                        "type": "slurm",
+                        "walltime": "01:00:00",
+                        "node_pools": {"gpu": {"partition": "batch", "nodes": 1, "gres": "gpu:1"}},
+                    },
+                }
+            )
+
+    def test_empty_recipe_valid(self):
+        """A user can pass an empty recipe — NEL still adds benchmark/name/dynamo.install."""
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        recipe = generate_srtctl_recipe(self._make_config(recipe={}), "/configs/nel_inner.yaml")
+        assert recipe["dynamo"]["install"] is False
+        assert "benchmark" in recipe
+        assert "name" in recipe
+
+
 # ---------------------------------------------------------------------------
 # Lifecycle helpers
 # ---------------------------------------------------------------------------

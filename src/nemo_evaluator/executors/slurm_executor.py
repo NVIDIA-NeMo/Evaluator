@@ -32,6 +32,14 @@ from nemo_evaluator.executors import Executor, ProcessState
 logger = logging.getLogger(__name__)
 
 _META_FILE = "slurm_job.json"
+
+
+def _has_dynamo_service(config) -> bool:
+    from nemo_evaluator.config.services import DynamoService
+
+    return any(isinstance(s, DynamoService) for s in config.services.values())
+
+
 _RUNNING_STATES = {"PENDING", "RUNNING", "CONFIGURING", "COMPLETING"}
 _RESUMABLE_STATES = {"FAILED", "TIMEOUT", "NODE_FAIL", "OUT_OF_MEMORY", "PREEMPTED"}
 
@@ -382,6 +390,10 @@ class SlurmExecutor(Executor):
         stamped_run_id = stamp_output_dir(config)
         resolved_dir = config.output.dir  # may now include timestamped subdir
 
+        if _has_dynamo_service(config):
+            self._run_srtctl(config, dry_run=dry_run)
+            return
+
         is_remote = bool(config.cluster.hostname)
         local_staging = None
         if is_remote:
@@ -526,6 +538,142 @@ class SlurmExecutor(Executor):
             click.echo(result.stdout.strip())
         if is_sharded:
             click.echo(f"\nAfter all shards complete:  nel eval merge {resolved_dir}")
+
+    def _ensure_srtctl(self, cluster) -> tuple[str, str]:
+        """Return (srtctl_bin, srtctl_work_dir), bootstrapping on the cluster if needed.
+
+        If cluster.srtctl_bin is set, trust it as-is. Otherwise git-clone srt-slurm
+        at the version pinned in NEL's extras into ~/.nel/srtctl/ and run make setup.
+        """
+        import click
+        from nemo_evaluator.executors.ssh import ssh_run
+
+        hostname = cluster.hostname
+        username = getattr(cluster, "username", None)
+
+        srtctl_bin = getattr(cluster, "srtctl_bin", None)
+        srtctl_work_dir = getattr(cluster, "srtctl_work_dir", None)
+        if srtctl_bin and srtctl_work_dir:
+            return srtctl_bin, srtctl_work_dir
+
+        srtctl_version = getattr(cluster, "srtctl_version", "69d04b2")
+
+        install_dir = "~/.nel/srtctl"
+        bootstrap_bin = f"{install_dir}/.venv-compute/bin/srtctl"
+
+        # Check if already bootstrapped at the right version
+        result = ssh_run(
+            hostname, f"cat {install_dir}/.nel-srtctl-version 2>/dev/null || echo MISSING", username=username
+        )
+        if result.strip() == srtctl_version:
+            click.echo(f"srtctl {srtctl_version} already bootstrapped at {install_dir}")
+            return bootstrap_bin, install_dir
+
+        arch = getattr(cluster, "srtctl_compute_arch", "aarch64")
+        click.echo(f"Bootstrapping srtctl {srtctl_version} on {hostname} (arch={arch})...")
+        # Clone to a staging dir first; swap atomically so a mid-setup failure
+        # doesn't destroy a previously working install.
+        staging = f"{install_dir}.staging"
+        ssh_run(
+            hostname,
+            f"""set -e
+            rm -rf {staging}
+            git clone --depth 50 https://github.com/NVIDIA/srt-slurm {staging}
+            cd {staging}
+            git checkout {srtctl_version}
+            make setup ARCH={arch}
+            echo {srtctl_version} > .nel-srtctl-version
+            rm -rf {install_dir}
+            mv {staging} {install_dir}""",
+            username=username,
+            timeout=600.0,
+        )
+        click.echo(f"srtctl {srtctl_version} bootstrapped at {install_dir}")
+        return bootstrap_bin, install_dir
+
+    def _run_srtctl(self, config, *, dry_run: bool = False) -> None:
+        import subprocess
+
+        import click
+
+        from nemo_evaluator.orchestration.slurm_gen import (
+            generate_dynamo_inner_config,
+            render_srtctl_recipe,
+        )
+
+        cluster = config.cluster
+
+        from nemo_evaluator.executors.ssh import _ssh_target
+
+        target = _ssh_target(cluster.hostname, getattr(cluster, "username", None))
+
+        # _ensure_srtctl runs even in dry-run so bootstrap can be verified
+        # without submitting a job.
+        srtctl_bin, srtctl_work_dir = self._ensure_srtctl(cluster)
+
+        local_staging = Path(tempfile.mkdtemp(prefix="nel-srtctl-"))
+        configs_dir = local_staging / "configs"
+        configs_dir.mkdir()
+
+        inner_remote = "/configs/nel_inner.yaml"
+        recipe_path = local_staging / "recipe.yaml"
+        inner_path = configs_dir / "nel_inner.yaml"
+
+        recipe_path.write_text(render_srtctl_recipe(config, inner_remote))
+        inner_path.write_text(generate_dynamo_inner_config(config))
+
+        # Write credentials so the benchmark container can reach AWS/ECS.
+        # srtctl mounts configs/ as /configs inside the benchmark container.
+        creds = getattr(cluster, "container_env", {}) or {}
+        if creds:
+            creds_path = configs_dir / "nel_credentials.sh"
+            creds_lines = "\n".join(f"export {k}={shlex.quote(str(v))}" for k, v in creds.items())
+            creds_path.write_text(creds_lines + "\n")
+            creds_path.chmod(0o600)
+
+        click.echo(f"Generated srtctl recipe: {recipe_path}")
+        click.echo(f"Generated inner config:  {inner_path}")
+
+        if dry_run:
+            click.echo(f"\nDry run. Staging dir: {local_staging}")
+            click.echo("To submit manually:")
+            click.echo(f"  scp -r {local_staging}/* {cluster.hostname}:/tmp/nel-srtctl-staging/")
+            click.echo(
+                f"  ssh {cluster.hostname} 'cd /tmp/nel-srtctl-staging && echo y | {srtctl_bin} apply -f recipe.yaml'"
+            )
+            return
+
+        from nemo_evaluator.executors.ssh import _ssh, apply_srtctl
+
+        # srtctl mounts {srtctl_work_dir}/configs/ as /configs inside the
+        # benchmark container — place inner config and credentials there.
+        remote_configs = f"{srtctl_work_dir}/configs"
+        recipe_filename = f"nel_recipe_{os.urandom(4).hex()}.yaml"
+        remote_recipe = f"{srtctl_work_dir}/{recipe_filename}"
+
+        _ssh(target, f"mkdir -p {remote_configs}")
+        subprocess.run(
+            ["scp", str(recipe_path), f"{target}:{remote_recipe}"],
+            check=True,
+        )
+        subprocess.run(
+            ["scp", str(inner_path), f"{target}:{remote_configs}/nel_inner.yaml"],
+            check=True,
+        )
+        creds_local = local_staging / "configs" / "nel_credentials.sh"
+        if creds_local.exists():
+            subprocess.run(
+                ["scp", str(creds_local), f"{target}:{remote_configs}/nel_credentials.sh"],
+                check=True,
+            )
+            _ssh(target, f"chmod 600 {remote_configs}/nel_credentials.sh")
+        output = apply_srtctl(
+            target,
+            srtctl_work_dir,
+            recipe_filename,
+            srtctl_bin,
+        )
+        click.echo(f"\nsrtctl output:\n{output}")
 
     def status(self, output_dir: str | Path) -> ProcessState:
         meta = _read_meta(output_dir)

@@ -1777,6 +1777,105 @@ def _write_single_script(
     return path, extra_paths
 
 
+def generate_srtctl_recipe(config: EvalConfig, inner_config_remote_path: str) -> dict:
+    """Pass the user's srtctl recipe through verbatim, adding only the benchmark step.
+
+    NEL is agnostic to srtctl's recipe schema. The user's ``DynamoService.recipe``
+    is the source of truth for everything dynamo/backend-specific. NEL only:
+      - injects the ``benchmark`` step (NEL eval runs inside the eval-runner container)
+      - sets ``dynamo.install: false`` (invariant — srtctl version is pinned via bootstrap)
+      - sets a default ``name`` if the user didn't
+    """
+    from nemo_evaluator.config.services import DynamoService
+
+    match = next(((n, s) for n, s in config.services.items() if isinstance(s, DynamoService)), None)
+    if match is None:
+        raise ValueError("generate_srtctl_recipe: no type:dynamo service found in config")
+    _svc_name, svc = match
+    cluster = config.cluster
+    if not isinstance(cluster, SlurmCluster):
+        raise ValueError("generate_srtctl_recipe requires a SlurmCluster")
+
+    eval_image = getattr(cluster, "eval_image", None) or default_base_image()
+
+    recipe = dict(svc.recipe)  # shallow copy — user's recipe is the source of truth
+    recipe.setdefault("name", f"nel-dynamo-{_safe(config.benchmarks[0].name) if config.benchmarks else 'eval'}")
+    # NEL invariant: never let srtctl pip-install dynamo (we pin srt-slurm via bootstrap)
+    dynamo_section = dict(recipe.get("dynamo", {}))
+    dynamo_section["install"] = False
+    recipe["dynamo"] = dynamo_section
+    # Propagate cluster.{walltime,account} to srtctl as slurm.{time_limit,account}.
+    # Without this, srtctl falls back to its srtslurm.yaml default_{time_limit,account}
+    # and silently overrides the user's NEL config (e.g. capping walltime to 01:30:00
+    # or charging the wrong PPP).
+    slurm_section = dict(recipe.get("slurm", {}))
+    slurm_section.setdefault("time_limit", cluster.walltime)
+    if cluster.account is not None:
+        slurm_section.setdefault("account", cluster.account)
+    recipe["slurm"] = slurm_section
+    # NEL adds the benchmark step regardless of what the user put there.
+    recipe["benchmark"] = {
+        "type": "custom",
+        "container_image": eval_image,
+        "command": f"source /configs/nel_credentials.sh && nel eval run {inner_config_remote_path}",
+    }
+    return recipe
+
+
+def render_srtctl_recipe(config: EvalConfig, inner_config_remote_path: str) -> str:
+    """Return the srtctl recipe as a YAML string."""
+    return yaml.dump(
+        generate_srtctl_recipe(config, inner_config_remote_path),
+        default_flow_style=False,
+        sort_keys=False,
+    )
+
+
+def generate_dynamo_inner_config(config: EvalConfig) -> str:
+    """Generate the inner NEL config for the benchmark step in a srtctl dynamo job.
+
+    Returns a YAML string. The inner config uses type:api (localhost) with cluster:local.
+    Benchmarks are copied verbatim; the solver service reference is preserved.
+    """
+    from nemo_evaluator.config.services import DynamoService
+
+    match = next(((n, s) for n, s in config.services.items() if isinstance(s, DynamoService)), None)
+    if match is None:
+        raise ValueError("generate_dynamo_inner_config: no type:dynamo service found in config")
+    svc_name, svc = match
+    served_name = svc.served_model_name or svc_name
+    protocol_val = svc.protocol if isinstance(svc.protocol, str) else svc.protocol.value
+    proto_suffix = {
+        "chat_completions": "/chat/completions",
+        "completions": "/completions",
+        "responses": "/responses",
+    }.get(protocol_val, "/chat/completions")
+    url = f"http://localhost:{svc.port}/v1{proto_suffix}"
+
+    api_svc: dict = {
+        "type": "api",
+        "url": url,
+        "model": served_name,
+        "protocol": protocol_val,
+    }
+    if svc.proxy:
+        api_svc["proxy"] = svc.proxy.model_dump(exclude_none=True)
+    if svc.generation:
+        api_svc["generation"] = svc.generation.model_dump(exclude_none=True)
+
+    inner: dict = {
+        "services": {svc_name: api_svc},
+        "benchmarks": [b.model_dump(exclude_none=True) for b in config.benchmarks],
+        "cluster": {"type": "local"},
+        "output": {
+            "dir": config.output.dir,
+            "timestamped": False,
+        },
+    }
+
+    return yaml.dump(inner, default_flow_style=False, sort_keys=False)
+
+
 def write_sbatch(
     config: EvalConfig,
     output_dir: str | Path | None = None,
