@@ -282,7 +282,7 @@ class ToolSandboxEnvironment(EvalEnvironment):
         return {
             "benchmark": {
                 "name": self.name,
-                "samples": summary.get("num_scenarios", len(summary.get("per_category", {}))),
+                "samples": len(summary.get("per_scenario_results", [])),
                 "scores": scores,
             },
             "config": {
@@ -309,14 +309,29 @@ class ToolSandboxEnvironment(EvalEnvironment):
 
     @staticmethod
     def _extract_scores(summary: dict[str, Any]) -> dict[str, Any]:
+        """Extract scores from ToolSandbox result_summary.json.
+
+        Real format (confirmed from smoke test):
+          category_aggregated_results:
+            ALL_CATEGORIES: {similarity: float, turn_count: float}
+            STATE_DEPENDENCY: {similarity: float, turn_count: float}
+            ...
+        """
         scores: dict[str, Any] = {}
 
-        for metric in ("similarity", "turn_count"):
-            if metric in summary:
-                scores[metric] = {"value": round(float(summary[metric]), 4)}
+        cat_results: dict[str, Any] = summary.get("category_aggregated_results") or {}
 
-        per_category = summary.get("per_category") or {}
-        for cat_name, cat_data in per_category.items():
+        # Overall score comes from the ALL_CATEGORIES aggregate
+        all_cat = cat_results.get("ALL_CATEGORIES") or {}
+        if "similarity" in all_cat:
+            scores["similarity"] = {"value": round(float(all_cat["similarity"]), 4)}
+        if "turn_count" in all_cat:
+            scores["turn_count"] = {"value": round(float(all_cat["turn_count"]), 2)}
+
+        # Per-category breakdown (skip ALL_CATEGORIES to avoid duplication)
+        for cat_name, cat_data in cat_results.items():
+            if cat_name == "ALL_CATEGORIES":
+                continue
             if isinstance(cat_data, dict) and "similarity" in cat_data:
                 scores[f"per_category/{cat_name}/similarity"] = {
                     "value": round(float(cat_data["similarity"]), 4)

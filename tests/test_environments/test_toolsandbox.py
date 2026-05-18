@@ -233,21 +233,24 @@ def test_subprocess_cmd_no_api_key_does_not_override() -> None:
 
 
 def test_extract_scores_full() -> None:
+    # Real format confirmed by smoke test
     summary = {
-        "similarity": 0.72,
-        "turn_count": 4.3,
-        "per_category": {
-            "single_tool_call": {"similarity": 0.91, "count": 45},
-            "multiple_tool_call": {"similarity": 0.61, "count": 20},
+        "per_scenario_results": [],
+        "category_aggregated_results": {
+            "ALL_CATEGORIES": {"similarity": 0.72, "turn_count": 4.3},
+            "STATE_DEPENDENCY": {"similarity": 0.91, "turn_count": 3.1},
+            "MULTIPLE_TOOL_CALL": {"similarity": 0.61, "turn_count": 5.0},
         },
     }
     scores = ToolSandboxEnvironment._extract_scores(summary)
 
     assert scores["similarity"]["value"] == pytest.approx(0.72, abs=1e-4)
-    assert scores["turn_count"]["value"] == pytest.approx(4.3, abs=1e-4)
-    assert "per_category/single_tool_call/similarity" in scores
-    assert scores["per_category/single_tool_call/similarity"]["value"] == pytest.approx(0.91, abs=1e-4)
-    assert "per_category/multiple_tool_call/similarity" in scores
+    assert scores["turn_count"]["value"] == pytest.approx(4.3, abs=1e-2)
+    assert "per_category/STATE_DEPENDENCY/similarity" in scores
+    assert scores["per_category/STATE_DEPENDENCY/similarity"]["value"] == pytest.approx(0.91, abs=1e-4)
+    assert "per_category/MULTIPLE_TOOL_CALL/similarity" in scores
+    # ALL_CATEGORIES is not duplicated as a per_category entry
+    assert "per_category/ALL_CATEGORIES/similarity" not in scores
 
 
 def test_extract_scores_empty_summary() -> None:
@@ -256,18 +259,20 @@ def test_extract_scores_empty_summary() -> None:
 
 
 def test_extract_scores_no_categories() -> None:
-    summary = {"similarity": 0.5}
+    summary = {"category_aggregated_results": {"ALL_CATEGORIES": {"similarity": 0.5}}}
     scores = ToolSandboxEnvironment._extract_scores(summary)
     assert scores == {"similarity": {"value": 0.5}}
 
 
 def test_extract_scores_category_missing_similarity() -> None:
     summary = {
-        "similarity": 0.8,
-        "per_category": {"single_tool_call": {"count": 10}},
+        "category_aggregated_results": {
+            "ALL_CATEGORIES": {"similarity": 0.8, "turn_count": 3.0},
+            "STATE_DEPENDENCY": {"turn_count": 3.0},  # no similarity
+        }
     }
     scores = ToolSandboxEnvironment._extract_scores(summary)
-    assert "per_category/single_tool_call/similarity" not in scores
+    assert "per_category/STATE_DEPENDENCY/similarity" not in scores
     assert scores["similarity"]["value"] == pytest.approx(0.8)
 
 
@@ -306,7 +311,12 @@ def test_parse_results_bundle_keys(tmp_path) -> None:
     run_dir = tmp_path / "run_1"
     run_dir.mkdir()
     (run_dir / "result_summary.json").write_text(
-        json.dumps({"similarity": 0.7, "turn_count": 5.0})
+        json.dumps({
+            "per_scenario_results": [{"name": "s1"}, {"name": "s2"}],
+            "category_aggregated_results": {
+                "ALL_CATEGORIES": {"similarity": 0.7, "turn_count": 5.0}
+            },
+        })
     )
 
     bundle = env._parse_results(tmp_path, exit_code=0, model_id="my-model")
@@ -314,6 +324,7 @@ def test_parse_results_bundle_keys(tmp_path) -> None:
     assert "benchmark" in bundle
     assert "config" in bundle
     assert bundle["benchmark"]["name"] == "toolsandbox"
+    assert bundle["benchmark"]["samples"] == 2
     assert bundle["benchmark"]["scores"]["similarity"]["value"] == pytest.approx(0.7)
     assert bundle["config"]["framework"] == "toolsandbox"
     assert bundle["config"]["runner"] == "docker"
