@@ -19,10 +19,10 @@
 services:
   nemotron:
     type: api
-    url: https://integrate.api.nvidia.com/v1/chat/completions
+    url: https://inference-api.nvidia.com/v1/chat/completions
     protocol: chat_completions
-    model: nvidia/nemotron-3-super-120b-a12b
-    api_key: ${NVIDIA_API_KEY}
+    model: azure/openai/gpt-4o
+    api_key: ${INFERENCE_API_KEY}
 
 benchmarks:
   - name: toolsandbox
@@ -49,7 +49,7 @@ cluster:
   walltime: "04:00:00"
   eval_image: ${SHARED_ROOT}/nel/toolsandbox-nel-combined.sqsh
   container_env:
-    NVIDIA_API_KEY: ${NVIDIA_API_KEY}
+    INFERENCE_API_KEY: ${INFERENCE_API_KEY}
   node_pools:
     default:
       partition: cpu

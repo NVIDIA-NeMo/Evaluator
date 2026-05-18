@@ -6,7 +6,7 @@
 # Inference API — no OpenAI key required.
 #
 # Prerequisites:
-#   - NVIDIA_API_KEY set in environment
+#   - INFERENCE_API_KEY set in environment
 #   - Docker running locally
 #   - toolsandbox-nel image built (once):
 #       docker build -f docker/Dockerfile.toolsandbox -t toolsandbox-nel:latest .
@@ -16,17 +16,17 @@
 services:
   nemotron:
     type: api
-    url: https://integrate.api.nvidia.com/v1/chat/completions
+    url: https://inference-api.nvidia.com/v1/chat/completions
     protocol: chat_completions
-    model: nvidia/nemotron-3-super-120b-a12b
-    api_key: ${NVIDIA_API_KEY}
+    model: azure/openai/gpt-4o
+    api_key: ${INFERENCE_API_KEY}
 
 benchmarks:
   - name: toolsandbox
     params:
       image: toolsandbox-nel:latest
       # Model used as user simulator (must be available on the same API)
-      user_model: meta/llama-3.1-70b-instruct
+      user_model: azure/openai/gpt-4o
       # Number of scenarios to run in parallel inside the container
       parallel: 4
       # Set to true to run only a small predefined subset for quick validation
