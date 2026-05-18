@@ -41,6 +41,7 @@ ARG TOOLSANDBOX_REF=main
 # Create an isolated venv for ToolSandbox with its pinned deps
 RUN python3.11 -m venv /opt/toolsandbox-venv \
     && /opt/toolsandbox-venv/bin/pip install --no-cache-dir \
-       "tool-sandbox[dev] @ git+https://github.com/apple/ToolSandbox.git@${TOOLSANDBOX_REF}"
+       "tool-sandbox[dev] @ git+https://github.com/apple/ToolSandbox.git@${TOOLSANDBOX_REF}" \
+       "httpx<0.28.0"
 
 COPY docker/toolsandbox_entrypoint.py /opt/toolsandbox_entrypoint.py

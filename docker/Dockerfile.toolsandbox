@@ -28,7 +28,8 @@ ARG TOOLSANDBOX_REF=main
 # ToolSandbox pins openai==1.17.0 and other specific versions — install in
 # a clean environment separate from any NEL dependencies.
 RUN pip install --no-cache-dir \
-    "tool-sandbox[dev] @ git+https://github.com/apple/ToolSandbox.git@${TOOLSANDBOX_REF}"
+    "tool-sandbox[dev] @ git+https://github.com/apple/ToolSandbox.git@${TOOLSANDBOX_REF}" \
+    "httpx<0.28.0"
 
 COPY docker/toolsandbox_entrypoint.py /opt/toolsandbox_entrypoint.py
 
