@@ -1806,7 +1806,7 @@ class EcsFargateSandbox:
         param_name = f"/{self._cfg.ssm_project}/task-defs/{h}"
         try:
             self._ssm.put_parameter(Name=param_name, Value=arn, Type="String", Overwrite=True)
-            logger.debug("Wrote SSM task-def cache entry: %s -> %s", param_name, arn)
+            logger.info("Wrote SSM task-def cache entry: %s -> %s", param_name, arn)
         except ClientError as exc:
             code = exc.response["Error"]["Code"]
             logger.warning("SSM PutParameter %s failed (%s); cache entry not written", param_name, code)

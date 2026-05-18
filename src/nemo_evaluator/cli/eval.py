@@ -29,6 +29,40 @@ from pathlib import Path
 import click
 
 
+class _StripLeadingNewline(logging.Filter):
+    """Strip the leading \\n litellm prepends to its log messages so each log entry is one line."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = str(record.msg).strip()
+        return True
+
+
+def _patch_litellm_timestamps() -> None:
+    """Replace litellm's ANSI-colored formatter with plain timestamps and strip leading newlines.
+
+    litellm installs its own StreamHandler on the 'LiteLLM' logger with (a) ANSI
+    escape codes that corrupt captured log files and (b) a leading \\n in each message
+    that splits a single call onto two output lines. This patches both so every
+    LiteLLM completion() / rate-limit / error entry is a single parseable line with
+    a full timestamp — enabling per-call LLM timing reconstruction from the log.
+    """
+    try:
+        from litellm._logging import verbose_logger  # type: ignore[import-untyped]
+
+        ts_fmt = logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        newline_filter = _StripLeadingNewline()
+        for handler in verbose_logger.handlers:
+            handler.setFormatter(ts_fmt)
+            handler.addFilter(newline_filter)
+    except (ImportError, AttributeError):
+        return  # litellm not installed or its internal logger module renamed
+    except Exception:
+        logging.getLogger(__name__).warning("Failed to patch LiteLLM logging", exc_info=True)
+
+
 @click.group("eval")
 def eval_cmd():
     """Evaluate model(s) on benchmark(s)."""
@@ -76,6 +110,7 @@ def eval_run(
         level=logging.DEBUG if verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    _patch_litellm_timestamps()
 
     if config_file:
         config = _load_config(config_file, overrides=override)
