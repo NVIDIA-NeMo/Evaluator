@@ -15,31 +15,53 @@
 """ToolSandbox benchmark — Apple's stateful multi-turn tool-use evaluation.
 
 Registers ``toolsandbox`` as a built-in benchmark.  Bypasses the standard
-seed/solve/verify loop via ``run_batch()``, which spawns a pre-built Docker
-image containing ToolSandbox and parses the resulting ``result_summary.json``.
+seed/solve/verify loop via ``run_batch()``, which runs ToolSandbox in one of
+three modes and parses the resulting ``result_summary.json``.
+
+Runner modes
+------------
+docker (default)
+    Spawns a pre-built Docker image.  Requires Docker on the eval host.
+
+    Build the image once::
+
+        docker build -f docker/Dockerfile.toolsandbox -t toolsandbox-nel:latest .
+
+apptainer
+    Same image as ``docker`` mode but executed via ``apptainer run``.
+    Use on SLURM clusters where Docker is unavailable.  ``image`` should be
+    a path to a ``.sif`` or ``.sqsh`` file on the shared filesystem.
+
+subprocess
+    Runs the ToolSandbox entrypoint directly as a Python subprocess — no
+    container needed.  Use when the eval container already has ToolSandbox
+    pre-installed (e.g. ``Dockerfile.toolsandbox-combined``).  Set
+    ``python_exe`` to the venv Python that has ToolSandbox, and
+    ``entrypoint`` to the patch script path.
 
 Config usage::
 
     benchmarks:
       - name: toolsandbox
         params:
-          image: toolsandbox-nel:latest           # pre-built Docker image
-          user_model: meta/llama-3.1-70b-instruct # user-simulator model
-          parallel: 4                             # concurrent scenarios
-          test_mode: false                        # true = small subset only
-          scenarios: []                           # [] = all scenarios
+          # --- runner selection ---
+          runner: docker                           # docker | apptainer | subprocess
+          image: toolsandbox-nel:latest            # docker image name / sif path
+          # --- subprocess-mode overrides ---
+          python_exe: /opt/toolsandbox-venv/bin/python
+          entrypoint: /opt/toolsandbox_entrypoint.py
+          # --- benchmark settings ---
+          user_model: meta/llama-3.1-70b-instruct  # user-simulator model
+          parallel: 4                              # concurrent scenarios
+          test_mode: false                         # true = small subset only
+          scenarios: []                            # [] = all scenarios
         solver:
           type: simple
           service: my_model
         timeout: 7200.0
 
-Build the image once before running::
-
-    docker build -f docker/Dockerfile.toolsandbox -t toolsandbox-nel:latest .
-
-The agent under evaluation is taken from the ``solver.service`` entry.
-The user simulator calls the same NVIDIA API base URL with ``user_model``.
-Both require ``NVIDIA_API_KEY`` in the environment.
+Both agent and user simulator call the NVIDIA Inference API — no OpenAI
+key required.  ``NVIDIA_API_KEY`` must be set in the environment.
 """
 
 from __future__ import annotations
@@ -48,9 +70,10 @@ import asyncio
 import json
 import logging
 import os
+import sys
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.environments.registry import register
@@ -63,21 +86,15 @@ logger = logging.getLogger(__name__)
 _DEFAULT_IMAGE = "toolsandbox-nel:latest"
 _DEFAULT_USER_MODEL = "meta/llama-3.1-70b-instruct"
 _DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1"
+_DEFAULT_ENTRYPOINT = "/opt/toolsandbox_entrypoint.py"
 _CONTAINER_OUTPUT = "/output"
 
-# ToolSandbox uses --agent Gorilla / --user GPT_4_o_2024_05_13 as the CLI
-# selectors; the entrypoint script patches those factory entries to point at
-# NVIDIANIMAgent / NVIDIANIMUser backed by NVIDIA_BASE_URL.
 _CLI_AGENT = "Gorilla"
 _CLI_USER = "GPT_4_o_2024_05_13"
 
 
 def _to_openai_base_url(url: str) -> str:
-    """Normalize a NEL service URL to the OpenAI SDK base_url format.
-
-    NEL service URLs include the full path (e.g. /v1/chat/completions).
-    ToolSandbox expects just the base (e.g. https://host/v1).
-    """
+    """Strip /chat/completions, /completions, /responses path suffix from NEL service URLs."""
     for suffix in ("/chat/completions", "/completions", "/responses"):
         if url.endswith(suffix):
             return url[: -len(suffix)]
@@ -86,15 +103,18 @@ def _to_openai_base_url(url: str) -> str:
 
 @register("toolsandbox")
 class ToolSandboxEnvironment(EvalEnvironment):
-    """Runs ToolSandbox in a Docker container and parses aggregate metrics.
+    """Runs ToolSandbox and parses aggregate metrics.
 
-    The entire scenario suite executes as a single batch inside the container.
+    The entire scenario suite executes as a single batch.
     ``seed()`` and ``verify()`` are not used.
     """
 
     def __init__(
         self,
+        runner: Literal["docker", "apptainer", "subprocess"] = "docker",
         image: str = _DEFAULT_IMAGE,
+        python_exe: str | None = None,
+        entrypoint: str = _DEFAULT_ENTRYPOINT,
         user_model: str = _DEFAULT_USER_MODEL,
         scenarios: list[str] | None = None,
         parallel: int = 4,
@@ -102,7 +122,10 @@ class ToolSandboxEnvironment(EvalEnvironment):
         test_mode: bool = False,
     ) -> None:
         super().__init__()
+        self._runner = runner
         self._image = image
+        self._python_exe = python_exe or sys.executable
+        self._entrypoint = entrypoint
         self._user_model = user_model
         self._scenarios: list[str] = scenarios or []
         self._parallel = parallel
@@ -144,13 +167,14 @@ class ToolSandboxEnvironment(EvalEnvironment):
             output_dir = Path(tmpdir) / "output"
             output_dir.mkdir()
 
-            cmd = self._build_docker_cmd(output_dir, base_url, model_id, api_key)
-            logger.info("Launching ToolSandbox: %s", " ".join(cmd[:10]) + " ...")
+            cmd, env = self._build_cmd(output_dir, base_url, model_id, api_key)
+            logger.info("Launching ToolSandbox (%s): %s", self._runner, " ".join(cmd[:10]) + " ...")
 
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=env,
             )
             try:
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=self._timeout)
@@ -163,7 +187,7 @@ class ToolSandboxEnvironment(EvalEnvironment):
             rc = proc.returncode or 0
             if rc != 0:
                 logger.error(
-                    "ToolSandbox container exited %d:\n%s",
+                    "ToolSandbox exited %d:\n%s",
                     rc,
                     (stderr or b"").decode(errors="replace")[:2000],
                 )
@@ -171,38 +195,81 @@ class ToolSandboxEnvironment(EvalEnvironment):
             return self._parse_results(output_dir, rc, model_id)
 
     # ------------------------------------------------------------------
-    # Docker command builder
+    # Command builders
     # ------------------------------------------------------------------
 
-    def _build_docker_cmd(
+    def _build_cmd(
         self,
         output_dir: Path,
         base_url: str,
         model_id: str,
         api_key: str,
-    ) -> list[str]:
-        cmd = [
-            "docker", "run", "--rm",
-            "-v", f"{output_dir}:{_CONTAINER_OUTPUT}",
+    ) -> tuple[list[str], dict[str, str] | None]:
+        """Return (cmd, env) for the selected runner."""
+        if self._runner == "subprocess":
+            return self._build_subprocess_cmd(output_dir, base_url, model_id, api_key)
+        if self._runner == "apptainer":
+            return self._build_apptainer_cmd(output_dir, base_url, model_id, api_key), None
+        return self._build_docker_cmd(output_dir, base_url, model_id, api_key), None
+
+    def _toolsandbox_cli_args(self, output_dir_str: str) -> list[str]:
+        args = ["--agent", _CLI_AGENT, "--user", _CLI_USER]
+        args.extend(["--output_dir", output_dir_str])
+        args.extend(["--parallel", str(self._parallel)])
+        if self._test_mode:
+            args.append("--test_mode")
+        elif self._scenarios:
+            args.extend(["--scenarios"] + list(self._scenarios))
+        return args
+
+    def _container_env_flags(self, base_url: str, model_id: str, api_key: str) -> list[str]:
+        flags = [
             "-e", f"NVIDIA_BASE_URL={base_url}",
             "-e", f"NVIDIA_AGENT_MODEL={model_id}",
             "-e", f"NVIDIA_USER_MODEL={self._user_model}",
         ]
         if api_key:
-            cmd.extend(["-e", f"NVIDIA_API_KEY={api_key}"])
+            flags.extend(["-e", f"NVIDIA_API_KEY={api_key}"])
+        return flags
 
+    def _build_docker_cmd(self, output_dir: Path, base_url: str, model_id: str, api_key: str) -> list[str]:
+        cmd = ["docker", "run", "--rm", "-v", f"{output_dir}:{_CONTAINER_OUTPUT}"]
+        cmd.extend(self._container_env_flags(base_url, model_id, api_key))
         cmd.append(self._image)
-
-        cmd.extend(["--agent", _CLI_AGENT, "--user", _CLI_USER])
-        cmd.extend(["--output_dir", _CONTAINER_OUTPUT])
-        cmd.extend(["--parallel", str(self._parallel)])
-
-        if self._test_mode:
-            cmd.append("--test_mode")
-        elif self._scenarios:
-            cmd.extend(["--scenarios"] + list(self._scenarios))
-
+        cmd.extend(self._toolsandbox_cli_args(_CONTAINER_OUTPUT))
         return cmd
+
+    def _build_apptainer_cmd(self, output_dir: Path, base_url: str, model_id: str, api_key: str) -> list[str]:
+        env_flags: list[str] = []
+        for flag in self._container_env_flags(base_url, model_id, api_key):
+            if flag == "-e":
+                continue
+            env_flags.extend(["--env", flag])
+
+        cmd = [
+            "apptainer", "run", "--bind", f"{output_dir}:{_CONTAINER_OUTPUT}",
+            *env_flags,
+            self._image,
+        ]
+        cmd.extend(self._toolsandbox_cli_args(_CONTAINER_OUTPUT))
+        return cmd
+
+    def _build_subprocess_cmd(
+        self, output_dir: Path, base_url: str, model_id: str, api_key: str
+    ) -> tuple[list[str], dict[str, str]]:
+        # Env is passed via environment variables to the subprocess
+        env = {
+            **os.environ,
+            "NVIDIA_BASE_URL": base_url,
+            "NVIDIA_AGENT_MODEL": model_id,
+            "NVIDIA_USER_MODEL": self._user_model,
+        }
+        if api_key:
+            env["NVIDIA_API_KEY"] = api_key
+
+        cmd = [self._python_exe, self._entrypoint]
+        cmd.extend(self._toolsandbox_cli_args(str(output_dir)))
+        return cmd, env
 
     # ------------------------------------------------------------------
     # Results parsing
@@ -220,7 +287,8 @@ class ToolSandboxEnvironment(EvalEnvironment):
             },
             "config": {
                 "benchmark": self.name,
-                "image": self._image,
+                "runner": self._runner,
+                "image": self._image if self._runner != "subprocess" else None,
                 "model": model_id,
                 "user_model": self._user_model,
                 "framework": "toolsandbox",

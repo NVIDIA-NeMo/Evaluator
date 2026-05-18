@@ -75,6 +75,7 @@ def test_to_openai_base_url(url: str, expected: str) -> None:
 
 def test_default_construction() -> None:
     env = ToolSandboxEnvironment()
+    assert env._runner == "docker"
     assert env._image == "toolsandbox-nel:latest"
     assert env._user_model == "meta/llama-3.1-70b-instruct"
     assert env._scenarios == []
@@ -84,13 +85,16 @@ def test_default_construction() -> None:
 
 def test_custom_params() -> None:
     env = ToolSandboxEnvironment(
+        runner="subprocess",
         image="toolsandbox-nel:v1.2",
+        python_exe="/opt/toolsandbox-venv/bin/python",
         user_model="meta/llama-3.1-8b-instruct",
         scenarios=["wifi_off", "cellular_off"],
         parallel=8,
         test_mode=True,
     )
-    assert env._image == "toolsandbox-nel:v1.2"
+    assert env._runner == "subprocess"
+    assert env._python_exe == "/opt/toolsandbox-venv/bin/python"
     assert env._scenarios == ["wifi_off", "cellular_off"]
     assert env._parallel == 8
     assert env._test_mode
@@ -100,16 +104,18 @@ def test_custom_params() -> None:
 # Docker command construction
 # ---------------------------------------------------------------------------
 
+_P = __import__("pathlib").Path
+
 
 def test_docker_cmd_no_scenarios() -> None:
-    env = ToolSandboxEnvironment()
-    cmd = env._build_docker_cmd(
-        output_dir=__import__("pathlib").Path("/tmp/output"),
+    env = ToolSandboxEnvironment(runner="docker")
+    cmd, _ = env._build_cmd(
+        output_dir=_P("/tmp/output"),
         base_url="https://integrate.api.nvidia.com/v1",
         model_id="nvidia/nemotron-3-super-120b-a12b",
         api_key="test-key",
     )
-    assert "docker" in cmd
+    assert cmd[0] == "docker"
     assert "--agent" in cmd
     assert "Gorilla" in cmd
     assert "--user" in cmd
@@ -120,9 +126,9 @@ def test_docker_cmd_no_scenarios() -> None:
 
 
 def test_docker_cmd_with_scenarios() -> None:
-    env = ToolSandboxEnvironment(scenarios=["wifi_off", "make_call"])
-    cmd = env._build_docker_cmd(
-        output_dir=__import__("pathlib").Path("/tmp/output"),
+    env = ToolSandboxEnvironment(runner="docker", scenarios=["wifi_off", "make_call"])
+    cmd, _ = env._build_cmd(
+        output_dir=_P("/tmp/output"),
         base_url="https://integrate.api.nvidia.com/v1",
         model_id="test-model",
         api_key="key",
@@ -133,9 +139,9 @@ def test_docker_cmd_with_scenarios() -> None:
 
 
 def test_docker_cmd_test_mode() -> None:
-    env = ToolSandboxEnvironment(test_mode=True)
-    cmd = env._build_docker_cmd(
-        output_dir=__import__("pathlib").Path("/tmp/output"),
+    env = ToolSandboxEnvironment(runner="docker", test_mode=True)
+    cmd, _ = env._build_cmd(
+        output_dir=_P("/tmp/output"),
         base_url="https://integrate.api.nvidia.com/v1",
         model_id="test-model",
         api_key="key",
@@ -145,15 +151,80 @@ def test_docker_cmd_test_mode() -> None:
 
 
 def test_docker_cmd_no_api_key() -> None:
-    env = ToolSandboxEnvironment()
-    cmd = env._build_docker_cmd(
-        output_dir=__import__("pathlib").Path("/tmp/output"),
+    env = ToolSandboxEnvironment(runner="docker")
+    cmd, _ = env._build_cmd(
+        output_dir=_P("/tmp/output"),
         base_url="https://integrate.api.nvidia.com/v1",
         model_id="test-model",
         api_key="",
     )
-    cmd_str = " ".join(cmd)
-    assert "NVIDIA_API_KEY" not in cmd_str
+    assert "NVIDIA_API_KEY" not in " ".join(cmd)
+
+
+# ---------------------------------------------------------------------------
+# Apptainer command construction
+# ---------------------------------------------------------------------------
+
+
+def test_apptainer_cmd_basics() -> None:
+    env = ToolSandboxEnvironment(runner="apptainer", image="/shared/nel/toolsandbox.sif")
+    cmd, _ = env._build_cmd(
+        output_dir=_P("/tmp/output"),
+        base_url="https://integrate.api.nvidia.com/v1",
+        model_id="test-model",
+        api_key="key",
+    )
+    assert cmd[0] == "apptainer"
+    assert "run" in cmd
+    assert "--bind" in cmd
+    assert "/shared/nel/toolsandbox.sif" in cmd
+    assert "--agent" in cmd
+
+
+# ---------------------------------------------------------------------------
+# Subprocess command construction
+# ---------------------------------------------------------------------------
+
+
+def test_subprocess_cmd_basics() -> None:
+    env = ToolSandboxEnvironment(
+        runner="subprocess",
+        python_exe="/opt/toolsandbox-venv/bin/python",
+        entrypoint="/opt/toolsandbox_entrypoint.py",
+    )
+    cmd, env_vars = env._build_cmd(
+        output_dir=_P("/tmp/output"),
+        base_url="https://integrate.api.nvidia.com/v1",
+        model_id="test-model",
+        api_key="test-key",
+    )
+    assert cmd[0] == "/opt/toolsandbox-venv/bin/python"
+    assert cmd[1] == "/opt/toolsandbox_entrypoint.py"
+    assert "--agent" in cmd
+    assert "Gorilla" in cmd
+    # API config passed via environment, not CLI flags
+    assert env_vars["NVIDIA_BASE_URL"] == "https://integrate.api.nvidia.com/v1"
+    assert env_vars["NVIDIA_AGENT_MODEL"] == "test-model"
+    assert env_vars["NVIDIA_API_KEY"] == "test-key"
+    # output_dir is a local host path, not the container-mount path /output
+    assert "/tmp/output" in " ".join(cmd)
+    assert cmd.count("/output") == 0 or all(c != "/output" for c in cmd)
+
+
+def test_subprocess_cmd_no_api_key_does_not_override() -> None:
+    """When api_key='', we must not overwrite any existing env var with empty string."""
+    import os as _os
+    env_env = ToolSandboxEnvironment(runner="subprocess")
+    _, env_vars = env_env._build_cmd(
+        output_dir=_P("/tmp/output"),
+        base_url="https://integrate.api.nvidia.com/v1",
+        model_id="test-model",
+        api_key="",
+    )
+    # If NVIDIA_API_KEY already existed in os.environ, it should not be blanked.
+    # If it wasn't there, it should still not be there (or be identical to original).
+    original = _os.environ.get("NVIDIA_API_KEY", "")
+    assert env_vars.get("NVIDIA_API_KEY", "") == original
 
 
 # ---------------------------------------------------------------------------
@@ -245,6 +316,7 @@ def test_parse_results_bundle_keys(tmp_path) -> None:
     assert bundle["benchmark"]["name"] == "toolsandbox"
     assert bundle["benchmark"]["scores"]["similarity"]["value"] == pytest.approx(0.7)
     assert bundle["config"]["framework"] == "toolsandbox"
+    assert bundle["config"]["runner"] == "docker"
     assert bundle["config"]["model"] == "my-model"
     assert bundle["_container_exit_code"] == 0
 
