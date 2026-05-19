@@ -105,8 +105,9 @@ else
         # Re-export eval env vars to original names
         {{ task.eval_reexport_cmd }}
         {% endif -%}
-        docker run --rm --shm-size=100g {{ extra_docker_args }} \
-        {% if task.deployment %}--network container:$SERVER_CONTAINER_NAME \{% endif %}--name {{ task.client_container_name }} \
+        CLIENT_CONTAINER_NAME="{{ task.client_container_name }}"
+        docker run --shm-size=100g {{ extra_docker_args }} \
+        {% if task.deployment %}--network container:$SERVER_CONTAINER_NAME \{% endif %}--name "$CLIENT_CONTAINER_NAME" \
       --volume "$artifacts_dir":/results \
       {% if task.dataset_mount_host and task.dataset_mount_container -%}
       --volume "{{ task.dataset_mount_host }}:{{ task.dataset_mount_container }}" \
@@ -130,6 +131,8 @@ else
         exit 0;
       ' > "$logs_dir/client_stdout.log" 2>&1
     exit_code=$?
+    docker cp "$CLIENT_CONTAINER_NAME:/results/." "$artifacts_dir/"
+    docker rm "$CLIENT_CONTAINER_NAME"
 
     {% if task.deployment %}
     # Stop the server
