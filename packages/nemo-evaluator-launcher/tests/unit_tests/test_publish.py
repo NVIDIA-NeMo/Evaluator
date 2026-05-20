@@ -1,0 +1,329 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+"""Tests for `publish_results` (mirroring the GPQA-diamond live experiment)."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import pytest
+import yaml
+
+from nemo_evaluator_launcher.api import functional as fn
+
+HF_DATASET = "Idavidrein/gpqa"
+HF_MODEL = "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16"
+EXPECTED_VALUE = 79.23881673881672
+
+# Slice of the real results.yml that's enough to drive publish_results. Mirrors
+# the `097410193730c9e3` GPQA-diamond run used as the live test fixture.
+RESULTS_YML = {
+    "metadata": {
+        "versioning": {
+            "nemo_evaluator": "0.1.85",
+            "nemo_evaluator_launcher": "0.2.0",
+        }
+    },
+    "target": {"api_endpoint": {"model_id": "model"}},
+    "results": {
+        "groups": {
+            "gpqa": {
+                "metrics": {
+                    "pass@2": {
+                        "scores": {
+                            "symbolic_correct": {
+                                "stats": {"count": 198},
+                                "value": EXPECTED_VALUE,
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+}
+
+
+@pytest.fixture
+def publish_job(job_local):
+    """Reuse the shared `job_local` ExecDB fixture and overwrite results.yml."""
+    artifacts = Path(job_local.data["output_dir"]) / "artifacts"
+    (artifacts / "results.yml").write_text(yaml.safe_dump(RESULTS_YML))
+    return job_local
+
+
+@pytest.fixture
+def mock_hf(monkeypatch, tmp_path):
+    """Inject a mock `huggingface_hub` module into sys.modules.
+
+    Default behaviour: dataset's eval.yaml lists tasks ['diamond','main','extended'];
+    leaderboard file does NOT exist on the model repo; repo_info succeeds; uploads
+    succeed and upload_file returns pr_url='https://hf.co/pr/1'.
+    """
+
+    class RepoNotFound(Exception):
+        pass
+
+    class EntryNotFound(Exception):
+        pass
+
+    hf = MagicMock(name="huggingface_hub")
+    hf.errors = SimpleNamespace(
+        RepositoryNotFoundError=RepoNotFound,
+        EntryNotFoundError=EntryNotFound,
+    )
+
+    eval_yaml = tmp_path / "eval.yaml"
+    eval_yaml.write_text(
+        yaml.safe_dump(
+            {"tasks": [{"id": "diamond"}, {"id": "main"}, {"id": "extended"}]}
+        )
+    )
+
+    def fake_download(repo_id, repo_type, filename, **kw):
+        if filename == "eval.yaml":
+            return str(eval_yaml)
+        raise EntryNotFound(f"{filename} not found on {repo_id}")
+
+    hf.hf_hub_download = MagicMock(side_effect=fake_download)
+    api = MagicMock(name="HfApi")
+    api.repo_info = MagicMock()
+    api.create_repo = MagicMock()
+    api.upload_folder = MagicMock()
+    api.upload_file = MagicMock(
+        return_value=SimpleNamespace(pr_url="https://hf.co/pr/1")
+    )
+    hf.HfApi = MagicMock(return_value=api)
+    hf._api = api  # convenience for assertions in tests
+    hf._eval_yaml_path = eval_yaml  # for swapping in alternative download behaviour
+
+    monkeypatch.setitem(sys.modules, "huggingface_hub", hf)
+    return hf
+
+
+def _call(invocation_id, **overrides):
+    kwargs = dict(
+        hf_dataset_id=HF_DATASET,
+        score_spec="gpqa.pass@2.symbolic_correct",
+        hf_task_id="diamond",
+        hf_model_id=HF_MODEL,
+        dry_run=True,
+    )
+    kwargs.update(overrides)
+    return fn.publish_results(invocation_id=invocation_id, **kwargs)
+
+
+# ----------------------------------------------------------------------------
+# Happy paths
+# ----------------------------------------------------------------------------
+
+
+def test_dry_run_happy_path(mock_hf, publish_job, capsys):
+    result = _call(publish_job.invocation_id)
+
+    assert result is None  # dry-run never returns a PR URL
+
+    out = capsys.readouterr().out
+    assert "--- DRY RUN LEADERBOARD ENTRY ---" in out
+    assert f"id: {HF_DATASET}" in out
+    assert "task_id: diamond" in out
+    assert f"value: {EXPECTED_VALUE}" in out
+    assert (
+        "url: https://huggingface.co/spaces/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16-gpqa/tree/main/diamond"
+        in out
+    )
+    assert "notes: Generated by Nemo Evaluator v0.1.85 (launcher v0.2.0)" in out
+
+    mock_hf._api.create_repo.assert_not_called()
+    mock_hf._api.upload_folder.assert_not_called()
+    mock_hf._api.upload_file.assert_not_called()
+
+
+def test_dry_run_with_job_id(mock_hf, publish_job, capsys):
+    """Passing a job ID (`<invocation>.0`) hits the `db.get_job` branch."""
+    result = _call(publish_job.job_id)
+    assert result is None
+    assert f"value: {EXPECTED_VALUE}" in capsys.readouterr().out
+
+
+def test_full_upload_returns_pr_url(mock_hf, publish_job):
+    pr_url = _call(publish_job.invocation_id, dry_run=False)
+
+    assert pr_url == "https://hf.co/pr/1"
+    mock_hf._api.create_repo.assert_called_once()
+    mock_hf._api.upload_folder.assert_called_once()
+    upload_kwargs = mock_hf._api.upload_file.call_args.kwargs
+    assert upload_kwargs["create_pr"] is True
+    assert upload_kwargs["path_in_repo"] == ".eval_results/gpqa__diamond.yaml"
+    entries = yaml.safe_load(upload_kwargs["path_or_fileobj"].decode())
+    assert len(entries) == 1
+    assert entries[0]["value"] == EXPECTED_VALUE
+
+
+def test_hf_model_id_inferred_when_orgmodel_shape(mock_hf, publish_job):
+    """If results.yml's model_id has the form 'org/model', publish infers it."""
+    inferred = dict(RESULTS_YML)
+    inferred["target"] = {"api_endpoint": {"model_id": "nvidia/some-model"}}
+    artifacts = Path(publish_job.data["output_dir"]) / "artifacts"
+    (artifacts / "results.yml").write_text(yaml.safe_dump(inferred))
+
+    pr_url = _call(publish_job.invocation_id, hf_model_id=None, dry_run=False)
+    assert pr_url == "https://hf.co/pr/1"
+    assert mock_hf._api.upload_file.call_args.kwargs["repo_id"] == "nvidia/some-model"
+
+
+# ----------------------------------------------------------------------------
+# Task resolution
+# ----------------------------------------------------------------------------
+
+
+def test_missing_task_id_multi_task_dataset(mock_hf, publish_job):
+    with pytest.raises(fn.PublishError, match="Dataset defines 3 tasks"):
+        _call(publish_job.invocation_id, hf_task_id=None)
+
+
+def test_invalid_task_id(mock_hf, publish_job):
+    with pytest.raises(fn.PublishError, match="not defined in eval.yaml"):
+        _call(publish_job.invocation_id, hf_task_id="bogus")
+
+
+def test_single_task_auto_resolved(mock_hf, publish_job, tmp_path):
+    """When eval.yaml defines exactly one task, hf_task_id can be omitted."""
+    single = tmp_path / "eval-single.yaml"
+    single.write_text(yaml.safe_dump({"tasks": [{"id": "diamond"}]}))
+    mock_hf.hf_hub_download.side_effect = lambda repo_id, repo_type, filename, **kw: (
+        str(single)
+        if filename == "eval.yaml"
+        else (_ for _ in ()).throw(mock_hf.errors.EntryNotFoundError("missing"))
+    )
+    pr_url = _call(publish_job.invocation_id, hf_task_id=None, dry_run=False)
+    assert pr_url == "https://hf.co/pr/1"
+
+
+# ----------------------------------------------------------------------------
+# HuggingFace lookup failures
+# ----------------------------------------------------------------------------
+
+
+def test_dataset_not_found(mock_hf, publish_job):
+    mock_hf.hf_hub_download.side_effect = mock_hf.errors.RepositoryNotFoundError("nope")
+    with pytest.raises(fn.PublishError, match=f"dataset '{HF_DATASET}' not found"):
+        _call(publish_job.invocation_id)
+
+
+def test_dataset_has_no_eval_yaml(mock_hf, publish_job):
+    mock_hf.hf_hub_download.side_effect = mock_hf.errors.EntryNotFoundError("nope")
+    with pytest.raises(fn.PublishError, match="has no eval.yaml"):
+        _call(publish_job.invocation_id)
+
+
+def test_model_repo_not_found(mock_hf, publish_job):
+    mock_hf._api.repo_info.side_effect = mock_hf.errors.RepositoryNotFoundError("x")
+    with pytest.raises(fn.PublishError, match=f"model repo '{HF_MODEL}' not found"):
+        _call(publish_job.invocation_id)
+
+
+# ----------------------------------------------------------------------------
+# Metric / job artifact failures
+# ----------------------------------------------------------------------------
+
+
+def test_metric_not_in_results(mock_hf, publish_job):
+    with pytest.raises(fn.PublishError, match="did not resolve"):
+        _call(publish_job.invocation_id, score_spec="gpqa.pass@2.does_not_exist")
+
+
+def test_no_jobs_in_db(mock_hf, publish_job):
+    with pytest.raises(fn.PublishError, match="No artifacts found"):
+        _call("nonexistent12345")
+
+
+def test_hf_model_id_not_inferrable_raises(mock_hf, publish_job):
+    """RESULTS_YML's model_id is bare 'model' (no slash), so inference fails."""
+    with pytest.raises(fn.PublishError, match="Could not infer hf_model_id"):
+        _call(publish_job.invocation_id, hf_model_id=None)
+
+
+# ----------------------------------------------------------------------------
+# Existing-entry / overwrite behavior
+# ----------------------------------------------------------------------------
+
+
+def _make_existing(mock_hf, tmp_path):
+    leaderboard = tmp_path / "existing.yaml"
+    leaderboard.write_text("- {}")
+    eval_yaml = mock_hf._eval_yaml_path
+
+    def side_effect(repo_id, repo_type, filename, **kw):
+        return str(eval_yaml if filename == "eval.yaml" else leaderboard)
+
+    mock_hf.hf_hub_download.side_effect = side_effect
+
+
+def test_existing_entry_no_overwrite_raises(mock_hf, publish_job, tmp_path):
+    _make_existing(mock_hf, tmp_path)
+    with pytest.raises(fn.PublishError, match="already exists"):
+        _call(publish_job.invocation_id, dry_run=False, overwrite=False)
+
+
+def test_existing_entry_with_overwrite_proceeds(mock_hf, publish_job, tmp_path):
+    _make_existing(mock_hf, tmp_path)
+    pr_url = _call(publish_job.invocation_id, dry_run=False, overwrite=True)
+    assert pr_url == "https://hf.co/pr/1"
+    assert "Update" in mock_hf._api.upload_file.call_args.kwargs["commit_message"]
+
+
+def test_existing_entry_dry_run_logs_error_but_still_prints(
+    mock_hf, publish_job, tmp_path, capsys
+):
+    _make_existing(mock_hf, tmp_path)
+    assert _call(publish_job.invocation_id, dry_run=True, overwrite=False) is None
+    assert f"value: {EXPECTED_VALUE}" in capsys.readouterr().out
+    mock_hf._api.upload_file.assert_not_called()
+
+
+# ----------------------------------------------------------------------------
+# Upload-time failure wrapping
+# ----------------------------------------------------------------------------
+
+
+def test_upload_folder_failure_wrapped(mock_hf, publish_job):
+    mock_hf._api.upload_folder.side_effect = RuntimeError("boom")
+    with pytest.raises(fn.PublishError, match="Failed to upload traces"):
+        _call(publish_job.invocation_id, dry_run=False)
+
+
+def test_upload_file_failure_wrapped(mock_hf, publish_job):
+    mock_hf._api.upload_file.side_effect = RuntimeError("boom")
+    with pytest.raises(fn.PublishError, match="Failed to open PR"):
+        _call(publish_job.invocation_id, dry_run=False)
+
+
+# ----------------------------------------------------------------------------
+# Optional-dep guard
+# ----------------------------------------------------------------------------
+
+
+def test_huggingface_hub_missing_raises_with_install_hint(monkeypatch):
+    """If huggingface_hub isn't installed, publish_results explains how to install it."""
+    monkeypatch.setitem(sys.modules, "huggingface_hub", None)
+    with pytest.raises(
+        fn.PublishError, match="pip install nemo-evaluator-launcher\\[publish\\]"
+    ):
+        _call("any-id")
