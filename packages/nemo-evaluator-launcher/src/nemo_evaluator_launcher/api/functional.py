@@ -1020,7 +1020,11 @@ def _find_job_artifacts_for_score(
 
 
 def _print_publish_dry_run(entry: dict) -> None:
-    print(yaml.safe_dump([entry], sort_keys=False, default_flow_style=False))
+    print(
+        "--- DRY RUN LEADERBOARD ENTRY ---",
+        yaml.safe_dump([entry], sort_keys=False, default_flow_style=False),
+        sep="\n",
+    )
 
 
 def publish_results(
@@ -1100,16 +1104,21 @@ def publish_results(
 
         if not hf_model_id:
             inferred = (
-                results.get("target", {}).get("api_endpoint", {}).get("model_id") or ""
+                results.get("target", {}).get("api_endpoint", {}).get("model_id", "")
             )
-            hf_model_id = inferred if "/" in inferred else None
-        if not hf_model_id:
-            raise PublishError(
-                "Could not infer hf_model_id from results.yml "
-                "(target.api_endpoint.model_id was missing or not an 'org/model' id). "
-                "Pass hf_model_id explicitly."
-            )
-        logger.info(f"Loaded model id from results.yml: {hf_model_id}")
+            if "/" not in inferred:
+                missing_msg = (
+                    "missing"
+                    if not inferred
+                    else f"'{inferred}' and does not follow the 'org/model' pattern"
+                )
+                raise PublishError(
+                    "Could not infer hf_model_id from results.yml "
+                    f"(target.api_endpoint.model_id was {missing_msg}). "
+                    "Pass hf_model_id explicitly."
+                )
+            hf_model_id = inferred
+            logger.info(f"Loaded model id from results.yml: {hf_model_id}")
 
         api = hf.HfApi()
         try:
@@ -1145,7 +1154,9 @@ def publish_results(
             exists = False
 
         logger.info(
-            f"Resolved leaderboard target: {leaderboard_path} on {hf_model_id}",
+            "Prepared leaderboard entry",
+            leaderboard_path={leaderboard_path},
+            model={hf_model_id},
             traces_repo_id=traces_repo_id,
             source_url=source_url,
         )
