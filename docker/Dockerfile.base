@@ -32,6 +32,7 @@ WORKDIR /app
 
 COPY pyproject.toml README.md ./
 COPY src/ src/
+COPY harbor_datasets/registry_overrides/ harbor_datasets/registry_overrides/
 
 RUN pip install --no-cache-dir ".[scoring,stats]"
 

@@ -103,6 +103,7 @@ packages = ["src/nemo_evaluator"]
 [tool.hatch.build.targets.wheel.force-include]
 "src/nemo_evaluator/templates" = "nemo_evaluator/templates"
 "src/nemo_evaluator/playbooks" = "nemo_evaluator/playbooks"
+"harbor_datasets/registry_overrides" = "nemo_evaluator/_registry_overrides"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
