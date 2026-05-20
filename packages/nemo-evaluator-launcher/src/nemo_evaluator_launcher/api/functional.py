@@ -963,12 +963,17 @@ def _build_notes(results: dict) -> str:
 def _find_job_artifacts_for_score(
     invocation_id: str, task: str, metric: str, score: str, workspace: Path
 ) -> Tuple[str, Path, dict, float]:
-    db_jobs = list((ExecutionDB().get_jobs(invocation_id) or {}).values())
+    db = ExecutionDB()
+    if "." in invocation_id:
+        job = db.get_job(invocation_id)
+        db_jobs = [job] if job else []
+    else:
+        db_jobs = list((db.get_jobs(invocation_id) or {}).values())
     if not db_jobs:
         raise PublishError(
-            f"No artifacts found for invocation {invocation_id} in the execution DB."
+            f"No artifacts found for {invocation_id} in the execution DB."
         )
-    prepared, _failed = copy_artifacts(
+    prepared, failed = copy_artifacts(
         db_jobs,
         export_dir=workspace,
         copy_local=True,
@@ -976,6 +981,8 @@ def _find_job_artifacts_for_score(
         only_required=True,
         copy_logs=True,
     )
+    if failed:
+        logger.debug("Some jobs failed to copy", failed_job_ids=failed)
     candidates = [
         (j.job_id, Path(j.data["output_dir"]))
         for j in prepared
@@ -1012,24 +1019,7 @@ def _find_job_artifacts_for_score(
     return matches[0]
 
 
-def _print_dry_run(
-    entry: dict,
-    leaderboard_path: str,
-    hf_model_id: str,
-    traces_repo_id: str,
-    source_url: str,
-    action: str,
-) -> None:
-    print("--- DRY RUN ---")
-    print(f"hf_model_id   : {hf_model_id}")
-    print(f"traces repo   : {traces_repo_id}")
-    print(f"source URL    : {source_url}")
-    print(f"action        : {action}")
-    print()
-    if action != "skipped":
-        verb = "update" if action == "replaced" else "create"
-        print(f"Would {verb} {leaderboard_path} in HF model repo {hf_model_id}:")
-        print()
+def _print_publish_dry_run(entry: dict) -> None:
     print(yaml.safe_dump([entry], sort_keys=False, default_flow_style=False))
 
 
@@ -1068,28 +1058,32 @@ def publish_results(
         ) from e
     except hf.errors.EntryNotFoundError as e:
         raise PublishError(
-            f"HuggingFace dataset '{hf_dataset_id}' has no eval.yaml — "
-            "the dataset must be onboarded as a benchmark before publishing."
+            f"HuggingFace dataset '{hf_dataset_id}' has no eval.yaml. "
+            "The dataset must be onboarded as a benchmark before publishing."
         ) from e
-    eval_yaml = yaml.safe_load(Path(eval_path).read_text(encoding="utf-8")) or {}
+    dataset_eval_yaml = (
+        yaml.safe_load(Path(eval_path).read_text(encoding="utf-8")) or {}
+    )
 
     task_ids = [
         t.get("id")
-        for t in (eval_yaml.get("tasks") or [])
+        for t in (dataset_eval_yaml.get("tasks") or [])
         if isinstance(t, dict) and t.get("id")
     ]
     if not task_ids:
-        raise PublishError("eval.yaml has no 'tasks' entries with an 'id' field")
+        raise PublishError(
+            f"eval.yaml for dataset '{hf_dataset_id}' has no 'tasks' entries with an 'id' field"
+        )
     if hf_task_id is None:
         if len(task_ids) != 1:
             raise PublishError(
-                f"Dataset defines {len(task_ids)} tasks ({', '.join(task_ids)}) — "
-                "pass --hf-task-id to disambiguate."
+                f"Dataset defines {len(task_ids)} tasks ({', '.join(task_ids)}). "
+                "Specify hf_task_id to disambiguate."
             )
         hf_task_id = task_ids[0]
     elif hf_task_id not in task_ids:
         raise PublishError(
-            f"--hf-task-id '{hf_task_id}' is not defined in eval.yaml "
+            f"hf_task_id '{hf_task_id}' is not defined in eval.yaml for dataset '{hf_dataset_id}'"
             f"(known task ids: {', '.join(task_ids)})."
         )
 
@@ -1111,10 +1105,11 @@ def publish_results(
             hf_model_id = inferred if "/" in inferred else None
         if not hf_model_id:
             raise PublishError(
-                "Could not infer --hf-model-id from results.yml "
+                "Could not infer hf_model_id from results.yml "
                 "(target.api_endpoint.model_id was missing or not an 'org/model' id). "
-                "Pass --hf-model-id explicitly."
+                "Pass hf_model_id explicitly."
             )
+        logger.info(f"Loaded model id from results.yml: {hf_model_id}")
 
         api = hf.HfApi()
         try:
@@ -1149,48 +1144,53 @@ def publish_results(
         except hf.errors.EntryNotFoundError:
             exists = False
 
-        if exists and not overwrite:
-            print(
+        logger.info(
+            f"Resolved leaderboard target: {leaderboard_path} on {hf_model_id}",
+            traces_repo_id=traces_repo_id,
+            source_url=source_url,
+        )
+
+        if exists:
+            conflict_msg = (
                 f"Leaderboard entry {leaderboard_path} already exists on "
-                f"{hf_model_id}. Pass --overwrite to replace."
+                f"{hf_model_id}. Pass overwrite=True to replace it."
             )
-            if dry_run:
-                _print_dry_run(
-                    entry,
-                    leaderboard_path,
-                    hf_model_id,
-                    traces_repo_id,
-                    source_url,
-                    "skipped",
-                )
-            return None
+            if overwrite:
+                logger.info(f"Replacing existing leaderboard entry {leaderboard_path}")
+            elif dry_run:
+                logger.error(conflict_msg)
+            else:
+                raise PublishError(conflict_msg)
 
-        action = "replaced" if exists else "added"
         if dry_run:
-            _print_dry_run(
-                entry,
-                leaderboard_path,
-                hf_model_id,
-                traces_repo_id,
-                source_url,
-                action,
-            )
+            _print_publish_dry_run(entry)
             return None
 
-        api.create_repo(
-            repo_id=traces_repo_id,
-            repo_type="space",
-            space_sdk="static",
-            exist_ok=True,
-            private=False,
-        )
-        api.upload_folder(
-            folder_path=str(job_dir),
-            path_in_repo=hf_task_id,
-            repo_id=traces_repo_id,
-            repo_type="space",
-            commit_message=f"Add Nemo Evaluator traces for {hf_task_id}",
-        )
+        try:
+            api.create_repo(
+                repo_id=traces_repo_id,
+                repo_type="space",
+                space_sdk="static",
+                exist_ok=True,
+                private=False,
+            )
+        except Exception as e:
+            raise PublishError(
+                f"Failed to create traces Space '{traces_repo_id}': {e}"
+            ) from e
+
+        try:
+            api.upload_folder(
+                folder_path=str(job_dir),
+                path_in_repo=hf_task_id,
+                repo_id=traces_repo_id,
+                repo_type="space",
+                commit_message=f"Add Nemo Evaluator traces for {hf_task_id}",
+            )
+        except Exception as e:
+            raise PublishError(
+                f"Failed to upload traces to Space '{traces_repo_id}': {e}"
+            ) from e
 
         verb = "Update" if exists else "Add"
         pr_title = f"{verb} Nemo Evaluator score for {hf_dataset_id} ({hf_task_id})"
@@ -1204,15 +1204,18 @@ def publish_results(
         payload = yaml.safe_dump(
             [entry], sort_keys=False, default_flow_style=False
         ).encode("utf-8")
-        commit_info = api.upload_file(
-            path_or_fileobj=payload,
-            path_in_repo=leaderboard_path,
-            repo_id=hf_model_id,
-            repo_type="model",
-            commit_message=pr_title,
-            commit_description=pr_body,
-            create_pr=True,
-        )
+        try:
+            commit_info = api.upload_file(
+                path_or_fileobj=payload,
+                path_in_repo=leaderboard_path,
+                repo_id=hf_model_id,
+                repo_type="model",
+                commit_message=pr_title,
+                commit_description=pr_body,
+                create_pr=True,
+            )
+        except Exception as e:
+            raise PublishError(f"Failed to open PR on '{hf_model_id}': {e}") from e
         print(f"PR opened: {commit_info.pr_url}")
         print(f"Traces uploaded to: {source_url}")
         return commit_info.pr_url
