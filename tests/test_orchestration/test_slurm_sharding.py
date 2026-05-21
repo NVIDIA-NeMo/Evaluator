@@ -1436,6 +1436,107 @@ class TestDynamoSrtctlRecipe:
         assert "benchmark" in recipe
         assert "name" in recipe
 
+    def _make_config_with_output_dir(self, output_dir, recipe=None):
+        cfg_dict = {
+            "services": {
+                "model": {
+                    "type": "dynamo",
+                    "served_model_name": "Qwen/Qwen3-30B",
+                    "port": 8000,
+                    "protocol": "chat_completions",
+                    "recipe": recipe if recipe is not None else self._SAMPLE_RECIPE,
+                }
+            },
+            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+            "cluster": {
+                "type": "slurm",
+                "walltime": "01:00:00",
+                "eval_image": "registry/nemo-evaluator-next:0.18.4",
+                "srtctl_bin": "/home/user/.venv/bin/srtctl",
+                "node_pools": {"gpu": {"partition": "batch", "nodes": 1, "gpus_per_node": 4}},
+            },
+            "output": {"dir": output_dir, "timestamped": False},
+        }
+        return EvalConfig.model_validate(cfg_dict)
+
+    def test_output_dir_parent_mounted_into_recipe(self):
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        cfg = self._make_config_with_output_dir("/lustre/fsw/users/me/rundirs/model/bench")
+        recipe = generate_srtctl_recipe(cfg, "/configs/nel_inner.yaml")
+        assert "/lustre/fsw/users/me/rundirs/model:/lustre/fsw/users/me/rundirs/model" in recipe.get("extra_mount", [])
+
+    def test_output_dir_mount_idempotent_with_user_extra_mount(self):
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        recipe_user = dict(self._SAMPLE_RECIPE)
+        recipe_user["extra_mount"] = ["/lustre/fsw/users/me:/lustre/fsw/users/me"]
+        cfg = self._make_config_with_output_dir("/lustre/fsw/users/me/rundirs/model/bench", recipe=recipe_user)
+        recipe = generate_srtctl_recipe(cfg, "/configs/nel_inner.yaml")
+        mounts = recipe.get("extra_mount", [])
+        assert "/lustre/fsw/users/me:/lustre/fsw/users/me" in mounts
+        assert "/lustre/fsw/users/me/rundirs/model:/lustre/fsw/users/me/rundirs/model" not in mounts
+
+    def test_output_dir_mount_preserves_existing_extra_mount(self):
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        recipe_user = dict(self._SAMPLE_RECIPE)
+        recipe_user["extra_mount"] = ["/data/checkpoints:/data/checkpoints"]
+        cfg = self._make_config_with_output_dir("/lustre/fsw/users/me/rundirs/model/bench", recipe=recipe_user)
+        recipe = generate_srtctl_recipe(cfg, "/configs/nel_inner.yaml")
+        mounts = recipe.get("extra_mount", [])
+        assert "/data/checkpoints:/data/checkpoints" in mounts
+        assert "/lustre/fsw/users/me/rundirs/model:/lustre/fsw/users/me/rundirs/model" in mounts
+
+    def test_output_dir_under_logs_skipped(self):
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        cfg = self._make_config_with_output_dir("/logs/my-run")
+        recipe = generate_srtctl_recipe(cfg, "/configs/nel_inner.yaml")
+        for spec in recipe.get("extra_mount", []) or []:
+            assert not spec.startswith("/logs:")
+
+    def test_run_srtctl_mkdirs_output_dir_on_remote(self):
+        from unittest.mock import patch
+
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+
+        cfg_dict = {
+            "services": {
+                "model": {
+                    "type": "dynamo",
+                    "served_model_name": "Qwen/Qwen3-30B",
+                    "port": 8000,
+                    "protocol": "chat_completions",
+                    "recipe": self._SAMPLE_RECIPE,
+                }
+            },
+            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+            "cluster": {
+                "type": "slurm",
+                "hostname": "fake-login.example.com",
+                "walltime": "01:00:00",
+                "eval_image": "registry/nemo-evaluator-next:0.18.4",
+                "srtctl_bin": "/home/user/.venv/bin/srtctl",
+                "node_pools": {"gpu": {"partition": "batch", "nodes": 1, "gpus_per_node": 4}},
+            },
+            "output": {"dir": "/lustre/fsw/users/me/rundirs/model/bench", "timestamped": False},
+        }
+        cfg = EvalConfig.model_validate(cfg_dict)
+
+        with (
+            patch.object(SlurmExecutor, "_ensure_srtctl", return_value=("/fake/srtctl", "/fake/work")),
+            patch("nemo_evaluator.executors.ssh._ssh", return_value="") as mock_ssh,
+            patch("nemo_evaluator.executors.ssh.apply_srtctl", return_value=""),
+            patch("subprocess.run"),
+        ):
+            SlurmExecutor()._run_srtctl(cfg)
+
+        mkdir_cmds = [args[0][1] for args in mock_ssh.call_args_list if "mkdir" in args[0][1]]
+        assert any("/lustre/fsw/users/me/rundirs/model/bench" in cmd for cmd in mkdir_cmds), (
+            f"expected mkdir for output.dir, got: {mkdir_cmds}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Lifecycle helpers

@@ -19,7 +19,7 @@ from __future__ import annotations
 import os
 import re
 import shlex
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import yaml
 
@@ -1819,7 +1819,24 @@ def generate_srtctl_recipe(config: EvalConfig, inner_config_remote_path: str) ->
         "container_image": eval_image,
         "command": f"source /configs/nel_credentials.sh && nel eval run {inner_config_remote_path}",
     }
+    # Identity-mount the output.dir parent so the bench container can write
+    # artifacts to the host filesystem; /logs is srtctl-managed.
+    output_dir = PurePosixPath(config.output.dir or "")
+    if output_dir.is_absolute() and not output_dir.is_relative_to("/logs"):
+        parent = output_dir.parent
+        mounts = list(recipe.get("extra_mount", []) or [])
+        if not any(_identity_covers(spec, parent) for spec in mounts):
+            mounts.append(f"{parent}:{parent}")
+            recipe["extra_mount"] = mounts
     return recipe
+
+
+def _identity_covers(mount_spec: str, target: PurePosixPath) -> bool:
+    host, _, rest = mount_spec.partition(":")
+    container = rest.partition(":")[0]
+    if not host or not container or host != container:
+        return False
+    return target.is_relative_to(container)
 
 
 def render_srtctl_recipe(config: EvalConfig, inner_config_remote_path: str) -> str:

@@ -652,6 +652,8 @@ class SlurmExecutor(Executor):
         remote_recipe = f"{srtctl_work_dir}/{recipe_filename}"
 
         _ssh(target, f"mkdir -p {remote_configs}")
+        # Pyxis requires the bind-mount source (output.dir's parent) to exist.
+        _ssh(target, f"mkdir -p {shlex.quote(config.output.dir)}")
         subprocess.run(
             ["scp", str(recipe_path), f"{target}:{remote_recipe}"],
             check=True,
