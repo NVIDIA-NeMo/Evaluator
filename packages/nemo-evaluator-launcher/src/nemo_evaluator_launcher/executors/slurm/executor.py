@@ -838,9 +838,13 @@ def _create_slurm_sbatch_script(
         ):
             deployment_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
-        # Re-export deployment vars right before deployment srun
+        # Re-export deployment vars right before deployment srun.
+        # Bracket with `set +x`/`set -x` so xtrace doesn't expand
+        # `${HF_TOKEN_xxx}` (and similar) into the slurm log.
         if deploy_reexport_cmd:
+            s += "set +x\n"
             s += f"{deploy_reexport_cmd}\n"
+            s += "set -x\n"
 
         # add deployment srun command
         deployment_srun_cmd, deployment_is_unsafe, deployment_debug = (
@@ -898,7 +902,9 @@ def _create_slurm_sbatch_script(
 
         # Re-export aux deployment vars right before aux deployment srun
         if aux.reexport_cmd:
+            s += "set +x\n"
             s += f"{aux.reexport_cmd}\n"
+            s += "set -x\n"
 
         # Add auxiliary deployment srun command
         aux_srun_cmd, aux_unsafe, aux_debug = (
@@ -984,7 +990,9 @@ def _create_slurm_sbatch_script(
 
     # Re-export eval vars right before eval srun
     if eval_reexport_cmd:
+        s += "set +x\n"
         s += f"{eval_reexport_cmd}\n"
+        s += "set -x\n"
 
     # Export auxiliary endpoint information for evaluation containers
     aux_extra_env_names = []
@@ -1142,7 +1150,9 @@ def _generate_auto_export_section(
 
     if secrets:
         reexport_cmd = build_reexport_commands("export", secrets)
+        s += "    set +x\n"
         s += f"    {reexport_cmd}\n"
+        s += "    set -x\n"
 
     export_config = {"export": cfg.get("export", {})}
 
