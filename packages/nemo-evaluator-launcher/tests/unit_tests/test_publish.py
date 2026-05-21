@@ -176,6 +176,24 @@ def test_full_upload_returns_pr_url(mock_hf, publish_job):
     assert entries[0]["value"] == EXPECTED_VALUE
 
 
+def test_full_syntax_score_spec(mock_hf, publish_job):
+    pr_url = _call(
+        publish_job.invocation_id,
+        dry_run=False,
+        score_spec="groups.gpqa.metrics.pass@2.scores.symbolic_correct",
+    )
+
+    assert pr_url == "https://hf.co/pr/1"
+    mock_hf._api.create_repo.assert_called_once()
+    mock_hf._api.upload_folder.assert_called_once()
+    upload_kwargs = mock_hf._api.upload_file.call_args.kwargs
+    assert upload_kwargs["create_pr"] is True
+    assert upload_kwargs["path_in_repo"] == ".eval_results/gpqa__diamond.yaml"
+    entries = yaml.safe_load(upload_kwargs["path_or_fileobj"].decode())
+    assert len(entries) == 1
+    assert entries[0]["value"] == EXPECTED_VALUE
+
+
 def test_hf_model_id_inferred_when_orgmodel_shape(mock_hf, publish_job):
     """If results.yml's model_id has the form 'org/model', publish infers it."""
     inferred = dict(RESULTS_YML)

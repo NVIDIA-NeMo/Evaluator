@@ -48,8 +48,10 @@ class Cmd:
     )
     metric: str = field(
         alias=["--metric"],
-        help="Score to publish, as '<task>.<metric>.<score>' "
-        "(e.g. 'gpqa.pass@2.symbolic_correct').",
+        help="Score to extract from artifacts and publish. "
+        "Provide either full path to the score in the results.yml "
+        "(e.g. 'groups.gpqa.metrics.pass@2.scores.symbolic_correct') "
+        "or use simplified syntax (e.g. 'gpqa.pass@2.symbolic_correct').",
     )
     hf_task_id: Optional[str] = field(
         default=None,

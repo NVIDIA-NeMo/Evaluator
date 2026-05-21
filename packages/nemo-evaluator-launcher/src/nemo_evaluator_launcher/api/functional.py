@@ -930,10 +930,14 @@ class PublishError(RuntimeError):
 
 
 def _extract_metric_value(
-    results: dict, task: str, metric: str, score: str
+    results: dict, task: str, metric: str, score: str, scope: str | None = None
 ) -> Optional[float]:
     root = results.get("results", results)
-    for scope in ("tasks", "groups"):
+    if scope is None:
+        scopes = ("tasks", "groups")
+    else:
+        scopes = (scope,)
+    for scope in scopes:
         value = (
             root.get(scope, {})
             .get(task, {})
@@ -961,7 +965,12 @@ def _build_notes(results: dict) -> str:
 
 
 def _find_job_artifacts_for_score(
-    invocation_id: str, task: str, metric: str, score: str, workspace: Path
+    invocation_id: str,
+    task: str,
+    metric: str,
+    score: str,
+    scope: str | None,
+    workspace: Path,
 ) -> Tuple[str, Path, dict, float]:
     db = ExecutionDB()
     if "." in invocation_id:
@@ -999,7 +1008,7 @@ def _find_job_artifacts_for_score(
         except yaml.YAMLError as e:
             logger.warning(f"Failed to parse {results_path}", error=str(e))
             continue
-        value = _extract_metric_value(results, task, metric, score)
+        value = _extract_metric_value(results, task, metric, score, scope)
         if value is None:
             continue
         matches.append((job_id, output_dir, results, value))
@@ -1050,8 +1059,45 @@ def publish_results(
             "Install with: pip install nemo-evaluator-launcher[publish]"
         ) from e
 
-    task, metric, score = score_spec.split(".")
-
+    parts = score_spec.split(".")
+    error_msg = (
+        f"Invalid score specification: '{score_spec}'. Accepted formats:\n"
+        "  'groups.<group>.metrics.<metric>.scores.<score>'\n"
+        "  'tasks.<task>.metrics.<metric>.scores.<score>'\n"
+        "  '<task or group>.<metric>.<score>' (simplified syntax)\n"
+    )
+    if len(parts) == 3:
+        scope, task, metric, score = None, *parts
+        logger.debug(
+            "Parsed simplified syntax score spec.",
+            scope=scope,
+            task=task,
+            metric=metric,
+            score=score,
+        )
+    elif len(parts) == 6:
+        scope, task, metrics_literal, metric, scores_literal, score = parts
+        logger.debug(
+            "Parsed full syntax score spec.",
+            scope=scope,
+            task=task,
+            metrics_literal=metrics_literal,
+            metric=metric,
+            scores_literal=scores_literal,
+            score=score,
+        )
+        if (
+            scope not in ("tasks", "groups")
+            or metrics_literal != "metrics"
+            or scores_literal != "scores"
+        ):
+            raise PublishError(error_msg)
+    else:
+        logger.debug(
+            "Passed invalid score specification with wrong number of parts.",
+            parts=parts,
+        )
+        raise PublishError(error_msg)
     try:
         eval_path = hf.hf_hub_download(
             repo_id=hf_dataset_id, repo_type="dataset", filename="eval.yaml"
@@ -1094,7 +1140,7 @@ def publish_results(
     with tempfile.TemporaryDirectory() as ws:
         workspace = Path(ws)
         job_id, job_dir, results, value = _find_job_artifacts_for_score(
-            invocation_id, task, metric, score, workspace
+            invocation_id, task, metric, score, scope, workspace
         )
         logger.debug(
             f"Resolved metric '{task}.{metric}.{score}' = {value}",
