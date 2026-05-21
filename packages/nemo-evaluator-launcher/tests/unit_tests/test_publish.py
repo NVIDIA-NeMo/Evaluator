@@ -31,8 +31,8 @@ HF_DATASET = "Idavidrein/gpqa"
 HF_MODEL = "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16"
 EXPECTED_VALUE = 79.23881673881672
 
-# Slice of the real results.yml that's enough to drive publish_results. Mirrors
-# the `097410193730c9e3` GPQA-diamond run used as the live test fixture.
+# Slice of the real results.yml that's enough to drive publish_results.
+# Mirrors a real GPQA-diamond run used as the live test fixture.
 RESULTS_YML = {
     "metadata": {
         "versioning": {
