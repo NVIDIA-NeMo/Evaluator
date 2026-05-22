@@ -40,6 +40,26 @@ def _has_dynamo_service(config) -> bool:
     return any(isinstance(s, DynamoService) for s in config.services.values())
 
 
+def _srtslurm_seed_yaml(cluster) -> str:
+    """Render the minimal srtslurm.yaml that bypasses `make setup`'s interactive
+    prompts. Containers and model paths stay user-managed (edit srtslurm.yaml
+    after bootstrap or use the recipe passthrough).
+    """
+    account = getattr(cluster, "account", None) or "restricted"
+    walltime = getattr(cluster, "walltime", None) or "4:00:00"
+    pools = getattr(cluster, "node_pools", None) or {}
+    first_pool = next(iter(pools.values()), None)
+    partition = getattr(first_pool, "partition", None) or "batch"
+    gpus_per_node = getattr(first_pool, "gpus_per_node", None) or 8
+    return (
+        f'default_account: "{account}"\n'
+        f'default_partition: "{partition}"\n'
+        f'default_time_limit: "{walltime}"\n'
+        f"gpus_per_node: {gpus_per_node}\n"
+        f'network_interface: ""\n'
+    )
+
+
 _RUNNING_STATES = {"PENDING", "RUNNING", "CONFIGURING", "COMPLETING"}
 _RESUMABLE_STATES = {"FAILED", "TIMEOUT", "NODE_FAIL", "OUT_OF_MEMORY", "PREEMPTED"}
 
@@ -543,7 +563,9 @@ class SlurmExecutor(Executor):
         """Return (srtctl_bin, srtctl_work_dir), bootstrapping on the cluster if needed.
 
         If cluster.srtctl_bin is set, trust it as-is. Otherwise git-clone srt-slurm
-        at the version pinned in NEL's extras into ~/.nel/srtctl/ and run make setup.
+        at the pinned version into cluster.srtctl_work_dir (default ~/.nel/srtctl/),
+        install the package into a venv, and pre-write srtslurm.yaml so `make setup`
+        skips its interactive prompts.
         """
         import click
         from nemo_evaluator.executors.ssh import ssh_run
@@ -557,11 +579,9 @@ class SlurmExecutor(Executor):
             return srtctl_bin, srtctl_work_dir
 
         srtctl_version = getattr(cluster, "srtctl_version", "69d04b2")
+        install_dir = srtctl_work_dir or "~/.nel/srtctl"
+        bootstrap_bin = f"{install_dir}/.venv/bin/srtctl"
 
-        install_dir = "~/.nel/srtctl"
-        bootstrap_bin = f"{install_dir}/.venv-compute/bin/srtctl"
-
-        # Check if already bootstrapped at the right version
         result = ssh_run(
             hostname, f"cat {install_dir}/.nel-srtctl-version 2>/dev/null || echo MISSING", username=username
         )
@@ -571,20 +591,29 @@ class SlurmExecutor(Executor):
 
         arch = getattr(cluster, "srtctl_compute_arch", "aarch64")
         click.echo(f"Bootstrapping srtctl {srtctl_version} on {hostname} (arch={arch})...")
-        # Clone to a staging dir first; swap atomically so a mid-setup failure
-        # doesn't destroy a previously working install.
         staging = f"{install_dir}.staging"
+        seed_yaml = _srtslurm_seed_yaml(cluster)
+        ref_q = shlex.quote(srtctl_version)
+        arch_q = shlex.quote(arch)
         ssh_run(
             hostname,
             f"""set -e
+            mkdir -p $(dirname {install_dir})
             rm -rf {staging}
-            git clone --depth 50 https://github.com/NVIDIA/srt-slurm {staging}
+            git clone https://github.com/NVIDIA/srt-slurm {staging}
             cd {staging}
-            git checkout {srtctl_version}
-            make setup ARCH={arch}
-            echo {srtctl_version} > .nel-srtctl-version
+            git checkout {ref_q}
+            cat > srtslurm.yaml <<'__NEL_EOF__'
+{seed_yaml}__NEL_EOF__
+            make setup ARCH={arch_q}
+            cd /
             rm -rf {install_dir}
-            mv {staging} {install_dir}""",
+            mv {staging} {install_dir}
+            cd {install_dir}
+            python3 -m venv .venv
+            .venv/bin/pip install --quiet --upgrade pip
+            .venv/bin/pip install --quiet -e .
+            echo {ref_q} > .nel-srtctl-version""",
             username=username,
             timeout=600.0,
         )

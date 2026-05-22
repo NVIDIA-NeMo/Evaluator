@@ -1543,6 +1543,124 @@ class TestDynamoSrtctlRecipe:
 # ---------------------------------------------------------------------------
 
 
+class TestEnsureSrtctlBootstrap:
+    """`_ensure_srtctl` bootstrap path: clone, install, write srtslurm.yaml, swap atomically.
+
+    Tests inspect the bash payload sent via ssh_run since the function returns no
+    structured trace of what it did remotely.
+    """
+
+    def _make_cluster(self, **overrides):
+        from nemo_evaluator.config.clusters import SlurmCluster
+
+        defaults = {
+            "type": "slurm",
+            "hostname": "fake-login",
+            "walltime": "02:00:00",
+            "account": "myproj",
+            "srtctl_compute_arch": "x86_64",
+            "node_pools": {"gpu": {"partition": "batch", "nodes": 1, "gpus_per_node": 8}},
+        }
+        defaults.update(overrides)
+        return SlurmCluster(**defaults)
+
+    def _capture_bootstrap_script(self, cluster):
+        from unittest.mock import patch
+
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+
+        captured: list[str] = []
+
+        def fake_ssh_run(hostname, remote_cmd, username=None, timeout=30.0):
+            captured.append(remote_cmd)
+            return "MISSING"
+
+        with patch("nemo_evaluator.executors.ssh.ssh_run", side_effect=fake_ssh_run):
+            result = SlurmExecutor()._ensure_srtctl(cluster)
+        bootstrap = next(c for c in captured if "git clone" in c)
+        return result, bootstrap
+
+    def test_honors_srtctl_work_dir(self):
+        cluster = self._make_cluster(srtctl_work_dir="/lustre/foo/srtctl")
+        (_, work_dir), bootstrap = self._capture_bootstrap_script(cluster)
+        assert work_dir == "/lustre/foo/srtctl"
+        assert "/lustre/foo/srtctl" in bootstrap
+        assert "~/.nel/srtctl" not in bootstrap
+
+    def test_defaults_to_home_when_work_dir_unset(self):
+        cluster = self._make_cluster()
+        (_, work_dir), bootstrap = self._capture_bootstrap_script(cluster)
+        assert work_dir == "~/.nel/srtctl"
+        assert "~/.nel/srtctl" in bootstrap
+
+    def test_pre_writes_srtslurm_yaml_before_make_setup(self):
+        """`make setup` prompts interactively for SLURM defaults when srtslurm.yaml
+        is absent. Writing it ahead of time bypasses the prompts entirely.
+        """
+        cluster = self._make_cluster(account="myproj", walltime="02:00:00")
+        _, bootstrap = self._capture_bootstrap_script(cluster)
+        yaml_idx = bootstrap.find("cat > srtslurm.yaml")
+        setup_idx = bootstrap.find("make setup")
+        assert 0 <= yaml_idx < setup_idx, "srtslurm.yaml heredoc must precede `make setup`"
+        assert "myproj" in bootstrap
+        assert "02:00:00" in bootstrap
+
+    def test_installs_srtctl_python_package(self):
+        """`make setup` only downloads NATS/ETCD/uv binaries; the srtctl Python package
+        itself must be installed (per README: `pip install -e .`) so the binary at
+        bootstrap_bin exists at the work-dir-local venv (not a system srtctl).
+        """
+        import re
+
+        cluster = self._make_cluster(srtctl_work_dir="/lustre/foo/srtctl")
+        (srtctl_bin, _), bootstrap = self._capture_bootstrap_script(cluster)
+        assert re.search(r"pip install[^\n]*-e[ ]+\.(\s|$)", bootstrap), "expected `pip install ... -e .`"
+        assert srtctl_bin.startswith("/lustre/foo/srtctl/"), f"srtctl_bin not under work_dir: {srtctl_bin!r}"
+        assert srtctl_bin.endswith("/bin/srtctl"), f"srtctl_bin not a venv entry-point: {srtctl_bin!r}"
+
+    def test_cd_out_of_staging_before_mv(self):
+        """`mv {staging} {install_dir}` fails when cwd is inside {staging}. The last
+        `cd` before the rename must resolve to a path outside the staging tree.
+        """
+        import posixpath
+        import re
+
+        cluster = self._make_cluster(srtctl_work_dir="/lustre/foo/srtctl")
+        _, bootstrap = self._capture_bootstrap_script(cluster)
+        mv_idx = bootstrap.find("mv ")
+        assert mv_idx >= 0
+        pre_mv = bootstrap[:mv_idx]
+        cds = re.findall(r"\bcd\s+(\S+)", pre_mv)
+        assert cds, "no `cd` found before mv"
+        last_cd = cds[-1]
+        staging = "/lustre/foo/srtctl.staging"
+        # Resolve relative cd against the path of the previous cd (the script chain)
+        cwd_chain = "/"
+        for c in cds:
+            cwd_chain = c if posixpath.isabs(c) else posixpath.normpath(posixpath.join(cwd_chain, c))
+        assert not (cwd_chain == staging or cwd_chain.startswith(staging + "/")), (
+            f"last cd resolves into staging: {last_cd!r} → {cwd_chain!r}"
+        )
+
+    def test_pip_install_runs_after_mv_to_install_dir(self):
+        """`pip install -e .` bakes the cwd's absolute path into the entry-point
+        script's shebang. If install runs in {staging} then we mv staging → install_dir,
+        the shebang points at the now-nonexistent staging path and srtctl fails with
+        "cannot execute: required file not found".
+        """
+        import re
+
+        cluster = self._make_cluster(srtctl_work_dir="/lustre/foo/srtctl")
+        _, bootstrap = self._capture_bootstrap_script(cluster)
+        mv_idx = bootstrap.find("mv ")
+        pip_idx = re.search(r"pip install[^\n]*-e[ ]+\.(\s|$)", bootstrap).start()
+        assert mv_idx < pip_idx, "pip install -e . must run after mv staging → install_dir"
+        # And the cd right before pip install must target install_dir
+        pre_pip = bootstrap[:pip_idx]
+        cds = re.findall(r"\bcd\s+(\S+)", pre_pip)
+        assert cds[-1] == "/lustre/foo/srtctl", f"cd before pip install targets {cds[-1]!r}, not install_dir"
+
+
 class TestGetJobIds:
     def test_from_job_ids_list(self):
         from nemo_evaluator.executors.slurm_executor import _get_job_ids
