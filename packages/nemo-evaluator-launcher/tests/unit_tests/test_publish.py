@@ -78,17 +78,28 @@ def mock_hf(monkeypatch, tmp_path):
     succeed and upload_file returns pr_url='https://hf.co/pr/1'.
     """
 
-    class RepoNotFound(Exception):
+    class HfHubHTTPError(Exception):
+        def __init__(self, message: str = "", status_code: int = 500):
+            super().__init__(message)
+            self.response = SimpleNamespace(status_code=status_code)
+
+    class RepoNotFound(HfHubHTTPError):
         pass
 
-    class EntryNotFound(Exception):
+    class GatedRepo(RepoNotFound):
+        pass
+
+    class EntryNotFound(HfHubHTTPError):
         pass
 
     hf = MagicMock(name="huggingface_hub")
     hf.errors = SimpleNamespace(
+        HfHubHTTPError=HfHubHTTPError,
         RepositoryNotFoundError=RepoNotFound,
+        GatedRepoError=GatedRepo,
         EntryNotFoundError=EntryNotFound,
     )
+    hf.whoami = MagicMock(return_value={"name": "test-user"})
 
     eval_yaml = tmp_path / "eval.yaml"
     eval_yaml.write_text(
@@ -256,6 +267,37 @@ def test_model_repo_not_found(mock_hf, publish_job):
     mock_hf._api.repo_info.side_effect = mock_hf.errors.RepositoryNotFoundError("x")
     with pytest.raises(fn.PublishError, match=f"model repo '{HF_MODEL}' not found"):
         _call(publish_job.invocation_id)
+
+
+def test_repo_not_found_mentions_authenticated_user(mock_hf, publish_job):
+    """When whoami succeeds, error messages should mention the active user."""
+    mock_hf._api.repo_info.side_effect = mock_hf.errors.RepositoryNotFoundError("x")
+    with pytest.raises(fn.PublishError, match="authenticated as 'test-user'"):
+        _call(publish_job.invocation_id)
+
+
+def test_repo_not_found_mentions_no_token_when_whoami_fails(mock_hf, publish_job):
+    """When whoami fails (no token), error messages should tell the user how to authenticate."""
+    mock_hf.whoami.side_effect = RuntimeError("no token")
+    mock_hf._api.repo_info.side_effect = mock_hf.errors.RepositoryNotFoundError("x")
+    with pytest.raises(fn.PublishError, match="no HF token detected"):
+        _call(publish_job.invocation_id)
+
+
+def test_gated_dataset_raises_with_acceptance_link(mock_hf, publish_job):
+    """Gated datasets get a distinct message pointing at the acceptance page."""
+    mock_hf.hf_hub_download.side_effect = mock_hf.errors.GatedRepoError("gated")
+    with pytest.raises(fn.PublishError, match=f"Dataset '{HF_DATASET}' is gated"):
+        _call(publish_job.invocation_id)
+
+
+def test_403_on_write_includes_scope_hint(mock_hf, publish_job):
+    """A 403 from any write call surfaces the 'token may lack write permission' hint."""
+    mock_hf._api.create_repo.side_effect = mock_hf.errors.HfHubHTTPError(
+        "forbidden", status_code=403
+    )
+    with pytest.raises(fn.PublishError, match="Token may lack write permission"):
+        _call(publish_job.invocation_id, dry_run=False)
 
 
 # ----------------------------------------------------------------------------

@@ -1156,6 +1156,28 @@ def publish_results(
             "Install with: pip install nemo-evaluator-launcher[publish]"
         ) from e
 
+    try:
+        user = hf.whoami()["name"]
+    except Exception:
+        user = None
+    auth_hint = (
+        f"(authenticated as '{user}')"
+        if user
+        else "(no HF token detected; set HF_TOKEN or run `hf auth login`)"
+    )
+
+    def _get_hf_error(action: str, repo: str, e: BaseException) -> PublishError:
+        """Render a 403 with a token-scope hint; pass other errors through."""
+        if isinstance(e, hf.errors.HfHubHTTPError):
+            status = getattr(getattr(e, "response", None), "status_code", None)
+            if status == 403:
+                return PublishError(
+                    f"{action} on '{repo}': permission denied {auth_hint}. "
+                    "Token may lack write permission for this repo — "
+                    "generate a write token at https://huggingface.co/settings/tokens."
+                )
+        return PublishError(f"{action} on '{repo}': {e}")
+
     parts = score_spec.split(".")
     error_msg = (
         f"Invalid score specification: '{score_spec}'. Accepted formats:\n"
@@ -1199,9 +1221,14 @@ def publish_results(
         eval_path = hf.hf_hub_download(
             repo_id=hf_dataset_id, repo_type="dataset", filename="eval.yaml"
         )
+    except hf.errors.GatedRepoError as e:
+        raise PublishError(
+            f"Dataset '{hf_dataset_id}' is gated. Accept terms at "
+            f"https://huggingface.co/datasets/{hf_dataset_id} {auth_hint}"
+        ) from e
     except hf.errors.RepositoryNotFoundError as e:
         raise PublishError(
-            f"HuggingFace dataset '{hf_dataset_id}' not found (or you don't have access)."
+            f"HuggingFace dataset '{hf_dataset_id}' not found {auth_hint}"
         ) from e
     except hf.errors.EntryNotFoundError as e:
         raise PublishError(
@@ -1266,10 +1293,14 @@ def publish_results(
         api = hf.HfApi()
         try:
             api.repo_info(repo_id=hf_model_id, repo_type="model")
+        except hf.errors.GatedRepoError as e:
+            raise PublishError(
+                f"Model '{hf_model_id}' is gated. Accept terms at "
+                f"https://huggingface.co/{hf_model_id} {auth_hint}"
+            ) from e
         except hf.errors.RepositoryNotFoundError as e:
             raise PublishError(
-                f"HuggingFace model repo '{hf_model_id}' not found "
-                "(or you don't have access)."
+                f"HuggingFace model repo '{hf_model_id}' not found {auth_hint}"
             ) from e
 
         model_stem = hf_model_id.rsplit("/", 1)[-1]
@@ -1329,8 +1360,8 @@ def publish_results(
                 private=False,
             )
         except Exception as e:
-            raise PublishError(
-                f"Failed to create traces Space '{traces_repo_id}': {e}"
+            raise _get_hf_error(
+                "Failed to create traces Space", traces_repo_id, e
             ) from e
 
         try:
@@ -1342,9 +1373,7 @@ def publish_results(
                 commit_message=f"Add Nemo Evaluator traces for {hf_task_id}",
             )
         except Exception as e:
-            raise PublishError(
-                f"Failed to upload traces to Space '{traces_repo_id}': {e}"
-            ) from e
+            raise _get_hf_error("Failed to upload traces", traces_repo_id, e) from e
 
         try:
             for filename, body in [
@@ -1370,8 +1399,8 @@ def publish_results(
                     commit_message=f"Update {filename} for {hf_task_id}",
                 )
         except Exception as e:
-            raise PublishError(
-                f"Failed to upload landing page to Space '{traces_repo_id}': {e}"
+            raise _get_hf_error(
+                "Failed to upload landing page", traces_repo_id, e
             ) from e
 
         verb = "Update" if exists else "Add"
@@ -1397,7 +1426,7 @@ def publish_results(
                 create_pr=True,
             )
         except Exception as e:
-            raise PublishError(f"Failed to open PR on '{hf_model_id}': {e}") from e
+            raise _get_hf_error("Failed to open PR", hf_model_id, e) from e
         print(f"PR opened: {commit_info.pr_url}")
         print(f"Traces uploaded to: {source_url}")
         return commit_info.pr_url
