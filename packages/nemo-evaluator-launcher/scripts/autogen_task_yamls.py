@@ -1006,6 +1006,41 @@ Examples:
             )
             print(f"Warning: Failed to generate benchmarks table: {e}")
 
+        # Generate internal benchmarks table file (no NGC column + digest-pinned refs)
+        benchmarks_table_internal_file = (
+            docs_root
+            / "evaluation"
+            / "benchmarks"
+            / "catalog"
+            / "all"
+            / "benchmarks-table-internal.md"
+        )
+        try:
+            internal_table_content = generate_benchmarks_table_internal_markdown(
+                harnesses,
+                checksum=checksum,
+                harnesses_dir="harnesses",
+                harnesses_doc_path="all/harnesses",
+            )
+            benchmarks_table_internal_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(benchmarks_table_internal_file, "w", encoding="utf-8") as f:
+                f.write(internal_table_content)
+            logger.info(
+                "Generated internal benchmarks table",
+                path=str(benchmarks_table_internal_file),
+            )
+            print(
+                f"Generated internal benchmarks table: {benchmarks_table_internal_file}"
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to generate internal benchmarks table",
+                path=str(benchmarks_table_internal_file),
+                error=str(e),
+                exc_info=True,
+            )
+            print(f"Warning: Failed to generate internal benchmarks table: {e}")
+
         logger.info(
             "Documentation generation complete",
             total_tasks=len(filtered_tasks),
