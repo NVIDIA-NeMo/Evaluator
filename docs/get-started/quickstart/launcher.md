@@ -71,7 +71,17 @@ nemo-evaluator-launcher export <invocation_id> --dest local --format json
 # 7b. Or see the job details, with lots of useful subcommands inside
 nemo-evaluator-launcher info <invocation_id>   # use the ID printed by the run command
 
-# 8. Kill the running job(s)
+# 8. Publish a score to the dataset's HuggingFace leaderboard (requires the
+#    `publish` extra: pip install "nemo-evaluator-launcher[publish]", plus
+#    HF_TOKEN with write access to the target model repo).
+#    Add --dry-run to preview the leaderboard YAML without uploading anything.
+nemo-evaluator-launcher publish <invocation_id> \
+  --hf-dataset-id Idavidrein/gpqa --hf-task-id diamond \
+  --metric gpqa_diamond.score.micro \
+  --hf-org <traces_namespace> \
+  --hf-model-id <org>/<model>
+
+# 9. Kill the running job(s)
 nemo-evaluator-launcher kill <invocation_id>  # use the ID printed by the run command
 ```
 
@@ -117,6 +127,12 @@ export HF_TOKEN_FOR_GPQA_DIAMOND=hf_...
 - Export to MLflow, Weights & Biases, or local formats
 - Structured result formatting
 - Integration with experiment tracking platforms
+
+### Publishing to Hugging Face Leaderboards
+
+- One-shot publication of a single score to a dataset's HF leaderboard
+- Uploads run artifacts and logs to a static HF Space with a generated landing page
+- Opens a pull request on the model repo with the leaderboard YAML entry
 
 ### Configuration Management
 
