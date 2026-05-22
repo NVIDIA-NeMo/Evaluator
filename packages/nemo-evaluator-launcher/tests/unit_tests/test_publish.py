@@ -135,6 +135,7 @@ def _call(invocation_id, **overrides):
         score_spec="gpqa.pass@2.symbolic_correct",
         hf_task_id="diamond",
         hf_model_id=HF_MODEL,
+        hf_org="nvidia",
         dry_run=True,
     )
     kwargs.update(overrides)

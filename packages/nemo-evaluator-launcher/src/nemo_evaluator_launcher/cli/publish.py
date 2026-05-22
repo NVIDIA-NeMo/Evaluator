@@ -53,6 +53,11 @@ class Cmd:
         "(e.g. 'groups.gpqa.metrics.pass@2.scores.symbolic_correct') "
         "or use simplified syntax (e.g. 'gpqa.pass@2.symbolic_correct').",
     )
+    hf_org: str = field(
+        alias=["--hf-org"],
+        help="HuggingFace org under which to create the traces Space "
+        "(e.g. 'nvidia' or your HF username).",
+    )
     hf_task_id: Optional[str] = field(
         default=None,
         alias=["--hf-task-id"],
@@ -76,12 +81,6 @@ class Cmd:
         alias=["-n", "--dry-run"],
         help="Render and print the leaderboard YAML entry without uploading "
         "traces or opening a PR.",
-    )
-    hf_org: str = field(
-        default="nvidia",
-        alias=["--hf-org"],
-        help="HuggingFace org under which to create the traces Space "
-        "(default: nvidia).",
     )
 
     def execute(self) -> None:

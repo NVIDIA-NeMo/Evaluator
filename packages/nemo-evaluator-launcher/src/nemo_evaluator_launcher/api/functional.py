@@ -1138,9 +1138,9 @@ def publish_results(
     invocation_id: str,
     hf_dataset_id: str,
     score_spec: str,
+    hf_org: str,
     hf_task_id: Optional[str] = None,
     hf_model_id: Optional[str] = None,
-    hf_org: str = "nvidia",
     overwrite: bool = False,
     dry_run: bool = False,
 ) -> Optional[str]:
@@ -1174,6 +1174,7 @@ def publish_results(
                 return PublishError(
                     f"{action} on '{repo}': permission denied {auth_hint}. "
                     "Token may lack write permission for this repo — "
+                    "use a different repo or "
                     "generate a write token at https://huggingface.co/settings/tokens."
                 )
         return PublishError(f"{action} on '{repo}': {e}")
