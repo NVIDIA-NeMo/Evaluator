@@ -19,6 +19,7 @@ All paths require:
 | Check status | `nemo-evaluator-launcher status <invocation_id>` |
 | Job info | `nemo-evaluator-launcher info <invocation_id>` |
 | Export results | `nemo-evaluator-launcher export <invocation_id> --dest local --format json` |
+| Publish to HF leaderboard | `nemo-evaluator-launcher publish <invocation_id> --hf-dataset-id <org>/<dataset> --metric <task>.<metric>.<score> --hf-org <ns> --hf-model-id <org>/<model>` |
 | Dry run | Add `--dry-run` to any run command |
 | Test with limited samples | Add `-o +config.params.limit_samples=3` |
 

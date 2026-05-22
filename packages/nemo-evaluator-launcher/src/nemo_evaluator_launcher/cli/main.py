@@ -27,6 +27,7 @@ import nemo_evaluator_launcher.cli.logs as logs
 import nemo_evaluator_launcher.cli.ls_runs as ls_runs
 import nemo_evaluator_launcher.cli.ls_task as ls_task
 import nemo_evaluator_launcher.cli.ls_tasks as ls_tasks
+import nemo_evaluator_launcher.cli.publish as publish
 import nemo_evaluator_launcher.cli.resume as resume
 import nemo_evaluator_launcher.cli.run as run
 import nemo_evaluator_launcher.cli.skills as skills
@@ -55,6 +56,7 @@ def is_verbose_enabled(args) -> bool:
         "runs",
         "task",
         "export",
+        "publish",
         "resume",
     ]
     for subcmd in subcommands:
@@ -245,6 +247,23 @@ def create_parser() -> ArgumentParser:
     )
     export_parser.add_arguments(export.ExportCmd, dest="export")
 
+    # Publish subcommand
+    publish_parser = subparsers.add_parser(
+        "publish",
+        help="Publish an evaluation result to a HuggingFace dataset leaderboard",
+        description=(
+            "Publish a single evaluation score from a NEL invocation to a "
+            "HuggingFace dataset leaderboard, opening a PR on the model repo."
+        ),
+    )
+    publish_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging (sets LOG_LEVEL=DEBUG)",
+    )
+    publish_parser.add_arguments(publish.Cmd, dest="publish")
+
     # Resume subcommand
     resume_parser = subparsers.add_parser(
         "resume",
@@ -333,6 +352,8 @@ def main() -> None:
             parser.parse_args(["config", "--help"])
     elif args.command == "export":
         args.export.execute()
+    elif args.command == "publish":
+        args.publish.execute()
     elif args.command == "resume":
         args.resume.execute()
     elif args.command == "info":
