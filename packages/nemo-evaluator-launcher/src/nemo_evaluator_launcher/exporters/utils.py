@@ -448,7 +448,7 @@ def copy_local_artifacts(
                             f"Failed to copy required artifact {artifact} from {original_file} to {copy_file}: {e}"
                         )
                     else:
-                        logger.warning(
+                        logger.debug(
                             f"Failed to copy optional artifact {artifact} from {original_file} to {copy_file}: {e}"
                         )
 
