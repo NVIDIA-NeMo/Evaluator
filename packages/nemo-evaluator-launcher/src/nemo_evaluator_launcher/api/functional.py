@@ -1036,6 +1036,103 @@ def _print_publish_dry_run(entry: dict) -> None:
     )
 
 
+def _build_space_readme(hf_model_id: str, hf_dataset_id: str) -> str:
+    model_stem = hf_model_id.rsplit("/", 1)[-1]
+    dataset_stem = hf_dataset_id.rsplit("/", 1)[-1]
+    return (
+        "---\n"
+        f"title: {model_stem} on {dataset_stem}\n"
+        "emoji: 📊\n"
+        "colorFrom: green\n"
+        "colorTo: blue\n"
+        "sdk: static\n"
+        "pinned: false\n"
+        "---\n\n"
+        f"# {model_stem} — {dataset_stem}\n\n"
+        f"Evaluation traces produced by "
+        "[Nemo Evaluator](https://github.com/NVIDIA-NeMo/Evaluator) for "
+        f"[{hf_model_id}](https://huggingface.co/{hf_model_id}) on "
+        f"[{hf_dataset_id}](https://huggingface.co/datasets/{hf_dataset_id}).\n"
+    )
+
+
+def _build_space_index_html(
+    hf_model_id: str,
+    hf_dataset_id: str,
+    hf_task_id: str,
+    traces_repo_id: str,
+    value: float,
+    score_spec: str,
+    notes: str,
+) -> str:
+    import html
+
+    e = html.escape
+    model_stem = hf_model_id.rsplit("/", 1)[-1]
+    # Directory listings don't render on static Spaces; route through the HF
+    # tree/blob viewer (which always works) instead of relative paths.
+    tree = f"https://huggingface.co/spaces/{traces_repo_id}/tree/main/{hf_task_id}"
+    results_url = (
+        f"https://huggingface.co/spaces/{traces_repo_id}/blob/main/"
+        f"{hf_task_id}/artifacts/results.yml"
+    )
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{e(model_stem)} on {e(hf_dataset_id)}/{e(hf_task_id)}</title>
+<style>
+  :root {{ color-scheme: light dark;
+    --fg:#1a1a1a; --muted:#5a5a5a; --bg:#fafafa; --card:#fff;
+    --border:#e2e2e2; --accent:#76b900; }}
+  @media (prefers-color-scheme: dark) {{ :root {{
+    --fg:#f0f0f0; --muted:#a0a0a0; --bg:#1a1a1a; --card:#242424; --border:#3a3a3a; }} }}
+  body {{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    margin:0; background:var(--bg); color:var(--fg); line-height:1.5; }}
+  main {{ max-width:720px; margin:0 auto; padding:3rem 1.5rem; }}
+  a {{ color:var(--accent); text-decoration:none; }}
+  a:hover {{ text-decoration:underline; }}
+  h1 {{ margin:0 0 .25rem; font-size:1.5rem; font-weight:600; }}
+  header p {{ margin:0; color:var(--muted); }}
+  .card {{ margin:2rem 0; padding:2rem; background:var(--card);
+    border:1px solid var(--border); border-radius:8px; text-align:center; }}
+  .score {{ font-size:3rem; font-weight:700; color:var(--accent);
+    font-variant-numeric:tabular-nums; }}
+  .score-spec {{ margin-top:.5rem; color:var(--muted);
+    font-family:ui-monospace,SFMono-Regular,monospace; font-size:.875rem; }}
+  h2 {{ margin:2rem 0 .5rem; font-size:.8rem; font-weight:600;
+    color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }}
+  ul {{ list-style:none; padding:0; margin:0; }}
+  ul li {{ padding:.5rem 0; border-bottom:1px solid var(--border); }}
+  ul li:last-child {{ border-bottom:none; }}
+  ul code {{ color:var(--muted); font-size:.875rem; margin-left:.5rem; }}
+  footer {{ margin-top:3rem; padding-top:1.5rem; border-top:1px solid var(--border);
+    color:var(--muted); font-size:.875rem; }}
+</style>
+</head>
+<body><main>
+<header>
+  <h1><a target="_blank" rel="noopener noreferrer" href="https://huggingface.co/{e(hf_model_id)}">{e(model_stem)}</a></h1>
+  <p>on <a target="_blank" rel="noopener noreferrer" href="https://huggingface.co/datasets/{e(hf_dataset_id)}">{e(hf_dataset_id)}</a>
+    / <strong>{e(hf_task_id)}</strong></p>
+</header>
+<div class="card">
+  <div class="score">{value:.2f}</div>
+  <div class="score-spec">{e(score_spec)}</div>
+</div>
+<h2>Artifacts</h2>
+<ul>
+  <li><a target="_blank" rel="noopener noreferrer" href="{e(results_url)}">results.yml</a><code>full metrics</code></li>
+  <li><a target="_blank" rel="noopener noreferrer" href="{e(tree)}/artifacts">artifacts/</a><code>configs &amp; raw outputs</code></li>
+  <li><a target="_blank" rel="noopener noreferrer" href="{e(tree)}/logs">logs/</a><code>server &amp; client logs</code></li>
+</ul>
+<footer>{e(notes)}</footer>
+</main></body>
+</html>
+"""
+
+
 def publish_results(
     *,
     invocation_id: str,
@@ -1247,6 +1344,34 @@ def publish_results(
         except Exception as e:
             raise PublishError(
                 f"Failed to upload traces to Space '{traces_repo_id}': {e}"
+            ) from e
+
+        try:
+            for filename, body in [
+                ("README.md", _build_space_readme(hf_model_id, hf_dataset_id)),
+                (
+                    "index.html",
+                    _build_space_index_html(
+                        hf_model_id,
+                        hf_dataset_id,
+                        hf_task_id,
+                        traces_repo_id,
+                        value,
+                        f"{task}.{metric}.{score}",
+                        notes,
+                    ),
+                ),
+            ]:
+                api.upload_file(
+                    path_or_fileobj=body.encode("utf-8"),
+                    path_in_repo=filename,
+                    repo_id=traces_repo_id,
+                    repo_type="space",
+                    commit_message=f"Update {filename} for {hf_task_id}",
+                )
+        except Exception as e:
+            raise PublishError(
+                f"Failed to upload landing page to Space '{traces_repo_id}': {e}"
             ) from e
 
         verb = "Update" if exists else "Add"

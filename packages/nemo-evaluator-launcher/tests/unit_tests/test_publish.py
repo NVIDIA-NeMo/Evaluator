@@ -329,8 +329,29 @@ def test_upload_folder_failure_wrapped(mock_hf, publish_job):
 
 
 def test_upload_file_failure_wrapped(mock_hf, publish_job):
-    mock_hf._api.upload_file.side_effect = RuntimeError("boom")
+    """upload_file is called multiple times (README, index.html, leaderboard PR);
+    fail only the model-repo PR call to verify it gets wrapped as 'Failed to open PR'."""
+
+    def fail_on_model(*, repo_type, **kw):
+        if repo_type == "model":
+            raise RuntimeError("boom")
+        return SimpleNamespace(pr_url="")
+
+    mock_hf._api.upload_file.side_effect = fail_on_model
     with pytest.raises(fn.PublishError, match="Failed to open PR"):
+        _call(publish_job.invocation_id, dry_run=False)
+
+
+def test_upload_landing_page_failure_wrapped(mock_hf, publish_job):
+    """The README/index.html upload (to the Space) failing is wrapped distinctly."""
+
+    def fail_on_space(*, repo_type, **kw):
+        if repo_type == "space":
+            raise RuntimeError("boom")
+        return SimpleNamespace(pr_url="")
+
+    mock_hf._api.upload_file.side_effect = fail_on_space
+    with pytest.raises(fn.PublishError, match="Failed to upload landing page"):
         _call(publish_job.invocation_id, dry_run=False)
 
 
