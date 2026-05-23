@@ -1289,10 +1289,12 @@ class TestDynamoSrtctlRecipe:
         recipe = generate_srtctl_recipe(self._make_config(), "/configs/nel_inner.yaml")
         assert recipe["benchmark"]["type"] == "custom"
         assert recipe["benchmark"]["container_image"] == "registry/nemo-evaluator-next:0.18.4"
-        assert (
-            recipe["benchmark"]["command"]
-            == "source /configs/nel_credentials.sh && nel eval run /configs/nel_inner.yaml"
-        )
+        # The command sources credentials and runs `nel eval run`. The exact text
+        # is the metrics-scraper-wrapped form; specific contract checked by the
+        # test_benchmark_command_wraps_with_metrics_scraper test below.
+        cmd = recipe["benchmark"]["command"]
+        assert "source /configs/nel_credentials.sh" in cmd
+        assert "nel eval run /configs/nel_inner.yaml" in cmd
 
     def test_benchmark_overrides_user_benchmark(self):
         """If a user puts a benchmark in their recipe, NEL replaces it."""
@@ -1435,6 +1437,110 @@ class TestDynamoSrtctlRecipe:
         assert recipe["dynamo"]["install"] is False
         assert "benchmark" in recipe
         assert "name" in recipe
+
+    def test_benchmark_command_wraps_with_metrics_scraper(self):
+        """The rendered benchmark.command must background-spawn the existing
+        single-URL `scrape_metrics` against the dynamo frontend before invoking
+        `nel eval run`, and clean it up on EXIT. Without this wrap, dynamo runs
+        produce zero `/metrics` capture (FEP-831's `_metrics_block` is wired
+        into `generate_sbatch`, which `type:dynamo` bypasses).
+
+        The dynamo frontend's `/metrics` passes through the backend engine's
+        Prometheus metrics (sglang/vllm/trtllm) alongside `dynamo_*` HTTP/router
+        counters — one endpoint covers the whole engine view, so we don't
+        scrape per-worker. DCGM is a separate cluster-managed concern, not
+        scraped from NEL here.
+        """
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        recipe = generate_srtctl_recipe(self._make_config(), "/configs/nel_inner.yaml")
+        cmd = recipe["benchmark"]["command"]
+        assert "scrape_metrics" in cmd, "expected scraper invocation in benchmark.command"
+        # Default _make_config uses port=8000; bench is co-located with the frontend.
+        assert '--url "http://localhost:8000/metrics"' in cmd, "expected single localhost URL"
+        assert "dynamo_frontend_engine_metrics.jsonl" in cmd, "expected canonical output filename"
+        assert "scrape_metrics.log" in cmd, "expected scraper stderr captured to a log file"
+        assert "python -u" in cmd, "expected unbuffered Python so log output survives SIGTERM"
+        assert "trap" in cmd and "kill" in cmd, "expected EXIT trap to clean up scraper"
+        assert "nel eval run /configs/nel_inner.yaml" in cmd, "original eval invocation must remain"
+
+    def test_benchmark_command_interpolates_literal_output_dir(self):
+        """srtctl's CustomBenchmarkRunner does not auto-export $OUTPUT_DIR to
+        bench shells (its docstring says: "render it yourself when you
+        generate the recipe"). We must interpolate config.output.dir as a
+        literal at recipe-render time — otherwise the scraper's --out path
+        expands against an empty env var and writes to / (silent failure).
+        """
+        import shlex
+
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        out_dir = "/lustre/fsw/users/me/rundirs/model/bench"
+        cfg = self._make_config_with_output_dir(out_dir)
+        recipe = generate_srtctl_recipe(cfg, "/configs/nel_inner.yaml")
+        cmd = recipe["benchmark"]["command"]
+        # The literal output.dir must appear in the rendered command (shlex-quoted).
+        assert shlex.quote(out_dir) in cmd or out_dir in cmd, (
+            f"expected literal output.dir {out_dir!r} interpolated; got: {cmd!r}"
+        )
+        # And $OUTPUT_DIR must NOT be referenced (would expand to empty in bench shell).
+        assert "$OUTPUT_DIR" not in cmd, "must not depend on srtctl-unset $OUTPUT_DIR env var"
+
+    def test_benchmark_command_uses_dynamo_service_port(self):
+        """Frontend URL must use the dynamo service's port (per NEL config)."""
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        custom_recipe = {**self._SAMPLE_RECIPE}
+        cfg_dict = {
+            "services": {
+                "model": {
+                    "type": "dynamo",
+                    "served_model_name": "Qwen/Qwen3-30B",
+                    "port": 9999,
+                    "protocol": "chat_completions",
+                    "recipe": custom_recipe,
+                }
+            },
+            "benchmarks": [{"name": "gsm8k", "solver": {"type": "simple", "service": "model"}}],
+            "cluster": {
+                "type": "slurm",
+                "walltime": "01:00:00",
+                "eval_image": "registry/nemo-evaluator-next:0.18.4",
+                "srtctl_bin": "/home/user/.venv/bin/srtctl",
+                "node_pools": {"gpu": {"partition": "batch", "nodes": 1, "gpus_per_node": 4}},
+            },
+        }
+        recipe = generate_srtctl_recipe(EvalConfig.model_validate(cfg_dict), "/configs/nel_inner.yaml")
+        cmd = recipe["benchmark"]["command"]
+        assert ":9999/metrics" in cmd, "expected scraper URL to honor services.<dynamo>.port"
+
+    def test_benchmark_command_passes_identity_labels(self):
+        """Identity labels (run_id, model, slurm_job_id) must be passed to the
+        scraper at render time so each JSONL record carries the source run's
+        identity. Downstream Prometheus replay splices these into every metric
+        sample's label set; without them multiple runs in one TSDB are
+        indistinguishable.
+        """
+        import shlex
+
+        from nemo_evaluator.orchestration.slurm_gen import generate_srtctl_recipe
+
+        out_dir = "/lustre/fsw/users/me/rundirs/model/20260523_135650_568fb06d"
+        cfg = self._make_config_with_output_dir(out_dir)
+        recipe = generate_srtctl_recipe(cfg, "/configs/nel_inner.yaml")
+        cmd = recipe["benchmark"]["command"]
+
+        # Each label is rendered as --label "NAME=$_VAR" where $_VAR is set
+        # earlier in the script to a shlex-quoted literal.
+        assert '--label "run_id=$_RUN_ID"' in cmd
+        assert '--label "model=$_MODEL"' in cmd
+        assert '--label "slurm_job_id=${SLURM_JOB_ID:-unknown}"' in cmd
+
+        # The literal values are assigned via shell variables — verify the
+        # run_id comes from the output.dir leaf and model from the service config.
+        assert f"_RUN_ID={shlex.quote('20260523_135650_568fb06d')}" in cmd
+        # _make_config_with_output_dir sets served_model_name='Qwen/Qwen3-30B'.
+        assert f"_MODEL={shlex.quote('Qwen/Qwen3-30B')}" in cmd
 
     def _make_config_with_output_dir(self, output_dir, recipe=None):
         cfg_dict = {

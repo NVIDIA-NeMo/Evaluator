@@ -227,3 +227,66 @@ def test_disabled_env_var_short_circuits(tmp_path: Path, monkeypatch) -> None:
     rc = scrape_metrics.main(["--url", "http://nope/metrics", "--out", str(out), "--interval", "0.05"])
     assert rc == 0
     assert not out.exists()
+
+
+@pytest.mark.asyncio
+async def test_records_carry_identity_labels(tmp_path: Path) -> None:
+    """``--label NAME=VALUE`` attaches a dict to every JSONL record. Downstream
+    OpenMetrics replay splices these into each metric sample so multiple runs in
+    one Prometheus TSDB stay distinguishable.
+    """
+
+    async def _handler(_req):
+        return web.Response(text=_VLLM_LIKE_BODY, content_type="text/plain")
+
+    base, runner = await _start_stub(_handler)
+    try:
+        out = tmp_path / "engine_metrics.jsonl"
+        stop = asyncio.Event()
+
+        async def _stopper():
+            await asyncio.sleep(0.2)
+            stop.set()
+
+        stopper = asyncio.create_task(_stopper())
+        rc = await scrape_metrics._run(
+            f"{base}/metrics",
+            out,
+            interval_s=0.05,
+            stop_event=stop,
+            labels={"run_id": "smoke-1", "model": "glm5"},
+        )
+        stopper.cancel()
+        assert rc == 0
+
+        records = [json.loads(line) for line in out.read_text().splitlines() if line.strip()]
+        assert records, "expected at least one record"
+        for r in records:
+            assert r["labels"] == {"run_id": "smoke-1", "model": "glm5"}
+    finally:
+        await runner.cleanup()
+
+
+def test_label_cli_rejects_malformed() -> None:
+    with pytest.raises(SystemExit):
+        scrape_metrics.main(["--url", "http://x/metrics", "--out", "/dev/null", "--label", "bogus_no_equals"])
+
+
+def test_label_cli_rejects_empty_name() -> None:
+    with pytest.raises(SystemExit):
+        scrape_metrics.main(["--url", "http://x/metrics", "--out", "/dev/null", "--label", "=value"])
+
+
+def test_no_labels_no_field(tmp_path: Path, monkeypatch) -> None:
+    """Backward-compat: without ``--label``, the record has no ``labels`` field
+    (existing readers and downstream tooling untouched).
+    """
+    # Use _poll_once directly with no labels to verify the record shape.
+    import asyncio as _asyncio
+
+    async def _go():
+        async with __import__("aiohttp").ClientSession() as session:
+            return await scrape_metrics._poll_once(session, "http://127.0.0.1:1/metrics", labels=None)
+
+    record = _asyncio.run(_go())
+    assert "labels" not in record

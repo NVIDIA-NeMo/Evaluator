@@ -1814,10 +1814,16 @@ def generate_srtctl_recipe(config: EvalConfig, inner_config_remote_path: str) ->
         slurm_section.setdefault("account", cluster.account)
     recipe["slurm"] = slurm_section
     # NEL adds the benchmark step regardless of what the user put there.
+    # Background-spawn a Prometheus scraper against the dynamo frontend before
+    # the eval — dynamo's /metrics passes through backend engine metrics
+    # (sglang/vllm/trtllm) alongside dynamo_* HTTP/router counters, so one
+    # endpoint covers the whole engine view. type:dynamo bypasses
+    # generate_sbatch so FEP-831's _metrics_block doesn't fire without this wrap.
+    bench_command = _dynamo_benchmark_command(svc, inner_config_remote_path, config.output.dir)
     recipe["benchmark"] = {
         "type": "custom",
         "container_image": eval_image,
-        "command": f"source /configs/nel_credentials.sh && nel eval run {inner_config_remote_path}",
+        "command": bench_command,
     }
     # Identity-mount the output.dir parent so the bench container can write
     # artifacts to the host filesystem; /logs is srtctl-managed.
@@ -1829,6 +1835,62 @@ def generate_srtctl_recipe(config: EvalConfig, inner_config_remote_path: str) ->
             mounts.append(f"{parent}:{parent}")
             recipe["extra_mount"] = mounts
     return recipe
+
+
+def _dynamo_benchmark_command(svc, inner_config_remote_path: str, output_dir: str) -> str:
+    """Render the srtctl benchmark.command for type:dynamo runs.
+
+    Wraps ``nel eval run`` with a backgrounded Prometheus scraper against the
+    dynamo frontend on ``localhost:<frontend_port>``. The bench container is
+    co-located with the frontend on the head node, and dynamo's ``/metrics``
+    passes through the backend engine's Prometheus metrics (sglang/vllm/trtllm)
+    alongside ``dynamo_*`` HTTP/router counters — one endpoint → all engine
+    and dispatcher data.
+
+    ``output_dir`` is interpolated as a literal at recipe-render time.
+    srtctl's ``CustomBenchmarkRunner`` deliberately doesn't auto-export
+    ``$OUTPUT_DIR`` to bench shells (see its docstring: "render it yourself
+    when you generate the recipe"). The path is identity-mounted into the
+    bench container via the recipe's ``extra_mount`` (see :func:`generate_srtctl_recipe`).
+
+    Identity labels passed to the scraper at recipe-render time:
+
+      * ``run_id`` — the stamped output-directory leaf (timestamp + hash)
+      * ``model``  — ``services.<dynamo>.served_model_name``
+      * ``slurm_job_id`` — bash-expanded from ``$SLURM_JOB_ID`` at runtime
+
+    These ride along on every JSONL record so post-hoc Prometheus replay can
+    splice them into each metric sample's label set, keeping multiple runs in
+    one TSDB distinguishable (mirrors Prometheus's ``external_labels`` /
+    OpenTelemetry resource-attribute conventions, but baked in at write-time
+    because we go through ``promtool tsdb create-blocks-from openmetrics``).
+
+    The scraper runs unbuffered (``python -u``) and tees stderr to a log file
+    next to the JSONL so any auto-skip / probe-failure log lines survive the
+    EXIT trap. Per-line JSONL flush bounds data loss on hard kill.
+    """
+    frontend_port = getattr(svc, "port", 8000)
+    served_model = getattr(svc, "served_model_name", "") or "unknown"
+    out_q = shlex.quote(output_dir)
+    run_id_q = shlex.quote(PurePosixPath(output_dir).name or "unknown")
+    model_q = shlex.quote(served_model)
+    return (
+        "set -e\n"
+        "source /configs/nel_credentials.sh\n"
+        f"BENCH_OUT={out_q}\n"
+        f"_RUN_ID={run_id_q}\n"
+        f"_MODEL={model_q}\n"
+        "python -u -m nemo_evaluator.observability.scrape_metrics "
+        f'--url "http://localhost:{frontend_port}/metrics" '
+        '--out "$BENCH_OUT/dynamo_frontend_engine_metrics.jsonl" '
+        '--label "run_id=$_RUN_ID" '
+        '--label "model=$_MODEL" '
+        '--label "slurm_job_id=${SLURM_JOB_ID:-unknown}" '
+        '2> "$BENCH_OUT/scrape_metrics.log" &\n'
+        "_SCRAPE_PID=$!\n"
+        "trap 'kill $_SCRAPE_PID 2>/dev/null || true' EXIT\n"
+        f"nel eval run {inner_config_remote_path}"
+    )
 
 
 def _identity_covers(mount_spec: str, target: PurePosixPath) -> bool:

@@ -73,7 +73,7 @@ async def _detect(session: aiohttp.ClientSession, url: str) -> bool:
         return False
 
 
-async def _poll_once(session: aiohttp.ClientSession, url: str) -> dict[str, Any]:
+async def _poll_once(session: aiohttp.ClientSession, url: str, labels: dict[str, str] | None = None) -> dict[str, Any]:
     t0 = time.monotonic()
     record: dict[str, Any] = {
         "t_sample": _now_iso(),
@@ -82,6 +82,8 @@ async def _poll_once(session: aiohttp.ClientSession, url: str) -> dict[str, Any]
         "text": None,
         "exception": None,
     }
+    if labels:
+        record["labels"] = dict(labels)
     try:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=_DETECT_TIMEOUT_S)) as resp:
             record["text"] = await resp.text()
@@ -91,14 +93,20 @@ async def _poll_once(session: aiohttp.ClientSession, url: str) -> dict[str, Any]
     return record
 
 
-async def _run(url: str, out_path: Path, interval_s: float, stop_event: asyncio.Event) -> int:
+async def _run(
+    url: str,
+    out_path: Path,
+    interval_s: float,
+    stop_event: asyncio.Event,
+    labels: dict[str, str] | None = None,
+) -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     async with aiohttp.ClientSession() as session:
         if not await _detect(session, url):
             return 0
         with out_path.open("a") as fp:
             while not stop_event.is_set():
-                record = await _poll_once(session, url)
+                record = await _poll_once(session, url, labels=labels)
                 fp.write(json.dumps(record, separators=(",", ":")) + "\n")
                 fp.flush()
                 with contextlib.suppress(asyncio.TimeoutError):
@@ -106,11 +114,31 @@ async def _run(url: str, out_path: Path, interval_s: float, stop_event: asyncio.
     return 0
 
 
+def _parse_label(spec: str) -> tuple[str, str]:
+    if "=" not in spec:
+        raise argparse.ArgumentTypeError(f"--label requires NAME=VALUE, got {spec!r}")
+    name, _, value = spec.partition("=")
+    if not name:
+        raise argparse.ArgumentTypeError(f"--label requires a non-empty NAME, got {spec!r}")
+    return name, value
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="nel.scrape_metrics", description=__doc__.split("\n", 1)[0])
     parser.add_argument("--url", required=True, help="Full Prometheus /metrics URL to scrape")
     parser.add_argument("--out", required=True, help="Output JSONL path")
     parser.add_argument("--interval", type=float, default=10.0, help="Seconds between samples (default: 10)")
+    parser.add_argument(
+        "--label",
+        action="append",
+        type=_parse_label,
+        default=[],
+        help=(
+            "NAME=VALUE identity label to attach to every JSONL record (repeatable). "
+            "Downstream tools (e.g. OpenMetrics replay → Prometheus) splice these into "
+            "each metric sample's label set, so multiple runs in one TSDB stay distinguishable."
+        ),
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -118,6 +146,8 @@ def main(argv: list[str] | None = None) -> int:
     if os.getenv("NEL_TRACING_METRICS_DISABLED"):
         logger.info("scrape_metrics: NEL_TRACING_METRICS_DISABLED set, exiting")
         return 0
+
+    labels = dict(args.label) if args.label else None
 
     loop = asyncio.new_event_loop()
     stop_event = asyncio.Event()
@@ -129,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
         signal.signal(sig, _on_signal)
 
     try:
-        return loop.run_until_complete(_run(args.url, Path(args.out), args.interval, stop_event))
+        return loop.run_until_complete(_run(args.url, Path(args.out), args.interval, stop_event, labels=labels))
     finally:
         loop.close()
 
