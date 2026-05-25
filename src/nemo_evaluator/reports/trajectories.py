@@ -382,8 +382,32 @@ def _build_bench_report(
         """{value, from} pair where `from` documents the calculation."""
         return {"value": value, "from": formula}
 
+    # ─── headline summary — the values you'd read first ─────────────
+    headline_zero_token_trials = trials_with_any_zero_step
+    headline_dup_wire = duplicate_wire_calls_in_trial
+    headline_mismatch_after_dedup = mismatched_steps_vs_wire_trials_after_wire_dedup
+    summary = {
+        "trials": n_trials,
+        "mean_reward": traj_mean,
+        "mean_reward_matches_reported": is_mean_reward_correct,
+        "agent_steps_total": n_steps,
+        "wire_calls_total": total_wire,
+        "tokens_in_step_metrics": per_step_total,
+        "tokens_on_wire": wire_total,
+        "trials_with_zero_token_steps": headline_zero_token_trials,
+        "duplicate_wire_calls": headline_dup_wire,
+        "trials_with_step_vs_wire_mismatch_after_dedup": headline_mismatch_after_dedup,
+    }
+
     out: dict[str, Any] = {
         "bench": bench_name,
+        "_note": (
+            "Sections: summary (headline) | counts | score | anomalies | "
+            "presence (ATIF field coverage) | wire_captures (model_traffic.jsonl) | "
+            "trajectory_native (agent step stats) | mismatches (trajectory vs wire). "
+            "Every metric is {value, from} where 'from' documents the calculation."
+        ),
+        "summary": summary,
         "counts": {
             "n_trials": vf(n_trials, "trajectories.jsonl row count"),
             "n_problems": vf(n_problems, "distinct trajectories.jsonl row.problem_idx"),
@@ -406,6 +430,11 @@ def _build_bench_report(
         },
         # The actionable summary: what's broken, in counts.
         "anomalies": {
+            "_note": (
+                "Each entry is a count of trials (or steps) hitting a specific data-quality "
+                "problem. Zero = healthy. Use these as the first thing to scan when reading "
+                "the report — they encode 'is anything wrong here?' in a glance."
+            ),
             "steps_with_zero_or_none_tokens": vf(
                 steps_with_zero_or_none_tokens,
                 "agent steps where (metrics.prompt_tokens or 0) + (metrics.completion_tokens or 0) == 0",
@@ -445,6 +474,11 @@ def _build_bench_report(
             ),
         },
         "trajectory_native": {
+            "_note": (
+                "Aggregate stats over agent steps as written by the solver into "
+                "trajectories.jsonl (before any wire enrichment). 'fields_present_on_steps' "
+                "is the per-step ATIF-v1.6 field audit."
+            ),
             "agent_steps_total": vf(
                 n_steps,
                 "len(row.trajectory[0].steps[source=='agent']) summed across trials",
@@ -493,6 +527,11 @@ def _build_bench_report(
             ),
         },
         "wire_captures": {
+            "_note": (
+                "Aggregate stats over model_traffic.jsonl rows (one row per upstream "
+                "model call observed by the proxy). This is the ground-truth side of the "
+                "trajectory ↔ wire comparison."
+            ),
             "total_observed": vf(
                 total_wire,
                 "model_traffic.jsonl row count",
@@ -507,9 +546,18 @@ def _build_bench_report(
             ),
         },
         "mismatches": {
+            "_note": (
+                "Cross-checks between trajectories.jsonl and model_traffic.jsonl. "
+                "When these don't reconcile, the wire layer captured something the "
+                "solver's trajectory failed to encode (or vice versa)."
+            ),
             "agent_steps_vs_wire_calls": vf(
-                delta_signs,
-                "for each trial: sign(len(wire_rows) - len(agent_steps))",
+                {
+                    "trials_with_more_wire_than_steps": delta_signs["captures>steps"],
+                    "trials_with_fewer_wire_than_steps": delta_signs["captures<steps"],
+                    "trials_with_equal_counts": delta_signs["equal"],
+                },
+                "for each trial: bucket by sign(len(wire_rows) - len(agent_steps))",
             ),
             "tokens": vf(
                 {
@@ -523,20 +571,29 @@ def _build_bench_report(
                 "wire_total = sum(model_traffic row.usage.total_tokens, fallback to prompt+completion)",
             ),
         },
-        "atif_per_trial_presence": vf(
-            atif_presence,
-            f"N/{n_trials} trajectories.jsonl rows where the dotted-path field is non-None and non-empty",
-        ),
-        "row_required_fields_presence": vf(
-            {
-                "problem_idx": f"{sum(1 for r in traj_rows if r.get('problem_idx') is not None)}/{n_trials}",
-                "repeat": f"{sum(1 for r in traj_rows if r.get('repeat') is not None)}/{n_trials}",
-                "reward": f"{sum(1 for r in traj_rows if isinstance(r.get('reward'), (int, float)))}/{n_trials}",
-                "trajectory": f"{sum(1 for r in traj_rows if r.get('trajectory'))}/{n_trials}",
-                "model": f"{sum(1 for r in traj_rows if r.get('model'))}/{n_trials}",
-            },
-            f"N/{n_trials} trajectories.jsonl rows where the top-level required field is present",
-        ),
+        "presence": {
+            "_note": (
+                "Field-coverage audit. All three sub-blocks read 'N/total': "
+                "(N) rows/steps that have the field, out of (total) rows/steps. "
+                "Use to confirm the run actually wrote the data you expect."
+            ),
+            "row_required_fields": vf(
+                {
+                    "problem_idx": f"{sum(1 for r in traj_rows if r.get('problem_idx') is not None)}/{n_trials}",
+                    "repeat": f"{sum(1 for r in traj_rows if r.get('repeat') is not None)}/{n_trials}",
+                    "reward": f"{sum(1 for r in traj_rows if isinstance(r.get('reward'), (int, float)))}/{n_trials}",
+                    "trajectory": f"{sum(1 for r in traj_rows if r.get('trajectory'))}/{n_trials}",
+                    "model": f"{sum(1 for r in traj_rows if r.get('model'))}/{n_trials}",
+                },
+                f"N/{n_trials} trajectories.jsonl rows where the top-level required field is present",
+            ),
+            "atif_trajectory_fields": vf(
+                atif_presence,
+                f"N/{n_trials} trajectory[0].* dotted-path fields non-None and non-empty (ATIF-v1.6)",
+            ),
+            # atif_step_fields already lives under trajectory_native.fields_present_on_steps;
+            # we keep a single source of truth there to avoid duplication.
+        },
     }
     if include_stashed_section:
         out["stashed_model_calls"] = vf(
