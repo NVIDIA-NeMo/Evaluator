@@ -499,6 +499,9 @@ def _enrich_bench(bench_dir: Path) -> dict[str, int]:
         "steps_backfilled_completion_tokens": 0,
         "steps_backfilled_latency_ms": 0,
         "steps_backfilled_finish_reason": 0,
+        "steps_backfilled_reasoning_content": 0,
+        "steps_backfilled_message": 0,
+        "steps_backfilled_tool_calls": 0,
         "rows_written": 0,
     }
 
@@ -526,6 +529,17 @@ def _enrich_bench(bench_dir: Path) -> dict[str, int]:
                     if not extra.get("finish_reason") and w.get("finish_reason"):
                         extra["finish_reason"] = w["finish_reason"]
                         counts["steps_backfilled_finish_reason"] += 1
+                    # Opt-in capture fields: backfill iff present on the wire row
+                    # and missing on the step.
+                    if w.get("reasoning_content") and not s.get("reasoning_content"):
+                        s["reasoning_content"] = w["reasoning_content"]
+                        counts["steps_backfilled_reasoning_content"] += 1
+                    if w.get("message_content") and not s.get("message"):
+                        s["message"] = w["message_content"]
+                        counts["steps_backfilled_message"] += 1
+                    if w.get("tool_calls_full") and not s.get("tool_calls"):
+                        s["tool_calls"] = w["tool_calls_full"]
+                        counts["steps_backfilled_tool_calls"] += 1
                 counts["trials_spliced"] += 1
             else:
                 # Count mismatch — stash ALL wire calls; don't touch steps.
@@ -612,6 +626,9 @@ def generate_trajectories_report(
                     "completion_tokens": counts["steps_backfilled_completion_tokens"],
                     "latency_ms": counts["steps_backfilled_latency_ms"],
                     "finish_reason": counts["steps_backfilled_finish_reason"],
+                    "reasoning_content": counts["steps_backfilled_reasoning_content"],
+                    "message": counts["steps_backfilled_message"],
+                    "tool_calls": counts["steps_backfilled_tool_calls"],
                 },
                 "step_field_coverage_after_enrichment": enriched_step_coverage,
             }
