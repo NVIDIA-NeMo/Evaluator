@@ -167,7 +167,19 @@ def _build_bench_report(
 
     n_trials = len(traj_rows)
     n_problems = len({r.get("problem_idx") for r in traj_rows if r.get("problem_idx") is not None})
-    repeats = (n_trials // n_problems) if n_problems else 0
+    # Repeats: count trials per problem; if uniform, that's the repeats value,
+    # otherwise expose the histogram so a partial run (e.g. shard) is visible.
+    per_problem_repeat_counts = Counter(r.get("problem_idx") for r in traj_rows if r.get("problem_idx") is not None)
+    distinct_counts = set(per_problem_repeat_counts.values())
+    if len(distinct_counts) == 1:
+        repeats: Any = next(iter(distinct_counts))
+        repeats_from = "trials-per-problem (uniform across problems)"
+    elif distinct_counts:
+        repeats = dict(Counter(per_problem_repeat_counts.values()))
+        repeats_from = "histogram of trials-per-problem counts (non-uniform)"
+    else:
+        repeats = 0
+        repeats_from = "no problems found"
 
     # ─── score reconciliation ──────────────────────────────────────────
     rewards = [r["reward"] for r in traj_rows if isinstance(r.get("reward"), (int, float))]
@@ -411,7 +423,7 @@ def _build_bench_report(
         "counts": {
             "n_trials": vf(n_trials, "trajectories.jsonl row count"),
             "n_problems": vf(n_problems, "distinct trajectories.jsonl row.problem_idx"),
-            "repeats": vf(repeats, "n_trials // n_problems"),
+            "repeats": vf(repeats, repeats_from),
         },
         "score": {
             "mean_reward": vf(traj_mean, "mean(row.reward) across trajectories.jsonl trials"),
