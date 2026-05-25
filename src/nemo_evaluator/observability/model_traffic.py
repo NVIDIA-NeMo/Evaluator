@@ -126,9 +126,49 @@ def _tool_names_from_message(message: dict[str, Any]) -> list[str]:
     return names
 
 
-def _summary_from_json(body: dict[str, Any]) -> dict[str, Any]:
+def _truncate(value: Any, limit: int) -> Any:
+    if isinstance(value, str) and limit > 0 and len(value) > limit:
+        return value[:limit] + f"...[truncated, {len(value) - limit} chars dropped]"
+    return value
+
+
+def _full_tool_calls_from_message(message: dict[str, Any], limit: int) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for raw in message.get("tool_calls") or []:
+        if not isinstance(raw, dict):
+            continue
+        function = raw.get("function") if isinstance(raw.get("function"), dict) else {}
+        args = function.get("arguments") if "arguments" in function else raw.get("arguments")
+        if isinstance(args, str):
+            args = _truncate(args, limit)
+        elif isinstance(args, (dict, list)):
+            try:
+                args = _truncate(json.dumps(args), limit)
+            except (TypeError, ValueError):
+                args = None
+        out.append(
+            {
+                "id": raw.get("id") or "",
+                "name": function.get("name") or raw.get("name") or "",
+                "arguments": args,
+            }
+        )
+    return out
+
+
+def _summary_from_json(
+    body: dict[str, Any],
+    *,
+    capture_tool_calls: bool = False,
+    capture_reasoning: bool = False,
+    capture_messages: bool = False,
+    max_content_chars: int = 100_000,
+) -> dict[str, Any]:
     tool_names: list[str] = []
     finish_reason = ""
+    full_tool_calls: list[dict[str, Any]] = []
+    reasoning_parts: list[str] = []
+    message_parts: list[str] = []
     for choice in body.get("choices") or []:
         if not isinstance(choice, dict):
             continue
@@ -136,12 +176,29 @@ def _summary_from_json(body: dict[str, Any]) -> dict[str, Any]:
         message = choice.get("message") or choice.get("delta") or {}
         if isinstance(message, dict):
             tool_names.extend(_tool_names_from_message(message))
-    return {
+            if capture_tool_calls:
+                full_tool_calls.extend(_full_tool_calls_from_message(message, max_content_chars))
+            if capture_reasoning:
+                rc = message.get("reasoning_content")
+                if isinstance(rc, str):
+                    reasoning_parts.append(rc)
+            if capture_messages:
+                ct = message.get("content")
+                if isinstance(ct, str):
+                    message_parts.append(ct)
+    out: dict[str, Any] = {
         "model": str(body.get("model") or ""),
         "finish_reason": finish_reason,
         "usage": _usage(body.get("usage")),
         "tool_calls": _tool_stats(tool_names),
     }
+    if capture_tool_calls:
+        out["tool_calls_full"] = full_tool_calls
+    if capture_reasoning:
+        out["reasoning_content"] = _truncate("".join(reasoning_parts), max_content_chars)
+    if capture_messages:
+        out["message_content"] = _truncate("".join(message_parts), max_content_chars)
+    return out
 
 
 def _iter_sse(body: Any) -> Iterator[dict[str, Any]]:
@@ -181,11 +238,22 @@ def _iter_sse(body: Any) -> Iterator[dict[str, Any]]:
         yield chunk
 
 
-def _summary_from_sse(body: Any) -> dict[str, Any]:
+def _summary_from_sse(
+    body: Any,
+    *,
+    capture_tool_calls: bool = False,
+    capture_reasoning: bool = False,
+    capture_messages: bool = False,
+    max_content_chars: int = 100_000,
+) -> dict[str, Any]:
     model = ""
     finish_reason = ""
     usage: dict[str, int] = {}
     stream_tools: dict[tuple[int, int], str] = {}
+    # Per (choice, tool) index buffers for the full-capture path.
+    tool_full: dict[tuple[int, int], dict[str, Any]] = {}
+    reasoning_parts: list[str] = []
+    message_parts: list[str] = []
     for chunk in _iter_sse(body):
         model = str(chunk.get("model") or model)
         if isinstance(chunk.get("usage"), dict):
@@ -202,17 +270,49 @@ def _summary_from_sse(body: Any) -> dict[str, Any]:
                     continue
                 idx = (_int(choice.get("index")), _int(raw.get("index")))
                 function = raw.get("function") if isinstance(raw.get("function"), dict) else {}
-                stream_tools[idx] = f"{stream_tools.get(idx, '')}{function.get('name') or raw.get('name') or ''}"
-    return {
+                name_chunk = function.get("name") or raw.get("name") or ""
+                stream_tools[idx] = f"{stream_tools.get(idx, '')}{name_chunk}"
+                if capture_tool_calls:
+                    entry = tool_full.setdefault(idx, {"id": "", "name": "", "arguments": ""})
+                    if raw.get("id"):
+                        entry["id"] = raw["id"]
+                    if name_chunk:
+                        entry["name"] = entry["name"] + name_chunk
+                    args_chunk = function.get("arguments") if "arguments" in function else raw.get("arguments")
+                    if isinstance(args_chunk, str):
+                        entry["arguments"] = entry["arguments"] + args_chunk
+            if capture_reasoning:
+                rc = delta.get("reasoning_content")
+                if isinstance(rc, str):
+                    reasoning_parts.append(rc)
+            if capture_messages:
+                ct = delta.get("content")
+                if isinstance(ct, str):
+                    message_parts.append(ct)
+    out: dict[str, Any] = {
         "model": model,
         "finish_reason": finish_reason,
         "usage": usage,
         "tool_calls": _tool_stats(list(stream_tools.values())),
     }
+    if capture_tool_calls:
+        out["tool_calls_full"] = [
+            {
+                "id": v["id"],
+                "name": v["name"],
+                "arguments": _truncate(v["arguments"], max_content_chars) or None,
+            }
+            for v in tool_full.values()
+        ]
+    if capture_reasoning:
+        out["reasoning_content"] = _truncate("".join(reasoning_parts), max_content_chars)
+    if capture_messages:
+        out["message_content"] = _truncate("".join(message_parts), max_content_chars)
+    return out
 
 
-def _summary(body: Any) -> dict[str, Any]:
-    return _summary_from_json(body) if isinstance(body, dict) else _summary_from_sse(body)
+def _summary(body: Any, **opts: Any) -> dict[str, Any]:
+    return _summary_from_json(body, **opts) if isinstance(body, dict) else _summary_from_sse(body, **opts)
 
 
 def _is_success(record: dict[str, Any]) -> bool:
@@ -220,12 +320,27 @@ def _is_success(record: dict[str, Any]) -> bool:
 
 
 class ModelTrafficStore:
-    def __init__(self, *, service_name: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        service_name: str | None = None,
+        capture_tool_calls: bool = False,
+        capture_reasoning: bool = False,
+        capture_messages: bool = False,
+        max_content_chars: int = 100_000,
+    ) -> None:
         self.store_id = uuid.uuid4().hex
         self.service_name = service_name
         self._lock = threading.Lock()
         self._pending: dict[str, dict[str, Any]] = {}
         self._records_by_session: dict[str, list[dict[str, Any]]] = {}
+        # Opt-in capture: extra fields persisted to model_traffic.jsonl when set.
+        self._capture_opts = {
+            "capture_tool_calls": capture_tool_calls,
+            "capture_reasoning": capture_reasoning,
+            "capture_messages": capture_messages,
+            "max_content_chars": max_content_chars,
+        }
 
     def close(self) -> None:
         unregister_store(self.store_id)
@@ -258,7 +373,7 @@ class ModelTrafficStore:
                 "timestamp": time.time(),
             }
 
-        summary = _summary(resp.body)
+        summary = _summary(resp.body, **self._capture_opts)
         success = 200 <= resp.status_code < 400
         record.update(
             {
@@ -270,6 +385,11 @@ class ModelTrafficStore:
                 "tool_calls": summary["tool_calls"] if success else {"count": 0, "names": {}},
             }
         )
+        # Persist opt-in capture fields when present (and the call succeeded).
+        if success:
+            for key in ("tool_calls_full", "reasoning_content", "message_content"):
+                if key in summary:
+                    record[key] = summary[key]
         session_id = record.get("session_id")
         if session_id:
             with self._lock:

@@ -282,6 +282,34 @@ def test_enrichment_section_absent_when_enrich_false(bundle: Path) -> None:
     assert "enrichment" not in report
 
 
+def test_enrich_backfills_full_capture_fields(tmp_path: Path) -> None:
+    """When the wire row carries reasoning_content / message_content /
+    tool_calls_full (because model_traffic was configured to capture them),
+    enrichment backfills missing step fields too."""
+    bench = tmp_path / "pb"
+    _write_jsonl(
+        bench / "trajectories.jsonl",
+        [_trial(0, 0, reward=1.0, steps=[_agent_step(0, msg="", pt=5, ct=3)])],
+    )
+    wire = {
+        **_wire(0, 0, prompt=5, completion=3),
+        "reasoning_content": "I should call the tool first.",
+        "message_content": "Final assistant message",
+        "tool_calls_full": [{"id": "c1", "name": "search", "arguments": '{"q":"x"}'}],
+    }
+    _write_jsonl(bench / "model_traffic.jsonl", [wire])
+    out = generate_trajectories_report(tmp_path, enrich=True)
+    counts = json.loads(out.read_text())["benchmarks"][0]["enrichment"]["steps_backfilled"]
+    assert counts["reasoning_content"] == 1
+    assert counts["message"] == 1
+    assert counts["tool_calls"] == 1
+    # And the enriched step actually carries the fields
+    step = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])["trajectory"][0]["steps"][0]
+    assert step["reasoning_content"] == "I should call the tool first."
+    assert step["message"] == "Final assistant message"
+    assert step["tool_calls"] == [{"id": "c1", "name": "search", "arguments": '{"q":"x"}'}]
+
+
 def test_non_uniform_repeats_returns_histogram(tmp_path: Path) -> None:
     bench = tmp_path / "pb"
     # problem 0: 2 repeats; problem 1: 1 repeat → non-uniform
