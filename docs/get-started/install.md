@@ -200,8 +200,6 @@ pip install nemo-evaluator <evaluation-package>
   - <https://pypi.org/project/nvidia-mmath/>
 * - nvidia-mtbench-evaluator
   - <https://pypi.org/project/nvidia-mtbench-evaluator/>
-* - nvidia-eval-factory-nemo-skills
-  - <https://pypi.org/project/nvidia-eval-factory-nemo-skills/>
 * - nvidia-safety-harness
   - <https://pypi.org/project/nvidia-safety-harness/>
 * - nvidia-scicode
