@@ -330,6 +330,7 @@ async def run_evaluation(
                 model_stats: dict[str, Any] | None = None
                 step.model_error = None
                 vr = None
+                _is_solve_timeout = False
 
                 outside_eps: list[OutsideEndpoint] = []
                 step_session_id = uuid4().hex[:16] if model_url else None
@@ -383,6 +384,8 @@ async def run_evaluation(
                                 step.model_ms = solve_result.model_response.latency_ms
                             if solve_result.error_kind == ErrorKind.INFRA:
                                 _is_infra = True
+                            if solve_result.error_kind == ErrorKind.SOLVE_TIMEOUT:
+                                _is_solve_timeout = True
                             if solve_result.error:
                                 logger.warning("solve error p%d r%d: %s", idx, rep, solve_result.error)
                                 step.model_error = solve_result.error
@@ -582,6 +585,8 @@ async def run_evaluation(
                 step.extracted_answer = vr.extracted_answer
                 step.scoring_details = vr.scoring_details
                 step.scoring_method = vr.scoring_details.get("method", "")
+                if _is_solve_timeout:
+                    step.scoring_details["error_category"] = "solve_timeout"
 
                 extra_scorers = (config or {}).get("scorers", [])
                 if extra_scorers:

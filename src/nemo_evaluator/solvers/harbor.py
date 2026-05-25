@@ -1217,9 +1217,19 @@ class HarborSolver:
                     "workspace changes — submitting for verification",
                     self._run_timeout,
                 )
+                error_kind = ErrorKind.SOLVE_TIMEOUT
             elif not response and prompt_tokens + completion_tokens == 0:
                 error = "Agent produced no output (0 tokens, empty response). Check agent logs for details."
                 logger.warning("HarborSolver: %s", error)
+            elif agent_timed_out:
+                logger.info(
+                    "HarborSolver: agent timed out after %.0fs without workspace changes "
+                    "(prompt_tokens=%d completion_tokens=%d) — submitting for verification",
+                    self._run_timeout,
+                    prompt_tokens,
+                    completion_tokens,
+                )
+                error_kind = ErrorKind.SOLVE_TIMEOUT
 
             return SolveResult(
                 response=response,
