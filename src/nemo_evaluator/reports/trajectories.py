@@ -12,20 +12,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Trajectory coverage / audit report.
+"""Trajectory audit + optional enrichment.
 
-Post-processes ``trajectories.jsonl`` (per-trial trajectory native data) and
-``model_traffic.jsonl`` (per-call wire captures, gchlebus's MR #117) to
-produce a single ``trajectories_report.json`` describing:
+Reads two files from a run directory:
 
-  * dataset counts (trials / problems / repeats)
-  * score reconciliation (mean_reward in trajectories vs reported in eval-*.json)
-  * trajectory_native field coverage (which ATIF-v1.6 fields are present)
-  * wire_captures summary (counts, per-session distribution, finish_reasons)
-  * step <-> capture mismatches and token reconciliation
-  * per-trial ATIF presence audit
+  trajectories.jsonl   -- one row per trial (rewards, ATIF trajectory)
+  model_traffic.jsonl  -- one row per upstream model call
 
-Pure file-to-file. No adapter, no in-memory store, no eval-loop coupling.
+Writes ``trajectories_report.json`` summarising counts, score reconciliation,
+ATIF field presence, step/wire mismatches, duplicates, and token totals.
+Each metric is reported as ``{value, from}`` so the calculation is explicit.
+
+With ``enrich=True``, also writes ``trajectories_enriched.jsonl``: per-trial,
+when the agent-step count equals the wire-call count, step metrics are
+backfilled 1:1 from the matching wire call; otherwise all wire calls land in
+``trajectory[0].extra.captured_model_calls`` (no partial splice).
+
+The module is read-only over the eval pipeline -- runs offline against any
+existing run directory, including archived bundles.
 """
 
 from __future__ import annotations
