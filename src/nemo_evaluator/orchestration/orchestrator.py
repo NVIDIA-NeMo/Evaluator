@@ -1226,6 +1226,19 @@ def _generate_reports(
         paths.append(path)
         click.echo(f"Report: {path}")
 
+    try:
+        from nemo_evaluator.reports.trajectories import generate_trajectories_report
+
+        traj_path = generate_trajectories_report(
+            output_dir,
+            enrich=config.output.trajectories.enrich,
+        )
+        if traj_path is not None:
+            paths.append(traj_path)
+            click.echo(f"Trajectories report: {traj_path}")
+    except Exception:
+        logger.warning("Trajectories report generation failed", exc_info=True)
+
     export_bundles = in_memory_bundles if in_memory_bundles else bundles
 
     for exporter_name in config.output.export:
