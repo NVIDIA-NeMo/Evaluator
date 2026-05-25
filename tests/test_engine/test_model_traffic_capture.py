@@ -242,3 +242,72 @@ async def test_model_traffic_writes_compact_log_and_inference_stats(tmp_path: Pa
         await handle.async_stop()
         store.close()
         upstream.shutdown()
+
+
+# ─── opt-in capture flags (this MR) ─────────────────────────────────
+
+
+def test_summary_from_json_capture_flags_off_keeps_default_shape() -> None:
+    """Default behavior: stats only — no tool_calls_full / reasoning_content / message_content."""
+    from nemo_evaluator.observability.model_traffic import _summary_from_json
+
+    body = {
+        "model": "qwen",
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {
+                    "content": "hello",
+                    "reasoning_content": "think",
+                    "tool_calls": [{"id": "t1", "function": {"name": "search", "arguments": '{"q":"x"}'}}],
+                },
+            }
+        ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+    }
+    out = _summary_from_json(body)
+    assert "tool_calls_full" not in out
+    assert "reasoning_content" not in out
+    assert "message_content" not in out
+    assert out["tool_calls"]["count"] == 1  # stats still there
+
+
+def test_summary_from_json_capture_flags_on_populate_fields() -> None:
+    from nemo_evaluator.observability.model_traffic import _summary_from_json
+
+    body = {
+        "model": "qwen",
+        "choices": [
+            {
+                "finish_reason": "tool_calls",
+                "message": {
+                    "content": "calling search",
+                    "reasoning_content": "I need to look this up",
+                    "tool_calls": [
+                        {"id": "t1", "function": {"name": "search", "arguments": '{"q":"x"}'}},
+                        {"id": "t2", "function": {"name": "fetch", "arguments": '{"u":"y"}'}},
+                    ],
+                },
+            }
+        ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+    }
+    out = _summary_from_json(body, capture_tool_calls=True, capture_reasoning=True, capture_messages=True)
+    assert out["reasoning_content"] == "I need to look this up"
+    assert out["message_content"] == "calling search"
+    assert len(out["tool_calls_full"]) == 2
+    assert out["tool_calls_full"][0] == {"id": "t1", "name": "search", "arguments": '{"q":"x"}'}
+
+
+def test_summary_truncates_long_content() -> None:
+    from nemo_evaluator.observability.model_traffic import _summary_from_json
+
+    long_text = "x" * 1000
+    body = {
+        "model": "qwen",
+        "choices": [{"finish_reason": "stop", "message": {"content": long_text, "reasoning_content": long_text}}],
+    }
+    out = _summary_from_json(body, capture_reasoning=True, capture_messages=True, max_content_chars=100)
+    assert out["message_content"].startswith("x" * 100)
+    assert "truncated" in out["message_content"]
+    assert out["reasoning_content"].startswith("x" * 100)
