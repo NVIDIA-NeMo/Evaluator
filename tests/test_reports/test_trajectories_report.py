@@ -303,20 +303,21 @@ def test_step_field_presence_extended(bundle: Path) -> None:
     assert fp["metrics.extra.finish_reason"] == "0/3"
 
 
-def test_post_dedup_mismatch_and_per_step_total_consistency(tmp_path: Path) -> None:
+def test_post_wire_dedup_mismatch_and_per_step_total_consistency(tmp_path: Path) -> None:
     bench = tmp_path / "pb"
-    # 2 identical steps (1 dup), 2 identical wire rows (1 dup).
-    # After dedup, sets are both size 1 -> no remaining mismatch.
-    s = _agent_step(0, msg="same", pt=10, ct=5)
-    _write_jsonl(bench / "trajectories.jsonl", [_trial(0, 0, reward=1.0, steps=[s, s])])
-    w = _wire(0, 0, prompt=10, completion=5)
+    # 1 step, 2 identical wire rows (1 dup). After wire-dedup,
+    # unique wire count is 1 -> matches step count.
+    s = _agent_step(0, msg="x", pt=10, ct=5)
+    _write_jsonl(bench / "trajectories.jsonl", [_trial(0, 0, reward=1.0, steps=[s])])
+    w = {**_wire(0, 0, prompt=10, completion=5), "request_hash": "h0"}
     _write_jsonl(bench / "model_traffic.jsonl", [w, w])
     a = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["anomalies"]
-    assert _v(a["duplicate_steps_in_trial_total"]) == 1
     assert _v(a["duplicate_wire_calls_in_trial_total"]) == 1
-    assert _v(a["mismatched_steps_vs_wire_trials"]) == 0
-    assert _v(a["mismatched_steps_vs_wire_trials_after_dedup"]) == 0
-    # 2 steps × 15 tokens = 30; final_metrics.total = 30 → consistent
+    # raw mismatch: 1 step vs 2 wire rows
+    assert _v(a["mismatched_steps_vs_wire_trials"]) == 1
+    # after wire-dedup: 1 step vs 1 unique wire row -> resolved
+    assert _v(a["mismatched_steps_vs_wire_trials_after_wire_dedup"]) == 0
+    # 1 step × 15 tokens = 15; final_metrics.total = 15 → consistent
     assert _v(a["trials_with_per_step_vs_final_metrics_token_mismatch"]) == 0
 
 
@@ -356,19 +357,49 @@ def test_anomalies_zero_token_steps(tmp_path: Path) -> None:
         assert "from" in a[key], f"{key} missing 'from' explanation"
 
 
-def test_anomalies_duplicate_steps(tmp_path: Path) -> None:
+def test_no_step_side_duplicate_tracking(tmp_path: Path) -> None:
+    """Duplicates are only tracked for model_traffic.jsonl, not trajectory steps."""
     bench = tmp_path / "pb"
-    # trial 0: two steps with identical (message, reasoning, tool_calls) → 1 dup
-    dup_step_a = _agent_step(0, msg="thinking…", pt=10, ct=5)
-    dup_step_b = _agent_step(1, msg="thinking…", pt=10, ct=5)
     _write_jsonl(
         bench / "trajectories.jsonl",
-        [_trial(0, 0, reward=1.0, steps=[dup_step_a, dup_step_b])],
+        [_trial(0, 0, reward=1.0, steps=[_agent_step(0, msg="x", pt=5, ct=3)])],
     )
     _write_jsonl(bench / "model_traffic.jsonl", [])
     a = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["anomalies"]
-    assert _v(a["duplicate_steps_in_trial_total"]) == 1
-    assert _v(a["trials_with_duplicate_steps"]) == 1
+    assert "duplicate_steps_in_trial_total" not in a
+    assert "trials_with_duplicate_steps" not in a
+
+
+def test_stashed_section_only_when_enrich(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    _write_jsonl(
+        bench / "trajectories.jsonl",
+        [_trial(0, 0, reward=1.0, steps=[_agent_step(0, msg="x", pt=5, ct=3)])],
+    )
+    _write_jsonl(bench / "model_traffic.jsonl", [_wire(0, 0, prompt=5, completion=3)])
+
+    audit = json.loads(generate_trajectories_report(tmp_path, enrich=False).read_text())["benchmarks"][0]
+    assert "stashed_model_calls" not in audit
+
+    enriched_run = json.loads(generate_trajectories_report(tmp_path, enrich=True).read_text())["benchmarks"][0]
+    assert "stashed_model_calls" in enriched_run
+
+
+def test_wire_dedup_prefers_request_hash(tmp_path: Path) -> None:
+    """When records carry request_hash, the dedup key is exact (not heuristic)."""
+    bench = tmp_path / "pb"
+    _write_jsonl(
+        bench / "trajectories.jsonl",
+        [_trial(0, 0, reward=1.0, steps=[_agent_step(0, msg="x", pt=5, ct=3)])],
+    )
+    # Two records with the SAME request_hash but different response stats —
+    # heuristic would miss this; request_hash catches it as a duplicate.
+    rec_a = {**_wire(0, 0, prompt=10, completion=5), "request_hash": "abc123abc123abc1"}
+    rec_b = {**_wire(0, 0, prompt=999, completion=999), "request_hash": "abc123abc123abc1", "latency_ms": 42.0}
+    _write_jsonl(bench / "model_traffic.jsonl", [rec_a, rec_b])
+    a = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["anomalies"]
+    assert _v(a["duplicate_wire_calls_in_trial_total"]) == 1
+    assert "request_hash" in a["duplicate_wire_calls_in_trial_total"]["from"]
 
 
 def test_anomalies_duplicate_wire_calls(tmp_path: Path) -> None:
