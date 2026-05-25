@@ -158,8 +158,6 @@ def _index_traffic_by_trial(
 def _build_bench_report(
     bench_name: str,
     bench_dir: Path,
-    *,
-    include_stashed_section: bool = False,
 ) -> dict[str, Any]:
     traj_rows = _read_jsonl(bench_dir / "trajectories.jsonl")
     traffic_rows = _read_jsonl(bench_dir / "model_traffic.jsonl")
@@ -171,15 +169,11 @@ def _build_bench_report(
     # otherwise expose the histogram so a partial run (e.g. shard) is visible.
     per_problem_repeat_counts = Counter(r.get("problem_idx") for r in traj_rows if r.get("problem_idx") is not None)
     distinct_counts = set(per_problem_repeat_counts.values())
-    if len(distinct_counts) == 1:
-        repeats: Any = next(iter(distinct_counts))
-        repeats_from = "trials-per-problem (uniform across problems)"
-    elif distinct_counts:
-        repeats = dict(Counter(per_problem_repeat_counts.values()))
-        repeats_from = "histogram of trials-per-problem counts (non-uniform)"
-    else:
-        repeats = 0
-        repeats_from = "no problems found"
+    repeats: Any = (
+        next(iter(distinct_counts))
+        if len(distinct_counts) == 1
+        else (dict(Counter(per_problem_repeat_counts.values())) if distinct_counts else 0)
+    )
 
     # ─── score reconciliation ──────────────────────────────────────────
     rewards = [r["reward"] for r in traj_rows if isinstance(r.get("reward"), (int, float))]
@@ -217,17 +211,6 @@ def _build_bench_report(
         n = sum(1 for s in all_agent_steps if s.get(field) is not None)
         return f"{n}/{n_steps}"
 
-    def _field_nonempty(field: str) -> str:
-        def _ok(v: Any) -> bool:
-            if v is None:
-                return False
-            if isinstance(v, (str, list, dict)) and not v:
-                return False
-            return True
-
-        n = sum(1 for s in all_agent_steps if _ok(s.get(field)))
-        return f"{n}/{n_steps}"
-
     def _nested_present(*keys: str) -> str:
         n = 0
         for s in all_agent_steps:
@@ -244,7 +227,6 @@ def _build_bench_report(
 
     # ─── wire_captures (model_traffic.jsonl) ──────────────────────────
     total_wire = len(traffic_rows)
-    captures_per_trial = [len(v) for v in traffic_by_trial.values()]
     finish_reason_hist = Counter()
     for r in traffic_rows:
         fr = r.get("finish_reason")
@@ -362,10 +344,6 @@ def _build_bench_report(
             duplicate_wire_calls_in_trial += per_trial_dups
             trials_with_duplicate_wire_calls += 1
 
-    # Trials where step count != wire-call count (a different mismatch axis
-    # than ref/wire token totals; signals lost or duplicated captures).
-    mismatched_steps_vs_wire_trials = delta_signs["captures>steps"] + delta_signs["captures<steps"]
-
     # After removing duplicate wire calls, does the mismatch resolve?
     mismatched_steps_vs_wire_trials_after_wire_dedup = 0
     for r in traj_rows:
@@ -390,242 +368,103 @@ def _build_bench_report(
     if traj_mean is not None and reported_mean is not None:
         is_mean_reward_correct = abs(traj_mean - reported_mean) < 1e-6
 
-    def vf(value: Any, formula: str) -> dict[str, Any]:
-        """{value, from} pair where `from` documents the calculation."""
-        return {"value": value, "from": formula}
-
-    # ─── headline summary — the values you'd read first ─────────────
-    headline_zero_token_trials = trials_with_any_zero_step
-    headline_dup_wire = duplicate_wire_calls_in_trial
-    headline_mismatch_after_dedup = mismatched_steps_vs_wire_trials_after_wire_dedup
-    summary = {
-        "trials": n_trials,
-        "mean_reward": traj_mean,
-        "mean_reward_matches_reported": is_mean_reward_correct,
-        "agent_steps_total": n_steps,
-        "wire_calls_total": total_wire,
-        "tokens_in_step_metrics": per_step_total,
-        "tokens_on_wire": wire_total,
-        "trials_with_zero_token_steps": headline_zero_token_trials,
-        "duplicate_wire_calls": headline_dup_wire,
-        "trials_with_step_vs_wire_mismatch_after_dedup": headline_mismatch_after_dedup,
+    step_field_coverage = {
+        "step_id": _field_present("step_id"),
+        "source": _field_present("source"),
+        "timestamp": _field_present("timestamp"),
+        "model_name": _field_present("model_name"),
+        "status_code": _field_present("status_code"),
+        "message": _field_present("message"),
+        "reasoning_content": _field_present("reasoning_content"),
+        "tool_calls": _field_present("tool_calls"),
+        "metrics.prompt_tokens": _nested_present("metrics", "prompt_tokens"),
+        "metrics.completion_tokens": _nested_present("metrics", "completion_tokens"),
+        "metrics.total_tokens": _nested_present("metrics", "total_tokens"),
+        "metrics.extra.latency_ms": _nested_present("metrics", "extra", "latency_ms"),
+        "metrics.extra.finish_reason": _nested_present("metrics", "extra", "finish_reason"),
+        "metrics.extra.cached_tokens": _nested_present("metrics", "extra", "cached_tokens"),
+        "metrics.extra.reasoning_tokens": _nested_present("metrics", "extra", "reasoning_tokens"),
     }
+
+    row_field_coverage = {
+        "problem_idx": f"{sum(1 for r in traj_rows if r.get('problem_idx') is not None)}/{n_trials}",
+        "repeat": f"{sum(1 for r in traj_rows if r.get('repeat') is not None)}/{n_trials}",
+        "reward": f"{sum(1 for r in traj_rows if isinstance(r.get('reward'), (int, float)))}/{n_trials}",
+        "trajectory": f"{sum(1 for r in traj_rows if r.get('trajectory'))}/{n_trials}",
+        "model": f"{sum(1 for r in traj_rows if r.get('model'))}/{n_trials}",
+        **{f"trajectory[0].{k}": v for k, v in atif_presence.items()},
+    }
+
+    # Wire-call dedup (request_hash-based, falls back to heuristic)
+    wire_keys_total = [_wire_dedup_key(r) for r in traffic_rows]
+    wire_keys_unique = set(wire_keys_total)
+    duplicates_total = total_wire - len(wire_keys_unique)
 
     out: dict[str, Any] = {
         "bench": bench_name,
         "_note": (
-            "Sections: summary (headline) | counts | score | anomalies | "
-            "presence (ATIF field coverage) | wire_captures (model_traffic.jsonl) | "
-            "trajectory_native (agent step stats) | mismatches (trajectory vs wire). "
-            "Every metric is {value, from} where 'from' documents the calculation."
+            "Health check over a run dir. Sections answer four questions, in order: "
+            "(1) score -- did the eval score what the bundle reported? "
+            "(2) tokens -- do the three independent token totals agree? "
+            "(3) wire_calls -- any duplicates or unexpected counts on the wire? "
+            "(4) field_coverage -- what fields are populated in trajectories.jsonl?"
         ),
-        "summary": summary,
         "counts": {
-            "n_trials": vf(n_trials, "trajectories.jsonl row count"),
-            "n_problems": vf(n_problems, "distinct trajectories.jsonl row.problem_idx"),
-            "repeats": vf(repeats, repeats_from),
+            "trials": n_trials,
+            "problems": n_problems,
+            "repeats": repeats,
         },
+        # ── 1. Did the eval score match what's reported in the bundle? ──
         "score": {
-            "mean_reward": vf(traj_mean, "mean(row.reward) across trajectories.jsonl trials"),
-            "reported_mean": vf(
-                reported_mean,
-                "latest <bench>/eval-*.json benchmark.scores.summary.mean",
-            ),
-            "is_mean_reward_correct": vf(
-                is_mean_reward_correct,
-                "|mean_reward - reported_mean| < 1e-6 (null if either side is missing)",
-            ),
-            "failures": vf(
-                {"total": sum(failures.values()), "counts_by_category": dict(failures)},
-                "row.scoring_details.error_category OR row.failure_category",
-            ),
+            "_note": "mean_reward = mean(row.reward) across trials; reported_mean = bundle's eval-*.json summary.mean",
+            "mean_reward": traj_mean,
+            "reported_mean": reported_mean,
+            "is_mean_reward_correct": is_mean_reward_correct,
+            "failures_by_category": dict(failures),
         },
-        # The actionable summary: what's broken, in counts.
-        "anomalies": {
+        # ── 2. Do per-step / trajectory-declared / wire totals agree? ──
+        "tokens": {
             "_note": (
-                "Each entry is a count of trials (or steps) hitting a specific data-quality "
-                "problem. Zero = healthy. Use these as the first thing to scan when reading "
-                "the report — they encode 'is anything wrong here?' in a glance."
+                "Three independent totals for prompt+completion tokens across all trials. "
+                "When all three agree, the trajectory faithfully encoded what the wire saw. "
+                "When per_step is 0 but wire isn't, the solver dropped per-step metrics "
+                "(enable enrich=true to backfill them from model_traffic.jsonl)."
             ),
-            "steps_with_zero_or_none_tokens": vf(
-                steps_with_zero_or_none_tokens,
-                "agent steps where (metrics.prompt_tokens or 0) + (metrics.completion_tokens or 0) == 0",
-            ),
-            "trials_with_any_zero_token_step": vf(
-                trials_with_any_zero_step,
-                "trials with at least one zero-or-none-tokens agent step",
-            ),
-            "trials_with_all_zero_token_steps": vf(
-                trials_all_zero_token_steps,
-                "trials where every agent step is zero-or-none-tokens",
-            ),
-            "duplicate_wire_calls_in_trial_total": vf(
-                duplicate_wire_calls_in_trial,
-                "sum over trials of (#repeated record.request_hash - 1); "
-                "request_hash is sha1(upstream request body) recorded at "
-                "ModelTrafficStore.start_request",
-            ),
-            "trials_with_duplicate_wire_calls": vf(
-                trials_with_duplicate_wire_calls,
-                "trials with at least one repeated record.request_hash",
-            ),
-            "mismatched_steps_vs_wire_trials": vf(
-                mismatched_steps_vs_wire_trials,
-                "trials where len(agent_steps) != len(model_traffic rows for that trial)",
-            ),
-            "mismatched_steps_vs_wire_trials_after_wire_dedup": vf(
-                mismatched_steps_vs_wire_trials_after_wire_dedup,
-                "trials where len(agent_steps) != len(set(record.request_hash)); "
-                "non-zero here means the mismatch is NOT explained by duplicate wire calls",
-            ),
-            "trials_with_per_step_vs_final_metrics_token_mismatch": vf(
-                per_step_vs_final_metrics_mismatch,
-                "trials where sum(step.metrics.prompt+completion_tokens) != "
-                "final_metrics.total_prompt+total_completion_tokens; "
-                "non-zero means the trajectory's internal totals are inconsistent",
-            ),
+            "per_step_sum": per_step_total,
+            "final_metrics_total": ref_total,
+            "wire_total": wire_total,
+            "per_step_matches_wire": (per_step_total == wire_total) if (per_step_total or wire_total) else None,
+            "final_metrics_matches_wire": (ref_total == wire_total) if (ref_total or wire_total) else None,
+            "trials_with_per_step_vs_final_metrics_mismatch": per_step_vs_final_metrics_mismatch,
         },
-        "trajectory_native": {
+        # ── 3. Wire call summary + duplicates ──
+        "wire_calls": {
             "_note": (
-                "Aggregate stats over agent steps as written by the solver into "
-                "trajectories.jsonl (before any wire enrichment). 'fields_present_on_steps' "
-                "is the per-step ATIF-v1.6 field audit."
+                "model_traffic.jsonl row stats. duplicates_total is computed via record.request_hash "
+                "(sha1 prefix of the upstream body); a non-zero value means the same model call landed "
+                "in the log twice (e.g. retry, double-capture)."
             ),
-            "agent_steps_total": vf(
-                n_steps,
-                "len(row.trajectory[0].steps[source=='agent']) summed across trials",
-            ),
-            "agent_steps_per_trial": vf(
-                _stats([float(x) for x in per_trial_step_counts]),
-                "stats of agent-step counts per trial",
-            ),
-            "tool_calls_total": vf(
-                tool_calls_total,
-                "sum of len(step.tool_calls) over agent steps",
-            ),
-            "reasoning_chars_total": vf(
-                reasoning_chars_total,
-                "sum of len(step.reasoning_content) over agent steps",
-            ),
-            "fields_present_on_steps": vf(
-                {
-                    "step_id": _field_present("step_id"),
-                    "source": _field_present("source"),
-                    "timestamp": _field_present("timestamp"),
-                    "model_name": _field_present("model_name"),
-                    "status_code": _field_present("status_code"),
-                    "message": _field_present("message"),
-                    "reasoning_content": _field_present("reasoning_content"),
-                    "tool_calls": _field_present("tool_calls"),
-                    "metrics.prompt_tokens": _nested_present("metrics", "prompt_tokens"),
-                    "metrics.completion_tokens": _nested_present("metrics", "completion_tokens"),
-                    "metrics.total_tokens": _nested_present("metrics", "total_tokens"),
-                    "metrics.extra.latency_ms": _nested_present("metrics", "extra", "latency_ms"),
-                    "metrics.extra.finish_reason": _nested_present("metrics", "extra", "finish_reason"),
-                    "metrics.extra.cached_tokens": _nested_present("metrics", "extra", "cached_tokens"),
-                    "metrics.extra.reasoning_tokens": _nested_present("metrics", "extra", "reasoning_tokens"),
-                },
-                f"N/{n_steps} agent steps where the dotted-path field is non-None",
-            ),
-            "fields_nonempty_on_steps": vf(
-                {
-                    "step_id": _field_nonempty("step_id"),
-                    "source": _field_nonempty("source"),
-                    "message": _field_nonempty("message"),
-                    "reasoning_content": _field_nonempty("reasoning_content"),
-                    "tool_calls": _field_nonempty("tool_calls"),
-                },
-                f"N/{n_steps} agent steps where the field is non-empty (non-None and not '' / [] / {{}})",
-            ),
+            "total": total_wire,
+            "unique": len(wire_keys_unique),
+            "duplicates_total": duplicates_total,
+            "trials_with_duplicates": trials_with_duplicate_wire_calls,
+            "trials_with_more_wire_than_steps": delta_signs["captures>steps"],
+            "trials_with_fewer_wire_than_steps": delta_signs["captures<steps"],
+            "trials_with_step_wire_mismatch_after_dedup": mismatched_steps_vs_wire_trials_after_wire_dedup,
+            "finish_reasons": dict(finish_reason_hist),
         },
-        "wire_captures": {
+        # ── 4. Field coverage (presence audit) ──
+        "field_coverage": {
             "_note": (
-                "Aggregate stats over model_traffic.jsonl rows (one row per upstream "
-                "model call observed by the proxy). This is the ground-truth side of the "
-                "trajectory ↔ wire comparison."
+                "How many trials/steps actually have each ATIF-v1.6 field. "
+                "Format 'N/total' means N populated out of total. "
+                "Run with enrich=true to backfill metrics.* on steps from the wire layer."
             ),
-            "total_observed": vf(
-                total_wire,
-                "model_traffic.jsonl row count",
-            ),
-            "captures_per_trial": vf(
-                _stats([float(x) for x in captures_per_trial]) if captures_per_trial else None,
-                "stats of len(model_traffic rows) grouped by (problem_idx, repeat)",
-            ),
-            "finish_reasons": vf(
-                dict(finish_reason_hist),
-                "histogram of model_traffic.jsonl row.finish_reason",
-            ),
-        },
-        "mismatches": {
-            "_note": (
-                "Cross-checks between trajectories.jsonl and model_traffic.jsonl. "
-                "When these don't reconcile, the wire layer captured something the "
-                "solver's trajectory failed to encode (or vice versa)."
-            ),
-            "agent_steps_vs_wire_calls": vf(
-                {
-                    "trials_with_more_wire_than_steps": delta_signs["captures>steps"],
-                    "trials_with_fewer_wire_than_steps": delta_signs["captures<steps"],
-                    "trials_with_equal_counts": delta_signs["equal"],
-                },
-                "for each trial: bucket by sign(len(wire_rows) - len(agent_steps))",
-            ),
-            "tokens": vf(
-                {
-                    "ref_total": ref_total,
-                    "per_step_total": per_step_total,
-                    "wire_total": wire_total,
-                    "match_ref_vs_wire": (ref_total == wire_total) if ref_total or wire_total else None,
-                },
-                "ref_total = sum(row.model.tokens.total); "
-                "per_step_total = sum(step.metrics.prompt_tokens + step.metrics.completion_tokens); "
-                "wire_total = sum(model_traffic row.usage.total_tokens, fallback to prompt+completion)",
-            ),
-        },
-        "presence": {
-            "_note": (
-                "Field-coverage audit. All three sub-blocks read 'N/total': "
-                "(N) rows/steps that have the field, out of (total) rows/steps. "
-                "Use to confirm the run actually wrote the data you expect."
-            ),
-            "row_required_fields": vf(
-                {
-                    "problem_idx": f"{sum(1 for r in traj_rows if r.get('problem_idx') is not None)}/{n_trials}",
-                    "repeat": f"{sum(1 for r in traj_rows if r.get('repeat') is not None)}/{n_trials}",
-                    "reward": f"{sum(1 for r in traj_rows if isinstance(r.get('reward'), (int, float)))}/{n_trials}",
-                    "trajectory": f"{sum(1 for r in traj_rows if r.get('trajectory'))}/{n_trials}",
-                    "model": f"{sum(1 for r in traj_rows if r.get('model'))}/{n_trials}",
-                },
-                f"N/{n_trials} trajectories.jsonl rows where the top-level required field is present",
-            ),
-            "atif_trajectory_fields": vf(
-                atif_presence,
-                f"N/{n_trials} trajectory[0].* dotted-path fields non-None and non-empty (ATIF-v1.6)",
-            ),
-            # atif_step_fields already lives under trajectory_native.fields_present_on_steps;
-            # we keep a single source of truth there to avoid duplication.
+            "per_trial": row_field_coverage,
+            "per_agent_step": step_field_coverage,
+            "agent_step_count": n_steps,
         },
     }
-    if include_stashed_section:
-        out["stashed_model_calls"] = vf(
-            {
-                "trials_with_stashed_calls": sum(
-                    1
-                    for r in traj_rows
-                    if isinstance(((r.get("trajectory") or [{}])[0]).get("extra"), dict)
-                    and ((r.get("trajectory") or [{}])[0]).get("extra", {}).get("captured_model_calls")
-                ),
-                "stashed_calls_total": sum(
-                    len(((r.get("trajectory") or [{}])[0]).get("extra", {}).get("captured_model_calls") or [])
-                    for r in traj_rows
-                    if isinstance(((r.get("trajectory") or [{}])[0]).get("extra"), dict)
-                ),
-            },
-            "trajectory[0].extra.captured_model_calls populated by the enrichment writer "
-            "when trial step count != wire-call count (so the calls survive even when the "
-            "solver fails before producing a matching step). Only emitted when enrich=True.",
-        )
     return out
 
 
@@ -721,18 +560,60 @@ def generate_trajectories_report(
 
     benches: list[dict[str, Any]] = []
     for d in bench_dirs:
-        # When enrich runs we splice into trajectory[0].extra.captured_model_calls;
-        # the stash audit only makes sense in that mode.
-        bench_report = _build_bench_report(d.name, d, include_stashed_section=enrich)
+        bench_report = _build_bench_report(d.name, d)
         if enrich:
             counts = _enrich_bench(d)
+            # After-enrichment coverage so the diff is right there in the report.
+            enriched_path = d / "trajectories_enriched.jsonl"
+            enriched_step_coverage: dict[str, str] = {}
+            if enriched_path.is_file():
+                enriched_rows = _read_jsonl(enriched_path)
+                enriched_steps: list[dict[str, Any]] = []
+                for r in enriched_rows:
+                    enriched_steps.extend(_agent_steps(r))
+                en_n = len(enriched_steps)
+                if en_n:
+
+                    def _enpresent(field: str) -> str:
+                        return f"{sum(1 for s in enriched_steps if s.get(field) is not None)}/{en_n}"
+
+                    def _ennested(*keys: str) -> str:
+                        n = 0
+                        for s in enriched_steps:
+                            cur: Any = s
+                            ok = True
+                            for k in keys:
+                                if not isinstance(cur, dict) or cur.get(k) is None:
+                                    ok = False
+                                    break
+                                cur = cur[k]
+                            if ok:
+                                n += 1
+                        return f"{n}/{en_n}"
+
+                    enriched_step_coverage = {
+                        "metrics.prompt_tokens": _ennested("metrics", "prompt_tokens"),
+                        "metrics.completion_tokens": _ennested("metrics", "completion_tokens"),
+                        "metrics.extra.latency_ms": _ennested("metrics", "extra", "latency_ms"),
+                        "metrics.extra.finish_reason": _ennested("metrics", "extra", "finish_reason"),
+                    }
             bench_report["enrichment"] = {
-                "value": counts,
-                "from": (
-                    "trajectories_enriched.jsonl written next to trajectories.jsonl; "
-                    "agent steps backfilled 1:1 with model_traffic.jsonl rows for the same trial; "
-                    "extra wire calls stashed in trajectory[0].extra.captured_model_calls"
+                "_note": (
+                    "trajectories_enriched.jsonl was written next to trajectories.jsonl. "
+                    "For each trial: if #agent_steps == #wire_calls, splice 1:1; otherwise "
+                    "stash all wire calls into trajectory[0].extra.captured_model_calls "
+                    "(so failures still preserve every captured call)."
                 ),
+                "trials_spliced_1_to_1": counts["trials_spliced"],
+                "trials_with_unmatched_calls_stashed": counts["trials_stashed_unmatched"],
+                "trials_with_no_wire_data": counts["trials_no_wire_data"],
+                "steps_backfilled": {
+                    "prompt_tokens": counts["steps_backfilled_prompt_tokens"],
+                    "completion_tokens": counts["steps_backfilled_completion_tokens"],
+                    "latency_ms": counts["steps_backfilled_latency_ms"],
+                    "finish_reason": counts["steps_backfilled_finish_reason"],
+                },
+                "step_field_coverage_after_enrichment": enriched_step_coverage,
             }
         benches.append(bench_report)
 
