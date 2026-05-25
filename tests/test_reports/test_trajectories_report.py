@@ -108,20 +108,30 @@ def test_audit_writes_report(bundle: Path) -> None:
     assert len(payload["benchmarks"]) == 1
 
 
+def _v(node: dict) -> object:
+    """Convenience: unwrap {value, from} to its value."""
+    return node["value"] if isinstance(node, dict) and "from" in node else node
+
+
 def test_counts_and_score(bundle: Path) -> None:
     out = generate_trajectories_report(bundle)
     report = json.loads(out.read_text())["benchmarks"][0]
-    assert report["counts"] == {"n_trials": 2, "n_problems": 2, "repeats": 1}
+    assert _v(report["counts"]["n_trials"]) == 2
+    assert _v(report["counts"]["n_problems"]) == 2
+    assert _v(report["counts"]["repeats"]) == 1
     # Mean of [1.0, 0.5] == 0.75
-    assert report["score"]["mean_reward"] == 0.75
+    assert _v(report["score"]["mean_reward"]) == 0.75
+    # every metric must carry its calculation explanation
+    assert "from" in report["counts"]["n_trials"]
+    assert "from" in report["score"]["mean_reward"]
 
 
 def test_trajectory_native_stats(bundle: Path) -> None:
     report = json.loads(generate_trajectories_report(bundle).read_text())["benchmarks"][0]
     nt = report["trajectory_native"]
-    assert nt["agent_steps_total"] == 3
-    assert nt["tool_calls_total"] == 1
-    fp = nt["fields_present_on_steps"]
+    assert _v(nt["agent_steps_total"]) == 3
+    assert _v(nt["tool_calls_total"]) == 1
+    fp = _v(nt["fields_present_on_steps"])
     assert fp["step_id"] == "3/3"
     assert fp["message"] == "3/3"
     assert fp["tool_calls"] == "1/3"
@@ -130,15 +140,15 @@ def test_trajectory_native_stats(bundle: Path) -> None:
 def test_wire_captures_match_steps(bundle: Path) -> None:
     report = json.loads(generate_trajectories_report(bundle).read_text())["benchmarks"][0]
     wc = report["wire_captures"]
-    assert wc["total_observed"] == 3
-    assert wc["finish_reasons"] == {"stop": 2, "tool_calls": 1}
-    mm = report["mismatches"]
-    assert mm["agent_steps_vs_wire_calls"] == {"captures>steps": 0, "captures<steps": 0, "equal": 2}
+    assert _v(wc["total_observed"]) == 3
+    assert _v(wc["finish_reasons"]) == {"stop": 2, "tool_calls": 1}
+    delta = _v(report["mismatches"]["agent_steps_vs_wire_calls"])
+    assert delta == {"captures>steps": 0, "captures<steps": 0, "equal": 2}
 
 
 def test_token_reconciliation(bundle: Path) -> None:
     report = json.loads(generate_trajectories_report(bundle).read_text())["benchmarks"][0]
-    tokens = report["mismatches"]["tokens"]
+    tokens = _v(report["mismatches"]["tokens"])
     # 2 trials × (pt+ct): trial0=15, trial1=20+10+30+8=68 → 83 across all
     assert tokens["per_step_total"] == 83
     assert tokens["wire_total"] == 83
@@ -148,7 +158,7 @@ def test_token_reconciliation(bundle: Path) -> None:
 
 def test_atif_per_trial_presence(bundle: Path) -> None:
     report = json.loads(generate_trajectories_report(bundle).read_text())["benchmarks"][0]
-    pres = report["atif_per_trial_presence"]
+    pres = _v(report["atif_per_trial_presence"])
     assert pres["schema_version"] == "2/2"
     assert pres["session_id"] == "2/2"
     assert pres["agent.name"] == "2/2"
@@ -168,18 +178,64 @@ def test_missing_wire_captures_are_flagged(tmp_path: Path) -> None:
     # only 1 wire call vs 2 agent steps
     _write_jsonl(bench / "model_traffic.jsonl", [_wire(0, 0, prompt=5, completion=3)])
     report = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]
-    assert report["mismatches"]["agent_steps_vs_wire_calls"] == {
+    assert _v(report["mismatches"]["agent_steps_vs_wire_calls"]) == {
         "captures>steps": 0,
         "captures<steps": 1,
         "equal": 0,
     }
 
 
-def test_enrich_flag_warns_but_does_not_write(bundle: Path, caplog) -> None:
+def test_enrich_writes_enriched_jsonl_and_reports_changes(bundle: Path) -> None:
     out = generate_trajectories_report(bundle, enrich=True)
     assert out is not None
-    assert not (bundle / "trajectories_enriched.jsonl").exists()
-    assert any("enrich=True" in rec.message for rec in caplog.records)
+    enriched = bundle / "pinchbench" / "trajectories_enriched.jsonl"
+    assert enriched.is_file()
+    report = json.loads(out.read_text())["benchmarks"][0]
+    enrichment = _v(report["enrichment"])
+    # Bundle fixture has steps with non-zero pt/ct already, so no backfill
+    # *for those*, but latency_ms/finish_reason aren't set on the steps and
+    # are present on the wire rows.
+    assert enrichment["rows_written"] == 2
+    assert enrichment["steps_backfilled_latency_ms"] >= 1
+    assert enrichment["steps_backfilled_finish_reason"] >= 1
+
+
+def test_enrich_backfills_zero_token_steps(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    # step with zero tokens, wire call has real tokens — should backfill
+    _write_jsonl(
+        bench / "trajectories.jsonl",
+        [_trial(0, 0, reward=1.0, steps=[_agent_step(0, msg="x", pt=0, ct=0)])],
+    )
+    _write_jsonl(bench / "model_traffic.jsonl", [_wire(0, 0, prompt=42, completion=7)])
+    out = generate_trajectories_report(tmp_path, enrich=True)
+    enriched_rows = []
+    with (bench / "trajectories_enriched.jsonl").open() as fh:
+        for line in fh:
+            enriched_rows.append(json.loads(line))
+    step = enriched_rows[0]["trajectory"][0]["steps"][0]
+    assert step["metrics"]["prompt_tokens"] == 42
+    assert step["metrics"]["completion_tokens"] == 7
+    counts = _v(json.loads(out.read_text())["benchmarks"][0]["enrichment"])
+    assert counts["steps_backfilled_prompt_tokens"] == 1
+    assert counts["steps_backfilled_completion_tokens"] == 1
+
+
+def test_post_dedup_mismatch_and_per_step_total_consistency(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    # 2 identical steps (1 dup), 2 identical wire rows (1 dup).
+    # After dedup, sets are both size 1 -> no remaining mismatch.
+    s = _agent_step(0, msg="same", pt=10, ct=5)
+    _write_jsonl(bench / "trajectories.jsonl", [_trial(0, 0, reward=1.0, steps=[s, s])])
+    w = _wire(0, 0, prompt=10, completion=5)
+    _write_jsonl(bench / "model_traffic.jsonl", [w, w])
+    a = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["anomalies"]
+    assert _v(a["duplicate_steps_in_trial_total"]) == 1
+    assert _v(a["duplicate_wire_calls_in_trial_total"]) == 1
+    assert _v(a["mismatched_steps_vs_wire_trials"]) == 0
+    assert _v(a["mismatched_steps_vs_wire_trials_after_dedup"]) == 0
+    # 2 steps × 15 tokens = 30; final_metrics.total = 30 → consistent
+    assert _v(a["trials_with_per_step_vs_final_metrics_token_mismatch"]) == 0
 
 
 def test_anomalies_zero_token_steps(tmp_path: Path) -> None:
@@ -200,9 +256,12 @@ def test_anomalies_zero_token_steps(tmp_path: Path) -> None:
     )
     _write_jsonl(bench / "model_traffic.jsonl", [])
     a = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["anomalies"]
-    assert a["steps_with_zero_or_none_tokens"] == 3
-    assert a["trials_with_any_zero_token_step"] == 2
-    assert a["trials_with_all_zero_token_steps"] == 1
+    assert _v(a["steps_with_zero_or_none_tokens"]) == 3
+    assert _v(a["trials_with_any_zero_token_step"]) == 2
+    assert _v(a["trials_with_all_zero_token_steps"]) == 1
+    # Every anomaly metric carries its calculation note
+    for key in a:
+        assert "from" in a[key], f"{key} missing 'from' explanation"
 
 
 def test_anomalies_duplicate_steps(tmp_path: Path) -> None:
@@ -216,8 +275,8 @@ def test_anomalies_duplicate_steps(tmp_path: Path) -> None:
     )
     _write_jsonl(bench / "model_traffic.jsonl", [])
     a = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["anomalies"]
-    assert a["duplicate_steps_in_trial_total"] == 1
-    assert a["trials_with_duplicate_steps"] == 1
+    assert _v(a["duplicate_steps_in_trial_total"]) == 1
+    assert _v(a["trials_with_duplicate_steps"]) == 1
 
 
 def test_anomalies_duplicate_wire_calls(tmp_path: Path) -> None:
@@ -230,8 +289,8 @@ def test_anomalies_duplicate_wire_calls(tmp_path: Path) -> None:
     dup = _wire(0, 0, prompt=5, completion=3)
     _write_jsonl(bench / "model_traffic.jsonl", [dup, dup])
     a = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["anomalies"]
-    assert a["duplicate_wire_calls_in_trial_total"] == 1
-    assert a["trials_with_duplicate_wire_calls"] == 1
+    assert _v(a["duplicate_wire_calls_in_trial_total"]) == 1
+    assert _v(a["trials_with_duplicate_wire_calls"]) == 1
 
 
 def test_is_mean_reward_correct(bundle: Path, tmp_path: Path) -> None:
@@ -247,6 +306,6 @@ def test_is_mean_reward_correct(bundle: Path, tmp_path: Path) -> None:
         "benchmark": {"scores": {"summary": {"mean": 1.0}}},
     }), encoding="utf-8")
     score = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["score"]
-    assert score["mean_reward"] == 1.0
-    assert score["reported_mean"] == 1.0
-    assert score["is_mean_reward_correct"] is True
+    assert _v(score["mean_reward"]) == 1.0
+    assert _v(score["reported_mean"]) == 1.0
+    assert _v(score["is_mean_reward_correct"]) is True
