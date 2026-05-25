@@ -200,6 +200,35 @@ def test_enrich_writes_enriched_jsonl_and_reports_changes(bundle: Path) -> None:
     assert enrichment["steps_backfilled_finish_reason"] >= 1
 
 
+def test_enrich_all_or_nothing_per_trial(tmp_path: Path) -> None:
+    """When wire-call count != step count, stash everything in extra and
+    leave step metrics untouched (no partial splice that misattributes)."""
+    bench = tmp_path / "pb"
+    # Trial 0: 2 steps, 1 wire call -> stash (no splice)
+    s1 = _agent_step(0, msg="a", pt=0, ct=0)
+    s2 = _agent_step(1, msg="b", pt=0, ct=0)
+    _write_jsonl(bench / "trajectories.jsonl", [_trial(0, 0, reward=0.0, steps=[s1, s2])])
+    _write_jsonl(bench / "model_traffic.jsonl", [_wire(0, 0, prompt=10, completion=5)])
+
+    out = generate_trajectories_report(tmp_path, enrich=True)
+    counts = _v(json.loads(out.read_text())["benchmarks"][0]["enrichment"])
+    assert counts["trials_spliced"] == 0
+    assert counts["trials_stashed_unmatched"] == 1
+    # Crucially, step metrics were NOT touched (no partial splice).
+    assert counts["steps_backfilled_prompt_tokens"] == 0
+
+    enriched = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])
+    steps = [s for s in enriched["trajectory"][0]["steps"] if s.get("source") == "agent"]
+    # both steps still have zero/none tokens
+    for s in steps:
+        m = s.get("metrics") or {}
+        assert not m.get("prompt_tokens")
+        assert not m.get("completion_tokens")
+    # All wire calls stashed in extra.captured_model_calls
+    stash = enriched["trajectory"][0].get("extra", {}).get("captured_model_calls")
+    assert isinstance(stash, list) and len(stash) == 1
+
+
 def test_enrich_backfills_zero_token_steps(tmp_path: Path) -> None:
     bench = tmp_path / "pb"
     # step with zero tokens, wire call has real tokens — should backfill

@@ -544,12 +544,19 @@ def _build_bench_report(
 
 
 def _enrich_bench(bench_dir: Path) -> dict[str, int]:
-    """Backfill agent-step metrics from ``model_traffic.jsonl``.
+    """All-or-nothing per-trial enrichment from ``model_traffic.jsonl``.
 
-    Splice strategy is intentionally simple: for each trial, pair the
-    i-th wire call with the i-th agent step in order. Any extra wire
-    calls are stashed under ``trajectory[0].extra.captured_model_calls``
-    so nothing is lost. Returns counts of what was changed for the report.
+    For each trial:
+
+    * If ``len(agent_steps) == len(wire_calls)`` — splice 1:1 by order
+      (backfill ``metrics.{prompt,completion}_tokens`` and
+      ``metrics.extra.{latency_ms, finish_reason}``).
+    * Otherwise — leave the steps alone and stash **all** wire calls
+      under ``trajectory[0].extra.captured_model_calls``. We never
+      mix-and-match when the counts don't line up: a partial splice
+      would attribute the wrong call to the wrong step.
+
+    Writes ``trajectories_enriched.jsonl`` next to the original.
     """
     traj_path = bench_dir / "trajectories.jsonl"
     traffic_path = bench_dir / "model_traffic.jsonl"
@@ -560,11 +567,13 @@ def _enrich_bench(bench_dir: Path) -> dict[str, int]:
     by_trial = _index_traffic_by_trial(traffic_rows)
 
     counts = {
+        "trials_spliced": 0,
+        "trials_stashed_unmatched": 0,
+        "trials_no_wire_data": 0,
         "steps_backfilled_prompt_tokens": 0,
         "steps_backfilled_completion_tokens": 0,
         "steps_backfilled_latency_ms": 0,
         "steps_backfilled_finish_reason": 0,
-        "trials_with_stashed_extra_calls": 0,
         "rows_written": 0,
     }
 
@@ -572,26 +581,32 @@ def _enrich_bench(bench_dir: Path) -> dict[str, int]:
         for r in traj_rows:
             steps = _agent_steps(r)
             wire = by_trial.get(_trial_key(r), [])
-            for s, w in zip(steps, wire):
-                metrics = s.setdefault("metrics", {})
-                usage = w.get("usage") or {}
-                if metrics.get("prompt_tokens") in (None, 0) and usage.get("prompt_tokens"):
-                    metrics["prompt_tokens"] = usage["prompt_tokens"]
-                    counts["steps_backfilled_prompt_tokens"] += 1
-                if metrics.get("completion_tokens") in (None, 0) and usage.get("completion_tokens"):
-                    metrics["completion_tokens"] = usage["completion_tokens"]
-                    counts["steps_backfilled_completion_tokens"] += 1
-                extra = metrics.setdefault("extra", {})
-                if extra.get("latency_ms") in (None, 0) and w.get("latency_ms"):
-                    extra["latency_ms"] = w["latency_ms"]
-                    counts["steps_backfilled_latency_ms"] += 1
-                if not extra.get("finish_reason") and w.get("finish_reason"):
-                    extra["finish_reason"] = w["finish_reason"]
-                    counts["steps_backfilled_finish_reason"] += 1
-            if len(wire) > len(steps):
+            if not wire:
+                counts["trials_no_wire_data"] += 1
+            elif len(steps) == len(wire):
+                # 1:1 splice
+                for s, w in zip(steps, wire):
+                    metrics = s.setdefault("metrics", {})
+                    usage = w.get("usage") or {}
+                    if metrics.get("prompt_tokens") in (None, 0) and usage.get("prompt_tokens"):
+                        metrics["prompt_tokens"] = usage["prompt_tokens"]
+                        counts["steps_backfilled_prompt_tokens"] += 1
+                    if metrics.get("completion_tokens") in (None, 0) and usage.get("completion_tokens"):
+                        metrics["completion_tokens"] = usage["completion_tokens"]
+                        counts["steps_backfilled_completion_tokens"] += 1
+                    extra = metrics.setdefault("extra", {})
+                    if extra.get("latency_ms") in (None, 0) and w.get("latency_ms"):
+                        extra["latency_ms"] = w["latency_ms"]
+                        counts["steps_backfilled_latency_ms"] += 1
+                    if not extra.get("finish_reason") and w.get("finish_reason"):
+                        extra["finish_reason"] = w["finish_reason"]
+                        counts["steps_backfilled_finish_reason"] += 1
+                counts["trials_spliced"] += 1
+            else:
+                # Count mismatch — stash ALL wire calls; don't touch steps.
                 traj = (r.get("trajectory") or [{}])[0]
-                traj.setdefault("extra", {})["captured_model_calls"] = wire[len(steps) :]
-                counts["trials_with_stashed_extra_calls"] += 1
+                traj.setdefault("extra", {})["captured_model_calls"] = wire
+                counts["trials_stashed_unmatched"] += 1
             fh.write(json.dumps(r) + "\n")
             counts["rows_written"] += 1
     return counts
