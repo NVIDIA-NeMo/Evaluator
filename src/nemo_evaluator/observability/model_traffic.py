@@ -2,12 +2,29 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
+import hashlib
 import json
 import threading
 import time
 import uuid
 from collections import Counter
 from typing import TYPE_CHECKING, Any, Iterator
+
+
+def _request_hash(body: Any) -> str | None:
+    """Deterministic content hash of an upstream request body.
+
+    Returns 16 hex chars (a sha1 prefix) suitable for grouping duplicate
+    calls. ``None`` when *body* isn't a dict (e.g. raw bytes / unset).
+    """
+    if not isinstance(body, dict):
+        return None
+    try:
+        payload = json.dumps(body, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        return None
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
+
 
 if TYPE_CHECKING:
     from nemo_evaluator.adapters.types import AdapterRequest, AdapterResponse
@@ -223,6 +240,10 @@ class ModelTrafficStore:
             "path": req.path,
             "service": self.service_name,
             "model": body.get("model") if isinstance(body, dict) else "",
+            # Content-derived id of the upstream request body. Lets downstream
+            # tooling (e.g. trajectories audit report) detect duplicate calls
+            # exactly, instead of fingerprinting on response stats.
+            "request_hash": _request_hash(body),
         }
         with self._lock:
             self._pending[req.ctx.request_id] = record
