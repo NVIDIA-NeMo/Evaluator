@@ -180,3 +180,73 @@ def test_enrich_flag_warns_but_does_not_write(bundle: Path, caplog) -> None:
     assert out is not None
     assert not (bundle / "trajectories_enriched.jsonl").exists()
     assert any("enrich=True" in rec.message for rec in caplog.records)
+
+
+def test_anomalies_zero_token_steps(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    # trial 0: 2 zero-token steps; trial 1: 1 healthy + 1 zero
+    _write_jsonl(
+        bench / "trajectories.jsonl",
+        [
+            _trial(0, 0, reward=0.0, steps=[
+                _agent_step(0, msg="a", pt=0, ct=0),
+                _agent_step(1, msg="b", pt=0, ct=0),
+            ]),
+            _trial(1, 0, reward=1.0, steps=[
+                _agent_step(0, msg="c", pt=10, ct=5),
+                _agent_step(1, msg="d", pt=0, ct=0),
+            ]),
+        ],
+    )
+    _write_jsonl(bench / "model_traffic.jsonl", [])
+    a = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["anomalies"]
+    assert a["steps_with_zero_or_none_tokens"] == 3
+    assert a["trials_with_any_zero_token_step"] == 2
+    assert a["trials_with_all_zero_token_steps"] == 1
+
+
+def test_anomalies_duplicate_steps(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    # trial 0: two steps with identical (message, reasoning, tool_calls) → 1 dup
+    dup_step_a = _agent_step(0, msg="thinking…", pt=10, ct=5)
+    dup_step_b = _agent_step(1, msg="thinking…", pt=10, ct=5)
+    _write_jsonl(
+        bench / "trajectories.jsonl",
+        [_trial(0, 0, reward=1.0, steps=[dup_step_a, dup_step_b])],
+    )
+    _write_jsonl(bench / "model_traffic.jsonl", [])
+    a = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["anomalies"]
+    assert a["duplicate_steps_in_trial_total"] == 1
+    assert a["trials_with_duplicate_steps"] == 1
+
+
+def test_anomalies_duplicate_wire_calls(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    _write_jsonl(
+        bench / "trajectories.jsonl",
+        [_trial(0, 0, reward=1.0, steps=[_agent_step(0, msg="x", pt=5, ct=3)])],
+    )
+    # Two model_traffic rows with identical fingerprints for trial (0,0)
+    dup = _wire(0, 0, prompt=5, completion=3)
+    _write_jsonl(bench / "model_traffic.jsonl", [dup, dup])
+    a = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["anomalies"]
+    assert a["duplicate_wire_calls_in_trial_total"] == 1
+    assert a["trials_with_duplicate_wire_calls"] == 1
+
+
+def test_is_mean_reward_correct(bundle: Path, tmp_path: Path) -> None:
+    # The bundle fixture doesn't ship an eval-*.json so reported_mean is None
+    # and is_mean_reward_correct stays None. Synthesize a matching bundle.
+    bench = tmp_path / "pb"
+    _write_jsonl(
+        bench / "trajectories.jsonl",
+        [_trial(0, 0, reward=1.0, steps=[_agent_step(0, msg="x", pt=5, ct=3)])],
+    )
+    eval_path = bench / "eval-test.json"
+    eval_path.write_text(json.dumps({
+        "benchmark": {"scores": {"summary": {"mean": 1.0}}},
+    }), encoding="utf-8")
+    score = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["score"]
+    assert score["mean_reward"] == 1.0
+    assert score["reported_mean"] == 1.0
+    assert score["is_mean_reward_correct"] is True
