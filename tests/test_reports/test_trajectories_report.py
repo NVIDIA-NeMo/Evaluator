@@ -253,6 +253,56 @@ def test_enrich_backfills_zero_token_steps(tmp_path: Path) -> None:
     assert counts["steps_backfilled_completion_tokens"] == 1
 
 
+def test_stashed_model_calls_audit(tmp_path: Path) -> None:
+    """After enrichment with mismatch, the stash audit reflects what's in extra.captured_model_calls."""
+    bench = tmp_path / "pb"
+    # 1 step, 2 wire calls → mismatch → all 2 calls stashed
+    _write_jsonl(
+        bench / "trajectories.jsonl",
+        [_trial(0, 0, reward=1.0, steps=[_agent_step(0, msg="x", pt=0, ct=0)])],
+    )
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [_wire(0, 0, prompt=10, completion=5), _wire(0, 0, prompt=12, completion=3)],
+    )
+    out = generate_trajectories_report(tmp_path, enrich=True)
+    report = json.loads(out.read_text())["benchmarks"][0]
+    # First call: builds report from ORIGINAL trajectories.jsonl (no stash yet),
+    # so stash audit is 0/0 — that's still useful as a baseline.
+    s = _v(report["stashed_model_calls"])
+    assert s["trials_with_stashed_calls"] == 0
+    # But a second pass on the same dir (now reading the enriched file as
+    # input) is out of scope — the stash audit is over trajectories.jsonl
+    # not trajectories_enriched.jsonl. Still verify the enriched file has
+    # them where they should be:
+    enriched = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])
+    stash = enriched["trajectory"][0].get("extra", {}).get("captured_model_calls")
+    assert isinstance(stash, list) and len(stash) == 2
+
+
+def test_required_row_fields_presence(bundle: Path) -> None:
+    report = json.loads(generate_trajectories_report(bundle).read_text())["benchmarks"][0]
+    rrf = _v(report["row_required_fields_presence"])
+    assert rrf["problem_idx"] == "2/2"
+    assert rrf["repeat"] == "2/2"
+    assert rrf["reward"] == "2/2"
+    assert rrf["trajectory"] == "2/2"
+    assert rrf["model"] == "2/2"
+
+
+def test_step_field_presence_extended(bundle: Path) -> None:
+    report = json.loads(generate_trajectories_report(bundle).read_text())["benchmarks"][0]
+    fp = _v(report["trajectory_native"]["fields_present_on_steps"])
+    # The fixture sets metrics.{prompt,completion,total}_tokens on every step.
+    assert fp["metrics.prompt_tokens"] == "3/3"
+    assert fp["metrics.completion_tokens"] == "3/3"
+    assert fp["metrics.total_tokens"] == "3/3"
+    # Fixture has no timestamp/model_name/status_code/extra fields → all 0/3
+    assert fp["timestamp"] == "0/3"
+    assert fp["metrics.extra.latency_ms"] == "0/3"
+    assert fp["metrics.extra.finish_reason"] == "0/3"
+
+
 def test_post_dedup_mismatch_and_per_step_total_consistency(tmp_path: Path) -> None:
     bench = tmp_path / "pb"
     # 2 identical steps (1 dup), 2 identical wire rows (1 dup).

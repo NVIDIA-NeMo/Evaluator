@@ -232,6 +232,20 @@ def _build_bench_report(
         n = sum(1 for s in all_agent_steps if _ok(s.get(field)))
         return f"{n}/{n_steps}"
 
+    def _nested_present(*keys: str) -> str:
+        n = 0
+        for s in all_agent_steps:
+            cur: Any = s
+            ok = True
+            for key in keys:
+                if not isinstance(cur, dict) or cur.get(key) is None:
+                    ok = False
+                    break
+                cur = cur[key]
+            if ok:
+                n += 1
+        return f"{n}/{n_steps}"
+
     # ─── wire_captures (model_traffic.jsonl) ──────────────────────────
     total_wire = len(traffic_rows)
     captures_per_trial = [len(v) for v in traffic_by_trial.values()]
@@ -487,11 +501,21 @@ def _build_bench_report(
                 {
                     "step_id": _field_present("step_id"),
                     "source": _field_present("source"),
+                    "timestamp": _field_present("timestamp"),
+                    "model_name": _field_present("model_name"),
+                    "status_code": _field_present("status_code"),
                     "message": _field_present("message"),
                     "reasoning_content": _field_present("reasoning_content"),
                     "tool_calls": _field_present("tool_calls"),
+                    "metrics.prompt_tokens": _nested_present("metrics", "prompt_tokens"),
+                    "metrics.completion_tokens": _nested_present("metrics", "completion_tokens"),
+                    "metrics.total_tokens": _nested_present("metrics", "total_tokens"),
+                    "metrics.extra.latency_ms": _nested_present("metrics", "extra", "latency_ms"),
+                    "metrics.extra.finish_reason": _nested_present("metrics", "extra", "finish_reason"),
+                    "metrics.extra.cached_tokens": _nested_present("metrics", "extra", "cached_tokens"),
+                    "metrics.extra.reasoning_tokens": _nested_present("metrics", "extra", "reasoning_tokens"),
                 },
-                f"N/{n_steps} agent steps where the field is non-None",
+                f"N/{n_steps} agent steps where the dotted-path field is non-None",
             ),
             "fields_nonempty_on_steps": vf(
                 {
@@ -538,6 +562,34 @@ def _build_bench_report(
         "atif_per_trial_presence": vf(
             atif_presence,
             f"N/{n_trials} trajectories.jsonl rows where the dotted-path field is non-None and non-empty",
+        ),
+        "row_required_fields_presence": vf(
+            {
+                "problem_idx": f"{sum(1 for r in traj_rows if r.get('problem_idx') is not None)}/{n_trials}",
+                "repeat": f"{sum(1 for r in traj_rows if r.get('repeat') is not None)}/{n_trials}",
+                "reward": f"{sum(1 for r in traj_rows if isinstance(r.get('reward'), (int, float)))}/{n_trials}",
+                "trajectory": f"{sum(1 for r in traj_rows if r.get('trajectory'))}/{n_trials}",
+                "model": f"{sum(1 for r in traj_rows if r.get('model'))}/{n_trials}",
+            },
+            f"N/{n_trials} trajectories.jsonl rows where the top-level required field is present",
+        ),
+        "stashed_model_calls": vf(
+            {
+                "trials_with_stashed_calls": sum(
+                    1
+                    for r in traj_rows
+                    if isinstance(((r.get("trajectory") or [{}])[0]).get("extra"), dict)
+                    and ((r.get("trajectory") or [{}])[0]).get("extra", {}).get("captured_model_calls")
+                ),
+                "stashed_calls_total": sum(
+                    len(((r.get("trajectory") or [{}])[0]).get("extra", {}).get("captured_model_calls") or [])
+                    for r in traj_rows
+                    if isinstance(((r.get("trajectory") or [{}])[0]).get("extra"), dict)
+                ),
+            },
+            "trajectory[0].extra.captured_model_calls — wire calls that couldn't be spliced 1:1 "
+            "into agent steps (e.g. solver failed before producing a matching step). "
+            "Populated by the enrichment writer when trial step count != wire-call count.",
         ),
     }
 
