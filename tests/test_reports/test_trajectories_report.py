@@ -146,7 +146,11 @@ def test_wire_captures_match_steps(bundle: Path) -> None:
     assert _v(wc["total_observed"]) == 3
     assert _v(wc["finish_reasons"]) == {"stop": 2, "tool_calls": 1}
     delta = _v(report["mismatches"]["agent_steps_vs_wire_calls"])
-    assert delta == {"captures>steps": 0, "captures<steps": 0, "equal": 2}
+    assert delta == {
+        "trials_with_more_wire_than_steps": 0,
+        "trials_with_fewer_wire_than_steps": 0,
+        "trials_with_equal_counts": 2,
+    }
 
 
 def test_token_reconciliation(bundle: Path) -> None:
@@ -161,7 +165,7 @@ def test_token_reconciliation(bundle: Path) -> None:
 
 def test_atif_per_trial_presence(bundle: Path) -> None:
     report = json.loads(generate_trajectories_report(bundle).read_text())["benchmarks"][0]
-    pres = _v(report["atif_per_trial_presence"])
+    pres = _v(report["presence"]["atif_trajectory_fields"])
     assert pres["schema_version"] == "2/2"
     assert pres["session_id"] == "2/2"
     assert pres["agent.name"] == "2/2"
@@ -182,9 +186,9 @@ def test_missing_wire_captures_are_flagged(tmp_path: Path) -> None:
     _write_jsonl(bench / "model_traffic.jsonl", [_wire(0, 0, prompt=5, completion=3)])
     report = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]
     assert _v(report["mismatches"]["agent_steps_vs_wire_calls"]) == {
-        "captures>steps": 0,
-        "captures<steps": 1,
-        "equal": 0,
+        "trials_with_more_wire_than_steps": 0,
+        "trials_with_fewer_wire_than_steps": 1,
+        "trials_with_equal_counts": 0,
     }
 
 
@@ -282,7 +286,7 @@ def test_stashed_model_calls_audit(tmp_path: Path) -> None:
 
 def test_required_row_fields_presence(bundle: Path) -> None:
     report = json.loads(generate_trajectories_report(bundle).read_text())["benchmarks"][0]
-    rrf = _v(report["row_required_fields_presence"])
+    rrf = _v(report["presence"]["row_required_fields"])
     assert rrf["problem_idx"] == "2/2"
     assert rrf["repeat"] == "2/2"
     assert rrf["reward"] == "2/2"
@@ -353,8 +357,10 @@ def test_anomalies_zero_token_steps(tmp_path: Path) -> None:
     assert _v(a["trials_with_any_zero_token_step"]) == 2
     assert _v(a["trials_with_all_zero_token_steps"]) == 1
     # Every anomaly metric carries its calculation note
-    for key in a:
-        assert "from" in a[key], f"{key} missing 'from' explanation"
+    for key, val in a.items():
+        if key == "_note":
+            continue
+        assert "from" in val, f"{key} missing 'from' explanation"
 
 
 def test_no_step_side_duplicate_tracking(tmp_path: Path) -> None:
