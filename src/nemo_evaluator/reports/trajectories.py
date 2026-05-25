@@ -45,40 +45,19 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-def _step_content_hash(step: dict[str, Any]) -> str:
-    """Deterministic hash of an agent step's user-visible content.
-
-    Two steps with identical message + reasoning_content + tool-call names
-    + tool-call arguments hash to the same value — a strong duplicate
-    signal when it repeats inside a single trial.
-    """
-    msg = step.get("message") or ""
-    reasoning = step.get("reasoning_content") or ""
-    tool_calls = step.get("tool_calls") or []
-    tc_repr: list[Any] = []
-    if isinstance(tool_calls, list):
-        for tc in tool_calls:
-            if not isinstance(tc, dict):
-                continue
-            fn = tc.get("function") or {}
-            name = tc.get("function_name") or fn.get("name") or ""
-            args = tc.get("arguments") if "arguments" in tc else fn.get("arguments")
-            tc_repr.append((name, args))
-    payload = json.dumps([msg, reasoning, tc_repr], sort_keys=True, default=str)
-    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
-
-
 def _wire_dedup_key(record: dict[str, Any]) -> tuple[Any, ...]:
-    """Coarse duplicate-detection key for a single ``model_traffic.jsonl`` row.
+    """Duplicate-detection key for a single ``model_traffic.jsonl`` row.
 
-    ``model_traffic.jsonl`` currently stores per-call response stats but not
-    the request body, so we can't fingerprint the actual prompt yet. Two rows
-    with identical (model, path, finish_reason, prompt_tokens, completion_tokens,
-    latency_ms_rounded) on the same trial almost certainly indicate the same
-    upstream call being captured twice.
+    Prefers ``record.request_hash`` (sha1 prefix of the upstream request body,
+    written by ``ModelTrafficStore.start_request``). Falls back to a coarse
+    response-side fingerprint for older runs that don't carry ``request_hash``.
     """
+    rh = record.get("request_hash")
+    if rh:
+        return ("rh", rh)
     usage = record.get("usage") or {}
     return (
+        "resp",
         record.get("model"),
         record.get("path"),
         record.get("finish_reason"),
@@ -180,6 +159,8 @@ def _index_traffic_by_trial(
 def _build_bench_report(
     bench_name: str,
     bench_dir: Path,
+    *,
+    include_stashed_section: bool = False,
 ) -> dict[str, Any]:
     traj_rows = _read_jsonl(bench_dir / "trajectories.jsonl")
     traffic_rows = _read_jsonl(bench_dir / "model_traffic.jsonl")
@@ -360,17 +341,7 @@ def _build_bench_report(
         if zero_in_trial == len(steps):
             trials_all_zero_token_steps += 1
 
-    # Duplicate agent steps inside a single trial (content hash)
-    duplicate_steps_in_trial = 0
-    trials_with_duplicate_steps = 0
-    for r in traj_rows:
-        hashes = Counter(_step_content_hash(s) for s in _agent_steps(r))
-        per_trial_dups = sum(v - 1 for v in hashes.values() if v > 1)
-        if per_trial_dups > 0:
-            duplicate_steps_in_trial += per_trial_dups
-            trials_with_duplicate_steps += 1
-
-    # Duplicate wire calls inside a single trial (coarse fingerprint)
+    # Duplicate wire calls inside a single trial (request_hash-based)
     duplicate_wire_calls_in_trial = 0
     trials_with_duplicate_wire_calls = 0
     for key, recs in traffic_by_trial.items():
@@ -384,14 +355,14 @@ def _build_bench_report(
     # than ref/wire token totals; signals lost or duplicated captures).
     mismatched_steps_vs_wire_trials = delta_signs["captures>steps"] + delta_signs["captures<steps"]
 
-    # After removing duplicates on both sides, does the mismatch resolve?
-    mismatched_steps_vs_wire_trials_after_dedup = 0
+    # After removing duplicate wire calls, does the mismatch resolve?
+    mismatched_steps_vs_wire_trials_after_wire_dedup = 0
     for r in traj_rows:
         key = _trial_key(r)
-        uniq_steps = len({_step_content_hash(s) for s in _agent_steps(r)})
+        step_n = len(_agent_steps(r))
         uniq_wire = len({_wire_dedup_key(w) for w in traffic_by_trial.get(key, [])})
-        if uniq_steps != uniq_wire:
-            mismatched_steps_vs_wire_trials_after_dedup += 1
+        if step_n != uniq_wire:
+            mismatched_steps_vs_wire_trials_after_wire_dedup += 1
 
     # Per-trial: sum of step.metrics.{prompt+completion}_tokens equal to
     # final_metrics.{total_prompt_tokens + total_completion_tokens}?
@@ -412,7 +383,7 @@ def _build_bench_report(
         """{value, from} pair where `from` documents the calculation."""
         return {"value": value, "from": formula}
 
-    return {
+    out: dict[str, Any] = {
         "bench": bench_name,
         "counts": {
             "n_trials": vf(n_trials, "trajectories.jsonl row count"),
@@ -448,34 +419,24 @@ def _build_bench_report(
                 trials_all_zero_token_steps,
                 "trials where every agent step is zero-or-none-tokens",
             ),
-            "duplicate_steps_in_trial_total": vf(
-                duplicate_steps_in_trial,
-                "sum over trials of (#repeated step content_hashes - 1); "
-                "content_hash = sha1(message + reasoning_content + tool_calls names+args)",
-            ),
-            "trials_with_duplicate_steps": vf(
-                trials_with_duplicate_steps,
-                "trials with at least one duplicate step content_hash",
-            ),
             "duplicate_wire_calls_in_trial_total": vf(
                 duplicate_wire_calls_in_trial,
-                "sum over trials of (#repeated wire_dedup_keys - 1); "
-                "wire_dedup_key = (model, path, finish_reason, prompt_tokens, "
-                "completion_tokens, round(latency_ms,1))",
+                "sum over trials of (#repeated record.request_hash - 1); "
+                "request_hash is sha1(upstream request body) recorded at "
+                "ModelTrafficStore.start_request",
             ),
             "trials_with_duplicate_wire_calls": vf(
                 trials_with_duplicate_wire_calls,
-                "trials with at least one duplicate wire_dedup_key",
+                "trials with at least one repeated record.request_hash",
             ),
             "mismatched_steps_vs_wire_trials": vf(
                 mismatched_steps_vs_wire_trials,
                 "trials where len(agent_steps) != len(model_traffic rows for that trial)",
             ),
-            "mismatched_steps_vs_wire_trials_after_dedup": vf(
-                mismatched_steps_vs_wire_trials_after_dedup,
-                "same as above but on unique sets: "
-                "trials where len(set(step content_hashes)) != len(set(wire_dedup_keys)); "
-                "non-zero here means the mismatch is NOT explained by duplicates",
+            "mismatched_steps_vs_wire_trials_after_wire_dedup": vf(
+                mismatched_steps_vs_wire_trials_after_wire_dedup,
+                "trials where len(agent_steps) != len(set(record.request_hash)); "
+                "non-zero here means the mismatch is NOT explained by duplicate wire calls",
             ),
             "trials_with_per_step_vs_final_metrics_token_mismatch": vf(
                 per_step_vs_final_metrics_mismatch,
@@ -577,7 +538,9 @@ def _build_bench_report(
             },
             f"N/{n_trials} trajectories.jsonl rows where the top-level required field is present",
         ),
-        "stashed_model_calls": vf(
+    }
+    if include_stashed_section:
+        out["stashed_model_calls"] = vf(
             {
                 "trials_with_stashed_calls": sum(
                     1
@@ -591,11 +554,11 @@ def _build_bench_report(
                     if isinstance(((r.get("trajectory") or [{}])[0]).get("extra"), dict)
                 ),
             },
-            "trajectory[0].extra.captured_model_calls — wire calls that couldn't be spliced 1:1 "
-            "into agent steps (e.g. solver failed before producing a matching step). "
-            "Populated by the enrichment writer when trial step count != wire-call count.",
-        ),
-    }
+            "trajectory[0].extra.captured_model_calls populated by the enrichment writer "
+            "when trial step count != wire-call count (so the calls survive even when the "
+            "solver fails before producing a matching step). Only emitted when enrich=True.",
+        )
+    return out
 
 
 def _enrich_bench(bench_dir: Path) -> dict[str, int]:
@@ -690,7 +653,9 @@ def generate_trajectories_report(
 
     benches: list[dict[str, Any]] = []
     for d in bench_dirs:
-        bench_report = _build_bench_report(d.name, d)
+        # When enrich runs we splice into trajectory[0].extra.captured_model_calls;
+        # the stash audit only makes sense in that mode.
+        bench_report = _build_bench_report(d.name, d, include_stashed_section=enrich)
         if enrich:
             counts = _enrich_bench(d)
             bench_report["enrichment"] = {
