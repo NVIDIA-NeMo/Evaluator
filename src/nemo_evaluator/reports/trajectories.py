@@ -30,6 +30,7 @@ Pure file-to-file. No adapter, no in-memory store, no eval-loop coupling.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import statistics
@@ -38,6 +39,49 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def _step_content_hash(step: dict[str, Any]) -> str:
+    """Deterministic hash of an agent step's user-visible content.
+
+    Two steps with identical message + reasoning_content + tool-call names
+    + tool-call arguments hash to the same value — a strong duplicate
+    signal when it repeats inside a single trial.
+    """
+    msg = step.get("message") or ""
+    reasoning = step.get("reasoning_content") or ""
+    tool_calls = step.get("tool_calls") or []
+    tc_repr: list[Any] = []
+    if isinstance(tool_calls, list):
+        for tc in tool_calls:
+            if not isinstance(tc, dict):
+                continue
+            fn = tc.get("function") or {}
+            name = tc.get("function_name") or fn.get("name") or ""
+            args = tc.get("arguments") if "arguments" in tc else fn.get("arguments")
+            tc_repr.append((name, args))
+    payload = json.dumps([msg, reasoning, tc_repr], sort_keys=True, default=str)
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
+
+
+def _wire_dedup_key(record: dict[str, Any]) -> tuple[Any, ...]:
+    """Coarse duplicate-detection key for a single ``model_traffic.jsonl`` row.
+
+    ``model_traffic.jsonl`` currently stores per-call response stats but not
+    the request body, so we can't fingerprint the actual prompt yet. Two rows
+    with identical (model, path, finish_reason, prompt_tokens, completion_tokens,
+    latency_ms_rounded) on the same trial almost certainly indicate the same
+    upstream call being captured twice.
+    """
+    usage = record.get("usage") or {}
+    return (
+        record.get("model"),
+        record.get("path"),
+        record.get("finish_reason"),
+        usage.get("prompt_tokens"),
+        usage.get("completion_tokens"),
+        round(float(record.get("latency_ms") or 0), 1),
+    )
 
 
 def _percentile(values: list[float], pct: float) -> float | None:
@@ -273,6 +317,58 @@ def _build_bench_report(
                 n += 1
         atif_presence[label] = f"{n}/{n_trials}"
 
+    # ─── anomalies (the things you actually want to know) ────────────
+    # Zero / None tokens per step + per trial
+    steps_with_zero_or_none_tokens = 0
+    trials_with_any_zero_step = 0
+    trials_all_zero_token_steps = 0
+    for r in traj_rows:
+        steps = _agent_steps(r)
+        if not steps:
+            continue
+        zero_in_trial = 0
+        for s in steps:
+            m = s.get("metrics") or {}
+            pt = m.get("prompt_tokens")
+            ct = m.get("completion_tokens")
+            if (not pt) and (not ct):
+                steps_with_zero_or_none_tokens += 1
+                zero_in_trial += 1
+        if zero_in_trial > 0:
+            trials_with_any_zero_step += 1
+        if zero_in_trial == len(steps):
+            trials_all_zero_token_steps += 1
+
+    # Duplicate agent steps inside a single trial (content hash)
+    duplicate_steps_in_trial = 0
+    trials_with_duplicate_steps = 0
+    for r in traj_rows:
+        hashes = Counter(_step_content_hash(s) for s in _agent_steps(r))
+        per_trial_dups = sum(v - 1 for v in hashes.values() if v > 1)
+        if per_trial_dups > 0:
+            duplicate_steps_in_trial += per_trial_dups
+            trials_with_duplicate_steps += 1
+
+    # Duplicate wire calls inside a single trial (coarse fingerprint)
+    duplicate_wire_calls_in_trial = 0
+    trials_with_duplicate_wire_calls = 0
+    for key, recs in traffic_by_trial.items():
+        hashes = Counter(_wire_dedup_key(r) for r in recs)
+        per_trial_dups = sum(v - 1 for v in hashes.values() if v > 1)
+        if per_trial_dups > 0:
+            duplicate_wire_calls_in_trial += per_trial_dups
+            trials_with_duplicate_wire_calls += 1
+
+    # Trials where step count != wire-call count (a different mismatch axis
+    # than ref/wire token totals; signals lost or duplicated captures).
+    mismatched_steps_vs_wire_trials = (
+        delta_signs["captures>steps"] + delta_signs["captures<steps"]
+    )
+
+    is_mean_reward_correct: bool | None = None
+    if traj_mean is not None and reported_mean is not None:
+        is_mean_reward_correct = abs(traj_mean - reported_mean) < 1e-6
+
     return {
         "bench": bench_name,
         "counts": {
@@ -283,15 +379,22 @@ def _build_bench_report(
         "score": {
             "mean_reward": traj_mean,
             "reported_mean": reported_mean,
-            "trajectories_vs_reported_match": (
-                None
-                if traj_mean is None or reported_mean is None
-                else abs(traj_mean - reported_mean) < 1e-6
-            ),
+            "is_mean_reward_correct": is_mean_reward_correct,
             "failures": {
                 "total": sum(failures.values()),
                 "counts_by_category": dict(failures),
             },
+        },
+        # The actionable summary: what's broken, in counts.
+        "anomalies": {
+            "steps_with_zero_or_none_tokens": steps_with_zero_or_none_tokens,
+            "trials_with_any_zero_token_step": trials_with_any_zero_step,
+            "trials_with_all_zero_token_steps": trials_all_zero_token_steps,
+            "duplicate_steps_in_trial_total": duplicate_steps_in_trial,
+            "trials_with_duplicate_steps": trials_with_duplicate_steps,
+            "duplicate_wire_calls_in_trial_total": duplicate_wire_calls_in_trial,
+            "trials_with_duplicate_wire_calls": trials_with_duplicate_wire_calls,
+            "mismatched_steps_vs_wire_trials": mismatched_steps_vs_wire_trials,
         },
         "trajectory_native": {
             "agent_steps_total": n_steps,
