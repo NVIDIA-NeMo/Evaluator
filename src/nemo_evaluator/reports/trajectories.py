@@ -228,6 +228,7 @@ def _build_bench_report(
             if isinstance(v, (str, list, dict)) and not v:
                 return False
             return True
+
         n = sum(1 for s in all_agent_steps if _ok(s.get(field)))
         return f"{n}/{n_steps}"
 
@@ -363,9 +364,7 @@ def _build_bench_report(
 
     # Trials where step count != wire-call count (a different mismatch axis
     # than ref/wire token totals; signals lost or duplicated captures).
-    mismatched_steps_vs_wire_trials = (
-        delta_signs["captures>steps"] + delta_signs["captures<steps"]
-    )
+    mismatched_steps_vs_wire_trials = delta_signs["captures>steps"] + delta_signs["captures<steps"]
 
     # After removing duplicates on both sides, does the mismatch resolve?
     mismatched_steps_vs_wire_trials_after_dedup = 0
@@ -628,11 +627,7 @@ def generate_trajectories_report(
     ``model_traffic.jsonl`` row (1:1 by order within a trial), and any
     extra wire calls are stashed under ``trajectory[0].extra.captured_model_calls``.
     """
-    bench_dirs = sorted(
-        p
-        for p in output_dir.iterdir()
-        if p.is_dir() and (p / "trajectories.jsonl").is_file()
-    )
+    bench_dirs = sorted(p for p in output_dir.iterdir() if p.is_dir() and (p / "trajectories.jsonl").is_file())
     if not bench_dirs:
         logger.info("trajectories_report: no <bench>/trajectories.jsonl found under %s", output_dir)
         return None

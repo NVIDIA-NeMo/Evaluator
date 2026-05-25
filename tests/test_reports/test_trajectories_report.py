@@ -42,9 +42,7 @@ def _trial(problem_idx: int, repeat: int, *, reward: float, steps: list[dict]) -
                 "steps": steps,
                 "final_metrics": {
                     "total_prompt_tokens": sum((s.get("metrics") or {}).get("prompt_tokens", 0) for s in steps),
-                    "total_completion_tokens": sum(
-                        (s.get("metrics") or {}).get("completion_tokens", 0) for s in steps
-                    ),
+                    "total_completion_tokens": sum((s.get("metrics") or {}).get("completion_tokens", 0) for s in steps),
                     "total_steps": len(steps),
                 },
             }
@@ -83,10 +81,15 @@ def bundle(tmp_path: Path) -> Path:
         bench / "trajectories.jsonl",
         [
             _trial(0, 0, reward=1.0, steps=[_agent_step(0, msg="hi", pt=10, ct=5)]),
-            _trial(1, 0, reward=0.5, steps=[
-                _agent_step(0, msg="thinking", pt=20, ct=10, tool_calls=[{"name": "search"}]),
-                _agent_step(1, msg="done", pt=30, ct=8),
-            ]),
+            _trial(
+                1,
+                0,
+                reward=0.5,
+                steps=[
+                    _agent_step(0, msg="thinking", pt=20, ct=10, tool_calls=[{"name": "search"}]),
+                    _agent_step(1, msg="done", pt=30, ct=8),
+                ],
+            ),
         ],
     )
     _write_jsonl(
@@ -273,14 +276,24 @@ def test_anomalies_zero_token_steps(tmp_path: Path) -> None:
     _write_jsonl(
         bench / "trajectories.jsonl",
         [
-            _trial(0, 0, reward=0.0, steps=[
-                _agent_step(0, msg="a", pt=0, ct=0),
-                _agent_step(1, msg="b", pt=0, ct=0),
-            ]),
-            _trial(1, 0, reward=1.0, steps=[
-                _agent_step(0, msg="c", pt=10, ct=5),
-                _agent_step(1, msg="d", pt=0, ct=0),
-            ]),
+            _trial(
+                0,
+                0,
+                reward=0.0,
+                steps=[
+                    _agent_step(0, msg="a", pt=0, ct=0),
+                    _agent_step(1, msg="b", pt=0, ct=0),
+                ],
+            ),
+            _trial(
+                1,
+                0,
+                reward=1.0,
+                steps=[
+                    _agent_step(0, msg="c", pt=10, ct=5),
+                    _agent_step(1, msg="d", pt=0, ct=0),
+                ],
+            ),
         ],
     )
     _write_jsonl(bench / "model_traffic.jsonl", [])
@@ -331,9 +344,14 @@ def test_is_mean_reward_correct(bundle: Path, tmp_path: Path) -> None:
         [_trial(0, 0, reward=1.0, steps=[_agent_step(0, msg="x", pt=5, ct=3)])],
     )
     eval_path = bench / "eval-test.json"
-    eval_path.write_text(json.dumps({
-        "benchmark": {"scores": {"summary": {"mean": 1.0}}},
-    }), encoding="utf-8")
+    eval_path.write_text(
+        json.dumps(
+            {
+                "benchmark": {"scores": {"summary": {"mean": 1.0}}},
+            }
+        ),
+        encoding="utf-8",
+    )
     score = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["score"]
     assert _v(score["mean_reward"]) == 1.0
     assert _v(score["reported_mean"]) == 1.0
