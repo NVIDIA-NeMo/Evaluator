@@ -127,6 +127,7 @@ def test_wire_calls_section(bundle: Path) -> None:
     report = json.loads(generate_trajectories_report(bundle).read_text())["benchmarks"][0]
     wc = report["wire_calls"]
     assert wc["total"] == 3
+    assert wc["successful"] == 3
     assert wc["unique"] == 3
     assert wc["trials_with_duplicates"] == 0
     assert wc["trials_with_more_wire_than_steps"] == 0
