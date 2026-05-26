@@ -1,0 +1,81 @@
+navigation:
+  - section: "Documentation"
+    contents:
+      - page: "Home"
+        path: ../../index.mdx
+  - section: "About"
+    contents:
+      - folder: ../../about
+        title: "Overview"
+        title-source: frontmatter
+      - folder: ../../about/concepts
+        title: "Concepts"
+        title-source: frontmatter
+      - page: "Release Notes"
+        path: ../../about/release-notes/index.mdx
+  - section: "Get Started"
+    contents:
+      - folder: ../../get-started
+        title: "Getting Started"
+        title-source: frontmatter
+      - folder: ../../get-started/quickstart
+        title: "Quickstart"
+        title-source: frontmatter
+  - section: "Tutorials"
+    contents:
+      - folder: ../../tutorials
+        title: "About Tutorials"
+        title-source: frontmatter
+      - folder: ../../tutorials/how-to
+        title: "How-To Guides"
+        title-source: frontmatter
+      - folder: ../../tutorials/nemo-fw
+        title: "Tutorials for NeMo Framework"
+        title-source: frontmatter
+  - section: "Evaluation"
+    contents:
+      - folder: ../../evaluation
+        title: "About Model Evaluation"
+        title-source: frontmatter
+      - folder: ../../evaluation/benchmarks
+        title: "Benchmark Catalog"
+        title-source: frontmatter
+      - folder: ../../evaluation/run-evals
+        title: "Evaluation Techniques"
+        title-source: frontmatter
+  - section: "Model Deployment"
+    contents:
+      - folder: ../../deployment
+        title: "About Model Deployment"
+        title-source: frontmatter
+      - folder: ../../deployment/bring-your-own-endpoint
+        title: "Bring-Your-Own-Endpoint"
+        title-source: frontmatter
+      - folder: ../../deployment/nemo-fw
+        title: "Use NeMo Framework"
+        title-source: frontmatter
+  - section: "Libraries"
+    contents:
+      - folder: ../../libraries
+        title: "About NeMo Evaluator Libraries"
+        title-source: frontmatter
+      - folder: ../../libraries/nemo-evaluator-launcher
+        title: "Launcher"
+        title-source: frontmatter
+      - folder: ../../libraries/nemo-evaluator
+        title: "Core"
+        title-source: frontmatter
+  - section: "References"
+    contents:
+      - folder: ../../references
+        title: "About References"
+        title-source: frontmatter
+      - folder: ../../references/api/nemo-evaluator/api
+        title: "NeMo Evaluator Core Python API"
+        title-source: frontmatter
+      - folder: ../../references/api/nemo-evaluator-launcher
+        title: "NeMo Evaluator Launcher Python API"
+        title-source: frontmatter
+      - folder: ../../references/api/nemo-evaluator
+        title: "nemo-evaluator CLI"
+        title-source: frontmatter

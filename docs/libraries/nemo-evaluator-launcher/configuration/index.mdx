@@ -1,0 +1,143 @@
+---
+title: "Configuration"
+description: ""
+---
+The nemo-evaluator-launcher uses [Hydra](https://hydra.cc/docs/intro/) for configuration management, enabling flexible composition and command-line overrides.
+
+## How it Works
+
+1. **Choose your deployment**: Start with `deployment: none` to use existing endpoints
+2. **Set your execution platform**: Use `execution: local` for development
+3. **Configure your target**: Point to your API endpoint
+4. **Select benchmarks**: Add evaluation tasks
+5. **Test first**: Always use `--dry-run` to verify
+
+```bash
+# Verify configuration
+nemo-evaluator-launcher run --config your_config.yaml --dry-run
+
+# Run evaluation
+nemo-evaluator-launcher run --config your_config.yaml
+```
+
+### Basic Structure
+
+Every configuration has four main sections:
+
+```yaml
+defaults:
+  - execution: local     # Where to run: local, lepton, slurm
+  - deployment: none     # How to deploy: none, vllm, sglang, nim, trtllm, generic
+  - _self_
+
+execution:
+  output_dir: results    # Required: where to save results
+
+target:                  # Required for deployment: none
+  api_endpoint:
+    model_id: meta/llama-3.2-3b-instruct
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    api_key_name: NGC_API_KEY
+
+evaluation:              # Required: what benchmarks to run
+  - name: gpqa_diamond
+  - name: ifeval
+```
+
+## Deployment Options
+
+Choose how to serve your model for evaluation:
+
+<Cards>
+
+<Card title="None (External)" href="/deployment/none">
+
+Use existing API endpoints like NVIDIA API Catalog, OpenAI, or custom deployments. No model deployment needed.
+</Card>
+
+<Card title="vLLM" href="/deployment/vllm">
+
+High-performance LLM serving with advanced parallelism strategies. Best for production workloads and large models.
+</Card>
+
+<Card title="SGLang" href="/deployment/sglang">
+
+Fast serving framework optimized for structured generation and high-throughput inference with efficient memory usage.
+</Card>
+
+<Card title="NIM" href="/deployment/nim">
+
+NVIDIA-optimized inference microservices with automatic scaling, optimization, and enterprise-grade features.
+</Card>
+
+<Card title="TRT-LLM" href="/deployment/trtllm">
+
+NVIDIA TensorRT LLM.
+</Card>
+
+<Card title="Generic" href="/deployment/generic">
+
+Deploy models using a fully custom setup.
+</Card>
+
+</Cards>
+
+## Auxiliary Deployments
+
+<Cards>
+
+<Card title="Auxiliary Deployments" href="/libraries/libraries-nemo-evaluator-launcher/configuration/auxiliary-deployments">
+
+Deploy additional model servers (e.g., a judge model) alongside the primary deployment for LLM-as-a-judge and multi-endpoint evaluations. Currently supported on the Slurm executor only.
+</Card>
+
+</Cards>
+
+## Execution Platforms
+
+Choose where to run your evaluations:
+
+<Cards>
+
+<Card title="Local" href="/executors/local">
+
+Docker-based evaluation on your local machine. Perfect for development, testing, and small-scale evaluations.
+</Card>
+
+<Card title="Lepton" href="/executors/lepton">
+
+Cloud execution with on-demand GPU provisioning. Ideal for production evaluations and scalable workloads.
+</Card>
+
+<Card title="SLURM" href="/executors/slurm">
+
+HPC cluster execution with resource management. Best for large-scale evaluations and batch processing.
+</Card>
+
+</Cards>
+
+## Evaluation Configuration
+
+<Cards>
+
+<Card title="Tasks & Benchmarks" href="/evaluation/evaluation">
+
+Configure evaluation tasks, parameter overrides, and environment variables for your benchmarks.
+</Card>
+
+</Cards>
+
+## Command Line Overrides
+
+Override any configuration value using the `-o` flag:
+
+```bash
+# Basic override
+nemo-evaluator-launcher run --config your_config.yaml \
+  -o execution.output_dir=my_results
+
+# Multiple overrides
+nemo-evaluator-launcher run --config your_config.yaml \
+  -o execution.output_dir=my_results \
+  -o target.api_endpoint.url="https://new-endpoint.com/v1/chat/completions"
+```

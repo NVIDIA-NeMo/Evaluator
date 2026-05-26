@@ -1,0 +1,67 @@
+---
+title: "Exporters"
+description: ""
+---
+Exporters move evaluation results and artifacts from completed runs to external destinations for analysis, sharing, and reporting. They provide flexible options for integrating evaluation results into your existing workflows and tools.
+
+## How to Set an Exporter
+
+<Tabs>
+<Tab title="CLI">
+
+```bash
+nemo-evaluator-launcher export <id1> [<id2> ...] \
+  --dest <local|gsheets|wandb|mlflow> \
+  [options]
+```
+
+</Tab>
+
+<Tab title="Python">
+
+```python
+from nemo_evaluator_launcher.api.functional import export_results
+
+export_results(
+    invocation_ids=["8abcd123"], 
+    dest="local", 
+    config={
+        "format": "json", 
+        "output_dir": "./out"
+    }
+)
+```
+
+</Tab>
+
+</Tabs>
+
+## Choosing an Exporter
+
+Select exporters based on your analysis and reporting needs:
+
+<Cards>
+
+<Card title="Local Files" href="/libraries/libraries-nemo-evaluator-launcher/exporters/local">
+
+Export results and artifacts to local or network file systems for custom analysis and archival.
+</Card>
+
+<Card title="Weights & Biases" href="/libraries/libraries-nemo-evaluator-launcher/exporters/wandb">
+
+Track metrics, artifacts, and run metadata in W&B for comprehensive experiment management.
+</Card>
+
+<Card title="MLflow" href="/libraries/libraries-nemo-evaluator-launcher/exporters/mlflow">
+
+Export metrics and artifacts to MLflow Tracking Server for centralized ML lifecycle management.
+</Card>
+
+<Card title="Google Sheets" href="/libraries/libraries-nemo-evaluator-launcher/exporters/gsheets">
+
+Export metrics to Google Sheets for easy sharing, reporting, and collaborative analysis.
+</Card>
+
+</Cards>
+
+You can configure multiple exporters simultaneously to support different stakeholder needs and workflow integration points.

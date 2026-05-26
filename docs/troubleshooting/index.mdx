@@ -1,0 +1,123 @@
+---
+title: "Troubleshooting"
+description: ""
+---
+# Troubleshooting
+
+Comprehensive troubleshooting guide for NeMo Evaluator evaluations, organized by problem type and complexity level.
+
+This section provides systematic approaches to diagnose and resolve evaluation issues. Start with the quick diagnostics below to verify your basic setup, then navigate to the appropriate troubleshooting category based on where your issue occurs in the evaluation workflow.
+
+## Quick Start
+
+Before diving into specific problem areas, run these basic checks to verify your evaluation environment:
+
+<Tabs>
+<Tab title="Launcher Quick Check">
+
+```bash
+# Verify launcher installation and basic functionality
+nemo-evaluator-launcher --version
+
+# List available tasks
+nemo-evaluator-launcher ls tasks
+
+# Validate configuration without running
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml --dry-run
+
+# Check recent runs
+nemo-evaluator-launcher ls runs
+```
+
+</Tab>
+
+<Tab title="Model Endpoint Check">
+
+```python
+import requests
+
+# Check health endpoint (adjust based on your deployment)
+# vLLM/SGLang/NIM: use /health
+# NeMo/Triton: use /v1/triton_health
+health_response = requests.get("http://0.0.0.0:8080/health", timeout=5)
+print(f"Health Status: {health_response.status_code}")
+
+# Test completions endpoint
+test_payload = {
+    "prompt": "Hello",
+    "model": "megatron_model", 
+    "max_tokens": 5
+}
+response = requests.post("http://0.0.0.0:8080/v1/completions/", json=test_payload)
+print(f"Completions Status: {response.status_code}")
+```
+
+</Tab>
+
+<Tab title="Core API Check">
+
+```python
+from nemo_evaluator import show_available_tasks
+
+try:
+    print("Available frameworks and tasks:")
+    show_available_tasks()
+except ImportError as e:
+    print(f"Missing dependency: {e}")
+```
+
+</Tab>
+
+</Tabs>
+
+## Troubleshooting Categories
+
+Choose the category that best matches your issue for targeted solutions and debugging steps.
+
+<Cards>
+
+<Card title="Setup & Installation" href="/setup-issues">
+
+Installation problems, authentication setup, and model deployment issues to get NeMo Evaluator running.
+</Card>
+
+<Card title="Runtime & Execution" href="/runtime-issues">
+
+Configuration validation and launcher management during evaluation execution.
+</Card>
+
+</Cards>
+
+## Getting Help
+
+### Log Collection
+
+When reporting issues, include:
+
+1. System Information:
+
+   ```bash
+   python --version
+   pip list | grep nvidia
+   nvidia-smi
+   ```
+
+2. Configuration Details:
+
+   ```python
+   print(f"Task: {eval_cfg.type}")
+   print(f"Endpoint: {target_cfg.api_endpoint.url}")
+   print(f"Model: {target_cfg.api_endpoint.model_id}")
+   ```
+
+3. Error Messages: Full stack traces and error logs
+
+### Community Resources
+
+- **GitHub Issues**: [NeMo Evaluator Issues](https://github.com/NVIDIA-NeMo/Eval/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/NVIDIA-NeMo/Eval/discussions)
+- **Documentation**: [template-home](/documentation/home)
+
+### Professional Support
+
+For enterprise support, contact: [nemo-toolkit@nvidia.com](mailto:nemo-toolkit@nvidia.com)

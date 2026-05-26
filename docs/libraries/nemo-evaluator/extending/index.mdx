@@ -1,0 +1,61 @@
+---
+title: "Extending NeMo Evaluator"
+description: ""
+---
+Extend NeMo Evaluator with custom benchmarks, evaluation frameworks, and integrations. Learn how to define new evaluation frameworks and integrate them into the NeMo Evaluator ecosystem using standardized configuration patterns.
+
+<Cards>
+
+<Card title="Framework Definition File" href="/libraries/libraries-nemo-evaluator/extending/framework-definition-file">
+
+Learn how to create Framework Definition Files (FDF) to integrate custom evaluation frameworks and benchmarks into the NeMo Evaluator ecosystem.
+</Card>
+
+<Card title="Bring Your Own Benchmark (BYOB)" href="/libraries/libraries-nemo-evaluator/extending/byob">
+
+Create custom evaluation benchmarks in ~12 lines of Python with decorators, built-in scorers, LLM-as-Judge, and one-command containerization.
+</Card>
+
+</Cards>
+
+## Extension Patterns
+
+NeMo Evaluator supports several patterns for extending functionality:
+
+### Framework Definition Files (FDF)
+
+The primary extension mechanism uses YAML configuration files to define:
+
+- Framework metadata and dependencies
+- Default configurations and parameters
+- Evaluation types and task definitions
+- Container integration specifications
+
+### Bring Your Own Benchmark (BYOB)
+
+A decorator-based approach for creating custom benchmarks in Python:
+
+- Define benchmarks with `@benchmark` and `@scorer` decorators
+- Use built-in scorers or write custom scoring functions
+- Evaluate subjective qualities with LLM-as-Judge
+- Containerize and deploy with a single CLI command
+
+### Integration Benefits
+
+- **Standardization**: Follow established patterns for configuration and execution
+- **Reproducibility**: Leverage the same deterministic configuration system
+- **Compatibility**: Work seamlessly with existing launchers and exporters
+- **Community**: Share frameworks through the standard FDF format
+
+## Start with Extensions
+
+**Want a quick custom benchmark?** Start with [BYOB](/libraries/nemo-evaluator/extending/byob) to create a benchmark in ~12 lines of Python.
+
+**Building a production framework?** Follow these steps:
+
+1. **Review Existing Frameworks**: Study existing FDF files to understand the structure
+2. **Define Your Framework**: Create an FDF that describes your evaluation framework
+3. **Test Integration**: Validate that your framework works with NeMo Evaluator workflows
+4. **Container Packaging**: Package your framework as a container for distribution
+
+For detailed reference documentation, refer to [framework-definition-file](/libraries/nemo-evaluator/extending/framework-definition-file.)

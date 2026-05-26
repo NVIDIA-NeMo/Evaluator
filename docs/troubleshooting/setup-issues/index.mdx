@@ -1,0 +1,70 @@
+---
+title: "Setup and Installation Issues"
+description: ""
+---
+# Setup and Installation Issues
+
+Solutions for getting NeMo Evaluator up and running, including installation problems, authentication setup, and model deployment issues.
+
+## Common Setup Problems
+
+Before diving into specific issues, verify your basic setup with these quick checks:
+
+<Tabs>
+<Tab title="Installation Check">
+
+```bash
+# Verify core packages are installed
+pip list | grep nvidia
+
+# Check for missing evaluation frameworks
+python -c "from nemo_evaluator import show_available_tasks; show_available_tasks()"
+```
+
+</Tab>
+
+<Tab title="Authentication Check">
+
+```bash
+# Verify HuggingFace token
+huggingface-cli whoami
+
+# Test token access
+python -c "import os; print('HF_TOKEN set:', bool(os.environ.get('HF_TOKEN')))"
+```
+
+</Tab>
+
+<Tab title="Deployment Check">
+
+```bash
+# Check if deployment server is running
+# Use /health for vLLM, SGLang, NIM deployments
+# Use /v1/triton_health for NeMo/Triton deployments
+curl -I http://0.0.0.0:8080/health
+
+# Verify GPU availability
+nvidia-smi
+```
+
+</Tab>
+
+</Tabs>
+
+## Setup Categories
+
+Choose the category that matches your setup issue:
+
+<Cards>
+
+<Card title="Installation Issues" href="/troubleshooting/setup-issues/installation">
+
+Module import errors, missing dependencies, and framework installation problems.
+</Card>
+
+<Card title="Authentication Setup" href="/troubleshooting/setup-issues/authentication">
+
+HuggingFace tokens, dataset access permissions, and gated model authentication.
+</Card>
+
+</Cards>

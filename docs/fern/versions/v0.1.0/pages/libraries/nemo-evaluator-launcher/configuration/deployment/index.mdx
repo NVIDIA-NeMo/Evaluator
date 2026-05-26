@@ -1,0 +1,56 @@
+---
+title: "Deployment Configuration"
+description: ""
+---
+Deployment configurations define how to provision and host model endpoints for evaluation.
+
+{/* <Note>
+For an overview of all deployment strategies and when to use launcher-orchestrated vs. bring-your-own-endpoint approaches, see [deployment-overview](/model-deployment.)
+
+</Note> */}
+
+## Deployment Types
+
+Choose the deployment type for your evaluation:
+
+<Cards>
+
+<Card title="None (External)" href="/libraries/libraries-nemo-evaluator-launcher/configuration/deployment/none">
+
+Use existing API endpoints. No model deployment needed.
+</Card>
+
+<Card title="vLLM" href="/libraries/libraries-nemo-evaluator-launcher/configuration/deployment/vllm">
+
+Deploy models using the vLLM serving framework.
+</Card>
+
+<Card title="SGLang" href="/libraries/libraries-nemo-evaluator-launcher/configuration/deployment/sglang">
+
+Deploy models using the SGLang serving framework.
+</Card>
+
+<Card title="NIM" href="/libraries/libraries-nemo-evaluator-launcher/configuration/deployment/nim">
+
+Deploy models using NVIDIA Inference Microservices.
+</Card>
+
+<Card title="TRT-LLM" href="/libraries/libraries-nemo-evaluator-launcher/configuration/deployment/trtllm">
+
+Deploy models using NVIDIA TensorRT LLM.
+</Card>
+
+<Card title="Generic" href="/libraries/libraries-nemo-evaluator-launcher/configuration/deployment/generic">
+
+Deploy models using a fully custom setup.
+</Card>
+
+</Cards>
+
+## Quick Reference
+
+```yaml
+deployment:
+  type: vllm  # or sglang, nim, none
+  # ... deployment-specific settings
+```

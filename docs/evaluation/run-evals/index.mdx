@@ -1,0 +1,38 @@
+---
+title: "Evaluation Techniques"
+description: ""
+position: 5
+---
+Follow step-by-step guides for different evaluation scenarios and methodologies in NeMo Evaluator.
+
+## Before You Start
+
+Ensure you have:
+
+1. Completed the initial getting started guides for [gs-install](/get-started/install) and [gs-quickstart](/get-started/quickstart.)
+2. Have your endpoint and API key ready or prepared for the checkpoint you wish to deploy.
+3. Prepared your [Hugging Face token](https://huggingface.co/docs/hub/en/security-tokens) for accessing gated datasets.
+
+## Evaluations
+
+Select an evaluation type tailored to your model capabilities.
+
+<Cards>
+
+<Card title="Text Generation" href="/evaluation/evaluation-run-evals/text-gen">
+Measure model performance through natural language generation for academic benchmarks, reasoning tasks, and general knowledge assessment.
+</Card>
+
+<Card title="Log-Probability" href="/evaluation/evaluation-run-evals/logprobs">
+Assess model confidence and uncertainty using log-probabilities for multiple-choice scenarios without text generation.
+</Card>
+
+<Card title="Reasoning" href="/evaluation/evaluation-run-evals/reasoning">
+Control the thinking budget and post-process the responses to extract the reasoning content and the final answer
+</Card>
+
+</Cards>
+
+{/* TODO: add once ready
+Code Generation <code-generation>
+Function Calling <function-calling> */}

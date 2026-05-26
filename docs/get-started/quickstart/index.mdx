@@ -1,0 +1,259 @@
+---
+title: "Quickstart"
+description: ""
+position: 3
+---
+Get up and running with NeMo Evaluator in minutes. Choose your preferred approach based on your needs and experience level.
+
+## Prerequisites
+
+All paths require:
+
+- OpenAI-compatible endpoint (hosted or self-deployed)
+- Valid API key for your chosen endpoint
+
+## Quick Reference
+
+| Task | Command |
+|------|---------|
+| List benchmarks | `nemo-evaluator-launcher ls tasks` |
+| Run evaluation | `nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/<config>.yaml` |
+| Check status | `nemo-evaluator-launcher status <invocation_id>` |
+| Job info | `nemo-evaluator-launcher info <invocation_id>` |
+| Export results | `nemo-evaluator-launcher export <invocation_id> --dest local --format json` |
+| Publish to HF leaderboard | `nemo-evaluator-launcher publish <invocation_id> --hf-dataset-id <org>/<dataset> --metric <task>.<metric>.<score> --hf-org <ns> --hf-model-id <org>/<model>` |
+| Dry run | Add `--dry-run` to any run command |
+| Test with limited samples | Add `-o +config.params.limit_samples=3` |
+
+## Choose Your Path
+
+Select the approach that best matches your workflow and technical requirements:
+
+<Cards>
+
+<Card title="NeMo Evaluator Launcher" href="/get-started/get-started-quickstart/launcher">
+**Recommended for most users**
+
+Unified CLI experience with automated container management, built-in orchestration, and result export capabilities.
+</Card>
+
+<Card title="Launcher Configuration with nel-assistant" href="/get-started/get-started-quickstart/launcher-configuration">
+**For conversational config**
+
+Natural language evaluation setup via the nel-assistant agent skill. No manual YAML authoring required.
+</Card>
+
+<Card title="NeMo Evaluator Core" href="/get-started/get-started-quickstart/core">
+**For Python developers**
+
+Programmatic control with full adapter features, custom configurations, and direct API access for integration into existing workflows.
+</Card>
+
+<Card title="NeMo Framework Container" href="/get-started/get-started-quickstart/nemo-fw">
+**For NeMo Framework Users**
+
+End-to-end training and evaluation of large language models (LLMs).
+</Card>
+
+<Card title="Container Direct" href="/get-started/get-started-quickstart/container">
+**For container workflows**
+
+Direct container execution with volume mounting, environment control, and integration into Docker-based CI/CD pipelines.
+</Card>
+
+</Cards>
+
+## Model Endpoints
+
+NeMo Evaluator works with any OpenAI-compatible endpoint. You have several options:
+
+### **Hosted Endpoints** (Recommended)
+
+- **NVIDIA Build**: [build.nvidia.com](https://build.nvidia.com) - Ready-to-use hosted models
+- **OpenAI**: Standard OpenAI API endpoints
+- **Other providers**: Anthropic, Cohere, or any OpenAI-compatible API
+
+### **Self-Hosted Options**
+
+If you prefer to host your own models, verify OpenAI compatibility using our [deployment-testing-compatibility](/model-deployment/deployment/bring-your-own-endpoint/testing-endpoint-oai-compatibility) guide.
+
+If you are deploying the model locally with Docker, you can use a dedicated docker network.
+This will provide a secure connetion between deployment and evaluation docker containers.
+
+```bash
+# create a dedicated docker network
+docker network create my-custom-network
+
+# launch deployment
+docker run --gpus all --network my-custom-network --name my-phi-container vllm/vllm-openai:latest \
+    --model microsoft/Phi-4-mini-instruct --max-model-len 8192
+
+# Or use other serving frameworks
+# TRT-LLM, NeMo Framework, etc.
+```
+
+Create an evaluation config:
+
+```yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: my_phi_test
+  extra_docker_args: "--network my-custom-network"  # same network as used for deployment
+
+target:
+  api_endpoint:
+    model_id: microsoft/Phi-4-mini-instruct
+    url: http://my-phi-container:8000/v1/chat/completions
+    api_key_name: null
+
+evaluation:
+  tasks:
+    - name: simple_evals.mmlu_pro
+      nemo_evaluator_config:
+        config:
+          params:
+            limit_samples: 10 # TEST ONLY: Limits to 10 samples for quick testing
+            parallelism: 1
+```
+
+Save the config to a file (e.g. `phi-eval.yaml`) and launch the evaluation:
+
+```bash
+nemo-evaluator-launcher run \
+    --config ./phi-eval.yaml \
+    -o execution.output_dir=./phi-results
+
+{/* See [deployment-overview](../../deployment) for detailed deployment options. */}
+
+## Validation and Troubleshooting
+
+### Quick Validation Steps
+
+Before running full evaluations, verify your setup:
+
+```bash
+# 1. Test your endpoint connectivity
+export NGC_API_KEY=nvapi-...
+curl -X POST "https://integrate.api.nvidia.com/v1/chat/completions" \
+    -H "Authorization: Bearer $NGC_API_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "model": "meta/llama-3.2-3b-instruct",
+        "messages": [{"role": "user", "content": "Hello!"}],
+        "max_tokens": 10
+    }'
+
+# 2. Run a dry-run to validate configuration
+nemo-evaluator-launcher run \
+    --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
+    --dry-run
+
+# 3. Run a minimal test with very few samples
+nemo-evaluator-launcher run \
+    --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
+    -o +config.params.limit_samples=1 \
+    -o execution.output_dir=./test_results
+```
+
+### Common Issues and Solutions
+
+<Tabs>
+<Tab title="API Key Issues">
+
+```bash
+# Verify your API key is set correctly
+echo $NGC_API_KEY
+
+# Test with a simple curl request (see above)
+```
+</Tab>
+
+<Tab title="Container Issues">
+
+```bash
+# Check Docker is running and has GPU access
+docker run --rm --gpus all nvidia/cuda:11.8-base-ubuntu20.04 nvidia-smi
+
+# Pull the latest container if you have issues
+docker pull nvcr.io/nvidia/eval-factory/simple-evals:25.10
+```
+</Tab>
+
+<Tab title="Configuration Issues">
+
+```bash
+# Enable debug logging
+export LOG_LEVEL=DEBUG
+
+# Check available evaluation types
+nemo-evaluator-launcher ls tasks
+```
+</Tab>
+
+<Tab title="Result Validation">
+
+```bash
+# Check if results were generated
+find ./results -name "*.yml" -type f
+
+# View task results
+cat ./results/<invocation_id>/<task_name>/artifacts/results.yml
+
+# Or export and view processed results
+nemo-evaluator-launcher export <invocation_id> --dest local --format json
+cat ./results/<invocation_id>/processed_results.json
+```
+</Tab>
+
+</Tabs>
+
+## Next Steps
+
+After completing your quickstart:
+
+<Tabs>
+<Tab title="Explore More Benchmarks">
+
+```bash
+# List all available tasks
+nemo-evaluator-launcher ls tasks
+
+# Run with limited samples for quick testing
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml
+```
+</Tab>
+
+<Tab title="Export Results">
+
+```bash
+# Export to MLflow
+nemo-evaluator-launcher export <invocation_id> --dest mlflow
+
+# Export to Weights & Biases
+nemo-evaluator-launcher export <invocation_id> --dest wandb
+
+# Export to Google Sheets
+nemo-evaluator-launcher export <invocation_id> --dest gsheets
+
+# Export to local files
+nemo-evaluator-launcher export <invocation_id> --dest local --format json
+```
+</Tab>
+
+<Tab title="Scale to Clusters">
+
+```bash
+cd packages/nemo-evaluator-launcher
+# Run on Slurm cluster
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/slurm_vllm_basic.yaml
+
+# Run on Lepton AI
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_vllm.yaml
+```
+</Tab>
+
+</Tabs>

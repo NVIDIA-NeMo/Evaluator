@@ -1,0 +1,33 @@
+---
+title: "Executors"
+description: ""
+---
+Executors run evaluations by orchestrating containerized benchmarks in different environments. They handle resource management, IO paths, and job scheduling across various execution backends, from local development to large-scale cluster deployments.
+
+**Core concepts**:
+- Your model is separate from the evaluation container; communication is via an OpenAI‑compatible API
+- Each benchmark runs in a Docker container pulled from the NVIDIA NGC catalog
+- Execution backends can optionally manage model deployment
+
+## Choosing an Executor
+
+Select the executor that best matches your environment and requirements:
+
+<Cards>
+
+<Card title="Local Executor" href="/libraries/libraries-nemo-evaluator-launcher/configuration/executors/local">
+
+Run evaluations on your local machine using Docker for rapid iteration and development workflows.
+</Card>
+
+<Card title="Slurm Executor" href="/libraries/libraries-nemo-evaluator-launcher/configuration/executors/slurm">
+
+Execute large-scale evaluations on Slurm-managed high-performance computing clusters with optional model deployment.
+</Card>
+
+<Card title="Lepton Executor" href="/libraries/libraries-nemo-evaluator-launcher/configuration/executors/lepton">
+
+Run evaluations on Lepton AI's hosted infrastructure with automatic model deployment and scaling.
+</Card>
+
+</Cards>

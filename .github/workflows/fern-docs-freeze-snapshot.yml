@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Optional: cut a frozen Fern docs train (docs/fern/versions/<version>/pages/).
+# Does not commit — run locally with `make docs-snapshot` and open a PR instead.
+# This workflow is for release managers who want the same steps in CI logs.
+
+name: "Fern docs: freeze snapshot"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver folder name (e.g. v0.2.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  freeze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Freeze docs tree
+        run: |
+          chmod +x docs/fern/scripts/freeze_version.sh
+          docs/fern/scripts/freeze_version.sh "${{ inputs.version }}"
+
+      - name: Validate Fern config
+        run: |
+          npm install -g "fern-api@$(jq -r .version docs/fern/fern.config.json)"
+          cd docs/fern && fern check && fern docs md check
+
+      - name: Summarize
+        run: |
+          {
+            echo "### Fern docs snapshot ${{ inputs.version }}"
+            echo ""
+            echo "Frozen tree: \`docs/fern/versions/${{ inputs.version }}/pages/\`"
+            echo "Nav file: \`docs/fern/versions/${{ inputs.version }}.yml\`"
+            echo ""
+            echo "**This workflow does not commit.** On a branch, run locally:"
+            echo "\`make -C docs docs-snapshot SNAPSHOT_VERSION=${{ inputs.version }}\`"
+            echo "then register the version in \`docs/fern/docs.yml\`, add redirects, commit, and push."
+            echo ""
+            echo "Tag the release commit as \`${{ inputs.version }}\` for publish-time extraction."
+          } >> "$GITHUB_STEP_SUMMARY"

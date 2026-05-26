@@ -1,0 +1,95 @@
+---
+title: "Launcher"
+description: ""
+position: 2
+---
+The *Orchestration Layer* empowers you to run AI model evaluations at scale. Use the unified CLI and programmatic interfaces to discover benchmarks, configure runs, submit jobs, monitor progress, and export results.
+
+<Tip>
+**New to evaluation?** Start with [gs-quickstart-launcher](/get-started/quickstart/launcher) for a step-by-step walkthrough.
+
+</Tip>
+
+## Get Started
+
+<Cards>
+
+<Card title="Quickstart" href="/get-started/get-started-quickstart/launcher">
+
+Step-by-step guide to install, configure, and run your first evaluation in minutes.
+</Card>
+
+<Card title="Configuration" href="/configuration">
+
+Complete configuration schema, examples, and advanced patterns for all use cases.
+</Card>
+
+</Cards>
+
+## Execution
+
+<Cards>
+
+<Card title="Executors" href="/configuration/executors">
+
+Execute evaluations on your local machine, HPC cluster (Slurm), or cloud platform (Lepton AI).
+</Card>
+
+<Card title="Local Executor" href="/configuration/executors/local">
+
+Docker-based evaluation on your workstation. Perfect for development and testing.
+</Card>
+
+<Card title="Slurm Executor" href="/configuration/executors/slurm">
+
+HPC cluster execution with automatic resource management and job scheduling.
+</Card>
+
+<Card title="Lepton Executor" href="/configuration/executors/lepton">
+
+Cloud execution with on-demand GPU provisioning and automatic scaling.
+</Card>
+
+</Cards>
+
+## Export
+<Cards>
+
+<Card title="Exporters" href="/exporters">
+
+Export results to MLflow, Weights & Biases, Google Sheets, or local files with one command.
+</Card>
+
+<Card title="MLflow Export" href="/exporters/mlflow">
+
+Export evaluation results and metrics to MLflow for experiment tracking.
+</Card>
+
+<Card title="W&B Export" href="/exporters/wandb">
+
+Integrate with Weights & Biases for advanced visualization and collaboration.
+</Card>
+
+<Card title="Sheets Export" href="/exporters/gsheets">
+
+Export to Google Sheets for easy sharing and analysis with stakeholders.
+</Card>
+
+</Cards>
+
+## Typical Workflow
+
+1. **Choose execution backend** (local, Slurm, Lepton AI)
+2. **Select example configuration** from the examples directory
+3. **Point to your model endpoint** (OpenAI-compatible API)
+4. **Launch evaluation** via CLI or Python API
+5. **Monitor progress** and export results to your preferred platform
+
+## When to Use the Launcher
+
+Use the launcher whenever you want:
+- **Unified interface** for running evaluations across different backends
+- **Multi-benchmark coordination** with concurrent execution
+- **Turnkey reproducibility** with saved configurations
+- **Easy result export** to MLOps platforms and dashboards
+- **Production-ready orchestration** with monitoring and lifecycle management

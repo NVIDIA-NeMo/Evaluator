@@ -1,0 +1,116 @@
+---
+title: "Interceptors"
+description: ""
+---
+Interceptors provide fine-grained control over request and response processing during model evaluation through a configurable pipeline architecture.
+
+## Overview
+
+The adapter system processes model API calls through a configurable pipeline of interceptors. Each interceptor can inspect, modify, or augment requests and responses as they flow through the evaluation process.
+
+```mermaid
+graph LR
+    A[Evaluation Request] --> B[Adapter System]
+    B --> C[Interceptor Pipeline]
+    C --> D[Model API]
+    D --> E[Response Pipeline]
+    E --> F[Processed Response]
+    
+    subgraph "Request Processing"
+        C --> G[System Message]
+        G --> H[Payload Modifier]
+        H --> I[Request Logging]
+        I --> J[Caching Check]
+        J --> K[Endpoint Call]
+    end
+    
+    subgraph "Response Processing"
+        E --> L[Response Logging]
+        L --> M[Reasoning Extraction]
+        M --> N[Progress Tracking]
+        N --> O[Cache Storage]
+    end
+    
+    style B fill:#f3e5f5
+    style C fill:#e1f5fe
+    style E fill:#e8f5e8
+```
+
+## Request Interceptors
+
+<Cards>
+
+<Card title="System Messages" href="/libraries/libraries-nemo-evaluator/interceptors/system-messages">
+
+Modify system messages in requests.
+</Card>
+
+<Card title="Payload Modification" href="/libraries/libraries-nemo-evaluator/interceptors/payload-modification">
+
+Add, remove, or modify request parameters.
+</Card>
+
+<Card title="Request Logging" href="/libraries/libraries-nemo-evaluator/interceptors/request-logging">
+
+Logs requests for debugging, analysis, and audit purposes.
+</Card>
+
+</Cards>
+
+## Request-Response Interceptors
+
+<Cards>
+
+<Card title="Caching" href="/libraries/libraries-nemo-evaluator/interceptors/caching">
+
+Cache requests and responses to improve performance and reduce API calls.
+</Card>
+
+<Card title="Endpoint" href="/libraries/libraries-nemo-evaluator/interceptors/endpoint">
+
+Communicates with the model endpoint.
+</Card>
+
+</Cards>
+
+## Response 
+
+<Cards>
+
+<Card title="Response Logging" href="/libraries/libraries-nemo-evaluator/interceptors/response-logging">
+
+Logs responses for debugging, analysis, and audit purposes.
+</Card>
+
+<Card title="Progress Tracking" href="/libraries/libraries-nemo-evaluator/interceptors/progress-tracking">
+
+Track evaluation progress and status updates.
+</Card>
+
+<Card title="Raising on Client Errors" href="/libraries/libraries-nemo-evaluator/interceptors/raise-client-error">
+
+Allows to fail fast on non-retryable client errors
+</Card>
+
+<Card title="Reasoning" href="/libraries/libraries-nemo-evaluator/interceptors/reasoning">
+
+Handle reasoning tokens and track reasoning metrics.
+</Card>
+
+<Card title="Response Statistics" href="/libraries/libraries-nemo-evaluator/interceptors/response-stats">
+
+Collects statistics from API responses for metrics collection and analysis.
+</Card>
+
+</Cards>
+
+## Process Post-Evaluation Results
+
+<Cards>
+
+<Card title="Post-Evaluation Hooks" href="/libraries/libraries-nemo-evaluator/interceptors/post-evaluation-hooks">
+
+Run additional processing, reporting, or cleanup after evaluations complete.
+</Card>
+
+</Cards>

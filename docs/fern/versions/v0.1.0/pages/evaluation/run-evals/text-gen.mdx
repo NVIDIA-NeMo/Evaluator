@@ -1,0 +1,175 @@
+---
+title: "Text Generation Evaluation"
+description: ""
+---
+Text generation evaluation is the primary method for assessing LLM capabilities where models produce natural language responses to prompts. This approach evaluates the quality, accuracy, and appropriateness of generated text across various tasks and domains.
+
+<Tip>
+In the example below we use the `gpqa_diamond` benchmark, but the instructions provided apply to all text generation tasks, such as:
+
+- `mmlu`
+- `mmlu_pro`
+- `ifeval`
+- `gsm8k`
+- `mgsm`
+- `mbpp`
+
+</Tip>
+
+## Before You Start
+
+Ensure you have:
+
+- **Model Endpoint**: An OpenAI-compatible API endpoint for your model (completions or chat). See [deployment-testing-compatibility](/model-deployment/deployment/bring-your-own-endpoint/testing-endpoint-oai-compatibility) for snippets you can use to test your endpoint.
+- **API Access**: Valid API key if your endpoint requires authentication
+- **Installed Packages**: NeMo Evaluator or access to evaluation containers
+
+## Evaluation Approach
+
+In text generation evaluation:
+
+1. **Prompt Construction**: Models receive carefully crafted prompts (questions, instructions, or text to continue)
+2. **Response Generation**: Models generate natural language responses using their trained parameters
+3. **Response Assessment**: Generated text is evaluated for correctness, quality, or adherence to specific criteria
+4. **Metric Calculation**: Numerical scores are computed based on evaluation criteria
+
+This differs from **log-probability evaluation** where models assign confidence scores to predefined choices.
+For log-probability methods, see the [logprobs](/evaluation/run-evals/logprobs.)
+
+## Use NeMo Evaluator Launcher
+
+Use an example config for evaluating the [Meta Llama 3.1 8B Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct) model:
+
+```
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# How to use:
+#
+# 1. copy this file locally or clone the repository
+# 2. (optional) comment out limit_samples in the config file to run on the full dataset
+# 3. run `nemo-evaluator-launcher run --config path/to/local_basic.yaml`
+#
+# ⚠️  WARNING:
+#     Always run full evaluations (without limit_samples) for actual benchmark results.
+#     Using a subset of samples is solely for testing configuration and setup.
+#     Results from such test runs should NEVER be used to compare models or
+#     report benchmark performance.
+
+# [docs-start-snippet]
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: nel-results
+
+target:
+  api_endpoint:
+    # see https://build.nvidia.com/meta/llama-3_1-8b-instruct for endpoint details
+    model_id: meta/llama-3.2-3b-instruct
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    api_key_name: NGC_API_KEY # API Key with access to build.nvidia.com
+
+# specify the benchmarks to evaluate
+evaluation:
+  # global config settings that apply to all tasks, unless overridden by task-specific config
+  nemo_evaluator_config:
+    config:
+      params:
+        request_timeout: 3600  # timeout for API request in seconds
+        parallelism: 1  # 1 parallel request to avoid overloading the server
+        limit_samples: 10 # TEST ONLY: Limits all benchmarks to 10 samples for quick testing
+  tasks:
+    - name: lm-evaluation-harness.ifeval
+    - name: simple_evals.gpqa_diamond
+      env_vars:
+        HF_TOKEN: host:HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
+    - name: bigcode-evaluation-harness.mbpp-chat
+
+```
+
+To launch the evaluation, run:
+
+```bash
+
+export HF_TOKEN_FOR_GPQA_DIAMOND=hf_your-token-here  # GPQA is a gated dataset
+export NGC_API_KEY=nvapi-your-token-here  # API Key with access to build.nvidia.com
+
+nemo-evaluator-launcher run \
+  --config packages/nemo-evaluator-launcher/examples/local_basic.yaml
+```
+
+## Use NeMo Evaluator
+
+Start `simple-evals` docker container:
+
+```bash
+docker run --rm -it nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
+```
+
+or install `nemo-evaluator` and `nvidia-simple-evals` Python package in your environment of choice:
+
+```bash
+pip install nemo-evaluator nvidia-simple-evals
+```
+
+### Run with CLI
+
+```bash
+export HF_TOKEN_FOR_GPQA_DIAMOND=hf_your-token-here  # GPQA is a gated dataset
+export NGC_API_KEY=nvapi-your-token-here  # API Key with access to build.nvidia.com
+
+# Run evaluation
+nemo-evaluator run_eval \
+    --eval_type gpqa_diamond \
+    --model_id meta/llama-3.2-3b-instruct \
+    --model_url https://integrate.api.nvidia.com/v1/chat/completions \
+    --model_type chat \
+    --api_key_name NGC_API_KEY \
+    --output_dir ./llama_3_1_8b_instruct_results
+```
+
+### Run with Python API
+
+```python
+# set env variables before entering Python:
+# export HF_TOKEN_FOR_GPQA_DIAMOND=hf_your-token-here  # GPQA is a gated dataset
+# export NGC_API_KEY=nvapi-your-token-here  # API Key with access to build.nvidia.com
+
+from nemo_evaluator.core.evaluate import evaluate
+from nemo_evaluator.api.api_dataclasses import (
+    ApiEndpoint, EvaluationConfig, EvaluationTarget, ConfigParams, EndpointType
+)
+
+# Configure target endpoint
+api_endpoint = ApiEndpoint(
+    url="https://integrate.api.nvidia.com/v1/chat/completions",
+    type=EndpointType.CHAT,
+    model_id="meta/llama-3.2-3b-instruct",
+    api_key_name="NGC_API_KEY"  # variable name storing the key
+)
+target = EvaluationTarget(api_endpoint=api_endpoint)
+
+# Configure evaluation task
+config = EvaluationConfig(
+    type="gpqa_diamond",
+    output_dir="./llama_3_1_8b_instruct_results"
+)
+
+# Execute evaluation
+results = evaluate(target_cfg=target, eval_cfg=config)
+```

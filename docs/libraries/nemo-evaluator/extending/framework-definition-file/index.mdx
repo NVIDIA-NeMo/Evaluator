@@ -1,0 +1,110 @@
+---
+title: "Framework Definition File (FDF)"
+description: ""
+---
+Framework Definition Files are YAML configuration files that integrate evaluation frameworks into NeMo Evaluator. They define framework metadata, execution commands, and evaluation tasks.
+
+**New to FDFs?** Learn about [the concepts and architecture](/about/concepts/framework-definition-file) before creating one.
+
+## Prerequisites
+
+Before creating an FDF, you should:
+
+- Understand YAML syntax and structure
+- Be familiar with your evaluation framework's CLI interface
+- Have basic knowledge of Jinja2 templating
+- Know the API endpoint types your framework supports
+
+## Getting Started
+
+**Creating your first FDF?** Follow this sequence:
+
+{/* 1. Start with the [create-framework-definition-file](/tutorials/create-framework-definition-file) tutorial for a hands-on walkthrough */}
+1. [framework-section](/libraries/nemo-evaluator/extending/framework-definition-file/framework-section) - Define framework metadata
+2. [defaults-section](/libraries/nemo-evaluator/extending/framework-definition-file/defaults-section) - Configure command templates and parameters
+3. [evaluations-section](/libraries/nemo-evaluator/extending/framework-definition-file/evaluations-section) - Define evaluation tasks
+4. [integration](/libraries/nemo-evaluator/extending/framework-definition-file/integration) - Integrate with Eval Factory
+
+**Need help?** Refer to [fdf-troubleshooting](/libraries/nemo-evaluator/extending/framework-definition-file/fdf-troubleshooting) for debugging common issues.
+
+## Complete Example
+
+The FDF follows a hierarchical structure with three main sections. Here's a minimal but complete example:
+
+```yaml
+# 1. Framework Identification
+framework:
+  name: my-custom-eval
+  pkg_name: my_custom_eval
+  full_name: My Custom Evaluation Framework
+  description: Evaluates domain-specific capabilities
+  url: https://github.com/example/my-eval
+
+# 2. Default Command and Configuration
+defaults:
+  command: >-
+    {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %}
+    my-eval-cli --model {{target.api_endpoint.model_id}} 
+                --task {{config.params.task}}
+                --output {{config.output_dir}}
+  
+  config:
+    params:
+      temperature: 0.0
+      max_new_tokens: 1024
+  
+  target:
+    api_endpoint:
+      type: chat
+      supported_endpoint_types:
+        - chat
+        - completions
+
+# 3. Evaluation Types
+evaluations:
+  - name: my_task_1
+    description: First evaluation task
+    defaults:
+      config:
+        type: my_task_1
+        supported_endpoint_types:
+          - chat
+        params:
+          task: my_task_1
+```
+
+## Reference Documentation
+
+<Cards>
+
+<Card title="Framework Section" href="/libraries/libraries-nemo-evaluator/extending/framework-definition-file/framework-section">
+Define framework metadata including name, package information, and repository URL.
+</Card>
+
+<Card title="Defaults Section" href="/libraries/libraries-nemo-evaluator/extending/framework-definition-file/defaults-section">
+Configure default parameters, command templates, and target endpoint settings.
+</Card>
+
+<Card title="Evaluations Section" href="/libraries/libraries-nemo-evaluator/extending/framework-definition-file/evaluations-section">
+Define specific evaluation types with task-specific configurations and parameters.
+</Card>
+
+<Card title="Advanced Features" href="/libraries/libraries-nemo-evaluator/extending/framework-definition-file/advanced-features">
+Use conditionals, parameter inheritance, and dynamic configuration in your FDF.
+</Card>
+
+<Card title="Integration" href="/libraries/libraries-nemo-evaluator/extending/framework-definition-file/integration">
+Learn how to integrate your FDF with the Eval Factory system.
+</Card>
+
+<Card title="Troubleshooting" href="/libraries/libraries-nemo-evaluator/extending/framework-definition-file/fdf-troubleshooting">
+Debug common issues with template errors, parameters, and validation.
+</Card>
+
+</Cards>
+
+## Related Documentation
+
+- [eval-custom-tasks](/evaluation/custom-task) - Learn how to create custom evaluation tasks
+- [extending-evaluator]( - Overview of extending the NeMo Evaluator
+- [parameter-overrides](/references/api/nemo-evaluator/cli) - Using parameter overrides in evaluations

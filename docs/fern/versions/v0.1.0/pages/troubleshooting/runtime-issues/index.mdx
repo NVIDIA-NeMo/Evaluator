@@ -1,0 +1,73 @@
+---
+title: "Runtime and Execution Issues"
+description: ""
+---
+# Runtime and Execution Issues
+
+Solutions for problems that occur during evaluation execution, including configuration validation and launcher management.
+
+## Common Runtime Problems
+
+When evaluations fail during execution, start with these diagnostic steps:
+
+<Tabs>
+<Tab title="Configuration Check">
+
+```bash
+# Validate configuration before running
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml --dry-run
+
+# Test minimal configuration
+python -c "
+from nemo_evaluator import EvaluationConfig, ConfigParams
+config = EvaluationConfig(type='mmlu', params=ConfigParams(limit_samples=1))
+print('Configuration valid')
+"
+```
+
+</Tab>
+
+<Tab title="Endpoint Test">
+
+```python
+import requests
+
+# Test model endpoint connectivity
+response = requests.post(
+    "http://0.0.0.0:8080/v1/completions/",
+    json={"prompt": "test", "model": "megatron_model", "max_tokens": 1}
+)
+print(f"Endpoint status: {response.status_code}")
+```
+
+</Tab>
+
+<Tab title="Resource Monitor">
+
+```bash
+# Monitor system resources during evaluation
+nvidia-smi -l 1  # GPU usage
+htop            # CPU/Memory usage
+```
+
+</Tab>
+
+</Tabs>
+
+## Runtime Categories
+
+Choose the category that matches your runtime issue:
+
+<Cards>
+
+<Card title="Configuration Issues" href="/troubleshooting/runtime-issues/configuration">
+
+Config parameter validation, tokenizer setup, and endpoint configuration problems.
+</Card>
+
+<Card title="Launcher Issues" href="/troubleshooting/runtime-issues/launcher">
+
+NeMo Evaluator Launcher-specific problems including job management and multi-backend execution.
+</Card>
+
+</Cards>

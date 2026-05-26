@@ -1,0 +1,58 @@
+---
+title: "Tutorials for NeMo Framework"
+description: ""
+position: 3
+---
+## Before You Start
+
+Before starting the tutorials, ensure you have:
+
+- **NeMo Framework Container**: Running the latest [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo)
+- **Model Checkpoint**: Access to a Megatron Bridge checkpoint (tutorials use Llama 3.2 1B Instruct converted from a Hugging Face format). 
+- **GPU Resources**: CUDA-compatible GPU with sufficient memory
+- **Jupyter Environment**: Ability to run Jupyter notebooks
+
+---
+
+## Available Tutorials
+
+Build your expertise with these progressive tutorials:
+
+<Cards>
+
+<Card title="Orchestrating evaluations with NeMo Run" href="/tutorials/tutorials-nemo-fw/nemo-run">
+Launch deployment and evaluation jobs using NeMo Run.
+</Card>
+
+<Card title="Basic evaluation with MMLU Evaluation" href="https://github.com/NVIDIA-NeMo/Eval/tree/main/tutorials/mmlu.ipynb">
+Deploy models and run evaluations with the MMLU benchmark for both completions and chat endpoints.
+</Card>
+
+<Card title="Enable additional evaluation harnesses" href="https://github.com/NVIDIA-NeMo/Eval/tree/main/tutorials/simple-evals.ipynb">
+Discover how to extend evaluation capabilities by installing additional harnesses and running HumanEval coding assessments.
+</Card>
+
+<Card title="Configure custom tasks" href="https://github.com/NVIDIA-NeMo/Eval/tree/main/tutorials/wikitext.ipynb">
+Master custom evaluation workflows by running WikiText benchmark with advanced configuration and log-probability analysis.
+</Card>
+
+</Cards>
+
+## Run the Notebook Tutorials
+
+1. Start NeMo Framework Container:
+   ```bash
+   # set your Hugging Face token for access to gated datasets and checkpoints
+   export HF_TOKEN=hf_...
+   docker run --rm -it -w /workdir -v $(pwd):/workdir \
+     -e HF_TOKEN \
+     --entrypoint bash --gpus all \
+     nvcr.io/nvidia/nemo:${TAG}
+   ```
+
+2. Launch Jupyter:
+   ```bash
+   jupyter lab --ip=0.0.0.0 --port=8888 --allow-root
+   ```
+
+3. Navigate to the `tutorials/` directory and open the desired notebook

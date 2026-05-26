@@ -1,0 +1,35 @@
+---
+title: "Configuration"
+description: ""
+position: 4
+---
+NeMo Evaluator stores persistent settings in a YAML config file.
+
+## Config File Location
+
+The config file is located at `~/.config/nemo-evaluator/config.yaml`.
+
+If the `XDG_CONFIG_HOME` environment variable is set, the file is located at `$XDG_CONFIG_HOME/nemo-evaluator/config.yaml` instead.
+
+## Managing Configuration
+
+Use the `nemo-evaluator-launcher config` subcommand to manage settings:
+
+```bash
+nemo-evaluator-launcher config set <key> <value>   # set a value
+nemo-evaluator-launcher config get <key>            # show effective value
+nemo-evaluator-launcher config show                 # dump full config file
+```
+
+## Available Settings
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `telemetry.level` | `2` | Telemetry reporting level (0=off, 1=minimal, 2=full). See [telemetry](/about/telemetry.) |
+
+## Example
+
+```yaml
+telemetry:
+  level: 1
+```
