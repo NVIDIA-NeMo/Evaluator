@@ -18,7 +18,6 @@ navbar-links:
 experimental:
   mdx-components:
     - ./components
-  basepath-aware: true
 
 versions:
   - display-name: Nightly
