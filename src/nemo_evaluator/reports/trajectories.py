@@ -36,7 +36,6 @@ from __future__ import annotations
 
 import json
 import logging
-import statistics
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -83,29 +82,6 @@ def _wire_dedup_key(record: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
-def _percentile(values: list[float], pct: float) -> float | None:
-    if not values:
-        return None
-    s = sorted(values)
-    k = (len(s) - 1) * pct
-    lo, hi = int(k), min(int(k) + 1, len(s) - 1)
-    if lo == hi:
-        return float(s[lo])
-    return float(s[lo] + (s[hi] - s[lo]) * (k - lo))
-
-
-def _stats(values: list[float]) -> dict[str, float | None]:
-    if not values:
-        return {"mean": None, "median": None, "p10": None, "p90": None, "max": None}
-    return {
-        "mean": round(statistics.fmean(values), 4),
-        "median": round(statistics.median(values), 4),
-        "p10": _percentile(values, 0.10),
-        "p90": _percentile(values, 0.90),
-        "max": round(max(values), 4),
-    }
-
-
 def _agent_steps(row: dict[str, Any]) -> list[dict[str, Any]]:
     traj = row.get("trajectory") or []
     if not traj:
@@ -144,22 +120,38 @@ def _load_eval_summary(bench_dir: Path) -> dict[str, Any] | None:
     return scores.get("summary") or scores.get("mean_reward")
 
 
-def _present_count(rows: list[dict[str, Any]], path: tuple[str, ...]) -> int:
-    n = 0
-    for r in rows:
-        cur: Any = r
-        for key in path:
-            if not isinstance(cur, dict) or key not in cur:
-                cur = None
-                break
-            cur = cur[key]
-        if cur is not None and cur != "":
-            n += 1
-    return n
-
-
 def _trial_key(row: dict[str, Any]) -> tuple[Any, Any]:
     return (row.get("problem_idx"), row.get("repeat"))
+
+
+def _present_at(items: list[dict[str, Any]], *keys: Any) -> str:
+    """Render ``N/total`` -- how many items have a non-empty value at the given path.
+
+    Keys may be strings (dict lookup) or ints (list index). A value counts as
+    present when it is not None, not an empty string, and not an empty
+    list/dict -- so ``reward: 0.0`` counts but ``trajectory: []`` doesn't.
+    """
+    n = 0
+    for item in items:
+        cur: Any = item
+        ok = True
+        for key in keys:
+            if isinstance(cur, list):
+                if not isinstance(key, int) or key >= len(cur):
+                    ok = False
+                    break
+                cur = cur[key]
+            elif isinstance(cur, dict):
+                if key not in cur:
+                    ok = False
+                    break
+                cur = cur[key]
+            else:
+                ok = False
+                break
+        if ok and cur is not None and cur != "" and not (isinstance(cur, (list, dict)) and not cur):
+            n += 1
+    return f"{n}/{len(items)}"
 
 
 def _fraction(numer: int, denom: int) -> str:
@@ -219,40 +211,8 @@ def _build_bench_report(
             failures[cat] += 1
 
     # ─── trajectory_native ────────────────────────────────────────────
-    all_agent_steps: list[dict[str, Any]] = []
-    per_trial_step_counts: list[int] = []
-    tool_calls_total = 0
-    reasoning_chars_total = 0
-    for r in traj_rows:
-        steps = _agent_steps(r)
-        per_trial_step_counts.append(len(steps))
-        all_agent_steps.extend(steps)
-        for s in steps:
-            tc = s.get("tool_calls") or []
-            if isinstance(tc, list):
-                tool_calls_total += len(tc)
-            rc = s.get("reasoning_content")
-            if isinstance(rc, str):
-                reasoning_chars_total += len(rc)
+    all_agent_steps: list[dict[str, Any]] = [s for r in traj_rows for s in _agent_steps(r)]
     n_steps = len(all_agent_steps)
-
-    def _field_present(field: str) -> str:
-        n = sum(1 for s in all_agent_steps if s.get(field) is not None)
-        return f"{n}/{n_steps}"
-
-    def _nested_present(*keys: str) -> str:
-        n = 0
-        for s in all_agent_steps:
-            cur: Any = s
-            ok = True
-            for key in keys:
-                if not isinstance(cur, dict) or cur.get(key) is None:
-                    ok = False
-                    break
-                cur = cur[key]
-            if ok:
-                n += 1
-        return f"{n}/{n_steps}"
 
     # ─── wire_captures (model_traffic.jsonl) ──────────────────────────
     total_wire = len(traffic_rows)
@@ -329,60 +289,13 @@ def _build_bench_report(
         "final_metrics.total_completion_tokens": ("trajectory", 0, "final_metrics", "total_completion_tokens"),
         "final_metrics.total_steps": ("trajectory", 0, "final_metrics", "total_steps"),
     }
-    atif_presence: dict[str, str] = {}
-    for label, path in atif_paths.items():
-        n = 0
-        for r in traj_rows:
-            cur: Any = r
-            ok = True
-            for key in path:
-                if isinstance(cur, list):
-                    if not isinstance(key, int) or key >= len(cur):
-                        ok = False
-                        break
-                    cur = cur[key]
-                elif isinstance(cur, dict):
-                    if key not in cur:
-                        ok = False
-                        break
-                    cur = cur[key]
-                else:
-                    ok = False
-                    break
-            if ok and cur is not None and cur != "":
-                n += 1
-        atif_presence[label] = f"{n}/{n_trials}"
+    atif_presence = {label: _present_at(traj_rows, *path) for label, path in atif_paths.items()}
 
-    # ─── anomalies (the things you actually want to know) ────────────
-    # Zero / None tokens per step + per trial
-    steps_with_zero_or_none_tokens = 0
-    trials_with_any_zero_step = 0
-    trials_all_zero_token_steps = 0
-    for r in traj_rows:
-        steps = _agent_steps(r)
-        if not steps:
-            continue
-        zero_in_trial = 0
-        for s in steps:
-            m = s.get("metrics") or {}
-            pt = m.get("prompt_tokens")
-            ct = m.get("completion_tokens")
-            if (not pt) and (not ct):
-                steps_with_zero_or_none_tokens += 1
-                zero_in_trial += 1
-        if zero_in_trial > 0:
-            trials_with_any_zero_step += 1
-        if zero_in_trial == len(steps):
-            trials_all_zero_token_steps += 1
-
-    # Duplicate wire calls inside a single trial (request_hash-based)
-    duplicate_wire_calls_in_trial = 0
+    # Trials that have ≥1 duplicate wire call (request_hash-based, or fallback key).
     trials_with_duplicate_wire_calls = 0
-    for key, recs in traffic_by_trial.items():
+    for recs in traffic_by_trial.values():
         hashes = Counter(_wire_dedup_key(r) for r in recs)
-        per_trial_dups = sum(v - 1 for v in hashes.values() if v > 1)
-        if per_trial_dups > 0:
-            duplicate_wire_calls_in_trial += per_trial_dups
+        if any(v > 1 for v in hashes.values()):
             trials_with_duplicate_wire_calls += 1
 
     # After removing duplicate wire calls, does the mismatch resolve?
@@ -409,30 +322,31 @@ def _build_bench_report(
     if traj_mean is not None and reported_mean is not None:
         is_mean_reward_correct = abs(traj_mean - reported_mean) < 1e-6
 
-    step_field_coverage = {
-        "step_id": _field_present("step_id"),
-        "source": _field_present("source"),
-        "timestamp": _field_present("timestamp"),
-        "model_name": _field_present("model_name"),
-        "status_code": _field_present("status_code"),
-        "message": _field_present("message"),
-        "reasoning_content": _field_present("reasoning_content"),
-        "tool_calls": _field_present("tool_calls"),
-        "metrics.prompt_tokens": _nested_present("metrics", "prompt_tokens"),
-        "metrics.completion_tokens": _nested_present("metrics", "completion_tokens"),
-        "metrics.total_tokens": _nested_present("metrics", "total_tokens"),
-        "metrics.extra.latency_ms": _nested_present("metrics", "extra", "latency_ms"),
-        "metrics.extra.finish_reason": _nested_present("metrics", "extra", "finish_reason"),
-        "metrics.extra.cached_tokens": _nested_present("metrics", "extra", "cached_tokens"),
-        "metrics.extra.reasoning_tokens": _nested_present("metrics", "extra", "reasoning_tokens"),
-    }
+    _STEP_FIELDS: tuple[tuple[str, ...], ...] = (
+        ("step_id",),
+        ("source",),
+        ("timestamp",),
+        ("model_name",),
+        ("status_code",),
+        ("message",),
+        ("reasoning_content",),
+        ("tool_calls",),
+        ("metrics", "prompt_tokens"),
+        ("metrics", "completion_tokens"),
+        ("metrics", "total_tokens"),
+        ("metrics", "extra", "latency_ms"),
+        ("metrics", "extra", "finish_reason"),
+        ("metrics", "extra", "cached_tokens"),
+        ("metrics", "extra", "reasoning_tokens"),
+    )
+    step_field_coverage = {".".join(p): _present_at(all_agent_steps, *p) for p in _STEP_FIELDS}
 
     row_field_coverage = {
-        "problem_idx": f"{sum(1 for r in traj_rows if r.get('problem_idx') is not None)}/{n_trials}",
-        "repeat": f"{sum(1 for r in traj_rows if r.get('repeat') is not None)}/{n_trials}",
-        "reward": f"{sum(1 for r in traj_rows if isinstance(r.get('reward'), (int, float)))}/{n_trials}",
-        "trajectory": f"{sum(1 for r in traj_rows if r.get('trajectory'))}/{n_trials}",
-        "model": f"{sum(1 for r in traj_rows if r.get('model'))}/{n_trials}",
+        "problem_idx": _present_at(traj_rows, "problem_idx"),
+        "repeat": _present_at(traj_rows, "repeat"),
+        "reward": _present_at(traj_rows, "reward"),
+        "trajectory": _present_at(traj_rows, "trajectory"),
+        "model": _present_at(traj_rows, "model"),
         **{f"trajectory[0].{k}": v for k, v in atif_presence.items()},
     }
 
@@ -628,35 +542,16 @@ def generate_trajectories_report(
             enriched_path = d / "trajectories_enriched.jsonl"
             enriched_step_coverage: dict[str, str] = {}
             if enriched_path.is_file():
-                enriched_rows = _read_jsonl(enriched_path)
-                enriched_steps: list[dict[str, Any]] = []
-                for r in enriched_rows:
-                    enriched_steps.extend(_agent_steps(r))
-                en_n = len(enriched_steps)
-                if en_n:
-
-                    def _enpresent(field: str) -> str:
-                        return f"{sum(1 for s in enriched_steps if s.get(field) is not None)}/{en_n}"
-
-                    def _ennested(*keys: str) -> str:
-                        n = 0
-                        for s in enriched_steps:
-                            cur: Any = s
-                            ok = True
-                            for k in keys:
-                                if not isinstance(cur, dict) or cur.get(k) is None:
-                                    ok = False
-                                    break
-                                cur = cur[k]
-                            if ok:
-                                n += 1
-                        return f"{n}/{en_n}"
-
+                enriched_steps = [s for r in _read_jsonl(enriched_path) for s in _agent_steps(r)]
+                if enriched_steps:
                     enriched_step_coverage = {
-                        "metrics.prompt_tokens": _ennested("metrics", "prompt_tokens"),
-                        "metrics.completion_tokens": _ennested("metrics", "completion_tokens"),
-                        "metrics.extra.latency_ms": _ennested("metrics", "extra", "latency_ms"),
-                        "metrics.extra.finish_reason": _ennested("metrics", "extra", "finish_reason"),
+                        ".".join(p): _present_at(enriched_steps, *p)
+                        for p in (
+                            ("metrics", "prompt_tokens"),
+                            ("metrics", "completion_tokens"),
+                            ("metrics", "extra", "latency_ms"),
+                            ("metrics", "extra", "finish_reason"),
+                        )
                     }
             bench_report["enrichment"] = {
                 "_note": (
