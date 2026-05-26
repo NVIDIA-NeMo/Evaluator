@@ -1,0 +1,167 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Release (tagged)
+
+# Fires when a release tag is pushed (e.g. `v0.3.0a1`, `v0.3.0rc1`, `v0.3.0`).
+# Builds the wheel + sdist from the tag, publishes to real PyPI via the
+# trusted-publisher OIDC flow, and creates an immutable GitHub Release with
+# the artifacts attached. Pre-release tags (a/b/rc) are marked as prerelease.
+#
+# Distinct from `dev-wheel.yml`, which publishes rolling `.devN` builds to
+# TestPyPI from every push to `dev/0.3.0`. This workflow is for tagged,
+# user-facing releases only.
+#
+# PyPI trusted publisher setup (one-time, done in the PyPI UI):
+#   Owner: NVIDIA-NeMo  Repo: Evaluator  Workflow: release.yml  Environment: pypi
+
+on:
+  push:
+    tags:
+      - "v0.3.0a*"
+      - "v0.3.0b*"
+      - "v0.3.0rc*"
+      - "v0.3.0"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re-)publish (e.g. v0.3.0a1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write    # create GitHub releases
+  id-token: write    # OIDC token for PyPI trusted publisher
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Derive version from tag
+        id: version
+        run: |
+          # GITHUB_REF for tags is `refs/tags/vX.Y.ZaN`; workflow_dispatch passes the tag directly.
+          TAG="${{ inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+
+          # PEP 440 sanity check: digits, optional pre-release segment, no other suffix.
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(a|b|rc)?[0-9]*$ ]]; then
+            echo "Refusing to release: tag '$TAG' does not look like a PEP 440 version." >&2
+            exit 1
+          fi
+
+          # Detect pre-release segment so we can mark the GitHub Release accordingly.
+          if [[ "$VERSION" =~ (a|b|rc)[0-9]*$ ]]; then
+            PRERELEASE="true"
+          else
+            PRERELEASE="false"
+          fi
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
+          echo "Releasing ${VERSION} (prerelease=${PRERELEASE})"
+
+      - name: Verify tag matches pyproject.toml
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          PYPROJECT_VERSION=$(grep -E '^version = "' pyproject.toml | head -1 | sed -E 's/version = "(.*)"/\1/')
+          if [[ "$PYPROJECT_VERSION" != "$VERSION" ]]; then
+            echo "Tag/pyproject mismatch: tag=${VERSION} pyproject=${PYPROJECT_VERSION}" >&2
+            echo "Bump pyproject.toml + package_info.py to ${VERSION} on dev/0.3.0 before tagging." >&2
+            exit 1
+          fi
+
+      - name: Build wheel + sdist
+        run: uv build --no-sources
+
+      - name: Verify built artifact version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          WHL=$(ls dist/*.whl)
+          echo "Built wheel: $WHL"
+          BUILT=$(unzip -p "$WHL" "*/METADATA" | grep "^Version:" | head -1 | awk '{print $2}')
+          if [[ "$BUILT" != "$VERSION" ]]; then
+            echo "Built wheel version ${BUILT} does not match tag ${VERSION}" >&2
+            exit 1
+          fi
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+
+      - name: Extract release notes for this version
+        id: notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Pull the section between `## <version> (...)` and the next `## ` header.
+          NOTES=$(awk -v v="$VERSION" '
+            $0 ~ "^## " v " " {flag=1; print; next}
+            flag && /^## / {exit}
+            flag {print}
+          ' CHANGELOG.md)
+
+          if [[ -z "$NOTES" ]]; then
+            echo "No CHANGELOG section for ${VERSION}; falling back to a stub." >&2
+            NOTES="Release ${VERSION}. See CHANGELOG.md for details."
+          fi
+
+          {
+            echo "notes<<EOF_NOTES"
+            echo "$NOTES"
+            echo ""
+            echo "---"
+            echo ""
+            echo "Install: \`pip install --pre nemo-evaluator==${VERSION}\`"
+            echo "EOF_NOTES"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+          NOTES: ${{ steps.notes.outputs.notes }}
+        run: |
+          FLAGS=""
+          if [[ "$PRERELEASE" == "true" ]]; then
+            FLAGS="--prerelease"
+          fi
+
+          # Idempotent: if the release already exists (e.g. workflow_dispatch re-run),
+          # just upload artifacts to it; otherwise create it fresh.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" dist/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "nemo-evaluator ${VERSION}" \
+              --notes "$NOTES" \
+              $FLAGS
+          fi

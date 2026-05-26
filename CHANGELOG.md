@@ -2,6 +2,10 @@
 
 ## 0.3.0 (unreleased)
 
+## 0.3.0a1 (2026-05-26)
+
+First public alpha of the 0.3.0 line. Install with `pip install --pre nemo-evaluator==0.3.0a1`.
+
 ### Adapter Proxy (Breaking — replaces LiteLLM)
 
 - **LiteLLM removed**: The `litellm` dependency, `proxy` and `proxy-full` extras, and `litellm_settings` config field are all removed. The adapter proxy is now built-in with zero external proxy dependencies.

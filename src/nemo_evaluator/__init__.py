@@ -18,7 +18,7 @@
 # can safely back-reference ``nemo_evaluator.__version__`` without triggering
 # a circular import while ``__init__.py`` is partially loaded. ``package_info``
 # remains the canonical source for the FW-CI-templates wheel patcher.
-__version__ = "0.3.0"
+__version__ = "0.3.0a1"
 __package_name__ = "nemo_evaluator"
 
 from nemo_evaluator.engine.eval_loop import run_evaluation

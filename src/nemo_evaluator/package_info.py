@@ -27,7 +27,7 @@ to keep them in sync.
 MAJOR = 0
 MINOR = 3
 PATCH = 0
-PRE_RELEASE = ""
+PRE_RELEASE = "a1"
 
 # Use the following formatting: (major, minor, patch, pre-release)
 VERSION = (MAJOR, MINOR, PATCH, PRE_RELEASE)
