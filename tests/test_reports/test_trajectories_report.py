@@ -222,33 +222,27 @@ def test_no_benches_returns_none(tmp_path: Path) -> None:
     assert generate_trajectories_report(tmp_path) is None
 
 
-def test_wire_duplicates_via_request_hash(tmp_path: Path) -> None:
-    bench = tmp_path / "pb"
-    _write_jsonl(
-        bench / "trajectories.jsonl",
-        [_trial(0, 0, reward=1.0, steps=[_agent_step(0, msg="x", pt=5, ct=3)])],
-    )
-    # Two records with same request_hash → exact dedup catches it
-    dup = {**_wire(0, 0, prompt=10, completion=5), "request_hash": "abc"}
-    _write_jsonl(bench / "model_traffic.jsonl", [dup, dup])
-    wc = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["wire_calls"]
-    assert wc["total"] == 2
-    assert wc["unique"] == 1
-    assert wc["duplicates_total"] == 1
-    assert wc["trials_with_duplicates"] == 1
-
-
-def test_wire_dedup_fallback_when_no_request_hash(tmp_path: Path) -> None:
-    """Older rows without request_hash use the heuristic response-side key."""
+@pytest.mark.parametrize(
+    "request_hash",
+    ["abc", None],
+    ids=["request_hash", "fallback_heuristic"],
+)
+def test_wire_dedup(tmp_path: Path, request_hash: str | None) -> None:
+    """Exact dedup via request_hash; falls back to the response-side key for older rows."""
     bench = tmp_path / "pb"
     _write_jsonl(
         bench / "trajectories.jsonl",
         [_trial(0, 0, reward=1.0, steps=[_agent_step(0, msg="x", pt=5, ct=3)])],
     )
     rec = _wire(0, 0, prompt=10, completion=5)
+    if request_hash is not None:
+        rec["request_hash"] = request_hash
     _write_jsonl(bench / "model_traffic.jsonl", [rec, rec])
     wc = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["wire_calls"]
+    assert wc["total"] == 2
+    assert wc["unique"] == 1
     assert wc["duplicates_total"] == 1
+    assert wc["trials_with_duplicates"] == 1
 
 
 def test_step_wire_mismatch_after_dedup(tmp_path: Path) -> None:
