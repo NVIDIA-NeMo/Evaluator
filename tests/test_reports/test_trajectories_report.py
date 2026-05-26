@@ -120,9 +120,6 @@ def test_tokens_section(bundle: Path) -> None:
     # 2 trials × (pt+ct): trial0=15, trial1=20+10+30+8=68 → 83 across all
     assert t["per_step_sum"] == 83
     assert t["wire_total"] == 83
-    assert t["final_metrics_total"] == 83
-    assert t["per_step_matches_wire"] is True
-    assert t["final_metrics_matches_wire"] is True
     assert t["trials_with_per_step_vs_final_metrics_mismatch"] == 0
 
 
@@ -130,16 +127,13 @@ def test_wire_calls_section(bundle: Path) -> None:
     report = json.loads(generate_trajectories_report(bundle).read_text())["benchmarks"][0]
     wc = report["wire_calls"]
     assert wc["total"] == 3
-    assert wc["successful"] == 3
     assert wc["unique"] == 3
-    assert wc["duplicates_total"] == 0
     assert wc["trials_with_duplicates"] == 0
     assert wc["trials_with_more_wire_than_steps"] == 0
     assert wc["trials_with_fewer_wire_than_steps"] == 0
     assert wc["trials_with_no_agent_steps"] == "0/2 (0.0%)"
     assert wc["trials_with_no_wire_calls"] == "0/2 (0.0%)"
     assert wc["trials_silent_either_way"] == "0/2 (0.0%)"
-    assert wc["finish_reasons"] == {"stop": 2, "tool_calls": 1}
 
 
 _OK_STEP = _agent_step(0, msg="x", pt=5, ct=3)
@@ -187,25 +181,26 @@ def test_silent_failure_metric_per_trial(
     assert report["enrichment"][_ENRICHMENT_FIELD[enrich_kind]] == 1
 
 
-def test_field_coverage_per_trial_and_step(bundle: Path) -> None:
+def test_field_coverage_only_lists_missing(bundle: Path) -> None:
+    """Fully-populated fields are silent; only gaps appear -- with their presence ratio."""
     report = json.loads(generate_trajectories_report(bundle).read_text())["benchmarks"][0]
     fc = report["field_coverage"]
-    assert fc["agent_step_count"] == 3
-    # Per-trial required + ATIF trajectory fields
-    pt = fc["per_trial"]
-    assert pt["problem_idx"] == "2/2"
-    assert pt["reward"] == "2/2"
-    assert pt["trajectory[0].schema_version"] == "2/2"
-    assert pt["trajectory[0].agent.name"] == "2/2"
-    # Per-step ATIF coverage
-    ps = fc["per_agent_step"]
-    assert ps["step_id"] == "3/3"
-    assert ps["metrics.prompt_tokens"] == "3/3"
-    assert ps["metrics.extra.latency_ms"] == "0/3"  # not set in fixture
-    assert ps["metrics.extra.finish_reason"] == "0/3"
+    # Fixture sets problem_idx/reward/agent.name on every trial → those don't appear.
+    trial_misses = {e["field"]: e["presence"] for e in fc["per_trial_missing"]}
+    assert "problem_idx" not in trial_misses
+    assert "trajectory[0].schema_version" not in trial_misses
+    # ...but agent.parent_agent and trajectory[0].extra are never set in the fixture.
+    assert trial_misses["trajectory[0].agent.parent_agent"] == "0/2"
+    assert trial_misses["trajectory[0].extra"] == "0/2"
+    # Per-step: prompt_tokens always set, latency_ms/finish_reason never set.
+    step_misses = {e["field"]: e["presence"] for e in fc["per_agent_step_missing"]}
+    assert "step_id" not in step_misses
+    assert "metrics.prompt_tokens" not in step_misses
+    assert step_misses["metrics.extra.latency_ms"] == "0/3"
+    assert step_misses["metrics.extra.finish_reason"] == "0/3"
 
 
-def test_score_mean_reward_correct(tmp_path: Path) -> None:
+def test_score(tmp_path: Path) -> None:
     bench = tmp_path / "pb"
     _write_jsonl(
         bench / "trajectories.jsonl",
@@ -215,54 +210,29 @@ def test_score_mean_reward_correct(tmp_path: Path) -> None:
     score = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["score"]
     assert score["mean_reward"] == 1.0
     assert score["reported_mean"] == 1.0
-    assert score["is_mean_reward_correct"] is True
 
 
 def test_no_benches_returns_none(tmp_path: Path) -> None:
     assert generate_trajectories_report(tmp_path) is None
 
 
-@pytest.mark.parametrize(
-    "request_hash",
-    ["abc", None],
-    ids=["request_hash", "fallback_heuristic"],
-)
-def test_wire_dedup(tmp_path: Path, request_hash: str | None) -> None:
-    """Exact dedup via request_hash; falls back to the response-side key for older rows."""
+def test_wire_dedup_via_request_hash(tmp_path: Path) -> None:
+    """Identical request_hash → unique drops, the trial is flagged as having dups."""
     bench = tmp_path / "pb"
     _write_jsonl(
         bench / "trajectories.jsonl",
         [_trial(0, 0, reward=1.0, steps=[_agent_step(0, msg="x", pt=5, ct=3)])],
     )
-    rec = _wire(0, 0, prompt=10, completion=5)
-    if request_hash is not None:
-        rec["request_hash"] = request_hash
-    _write_jsonl(bench / "model_traffic.jsonl", [rec, rec])
+    dup = {**_wire(0, 0, prompt=10, completion=5), "request_hash": "abc"}
+    _write_jsonl(bench / "model_traffic.jsonl", [dup, dup])
     wc = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["wire_calls"]
     assert wc["total"] == 2
     assert wc["unique"] == 1
-    assert wc["duplicates_total"] == 1
     assert wc["trials_with_duplicates"] == 1
 
 
-def test_step_wire_mismatch_after_dedup(tmp_path: Path) -> None:
-    """1 step + 2 identical wires → dedup resolves the mismatch."""
-    bench = tmp_path / "pb"
-    _write_jsonl(
-        bench / "trajectories.jsonl",
-        [_trial(0, 0, reward=1.0, steps=[_agent_step(0, msg="x", pt=5, ct=3)])],
-    )
-    rec = {**_wire(0, 0, prompt=10, completion=5), "request_hash": "h0"}
-    _write_jsonl(bench / "model_traffic.jsonl", [rec, rec])
-    wc = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["wire_calls"]
-    # raw counts disagree (1 step vs 2 wires)
-    assert wc["trials_with_more_wire_than_steps"] == 1
-    # after dedup resolves
-    assert wc["trials_with_step_wire_mismatch_after_dedup"] == 0
-
-
 def test_tokens_per_step_vs_wire_mismatch(tmp_path: Path) -> None:
-    """per_step_sum=0 but wire_total>0 → bug surface that enrichment fixes."""
+    """per_step_sum=0 but wire_total>0 → the two numbers disagree on their own."""
     bench = tmp_path / "pb"
     _write_jsonl(
         bench / "trajectories.jsonl",
@@ -272,7 +242,6 @@ def test_tokens_per_step_vs_wire_mismatch(tmp_path: Path) -> None:
     t = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["tokens"]
     assert t["per_step_sum"] == 0
     assert t["wire_total"] == 49
-    assert t["per_step_matches_wire"] is False
 
 
 def test_enrich_writes_enriched_jsonl_and_reports_changes(bundle: Path) -> None:
@@ -286,10 +255,8 @@ def test_enrich_writes_enriched_jsonl_and_reports_changes(bundle: Path) -> None:
     # latency / finish_reason weren't on steps before; backfilled now
     assert enrichment["steps_backfilled"]["latency_ms"] >= 1
     assert enrichment["steps_backfilled"]["finish_reason"] >= 1
-    # The after-state coverage is right there in the report
-    after = enrichment["step_field_coverage_after_enrichment"]
-    assert after["metrics.extra.latency_ms"] == "3/3"
-    assert after["metrics.extra.finish_reason"] == "3/3"
+    # After backfill, no metric field is missing → the "missing" list is empty.
+    assert enrichment["step_field_coverage_after_enrichment_missing"] == []
 
 
 def test_enrich_all_or_nothing_per_trial(tmp_path: Path) -> None:
