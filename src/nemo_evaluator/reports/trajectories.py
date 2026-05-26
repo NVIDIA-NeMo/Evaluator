@@ -44,6 +44,23 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def _is_successful_wire(record: dict[str, Any]) -> bool:
+    """Mirror ``model_traffic._is_success``: only 2xx/3xx responses count.
+
+    Failed calls live in ``model_traffic.jsonl`` too (with ``status_code=None``
+    or ``>=400``); we exclude them from both the silent-failure metric and
+    the enrichment splice so retries/errors don't get attributed to a step.
+    """
+    sc = record.get("status_code")
+    if sc is None:
+        return False
+    try:
+        sc_int = int(sc)
+    except (TypeError, ValueError):
+        return False
+    return 200 <= sc_int < 400
+
+
 def _wire_dedup_key(record: dict[str, Any]) -> tuple[Any, ...]:
     """Duplicate-detection key for a single ``model_traffic.jsonl`` row.
 
@@ -145,11 +162,23 @@ def _trial_key(row: dict[str, Any]) -> tuple[Any, Any]:
     return (row.get("problem_idx"), row.get("repeat"))
 
 
+def _fraction(numer: int, denom: int) -> str:
+    """Render ``N/total (P.P%)``; ``0/0 (0.0%)`` when the denominator is zero."""
+    if denom <= 0:
+        return "0/0 (0.0%)"
+    pct = 100.0 * numer / denom
+    return f"{numer}/{denom} ({pct:.1f}%)"
+
+
 def _index_traffic_by_trial(
     traffic_rows: list[dict[str, Any]],
+    *,
+    only_successful: bool = True,
 ) -> dict[tuple[Any, Any], list[dict[str, Any]]]:
     bucket: dict[tuple[Any, Any], list[dict[str, Any]]] = {}
     for r in traffic_rows:
+        if only_successful and not _is_successful_wire(r):
+            continue
         key = (r.get("problem_idx"), r.get("repeat"))
         bucket.setdefault(key, []).append(r)
     return bucket
@@ -227,14 +256,18 @@ def _build_bench_report(
 
     # ─── wire_captures (model_traffic.jsonl) ──────────────────────────
     total_wire = len(traffic_rows)
+    successful_wire = sum(1 for r in traffic_rows if _is_successful_wire(r))
     finish_reason_hist = Counter()
     for r in traffic_rows:
         fr = r.get("finish_reason")
         if fr:
             finish_reason_hist[fr] += 1
 
-    # ─── step <-> wire mismatch ───────────────────────────────────────
+    # ─── step <-> wire mismatch + silent-failure trials ───────────────
     delta_signs = {"captures>steps": 0, "captures<steps": 0, "equal": 0}
+    trials_no_agent_steps = 0
+    trials_no_wire_calls = 0
+    trials_silent_either = 0
     for r in traj_rows:
         key = _trial_key(r)
         cap_n = len(traffic_by_trial.get(key, []))
@@ -245,6 +278,14 @@ def _build_bench_report(
             delta_signs["captures<steps"] += 1
         else:
             delta_signs["equal"] += 1
+        no_steps = step_n == 0
+        no_wire = cap_n == 0
+        if no_steps:
+            trials_no_agent_steps += 1
+        if no_wire:
+            trials_no_wire_calls += 1
+        if no_steps or no_wire:
+            trials_silent_either += 1
 
     # ─── token reconciliation ─────────────────────────────────────────
     def _step_tokens(s: dict[str, Any]) -> int:
@@ -440,17 +481,23 @@ def _build_bench_report(
         # ── 3. Wire call summary + duplicates ──
         "wire_calls": {
             "_note": (
-                "model_traffic.jsonl row stats. duplicates_total is computed via record.request_hash "
-                "(sha1 prefix of the upstream body); a non-zero value means the same model call landed "
-                "in the log twice (e.g. retry, double-capture)."
+                "model_traffic.jsonl row stats. Step/wire alignment and the silent-failure "
+                "metrics below count only successful (2xx/3xx) wire rows -- a 500 or aborted "
+                "request is not a 'captured' model call. 'total' is raw (all statuses) so the "
+                "failure volume stays visible. duplicates_total is via record.request_hash "
+                "(sha1 prefix of the upstream body)."
             ),
             "total": total_wire,
+            "successful": successful_wire,
             "unique": len(wire_keys_unique),
             "duplicates_total": duplicates_total,
             "trials_with_duplicates": trials_with_duplicate_wire_calls,
             "trials_with_more_wire_than_steps": delta_signs["captures>steps"],
             "trials_with_fewer_wire_than_steps": delta_signs["captures<steps"],
             "trials_with_step_wire_mismatch_after_dedup": mismatched_steps_vs_wire_trials_after_wire_dedup,
+            "trials_with_no_agent_steps": _fraction(trials_no_agent_steps, n_trials),
+            "trials_with_no_wire_calls": _fraction(trials_no_wire_calls, n_trials),
+            "trials_silent_either_way": _fraction(trials_silent_either, n_trials),
             "finish_reasons": dict(finish_reason_hist),
         },
         # ── 4. Field coverage (presence audit) ──

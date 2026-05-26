@@ -51,11 +51,20 @@ def _agent_step(step_id: int, *, msg: str, pt: int, ct: int, tool_calls: list | 
     return s
 
 
-def _wire(problem_idx: int, repeat: int, *, prompt: int, completion: int, finish: str = "stop") -> dict:
+def _wire(
+    problem_idx: int,
+    repeat: int,
+    *,
+    prompt: int,
+    completion: int,
+    finish: str = "stop",
+    status_code: int = 200,
+) -> dict:
     return {
         "problem_idx": problem_idx,
         "repeat": repeat,
         "session_id": f"sess-{problem_idx}-{repeat}",
+        "status_code": status_code,
         "finish_reason": finish,
         "usage": {"prompt_tokens": prompt, "completion_tokens": completion, "total_tokens": prompt + completion},
         "latency_ms": 100.0,
@@ -121,12 +130,61 @@ def test_wire_calls_section(bundle: Path) -> None:
     report = json.loads(generate_trajectories_report(bundle).read_text())["benchmarks"][0]
     wc = report["wire_calls"]
     assert wc["total"] == 3
+    assert wc["successful"] == 3
     assert wc["unique"] == 3
     assert wc["duplicates_total"] == 0
     assert wc["trials_with_duplicates"] == 0
     assert wc["trials_with_more_wire_than_steps"] == 0
     assert wc["trials_with_fewer_wire_than_steps"] == 0
+    assert wc["trials_with_no_agent_steps"] == "0/2 (0.0%)"
+    assert wc["trials_with_no_wire_calls"] == "0/2 (0.0%)"
+    assert wc["trials_silent_either_way"] == "0/2 (0.0%)"
     assert wc["finish_reasons"] == {"stop": 2, "tool_calls": 1}
+
+
+_OK_STEP = _agent_step(0, msg="x", pt=5, ct=3)
+_OK_WIRE = _wire(0, 0, prompt=5, completion=3)
+_FAILED_WIRE = _wire(0, 0, prompt=5, completion=3, status_code=500)
+_ENRICHMENT_FIELD = {
+    "spliced": "trials_spliced_1_to_1",
+    "stashed": "trials_with_unmatched_calls_stashed",
+    "no_wire": "trials_with_no_wire_data",
+}
+
+
+@pytest.mark.parametrize(
+    "steps, wire_rows, no_steps, no_wire, enrich_kind",
+    [
+        ([_OK_STEP], [_OK_WIRE], False, False, "spliced"),
+        ([], [_OK_WIRE], True, False, "stashed"),
+        ([_OK_STEP], [], False, True, "no_wire"),
+        ([_OK_STEP], [_FAILED_WIRE], False, True, "no_wire"),
+        ([], [], True, True, "no_wire"),
+    ],
+    ids=["healthy", "no_agent_steps", "no_wire", "failed_wire_only", "completely_empty"],
+)
+def test_silent_failure_metric_per_trial(
+    tmp_path: Path,
+    steps: list,
+    wire_rows: list,
+    no_steps: bool,
+    no_wire: bool,
+    enrich_kind: str,
+) -> None:
+    """One-trial bench: silent-failure flags + the failed-wire row is ignored by enrichment."""
+    bench = tmp_path / "pb"
+    _write_jsonl(bench / "trajectories.jsonl", [_trial(0, 0, reward=0.0, steps=steps)])
+    _write_jsonl(bench / "model_traffic.jsonl", wire_rows)
+    report = json.loads(generate_trajectories_report(tmp_path, enrich=True).read_text())["benchmarks"][0]
+    wc = report["wire_calls"]
+
+    def _pct(flag: bool) -> str:
+        return "1/1 (100.0%)" if flag else "0/1 (0.0%)"
+
+    assert wc["trials_with_no_agent_steps"] == _pct(no_steps)
+    assert wc["trials_with_no_wire_calls"] == _pct(no_wire)
+    assert wc["trials_silent_either_way"] == _pct(no_steps or no_wire)
+    assert report["enrichment"][_ENRICHMENT_FIELD[enrich_kind]] == 1
 
 
 def test_field_coverage_per_trial_and_step(bundle: Path) -> None:
