@@ -321,6 +321,7 @@ def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
         },
         "wire_calls": {
             "total": len(traffic_rows),
+            "successful": sum(1 for r in traffic_rows if _is_successful_wire(r)),
             "unique": wire_unique,
             "trials_with_duplicates": trials_with_dup_wire,
             "trials_with_more_wire_than_steps": trials_more_wire,
@@ -339,13 +340,17 @@ def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
 def _enrich_bench(bench_dir: Path) -> dict[str, int]:
     """All-or-nothing per-trial enrichment from ``model_traffic.jsonl``.
 
+    ``wire_calls`` below is the list of **successful (2xx/3xx)** rows for the
+    trial -- failed/retry rows live in the log too but are filtered out by
+    ``_index_traffic_by_trial`` so they never get attributed to a step.
+
     For each trial:
 
-    * If ``len(agent_steps) == len(wire_calls)`` — splice 1:1 by order
-      (backfill ``metrics.{prompt,completion}_tokens`` and
+    * If ``len(agent_steps) == len(successful_wire_calls)`` — splice 1:1
+      by order (backfill ``metrics.{prompt,completion}_tokens`` and
       ``metrics.extra.{latency_ms, finish_reason}``).
-    * Otherwise — leave the steps alone and stash **all** wire calls
-      under ``trajectory[0].extra.captured_model_calls``. We never
+    * Otherwise — leave the steps alone and stash **all** successful wire
+      calls under ``trajectory[0].extra.captured_model_calls``. We never
       mix-and-match when the counts don't line up: a partial splice
       would attribute the wrong call to the wrong step.
 
