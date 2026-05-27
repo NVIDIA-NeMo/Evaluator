@@ -29,7 +29,7 @@ on:
     paths:
       - 'docs/fern/**'
       - 'docs/**'
-      - '!docs/_extensions/**'
+      - 'packages/nemo-evaluator/**'
       - '.github/workflows/fern-docs-preview-build.yml'
 
 permissions:

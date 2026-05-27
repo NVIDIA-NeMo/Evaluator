@@ -77,9 +77,12 @@ navigation:
       - folder: ./v0.1.0/pages/references/api/nemo-evaluator/api
         title: "NeMo Evaluator Core Python API"
         title-source: frontmatter
+      - folder: ./v0.1.0/pages/references/api/nemo-evaluator/adapters
+        title-source: frontmatter
+      - folder: ./v0.1.0/pages/references/api/nemo-evaluator/sandbox
+        title-source: frontmatter
+      - page: "nemo-evaluator CLI"
+        path: ./v0.1.0/pages/references/api/nemo-evaluator/cli.mdx
       - folder: ./v0.1.0/pages/references/api/nemo-evaluator-launcher
         title: "NeMo Evaluator Launcher Python API"
-        title-source: frontmatter
-      - folder: ./v0.1.0/pages/references/api/nemo-evaluator
-        title: "nemo-evaluator CLI"
         title-source: frontmatter

@@ -112,12 +112,7 @@ jobs:
       gh-release-use-changelog-builder: true
       gh-release-changelog-included-paths: |
         packages/nemo-evaluator/
-      publish-docs: true
-      docs-target-path: nemo/evaluator
-      publish-as-latest: true
-      run-on-version-tag-only: ${{ github.ref_name != 'main' }}
-      docs-root-dir: "."
-      docs-requirements-file: .github/config/requirements.txt
+      publish-docs: false
       packaging: uv
       skip-test-wheel: true
       app-id: ${{ vars.BOT_ID }}

@@ -1,0 +1,69 @@
+---
+title: "Adapters overview"
+description: ''
+---
+
+Interceptors and PostEvalHooks are important part of NeMo Evaluator SDK. They expand functionality of each harness, providing a standardized way of enabling features in your evaluation runs. Behind each interceptor and post-eval-hook stands a specific class that implements its logic. However, these classes are referenced only to provide their configuration options which are reflected in `Params` of each class and to point from which classes one should inherit.
+
+From the usage perspective, one should always use configuration classes (see [Configuration](/references/api/nemo-evaluator/adapters/adapter-config)) to add them to evaluations. No interceptor should be directly instantiated.
+
+Interceptors are defined in a chain. They go under `target.api_endpoint.adapter_config` and can be defined as follow:
+
+```python
+adapter_config = AdapterConfig(
+    interceptors=[
+        InterceptorConfig(
+            name="system_message",
+            enabled=True,
+            config={"system_message": "You are a helpful assistant."},
+        ),
+        InterceptorConfig(name="request_logging", enabled=True),
+        InterceptorConfig(
+            name="caching",
+            enabled=True,
+            config={"cache_dir": "./cache", "reuse_cached_responses": True},
+        ),
+        InterceptorConfig(name="reasoning", enabled=True),
+        InterceptorConfig(name="endpoint"),
+    ]
+)
+```
+
+## Configuration
+
+| Name | Description |
+| --- | --- |
+| [DiscoveryConfig](/references/api/nemo-evaluator/adapters/adapter-config#discoveryconfig) | Configuration for discovering 3rd party modules and directories |
+| [InterceptorConfig](/references/api/nemo-evaluator/adapters/adapter-config#interceptorconfig) | Configuration for a single interceptor |
+| [PostEvalHookConfig](/references/api/nemo-evaluator/adapters/adapter-config#postevalhookconfig) | Configuration for a single post-evaluation hook |
+| [AdapterConfig](/references/api/nemo-evaluator/adapters/adapter-config#adapterconfig) | Adapter configuration with registry-based interceptor support |
+
+## Interceptors
+
+| Name | Description |
+| --- | --- |
+| [CachingInterceptor](/references/api/nemo-evaluator/adapters/interceptors#cachinginterceptor) | Caching interceptor is special in the sense that it intercepts both requests and responses. |
+| [EndpointInterceptor](/references/api/nemo-evaluator/adapters/interceptors#endpointinterceptor) | Required interceptor that handles the actual API communication. This interceptor must be present in every configuration as it performs the final request to the target API endpoint. > **Important:** This interceptor should always be placed after the last request interceptor and before the first response interceptor. |
+| [PayloadParamsModifierInterceptor](/references/api/nemo-evaluator/adapters/interceptors#payloadparamsmodifierinterceptor) | Adapter for modifying request payload by removing, adding, and renaming parameters and headers |
+| [ProgressTrackingInterceptor](/references/api/nemo-evaluator/adapters/interceptors#progresstrackinginterceptor) | Progress tracking via external webhook. |
+| [RaiseClientErrorInterceptor](/references/api/nemo-evaluator/adapters/interceptors#raiseclienterrorinterceptor) | Adapter for handling non-retryable client error to raise an exception instead of continuing the benchmark. |
+| [RequestLoggingInterceptor](/references/api/nemo-evaluator/adapters/interceptors#requestlogginginterceptor) | Logs incoming requests. |
+| [ResponseLoggingInterceptor](/references/api/nemo-evaluator/adapters/interceptors#responselogginginterceptor) | Logs responses. |
+| [ResponseReasoningInterceptor](/references/api/nemo-evaluator/adapters/interceptors#responsereasoninginterceptor) | Processes reasoning tokens from response. Collects statistics. Strips and/or moves reasoning tokens. |
+| [ResponseStatsInterceptor](/references/api/nemo-evaluator/adapters/interceptors#responsestatsinterceptor) | Collects aggregated statistics from API responses for metrics collection.  Tracks the following statistics: - Token usage (prompt, completion, total) with averages and maximums - Response status codes and counts - Finish reasons and stop reasons - Tool calls and function calls counts - Response latency (average and maximum) - Total response count - Number of runs, inference times (approximated by processing time from the first to the last response) |
+| [SystemMessageInterceptor](/references/api/nemo-evaluator/adapters/interceptors#systemmessageinterceptor) | Adds or replaces system message in requests. |
+
+## PostEvalHooks
+
+| Name | Description |
+| --- | --- |
+| [PostEvalReportHook](/references/api/nemo-evaluator/adapters/adapter-config#postevalreporthook) | Post-evaluation hook that generates reports from cached requests and responses. |
+
+## Interfaces
+
+| Name | Description |
+| --- | --- |
+| [RequestInterceptor](/references/api/nemo-evaluator/adapters/types#requestinterceptor) | Interface for providing interception of requests. |
+| [ResponseInterceptor](/references/api/nemo-evaluator/adapters/types#responseinterceptor) | Interface for providing interception of responses. |
+| [RequestToResponseInterceptor](/references/api/nemo-evaluator/adapters/types#requesttoresponseinterceptor) | Interface for interceptors that can either continue the request chain or return a response. |
+| [PostEvalHook](/references/api/nemo-evaluator/adapters/types#postevalhook) | Interface for post-evaluation hooks that run after the evaluation completes.  Post-evaluation hooks are executed after the main evaluation has finished, allowing for cleanup, report generation, or other post-processing tasks. |

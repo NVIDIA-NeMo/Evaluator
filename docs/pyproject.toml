@@ -2,30 +2,20 @@
 name = "nemo-evaluator-docs"
 # NOTE(martas): this version num shouldn't matter for docs versioning
 version = "0.2.0"
-description = "Documentation build dependencies for NeMo Evaluator"
+description = "Documentation tooling dependencies for NeMo Evaluator"
 requires-python = ">=3.10,<3.14"
 
 [dependency-groups]
 docs = [
-    "sphinx",
-    "sphinx-autobuild",          # For live doc serving while editing docs
-    "sphinx-autodoc2",           # For documenting Python API
-    "autodoc_pydantic",          # For rendering pydantic dataclasses
-    "enum-tools[sphinx]",        # for rendering enum classes
-    "sphinx-llms-txt",           # Generate llms.txt from built docs
-    "sphinxcontrib-autoprogram",
-    "sphinx-copybutton",         # Adds a copy button for code blocks
-    "myst-parser",               # For our markdown docs
-    "nvidia-sphinx-theme",       # Our NVIDIA theme
-    "sphinxcontrib-mermaid",     # For mermaid diagrams
-    "sphinx-design",             # For our design elements
-    "swagger-plugin-for-sphinx", # For Swagger API documentation
-    # Editable local dependencies for autogen scripts and API docs
+    "griffe>=2.0.2",
     "nemo-evaluator-launcher",
+    "nemo-evaluator",
+    "ruff>=0.9.9",
 ]
 
 [tool.uv.sources]
 nemo-evaluator-launcher = { path = "../packages/nemo-evaluator-launcher", editable = true }
+nemo-evaluator = { path = "../packages/nemo-evaluator", editable = true }
 
 [tool.setuptools]
 packages = []

@@ -57,25 +57,16 @@ Each package has its own virtual environment managed by UV. Choose your setup ba
    **For Documentation:**
 
    ```bash
-   # 1. First, sync the documentation dependencies
-   make docs-env
+   # Sync autogen dependencies and regenerate benchmark catalog (optional)
+   cd docs && uv sync --group docs
+   make docs-autogen
 
-   # 2. Build the HTML documentation
-   make docs-html
-
-   # 3. View the built documentation
-   python3 -m http.server --directory docs/_build/html 8000
+   # Generate Python API reference and start the Fern dev server
+   make -C docs docs-library
+   make -C docs docs
    ```
 
-   Then open your browser to: http://localhost:8000
-
-   If you want to see changes in real-time as you edit run the command below:
-
-   ```bash
-   # This starts a live-reload server that automatically rebuilds on changes
-   make docs-live
-   ```
-   This will start a server at http://localhost:8000 that automatically rebuilds when you save changes to any documentation files.
+   The Fern dev server opens at http://localhost:3004. Run `make -C docs docs-check` before opening a PR.
 
 ### Development Tools
 
