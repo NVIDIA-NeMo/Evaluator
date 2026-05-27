@@ -198,7 +198,12 @@ _TRIAL_FIELDS: dict[str, tuple[Any, ...]] = {
     "trajectory[0].extra": ("trajectory", 0, "extra"),
     "trajectory[0].steps": ("trajectory", 0, "steps"),
     "trajectory[0].final_metrics.total_prompt_tokens": ("trajectory", 0, "final_metrics", "total_prompt_tokens"),
-    "trajectory[0].final_metrics.total_completion_tokens": ("trajectory", 0, "final_metrics", "total_completion_tokens"),
+    "trajectory[0].final_metrics.total_completion_tokens": (
+        "trajectory",
+        0,
+        "final_metrics",
+        "total_completion_tokens",
+    ),
     "trajectory[0].final_metrics.total_steps": ("trajectory", 0, "final_metrics", "total_steps"),
 }
 
@@ -469,12 +474,15 @@ def generate_trajectories_report(
                 },
                 "step_field_coverage_after_enrichment_missing": _missing_fields(
                     enriched_steps,
-                    {".".join(p): p for p in (
-                        ("metrics", "prompt_tokens"),
-                        ("metrics", "completion_tokens"),
-                        ("metrics", "extra", "latency_ms"),
-                        ("metrics", "extra", "finish_reason"),
-                    )},
+                    {
+                        ".".join(p): p
+                        for p in (
+                            ("metrics", "prompt_tokens"),
+                            ("metrics", "completion_tokens"),
+                            ("metrics", "extra", "latency_ms"),
+                            ("metrics", "extra", "finish_reason"),
+                        )
+                    },
                 ),
             }
         benches.append(bench_report)
