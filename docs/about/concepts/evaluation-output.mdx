@@ -138,7 +138,7 @@ The primary evaluation output is stored in a `results.yaml`.
 It is standardized accross all evaluation benchmarks and follows the [API dataclasses](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/api/api_dataclasses.py) specification.
 
 Below we give the output for the
-command from the [Launcher Quickstart Section](/get-started/get-started-quickstart/launcher#quick-start) for the `GPQA-Diamond` task.
+command from the [Launcher Quickstart Section](/get-started/quickstart/launcher#quick-start) for the `GPQA-Diamond` task.
 
 {/* literalinclude not found: ./_snippets/results.yaml */}
 <Note>
@@ -189,7 +189,7 @@ This command extracts the scores from the `results.yaml` and creates a `processe
 
 {/* literalinclude not found: ./_snippets/processed_results.json */}
 
-The `nemo-evaluator-launcher export` can accept multiple invocation IDs and gather results accross different invocations, regardless if they have been run locally or using remote executors (see [executors-overview](/libraries/libraries-nemo-evaluator-launcher/configuration/executors), e.g.:
+The `nemo-evaluator-launcher export` can accept multiple invocation IDs and gather results accross different invocations, regardless if they have been run locally or using remote executors (see [executors-overview](/libraries/nemo-evaluator-launcher/configuration/executors), e.g.:
 
 ```bash
 nemo-evaluator-launcher export <local-job-id> <slurm-job-id> --dest local --format json --output_dir combined-results

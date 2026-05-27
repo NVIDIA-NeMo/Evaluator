@@ -1,0 +1,735 @@
+---
+title: "vlmevalkit"
+---
+
+This page contains all evaluation tasks for the **vlmevalkit** harness.
+
+| Task | Description |
+| --- | --- |
+| [ai2d_judge](#vlmevalkit-ai2d-judge) | A benchmark for evaluating diagram understanding capabilities of large vision-language models. |
+| [chartqa](#vlmevalkit-chartqa) | A Benchmark for Question Answering about Charts with Visual and Logical Reasoning |
+| [mathvista-mini](#vlmevalkit-mathvista-mini) | Evaluating Math Reasoning in Visual Contexts |
+| [mmmu_judge](#vlmevalkit-mmmu-judge) | A benchmark for evaluating multimodal models on massive multi-discipline tasks demanding college-level subject knowledge and deliberate reasoning. |
+| [ocr_reasoning](#vlmevalkit-ocr-reasoning) | Comprehensive benchmark of 1,069 human-annotated examples designed to evaluate multimodal large language models on text-rich image reasoning tasks by assessing both final answers and the reasoning process across six core abilities and 18 practical tasks. |
+| [ocrbench](#vlmevalkit-ocrbench) | Comprehensive evaluation benchmark designed to assess the OCR capabilities of Large Multimodal Models |
+| [slidevqa](#vlmevalkit-slidevqa) | Evaluates ability to answer questions about slide decks by selecting relevant slides from multiple images |
+
+<h2 id="vlmevalkit-ai2d-judge">ai2d_judge</h2>
+
+A benchmark for evaluating diagram understanding capabilities of large vision-language models.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `vlmevalkit`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/vlmevalkit:26.03
+```
+
+**Container Digest:**
+```
+sha256:6d2c141dd36c827f76e62557ed10d42749cafd8b79f1574708869abe55e9351f
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `ai2d_judge`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cat > {{config.output_dir}}/vlmeval_config.json << 'EOF'
+{
+  "model": {
+    "{{target.api_endpoint.model_id.split('/')[-1]}}": {
+      "class": "CustomOAIEndpoint",
+      "model": "{{target.api_endpoint.model_id}}",
+      "api_base": "{{target.api_endpoint.url}}",
+      "api_key_var_name": "{{target.api_endpoint.api_key_name}}",
+      "max_tokens": {{config.params.max_new_tokens}},
+      "temperature": {{config.params.temperature}},{% if config.params.top_p is not none %}
+      "top_p": {{config.params.top_p}},{% endif %}
+      "retry": {{config.params.max_retries}},
+      "timeout": {{config.params.request_timeout}}{% if config.params.extra.wait is defined %},
+      "wait": {{config.params.extra.wait}}{% endif %}{% if config.params.extra.img_size is defined %},
+      "img_size": {{config.params.extra.img_size}}{% endif %}{% if config.params.extra.img_detail is defined %},
+      "img_detail": "{{config.params.extra.img_detail}}"{% endif %}{% if config.params.extra.system_prompt is defined %},
+      "system_prompt": "{{config.params.extra.system_prompt}}"{% endif %}{% if config.params.extra.verbose is defined %},
+      "verbose": {{config.params.extra.verbose}}{% endif %}
+    }
+  },
+  "data": {
+    "{{config.params.extra.dataset.name}}": {
+      "class": "{{config.params.extra.dataset.class}}",
+      "dataset": "{{config.params.extra.dataset.name}}",
+      "model": "{{target.api_endpoint.model_id}}"
+    }
+  }
+}
+EOF
+python -m vlmeval.run \
+  --config {{config.output_dir}}/vlmeval_config.json \
+  --work-dir {{config.output_dir}} \
+  --api-nproc {{config.params.parallelism}} \
+  {%- if config.params.extra.judge is defined %}
+  --judge {{config.params.extra.judge.model}} \
+  --judge-args '{{config.params.extra.judge.args}}' \
+  {%- endif %}
+  {% if config.params.limit_samples is not none %}--first-n {{config.params.limit_samples}}{% endif %}
+
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: vlmevalkit
+pkg_name: vlmevalkit
+config:
+  params:
+    max_new_tokens: 2048
+    max_retries: 5
+    parallelism: 4
+    temperature: 0.0
+    request_timeout: 60
+    extra:
+      dataset:
+        name: AI2D_TEST
+        class: ImageMCQDataset
+      judge:
+        model: gpt-4o
+        args: '{"use_azure": true}'
+  supported_endpoint_types:
+  - vlm
+  type: ai2d_judge
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="vlmevalkit-chartqa">chartqa</h2>
+
+A Benchmark for Question Answering about Charts with Visual and Logical Reasoning
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `vlmevalkit`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/vlmevalkit:26.03
+```
+
+**Container Digest:**
+```
+sha256:6d2c141dd36c827f76e62557ed10d42749cafd8b79f1574708869abe55e9351f
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `chartqa`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cat > {{config.output_dir}}/vlmeval_config.json << 'EOF'
+{
+  "model": {
+    "{{target.api_endpoint.model_id.split('/')[-1]}}": {
+      "class": "CustomOAIEndpoint",
+      "model": "{{target.api_endpoint.model_id}}",
+      "api_base": "{{target.api_endpoint.url}}",
+      "api_key_var_name": "{{target.api_endpoint.api_key_name}}",
+      "max_tokens": {{config.params.max_new_tokens}},
+      "temperature": {{config.params.temperature}},{% if config.params.top_p is not none %}
+      "top_p": {{config.params.top_p}},{% endif %}
+      "retry": {{config.params.max_retries}},
+      "timeout": {{config.params.request_timeout}}{% if config.params.extra.wait is defined %},
+      "wait": {{config.params.extra.wait}}{% endif %}{% if config.params.extra.img_size is defined %},
+      "img_size": {{config.params.extra.img_size}}{% endif %}{% if config.params.extra.img_detail is defined %},
+      "img_detail": "{{config.params.extra.img_detail}}"{% endif %}{% if config.params.extra.system_prompt is defined %},
+      "system_prompt": "{{config.params.extra.system_prompt}}"{% endif %}{% if config.params.extra.verbose is defined %},
+      "verbose": {{config.params.extra.verbose}}{% endif %}
+    }
+  },
+  "data": {
+    "{{config.params.extra.dataset.name}}": {
+      "class": "{{config.params.extra.dataset.class}}",
+      "dataset": "{{config.params.extra.dataset.name}}",
+      "model": "{{target.api_endpoint.model_id}}"
+    }
+  }
+}
+EOF
+python -m vlmeval.run \
+  --config {{config.output_dir}}/vlmeval_config.json \
+  --work-dir {{config.output_dir}} \
+  --api-nproc {{config.params.parallelism}} \
+  {%- if config.params.extra.judge is defined %}
+  --judge {{config.params.extra.judge.model}} \
+  --judge-args '{{config.params.extra.judge.args}}' \
+  {%- endif %}
+  {% if config.params.limit_samples is not none %}--first-n {{config.params.limit_samples}}{% endif %}
+
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: vlmevalkit
+pkg_name: vlmevalkit
+config:
+  params:
+    max_new_tokens: 2048
+    max_retries: 5
+    parallelism: 4
+    temperature: 0.0
+    request_timeout: 60
+    extra:
+      dataset:
+        name: ChartQA_TEST
+        class: ImageVQADataset
+  supported_endpoint_types:
+  - vlm
+  type: chartqa
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="vlmevalkit-mathvista-mini">mathvista-mini</h2>
+
+Evaluating Math Reasoning in Visual Contexts
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `vlmevalkit`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/vlmevalkit:26.03
+```
+
+**Container Digest:**
+```
+sha256:6d2c141dd36c827f76e62557ed10d42749cafd8b79f1574708869abe55e9351f
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `mathvista-mini`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cat > {{config.output_dir}}/vlmeval_config.json << 'EOF'
+{
+  "model": {
+    "{{target.api_endpoint.model_id.split('/')[-1]}}": {
+      "class": "CustomOAIEndpoint",
+      "model": "{{target.api_endpoint.model_id}}",
+      "api_base": "{{target.api_endpoint.url}}",
+      "api_key_var_name": "{{target.api_endpoint.api_key_name}}",
+      "max_tokens": {{config.params.max_new_tokens}},
+      "temperature": {{config.params.temperature}},{% if config.params.top_p is not none %}
+      "top_p": {{config.params.top_p}},{% endif %}
+      "retry": {{config.params.max_retries}},
+      "timeout": {{config.params.request_timeout}}{% if config.params.extra.wait is defined %},
+      "wait": {{config.params.extra.wait}}{% endif %}{% if config.params.extra.img_size is defined %},
+      "img_size": {{config.params.extra.img_size}}{% endif %}{% if config.params.extra.img_detail is defined %},
+      "img_detail": "{{config.params.extra.img_detail}}"{% endif %}{% if config.params.extra.system_prompt is defined %},
+      "system_prompt": "{{config.params.extra.system_prompt}}"{% endif %}{% if config.params.extra.verbose is defined %},
+      "verbose": {{config.params.extra.verbose}}{% endif %}
+    }
+  },
+  "data": {
+    "{{config.params.extra.dataset.name}}": {
+      "class": "{{config.params.extra.dataset.class}}",
+      "dataset": "{{config.params.extra.dataset.name}}",
+      "model": "{{target.api_endpoint.model_id}}"
+    }
+  }
+}
+EOF
+python -m vlmeval.run \
+  --config {{config.output_dir}}/vlmeval_config.json \
+  --work-dir {{config.output_dir}} \
+  --api-nproc {{config.params.parallelism}} \
+  {%- if config.params.extra.judge is defined %}
+  --judge {{config.params.extra.judge.model}} \
+  --judge-args '{{config.params.extra.judge.args}}' \
+  {%- endif %}
+  {% if config.params.limit_samples is not none %}--first-n {{config.params.limit_samples}}{% endif %}
+
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: vlmevalkit
+pkg_name: vlmevalkit
+config:
+  params:
+    max_new_tokens: 2048
+    max_retries: 5
+    parallelism: 4
+    temperature: 0.0
+    request_timeout: 60
+    extra:
+      dataset:
+        name: MathVista_MINI
+        class: MathVista
+      judge:
+        model: gpt-4o
+        args: '{"use_azure": true}'
+  supported_endpoint_types:
+  - vlm
+  type: mathvista-mini
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="vlmevalkit-mmmu-judge">mmmu_judge</h2>
+
+A benchmark for evaluating multimodal models on massive multi-discipline tasks demanding college-level subject knowledge and deliberate reasoning.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `vlmevalkit`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/vlmevalkit:26.03
+```
+
+**Container Digest:**
+```
+sha256:6d2c141dd36c827f76e62557ed10d42749cafd8b79f1574708869abe55e9351f
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `mmmu_judge`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cat > {{config.output_dir}}/vlmeval_config.json << 'EOF'
+{
+  "model": {
+    "{{target.api_endpoint.model_id.split('/')[-1]}}": {
+      "class": "CustomOAIEndpoint",
+      "model": "{{target.api_endpoint.model_id}}",
+      "api_base": "{{target.api_endpoint.url}}",
+      "api_key_var_name": "{{target.api_endpoint.api_key_name}}",
+      "max_tokens": {{config.params.max_new_tokens}},
+      "temperature": {{config.params.temperature}},{% if config.params.top_p is not none %}
+      "top_p": {{config.params.top_p}},{% endif %}
+      "retry": {{config.params.max_retries}},
+      "timeout": {{config.params.request_timeout}}{% if config.params.extra.wait is defined %},
+      "wait": {{config.params.extra.wait}}{% endif %}{% if config.params.extra.img_size is defined %},
+      "img_size": {{config.params.extra.img_size}}{% endif %}{% if config.params.extra.img_detail is defined %},
+      "img_detail": "{{config.params.extra.img_detail}}"{% endif %}{% if config.params.extra.system_prompt is defined %},
+      "system_prompt": "{{config.params.extra.system_prompt}}"{% endif %}{% if config.params.extra.verbose is defined %},
+      "verbose": {{config.params.extra.verbose}}{% endif %}
+    }
+  },
+  "data": {
+    "{{config.params.extra.dataset.name}}": {
+      "class": "{{config.params.extra.dataset.class}}",
+      "dataset": "{{config.params.extra.dataset.name}}",
+      "model": "{{target.api_endpoint.model_id}}"
+    }
+  }
+}
+EOF
+python -m vlmeval.run \
+  --config {{config.output_dir}}/vlmeval_config.json \
+  --work-dir {{config.output_dir}} \
+  --api-nproc {{config.params.parallelism}} \
+  {%- if config.params.extra.judge is defined %}
+  --judge {{config.params.extra.judge.model}} \
+  --judge-args '{{config.params.extra.judge.args}}' \
+  {%- endif %}
+  {% if config.params.limit_samples is not none %}--first-n {{config.params.limit_samples}}{% endif %}
+
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: vlmevalkit
+pkg_name: vlmevalkit
+config:
+  params:
+    max_new_tokens: 2048
+    max_retries: 5
+    parallelism: 4
+    temperature: 0.0
+    request_timeout: 60
+    extra:
+      dataset:
+        name: MMMU_DEV_VAL
+        class: MMMUDataset
+      judge:
+        model: gpt-4o
+        args: '{"use_azure": true}'
+  supported_endpoint_types:
+  - vlm
+  type: mmmu_judge
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="vlmevalkit-ocr-reasoning">ocr_reasoning</h2>
+
+Comprehensive benchmark of 1,069 human-annotated examples designed to evaluate multimodal large language models on text-rich image reasoning tasks by assessing both final answers and the reasoning process across six core abilities and 18 practical tasks.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `vlmevalkit`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/vlmevalkit:26.03
+```
+
+**Container Digest:**
+```
+sha256:6d2c141dd36c827f76e62557ed10d42749cafd8b79f1574708869abe55e9351f
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `ocr_reasoning`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cat > {{config.output_dir}}/vlmeval_config.json << 'EOF'
+{
+  "model": {
+    "{{target.api_endpoint.model_id.split('/')[-1]}}": {
+      "class": "CustomOAIEndpoint",
+      "model": "{{target.api_endpoint.model_id}}",
+      "api_base": "{{target.api_endpoint.url}}",
+      "api_key_var_name": "{{target.api_endpoint.api_key_name}}",
+      "max_tokens": {{config.params.max_new_tokens}},
+      "temperature": {{config.params.temperature}},{% if config.params.top_p is not none %}
+      "top_p": {{config.params.top_p}},{% endif %}
+      "retry": {{config.params.max_retries}},
+      "timeout": {{config.params.request_timeout}}{% if config.params.extra.wait is defined %},
+      "wait": {{config.params.extra.wait}}{% endif %}{% if config.params.extra.img_size is defined %},
+      "img_size": {{config.params.extra.img_size}}{% endif %}{% if config.params.extra.img_detail is defined %},
+      "img_detail": "{{config.params.extra.img_detail}}"{% endif %}{% if config.params.extra.system_prompt is defined %},
+      "system_prompt": "{{config.params.extra.system_prompt}}"{% endif %}{% if config.params.extra.verbose is defined %},
+      "verbose": {{config.params.extra.verbose}}{% endif %}
+    }
+  },
+  "data": {
+    "{{config.params.extra.dataset.name}}": {
+      "class": "{{config.params.extra.dataset.class}}",
+      "dataset": "{{config.params.extra.dataset.name}}",
+      "model": "{{target.api_endpoint.model_id}}"
+    }
+  }
+}
+EOF
+python -m vlmeval.run \
+  --config {{config.output_dir}}/vlmeval_config.json \
+  --work-dir {{config.output_dir}} \
+  --api-nproc {{config.params.parallelism}} \
+  {%- if config.params.extra.judge is defined %}
+  --judge {{config.params.extra.judge.model}} \
+  --judge-args '{{config.params.extra.judge.args}}' \
+  {%- endif %}
+  {% if config.params.limit_samples is not none %}--first-n {{config.params.limit_samples}}{% endif %}
+
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: vlmevalkit
+pkg_name: vlmevalkit
+config:
+  params:
+    max_new_tokens: 2048
+    max_retries: 5
+    parallelism: 4
+    temperature: 0.0
+    request_timeout: 60
+    extra:
+      dataset:
+        name: OCR_Reasoning
+        class: OCR_Reasoning
+      judge:
+        model: gpt-4o
+        args: '{"use_azure": true}'
+  supported_endpoint_types:
+  - vlm
+  type: ocr_reasoning
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="vlmevalkit-ocrbench">ocrbench</h2>
+
+Comprehensive evaluation benchmark designed to assess the OCR capabilities of Large Multimodal Models
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `vlmevalkit`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/vlmevalkit:26.03
+```
+
+**Container Digest:**
+```
+sha256:6d2c141dd36c827f76e62557ed10d42749cafd8b79f1574708869abe55e9351f
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `ocrbench`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cat > {{config.output_dir}}/vlmeval_config.json << 'EOF'
+{
+  "model": {
+    "{{target.api_endpoint.model_id.split('/')[-1]}}": {
+      "class": "CustomOAIEndpoint",
+      "model": "{{target.api_endpoint.model_id}}",
+      "api_base": "{{target.api_endpoint.url}}",
+      "api_key_var_name": "{{target.api_endpoint.api_key_name}}",
+      "max_tokens": {{config.params.max_new_tokens}},
+      "temperature": {{config.params.temperature}},{% if config.params.top_p is not none %}
+      "top_p": {{config.params.top_p}},{% endif %}
+      "retry": {{config.params.max_retries}},
+      "timeout": {{config.params.request_timeout}}{% if config.params.extra.wait is defined %},
+      "wait": {{config.params.extra.wait}}{% endif %}{% if config.params.extra.img_size is defined %},
+      "img_size": {{config.params.extra.img_size}}{% endif %}{% if config.params.extra.img_detail is defined %},
+      "img_detail": "{{config.params.extra.img_detail}}"{% endif %}{% if config.params.extra.system_prompt is defined %},
+      "system_prompt": "{{config.params.extra.system_prompt}}"{% endif %}{% if config.params.extra.verbose is defined %},
+      "verbose": {{config.params.extra.verbose}}{% endif %}
+    }
+  },
+  "data": {
+    "{{config.params.extra.dataset.name}}": {
+      "class": "{{config.params.extra.dataset.class}}",
+      "dataset": "{{config.params.extra.dataset.name}}",
+      "model": "{{target.api_endpoint.model_id}}"
+    }
+  }
+}
+EOF
+python -m vlmeval.run \
+  --config {{config.output_dir}}/vlmeval_config.json \
+  --work-dir {{config.output_dir}} \
+  --api-nproc {{config.params.parallelism}} \
+  {%- if config.params.extra.judge is defined %}
+  --judge {{config.params.extra.judge.model}} \
+  --judge-args '{{config.params.extra.judge.args}}' \
+  {%- endif %}
+  {% if config.params.limit_samples is not none %}--first-n {{config.params.limit_samples}}{% endif %}
+
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: vlmevalkit
+pkg_name: vlmevalkit
+config:
+  params:
+    max_new_tokens: 2048
+    max_retries: 5
+    parallelism: 4
+    temperature: 0.0
+    request_timeout: 60
+    extra:
+      dataset:
+        name: OCRBench
+        class: OCRBench
+  supported_endpoint_types:
+  - vlm
+  type: ocrbench
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="vlmevalkit-slidevqa">slidevqa</h2>
+
+Evaluates ability to answer questions about slide decks by selecting relevant slides from multiple images
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `vlmevalkit`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/vlmevalkit:26.03
+```
+
+**Container Digest:**
+```
+sha256:6d2c141dd36c827f76e62557ed10d42749cafd8b79f1574708869abe55e9351f
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `slidevqa`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cat > {{config.output_dir}}/vlmeval_config.json << 'EOF'
+{
+  "model": {
+    "{{target.api_endpoint.model_id.split('/')[-1]}}": {
+      "class": "CustomOAIEndpoint",
+      "model": "{{target.api_endpoint.model_id}}",
+      "api_base": "{{target.api_endpoint.url}}",
+      "api_key_var_name": "{{target.api_endpoint.api_key_name}}",
+      "max_tokens": {{config.params.max_new_tokens}},
+      "temperature": {{config.params.temperature}},{% if config.params.top_p is not none %}
+      "top_p": {{config.params.top_p}},{% endif %}
+      "retry": {{config.params.max_retries}},
+      "timeout": {{config.params.request_timeout}}{% if config.params.extra.wait is defined %},
+      "wait": {{config.params.extra.wait}}{% endif %}{% if config.params.extra.img_size is defined %},
+      "img_size": {{config.params.extra.img_size}}{% endif %}{% if config.params.extra.img_detail is defined %},
+      "img_detail": "{{config.params.extra.img_detail}}"{% endif %}{% if config.params.extra.system_prompt is defined %},
+      "system_prompt": "{{config.params.extra.system_prompt}}"{% endif %}{% if config.params.extra.verbose is defined %},
+      "verbose": {{config.params.extra.verbose}}{% endif %}
+    }
+  },
+  "data": {
+    "{{config.params.extra.dataset.name}}": {
+      "class": "{{config.params.extra.dataset.class}}",
+      "dataset": "{{config.params.extra.dataset.name}}",
+      "model": "{{target.api_endpoint.model_id}}"
+    }
+  }
+}
+EOF
+python -m vlmeval.run \
+  --config {{config.output_dir}}/vlmeval_config.json \
+  --work-dir {{config.output_dir}} \
+  --api-nproc {{config.params.parallelism}} \
+  {%- if config.params.extra.judge is defined %}
+  --judge {{config.params.extra.judge.model}} \
+  --judge-args '{{config.params.extra.judge.args}}' \
+  {%- endif %}
+  {% if config.params.limit_samples is not none %}--first-n {{config.params.limit_samples}}{% endif %}
+
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: vlmevalkit
+pkg_name: vlmevalkit
+config:
+  params:
+    max_new_tokens: 2048
+    max_retries: 5
+    parallelism: 4
+    temperature: 0.0
+    request_timeout: 60
+    extra:
+      dataset:
+        name: SLIDEVQA
+        class: SlideVQA
+      judge:
+        model: gpt-4o
+        args: '{"use_azure": true}'
+  supported_endpoint_types:
+  - vlm
+  type: slidevqa
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+

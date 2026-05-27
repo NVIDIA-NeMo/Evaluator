@@ -82,7 +82,7 @@ def run_autogen_script(
         # Run autogen script - FAIL BUILD if it fails
         # Stream stdout in real-time for better UX, but capture stderr for error reporting
         result = subprocess.run(
-            [sys.executable, str(autogen_script)],
+            [sys.executable, str(autogen_script), "--docs-format", "sphinx"],
             cwd=str(repo_root),
             stdout=None,  # Let stdout stream normally so users see progress
             stderr=subprocess.PIPE,  # Capture stderr for error reporting

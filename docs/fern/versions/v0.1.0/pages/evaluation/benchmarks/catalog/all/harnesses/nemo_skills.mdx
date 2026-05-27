@@ -1,0 +1,2322 @@
+---
+title: "nemo_skills"
+---
+
+This page contains all evaluation tasks for the **nemo_skills** harness.
+
+| Task | Description |
+| --- | --- |
+| [ns_aa_lcr](#nemo-skills-ns-aa-lcr) | AA-LCR |
+| [ns_aime2024](#nemo-skills-ns-aime2024) | AIME2024 |
+| [ns_aime2025](#nemo-skills-ns-aime2025) | AIME2025 |
+| [ns_aime2026](#nemo-skills-ns-aime2026) | AIME2026 |
+| [ns_arena_hard_v2](#nemo-skills-ns-arena-hard-v2) | Arena-Hard v2 - Updated benchmark with 750 questions |
+| [ns_bfcl_v3](#nemo-skills-ns-bfcl-v3) | BFCLv3 |
+| [ns_bfcl_v4](#nemo-skills-ns-bfcl-v4) | BFCLv4 |
+| [ns_critpt](#nemo-skills-ns-critpt) | CritPt - Physics Research-Level Benchmark (70 problems) |
+| [ns_gpqa](#nemo-skills-ns-gpqa) | GPQA Diamond |
+| [ns_hle](#nemo-skills-ns-hle) | HumanityLastExam |
+| [ns_hle_aa](#nemo-skills-ns-hle-aa) | HumanityLastExam aligned with AA |
+| [ns_hmmt_feb2025](#nemo-skills-ns-hmmt-feb2025) | HMMT February 2025 (MathArena/hmmt_feb_2025) |
+| [ns_ifbench](#nemo-skills-ns-ifbench) | IFBench - Instruction Following Benchmark |
+| [ns_ifeval](#nemo-skills-ns-ifeval) | IFEval - Instruction-Following Evaluation for Large Language Models |
+| [ns_livecodebench](#nemo-skills-ns-livecodebench) | LiveCodeBench v6 |
+| [ns_livecodebench_aa](#nemo-skills-ns-livecodebench-aa) | LiveCodeBench with AA custom prompt format (315 problems from July 2024 to Dec 2024, release_v5) |
+| [ns_livecodebench_v5](#nemo-skills-ns-livecodebench-v5) | LiveCodeBench v5 |
+| [ns_mmlu](#nemo-skills-ns-mmlu) | MMLU |
+| [ns_mmlu_pro](#nemo-skills-ns-mmlu-pro) | MMLU-PRO |
+| [ns_mmlu_prox](#nemo-skills-ns-mmlu-prox) | MMLU-ProX |
+| [ns_mmmu_pro](#nemo-skills-ns-mmmu-pro) | MMMU-Pro - Multi-discipline Multimodal Understanding benchmark (Vision configuration) |
+| [ns_omniscience](#nemo-skills-ns-omniscience) | AA-Omniscience - Knowledge and Hallucination Benchmark |
+| [ns_ruler](#nemo-skills-ns-ruler) | RULER - Long Context Understanding |
+| [ns_scicode](#nemo-skills-ns-scicode) | SciCode |
+| [ns_wmt24pp](#nemo-skills-ns-wmt24pp) | WMT24++ |
+| [ns_wmt24pp_comet](#nemo-skills-ns-wmt24pp-comet) | WMT24++ with COMET judge |
+
+<h2 id="nemo-skills-ns-aa-lcr">ns_aa_lcr</h2>
+
+AA-LCR
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_aa_lcr`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: aalcr
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: true
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: 0.0
+        top_p: 1.0
+        max_new_tokens: 4096
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_aa_lcr
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-aime2024">ns_aime2024</h2>
+
+AIME2024
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_aime2024`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: aime24
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: true
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: math_judge
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_aime2024
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-aime2025">ns_aime2025</h2>
+
+AIME2025
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_aime2025`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: aime25
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: true
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: math_judge
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_aime2025
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-aime2026">ns_aime2026</h2>
+
+AIME2026
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_aime2026`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: aime26
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: true
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: math_judge
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_aime2026
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-arena-hard-v2">ns_arena_hard_v2</h2>
+
+Arena-Hard v2 - Updated benchmark with 750 questions
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_arena_hard_v2`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: arena-hard-v2
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: true
+      judge:
+        url: https://inference-api.nvidia.com/v1
+        model_id: azure/openai/gpt-4.1
+        api_key: JUDGE_API_KEY
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: 4096
+        args: null
+        parallelism: 16
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_arena_hard_v2
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-bfcl-v3">ns_bfcl_v3</h2>
+
+BFCLv3
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_bfcl_v3`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: bfcl_v3
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: ++use_client_parsing=False
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_bfcl_v3
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-bfcl-v4">ns_bfcl_v4</h2>
+
+BFCLv4
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_bfcl_v4`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: bfcl_v4
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: ++use_client_parsing=False
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_bfcl_v4
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-critpt">ns_critpt</h2>
+
+CritPt - Physics Research-Level Benchmark (70 problems)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_critpt`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: critpt
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: ++inference.repetition_penalty=1.0
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_critpt
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-gpqa">ns_gpqa</h2>
+
+GPQA Diamond
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_gpqa`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: gpqa
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_gpqa
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-hle">ns_hle</h2>
+
+HumanityLastExam
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_hle`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: hle
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_hle
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-hle-aa">ns_hle_aa</h2>
+
+HumanityLastExam aligned with AA
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_hle_aa`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: hle
+    extra:
+      use_sandbox: false
+      num_repeats: 1
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: true
+      judge:
+        url: https://inference-api.nvidia.com/v1
+        model_id: us/azure/openai/gpt-4.1
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: true
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_hle_aa
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-hmmt-feb2025">ns_hmmt_feb2025</h2>
+
+HMMT February 2025 (MathArena/hmmt_feb_2025)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_hmmt_feb2025`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: hmmt_feb25
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: true
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: math_judge
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_hmmt_feb2025
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-ifbench">ns_ifbench</h2>
+
+IFBench - Instruction Following Benchmark
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_ifbench`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: ifbench
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_ifbench
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-ifeval">ns_ifeval</h2>
+
+IFEval - Instruction-Following Evaluation for Large Language Models
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_ifeval`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: ifeval
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_ifeval
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-livecodebench">ns_livecodebench</h2>
+
+LiveCodeBench v6
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_livecodebench`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: livecodebench
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: test_v6_2408_2505
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_livecodebench
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-livecodebench-aa">ns_livecodebench_aa</h2>
+
+LiveCodeBench with AA custom prompt format (315 problems from July 2024 to Dec 2024, release_v5)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_livecodebench_aa`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: livecodebench
+    extra:
+      use_sandbox: false
+      num_repeats: 3
+      prompt_config: /nemo_run/code/eval_factory_prompts/livecodebench-aa.yaml
+      args: null
+      system_message: null
+      dataset_split: test_v5_2407_2412
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_livecodebench_aa
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-livecodebench-v5">ns_livecodebench_v5</h2>
+
+LiveCodeBench v5
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_livecodebench_v5`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: livecodebench
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: test_v5_2407_2412
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_livecodebench_v5
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-mmlu">ns_mmlu</h2>
+
+MMLU
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_mmlu`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: mmlu
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_mmlu
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-mmlu-pro">ns_mmlu_pro</h2>
+
+MMLU-PRO
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_mmlu_pro`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: mmlu-pro
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_mmlu_pro
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-mmlu-prox">ns_mmlu_prox</h2>
+
+MMLU-ProX
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_mmlu_prox`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: mmlu-prox
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_mmlu_prox
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-mmmu-pro">ns_mmmu_pro</h2>
+
+MMMU-Pro - Multi-discipline Multimodal Understanding benchmark (Vision configuration)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_mmmu_pro`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: mmmu-pro
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: true
+      data_dir: null
+      server_type: vllm
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_mmmu_pro
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-omniscience">ns_omniscience</h2>
+
+AA-Omniscience - Knowledge and Hallucination Benchmark
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_omniscience`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: omniscience
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: ++parse_reasoning=False
+      system_message: null
+      dataset_split: text
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: true
+      judge:
+        url: https://inference-api.nvidia.com/v1
+        model_id: gcp/google/gemini-3-flash-preview
+        api_key: JUDGE_API_KEY
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_omniscience
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-ruler">ns_ruler</h2>
+
+RULER - Long Context Understanding
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_ruler`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: ruler.evaluation_128k
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: /workspace/ruler_data
+        cluster: local
+        setup: evaluation_128k
+        max_seq_length: 131072
+        tokenizer_path: null
+        template_tokens: 50
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - completions
+  type: ns_ruler
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-scicode">ns_scicode</h2>
+
+SciCode
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_scicode`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: scicode
+    extra:
+      use_sandbox: true
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_scicode
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-wmt24pp">ns_wmt24pp</h2>
+
+WMT24++
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_wmt24pp`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: wmt24pp
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: null
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+  supported_endpoint_types:
+  - chat
+  type: ns_wmt24pp
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="nemo-skills-ns-wmt24pp-comet">ns_wmt24pp_comet</h2>
+
+WMT24++ with COMET judge
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `nemo_skills`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/nemo-skills:26.03
+```
+
+**Container Digest:**
+```
+sha256:ac1b048e13fe7f2a59751b528fc23f5f471452197ad9ae40b715a77cda0a9612
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ns_wmt24pp_comet`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log 2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler') %} ns prepare_data {{config.params.task}}{% if config.params.extra.skip_data_dir_check %} --skip_data_dir_check{% endif %}{% if config.params.extra.data_dir is not none %} --data_dir={{config.params.extra.data_dir}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}} && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data && ns prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}} --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}} --tokenizer_path={{config.params.extra.ruler.tokenizer_path}} {% if config.params.extra.ruler.template_tokens is not none %}--template_tokens={{config.params.extra.ruler.template_tokens}}{% endif %} {% if config.params.extra.ruler.num_samples is not none %}--num_samples={{config.params.extra.ruler.num_samples}}{% elif config.params.limit_samples is not none %}--num_samples={{config.params.limit_samples}}{% endif %} {% if config.params.extra.ruler.tasks is not none %}--tasks {% for task in config.params.extra.ruler.tasks %}{{task}}{% if not loop.last %} {% endif %}{% endfor %}{% endif %} {% endif %} && ns eval --server_type={% if config.params.extra.server_type is not none %}{{config.params.extra.server_type}}{% else %}openai{% endif %} --model={{target.api_endpoint.model_id}} --server_address={{target.api_endpoint.url}} --benchmarks={{config.params.task}}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}:{{config.params.extra.num_repeats}}{% endif %} --output_dir={{config.output_dir}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% if config.params.extra.ruler.data_dir is not none %}--data_dir={{config.params.extra.ruler.data_dir}}{% endif %} {% if target.api_endpoint.api_key_name is not none %}++server.api_key_env_var={{target.api_endpoint.api_key_name}}{% endif %} {% if config.params.max_new_tokens is not none %}++inference.tokens_to_generate={{config.params.max_new_tokens}}{% endif %} {% if config.params.extra.system_message is not none %} ++system_message='{{config.params.extra.system_message}}' {% endif %} {% if config.params.limit_samples is not none %}++max_samples={{config.params.limit_samples}}{% endif %} {% if config.params.parallelism is not none %}{% if config.params.extra.num_repeats is not none and config.params.extra.num_repeats > 1 %}++max_concurrent_requests={{[(config.params.parallelism / config.params.extra.num_repeats) | int, 1] | max}}{% else %}++max_concurrent_requests={{config.params.parallelism | int}}{% endif %}{% endif %} {% if config.params.temperature is not none %}++inference.temperature={{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}++inference.top_p={{config.params.top_p}}{% endif %} {% if config.params.extra.prompt_config is not none %}++prompt_config={{config.params.extra.prompt_config}}{% endif %} {% if config.params.extra.ruler.tokenizer_path is not none %}++tokenizer={{config.params.extra.ruler.tokenizer_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.judge_support and config.params.extra.judge.url is not none %} --judge_model={{config.params.extra.judge.model_id}} --judge_server_address={{config.params.extra.judge.url}} --judge_server_type=openai {% if config.params.extra.judge.generation_type is not none %} --judge_generation_type={{config.params.extra.judge.generation_type}} {% endif %} --extra_judge_args="{% if config.params.extra.judge.api_key is not none %}++server.api_key_env_var={{config.params.extra.judge.api_key}}{% endif %} {%- if config.params.extra.judge.temperature is not none %} ++inference.temperature={{config.params.extra.judge.temperature}}{% endif %} {%- if config.params.extra.judge.top_p is not none %} ++inference.top_p={{config.params.extra.judge.top_p}}{% endif %} {%- if config.params.extra.judge.max_new_tokens is not none %} ++inference.tokens_to_generate={{config.params.extra.judge.max_new_tokens}}{% endif %} {%- if config.params.extra.judge.parallelism is not none %} ++max_concurrent_requests={{config.params.extra.judge.parallelism}}{% endif %} {%- if config.params.extra.judge.hle_strict_judge %} ++structured_output=HLE_JUDGE_AA {% endif %} {%- if config.params.extra.judge.args is not none %} {{config.params.extra.judge.args}}{% endif %}" {% endif %} {% if config.params.extra.judge.hle_strict_judge %} --metric_type=hle-aa {% endif %} {% if config.params.extra.use_sandbox %} ; EXIT_CODE=$? ; kill $SANDBOX_PID 2>/dev/null || true ; exit $EXIT_CODE{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: nemo_skills
+pkg_name: nemo_skills
+config:
+  params:
+    parallelism: 16
+    task: wmt24pp
+    extra:
+      use_sandbox: false
+      num_repeats: null
+      prompt_config: null
+      args: --judge_type=comet --judge_model={{config.params.extra.comet.model_path}}
+      system_message: null
+      dataset_split: null
+      skip_data_dir_check: false
+      data_dir: null
+      server_type: null
+      judge_support: false
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        generation_type: null
+        prompt_config: null
+        random_seed: 1234
+        temperature: null
+        top_p: null
+        max_new_tokens: null
+        args: null
+        parallelism: null
+        hle_strict_judge: false
+      ruler:
+        data_dir: null
+        cluster: null
+        setup: null
+        max_seq_length: null
+        tokenizer_path: null
+        template_tokens: null
+        num_samples: null
+        tasks: null
+      comet:
+        model_path: null
+  supported_endpoint_types:
+  - chat
+  type: ns_wmt24pp_comet
+target: {}
+```
+
+</Tab>
+
+</Tabs>
+

@@ -8,7 +8,7 @@ This tutorial shows how to evaluate an existing API endpoint using the Local exe
 ## Prerequisites
 
 - Docker
-- Python environment with the NeMo Evaluator Launcher CLI available (install the launcher by following [gs-install](/get-started/get-started/install)
+- Python environment with the NeMo Evaluator Launcher CLI available (install the launcher by following [gs-install](/get-started/install)
 
 ## Step-by-Step Guide
 
@@ -41,7 +41,7 @@ export API_KEY=...
 
 Deploy an OpenAI-compatible endpoint using frameworks like vLLM, SGLang, TRT-LLM, or NIM.
 {/* TODO: uncomment ref once the guide is ready */}
-{/* Refer to [bring-your-own-endpoint-manual](/model-deployment/deployment/bring-your-own-endpoint/manual-deployment) for deployment guidance */}
+{/* Refer to [bring-your-own-endpoint-manual](/deployment/bring-your-own-endpoint/manual-deployment) for deployment guidance */}
 
 <Note>
 For this tutorial, we will use `meta/llama-3.2-3b-instruct` from [build.nvidia.com](https://build.nvidia.com/meta/llama-3_1-8b-instruct). You will need to export your `NGC_API_KEY` to access this endpoint.
@@ -58,7 +58,7 @@ nemo-evaluator-launcher ls tasks
 
 For a comprehensive list of supported tasks and descriptions, see [nemo-evaluator-containers](/libraries/nemo-evaluator/containers.)
 
-**Important**: Each task has a dedicated endpoint type (e.g., `/v1/chat/completions`, `/v1/completions`). Ensure that your model provides the correct endpoint type for the tasks you want to evaluate. Use our [deployment-testing-compatibility](/model-deployment/deployment/bring-your-own-endpoint/testing-endpoint-oai-compatibility) guide to verify your endpoint supports the required formats.
+**Important**: Each task has a dedicated endpoint type (e.g., `/v1/chat/completions`, `/v1/completions`). Ensure that your model provides the correct endpoint type for the tasks you want to evaluate. Use our [deployment-testing-compatibility](/deployment/bring-your-own-endpoint/testing-endpoint-oai-compatibility) guide to verify your endpoint supports the required formats.
 
 <Note>
 For this tutorial we will pick: `ifeval` and `humaneval_instruct` as these are fast. They both use the chat endpoint.
@@ -176,5 +176,5 @@ Refer to [exporters-overview](/libraries/nemo-evaluator-launcher/exporters) for 
 - **[evaluation-configuration](/libraries/nemo-evaluator-launcher/configuration/evaluation**:) Customize evaluation parameters and prompts
 - **[executors-overview](/libraries/nemo-evaluator-launcher/configuration/executors**:) Try Slurm or Lepton for different environments
 {/* TODO: uncoment once ready */}
-{/* - **[bring-your-own-endpoint-manual](/model-deployment/deployment/bring-your-own-endpoint/manual-deployment**:) Deploy your own endpoints with various frameworks */}
+{/* - **[bring-your-own-endpoint-manual](/deployment/bring-your-own-endpoint/manual-deployment**:) Deploy your own endpoints with various frameworks */}
 - **[exporters-overview](/libraries/nemo-evaluator-launcher/exporters**:) Send results to W&B, MLFlow, or other platforms

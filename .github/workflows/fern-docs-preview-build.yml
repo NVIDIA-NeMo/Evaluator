@@ -60,6 +60,6 @@ jobs:
         with:
           name: fern-preview
           path: |
-            docs/fern/
+            docs/
             preview-metadata/
           retention-days: 1

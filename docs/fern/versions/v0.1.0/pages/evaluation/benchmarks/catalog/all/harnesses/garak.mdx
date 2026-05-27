@@ -1,0 +1,192 @@
+---
+title: "garak"
+---
+
+This page contains all evaluation tasks for the **garak** harness.
+
+| Task | Description |
+| --- | --- |
+| [garak](#garak-garak) | Task for running the default set of Garak probes. This variant uses the chat endpoint. |
+| [garak-completions](#garak-garak-completions) | Task for running the default set of Garak probes. This variant uses the completions endpoint. |
+
+<h2 id="garak-garak">garak</h2>
+
+Task for running the default set of Garak probes. This variant uses the chat endpoint.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `garak`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/garak:26.03
+```
+
+**Container Digest:**
+```
+sha256:99cc35f0f36bab1e880f834b58d0018d64b771a68cad020e2ba11bf093a7bf0d
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `garak`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cat > garak_config.yaml << 'EOF'
+{% if config.params.extra.seed is not none %}run:
+  seed: {{config.params.extra.seed}}{% endif %}
+plugins:
+  {% if config.params.extra.probes is not none %}probe_spec: {{config.params.extra.probes}}{% endif %}
+  extended_detectors: true
+  target_type: {% if target.api_endpoint.type == "completions" %}nim.NVOpenAICompletion{% elif target.api_endpoint.type == "chat" %}nim.NVOpenAIChat{% endif %}
+  target_name: {{target.api_endpoint.model_id}}
+  generators:
+    nim:
+      uri: {{target.api_endpoint.url | replace('/chat/completions', '') | replace('/completions', '')}}
+      {% if config.params.temperature is not none %}temperature: {{config.params.temperature}}{% endif %}
+      {% if config.params.top_p is not none %}top_p: {{config.params.top_p}}{% endif %}
+      {% if config.params.max_new_tokens is not none %}max_tokens: {{config.params.max_new_tokens}}{% endif %}
+    skip_seq_start: {{config.params.extra.skip_seq_start}}
+    skip_seq_end: {{config.params.extra.skip_seq_end}}
+    
+system:
+  parallel_attempts: {{config.params.parallelism}}
+  lite: false
+EOF
+{% if target.api_endpoint.api_key_name is not none %}
+export NIM_API_KEY=${{target.api_endpoint.api_key_name}} &&
+{% else %}
+export NIM_API_KEY=dummy &&
+{% endif %}
+export XDG_DATA_HOME={{config.output_dir}} &&
+garak --config garak_config.yaml --report_prefix=results
+
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: garak
+pkg_name: garak
+config:
+  params:
+    max_new_tokens: 150
+    parallelism: 32
+    temperature: 0.1
+    top_p: 0.7
+    extra:
+      probes: null
+      seed: 42
+      skip_seq_start: <think>
+      skip_seq_end: </think>
+  supported_endpoint_types:
+  - chat
+  type: garak
+target:
+  api_endpoint:
+    api_key_name: API_KEY
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="garak-garak-completions">garak-completions</h2>
+
+Task for running the default set of Garak probes. This variant uses the completions endpoint.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `garak`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/garak:26.03
+```
+
+**Container Digest:**
+```
+sha256:99cc35f0f36bab1e880f834b58d0018d64b771a68cad020e2ba11bf093a7bf0d
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `garak-completions`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+cat > garak_config.yaml << 'EOF'
+{% if config.params.extra.seed is not none %}run:
+  seed: {{config.params.extra.seed}}{% endif %}
+plugins:
+  {% if config.params.extra.probes is not none %}probe_spec: {{config.params.extra.probes}}{% endif %}
+  extended_detectors: true
+  target_type: {% if target.api_endpoint.type == "completions" %}nim.NVOpenAICompletion{% elif target.api_endpoint.type == "chat" %}nim.NVOpenAIChat{% endif %}
+  target_name: {{target.api_endpoint.model_id}}
+  generators:
+    nim:
+      uri: {{target.api_endpoint.url | replace('/chat/completions', '') | replace('/completions', '')}}
+      {% if config.params.temperature is not none %}temperature: {{config.params.temperature}}{% endif %}
+      {% if config.params.top_p is not none %}top_p: {{config.params.top_p}}{% endif %}
+      {% if config.params.max_new_tokens is not none %}max_tokens: {{config.params.max_new_tokens}}{% endif %}
+    skip_seq_start: {{config.params.extra.skip_seq_start}}
+    skip_seq_end: {{config.params.extra.skip_seq_end}}
+    
+system:
+  parallel_attempts: {{config.params.parallelism}}
+  lite: false
+EOF
+{% if target.api_endpoint.api_key_name is not none %}
+export NIM_API_KEY=${{target.api_endpoint.api_key_name}} &&
+{% else %}
+export NIM_API_KEY=dummy &&
+{% endif %}
+export XDG_DATA_HOME={{config.output_dir}} &&
+garak --config garak_config.yaml --report_prefix=results
+
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: garak
+pkg_name: garak
+config:
+  params:
+    max_new_tokens: 150
+    parallelism: 32
+    temperature: 0.1
+    top_p: 0.7
+    extra:
+      probes: null
+      seed: 42
+      skip_seq_start: <think>
+      skip_seq_end: </think>
+  supported_endpoint_types:
+  - completions
+  type: garak-completions
+target:
+  api_endpoint:
+    api_key_name: API_KEY
+```
+
+</Tab>
+
+</Tabs>
+

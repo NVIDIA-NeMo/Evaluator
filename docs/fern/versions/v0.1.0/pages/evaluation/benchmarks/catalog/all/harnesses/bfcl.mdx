@@ -1,0 +1,444 @@
+---
+title: "bfcl"
+---
+
+This page contains all evaluation tasks for the **bfcl** harness.
+
+| Task | Description |
+| --- | --- |
+| [bfclv2](#bfcl-bfclv2) | BFCL v2 with Single-turn, Live and Non-Live, AST and Exec evaluation. Not using native function calling. |
+| [bfclv2_ast](#bfcl-bfclv2-ast) | BFCL v2 with Single-turn, Live and Non-Live, AST evaluation only. Uses native function calling. |
+| [bfclv2_ast_prompting](#bfcl-bfclv2-ast-prompting) | BFCL v2 with Single-turn, Live and Non-Live, AST evaluation only. Not using native function calling. |
+| [bfclv3](#bfcl-bfclv3) | BFCL v3 with Single-turn and Multi-turn, Live and Non-Live, AST and Exec evaluation. Not using native function calling. |
+| [bfclv3_ast](#bfcl-bfclv3-ast) | BFCL v3 with Single-turn and Multi-turn, Live and Non-Live, AST evaluation. Uses native function calling. |
+| [bfclv3_ast_prompting](#bfcl-bfclv3-ast-prompting) | BFCL v3 with Single-turn and Multi-turn, Live and Non-Live, AST evaluation. Not using native function calling. |
+
+<h2 id="bfcl-bfclv2">bfclv2</h2>
+
+BFCL v2 with Single-turn, Live and Non-Live, AST and Exec evaluation. Not using native function calling.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bfcl`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bfcl:26.03
+```
+
+**Container Digest:**
+```
+sha256:fc6b5f22698b75b759dc29715663d3006b7180847330e06b15ee080346462c03
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `bfclv2`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{%- if config.params.extra.custom_dataset.path is not none and config.params.extra.custom_dataset.format is not none -%} echo "Processing custom dataset..." && export BFCL_DATA_DIR=$(core-evals-process-custom-dataset \
+  --dataset_format {{config.params.extra.custom_dataset.format}} \
+  --dataset_path {{config.params.extra.custom_dataset.path}} \
+  --test_category {{config.params.task}} \
+  --processing_output_dir {{config.output_dir ~ "/custom_dataset_processing"}} \
+  {% if config.params.extra.custom_dataset.data_template_path %}--data_template_path {{config.params.extra.custom_dataset.data_template_path}}{% endif %}) && \
+echo "Using custom dataset at ${BFCL_DATA_DIR}" && \
+{% endif -%}
+{% if target.api_endpoint.api_key_name is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}{% endif %} bfcl generate --model {{target.api_endpoint.model_id}} --test-category {{config.params.task}} --model-mapping oai --result-dir {{config.output_dir}} --model-args base_url={{target.api_endpoint.url}},native_calling={{config.params.extra.native_calling}}  {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{% endif %} --num-threads  {{config.params.parallelism}} && \
+{% if target.api_endpoint.api_key_name is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}{% endif %} bfcl evaluate --model {{target.api_endpoint.model_id}} --test-category {{config.params.task}} --model-mapping oai --result-dir {{config.output_dir}} --score-dir {{config.output_dir}} --model-args base_url={{target.api_endpoint.url}},native_calling={{config.params.extra.native_calling}}
+
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bfcl
+pkg_name: bfcl
+config:
+  params:
+    parallelism: 10
+    task: single_turn
+    extra:
+      native_calling: false
+      custom_dataset:
+        path: null
+        format: null
+        data_template_path: null
+  supported_endpoint_types:
+  - chat
+  type: bfclv2
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bfcl-bfclv2-ast">bfclv2_ast</h2>
+
+BFCL v2 with Single-turn, Live and Non-Live, AST evaluation only. Uses native function calling.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bfcl`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bfcl:26.03
+```
+
+**Container Digest:**
+```
+sha256:fc6b5f22698b75b759dc29715663d3006b7180847330e06b15ee080346462c03
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `bfclv2_ast`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{%- if config.params.extra.custom_dataset.path is not none and config.params.extra.custom_dataset.format is not none -%} echo "Processing custom dataset..." && export BFCL_DATA_DIR=$(core-evals-process-custom-dataset \
+  --dataset_format {{config.params.extra.custom_dataset.format}} \
+  --dataset_path {{config.params.extra.custom_dataset.path}} \
+  --test_category {{config.params.task}} \
+  --processing_output_dir {{config.output_dir ~ "/custom_dataset_processing"}} \
+  {% if config.params.extra.custom_dataset.data_template_path %}--data_template_path {{config.params.extra.custom_dataset.data_template_path}}{% endif %}) && \
+echo "Using custom dataset at ${BFCL_DATA_DIR}" && \
+{% endif -%}
+{% if target.api_endpoint.api_key_name is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}{% endif %} bfcl generate --model {{target.api_endpoint.model_id}} --test-category {{config.params.task}} --model-mapping oai --result-dir {{config.output_dir}} --model-args base_url={{target.api_endpoint.url}},native_calling={{config.params.extra.native_calling}}  {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{% endif %} --num-threads  {{config.params.parallelism}} && \
+{% if target.api_endpoint.api_key_name is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}{% endif %} bfcl evaluate --model {{target.api_endpoint.model_id}} --test-category {{config.params.task}} --model-mapping oai --result-dir {{config.output_dir}} --score-dir {{config.output_dir}} --model-args base_url={{target.api_endpoint.url}},native_calling={{config.params.extra.native_calling}}
+
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bfcl
+pkg_name: bfcl
+config:
+  params:
+    parallelism: 10
+    task: ast
+    extra:
+      native_calling: true
+      custom_dataset:
+        path: null
+        format: null
+        data_template_path: null
+  supported_endpoint_types:
+  - chat
+  type: bfclv2_ast
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bfcl-bfclv2-ast-prompting">bfclv2_ast_prompting</h2>
+
+BFCL v2 with Single-turn, Live and Non-Live, AST evaluation only. Not using native function calling.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bfcl`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bfcl:26.03
+```
+
+**Container Digest:**
+```
+sha256:fc6b5f22698b75b759dc29715663d3006b7180847330e06b15ee080346462c03
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `bfclv2_ast_prompting`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{%- if config.params.extra.custom_dataset.path is not none and config.params.extra.custom_dataset.format is not none -%} echo "Processing custom dataset..." && export BFCL_DATA_DIR=$(core-evals-process-custom-dataset \
+  --dataset_format {{config.params.extra.custom_dataset.format}} \
+  --dataset_path {{config.params.extra.custom_dataset.path}} \
+  --test_category {{config.params.task}} \
+  --processing_output_dir {{config.output_dir ~ "/custom_dataset_processing"}} \
+  {% if config.params.extra.custom_dataset.data_template_path %}--data_template_path {{config.params.extra.custom_dataset.data_template_path}}{% endif %}) && \
+echo "Using custom dataset at ${BFCL_DATA_DIR}" && \
+{% endif -%}
+{% if target.api_endpoint.api_key_name is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}{% endif %} bfcl generate --model {{target.api_endpoint.model_id}} --test-category {{config.params.task}} --model-mapping oai --result-dir {{config.output_dir}} --model-args base_url={{target.api_endpoint.url}},native_calling={{config.params.extra.native_calling}}  {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{% endif %} --num-threads  {{config.params.parallelism}} && \
+{% if target.api_endpoint.api_key_name is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}{% endif %} bfcl evaluate --model {{target.api_endpoint.model_id}} --test-category {{config.params.task}} --model-mapping oai --result-dir {{config.output_dir}} --score-dir {{config.output_dir}} --model-args base_url={{target.api_endpoint.url}},native_calling={{config.params.extra.native_calling}}
+
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bfcl
+pkg_name: bfcl
+config:
+  params:
+    parallelism: 10
+    task: ast
+    extra:
+      native_calling: false
+      custom_dataset:
+        path: null
+        format: null
+        data_template_path: null
+  supported_endpoint_types:
+  - chat
+  type: bfclv2_ast_prompting
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bfcl-bfclv3">bfclv3</h2>
+
+BFCL v3 with Single-turn and Multi-turn, Live and Non-Live, AST and Exec evaluation. Not using native function calling.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bfcl`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bfcl:26.03
+```
+
+**Container Digest:**
+```
+sha256:fc6b5f22698b75b759dc29715663d3006b7180847330e06b15ee080346462c03
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `bfclv3`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{%- if config.params.extra.custom_dataset.path is not none and config.params.extra.custom_dataset.format is not none -%} echo "Processing custom dataset..." && export BFCL_DATA_DIR=$(core-evals-process-custom-dataset \
+  --dataset_format {{config.params.extra.custom_dataset.format}} \
+  --dataset_path {{config.params.extra.custom_dataset.path}} \
+  --test_category {{config.params.task}} \
+  --processing_output_dir {{config.output_dir ~ "/custom_dataset_processing"}} \
+  {% if config.params.extra.custom_dataset.data_template_path %}--data_template_path {{config.params.extra.custom_dataset.data_template_path}}{% endif %}) && \
+echo "Using custom dataset at ${BFCL_DATA_DIR}" && \
+{% endif -%}
+{% if target.api_endpoint.api_key_name is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}{% endif %} bfcl generate --model {{target.api_endpoint.model_id}} --test-category {{config.params.task}} --model-mapping oai --result-dir {{config.output_dir}} --model-args base_url={{target.api_endpoint.url}},native_calling={{config.params.extra.native_calling}}  {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{% endif %} --num-threads  {{config.params.parallelism}} && \
+{% if target.api_endpoint.api_key_name is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}{% endif %} bfcl evaluate --model {{target.api_endpoint.model_id}} --test-category {{config.params.task}} --model-mapping oai --result-dir {{config.output_dir}} --score-dir {{config.output_dir}} --model-args base_url={{target.api_endpoint.url}},native_calling={{config.params.extra.native_calling}}
+
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bfcl
+pkg_name: bfcl
+config:
+  params:
+    parallelism: 10
+    task: all
+    extra:
+      native_calling: false
+      custom_dataset:
+        path: null
+        format: null
+        data_template_path: null
+  supported_endpoint_types:
+  - chat
+  type: bfclv3
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bfcl-bfclv3-ast">bfclv3_ast</h2>
+
+BFCL v3 with Single-turn and Multi-turn, Live and Non-Live, AST evaluation. Uses native function calling.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bfcl`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bfcl:26.03
+```
+
+**Container Digest:**
+```
+sha256:fc6b5f22698b75b759dc29715663d3006b7180847330e06b15ee080346462c03
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `bfclv3_ast`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{%- if config.params.extra.custom_dataset.path is not none and config.params.extra.custom_dataset.format is not none -%} echo "Processing custom dataset..." && export BFCL_DATA_DIR=$(core-evals-process-custom-dataset \
+  --dataset_format {{config.params.extra.custom_dataset.format}} \
+  --dataset_path {{config.params.extra.custom_dataset.path}} \
+  --test_category {{config.params.task}} \
+  --processing_output_dir {{config.output_dir ~ "/custom_dataset_processing"}} \
+  {% if config.params.extra.custom_dataset.data_template_path %}--data_template_path {{config.params.extra.custom_dataset.data_template_path}}{% endif %}) && \
+echo "Using custom dataset at ${BFCL_DATA_DIR}" && \
+{% endif -%}
+{% if target.api_endpoint.api_key_name is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}{% endif %} bfcl generate --model {{target.api_endpoint.model_id}} --test-category {{config.params.task}} --model-mapping oai --result-dir {{config.output_dir}} --model-args base_url={{target.api_endpoint.url}},native_calling={{config.params.extra.native_calling}}  {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{% endif %} --num-threads  {{config.params.parallelism}} && \
+{% if target.api_endpoint.api_key_name is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}{% endif %} bfcl evaluate --model {{target.api_endpoint.model_id}} --test-category {{config.params.task}} --model-mapping oai --result-dir {{config.output_dir}} --score-dir {{config.output_dir}} --model-args base_url={{target.api_endpoint.url}},native_calling={{config.params.extra.native_calling}}
+
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bfcl
+pkg_name: bfcl
+config:
+  params:
+    parallelism: 10
+    task: multi_turn,ast
+    extra:
+      native_calling: true
+      custom_dataset:
+        path: null
+        format: null
+        data_template_path: null
+  supported_endpoint_types:
+  - chat
+  type: bfclv3_ast
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bfcl-bfclv3-ast-prompting">bfclv3_ast_prompting</h2>
+
+BFCL v3 with Single-turn and Multi-turn, Live and Non-Live, AST evaluation. Not using native function calling.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bfcl`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bfcl:26.03
+```
+
+**Container Digest:**
+```
+sha256:fc6b5f22698b75b759dc29715663d3006b7180847330e06b15ee080346462c03
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `bfclv3_ast_prompting`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{%- if config.params.extra.custom_dataset.path is not none and config.params.extra.custom_dataset.format is not none -%} echo "Processing custom dataset..." && export BFCL_DATA_DIR=$(core-evals-process-custom-dataset \
+  --dataset_format {{config.params.extra.custom_dataset.format}} \
+  --dataset_path {{config.params.extra.custom_dataset.path}} \
+  --test_category {{config.params.task}} \
+  --processing_output_dir {{config.output_dir ~ "/custom_dataset_processing"}} \
+  {% if config.params.extra.custom_dataset.data_template_path %}--data_template_path {{config.params.extra.custom_dataset.data_template_path}}{% endif %}) && \
+echo "Using custom dataset at ${BFCL_DATA_DIR}" && \
+{% endif -%}
+{% if target.api_endpoint.api_key_name is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}{% endif %} bfcl generate --model {{target.api_endpoint.model_id}} --test-category {{config.params.task}} --model-mapping oai --result-dir {{config.output_dir}} --model-args base_url={{target.api_endpoint.url}},native_calling={{config.params.extra.native_calling}}  {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{% endif %} --num-threads  {{config.params.parallelism}} && \
+{% if target.api_endpoint.api_key_name is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}{% endif %} bfcl evaluate --model {{target.api_endpoint.model_id}} --test-category {{config.params.task}} --model-mapping oai --result-dir {{config.output_dir}} --score-dir {{config.output_dir}} --model-args base_url={{target.api_endpoint.url}},native_calling={{config.params.extra.native_calling}}
+
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bfcl
+pkg_name: bfcl
+config:
+  params:
+    parallelism: 10
+    task: multi_turn,ast
+    extra:
+      native_calling: false
+      custom_dataset:
+        path: null
+        format: null
+        data_template_path: null
+  supported_endpoint_types:
+  - chat
+  type: bfclv3_ast_prompting
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+

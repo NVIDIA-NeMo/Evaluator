@@ -38,8 +38,8 @@ graph LR
 
 **The workflow:**
 
-1. When you run `nemo-evaluator` (see [nemo-evaluator-cli](/references/references-api-nemo-evaluator/cli), the system discovers and loads your FDF (`framework.yml`)
-2. Configuration values are merged from framework defaults, evaluation-specific settings, and user overrides (see [parameter-overrides](/references/references-api-nemo-evaluator/cli)
+1. When you run `nemo-evaluator` (see [nemo-evaluator-cli](/references/api/nemo-evaluator/cli), the system discovers and loads your FDF (`framework.yml`)
+2. Configuration values are merged from framework defaults, evaluation-specific settings, and user overrides (see [parameter-overrides](/references/api/nemo-evaluator/cli)
 3. The system renders the Jinja2 command template with the merged configuration
 4. Your framework's CLI is executed with the generated command
 5. Results are parsed and processed by the system

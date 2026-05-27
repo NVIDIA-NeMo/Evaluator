@@ -1,0 +1,130 @@
+---
+title: "ifbench"
+---
+
+This page contains all evaluation tasks for the **ifbench** harness.
+
+| Task | Description |
+| --- | --- |
+| [ifbench](#ifbench-ifbench) | IFBench with vanilla settings |
+| [ifbench_aa_v2](#ifbench-ifbench-aa-v2) | IFBench - params aligned with Artificial Analysis Index v2 |
+
+<h2 id="ifbench-ifbench">ifbench</h2>
+
+IFBench with vanilla settings
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ifbench`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/ifbench:26.03
+```
+
+**Container Digest:**
+```
+sha256:f5ab5738454e542d970bda12ac3aadcab0723e09c31e27285123f00cb5587c50
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ifbench`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}  && {% endif %} ifbench --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --results-dir {{config.output_dir}} --inference-params max_tokens={{config.params.max_new_tokens}},temperature={{config.params.temperature}},top_p={{config.params.top_p}} --parallelism {{config.params.parallelism}} --retries {{config.params.max_retries}} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ifbench
+pkg_name: ifbench
+config:
+  params:
+    max_new_tokens: 4096
+    max_retries: 5
+    parallelism: 8
+    temperature: 0.01
+    top_p: 0.95
+    extra: {}
+  supported_endpoint_types:
+  - chat
+  type: ifbench
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ifbench-ifbench-aa-v2">ifbench_aa_v2</h2>
+
+IFBench - params aligned with Artificial Analysis Index v2
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ifbench`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/ifbench:26.03
+```
+
+**Container Digest:**
+```
+sha256:f5ab5738454e542d970bda12ac3aadcab0723e09c31e27285123f00cb5587c50
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ifbench_aa_v2`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}  && {% endif %} ifbench --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --results-dir {{config.output_dir}} --inference-params max_tokens={{config.params.max_new_tokens}},temperature={{config.params.temperature}},top_p={{config.params.top_p}} --parallelism {{config.params.parallelism}} --retries {{config.params.max_retries}} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ifbench
+pkg_name: ifbench
+config:
+  params:
+    max_new_tokens: 16384
+    max_retries: 30
+    parallelism: 8
+    temperature: 0.0
+    top_p: 0.95
+    extra: {}
+  supported_endpoint_types:
+  - chat
+  type: ifbench_aa_v2
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+

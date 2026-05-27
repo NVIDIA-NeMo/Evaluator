@@ -1,0 +1,1815 @@
+---
+title: "codec"
+---
+
+This page contains all evaluation tasks for the **codec** harness.
+
+| Task | Description |
+| --- | --- |
+| [aime_2024](#codec-aime-2024) | Task for detecting contamination with the AIME 2024 dataset |
+| [aime_2025](#codec-aime-2025) | Task for detecting contamination with the AIME 2025 dataset |
+| [bbq](#codec-bbq) | Task for detecting contamination with the BBQ dataset |
+| [bfcl_v3](#codec-bfcl-v3) | Task for detecting contamination with the BFCL v3 dataset |
+| [frames](#codec-frames) | Task for detecting contamination with the FRAMES dataset |
+| [gpqa_diamond](#codec-gpqa-diamond) | Task for detecting contamination with the GPQA diamond |
+| [gsm8k_test](#codec-gsm8k-test) | Task for detecting contamination with the GSM8K test set |
+| [gsm8k_train](#codec-gsm8k-train) | Task for detecting contamination with the GSM8K train set |
+| [hellaswag_test](#codec-hellaswag-test) | Task for detecting contamination with the Hellaswag test set |
+| [hellaswag_train](#codec-hellaswag-train) | Task for detecting contamination with the Hellaswag train set |
+| [hle](#codec-hle) | Task for detecting contamination with the HLE dataset |
+| [ifbench](#codec-ifbench) | Task for detecting contamination with the IFBench dataset |
+| [ifeval](#codec-ifeval) | Task for detecting contamination with the IFeval dataset |
+| [livecodebench_v1](#codec-livecodebench-v1) | Task for detecting contamination with the LiveCodeBench v1 dataset |
+| [livecodebench_v5](#codec-livecodebench-v5) | Task for detecting contamination with the LiveCodeBench v5 dataset |
+| [math_500_problem](#codec-math-500-problem) | Task for detecting contamination with the Math 500 dataset (problem statements) |
+| [math_500_solution](#codec-math-500-solution) | Task for detecting contamination with the Math 500 dataset (solutions) |
+| [mmlu_pro_test](#codec-mmlu-pro-test) | Task for detecting contamination with the MMLU-Pro test set |
+| [mmlu_test](#codec-mmlu-test) | Task for detecting contamination with the MMLU test set |
+| [openai_humaneval](#codec-openai-humaneval) | Task for detecting contamination with the OpenAI HumanEval dataset |
+| [reward_bench_v1](#codec-reward-bench-v1) | Task for detecting contamination with the Reward Bench v1 dataset |
+| [reward_bench_v2](#codec-reward-bench-v2) | Task for detecting contamination with the Reward Bench v2 dataset |
+| [scicode](#codec-scicode) | Task for detecting contamination with the SciCode dataset |
+| [swebench_test](#codec-swebench-test) | Task for detecting contamination with the SWE-bench dataset (test split) |
+| [swebench_train](#codec-swebench-train) | Task for detecting contamination with the SWE-bench dataset (train split) |
+| [taubench](#codec-taubench) | Task for detecting contamination with the Tau-bench dataset |
+| [terminalbench](#codec-terminalbench) | Task for detecting contamination with the Terminal-Bench dataset |
+
+<h2 id="codec-aime-2024">aime_2024</h2>
+
+Task for detecting contamination with the AIME 2024 dataset
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `aime_2024`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: aime_2024
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: aime_2024
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-aime-2025">aime_2025</h2>
+
+Task for detecting contamination with the AIME 2025 dataset
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `aime_2025`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: aime_2025
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: aime_2025
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-bbq">bbq</h2>
+
+Task for detecting contamination with the BBQ dataset
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `bbq`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: bbq
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: bbq
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-bfcl-v3">bfcl_v3</h2>
+
+Task for detecting contamination with the BFCL v3 dataset
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `bfcl_v3`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: bfcl_v3
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: bfcl_v3
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-frames">frames</h2>
+
+Task for detecting contamination with the FRAMES dataset
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `frames`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: frames
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: frames
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-gpqa-diamond">gpqa_diamond</h2>
+
+Task for detecting contamination with the GPQA diamond
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `gpqa_diamond`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: gpqa_diamond
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: gpqa_diamond
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-gsm8k-test">gsm8k_test</h2>
+
+Task for detecting contamination with the GSM8K test set
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `gsm8k_test`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: gsm8k_test
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: gsm8k_test
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-gsm8k-train">gsm8k_train</h2>
+
+Task for detecting contamination with the GSM8K train set
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `gsm8k_train`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: gsm8k_train
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: gsm8k_train
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-hellaswag-test">hellaswag_test</h2>
+
+Task for detecting contamination with the Hellaswag test set
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `hellaswag_test`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: hellaswag_test
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: hellaswag_test
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-hellaswag-train">hellaswag_train</h2>
+
+Task for detecting contamination with the Hellaswag train set
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `hellaswag_train`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: hellaswag_train
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: hellaswag_train
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-hle">hle</h2>
+
+Task for detecting contamination with the HLE dataset
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `hle`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: hle
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: hle
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-ifbench">ifbench</h2>
+
+Task for detecting contamination with the IFBench dataset
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `ifbench`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: ifbench
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: ifbench
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-ifeval">ifeval</h2>
+
+Task for detecting contamination with the IFeval dataset
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `ifeval`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: ifeval
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: ifeval
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-livecodebench-v1">livecodebench_v1</h2>
+
+Task for detecting contamination with the LiveCodeBench v1 dataset
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `livecodebench_v1`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: livecodebench_v1
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: livecodebench_v1
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-livecodebench-v5">livecodebench_v5</h2>
+
+Task for detecting contamination with the LiveCodeBench v5 dataset
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `livecodebench_v5`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: livecodebench_v5
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: livecodebench_v5
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-math-500-problem">math_500_problem</h2>
+
+Task for detecting contamination with the Math 500 dataset (problem statements)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `math_500_problem`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: math_500_problem
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: math_500_problem
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-math-500-solution">math_500_solution</h2>
+
+Task for detecting contamination with the Math 500 dataset (solutions)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `math_500_solution`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: math_500_solution
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: math_500_solution
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-mmlu-pro-test">mmlu_pro_test</h2>
+
+Task for detecting contamination with the MMLU-Pro test set
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `mmlu_pro_test`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: mmlu_pro_test
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: mmlu_pro_test
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-mmlu-test">mmlu_test</h2>
+
+Task for detecting contamination with the MMLU test set
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `mmlu_test`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: mmlu_test
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: mmlu_test
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-openai-humaneval">openai_humaneval</h2>
+
+Task for detecting contamination with the OpenAI HumanEval dataset
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `openai_humaneval`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: openai_humaneval
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: openai_humaneval
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-reward-bench-v1">reward_bench_v1</h2>
+
+Task for detecting contamination with the Reward Bench v1 dataset
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `reward_bench_v1`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: reward_bench_v1
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: reward_bench_v1
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-reward-bench-v2">reward_bench_v2</h2>
+
+Task for detecting contamination with the Reward Bench v2 dataset
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `reward_bench_v2`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: reward_bench_v2
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: reward_bench_v2
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-scicode">scicode</h2>
+
+Task for detecting contamination with the SciCode dataset
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `scicode`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: scicode
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: scicode
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-swebench-test">swebench_test</h2>
+
+Task for detecting contamination with the SWE-bench dataset (test split)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `swebench_test`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: swebench_test
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: swebench_test
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-swebench-train">swebench_train</h2>
+
+Task for detecting contamination with the SWE-bench dataset (train split)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `swebench_train`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: swebench_train
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: swebench_train
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-taubench">taubench</h2>
+
+Task for detecting contamination with the Tau-bench dataset
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `taubench`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: taubench
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: taubench
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="codec-terminalbench">terminalbench</h2>
+
+Task for detecting contamination with the Terminal-Bench dataset
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `codec`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/contamination-detection:26.03
+```
+
+**Container Digest:**
+```
+sha256:8ee89191f0adf756ff5cf7f5db9a0ae639ffa95fafa833303bef67f1d14b5fbc
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `terminalbench`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} codec --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --contamination_type {{config.params.extra.contamination_type}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --n_context_seeds {{config.params.extra.n_context_seeds}} --out_dir {{config.output_dir}}/results --cache_dir {{config.output_dir}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} --min_length {{config.params.extra.min_length}} --max_length {{config.params.extra.max_length}} {% if config.params.limit_samples is not none %} --n_samples {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: codec
+pkg_name: codec
+config:
+  params:
+    limit_samples: 1000
+    max_retries: 10
+    parallelism: 20
+    task: terminalbench
+    temperature: 0.0
+    request_timeout: 120
+    top_p: 1.0
+    extra:
+      contamination_type: in_context
+      n_context_seeds: 5
+      min_length: 100
+      max_length: 2048
+  supported_endpoint_types:
+  - completions
+  type: terminalbench
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+

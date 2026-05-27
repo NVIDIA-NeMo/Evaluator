@@ -1,0 +1,1286 @@
+---
+title: "ruler"
+---
+
+This page contains all evaluation tasks for the **ruler** harness.
+
+| Task | Description |
+| --- | --- |
+| [ruler-128k-chat](#ruler-ruler-128k-chat) | RULER with context length of 128k (chat mode) |
+| [ruler-128k-completions](#ruler-ruler-128k-completions) | RULER with context length of 128k (completions mode) |
+| [ruler-16k-chat](#ruler-ruler-16k-chat) | RULER with context length of 16k (chat mode) |
+| [ruler-16k-completions](#ruler-ruler-16k-completions) | RULER with context length of 16k (completions mode) |
+| [ruler-1m-chat](#ruler-ruler-1m-chat) | RULER with context length of 1M (chat mode) |
+| [ruler-1m-completions](#ruler-ruler-1m-completions) | RULER with context length of 1M (completions mode) |
+| [ruler-256k-chat](#ruler-ruler-256k-chat) | RULER with context length of 256k (chat mode) |
+| [ruler-256k-completions](#ruler-ruler-256k-completions) | RULER with context length of 256k (completions mode) |
+| [ruler-32k-chat](#ruler-ruler-32k-chat) | RULER with context length of 32k (chat mode) |
+| [ruler-32k-completions](#ruler-ruler-32k-completions) | RULER with context length of 32k (completions mode) |
+| [ruler-4k-chat](#ruler-ruler-4k-chat) | RULER with context length of 4k (chat mode) |
+| [ruler-4k-completions](#ruler-ruler-4k-completions) | RULER with context length of 4k (completions mode) |
+| [ruler-512k-chat](#ruler-ruler-512k-chat) | RULER with context length of 512k (chat mode) |
+| [ruler-512k-completions](#ruler-ruler-512k-completions) | RULER with context length of 512k (completions mode) |
+| [ruler-64k-chat](#ruler-ruler-64k-chat) | RULER with context length of 64k (chat mode) |
+| [ruler-64k-completions](#ruler-ruler-64k-completions) | RULER with context length of 64k (completions mode) |
+| [ruler-8k-chat](#ruler-ruler-8k-chat) | RULER with context length of 8k (chat mode) |
+| [ruler-8k-completions](#ruler-ruler-8k-completions) | RULER with context length of 8k (completions mode) |
+| [ruler-chat](#ruler-ruler-chat) | RULER (chat mode) without specified context length. A user must explicitly specify `max_seq_length` parameter. |
+| [ruler-completions](#ruler-ruler-completions) | RULER (completions mode) without specified context length. A user must explicitly specify `max_seq_length` parameter. |
+
+<h2 id="ruler-ruler-128k-chat">ruler-128k-chat</h2>
+
+RULER with context length of 128k (chat mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-128k-chat`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 128000
+      subtasks: all
+  supported_endpoint_types:
+  - chat
+  type: ruler-128k-chat
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-128k-completions">ruler-128k-completions</h2>
+
+RULER with context length of 128k (completions mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-128k-completions`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 128000
+      subtasks: all
+  supported_endpoint_types:
+  - completions
+  type: ruler-128k-completions
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-16k-chat">ruler-16k-chat</h2>
+
+RULER with context length of 16k (chat mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-16k-chat`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 16000
+      subtasks: all
+  supported_endpoint_types:
+  - chat
+  type: ruler-16k-chat
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-16k-completions">ruler-16k-completions</h2>
+
+RULER with context length of 16k (completions mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-16k-completions`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 16000
+      subtasks: all
+  supported_endpoint_types:
+  - completions
+  type: ruler-16k-completions
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-1m-chat">ruler-1m-chat</h2>
+
+RULER with context length of 1M (chat mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-1m-chat`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 1000000
+      subtasks: all
+  supported_endpoint_types:
+  - chat
+  type: ruler-1m-chat
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-1m-completions">ruler-1m-completions</h2>
+
+RULER with context length of 1M (completions mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-1m-completions`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 1000000
+      subtasks: all
+  supported_endpoint_types:
+  - completions
+  type: ruler-1m-completions
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-256k-chat">ruler-256k-chat</h2>
+
+RULER with context length of 256k (chat mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-256k-chat`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 256000
+      subtasks: all
+  supported_endpoint_types:
+  - chat
+  type: ruler-256k-chat
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-256k-completions">ruler-256k-completions</h2>
+
+RULER with context length of 256k (completions mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-256k-completions`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 256000
+      subtasks: all
+  supported_endpoint_types:
+  - completions
+  type: ruler-256k-completions
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-32k-chat">ruler-32k-chat</h2>
+
+RULER with context length of 32k (chat mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-32k-chat`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 32000
+      subtasks: all
+  supported_endpoint_types:
+  - chat
+  type: ruler-32k-chat
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-32k-completions">ruler-32k-completions</h2>
+
+RULER with context length of 32k (completions mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-32k-completions`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 32000
+      subtasks: all
+  supported_endpoint_types:
+  - completions
+  type: ruler-32k-completions
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-4k-chat">ruler-4k-chat</h2>
+
+RULER with context length of 4k (chat mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-4k-chat`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 4000
+      subtasks: all
+  supported_endpoint_types:
+  - chat
+  type: ruler-4k-chat
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-4k-completions">ruler-4k-completions</h2>
+
+RULER with context length of 4k (completions mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-4k-completions`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 4000
+      subtasks: all
+  supported_endpoint_types:
+  - completions
+  type: ruler-4k-completions
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-512k-chat">ruler-512k-chat</h2>
+
+RULER with context length of 512k (chat mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-512k-chat`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 512000
+      subtasks: all
+  supported_endpoint_types:
+  - chat
+  type: ruler-512k-chat
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-512k-completions">ruler-512k-completions</h2>
+
+RULER with context length of 512k (completions mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-512k-completions`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 512000
+      subtasks: all
+  supported_endpoint_types:
+  - completions
+  type: ruler-512k-completions
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-64k-chat">ruler-64k-chat</h2>
+
+RULER with context length of 64k (chat mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-64k-chat`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 64000
+      subtasks: all
+  supported_endpoint_types:
+  - chat
+  type: ruler-64k-chat
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-64k-completions">ruler-64k-completions</h2>
+
+RULER with context length of 64k (completions mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-64k-completions`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 64000
+      subtasks: all
+  supported_endpoint_types:
+  - completions
+  type: ruler-64k-completions
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-8k-chat">ruler-8k-chat</h2>
+
+RULER with context length of 8k (chat mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-8k-chat`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 8000
+      subtasks: all
+  supported_endpoint_types:
+  - chat
+  type: ruler-8k-chat
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-8k-completions">ruler-8k-completions</h2>
+
+RULER with context length of 8k (completions mode)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-8k-completions`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: 8000
+      subtasks: all
+  supported_endpoint_types:
+  - completions
+  type: ruler-8k-completions
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-chat">ruler-chat</h2>
+
+RULER (chat mode) without specified context length. A user must explicitly specify `max_seq_length` parameter.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-chat`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: null
+      subtasks: all
+  supported_endpoint_types:
+  - chat
+  type: ruler-chat
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="ruler-ruler-completions">ruler-completions</h2>
+
+RULER (completions mode) without specified context length. A user must explicitly specify `max_seq_length` parameter.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `ruler`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/long-context-eval:26.03
+```
+
+**Container Digest:**
+```
+sha256:ab3aa4a83cac15e10e198f0b3a34eb8476cddd52621eb6a4f7c9c47a72a53524
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ruler-completions`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+python -c "import nltk;nltk.download('punkt_tab');nltk.download('punkt')" && {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &&{% endif %} long_context_eval --url {{target.api_endpoint.url}} --tasks "{{config.params.extra.subtasks}}" --result_dir {{config.output_dir}} --model {{target.api_endpoint.model_id}} --mode {% if target.api_endpoint.type == "completions" %}completion{% elif target.api_endpoint.type == "chat" %}chat{% endif %} --tokenizer_path "{{config.params.extra.tokenizer}}" --tokenizer_type "{{config.params.extra.tokenizer_backend}}" --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} {% if config.params.limit_samples is not none %}--num_samples {{config.params.limit_samples}}{% endif %} {% if config.params.extra.max_seq_length is defined %}--max_seq_length {{config.params.extra.max_seq_length}}{% endif %} --timeout {{config.params.request_timeout}} --threads {{config.params.parallelism}} {% if config.params.max_new_tokens is not none %}--tokens_to_generate {{config.params.max_new_tokens}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: ruler
+pkg_name: long_context_eval
+config:
+  params:
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 300
+    top_p: 0.0001
+    extra:
+      tokenizer: null
+      tokenizer_backend: hf
+      max_seq_length: null
+      subtasks: all
+  supported_endpoint_types:
+  - completions
+  type: ruler-completions
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+

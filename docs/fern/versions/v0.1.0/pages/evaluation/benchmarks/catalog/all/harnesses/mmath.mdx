@@ -1,0 +1,656 @@
+---
+title: "mmath"
+---
+
+This page contains all evaluation tasks for the **mmath** harness.
+
+| Task | Description |
+| --- | --- |
+| [mmath_ar](#mmath-mmath-ar) | Arabic mmath |
+| [mmath_en](#mmath-mmath-en) | English mmath |
+| [mmath_es](#mmath-mmath-es) | Spanish mmath |
+| [mmath_fr](#mmath-mmath-fr) | French mmath |
+| [mmath_ja](#mmath-mmath-ja) | Japanese mmath |
+| [mmath_ko](#mmath-mmath-ko) | Korean mmath |
+| [mmath_pt](#mmath-mmath-pt) | Portuguese mmath |
+| [mmath_th](#mmath-mmath-th) | Thai mmath |
+| [mmath_vi](#mmath-mmath-vi) | Vietnamese mmath |
+| [mmath_zh](#mmath-mmath-zh) | Chinese mmath |
+
+<h2 id="mmath-mmath-ar">mmath_ar</h2>
+
+Arabic mmath
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mmath`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mmath:26.03
+```
+
+**Container Digest:**
+```
+sha256:84b51127916846c4df5635d865e4f474aa332343f0cb09af3de71300ef33bf44
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mmath_ar`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}  && {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism {{config.params.parallelism}} --retries {{config.params.max_retries}} --max-tokens {{config.params.max_new_tokens}} --temperature {{config.params.temperature}} --top-p {{config.params.top_p}} --request-timeout {{config.params.request_timeout}} --n-samples {{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mmath
+pkg_name: mmath
+config:
+  params:
+    max_new_tokens: 32768
+    max_retries: 5
+    parallelism: 8
+    temperature: 0.6
+    request_timeout: 3600
+    top_p: 0.95
+    extra:
+      language: ar
+      n_samples: 4
+  supported_endpoint_types:
+  - chat
+  type: mmath_ar
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mmath-mmath-en">mmath_en</h2>
+
+English mmath
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mmath`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mmath:26.03
+```
+
+**Container Digest:**
+```
+sha256:84b51127916846c4df5635d865e4f474aa332343f0cb09af3de71300ef33bf44
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mmath_en`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}  && {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism {{config.params.parallelism}} --retries {{config.params.max_retries}} --max-tokens {{config.params.max_new_tokens}} --temperature {{config.params.temperature}} --top-p {{config.params.top_p}} --request-timeout {{config.params.request_timeout}} --n-samples {{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mmath
+pkg_name: mmath
+config:
+  params:
+    max_new_tokens: 32768
+    max_retries: 5
+    parallelism: 8
+    temperature: 0.6
+    request_timeout: 3600
+    top_p: 0.95
+    extra:
+      language: en
+      n_samples: 4
+  supported_endpoint_types:
+  - chat
+  type: mmath_en
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mmath-mmath-es">mmath_es</h2>
+
+Spanish mmath
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mmath`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mmath:26.03
+```
+
+**Container Digest:**
+```
+sha256:84b51127916846c4df5635d865e4f474aa332343f0cb09af3de71300ef33bf44
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mmath_es`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}  && {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism {{config.params.parallelism}} --retries {{config.params.max_retries}} --max-tokens {{config.params.max_new_tokens}} --temperature {{config.params.temperature}} --top-p {{config.params.top_p}} --request-timeout {{config.params.request_timeout}} --n-samples {{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mmath
+pkg_name: mmath
+config:
+  params:
+    max_new_tokens: 32768
+    max_retries: 5
+    parallelism: 8
+    temperature: 0.6
+    request_timeout: 3600
+    top_p: 0.95
+    extra:
+      language: es
+      n_samples: 4
+  supported_endpoint_types:
+  - chat
+  type: mmath_es
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mmath-mmath-fr">mmath_fr</h2>
+
+French mmath
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mmath`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mmath:26.03
+```
+
+**Container Digest:**
+```
+sha256:84b51127916846c4df5635d865e4f474aa332343f0cb09af3de71300ef33bf44
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mmath_fr`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}  && {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism {{config.params.parallelism}} --retries {{config.params.max_retries}} --max-tokens {{config.params.max_new_tokens}} --temperature {{config.params.temperature}} --top-p {{config.params.top_p}} --request-timeout {{config.params.request_timeout}} --n-samples {{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mmath
+pkg_name: mmath
+config:
+  params:
+    max_new_tokens: 32768
+    max_retries: 5
+    parallelism: 8
+    temperature: 0.6
+    request_timeout: 3600
+    top_p: 0.95
+    extra:
+      language: fr
+      n_samples: 4
+  supported_endpoint_types:
+  - chat
+  type: mmath_fr
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mmath-mmath-ja">mmath_ja</h2>
+
+Japanese mmath
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mmath`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mmath:26.03
+```
+
+**Container Digest:**
+```
+sha256:84b51127916846c4df5635d865e4f474aa332343f0cb09af3de71300ef33bf44
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mmath_ja`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}  && {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism {{config.params.parallelism}} --retries {{config.params.max_retries}} --max-tokens {{config.params.max_new_tokens}} --temperature {{config.params.temperature}} --top-p {{config.params.top_p}} --request-timeout {{config.params.request_timeout}} --n-samples {{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mmath
+pkg_name: mmath
+config:
+  params:
+    max_new_tokens: 32768
+    max_retries: 5
+    parallelism: 8
+    temperature: 0.6
+    request_timeout: 3600
+    top_p: 0.95
+    extra:
+      language: en
+      n_samples: 4
+  supported_endpoint_types:
+  - chat
+  type: mmath_ja
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mmath-mmath-ko">mmath_ko</h2>
+
+Korean mmath
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mmath`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mmath:26.03
+```
+
+**Container Digest:**
+```
+sha256:84b51127916846c4df5635d865e4f474aa332343f0cb09af3de71300ef33bf44
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mmath_ko`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}  && {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism {{config.params.parallelism}} --retries {{config.params.max_retries}} --max-tokens {{config.params.max_new_tokens}} --temperature {{config.params.temperature}} --top-p {{config.params.top_p}} --request-timeout {{config.params.request_timeout}} --n-samples {{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mmath
+pkg_name: mmath
+config:
+  params:
+    max_new_tokens: 32768
+    max_retries: 5
+    parallelism: 8
+    temperature: 0.6
+    request_timeout: 3600
+    top_p: 0.95
+    extra:
+      language: ko
+      n_samples: 4
+  supported_endpoint_types:
+  - chat
+  type: mmath_ko
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mmath-mmath-pt">mmath_pt</h2>
+
+Portuguese mmath
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mmath`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mmath:26.03
+```
+
+**Container Digest:**
+```
+sha256:84b51127916846c4df5635d865e4f474aa332343f0cb09af3de71300ef33bf44
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mmath_pt`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}  && {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism {{config.params.parallelism}} --retries {{config.params.max_retries}} --max-tokens {{config.params.max_new_tokens}} --temperature {{config.params.temperature}} --top-p {{config.params.top_p}} --request-timeout {{config.params.request_timeout}} --n-samples {{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mmath
+pkg_name: mmath
+config:
+  params:
+    max_new_tokens: 32768
+    max_retries: 5
+    parallelism: 8
+    temperature: 0.6
+    request_timeout: 3600
+    top_p: 0.95
+    extra:
+      language: pt
+      n_samples: 4
+  supported_endpoint_types:
+  - chat
+  type: mmath_pt
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mmath-mmath-th">mmath_th</h2>
+
+Thai mmath
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mmath`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mmath:26.03
+```
+
+**Container Digest:**
+```
+sha256:84b51127916846c4df5635d865e4f474aa332343f0cb09af3de71300ef33bf44
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mmath_th`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}  && {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism {{config.params.parallelism}} --retries {{config.params.max_retries}} --max-tokens {{config.params.max_new_tokens}} --temperature {{config.params.temperature}} --top-p {{config.params.top_p}} --request-timeout {{config.params.request_timeout}} --n-samples {{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mmath
+pkg_name: mmath
+config:
+  params:
+    max_new_tokens: 32768
+    max_retries: 5
+    parallelism: 8
+    temperature: 0.6
+    request_timeout: 3600
+    top_p: 0.95
+    extra:
+      language: th
+      n_samples: 4
+  supported_endpoint_types:
+  - chat
+  type: mmath_th
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mmath-mmath-vi">mmath_vi</h2>
+
+Vietnamese mmath
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mmath`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mmath:26.03
+```
+
+**Container Digest:**
+```
+sha256:84b51127916846c4df5635d865e4f474aa332343f0cb09af3de71300ef33bf44
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mmath_vi`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}  && {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism {{config.params.parallelism}} --retries {{config.params.max_retries}} --max-tokens {{config.params.max_new_tokens}} --temperature {{config.params.temperature}} --top-p {{config.params.top_p}} --request-timeout {{config.params.request_timeout}} --n-samples {{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mmath
+pkg_name: mmath
+config:
+  params:
+    max_new_tokens: 32768
+    max_retries: 5
+    parallelism: 8
+    temperature: 0.6
+    request_timeout: 3600
+    top_p: 0.95
+    extra:
+      language: vi
+      n_samples: 4
+  supported_endpoint_types:
+  - chat
+  type: mmath_vi
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mmath-mmath-zh">mmath_zh</h2>
+
+Chinese mmath
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mmath`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mmath:26.03
+```
+
+**Container Digest:**
+```
+sha256:84b51127916846c4df5635d865e4f474aa332343f0cb09af3de71300ef33bf44
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mmath_zh`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}  && {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism {{config.params.parallelism}} --retries {{config.params.max_retries}} --max-tokens {{config.params.max_new_tokens}} --temperature {{config.params.temperature}} --top-p {{config.params.top_p}} --request-timeout {{config.params.request_timeout}} --n-samples {{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mmath
+pkg_name: mmath
+config:
+  params:
+    max_new_tokens: 32768
+    max_retries: 5
+    parallelism: 8
+    temperature: 0.6
+    request_timeout: 3600
+    top_p: 0.95
+    extra:
+      language: zh
+      n_samples: 4
+  supported_endpoint_types:
+  - chat
+  type: mmath_zh
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+

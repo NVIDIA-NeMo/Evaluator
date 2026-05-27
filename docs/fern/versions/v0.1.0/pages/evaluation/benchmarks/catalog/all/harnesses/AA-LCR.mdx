@@ -1,0 +1,80 @@
+---
+title: "AA-LCR"
+---
+
+This page contains all evaluation tasks for the **AA-LCR** harness.
+
+| Task | Description |
+| --- | --- |
+| [aa_lcr](#aa-lcr-aa-lcr) | A challenging benchmark measuring language models' ability to extract, reason about, and synthesize information from long-form documents ranging from 10k to 100k tokens (measured using the cl100k_base tokenizer). |
+
+<h2 id="aa-lcr-aa-lcr">aa_lcr</h2>
+
+A challenging benchmark measuring language models' ability to extract, reason about, and synthesize information from long-form documents ranging from 10k to 100k tokens (measured using the cl100k_base tokenizer).
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `AA-LCR`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/aa-lcr:26.03
+```
+
+**Container Digest:**
+```
+sha256:c1abe4e1832a2a7783153ab9547cfec59fc616f57ad4400a775eaad0d0fd53bc
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `aa_lcr`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+aa_lcr --model={{target.api_endpoint.model_id}} --endpoint_url={{target.api_endpoint.url}}  --temperature={{config.params.temperature}} --top_p={{config.params.top_p}} --request_timeout={{config.params.request_timeout}}  {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --output_dir={{config.output_dir}}  {% if target.api_endpoint.api_key_name is not none %}--api_key_name={{target.api_endpoint.api_key_name}}{% endif %} --max_retries={{config.params.max_retries}}  --max_new_tokens={{config.params.max_new_tokens}} --async_limit={{config.params.parallelism}} --num_repeats={{config.params.extra.n_samples}} --seed={{config.params.extra.seed}} --judge_model={{config.params.extra.judge.model_id}} --judge_url={{config.params.extra.judge.url}} --judge_temperature={{config.params.extra.judge.temperature}} --judge_top_p={{config.params.extra.judge.top_p}} --judge_max_new_tokens={{config.params.extra.judge.max_new_tokens}} --judge_async_limit={{config.params.extra.judge.parallelism}} {% if config.params.extra.judge.api_key is defined %}--judge_api_key_name={{config.params.extra.judge.api_key}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: AA-LCR
+pkg_name: aa_lcr
+config:
+  params:
+    max_new_tokens: 16384
+    max_retries: 30
+    parallelism: 10
+    temperature: 0.0
+    request_timeout: 600
+    top_p: 1.0
+    extra:
+      n_samples: 3
+      seed: 42
+      judge:
+        url: https://integrate.api.nvidia.com/v1/chat/completions
+        model_id: nvdev/qwen/qwen-235b
+        request_timeout: 600
+        max_retries: 30
+        temperature: 0.0
+        top_p: 1.0
+        max_new_tokens: 1024
+        parallelism: 10
+        api_key: JUDGE_API_KEY
+  supported_endpoint_types:
+  - chat
+  type: aa_lcr
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+

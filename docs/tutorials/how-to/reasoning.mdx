@@ -19,7 +19,7 @@ Need more in-depth explanation? See the [run-eval-reasoning](/evaluation/run-eva
 
 Ensure you have:
 
-- **Model Endpoint**: An OpenAI-compatible API reasoning endpoint for your model (completions or chat). See [deployment-testing-compatibility](/model-deployment/deployment/bring-your-own-endpoint/testing-endpoint-oai-compatibility) for snippets you can use to test your endpoint and [run-eval-reasoning](/evaluation/run-evals/reasoning) for details on reasoning models.
+- **Model Endpoint**: An OpenAI-compatible API reasoning endpoint for your model (completions or chat). See [deployment-testing-compatibility](/deployment/bring-your-own-endpoint/testing-endpoint-oai-compatibility) for snippets you can use to test your endpoint and [run-eval-reasoning](/evaluation/run-evals/reasoning) for details on reasoning models.
 - **API Access**: Valid API key if your endpoint requires authentication
 - **Installed Packages**: NeMo Evaluator or access to evaluation containers
 
@@ -84,7 +84,7 @@ If your model uses a different formatting, make sure to configure the intercepto
 In this example we work with an endpoint that requires "/think" to be present in the system message to enable reasoning.
 We will use the Interceptor to add it to the request.
 
-Adjust the example below to match your endpoint (see detailed instructions in [run-eval-reasoning](/evaluation/evaluation-run-evals/reasoning).
+Adjust the example below to match your endpoint (see detailed instructions in [run-eval-reasoning](/evaluation/run-evals/reasoning).
 
 ```yaml
 evaluation:
@@ -220,7 +220,7 @@ nemo-evaluator-launcher run --config nemotron_eval.yaml
 
 After evaluation completes, check these key artifacts:
 
-- **`results.yaml`**: Contains the benchmark metrics (see [evaluation-output](/about/about-concepts/evaluation-output)
+- **`results.yaml`**: Contains the benchmark metrics (see [evaluation-output](/about/concepts/evaluation-output)
 - **`eval_factory_metrics.json`**: Contains reasoning statistics under the `reasoning` key, including:
   - `responses_with_reasoning`: How many responses included reasoning traces
   - `reasoning_finished_count` vs `reasoning_started_count`: If these match, your `max_new_tokens` was sufficient

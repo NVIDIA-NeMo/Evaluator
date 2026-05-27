@@ -5,7 +5,7 @@ description: ""
 Run evaluations on your local machine using Docker containers. The local executor connects to existing model endpoints and orchestrates evaluation tasks locally.
 
 <Info>
-The local executor does **not** deploy models. You must have an existing model endpoint running before starting evaluation. For launcher-orchestrated model deployment, use [launcher-orchestrated-slurm](/model-deployment/launcher-orchestrated/slurm) or [launcher-orchestrated-lepton](/model-deployment/launcher-orchestrated/lepton.)
+The local executor does **not** deploy models. You must have an existing model endpoint running before starting evaluation. For launcher-orchestrated model deployment, use [launcher-orchestrated-slurm](/deployment/launcher-orchestrated/slurm) or [launcher-orchestrated-lepton](/deployment/launcher-orchestrated/lepton.)
 
 </Info>
 
@@ -116,7 +116,7 @@ evaluation:
     target.api_endpoint.adapter_config.custom_system_prompt: "Think step by step."
 ```
 
-For detailed adapter configuration options, refer to [adapters](/model-deployment/adapters.)
+For detailed adapter configuration options, refer to [adapters](/deployment/adapters.)
 
 ### Tasks Requiring Dataset Mounting
 
@@ -245,8 +245,8 @@ nemo-evaluator-launcher ls runs
 
 You must have a model endpoint running and accessible before starting evaluation. Options include:
 
-- [bring-your-own-endpoint-manual](/model-deployment/deployment/bring-your-own-endpoint/manual-deployment) using vLLM, TensorRT-LLM, or other frameworks
-- [bring-your-own-endpoint-hosted](/model-deployment/deployment/bring-your-own-endpoint/hosted-services) like NVIDIA API Catalog or OpenAI
+- [bring-your-own-endpoint-manual](/deployment/bring-your-own-endpoint/manual-deployment) using vLLM, TensorRT-LLM, or other frameworks
+- [bring-your-own-endpoint-hosted](/deployment/bring-your-own-endpoint/hosted-services) like NVIDIA API Catalog or OpenAI
 - Custom deployment solutions
 
 ## Troubleshooting
@@ -320,7 +320,7 @@ nemo-evaluator-launcher run \
 
 ## Next Steps
 
-- **Deploy your own model**: See [bring-your-own-endpoint-manual](/model-deployment/deployment/bring-your-own-endpoint/manual-deployment) for local model serving
-- **Scale to HPC**: Use [launcher-orchestrated-slurm](/model-deployment/launcher-orchestrated/slurm) for cluster deployments
-- **Cloud execution**: Try [launcher-orchestrated-lepton](/model-deployment/launcher-orchestrated/lepton) for cloud-based evaluation
-- **Configure adapters**: Add interceptors with [adapters](/model-deployment/adapters)
+- **Deploy your own model**: See [bring-your-own-endpoint-manual](/deployment/bring-your-own-endpoint/manual-deployment) for local model serving
+- **Scale to HPC**: Use [launcher-orchestrated-slurm](/deployment/launcher-orchestrated/slurm) for cluster deployments
+- **Cloud execution**: Try [launcher-orchestrated-lepton](/deployment/launcher-orchestrated/lepton) for cloud-based evaluation
+- **Configure adapters**: Add interceptors with [adapters](/deployment/adapters)

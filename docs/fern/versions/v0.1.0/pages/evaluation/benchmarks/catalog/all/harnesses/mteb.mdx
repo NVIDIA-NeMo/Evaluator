@@ -1,0 +1,1526 @@
+---
+title: "mteb"
+---
+
+This page contains all evaluation tasks for the **mteb** harness.
+
+| Task | Description |
+| --- | --- |
+| [MMTEB](#mteb-mmteb) | MMTEB |
+| [MTEB](#mteb-mteb) | MTEB |
+| [MTEB_ENG_RETRIEVAL](#mteb-mteb-eng-retrieval) | Retrieval-only subset of the MTEB(eng, v2) benchmark (10 tasks) |
+| [MTEB_NL_RETRIEVAL](#mteb-mteb-nl-retrieval) | MTEB_NL_RETRIEVAL |
+| [MTEB_VDR](#mteb-mteb-vdr) | MTEB Visual Document Retrieval benchmark |
+| [RTEB](#mteb-rteb) | RTEB |
+| [ViDoReV1](#mteb-vidorev1) | ViDoReV1 |
+| [ViDoReV2](#mteb-vidorev2) | ViDoReV2 |
+| [ViDoReV3](#mteb-vidorev3) | ViDoReV3 |
+| [ViDoReV3_Text](#mteb-vidorev3-text) | ViDoReV3 Text (text_image markdown only) |
+| [ViDoReV3_Text_Image](#mteb-vidorev3-text-image) | ViDoReV3 Text+Image (text_image markdown + images) |
+| [custom_beir_task](#mteb-custom-beir-task) | Custom BEIR-formatted text retrieval benchmark |
+| [fiqa](#mteb-fiqa) | Financial Opinion Mining and Question Answering |
+| [hotpotqa](#mteb-hotpotqa) | HotpotQA is a question answering dataset featuring natural, multi-hop questions, with strong supervision for supporting facts to enable more explainable question answering systems. |
+| [miracl](#mteb-miracl) | MIRACL (Multilingual Information Retrieval Across a Continuum of Languages) is a multilingual retrieval dataset that focuses on search across 18 different languages. |
+| [miracl_lite](#mteb-miracl-lite) | MIRACL (Multilingual Information Retrieval Across a Continuum of Languages) is a multilingual retrieval dataset that focuses on search across 18 different languages. |
+| [mldr](#mteb-mldr) | MLDR |
+| [mlqa](#mteb-mlqa) | MLQA (MultiLingual Question Answering) is a benchmark dataset for evaluating cross-lingual question answering performance. |
+| [nano_fiqa](#mteb-nano-fiqa) | NanoFiQA2018 is a smaller subset of the Financial Opinion Mining and Question Answering dataset. |
+| [nq](#mteb-nq) | Natural Questions (NQ) contains real user questions issued to Google search, and answers found from Wikipedia by annotators. NQ is designed for the training and evaluation of automatic question answering systems. |
+
+<h2 id="mteb-mmteb">MMTEB</h2>
+
+MMTEB
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `MMTEB`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: MTEB(Multilingual, v2)
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: MMTEB
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-mteb">MTEB</h2>
+
+MTEB
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `MTEB`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: MTEB(eng, v2)
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: MTEB
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-mteb-eng-retrieval">MTEB_ENG_RETRIEVAL</h2>
+
+Retrieval-only subset of the MTEB(eng, v2) benchmark (10 tasks)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `MTEB_ENG_RETRIEVAL`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: MTEB(eng, v2, retrieval)
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: MTEB_ENG_RETRIEVAL
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-mteb-nl-retrieval">MTEB_NL_RETRIEVAL</h2>
+
+MTEB_NL_RETRIEVAL
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `MTEB_NL_RETRIEVAL`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: MTEB(nld, v1, retrieval)
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: MTEB_NL_RETRIEVAL
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-mteb-vdr">MTEB_VDR</h2>
+
+MTEB Visual Document Retrieval benchmark
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `MTEB_VDR`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: VisualDocumentRetrieval
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: MTEB_VDR
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-rteb">RTEB</h2>
+
+RTEB
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `RTEB`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: RTEB(beta)
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: RTEB
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-vidorev1">ViDoReV1</h2>
+
+ViDoReV1
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ViDoReV1`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: ViDoRe(v1)
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: ViDoReV1
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-vidorev2">ViDoReV2</h2>
+
+ViDoReV2
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ViDoReV2`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: ViDoRe(v2)
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: ViDoReV2
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-vidorev3">ViDoReV3</h2>
+
+ViDoReV3
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ViDoReV3`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: ViDoRe(v3)
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: ViDoReV3
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-vidorev3-text">ViDoReV3_Text</h2>
+
+ViDoReV3 Text (text_image markdown only)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ViDoReV3_Text`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: ViDoRe(v3, Text)
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: ViDoReV3_Text
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-vidorev3-text-image">ViDoReV3_Text_Image</h2>
+
+ViDoReV3 Text+Image (text_image markdown + images)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `ViDoReV3_Text_Image`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: ViDoRe(v3, Text+Image)
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: ViDoReV3_Text_Image
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-custom-beir-task">custom_beir_task</h2>
+
+Custom BEIR-formatted text retrieval benchmark
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `custom_beir_task`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: custom_beir_task
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: custom_beir_task
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-fiqa">fiqa</h2>
+
+Financial Opinion Mining and Question Answering
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `fiqa`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: FiQA2018
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: fiqa
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-hotpotqa">hotpotqa</h2>
+
+HotpotQA is a question answering dataset featuring natural, multi-hop questions, with strong supervision for supporting facts to enable more explainable question answering systems.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `hotpotqa`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: HotpotQA
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: hotpotqa
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-miracl">miracl</h2>
+
+MIRACL (Multilingual Information Retrieval Across a Continuum of Languages) is a multilingual retrieval dataset that focuses on search across 18 different languages.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `miracl`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: MIRACLRetrieval
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: miracl
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-miracl-lite">miracl_lite</h2>
+
+MIRACL (Multilingual Information Retrieval Across a Continuum of Languages) is a multilingual retrieval dataset that focuses on search across 18 different languages.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `miracl_lite`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: MIRACLRetrieval
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: true
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: miracl_lite
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-mldr">mldr</h2>
+
+MLDR
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mldr`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: MultiLongDocRetrieval
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: mldr
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-mlqa">mlqa</h2>
+
+MLQA (MultiLingual Question Answering) is a benchmark dataset for evaluating cross-lingual question answering performance.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mlqa`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: MLQARetrieval
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: mlqa
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-nano-fiqa">nano_fiqa</h2>
+
+NanoFiQA2018 is a smaller subset of the Financial Opinion Mining and Question Answering dataset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `nano_fiqa`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: NanoFiQA2018Retrieval
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: train
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: nano_fiqa
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="mteb-nq">nq</h2>
+
+Natural Questions (NQ) contains real user questions issued to Google search, and answers found from Wikipedia by annotators. NQ is designed for the training and evaluation of automatic question answering systems.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `mteb`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/mteb:26.03
+```
+
+**Container Digest:**
+```
+sha256:2f88751256c4222aa9152e626e0815ed38277393dc95f259be1df38c5b68c651
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `nq`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}} &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}} &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}} --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {% if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}} {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{% endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}} --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}} {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}} {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split {{config.params.extra.eval_split}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: mteb
+pkg_name: mteb
+config:
+  params:
+    max_retries: 10
+    parallelism: 20
+    task: NQ
+    request_timeout: 300
+    extra:
+      query_prompt_template: null
+      document_prompt_template: null
+      ranker:
+        model_id: null
+        url: null
+        api_key: null
+        endpoint_type: nim
+      top_k: 40
+      truncate: END
+      batch_size: 128
+      eval_split: test
+      dataset_path: null
+      cache_path: null
+      args: null
+      version_lite: null
+      language: null
+  supported_endpoint_types:
+  - embedding
+  type: nq
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+

@@ -1,0 +1,273 @@
+---
+title: "tau2_bench"
+---
+
+This page contains all evaluation tasks for the **tau2_bench** harness.
+
+| Task | Description |
+| --- | --- |
+| [tau2_bench_airline](#tau2-bench-tau2-bench-airline) | tau2-bench - Airline Domain |
+| [tau2_bench_retail](#tau2-bench-tau2-bench-retail) | tau2-bench - Retail Domain |
+| [tau2_bench_telecom](#tau2-bench-tau2-bench-telecom) | tau2-bench - Telecom Domain (used by Artificial Analysis Index v2) |
+
+<h2 id="tau2-bench-tau2-bench-airline">tau2_bench_airline</h2>
+
+tau2-bench - Airline Domain
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `tau2_bench`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/tau2-bench:26.03
+```
+
+**Container Digest:**
+```
+sha256:07b2fdf895a4b83e34630b1e2221339bec1b63282746cb1f3a1571f4a713ff9b
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `tau2_bench_airline`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if config.params.extra.cache.enabled %}export LLM_CACHE_ENABLED=true && export CACHE_TYPE=disk && export CACHE_DIR={{config.params.extra.cache.cache_dir}} && {% endif %} tau2 run --domain {{config.params.task}}  --agent-llm openai/{{target.api_endpoint.model_id}}  --user-llm openai/{{config.params.extra.user.model_id}}  {% if config.params.extra.judge.enabled %}--judge-llm openai/{{config.params.extra.judge.model_id}}{% endif %}  {% if target.api_endpoint.api_key_name is not none %}--agent-api-key {{target.api_endpoint.api_key_name}}{% endif %}  {% if config.params.extra.user.api_key is not none %}--user-api-key {{config.params.extra.user.api_key}}{% endif %} {% if config.params.extra.judge.enabled and config.params.extra.judge.api_key is not none %}--judge-api-key {{config.params.extra.judge.api_key}}{% endif %} --agent-llm-args '{"base_url": "{{target.api_endpoint.url}}", "temperature": {{config.params.temperature}}, "top_p": {{config.params.top_p}}, "max_completion_tokens": {{config.params.max_new_tokens}}, "timeout": {{config.params.request_timeout}}{% if config.params.extra.agent_args is defined and config.params.extra.agent_args is not none %}{% for key, value in config.params.extra.agent_args.items() %}, "{{key}}": {{value|tojson}}{% endfor %}{% endif %}}'  --user-llm-args '{"base_url": "{{config.params.extra.user.url}}", "temperature": {{config.params.extra.user.temperature}}, "top_p": {{config.params.extra.user.top_p}}, "max_completion_tokens": {{config.params.extra.user.max_new_tokens}}, "timeout": {{config.params.extra.user.request_timeout}}{% if config.params.extra.user.args is defined and config.params.extra.user.args is not none %}{% for key, value in config.params.extra.user.args.items() %}, "{{key}}": {{value|tojson}}{% endfor %}{% endif %}}'  {% if config.params.extra.judge.enabled %}--judge-llm-args '{"base_url": "{{config.params.extra.judge.url}}", "temperature": {{config.params.extra.judge.temperature}}, "top_p": {{config.params.extra.judge.top_p}}, "max_completion_tokens": {{config.params.extra.judge.max_new_tokens}}, "timeout": {{config.params.extra.judge.request_timeout}}{% if config.params.extra.judge.args is defined and config.params.extra.judge.args is not none %}{% for key, value in config.params.extra.judge.args.items() %}, "{{key}}": {{value|tojson}}{% endfor %}{% endif %}}'{% endif %} {% if config.params.extra.judge.enabled %}--judge-system-prompt "{{config.params.extra.judge.system_prompt}}"{% endif %} {% if config.params.extra.judge.enabled %}--judge-window-size {{config.params.extra.judge_window_size}}{% endif %} --max-concurrency {{config.params.parallelism}} --max-retries {{config.params.max_retries}}  --max-steps {{config.params.extra.max_steps}} --results-dir {{config.output_dir}} --num-trials {{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %} --num-tasks {{config.params.limit_samples}} {% endif %} {% if config.params.extra.skip_failed_samples %} --skip-failed-samples {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: tau2_bench
+pkg_name: nvidia_tau2
+config:
+  params:
+    max_new_tokens: 16384
+    max_retries: 30
+    parallelism: 10
+    task: airline
+    temperature: 0.0
+    request_timeout: 3600
+    top_p: 0.95
+    extra:
+      n_samples: 3
+      max_steps: 100
+      judge_window_size: 30
+      skip_failed_samples: false
+      cache:
+        enabled: true
+        cache_dir: .cache/llm_cache
+      user:
+        url: https://integrate.api.nvidia.com/v1/chat/completions
+        model_id: nvdev/qwen/qwen-235b
+        api_key: USER_API_KEY
+        temperature: 0.0
+        max_new_tokens: 4096
+        top_p: 1.0
+        request_timeout: 3600
+      judge:
+        enabled: false
+        url: https://integrate.api.nvidia.com/v1/chat/completions
+        model_id: openai/gpt-oss-120b
+        system_prompt: Reasoning:medium
+        api_key: JUDGE_API_KEY
+        temperature: 0.6
+        max_new_tokens: 16000
+        top_p: 0.95
+        request_timeout: 3600
+  supported_endpoint_types:
+  - chat
+  type: tau2_bench_airline
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="tau2-bench-tau2-bench-retail">tau2_bench_retail</h2>
+
+tau2-bench - Retail Domain
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `tau2_bench`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/tau2-bench:26.03
+```
+
+**Container Digest:**
+```
+sha256:07b2fdf895a4b83e34630b1e2221339bec1b63282746cb1f3a1571f4a713ff9b
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `tau2_bench_retail`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if config.params.extra.cache.enabled %}export LLM_CACHE_ENABLED=true && export CACHE_TYPE=disk && export CACHE_DIR={{config.params.extra.cache.cache_dir}} && {% endif %} tau2 run --domain {{config.params.task}}  --agent-llm openai/{{target.api_endpoint.model_id}}  --user-llm openai/{{config.params.extra.user.model_id}}  {% if config.params.extra.judge.enabled %}--judge-llm openai/{{config.params.extra.judge.model_id}}{% endif %}  {% if target.api_endpoint.api_key_name is not none %}--agent-api-key {{target.api_endpoint.api_key_name}}{% endif %}  {% if config.params.extra.user.api_key is not none %}--user-api-key {{config.params.extra.user.api_key}}{% endif %} {% if config.params.extra.judge.enabled and config.params.extra.judge.api_key is not none %}--judge-api-key {{config.params.extra.judge.api_key}}{% endif %} --agent-llm-args '{"base_url": "{{target.api_endpoint.url}}", "temperature": {{config.params.temperature}}, "top_p": {{config.params.top_p}}, "max_completion_tokens": {{config.params.max_new_tokens}}, "timeout": {{config.params.request_timeout}}{% if config.params.extra.agent_args is defined and config.params.extra.agent_args is not none %}{% for key, value in config.params.extra.agent_args.items() %}, "{{key}}": {{value|tojson}}{% endfor %}{% endif %}}'  --user-llm-args '{"base_url": "{{config.params.extra.user.url}}", "temperature": {{config.params.extra.user.temperature}}, "top_p": {{config.params.extra.user.top_p}}, "max_completion_tokens": {{config.params.extra.user.max_new_tokens}}, "timeout": {{config.params.extra.user.request_timeout}}{% if config.params.extra.user.args is defined and config.params.extra.user.args is not none %}{% for key, value in config.params.extra.user.args.items() %}, "{{key}}": {{value|tojson}}{% endfor %}{% endif %}}'  {% if config.params.extra.judge.enabled %}--judge-llm-args '{"base_url": "{{config.params.extra.judge.url}}", "temperature": {{config.params.extra.judge.temperature}}, "top_p": {{config.params.extra.judge.top_p}}, "max_completion_tokens": {{config.params.extra.judge.max_new_tokens}}, "timeout": {{config.params.extra.judge.request_timeout}}{% if config.params.extra.judge.args is defined and config.params.extra.judge.args is not none %}{% for key, value in config.params.extra.judge.args.items() %}, "{{key}}": {{value|tojson}}{% endfor %}{% endif %}}'{% endif %} {% if config.params.extra.judge.enabled %}--judge-system-prompt "{{config.params.extra.judge.system_prompt}}"{% endif %} {% if config.params.extra.judge.enabled %}--judge-window-size {{config.params.extra.judge_window_size}}{% endif %} --max-concurrency {{config.params.parallelism}} --max-retries {{config.params.max_retries}}  --max-steps {{config.params.extra.max_steps}} --results-dir {{config.output_dir}} --num-trials {{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %} --num-tasks {{config.params.limit_samples}} {% endif %} {% if config.params.extra.skip_failed_samples %} --skip-failed-samples {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: tau2_bench
+pkg_name: nvidia_tau2
+config:
+  params:
+    max_new_tokens: 16384
+    max_retries: 30
+    parallelism: 10
+    task: retail
+    temperature: 0.0
+    request_timeout: 3600
+    top_p: 0.95
+    extra:
+      n_samples: 3
+      max_steps: 100
+      judge_window_size: 30
+      skip_failed_samples: false
+      cache:
+        enabled: true
+        cache_dir: .cache/llm_cache
+      user:
+        url: https://integrate.api.nvidia.com/v1/chat/completions
+        model_id: nvdev/qwen/qwen-235b
+        api_key: USER_API_KEY
+        temperature: 0.0
+        max_new_tokens: 4096
+        top_p: 1.0
+        request_timeout: 3600
+      judge:
+        enabled: false
+        url: https://integrate.api.nvidia.com/v1/chat/completions
+        model_id: openai/gpt-oss-120b
+        system_prompt: Reasoning:medium
+        api_key: JUDGE_API_KEY
+        temperature: 0.6
+        max_new_tokens: 16000
+        top_p: 0.95
+        request_timeout: 3600
+  supported_endpoint_types:
+  - chat
+  type: tau2_bench_retail
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="tau2-bench-tau2-bench-telecom">tau2_bench_telecom</h2>
+
+tau2-bench - Telecom Domain (used by Artificial Analysis Index v2)
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `tau2_bench`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/tau2-bench:26.03
+```
+
+**Container Digest:**
+```
+sha256:07b2fdf895a4b83e34630b1e2221339bec1b63282746cb1f3a1571f4a713ff9b
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `tau2_bench_telecom`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if config.params.extra.cache.enabled %}export LLM_CACHE_ENABLED=true && export CACHE_TYPE=disk && export CACHE_DIR={{config.params.extra.cache.cache_dir}} && {% endif %} tau2 run --domain {{config.params.task}}  --agent-llm openai/{{target.api_endpoint.model_id}}  --user-llm openai/{{config.params.extra.user.model_id}}  {% if config.params.extra.judge.enabled %}--judge-llm openai/{{config.params.extra.judge.model_id}}{% endif %}  {% if target.api_endpoint.api_key_name is not none %}--agent-api-key {{target.api_endpoint.api_key_name}}{% endif %}  {% if config.params.extra.user.api_key is not none %}--user-api-key {{config.params.extra.user.api_key}}{% endif %} {% if config.params.extra.judge.enabled and config.params.extra.judge.api_key is not none %}--judge-api-key {{config.params.extra.judge.api_key}}{% endif %} --agent-llm-args '{"base_url": "{{target.api_endpoint.url}}", "temperature": {{config.params.temperature}}, "top_p": {{config.params.top_p}}, "max_completion_tokens": {{config.params.max_new_tokens}}, "timeout": {{config.params.request_timeout}}{% if config.params.extra.agent_args is defined and config.params.extra.agent_args is not none %}{% for key, value in config.params.extra.agent_args.items() %}, "{{key}}": {{value|tojson}}{% endfor %}{% endif %}}'  --user-llm-args '{"base_url": "{{config.params.extra.user.url}}", "temperature": {{config.params.extra.user.temperature}}, "top_p": {{config.params.extra.user.top_p}}, "max_completion_tokens": {{config.params.extra.user.max_new_tokens}}, "timeout": {{config.params.extra.user.request_timeout}}{% if config.params.extra.user.args is defined and config.params.extra.user.args is not none %}{% for key, value in config.params.extra.user.args.items() %}, "{{key}}": {{value|tojson}}{% endfor %}{% endif %}}'  {% if config.params.extra.judge.enabled %}--judge-llm-args '{"base_url": "{{config.params.extra.judge.url}}", "temperature": {{config.params.extra.judge.temperature}}, "top_p": {{config.params.extra.judge.top_p}}, "max_completion_tokens": {{config.params.extra.judge.max_new_tokens}}, "timeout": {{config.params.extra.judge.request_timeout}}{% if config.params.extra.judge.args is defined and config.params.extra.judge.args is not none %}{% for key, value in config.params.extra.judge.args.items() %}, "{{key}}": {{value|tojson}}{% endfor %}{% endif %}}'{% endif %} {% if config.params.extra.judge.enabled %}--judge-system-prompt "{{config.params.extra.judge.system_prompt}}"{% endif %} {% if config.params.extra.judge.enabled %}--judge-window-size {{config.params.extra.judge_window_size}}{% endif %} --max-concurrency {{config.params.parallelism}} --max-retries {{config.params.max_retries}}  --max-steps {{config.params.extra.max_steps}} --results-dir {{config.output_dir}} --num-trials {{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %} --num-tasks {{config.params.limit_samples}} {% endif %} {% if config.params.extra.skip_failed_samples %} --skip-failed-samples {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: tau2_bench
+pkg_name: nvidia_tau2
+config:
+  params:
+    max_new_tokens: 16384
+    max_retries: 30
+    parallelism: 10
+    task: telecom
+    temperature: 0.0
+    request_timeout: 3600
+    top_p: 0.95
+    extra:
+      n_samples: 3
+      max_steps: 100
+      judge_window_size: 30
+      skip_failed_samples: false
+      cache:
+        enabled: true
+        cache_dir: .cache/llm_cache
+      user:
+        url: https://integrate.api.nvidia.com/v1/chat/completions
+        model_id: nvdev/qwen/qwen-235b
+        api_key: USER_API_KEY
+        temperature: 0.0
+        max_new_tokens: 4096
+        top_p: 1.0
+        request_timeout: 3600
+      judge:
+        enabled: false
+        url: https://integrate.api.nvidia.com/v1/chat/completions
+        model_id: openai/gpt-oss-120b
+        system_prompt: Reasoning:medium
+        api_key: JUDGE_API_KEY
+        temperature: 0.6
+        max_new_tokens: 16000
+        top_p: 0.95
+        request_timeout: 3600
+  supported_endpoint_types:
+  - chat
+  type: tau2_bench_telecom
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+

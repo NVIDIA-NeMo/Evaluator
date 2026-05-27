@@ -40,6 +40,10 @@ navigation:
       - folder: ../../evaluation/benchmarks
         title: "Benchmark Catalog"
         title-source: frontmatter
+      - folder: ../../evaluation/benchmarks/catalog/all/harnesses
+        title: "Harnesses"
+        title-source: frontmatter
+        collapsed: true
       - folder: ../../evaluation/run-evals
         title: "Evaluation Techniques"
         title-source: frontmatter

@@ -1,0 +1,1761 @@
+---
+title: "bigcode-evaluation-harness"
+---
+
+This page contains all evaluation tasks for the **bigcode-evaluation-harness** harness.
+
+| Task | Description |
+| --- | --- |
+| [humaneval](#bigcode-evaluation-harness-humaneval) | HumanEval is used to measure functional correctness for synthesizing programs from docstrings. It consists of 164 original programming problems, assessing language comprehension, algorithms, and simple mathematics, with some comparable to simple software interview questions. |
+| [humaneval_instruct](#bigcode-evaluation-harness-humaneval-instruct) | InstructHumanEval is a modified version of OpenAI HumanEval. For a given prompt, we extracted its signature, its docstring as well as its header to create a flexing setting which would allow to evaluation instruction-tuned LLM. The delimiters used in the instruction-tuning procedure can be use to build and instruction that would allow the model to elicit its best capabilities. |
+| [humanevalplus](#bigcode-evaluation-harness-humanevalplus) | HumanEvalPlus is a modified version of HumanEval containing 80x more test cases. |
+| [mbpp-chat](#bigcode-evaluation-harness-mbpp-chat) | MBPP consists of Python programming problems, designed to be solvable by entry level programmers, covering programming fundamentals, standard library functionality, and so on. Each problem consists of a task description, code solution and 3 automated test cases. This variant uses the chat endpoint. |
+| [mbpp-completions](#bigcode-evaluation-harness-mbpp-completions) | MBPP consists of Python programming problems, designed to be solvable by entry level programmers, covering programming fundamentals, standard library functionality, and so on. Each problem consists of a task description, code solution and 3 automated test cases. This variant uses the completions endpoint. |
+| [mbppplus-chat](#bigcode-evaluation-harness-mbppplus-chat) | MBPP+ is a modified version of MBPP containing 35x more test cases. This variant uses the chat endpoint. |
+| [mbppplus-completions](#bigcode-evaluation-harness-mbppplus-completions) | MBPP+ is a modified version of MBPP containing 35x more test cases. This variant uses the completions endpoint. |
+| [mbppplus_nemo](#bigcode-evaluation-harness-mbppplus-nemo) | MBPP+NeMo is a modified version of MBPP+ that uses the NeMo alignment prompt template. |
+| [multiple-cpp](#bigcode-evaluation-harness-multiple-cpp) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "cpp" subset. |
+| [multiple-cs](#bigcode-evaluation-harness-multiple-cs) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "cs" subset. |
+| [multiple-d](#bigcode-evaluation-harness-multiple-d) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "d" subset. |
+| [multiple-go](#bigcode-evaluation-harness-multiple-go) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "go" subset. |
+| [multiple-java](#bigcode-evaluation-harness-multiple-java) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "java" subset. |
+| [multiple-jl](#bigcode-evaluation-harness-multiple-jl) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "jl" subset. |
+| [multiple-js](#bigcode-evaluation-harness-multiple-js) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "js" subset. |
+| [multiple-lua](#bigcode-evaluation-harness-multiple-lua) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "lua" subset. |
+| [multiple-php](#bigcode-evaluation-harness-multiple-php) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "php" subset. |
+| [multiple-pl](#bigcode-evaluation-harness-multiple-pl) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "pl" subset. |
+| [multiple-py](#bigcode-evaluation-harness-multiple-py) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "py" subset. |
+| [multiple-r](#bigcode-evaluation-harness-multiple-r) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "r" subset. |
+| [multiple-rb](#bigcode-evaluation-harness-multiple-rb) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "rb" subset. |
+| [multiple-rkt](#bigcode-evaluation-harness-multiple-rkt) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "rkt" subset. |
+| [multiple-rs](#bigcode-evaluation-harness-multiple-rs) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "rs" subset. |
+| [multiple-scala](#bigcode-evaluation-harness-multiple-scala) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "scala" subset. |
+| [multiple-sh](#bigcode-evaluation-harness-multiple-sh) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "sh" subset. |
+| [multiple-swift](#bigcode-evaluation-harness-multiple-swift) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "swift" subset. |
+| [multiple-ts](#bigcode-evaluation-harness-multiple-ts) | MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "ts" subset. |
+
+<h2 id="bigcode-evaluation-harness-humaneval">humaneval</h2>
+
+HumanEval is used to measure functional correctness for synthesizing programs from docstrings. It consists of 164 original programming problems, assessing language comprehension, algorithms, and simple mathematics, with some comparable to simple software interview questions.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `humaneval`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: humaneval
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 20
+  supported_endpoint_types:
+  - completions
+  type: humaneval
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-humaneval-instruct">humaneval_instruct</h2>
+
+InstructHumanEval is a modified version of OpenAI HumanEval. For a given prompt, we extracted its signature, its docstring as well as its header to create a flexing setting which would allow to evaluation instruction-tuned LLM. The delimiters used in the instruction-tuning procedure can be use to build and instruction that would allow the model to elicit its best capabilities.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `humaneval_instruct`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: instruct-humaneval-nocontext-py
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 20
+  supported_endpoint_types:
+  - chat
+  type: humaneval_instruct
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-humanevalplus">humanevalplus</h2>
+
+HumanEvalPlus is a modified version of HumanEval containing 80x more test cases.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `humanevalplus`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: humanevalplus
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: humanevalplus
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-mbpp-chat">mbpp-chat</h2>
+
+MBPP consists of Python programming problems, designed to be solvable by entry level programmers, covering programming fundamentals, standard library functionality, and so on. Each problem consists of a task description, code solution and 3 automated test cases. This variant uses the chat endpoint.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mbpp-chat`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 2048
+    max_retries: 5
+    parallelism: 10
+    task: mbpp
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 10
+  supported_endpoint_types:
+  - chat
+  type: mbpp-chat
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-mbpp-completions">mbpp-completions</h2>
+
+MBPP consists of Python programming problems, designed to be solvable by entry level programmers, covering programming fundamentals, standard library functionality, and so on. Each problem consists of a task description, code solution and 3 automated test cases. This variant uses the completions endpoint.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mbpp-completions`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 2048
+    max_retries: 5
+    parallelism: 10
+    task: mbpp
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 10
+  supported_endpoint_types:
+  - completions
+  type: mbpp-completions
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-mbppplus-chat">mbppplus-chat</h2>
+
+MBPP+ is a modified version of MBPP containing 35x more test cases. This variant uses the chat endpoint.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mbppplus-chat`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 2048
+    max_retries: 5
+    parallelism: 10
+    task: mbppplus
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - chat
+  type: mbppplus-chat
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-mbppplus-completions">mbppplus-completions</h2>
+
+MBPP+ is a modified version of MBPP containing 35x more test cases. This variant uses the completions endpoint.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mbppplus-completions`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 2048
+    max_retries: 5
+    parallelism: 10
+    task: mbppplus
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: mbppplus-completions
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-mbppplus-nemo">mbppplus_nemo</h2>
+
+MBPP+NeMo is a modified version of MBPP+ that uses the NeMo alignment prompt template.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `mbppplus_nemo`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 2048
+    max_retries: 5
+    parallelism: 10
+    task: mbppplus_nemo
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - chat
+  type: mbppplus_nemo
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-cpp">multiple-cpp</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "cpp" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-cpp`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-cpp
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-cpp
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-cs">multiple-cs</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "cs" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-cs`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-cs
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-cs
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-d">multiple-d</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "d" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-d`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-d
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-d
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-go">multiple-go</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "go" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-go`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-go
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-go
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-java">multiple-java</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "java" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-java`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-java
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-java
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-jl">multiple-jl</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "jl" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-jl`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-jl
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-jl
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-js">multiple-js</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "js" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-js`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-js
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-js
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-lua">multiple-lua</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "lua" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-lua`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-lua
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-lua
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-php">multiple-php</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "php" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-php`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-php
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-php
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-pl">multiple-pl</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "pl" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-pl`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-pl
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-pl
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-py">multiple-py</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "py" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-py`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-py
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-py
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-r">multiple-r</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "r" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-r`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-r
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-r
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-rb">multiple-rb</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "rb" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-rb`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-rb
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-rb
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-rkt">multiple-rkt</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "rkt" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-rkt`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-rkt
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-rkt
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-rs">multiple-rs</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "rs" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-rs`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-rs
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-rs
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-scala">multiple-scala</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "scala" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-scala`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-scala
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-scala
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-sh">multiple-sh</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "sh" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-sh`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-sh
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-sh
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-swift">multiple-swift</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "swift" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-swift`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-swift
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-swift
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="bigcode-evaluation-harness-multiple-ts">multiple-ts</h2>
+
+MultiPL-E is a suite of coding tasks for many programming languages. This task covers the "ts" subset.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `bigcode-evaluation-harness`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.03
+```
+
+**Container Digest:**
+```
+sha256:ca599835e247d53d63543c0f46af9b90317089fef7aff6b516ec68d2c8a1a89c
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `multiple-ts`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key_name}}{% endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions" %}nim-base{% elif target.api_endpoint.type == "chat" %}nim-chat{% endif %} --url {{target.api_endpoint.url}} --model_kwargs '{"model_name": "{{target.api_endpoint.model_id}}", "timeout": {{config.params.request_timeout}}, "connection_retries": {{config.params.max_retries}}}' --out_dir {{config.output_dir}} --task {{config.params.task}} --allow_code_execution --n_samples={{config.params.extra.n_samples}} {% if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{% endif %} --max_new_tokens={{config.params.max_new_tokens}} --do_sample={{config.params.extra.do_sample}} --top_p {{config.params.top_p}} --temperature {{config.params.temperature}} --async_limit {{config.params.parallelism}}{% if config.params.extra.args is defined %} {{config.params.extra.args}} {% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: bigcode-evaluation-harness
+pkg_name: bigcode_evaluation_harness
+config:
+  params:
+    max_new_tokens: 1024
+    max_retries: 5
+    parallelism: 10
+    task: multiple-ts
+    temperature: 0.1
+    request_timeout: 30
+    top_p: 0.95
+    extra:
+      do_sample: true
+      n_samples: 5
+  supported_endpoint_types:
+  - completions
+  type: multiple-ts
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+

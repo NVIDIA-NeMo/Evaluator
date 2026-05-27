@@ -1,0 +1,216 @@
+---
+title: "scicode"
+---
+
+This page contains all evaluation tasks for the **scicode** harness.
+
+| Task | Description |
+| --- | --- |
+| [scicode](#scicode-scicode) | - SciCode is a challenging benchmark designed to evaluate the capabilities of LLMs in generating code for solving realistic scientific research problems. - Includes default system prompt ("You are a helpful assistant."). |
+| [scicode_aa_v2](#scicode-scicode-aa-v2) | - SciCode is a challenging benchmark designed to evaluate the capabilities of LLMs in generating code for solving realistic scientific research problems. - This variant mimicks setup used by Artificial Analysis in their Intelligence Benchmark (v2). - It includes scientist-annotated background in the prompts and uses all available problems for evaluation (including "dev" set). - Does not include a default system prompt ("You are a helpful assistant."). |
+| [scicode_background](#scicode-scicode-background) | - SciCode is a challenging benchmark designed to evaluate the capabilities of LLMs in generating code for solving realistic scientific research problems. - This variant includes scientist-annotated background in the prompts. - Includes default system prompt ("You are a helpful assistant."). |
+
+<h2 id="scicode-scicode">scicode</h2>
+
+- SciCode is a challenging benchmark designed to evaluate the capabilities of LLMs in generating code for solving realistic scientific research problems. - Includes default system prompt ("You are a helpful assistant.").
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `scicode`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/scicode:26.03
+```
+
+**Container Digest:**
+```
+sha256:2da911ea0fd91392abe6e433eb8fc2c20f960bdc647073936d1b24077092ba18
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `scicode`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}API_KEY=${{target.api_endpoint.api_key_name}}{% endif %} scicode_eval --model {{target.api_endpoint.model_id}} --url {{target.api_endpoint.url}} --output-dir {{config.output_dir}}/scicode_results --log-dir {{config.output_dir}}/logs {% if config.params.temperature is not none %}--temperature={{config.params.temperature}}{% endif %} {% if config.params.limit_samples is not none %}--limit-samples={{config.params.limit_samples}}{% endif %} --n-samples={{config.params.extra.n_samples}} --extra-params top_p={{config.params.top_p}},timeout={{config.params.request_timeout}},max_tokens={{config.params.max_new_tokens}},max_retries={{config.params.max_retries}},include_system_prompt={{config.params.extra.include_system_prompt}} {% if config.params.extra.with_background %}--with-background {% endif %} {% if config.params.extra.include_dev %}--include-dev{% endif %} {% if config.params.extra.eval_threads is not none %}--eval-threads={{config.params.extra.eval_threads}}{% endif %} {% if config.params.extra.regex_path is not none %}--regex-path={{config.params.extra.regex_path}}{% endif %} {% if config.params.extra.prompt_template_type is not none %}--prompt-template-type={{config.params.extra.prompt_template_type}}{% endif %} --concurrent-requests={{config.params.parallelism}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: scicode
+pkg_name: scicode
+config:
+  params:
+    max_new_tokens: 2048
+    max_retries: 2
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 60
+    top_p: 1.0e-05
+    extra:
+      with_background: false
+      include_dev: false
+      n_samples: 1
+      eval_threads: null
+      include_system_prompt: true
+      regex_path: null
+      prompt_template_type: null
+  supported_endpoint_types:
+  - chat
+  type: scicode
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="scicode-scicode-aa-v2">scicode_aa_v2</h2>
+
+- SciCode is a challenging benchmark designed to evaluate the capabilities of LLMs in generating code for solving realistic scientific research problems. - This variant mimicks setup used by Artificial Analysis in their Intelligence Benchmark (v2). - It includes scientist-annotated background in the prompts and uses all available problems for evaluation (including "dev" set). - Does not include a default system prompt ("You are a helpful assistant.").
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `scicode`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/scicode:26.03
+```
+
+**Container Digest:**
+```
+sha256:2da911ea0fd91392abe6e433eb8fc2c20f960bdc647073936d1b24077092ba18
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `scicode_aa_v2`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}API_KEY=${{target.api_endpoint.api_key_name}}{% endif %} scicode_eval --model {{target.api_endpoint.model_id}} --url {{target.api_endpoint.url}} --output-dir {{config.output_dir}}/scicode_results --log-dir {{config.output_dir}}/logs {% if config.params.temperature is not none %}--temperature={{config.params.temperature}}{% endif %} {% if config.params.limit_samples is not none %}--limit-samples={{config.params.limit_samples}}{% endif %} --n-samples={{config.params.extra.n_samples}} --extra-params top_p={{config.params.top_p}},timeout={{config.params.request_timeout}},max_tokens={{config.params.max_new_tokens}},max_retries={{config.params.max_retries}},include_system_prompt={{config.params.extra.include_system_prompt}} {% if config.params.extra.with_background %}--with-background {% endif %} {% if config.params.extra.include_dev %}--include-dev{% endif %} {% if config.params.extra.eval_threads is not none %}--eval-threads={{config.params.extra.eval_threads}}{% endif %} {% if config.params.extra.regex_path is not none %}--regex-path={{config.params.extra.regex_path}}{% endif %} {% if config.params.extra.prompt_template_type is not none %}--prompt-template-type={{config.params.extra.prompt_template_type}}{% endif %} --concurrent-requests={{config.params.parallelism}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: scicode
+pkg_name: scicode
+config:
+  params:
+    max_new_tokens: 16384
+    max_retries: 30
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 60
+    top_p: 1.0e-05
+    extra:
+      with_background: true
+      include_dev: true
+      n_samples: 3
+      eval_threads: null
+      include_system_prompt: false
+      regex_path: aa_regex.txt
+      prompt_template_type: background_comment_template.txt
+  supported_endpoint_types:
+  - chat
+  type: scicode_aa_v2
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="scicode-scicode-background">scicode_background</h2>
+
+- SciCode is a challenging benchmark designed to evaluate the capabilities of LLMs in generating code for solving realistic scientific research problems. - This variant includes scientist-annotated background in the prompts. - Includes default system prompt ("You are a helpful assistant.").
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `scicode`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/scicode:26.03
+```
+
+**Container Digest:**
+```
+sha256:2da911ea0fd91392abe6e433eb8fc2c20f960bdc647073936d1b24077092ba18
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `scicode_background`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}API_KEY=${{target.api_endpoint.api_key_name}}{% endif %} scicode_eval --model {{target.api_endpoint.model_id}} --url {{target.api_endpoint.url}} --output-dir {{config.output_dir}}/scicode_results --log-dir {{config.output_dir}}/logs {% if config.params.temperature is not none %}--temperature={{config.params.temperature}}{% endif %} {% if config.params.limit_samples is not none %}--limit-samples={{config.params.limit_samples}}{% endif %} --n-samples={{config.params.extra.n_samples}} --extra-params top_p={{config.params.top_p}},timeout={{config.params.request_timeout}},max_tokens={{config.params.max_new_tokens}},max_retries={{config.params.max_retries}},include_system_prompt={{config.params.extra.include_system_prompt}} {% if config.params.extra.with_background %}--with-background {% endif %} {% if config.params.extra.include_dev %}--include-dev{% endif %} {% if config.params.extra.eval_threads is not none %}--eval-threads={{config.params.extra.eval_threads}}{% endif %} {% if config.params.extra.regex_path is not none %}--regex-path={{config.params.extra.regex_path}}{% endif %} {% if config.params.extra.prompt_template_type is not none %}--prompt-template-type={{config.params.extra.prompt_template_type}}{% endif %} --concurrent-requests={{config.params.parallelism}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: scicode
+pkg_name: scicode
+config:
+  params:
+    max_new_tokens: 2048
+    max_retries: 2
+    parallelism: 1
+    temperature: 0.0
+    request_timeout: 60
+    top_p: 1.0e-05
+    extra:
+      with_background: true
+      include_dev: false
+      n_samples: 1
+      eval_threads: null
+      include_system_prompt: true
+      regex_path: null
+      prompt_template_type: null
+  supported_endpoint_types:
+  - chat
+  type: scicode_background
+target:
+  api_endpoint:
+    stream: false
+```
+
+</Tab>
+
+</Tabs>
+

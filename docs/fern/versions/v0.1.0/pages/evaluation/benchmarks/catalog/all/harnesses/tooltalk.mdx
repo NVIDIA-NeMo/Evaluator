@@ -1,0 +1,62 @@
+---
+title: "tooltalk"
+---
+
+This page contains all evaluation tasks for the **tooltalk** harness.
+
+| Task | Description |
+| --- | --- |
+| [tooltalk](#tooltalk-tooltalk) | ToolTalk task with default settings. |
+
+<h2 id="tooltalk-tooltalk">tooltalk</h2>
+
+ToolTalk task with default settings.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `tooltalk`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/tooltalk:26.03
+```
+
+**Container Digest:**
+```
+sha256:50738995fc75b439175eccf0e5edd46b86aee75bb832cb207917bd0d17e9a631
+```
+
+**Container Arch:** `multiarch`
+
+**Task Type:** `tooltalk`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}API_KEY=${{target.api_endpoint.api_key_name}}{% endif %} python -m tooltalk.evaluation.evaluate_{{'openai' if 'azure' in target.api_endpoint.url or 'api.openai' in target.api_endpoint.url else 'nim'}} --dataset data/easy --database data/databases --model {{target.api_endpoint.model_id}} {% if config.params.max_new_tokens is not none %}--max_new_tokens {{config.params.max_new_tokens}}{% endif %} {% if config.params.temperature is not none %}--temperature {{config.params.temperature}}{% endif %} {% if config.params.top_p is not none %}--top_p {{config.params.top_p}}{% endif %} --api_mode all --output_dir {{config.output_dir}} --url {{target.api_endpoint.url}} {% if config.params.limit_samples is not none %}--first_n {{config.params.limit_samples}}{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: tooltalk
+pkg_name: tooltalk
+config:
+  params:
+    extra: {}
+  supported_endpoint_types:
+  - chat
+  type: tooltalk
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+

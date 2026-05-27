@@ -92,6 +92,24 @@ def normalize_id(name: str) -> str:
     return normalized
 
 
+FERN_HARNESS_BASE = "/evaluation/benchmarks/catalog/all/harnesses"
+
+
+def _fern_harness_url(harness_filename: str, anchor: str | None = None) -> str:
+    url = f"{FERN_HARNESS_BASE}/{harness_filename}"
+    if anchor:
+        url = f"{url}#{anchor}"
+    return url
+
+
+def _infer_docs_format(catalog_file: pathlib.Path, explicit: str | None) -> str:
+    if explicit and explicit != "auto":
+        return explicit
+    if catalog_file.suffix == ".mdx":
+        return "fern"
+    return "sphinx"
+
+
 class _TaskAutogen:
     """Handles autogeneration of documentation for a single task."""
 
@@ -240,6 +258,100 @@ class _TaskAutogen:
 
         return lines
 
+    def generate_fern_markdown_section(self, harness_id: str) -> list[str]:
+        """Generate Fern MDX section for this task."""
+        lines: list[str] = []
+        task_id = f"{harness_id}-{normalize_id(self.task_ir.name)}"
+
+        lines.append(f'<h2 id="{task_id}">{self.task_ir.name}</h2>')
+        lines.append("")
+
+        if self.task_ir.description:
+            desc = str(self.task_ir.description).strip()
+            if desc:
+                lines.append(desc)
+                lines.append("")
+
+        command = None
+        defaults_without_command: dict = {}
+        if self.task_ir.defaults:
+            defaults_without_command = copy.deepcopy(self.task_ir.defaults)
+            if "command" in defaults_without_command:
+                command = defaults_without_command.pop("command")
+            elif "config" in defaults_without_command and isinstance(
+                defaults_without_command["config"], dict
+            ):
+                config = defaults_without_command["config"]
+                if "command" in config:
+                    command = config.pop("command")
+                elif "params" in config and isinstance(config["params"], dict):
+                    params = config["params"]
+                    if "command" in params:
+                        command = params.pop("command")
+
+        task_type = None
+        if self.task_ir.defaults:
+            config = self.task_ir.defaults.get("config", {})
+            if isinstance(config, dict):
+                task_type = config.get("type")
+
+        lines.append("<Tabs>")
+        lines.append('<Tab title="Container">')
+        lines.append("")
+        lines.append(f"**Harness:** `{self.task_ir.harness}`")
+        lines.append("")
+        lines.append("**Container:**")
+        lines.append("```")
+        lines.append(str(self.task_ir.container))
+        lines.append("```")
+        lines.append("")
+        if self.task_ir.container_digest:
+            lines.append("**Container Digest:**")
+            lines.append("```")
+            lines.append(str(self.task_ir.container_digest))
+            lines.append("```")
+            lines.append("")
+        container_arch = getattr(self.task_ir, "container_arch", None) or "unknown"
+        lines.append(f"**Container Arch:** `{container_arch}`")
+        lines.append("")
+        if task_type:
+            lines.append(f"**Task Type:** `{task_type}`")
+            lines.append("")
+        lines.append("</Tab>")
+        lines.append("")
+
+        if command:
+            lines.append('<Tab title="Command">')
+            lines.append("")
+            lines.append("```bash")
+            lines.append(command if isinstance(command, str) else str(command))
+            lines.append("```")
+            lines.append("")
+            lines.append("</Tab>")
+            lines.append("")
+
+        if defaults_without_command:
+            lines.append('<Tab title="Defaults">')
+            lines.append("")
+            lines.append("```yaml")
+            defaults_yaml = yaml.dump(
+                defaults_without_command,
+                default_flow_style=False,
+                sort_keys=False,
+                width=120,
+                allow_unicode=True,
+            )
+            lines.append(defaults_yaml.rstrip())
+            lines.append("```")
+            lines.append("")
+            lines.append("</Tab>")
+            lines.append("")
+
+        lines.append("</Tabs>")
+        lines.append("")
+        lines.append("")
+        return lines
+
 
 class _HarnessAutogen:
     """Handles autogeneration of documentation for a harness and its tasks."""
@@ -304,6 +416,39 @@ class _HarnessAutogen:
 
             task_autogen = _TaskAutogen(task)
             task_lines = task_autogen.generate_markdown_section(self.harness_id)
+            lines.extend(task_lines)
+
+        return "\n".join(lines)
+
+    def generate_fern_markdown_page(self) -> str:
+        """Generate complete Fern MDX page for this harness."""
+        lines: list[str] = []
+        lines.append("---")
+        lines.append(f'title: "{self.harness_name}"')
+        lines.append("---")
+        lines.append("")
+        lines.append(
+            f"This page contains all evaluation tasks for the **{self.harness_name}** harness."
+        )
+        lines.append("")
+        lines.append("| Task | Description |")
+        lines.append("| --- | --- |")
+
+        for task in self.tasks:
+            task_id = f"{self.harness_id}-{normalize_id(task.name)}"
+            description = str(task.description).strip() if task.description else ""
+            description = description.replace("|", "\\|")
+            lines.append(f"| [{task.name}](#{task_id}) | {description} |")
+
+        lines.append("")
+
+        for i, task in enumerate(self.tasks):
+            if i > 0:
+                lines.append("---")
+                lines.append("")
+
+            task_autogen = _TaskAutogen(task)
+            task_lines = task_autogen.generate_fern_markdown_section(self.harness_id)
             lines.extend(task_lines)
 
         return "\n".join(lines)
@@ -610,6 +755,93 @@ def generate_benchmarks_table_markdown(
     return "\n".join(lines)
 
 
+def generate_benchmarks_table_fern_mdx(
+    harnesses: list[_HarnessAutogen],
+    checksum: str | None = None,
+) -> str:
+    """Generate Fern MDX benchmarks table for the catalog page."""
+    lines: list[str] = []
+    lines.append("{/*")
+    lines.append("This section is automatically generated by autogen_task_yamls.py")
+    lines.append("DO NOT EDIT MANUALLY - changes will be overwritten")
+    if checksum:
+        lines.append(f"Generated from mapping.toml with checksum: {checksum}")
+    lines.append("*/}")
+    lines.append("")
+    lines.append(
+        "| Container | Description | NGC Catalog | Latest Tag | Arch | Tasks |"
+    )
+    lines.append("| --- | --- | --- | --- | --- | --- |")
+
+    sorted_harnesses = sorted(harnesses, key=lambda h: h.harness_name.lower())
+    for harness in sorted_harnesses:
+        container = harness.harness_ir.container
+        if not container and harness.tasks:
+            container = harness.tasks[0].container
+
+        container_name, version = extract_container_name_and_version(container)
+
+        if container_name:
+            ngc_url = (
+                "https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/"
+                f"{container_name}"
+            )
+            if version:
+                ngc_url += f"?version={version}"
+            ngc_link = f"[NGC]({ngc_url})"
+        else:
+            ngc_link = "N/A"
+
+        description = harness.harness_ir.description or ""
+        if not description and harness.tasks:
+            description = harness.tasks[0].description or ""
+        if isinstance(description, list):
+            description_text = " ".join(str(x) for x in description)
+        else:
+            description_text = str(description)
+        description_display = description_text.replace("|", "\\|").replace("\n", " ")
+
+        harness_url = _fern_harness_url(harness.harness_filename, harness.harness_id)
+        container_display = f"[**{harness.harness_name}**]({harness_url})"
+
+        task_links = []
+        for task in harness.tasks:
+            task_id = f"{harness.harness_id}-{normalize_id(task.name)}"
+            task_url = _fern_harness_url(harness.harness_filename, task_id)
+            task_links.append(f"[{task.name}]({task_url})")
+        tasks_display = ", ".join(task_links)
+
+        latest_tag = version if version else "{{ docker_compose_latest }}"
+        arch = (
+            harness.harness_ir.arch
+            or (harness.tasks[0].container_arch if harness.tasks else None)
+            or "unknown"
+        )
+
+        lines.append(
+            f"| {container_display} | {description_display} | {ngc_link} | "
+            f"{latest_tag} | `{arch}` | {tasks_display} |"
+        )
+
+    lines.append("")
+    return "\n".join(lines)
+
+
+def generate_catalog_index_fern_mdx(table_content: str) -> str:
+    """Generate the Fern catalog index page with embedded benchmarks table."""
+    return "\n".join(
+        [
+            "---",
+            'title: "Available Benchmarks"',
+            'description: ""',
+            "---",
+            "{/* NOTE(agronskiy) body below is autogenerated by autogen_task_yamls.py */}",
+            "",
+            table_content,
+        ]
+    )
+
+
 def generate_benchmarks_table_internal_markdown(
     harnesses: list[_HarnessAutogen],
     checksum: str | None = None,
@@ -774,6 +1006,15 @@ Examples:
         help="Output directory for generated harness markdown files (default: repo_root/docs/evaluation/benchmarks/catalog/all/harnesses)",
     )
     parser.add_argument(
+        "--docs-format",
+        choices=("auto", "sphinx", "fern"),
+        default="auto",
+        help=(
+            "Documentation output format. 'fern' writes MDX with Fern-compatible "
+            "components and links; 'sphinx' keeps MyST directives for Sphinx builds."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Preview what would be generated without writing files",
@@ -800,19 +1041,25 @@ Examples:
 
     # Set default paths relative to repo root if not provided
     if args.catalog_file is None:
-        args.catalog_file = (
-            docs_root / "evaluation" / "benchmarks" / "catalog" / "index.md"
+        catalog_mdx = (
+            docs_root / "evaluation" / "benchmarks" / "catalog" / "index.mdx"
         )
+        catalog_md = docs_root / "evaluation" / "benchmarks" / "catalog" / "index.md"
+        args.catalog_file = catalog_mdx if catalog_mdx.exists() else catalog_md
     if args.harnesses_dir is None:
         args.harnesses_dir = (
             docs_root / "evaluation" / "benchmarks" / "catalog" / "all" / "harnesses"
         )
+
+    docs_format = _infer_docs_format(args.catalog_file, args.docs_format)
+    harness_extension = ".mdx" if docs_format == "fern" else ".md"
 
     logger.info(
         "Starting documentation autogeneration",
         repo_root=str(repo_root),
         docs_root=str(docs_root),
         catalog_file=str(args.catalog_file),
+        docs_format=docs_format,
         dry_run=args.dry_run,
         harness_filter=args.harness,
         task_filter=args.task,
@@ -931,9 +1178,12 @@ Examples:
         harnesses_failed = 0
 
         for harness in harnesses:
-            harness_file = args.harnesses_dir / f"{harness.harness_filename}.md"
+            harness_file = args.harnesses_dir / f"{harness.harness_filename}{harness_extension}"
             try:
-                harness_content = harness.generate_markdown_page()
+                if docs_format == "fern":
+                    harness_content = harness.generate_fern_markdown_page()
+                else:
+                    harness_content = harness.generate_markdown_page()
                 with open(harness_file, "w", encoding="utf-8") as f:
                     f.write(harness_content)
                 harnesses_successful += 1
@@ -976,27 +1226,38 @@ Examples:
                 "Could not load checksum from all_tasks_irs.yaml", error=str(e)
             )
 
-        # Generate benchmarks table file
+        # Generate benchmarks table / catalog index
         benchmarks_table_file = (
             docs_root
             / "evaluation"
             / "benchmarks"
             / "catalog"
             / "all"
-            / "benchmarks-table.md"
+            / ("benchmarks-table.mdx" if docs_format == "fern" else "benchmarks-table.md")
         )
         try:
-            table_content = generate_benchmarks_table_markdown(
-                harnesses,
-                checksum=checksum,
-                harnesses_dir="harnesses",
-                harnesses_doc_path="all/harnesses",
-            )
-            benchmarks_table_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(benchmarks_table_file, "w", encoding="utf-8") as f:
-                f.write(table_content)
-            logger.info("Generated benchmarks table", path=str(benchmarks_table_file))
-            print(f"Generated benchmarks table: {benchmarks_table_file}")
+            if docs_format == "fern":
+                table_content = generate_benchmarks_table_fern_mdx(
+                    harnesses,
+                    checksum=checksum,
+                )
+                catalog_content = generate_catalog_index_fern_mdx(table_content)
+                with open(args.catalog_file, "w", encoding="utf-8") as f:
+                    f.write(catalog_content)
+                logger.info("Generated catalog index", path=str(args.catalog_file))
+                print(f"Generated catalog index: {args.catalog_file}")
+            else:
+                table_content = generate_benchmarks_table_markdown(
+                    harnesses,
+                    checksum=checksum,
+                    harnesses_dir="harnesses",
+                    harnesses_doc_path="all/harnesses",
+                )
+                benchmarks_table_file.parent.mkdir(parents=True, exist_ok=True)
+                with open(benchmarks_table_file, "w", encoding="utf-8") as f:
+                    f.write(table_content)
+                logger.info("Generated benchmarks table", path=str(benchmarks_table_file))
+                print(f"Generated benchmarks table: {benchmarks_table_file}")
         except Exception as e:
             logger.error(
                 "Failed to generate benchmarks table",

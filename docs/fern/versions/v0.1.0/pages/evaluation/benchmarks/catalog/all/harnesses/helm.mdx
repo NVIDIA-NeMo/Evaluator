@@ -1,0 +1,1086 @@
+---
+title: "helm"
+---
+
+This page contains all evaluation tasks for the **helm** harness.
+
+| Task | Description |
+| --- | --- |
+| [aci_bench](#helm-aci-bench) | Extract and structure information from patient-doctor conversations |
+| [ehr_sql](#helm-ehr-sql) | Given a natural language instruction, generate an SQL query that would be used in clinical research. |
+| [head_qa](#helm-head-qa) | A collection of biomedical multiple-choice questions for testing medical knowledge (Vilares et al., 2019). |
+| [med_dialog_healthcaremagic](#helm-med-dialog-healthcaremagic) | Generate summaries of doctor-patient conversations, healthcaremagic version |
+| [med_dialog_icliniq](#helm-med-dialog-icliniq) | Generate summaries of doctor-patient conversations, icliniq version |
+| [medbullets](#helm-medbullets) | A USMLE-style medical question dataset with multiple-choice answers and explanations (MedBullets, 2025). |
+| [medcalc_bench](#helm-medcalc-bench) | A dataset which consists of a patient note, a question requesting to compute a specific medical value, and a ground truth answer (Khandekar et al., 2024). |
+| [medec](#helm-medec) | A dataset containing medical narratives with error detection and correction pairs (Abacha et al., 2025). |
+| [medhallu](#helm-medhallu) | A dataset of PubMed articles and associated questions, with the objective being to classify whether the answer is factual or hallucinated. |
+| [medi_qa](#helm-medi-qa) | Retrieve and rank answers based on medical question understanding |
+| [medication_qa](#helm-medication-qa) | Answer consumer medication-related questions |
+| [mtsamples_procedures](#helm-mtsamples-procedures) | Document and extract information about medical procedures |
+| [mtsamples_replicate](#helm-mtsamples-replicate) | Generate treatment plans based on clinical notes |
+| [pubmed_qa](#helm-pubmed-qa) | A dataset that provides PubMed abstracts and asks associated questions (yes/no/maybe format). |
+| [race_based_med](#helm-race-based-med) | A collection of LLM outputs in response to medical questions with race-based biases, with the objective being to classify whether the output contains racially biased content. |
+
+<h2 id="helm-aci-bench">aci_bench</h2>
+
+Extract and structure information from patient-doctor conversations
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `helm`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/helm:26.03
+```
+
+**Container Digest:**
+```
+sha256:4579f36e4c2a6805046d4f5b0a4b938d7e8579570e4d6a7ebf42333cbf37f5a4
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `aci_bench`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export GPT_JUDGE_API_KEY=${{config.params.extra.gpt_judge_api_key}} && {% endif %} {% if config.params.extra.llama_judge_api_key is not none %}export LLAMA_JUDGE_API_KEY=${{config.params.extra.llama_judge_api_key}} && {% endif %} {% if config.params.extra.claude_judge_api_key is not none %}export CLAUDE_JUDGE_API_KEY=${{config.params.extra.claude_judge_api_key}} && {% endif %} helm-generate-dynamic-model-configs --model-name {{target.api_endpoint.model_id}} --base-url {{target.api_endpoint.url}} --openai-model-name {{target.api_endpoint.model_id}} --output-dir {{config.output_dir}} {% if config.params.max_new_tokens is not none %} --max-new-tokens {{config.params.max_new_tokens}} {% endif %} {% if config.params.temperature is not none %} --temperature {{config.params.temperature}} {% endif %} {% if config.params.top_p is not none %} --top-p {{config.params.top_p}} {% endif %} && helm-run  --run-entries {{config.params.task}}:{% if config.params.extra.subset is not none %}subset={{config.params.extra.subset}},{% endif %}model={{target.api_endpoint.model_id}}  {% if config.params.limit_samples is not none %} --max-eval-instances {{config.params.limit_samples}}  {% endif %} {% if config.params.parallelism is not none %} -n {{config.params.parallelism}}  {% endif %} --suite {{config.params.task}} {% if config.params.extra.num_train_trials is not none %}  --num-train-trials {{config.params.extra.num_train_trials}} {% endif %} {% if config.params.extra.data_path is not none %}  --data-path {{config.params.extra.data_path}} {% endif %} {% if config.params.extra.num_output_tokens is not none %}  --num-output-tokens {{config.params.extra.num_output_tokens}} {% endif %} {% if config.params.extra.subject is not none %}  --subject {{config.params.extra.subject}} {% endif %} {% if config.params.extra.condition is not none %}  --condition {{config.params.extra.condition}} {% endif %} {% if config.params.extra.max_length is not none %} --max-length {{config.params.extra.max_length}} {% endif %} {% if config.params.extra.disable_cache is not none and config.params.extra.disable_cache %} --disable-cache {% endif %} -o {{config.output_dir}} --local-path {{config.output_dir}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: helm
+pkg_name: helm
+config:
+  params:
+    max_new_tokens: 16384
+    parallelism: 1
+    task: aci_bench
+    temperature: 0.6
+    top_p: 0.95
+    extra:
+      data_path: null
+      num_output_tokens: null
+      subject: null
+      condition: null
+      max_length: null
+      num_train_trials: null
+      subset: null
+      gpt_judge_api_key: GPT_JUDGE_API_KEY
+      llama_judge_api_key: LLAMA_JUDGE_API_KEY
+      claude_judge_api_key: CLAUDE_JUDGE_API_KEY
+      disable_cache: false
+  supported_endpoint_types:
+  - chat
+  type: aci_bench
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="helm-ehr-sql">ehr_sql</h2>
+
+Given a natural language instruction, generate an SQL query that would be used in clinical research.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `helm`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/helm:26.03
+```
+
+**Container Digest:**
+```
+sha256:4579f36e4c2a6805046d4f5b0a4b938d7e8579570e4d6a7ebf42333cbf37f5a4
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `ehr_sql`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export GPT_JUDGE_API_KEY=${{config.params.extra.gpt_judge_api_key}} && {% endif %} {% if config.params.extra.llama_judge_api_key is not none %}export LLAMA_JUDGE_API_KEY=${{config.params.extra.llama_judge_api_key}} && {% endif %} {% if config.params.extra.claude_judge_api_key is not none %}export CLAUDE_JUDGE_API_KEY=${{config.params.extra.claude_judge_api_key}} && {% endif %} helm-generate-dynamic-model-configs --model-name {{target.api_endpoint.model_id}} --base-url {{target.api_endpoint.url}} --openai-model-name {{target.api_endpoint.model_id}} --output-dir {{config.output_dir}} {% if config.params.max_new_tokens is not none %} --max-new-tokens {{config.params.max_new_tokens}} {% endif %} {% if config.params.temperature is not none %} --temperature {{config.params.temperature}} {% endif %} {% if config.params.top_p is not none %} --top-p {{config.params.top_p}} {% endif %} && helm-run  --run-entries {{config.params.task}}:{% if config.params.extra.subset is not none %}subset={{config.params.extra.subset}},{% endif %}model={{target.api_endpoint.model_id}}  {% if config.params.limit_samples is not none %} --max-eval-instances {{config.params.limit_samples}}  {% endif %} {% if config.params.parallelism is not none %} -n {{config.params.parallelism}}  {% endif %} --suite {{config.params.task}} {% if config.params.extra.num_train_trials is not none %}  --num-train-trials {{config.params.extra.num_train_trials}} {% endif %} {% if config.params.extra.data_path is not none %}  --data-path {{config.params.extra.data_path}} {% endif %} {% if config.params.extra.num_output_tokens is not none %}  --num-output-tokens {{config.params.extra.num_output_tokens}} {% endif %} {% if config.params.extra.subject is not none %}  --subject {{config.params.extra.subject}} {% endif %} {% if config.params.extra.condition is not none %}  --condition {{config.params.extra.condition}} {% endif %} {% if config.params.extra.max_length is not none %} --max-length {{config.params.extra.max_length}} {% endif %} {% if config.params.extra.disable_cache is not none and config.params.extra.disable_cache %} --disable-cache {% endif %} -o {{config.output_dir}} --local-path {{config.output_dir}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: helm
+pkg_name: helm
+config:
+  params:
+    max_new_tokens: 16384
+    parallelism: 1
+    task: ehr_sql
+    temperature: 0.6
+    top_p: 0.95
+    extra:
+      data_path: null
+      num_output_tokens: null
+      subject: null
+      condition: null
+      max_length: null
+      num_train_trials: null
+      subset: null
+      gpt_judge_api_key: GPT_JUDGE_API_KEY
+      llama_judge_api_key: LLAMA_JUDGE_API_KEY
+      claude_judge_api_key: CLAUDE_JUDGE_API_KEY
+      disable_cache: false
+  supported_endpoint_types:
+  - chat
+  type: ehr_sql
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="helm-head-qa">head_qa</h2>
+
+A collection of biomedical multiple-choice questions for testing medical knowledge (Vilares et al., 2019).
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `helm`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/helm:26.03
+```
+
+**Container Digest:**
+```
+sha256:4579f36e4c2a6805046d4f5b0a4b938d7e8579570e4d6a7ebf42333cbf37f5a4
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `head_qa`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export GPT_JUDGE_API_KEY=${{config.params.extra.gpt_judge_api_key}} && {% endif %} {% if config.params.extra.llama_judge_api_key is not none %}export LLAMA_JUDGE_API_KEY=${{config.params.extra.llama_judge_api_key}} && {% endif %} {% if config.params.extra.claude_judge_api_key is not none %}export CLAUDE_JUDGE_API_KEY=${{config.params.extra.claude_judge_api_key}} && {% endif %} helm-generate-dynamic-model-configs --model-name {{target.api_endpoint.model_id}} --base-url {{target.api_endpoint.url}} --openai-model-name {{target.api_endpoint.model_id}} --output-dir {{config.output_dir}} {% if config.params.max_new_tokens is not none %} --max-new-tokens {{config.params.max_new_tokens}} {% endif %} {% if config.params.temperature is not none %} --temperature {{config.params.temperature}} {% endif %} {% if config.params.top_p is not none %} --top-p {{config.params.top_p}} {% endif %} && helm-run  --run-entries {{config.params.task}}:{% if config.params.extra.subset is not none %}subset={{config.params.extra.subset}},{% endif %}model={{target.api_endpoint.model_id}}  {% if config.params.limit_samples is not none %} --max-eval-instances {{config.params.limit_samples}}  {% endif %} {% if config.params.parallelism is not none %} -n {{config.params.parallelism}}  {% endif %} --suite {{config.params.task}} {% if config.params.extra.num_train_trials is not none %}  --num-train-trials {{config.params.extra.num_train_trials}} {% endif %} {% if config.params.extra.data_path is not none %}  --data-path {{config.params.extra.data_path}} {% endif %} {% if config.params.extra.num_output_tokens is not none %}  --num-output-tokens {{config.params.extra.num_output_tokens}} {% endif %} {% if config.params.extra.subject is not none %}  --subject {{config.params.extra.subject}} {% endif %} {% if config.params.extra.condition is not none %}  --condition {{config.params.extra.condition}} {% endif %} {% if config.params.extra.max_length is not none %} --max-length {{config.params.extra.max_length}} {% endif %} {% if config.params.extra.disable_cache is not none and config.params.extra.disable_cache %} --disable-cache {% endif %} -o {{config.output_dir}} --local-path {{config.output_dir}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: helm
+pkg_name: helm
+config:
+  params:
+    max_new_tokens: 16384
+    parallelism: 1
+    task: head_qa
+    temperature: 0.6
+    top_p: 0.95
+    extra:
+      data_path: null
+      num_output_tokens: null
+      subject: null
+      condition: null
+      max_length: null
+      num_train_trials: null
+      subset: null
+      gpt_judge_api_key: GPT_JUDGE_API_KEY
+      llama_judge_api_key: LLAMA_JUDGE_API_KEY
+      claude_judge_api_key: CLAUDE_JUDGE_API_KEY
+      disable_cache: false
+  supported_endpoint_types:
+  - chat
+  type: head_qa
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="helm-med-dialog-healthcaremagic">med_dialog_healthcaremagic</h2>
+
+Generate summaries of doctor-patient conversations, healthcaremagic version
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `helm`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/helm:26.03
+```
+
+**Container Digest:**
+```
+sha256:4579f36e4c2a6805046d4f5b0a4b938d7e8579570e4d6a7ebf42333cbf37f5a4
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `med_dialog_healthcaremagic`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export GPT_JUDGE_API_KEY=${{config.params.extra.gpt_judge_api_key}} && {% endif %} {% if config.params.extra.llama_judge_api_key is not none %}export LLAMA_JUDGE_API_KEY=${{config.params.extra.llama_judge_api_key}} && {% endif %} {% if config.params.extra.claude_judge_api_key is not none %}export CLAUDE_JUDGE_API_KEY=${{config.params.extra.claude_judge_api_key}} && {% endif %} helm-generate-dynamic-model-configs --model-name {{target.api_endpoint.model_id}} --base-url {{target.api_endpoint.url}} --openai-model-name {{target.api_endpoint.model_id}} --output-dir {{config.output_dir}} {% if config.params.max_new_tokens is not none %} --max-new-tokens {{config.params.max_new_tokens}} {% endif %} {% if config.params.temperature is not none %} --temperature {{config.params.temperature}} {% endif %} {% if config.params.top_p is not none %} --top-p {{config.params.top_p}} {% endif %} && helm-run  --run-entries {{config.params.task}}:{% if config.params.extra.subset is not none %}subset={{config.params.extra.subset}},{% endif %}model={{target.api_endpoint.model_id}}  {% if config.params.limit_samples is not none %} --max-eval-instances {{config.params.limit_samples}}  {% endif %} {% if config.params.parallelism is not none %} -n {{config.params.parallelism}}  {% endif %} --suite {{config.params.task}} {% if config.params.extra.num_train_trials is not none %}  --num-train-trials {{config.params.extra.num_train_trials}} {% endif %} {% if config.params.extra.data_path is not none %}  --data-path {{config.params.extra.data_path}} {% endif %} {% if config.params.extra.num_output_tokens is not none %}  --num-output-tokens {{config.params.extra.num_output_tokens}} {% endif %} {% if config.params.extra.subject is not none %}  --subject {{config.params.extra.subject}} {% endif %} {% if config.params.extra.condition is not none %}  --condition {{config.params.extra.condition}} {% endif %} {% if config.params.extra.max_length is not none %} --max-length {{config.params.extra.max_length}} {% endif %} {% if config.params.extra.disable_cache is not none and config.params.extra.disable_cache %} --disable-cache {% endif %} -o {{config.output_dir}} --local-path {{config.output_dir}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: helm
+pkg_name: helm
+config:
+  params:
+    max_new_tokens: 16384
+    parallelism: 1
+    task: med_dialog
+    temperature: 0.6
+    top_p: 0.95
+    extra:
+      data_path: null
+      num_output_tokens: null
+      subject: null
+      condition: null
+      max_length: null
+      num_train_trials: null
+      subset: healthcaremagic
+      gpt_judge_api_key: GPT_JUDGE_API_KEY
+      llama_judge_api_key: LLAMA_JUDGE_API_KEY
+      claude_judge_api_key: CLAUDE_JUDGE_API_KEY
+      disable_cache: false
+  supported_endpoint_types:
+  - chat
+  type: med_dialog_healthcaremagic
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="helm-med-dialog-icliniq">med_dialog_icliniq</h2>
+
+Generate summaries of doctor-patient conversations, icliniq version
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `helm`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/helm:26.03
+```
+
+**Container Digest:**
+```
+sha256:4579f36e4c2a6805046d4f5b0a4b938d7e8579570e4d6a7ebf42333cbf37f5a4
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `med_dialog_icliniq`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export GPT_JUDGE_API_KEY=${{config.params.extra.gpt_judge_api_key}} && {% endif %} {% if config.params.extra.llama_judge_api_key is not none %}export LLAMA_JUDGE_API_KEY=${{config.params.extra.llama_judge_api_key}} && {% endif %} {% if config.params.extra.claude_judge_api_key is not none %}export CLAUDE_JUDGE_API_KEY=${{config.params.extra.claude_judge_api_key}} && {% endif %} helm-generate-dynamic-model-configs --model-name {{target.api_endpoint.model_id}} --base-url {{target.api_endpoint.url}} --openai-model-name {{target.api_endpoint.model_id}} --output-dir {{config.output_dir}} {% if config.params.max_new_tokens is not none %} --max-new-tokens {{config.params.max_new_tokens}} {% endif %} {% if config.params.temperature is not none %} --temperature {{config.params.temperature}} {% endif %} {% if config.params.top_p is not none %} --top-p {{config.params.top_p}} {% endif %} && helm-run  --run-entries {{config.params.task}}:{% if config.params.extra.subset is not none %}subset={{config.params.extra.subset}},{% endif %}model={{target.api_endpoint.model_id}}  {% if config.params.limit_samples is not none %} --max-eval-instances {{config.params.limit_samples}}  {% endif %} {% if config.params.parallelism is not none %} -n {{config.params.parallelism}}  {% endif %} --suite {{config.params.task}} {% if config.params.extra.num_train_trials is not none %}  --num-train-trials {{config.params.extra.num_train_trials}} {% endif %} {% if config.params.extra.data_path is not none %}  --data-path {{config.params.extra.data_path}} {% endif %} {% if config.params.extra.num_output_tokens is not none %}  --num-output-tokens {{config.params.extra.num_output_tokens}} {% endif %} {% if config.params.extra.subject is not none %}  --subject {{config.params.extra.subject}} {% endif %} {% if config.params.extra.condition is not none %}  --condition {{config.params.extra.condition}} {% endif %} {% if config.params.extra.max_length is not none %} --max-length {{config.params.extra.max_length}} {% endif %} {% if config.params.extra.disable_cache is not none and config.params.extra.disable_cache %} --disable-cache {% endif %} -o {{config.output_dir}} --local-path {{config.output_dir}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: helm
+pkg_name: helm
+config:
+  params:
+    max_new_tokens: 16384
+    parallelism: 1
+    task: med_dialog
+    temperature: 0.6
+    top_p: 0.95
+    extra:
+      data_path: null
+      num_output_tokens: null
+      subject: null
+      condition: null
+      max_length: null
+      num_train_trials: null
+      subset: icliniq
+      gpt_judge_api_key: GPT_JUDGE_API_KEY
+      llama_judge_api_key: LLAMA_JUDGE_API_KEY
+      claude_judge_api_key: CLAUDE_JUDGE_API_KEY
+      disable_cache: false
+  supported_endpoint_types:
+  - chat
+  type: med_dialog_icliniq
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="helm-medbullets">medbullets</h2>
+
+A USMLE-style medical question dataset with multiple-choice answers and explanations (MedBullets, 2025).
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `helm`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/helm:26.03
+```
+
+**Container Digest:**
+```
+sha256:4579f36e4c2a6805046d4f5b0a4b938d7e8579570e4d6a7ebf42333cbf37f5a4
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `medbullets`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export GPT_JUDGE_API_KEY=${{config.params.extra.gpt_judge_api_key}} && {% endif %} {% if config.params.extra.llama_judge_api_key is not none %}export LLAMA_JUDGE_API_KEY=${{config.params.extra.llama_judge_api_key}} && {% endif %} {% if config.params.extra.claude_judge_api_key is not none %}export CLAUDE_JUDGE_API_KEY=${{config.params.extra.claude_judge_api_key}} && {% endif %} helm-generate-dynamic-model-configs --model-name {{target.api_endpoint.model_id}} --base-url {{target.api_endpoint.url}} --openai-model-name {{target.api_endpoint.model_id}} --output-dir {{config.output_dir}} {% if config.params.max_new_tokens is not none %} --max-new-tokens {{config.params.max_new_tokens}} {% endif %} {% if config.params.temperature is not none %} --temperature {{config.params.temperature}} {% endif %} {% if config.params.top_p is not none %} --top-p {{config.params.top_p}} {% endif %} && helm-run  --run-entries {{config.params.task}}:{% if config.params.extra.subset is not none %}subset={{config.params.extra.subset}},{% endif %}model={{target.api_endpoint.model_id}}  {% if config.params.limit_samples is not none %} --max-eval-instances {{config.params.limit_samples}}  {% endif %} {% if config.params.parallelism is not none %} -n {{config.params.parallelism}}  {% endif %} --suite {{config.params.task}} {% if config.params.extra.num_train_trials is not none %}  --num-train-trials {{config.params.extra.num_train_trials}} {% endif %} {% if config.params.extra.data_path is not none %}  --data-path {{config.params.extra.data_path}} {% endif %} {% if config.params.extra.num_output_tokens is not none %}  --num-output-tokens {{config.params.extra.num_output_tokens}} {% endif %} {% if config.params.extra.subject is not none %}  --subject {{config.params.extra.subject}} {% endif %} {% if config.params.extra.condition is not none %}  --condition {{config.params.extra.condition}} {% endif %} {% if config.params.extra.max_length is not none %} --max-length {{config.params.extra.max_length}} {% endif %} {% if config.params.extra.disable_cache is not none and config.params.extra.disable_cache %} --disable-cache {% endif %} -o {{config.output_dir}} --local-path {{config.output_dir}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: helm
+pkg_name: helm
+config:
+  params:
+    max_new_tokens: 16384
+    parallelism: 1
+    task: medbullets
+    temperature: 0.6
+    top_p: 0.95
+    extra:
+      data_path: null
+      num_output_tokens: null
+      subject: null
+      condition: null
+      max_length: null
+      num_train_trials: null
+      subset: null
+      gpt_judge_api_key: GPT_JUDGE_API_KEY
+      llama_judge_api_key: LLAMA_JUDGE_API_KEY
+      claude_judge_api_key: CLAUDE_JUDGE_API_KEY
+      disable_cache: false
+  supported_endpoint_types:
+  - chat
+  type: medbullets
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="helm-medcalc-bench">medcalc_bench</h2>
+
+A dataset which consists of a patient note, a question requesting to compute a specific medical value, and a ground truth answer (Khandekar et al., 2024).
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `helm`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/helm:26.03
+```
+
+**Container Digest:**
+```
+sha256:4579f36e4c2a6805046d4f5b0a4b938d7e8579570e4d6a7ebf42333cbf37f5a4
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `medcalc_bench`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export GPT_JUDGE_API_KEY=${{config.params.extra.gpt_judge_api_key}} && {% endif %} {% if config.params.extra.llama_judge_api_key is not none %}export LLAMA_JUDGE_API_KEY=${{config.params.extra.llama_judge_api_key}} && {% endif %} {% if config.params.extra.claude_judge_api_key is not none %}export CLAUDE_JUDGE_API_KEY=${{config.params.extra.claude_judge_api_key}} && {% endif %} helm-generate-dynamic-model-configs --model-name {{target.api_endpoint.model_id}} --base-url {{target.api_endpoint.url}} --openai-model-name {{target.api_endpoint.model_id}} --output-dir {{config.output_dir}} {% if config.params.max_new_tokens is not none %} --max-new-tokens {{config.params.max_new_tokens}} {% endif %} {% if config.params.temperature is not none %} --temperature {{config.params.temperature}} {% endif %} {% if config.params.top_p is not none %} --top-p {{config.params.top_p}} {% endif %} && helm-run  --run-entries {{config.params.task}}:{% if config.params.extra.subset is not none %}subset={{config.params.extra.subset}},{% endif %}model={{target.api_endpoint.model_id}}  {% if config.params.limit_samples is not none %} --max-eval-instances {{config.params.limit_samples}}  {% endif %} {% if config.params.parallelism is not none %} -n {{config.params.parallelism}}  {% endif %} --suite {{config.params.task}} {% if config.params.extra.num_train_trials is not none %}  --num-train-trials {{config.params.extra.num_train_trials}} {% endif %} {% if config.params.extra.data_path is not none %}  --data-path {{config.params.extra.data_path}} {% endif %} {% if config.params.extra.num_output_tokens is not none %}  --num-output-tokens {{config.params.extra.num_output_tokens}} {% endif %} {% if config.params.extra.subject is not none %}  --subject {{config.params.extra.subject}} {% endif %} {% if config.params.extra.condition is not none %}  --condition {{config.params.extra.condition}} {% endif %} {% if config.params.extra.max_length is not none %} --max-length {{config.params.extra.max_length}} {% endif %} {% if config.params.extra.disable_cache is not none and config.params.extra.disable_cache %} --disable-cache {% endif %} -o {{config.output_dir}} --local-path {{config.output_dir}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: helm
+pkg_name: helm
+config:
+  params:
+    max_new_tokens: 16384
+    parallelism: 1
+    task: medcalc_bench
+    temperature: 0.6
+    top_p: 0.95
+    extra:
+      data_path: null
+      num_output_tokens: null
+      subject: null
+      condition: null
+      max_length: null
+      num_train_trials: null
+      subset: null
+      gpt_judge_api_key: GPT_JUDGE_API_KEY
+      llama_judge_api_key: LLAMA_JUDGE_API_KEY
+      claude_judge_api_key: CLAUDE_JUDGE_API_KEY
+      disable_cache: false
+  supported_endpoint_types:
+  - chat
+  type: medcalc_bench
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="helm-medec">medec</h2>
+
+A dataset containing medical narratives with error detection and correction pairs (Abacha et al., 2025).
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `helm`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/helm:26.03
+```
+
+**Container Digest:**
+```
+sha256:4579f36e4c2a6805046d4f5b0a4b938d7e8579570e4d6a7ebf42333cbf37f5a4
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `medec`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export GPT_JUDGE_API_KEY=${{config.params.extra.gpt_judge_api_key}} && {% endif %} {% if config.params.extra.llama_judge_api_key is not none %}export LLAMA_JUDGE_API_KEY=${{config.params.extra.llama_judge_api_key}} && {% endif %} {% if config.params.extra.claude_judge_api_key is not none %}export CLAUDE_JUDGE_API_KEY=${{config.params.extra.claude_judge_api_key}} && {% endif %} helm-generate-dynamic-model-configs --model-name {{target.api_endpoint.model_id}} --base-url {{target.api_endpoint.url}} --openai-model-name {{target.api_endpoint.model_id}} --output-dir {{config.output_dir}} {% if config.params.max_new_tokens is not none %} --max-new-tokens {{config.params.max_new_tokens}} {% endif %} {% if config.params.temperature is not none %} --temperature {{config.params.temperature}} {% endif %} {% if config.params.top_p is not none %} --top-p {{config.params.top_p}} {% endif %} && helm-run  --run-entries {{config.params.task}}:{% if config.params.extra.subset is not none %}subset={{config.params.extra.subset}},{% endif %}model={{target.api_endpoint.model_id}}  {% if config.params.limit_samples is not none %} --max-eval-instances {{config.params.limit_samples}}  {% endif %} {% if config.params.parallelism is not none %} -n {{config.params.parallelism}}  {% endif %} --suite {{config.params.task}} {% if config.params.extra.num_train_trials is not none %}  --num-train-trials {{config.params.extra.num_train_trials}} {% endif %} {% if config.params.extra.data_path is not none %}  --data-path {{config.params.extra.data_path}} {% endif %} {% if config.params.extra.num_output_tokens is not none %}  --num-output-tokens {{config.params.extra.num_output_tokens}} {% endif %} {% if config.params.extra.subject is not none %}  --subject {{config.params.extra.subject}} {% endif %} {% if config.params.extra.condition is not none %}  --condition {{config.params.extra.condition}} {% endif %} {% if config.params.extra.max_length is not none %} --max-length {{config.params.extra.max_length}} {% endif %} {% if config.params.extra.disable_cache is not none and config.params.extra.disable_cache %} --disable-cache {% endif %} -o {{config.output_dir}} --local-path {{config.output_dir}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: helm
+pkg_name: helm
+config:
+  params:
+    max_new_tokens: 16384
+    parallelism: 1
+    task: medec
+    temperature: 0.6
+    top_p: 0.95
+    extra:
+      data_path: null
+      num_output_tokens: null
+      subject: null
+      condition: null
+      max_length: null
+      num_train_trials: null
+      subset: null
+      gpt_judge_api_key: GPT_JUDGE_API_KEY
+      llama_judge_api_key: LLAMA_JUDGE_API_KEY
+      claude_judge_api_key: CLAUDE_JUDGE_API_KEY
+      disable_cache: false
+  supported_endpoint_types:
+  - chat
+  type: medec
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="helm-medhallu">medhallu</h2>
+
+A dataset of PubMed articles and associated questions, with the objective being to classify whether the answer is factual or hallucinated.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `helm`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/helm:26.03
+```
+
+**Container Digest:**
+```
+sha256:4579f36e4c2a6805046d4f5b0a4b938d7e8579570e4d6a7ebf42333cbf37f5a4
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `medhallu`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export GPT_JUDGE_API_KEY=${{config.params.extra.gpt_judge_api_key}} && {% endif %} {% if config.params.extra.llama_judge_api_key is not none %}export LLAMA_JUDGE_API_KEY=${{config.params.extra.llama_judge_api_key}} && {% endif %} {% if config.params.extra.claude_judge_api_key is not none %}export CLAUDE_JUDGE_API_KEY=${{config.params.extra.claude_judge_api_key}} && {% endif %} helm-generate-dynamic-model-configs --model-name {{target.api_endpoint.model_id}} --base-url {{target.api_endpoint.url}} --openai-model-name {{target.api_endpoint.model_id}} --output-dir {{config.output_dir}} {% if config.params.max_new_tokens is not none %} --max-new-tokens {{config.params.max_new_tokens}} {% endif %} {% if config.params.temperature is not none %} --temperature {{config.params.temperature}} {% endif %} {% if config.params.top_p is not none %} --top-p {{config.params.top_p}} {% endif %} && helm-run  --run-entries {{config.params.task}}:{% if config.params.extra.subset is not none %}subset={{config.params.extra.subset}},{% endif %}model={{target.api_endpoint.model_id}}  {% if config.params.limit_samples is not none %} --max-eval-instances {{config.params.limit_samples}}  {% endif %} {% if config.params.parallelism is not none %} -n {{config.params.parallelism}}  {% endif %} --suite {{config.params.task}} {% if config.params.extra.num_train_trials is not none %}  --num-train-trials {{config.params.extra.num_train_trials}} {% endif %} {% if config.params.extra.data_path is not none %}  --data-path {{config.params.extra.data_path}} {% endif %} {% if config.params.extra.num_output_tokens is not none %}  --num-output-tokens {{config.params.extra.num_output_tokens}} {% endif %} {% if config.params.extra.subject is not none %}  --subject {{config.params.extra.subject}} {% endif %} {% if config.params.extra.condition is not none %}  --condition {{config.params.extra.condition}} {% endif %} {% if config.params.extra.max_length is not none %} --max-length {{config.params.extra.max_length}} {% endif %} {% if config.params.extra.disable_cache is not none and config.params.extra.disable_cache %} --disable-cache {% endif %} -o {{config.output_dir}} --local-path {{config.output_dir}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: helm
+pkg_name: helm
+config:
+  params:
+    max_new_tokens: 16384
+    parallelism: 1
+    task: medhallu
+    temperature: 0.6
+    top_p: 0.95
+    extra:
+      data_path: null
+      num_output_tokens: null
+      subject: null
+      condition: null
+      max_length: null
+      num_train_trials: null
+      subset: null
+      gpt_judge_api_key: GPT_JUDGE_API_KEY
+      llama_judge_api_key: LLAMA_JUDGE_API_KEY
+      claude_judge_api_key: CLAUDE_JUDGE_API_KEY
+      disable_cache: false
+  supported_endpoint_types:
+  - chat
+  type: medhallu
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="helm-medi-qa">medi_qa</h2>
+
+Retrieve and rank answers based on medical question understanding
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `helm`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/helm:26.03
+```
+
+**Container Digest:**
+```
+sha256:4579f36e4c2a6805046d4f5b0a4b938d7e8579570e4d6a7ebf42333cbf37f5a4
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `medi_qa`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export GPT_JUDGE_API_KEY=${{config.params.extra.gpt_judge_api_key}} && {% endif %} {% if config.params.extra.llama_judge_api_key is not none %}export LLAMA_JUDGE_API_KEY=${{config.params.extra.llama_judge_api_key}} && {% endif %} {% if config.params.extra.claude_judge_api_key is not none %}export CLAUDE_JUDGE_API_KEY=${{config.params.extra.claude_judge_api_key}} && {% endif %} helm-generate-dynamic-model-configs --model-name {{target.api_endpoint.model_id}} --base-url {{target.api_endpoint.url}} --openai-model-name {{target.api_endpoint.model_id}} --output-dir {{config.output_dir}} {% if config.params.max_new_tokens is not none %} --max-new-tokens {{config.params.max_new_tokens}} {% endif %} {% if config.params.temperature is not none %} --temperature {{config.params.temperature}} {% endif %} {% if config.params.top_p is not none %} --top-p {{config.params.top_p}} {% endif %} && helm-run  --run-entries {{config.params.task}}:{% if config.params.extra.subset is not none %}subset={{config.params.extra.subset}},{% endif %}model={{target.api_endpoint.model_id}}  {% if config.params.limit_samples is not none %} --max-eval-instances {{config.params.limit_samples}}  {% endif %} {% if config.params.parallelism is not none %} -n {{config.params.parallelism}}  {% endif %} --suite {{config.params.task}} {% if config.params.extra.num_train_trials is not none %}  --num-train-trials {{config.params.extra.num_train_trials}} {% endif %} {% if config.params.extra.data_path is not none %}  --data-path {{config.params.extra.data_path}} {% endif %} {% if config.params.extra.num_output_tokens is not none %}  --num-output-tokens {{config.params.extra.num_output_tokens}} {% endif %} {% if config.params.extra.subject is not none %}  --subject {{config.params.extra.subject}} {% endif %} {% if config.params.extra.condition is not none %}  --condition {{config.params.extra.condition}} {% endif %} {% if config.params.extra.max_length is not none %} --max-length {{config.params.extra.max_length}} {% endif %} {% if config.params.extra.disable_cache is not none and config.params.extra.disable_cache %} --disable-cache {% endif %} -o {{config.output_dir}} --local-path {{config.output_dir}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: helm
+pkg_name: helm
+config:
+  params:
+    max_new_tokens: 16384
+    parallelism: 1
+    task: medi_qa
+    temperature: 0.6
+    top_p: 0.95
+    extra:
+      data_path: null
+      num_output_tokens: null
+      subject: null
+      condition: null
+      max_length: null
+      num_train_trials: null
+      subset: null
+      gpt_judge_api_key: GPT_JUDGE_API_KEY
+      llama_judge_api_key: LLAMA_JUDGE_API_KEY
+      claude_judge_api_key: CLAUDE_JUDGE_API_KEY
+      disable_cache: false
+  supported_endpoint_types:
+  - chat
+  type: medi_qa
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="helm-medication-qa">medication_qa</h2>
+
+Answer consumer medication-related questions
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `helm`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/helm:26.03
+```
+
+**Container Digest:**
+```
+sha256:4579f36e4c2a6805046d4f5b0a4b938d7e8579570e4d6a7ebf42333cbf37f5a4
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `medication_qa`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export GPT_JUDGE_API_KEY=${{config.params.extra.gpt_judge_api_key}} && {% endif %} {% if config.params.extra.llama_judge_api_key is not none %}export LLAMA_JUDGE_API_KEY=${{config.params.extra.llama_judge_api_key}} && {% endif %} {% if config.params.extra.claude_judge_api_key is not none %}export CLAUDE_JUDGE_API_KEY=${{config.params.extra.claude_judge_api_key}} && {% endif %} helm-generate-dynamic-model-configs --model-name {{target.api_endpoint.model_id}} --base-url {{target.api_endpoint.url}} --openai-model-name {{target.api_endpoint.model_id}} --output-dir {{config.output_dir}} {% if config.params.max_new_tokens is not none %} --max-new-tokens {{config.params.max_new_tokens}} {% endif %} {% if config.params.temperature is not none %} --temperature {{config.params.temperature}} {% endif %} {% if config.params.top_p is not none %} --top-p {{config.params.top_p}} {% endif %} && helm-run  --run-entries {{config.params.task}}:{% if config.params.extra.subset is not none %}subset={{config.params.extra.subset}},{% endif %}model={{target.api_endpoint.model_id}}  {% if config.params.limit_samples is not none %} --max-eval-instances {{config.params.limit_samples}}  {% endif %} {% if config.params.parallelism is not none %} -n {{config.params.parallelism}}  {% endif %} --suite {{config.params.task}} {% if config.params.extra.num_train_trials is not none %}  --num-train-trials {{config.params.extra.num_train_trials}} {% endif %} {% if config.params.extra.data_path is not none %}  --data-path {{config.params.extra.data_path}} {% endif %} {% if config.params.extra.num_output_tokens is not none %}  --num-output-tokens {{config.params.extra.num_output_tokens}} {% endif %} {% if config.params.extra.subject is not none %}  --subject {{config.params.extra.subject}} {% endif %} {% if config.params.extra.condition is not none %}  --condition {{config.params.extra.condition}} {% endif %} {% if config.params.extra.max_length is not none %} --max-length {{config.params.extra.max_length}} {% endif %} {% if config.params.extra.disable_cache is not none and config.params.extra.disable_cache %} --disable-cache {% endif %} -o {{config.output_dir}} --local-path {{config.output_dir}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: helm
+pkg_name: helm
+config:
+  params:
+    max_new_tokens: 16384
+    parallelism: 1
+    task: medication_qa
+    temperature: 0.6
+    top_p: 0.95
+    extra:
+      data_path: null
+      num_output_tokens: null
+      subject: null
+      condition: null
+      max_length: null
+      num_train_trials: null
+      subset: null
+      gpt_judge_api_key: GPT_JUDGE_API_KEY
+      llama_judge_api_key: LLAMA_JUDGE_API_KEY
+      claude_judge_api_key: CLAUDE_JUDGE_API_KEY
+      disable_cache: false
+  supported_endpoint_types:
+  - chat
+  type: medication_qa
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="helm-mtsamples-procedures">mtsamples_procedures</h2>
+
+Document and extract information about medical procedures
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `helm`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/helm:26.03
+```
+
+**Container Digest:**
+```
+sha256:4579f36e4c2a6805046d4f5b0a4b938d7e8579570e4d6a7ebf42333cbf37f5a4
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `mtsamples_procedures`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export GPT_JUDGE_API_KEY=${{config.params.extra.gpt_judge_api_key}} && {% endif %} {% if config.params.extra.llama_judge_api_key is not none %}export LLAMA_JUDGE_API_KEY=${{config.params.extra.llama_judge_api_key}} && {% endif %} {% if config.params.extra.claude_judge_api_key is not none %}export CLAUDE_JUDGE_API_KEY=${{config.params.extra.claude_judge_api_key}} && {% endif %} helm-generate-dynamic-model-configs --model-name {{target.api_endpoint.model_id}} --base-url {{target.api_endpoint.url}} --openai-model-name {{target.api_endpoint.model_id}} --output-dir {{config.output_dir}} {% if config.params.max_new_tokens is not none %} --max-new-tokens {{config.params.max_new_tokens}} {% endif %} {% if config.params.temperature is not none %} --temperature {{config.params.temperature}} {% endif %} {% if config.params.top_p is not none %} --top-p {{config.params.top_p}} {% endif %} && helm-run  --run-entries {{config.params.task}}:{% if config.params.extra.subset is not none %}subset={{config.params.extra.subset}},{% endif %}model={{target.api_endpoint.model_id}}  {% if config.params.limit_samples is not none %} --max-eval-instances {{config.params.limit_samples}}  {% endif %} {% if config.params.parallelism is not none %} -n {{config.params.parallelism}}  {% endif %} --suite {{config.params.task}} {% if config.params.extra.num_train_trials is not none %}  --num-train-trials {{config.params.extra.num_train_trials}} {% endif %} {% if config.params.extra.data_path is not none %}  --data-path {{config.params.extra.data_path}} {% endif %} {% if config.params.extra.num_output_tokens is not none %}  --num-output-tokens {{config.params.extra.num_output_tokens}} {% endif %} {% if config.params.extra.subject is not none %}  --subject {{config.params.extra.subject}} {% endif %} {% if config.params.extra.condition is not none %}  --condition {{config.params.extra.condition}} {% endif %} {% if config.params.extra.max_length is not none %} --max-length {{config.params.extra.max_length}} {% endif %} {% if config.params.extra.disable_cache is not none and config.params.extra.disable_cache %} --disable-cache {% endif %} -o {{config.output_dir}} --local-path {{config.output_dir}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: helm
+pkg_name: helm
+config:
+  params:
+    max_new_tokens: 16384
+    parallelism: 1
+    task: mtsamples_procedures
+    temperature: 0.6
+    top_p: 0.95
+    extra:
+      data_path: null
+      num_output_tokens: null
+      subject: null
+      condition: null
+      max_length: null
+      num_train_trials: null
+      subset: null
+      gpt_judge_api_key: GPT_JUDGE_API_KEY
+      llama_judge_api_key: LLAMA_JUDGE_API_KEY
+      claude_judge_api_key: CLAUDE_JUDGE_API_KEY
+      disable_cache: false
+  supported_endpoint_types:
+  - chat
+  type: mtsamples_procedures
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="helm-mtsamples-replicate">mtsamples_replicate</h2>
+
+Generate treatment plans based on clinical notes
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `helm`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/helm:26.03
+```
+
+**Container Digest:**
+```
+sha256:4579f36e4c2a6805046d4f5b0a4b938d7e8579570e4d6a7ebf42333cbf37f5a4
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `mtsamples_replicate`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export GPT_JUDGE_API_KEY=${{config.params.extra.gpt_judge_api_key}} && {% endif %} {% if config.params.extra.llama_judge_api_key is not none %}export LLAMA_JUDGE_API_KEY=${{config.params.extra.llama_judge_api_key}} && {% endif %} {% if config.params.extra.claude_judge_api_key is not none %}export CLAUDE_JUDGE_API_KEY=${{config.params.extra.claude_judge_api_key}} && {% endif %} helm-generate-dynamic-model-configs --model-name {{target.api_endpoint.model_id}} --base-url {{target.api_endpoint.url}} --openai-model-name {{target.api_endpoint.model_id}} --output-dir {{config.output_dir}} {% if config.params.max_new_tokens is not none %} --max-new-tokens {{config.params.max_new_tokens}} {% endif %} {% if config.params.temperature is not none %} --temperature {{config.params.temperature}} {% endif %} {% if config.params.top_p is not none %} --top-p {{config.params.top_p}} {% endif %} && helm-run  --run-entries {{config.params.task}}:{% if config.params.extra.subset is not none %}subset={{config.params.extra.subset}},{% endif %}model={{target.api_endpoint.model_id}}  {% if config.params.limit_samples is not none %} --max-eval-instances {{config.params.limit_samples}}  {% endif %} {% if config.params.parallelism is not none %} -n {{config.params.parallelism}}  {% endif %} --suite {{config.params.task}} {% if config.params.extra.num_train_trials is not none %}  --num-train-trials {{config.params.extra.num_train_trials}} {% endif %} {% if config.params.extra.data_path is not none %}  --data-path {{config.params.extra.data_path}} {% endif %} {% if config.params.extra.num_output_tokens is not none %}  --num-output-tokens {{config.params.extra.num_output_tokens}} {% endif %} {% if config.params.extra.subject is not none %}  --subject {{config.params.extra.subject}} {% endif %} {% if config.params.extra.condition is not none %}  --condition {{config.params.extra.condition}} {% endif %} {% if config.params.extra.max_length is not none %} --max-length {{config.params.extra.max_length}} {% endif %} {% if config.params.extra.disable_cache is not none and config.params.extra.disable_cache %} --disable-cache {% endif %} -o {{config.output_dir}} --local-path {{config.output_dir}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: helm
+pkg_name: helm
+config:
+  params:
+    max_new_tokens: 16384
+    parallelism: 1
+    task: mtsamples_replicate
+    temperature: 0.6
+    top_p: 0.95
+    extra:
+      data_path: null
+      num_output_tokens: null
+      subject: null
+      condition: null
+      max_length: null
+      num_train_trials: null
+      subset: null
+      gpt_judge_api_key: GPT_JUDGE_API_KEY
+      llama_judge_api_key: LLAMA_JUDGE_API_KEY
+      claude_judge_api_key: CLAUDE_JUDGE_API_KEY
+      disable_cache: false
+  supported_endpoint_types:
+  - chat
+  type: mtsamples_replicate
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="helm-pubmed-qa">pubmed_qa</h2>
+
+A dataset that provides PubMed abstracts and asks associated questions (yes/no/maybe format).
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `helm`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/helm:26.03
+```
+
+**Container Digest:**
+```
+sha256:4579f36e4c2a6805046d4f5b0a4b938d7e8579570e4d6a7ebf42333cbf37f5a4
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `pubmed_qa`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export GPT_JUDGE_API_KEY=${{config.params.extra.gpt_judge_api_key}} && {% endif %} {% if config.params.extra.llama_judge_api_key is not none %}export LLAMA_JUDGE_API_KEY=${{config.params.extra.llama_judge_api_key}} && {% endif %} {% if config.params.extra.claude_judge_api_key is not none %}export CLAUDE_JUDGE_API_KEY=${{config.params.extra.claude_judge_api_key}} && {% endif %} helm-generate-dynamic-model-configs --model-name {{target.api_endpoint.model_id}} --base-url {{target.api_endpoint.url}} --openai-model-name {{target.api_endpoint.model_id}} --output-dir {{config.output_dir}} {% if config.params.max_new_tokens is not none %} --max-new-tokens {{config.params.max_new_tokens}} {% endif %} {% if config.params.temperature is not none %} --temperature {{config.params.temperature}} {% endif %} {% if config.params.top_p is not none %} --top-p {{config.params.top_p}} {% endif %} && helm-run  --run-entries {{config.params.task}}:{% if config.params.extra.subset is not none %}subset={{config.params.extra.subset}},{% endif %}model={{target.api_endpoint.model_id}}  {% if config.params.limit_samples is not none %} --max-eval-instances {{config.params.limit_samples}}  {% endif %} {% if config.params.parallelism is not none %} -n {{config.params.parallelism}}  {% endif %} --suite {{config.params.task}} {% if config.params.extra.num_train_trials is not none %}  --num-train-trials {{config.params.extra.num_train_trials}} {% endif %} {% if config.params.extra.data_path is not none %}  --data-path {{config.params.extra.data_path}} {% endif %} {% if config.params.extra.num_output_tokens is not none %}  --num-output-tokens {{config.params.extra.num_output_tokens}} {% endif %} {% if config.params.extra.subject is not none %}  --subject {{config.params.extra.subject}} {% endif %} {% if config.params.extra.condition is not none %}  --condition {{config.params.extra.condition}} {% endif %} {% if config.params.extra.max_length is not none %} --max-length {{config.params.extra.max_length}} {% endif %} {% if config.params.extra.disable_cache is not none and config.params.extra.disable_cache %} --disable-cache {% endif %} -o {{config.output_dir}} --local-path {{config.output_dir}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: helm
+pkg_name: helm
+config:
+  params:
+    max_new_tokens: 16384
+    parallelism: 1
+    task: pubmed_qa
+    temperature: 0.6
+    top_p: 0.95
+    extra:
+      data_path: null
+      num_output_tokens: null
+      subject: null
+      condition: null
+      max_length: null
+      num_train_trials: null
+      subset: null
+      gpt_judge_api_key: GPT_JUDGE_API_KEY
+      llama_judge_api_key: LLAMA_JUDGE_API_KEY
+      claude_judge_api_key: CLAUDE_JUDGE_API_KEY
+      disable_cache: false
+  supported_endpoint_types:
+  - chat
+  type: pubmed_qa
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="helm-race-based-med">race_based_med</h2>
+
+A collection of LLM outputs in response to medical questions with race-based biases, with the objective being to classify whether the output contains racially biased content.
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `helm`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/helm:26.03
+```
+
+**Container Digest:**
+```
+sha256:4579f36e4c2a6805046d4f5b0a4b938d7e8579570e4d6a7ebf42333cbf37f5a4
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `race_based_med`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+{% if target.api_endpoint.api_key_name is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export GPT_JUDGE_API_KEY=${{config.params.extra.gpt_judge_api_key}} && {% endif %} {% if config.params.extra.llama_judge_api_key is not none %}export LLAMA_JUDGE_API_KEY=${{config.params.extra.llama_judge_api_key}} && {% endif %} {% if config.params.extra.claude_judge_api_key is not none %}export CLAUDE_JUDGE_API_KEY=${{config.params.extra.claude_judge_api_key}} && {% endif %} helm-generate-dynamic-model-configs --model-name {{target.api_endpoint.model_id}} --base-url {{target.api_endpoint.url}} --openai-model-name {{target.api_endpoint.model_id}} --output-dir {{config.output_dir}} {% if config.params.max_new_tokens is not none %} --max-new-tokens {{config.params.max_new_tokens}} {% endif %} {% if config.params.temperature is not none %} --temperature {{config.params.temperature}} {% endif %} {% if config.params.top_p is not none %} --top-p {{config.params.top_p}} {% endif %} && helm-run  --run-entries {{config.params.task}}:{% if config.params.extra.subset is not none %}subset={{config.params.extra.subset}},{% endif %}model={{target.api_endpoint.model_id}}  {% if config.params.limit_samples is not none %} --max-eval-instances {{config.params.limit_samples}}  {% endif %} {% if config.params.parallelism is not none %} -n {{config.params.parallelism}}  {% endif %} --suite {{config.params.task}} {% if config.params.extra.num_train_trials is not none %}  --num-train-trials {{config.params.extra.num_train_trials}} {% endif %} {% if config.params.extra.data_path is not none %}  --data-path {{config.params.extra.data_path}} {% endif %} {% if config.params.extra.num_output_tokens is not none %}  --num-output-tokens {{config.params.extra.num_output_tokens}} {% endif %} {% if config.params.extra.subject is not none %}  --subject {{config.params.extra.subject}} {% endif %} {% if config.params.extra.condition is not none %}  --condition {{config.params.extra.condition}} {% endif %} {% if config.params.extra.max_length is not none %} --max-length {{config.params.extra.max_length}} {% endif %} {% if config.params.extra.disable_cache is not none and config.params.extra.disable_cache %} --disable-cache {% endif %} -o {{config.output_dir}} --local-path {{config.output_dir}}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: helm
+pkg_name: helm
+config:
+  params:
+    max_new_tokens: 16384
+    parallelism: 1
+    task: race_based_med
+    temperature: 0.6
+    top_p: 0.95
+    extra:
+      data_path: null
+      num_output_tokens: null
+      subject: null
+      condition: null
+      max_length: null
+      num_train_trials: null
+      subset: null
+      gpt_judge_api_key: GPT_JUDGE_API_KEY
+      llama_judge_api_key: LLAMA_JUDGE_API_KEY
+      claude_judge_api_key: CLAUDE_JUDGE_API_KEY
+      disable_cache: false
+  supported_endpoint_types:
+  - chat
+  type: race_based_med
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+

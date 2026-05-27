@@ -1,0 +1,252 @@
+---
+title: "genai_perf_eval"
+---
+
+This page contains all evaluation tasks for the **genai_perf_eval** harness.
+
+| Task | Description |
+| --- | --- |
+| [genai_perf_generation](#genai-perf-eval-genai-perf-generation) | GenAI Perf speed evaluation for chat endpoint, generation task - short input, long output |
+| [genai_perf_generation_completions](#genai-perf-eval-genai-perf-generation-completions) | GenAI Perf speed evaluation for completions endpoint, generation task - short input, long output |
+| [genai_perf_summarization](#genai-perf-eval-genai-perf-summarization) | GenAI Perf speed evaluation for chat endpoint, summarization task - long input, short output |
+| [genai_perf_summarization_completions](#genai-perf-eval-genai-perf-summarization-completions) | GenAI Perf speed evaluation for completions endpoint, summarization task - long input, short output |
+
+<h2 id="genai-perf-eval-genai-perf-generation">genai_perf_generation</h2>
+
+GenAI Perf speed evaluation for chat endpoint, generation task - short input, long output
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `genai_perf_eval`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/genai-perf:26.03
+```
+
+**Container Digest:**
+```
+sha256:44bba3c51b2bce716c9e713c898d8d9076073d646de522384e526d3c4870b59e
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `genai_perf_generation`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+genai_perf_eval --model_id {{target.api_endpoint.model_id}} --url {{target.api_endpoint.url}}  {% if target.api_endpoint.api_key_name is not none %}--api-key {{target.api_endpoint.api_key_name}} {% endif %} --concurrencies {{config.params.parallelism}} --isl {{config.params.extra.isl}} --osl {{config.params.extra.osl}}  --tokenizer {{config.params.extra.tokenizer}} --endpoint-type {{target.api_endpoint.type}} --artifact-dir {{config.output_dir}} {% if target.api_endpoint.stream %}--streaming {% endif %}{% if config.params.extra.warmup %}--warmup{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: genai_perf_eval
+pkg_name: genai_perf
+config:
+  params:
+    parallelism: 1
+    extra:
+      tokenizer: null
+      warmup: true
+      isl: 500
+      osl: 5000
+  supported_endpoint_types:
+  - chat
+  type: genai_perf_generation
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="genai-perf-eval-genai-perf-generation-completions">genai_perf_generation_completions</h2>
+
+GenAI Perf speed evaluation for completions endpoint, generation task - short input, long output
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `genai_perf_eval`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/genai-perf:26.03
+```
+
+**Container Digest:**
+```
+sha256:44bba3c51b2bce716c9e713c898d8d9076073d646de522384e526d3c4870b59e
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `genai_perf_generation_completions`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+genai_perf_eval --model_id {{target.api_endpoint.model_id}} --url {{target.api_endpoint.url}}  {% if target.api_endpoint.api_key_name is not none %}--api-key {{target.api_endpoint.api_key_name}} {% endif %} --concurrencies {{config.params.parallelism}} --isl {{config.params.extra.isl}} --osl {{config.params.extra.osl}}  --tokenizer {{config.params.extra.tokenizer}} --endpoint-type {{target.api_endpoint.type}} --artifact-dir {{config.output_dir}} {% if target.api_endpoint.stream %}--streaming {% endif %}{% if config.params.extra.warmup %}--warmup{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: genai_perf_eval
+pkg_name: genai_perf
+config:
+  params:
+    parallelism: 1
+    task: genai_perf_generation
+    extra:
+      tokenizer: null
+      warmup: true
+      isl: 500
+      osl: 5000
+  supported_endpoint_types:
+  - completions
+  type: genai_perf_generation_completions
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="genai-perf-eval-genai-perf-summarization">genai_perf_summarization</h2>
+
+GenAI Perf speed evaluation for chat endpoint, summarization task - long input, short output
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `genai_perf_eval`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/genai-perf:26.03
+```
+
+**Container Digest:**
+```
+sha256:44bba3c51b2bce716c9e713c898d8d9076073d646de522384e526d3c4870b59e
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `genai_perf_summarization`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+genai_perf_eval --model_id {{target.api_endpoint.model_id}} --url {{target.api_endpoint.url}}  {% if target.api_endpoint.api_key_name is not none %}--api-key {{target.api_endpoint.api_key_name}} {% endif %} --concurrencies {{config.params.parallelism}} --isl {{config.params.extra.isl}} --osl {{config.params.extra.osl}}  --tokenizer {{config.params.extra.tokenizer}} --endpoint-type {{target.api_endpoint.type}} --artifact-dir {{config.output_dir}} {% if target.api_endpoint.stream %}--streaming {% endif %}{% if config.params.extra.warmup %}--warmup{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: genai_perf_eval
+pkg_name: genai_perf
+config:
+  params:
+    parallelism: 1
+    extra:
+      tokenizer: null
+      warmup: true
+      isl: 5000
+      osl: 500
+  supported_endpoint_types:
+  - chat
+  type: genai_perf_summarization
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
+
+---
+
+<h2 id="genai-perf-eval-genai-perf-summarization-completions">genai_perf_summarization_completions</h2>
+
+GenAI Perf speed evaluation for completions endpoint, summarization task - long input, short output
+
+<Tabs>
+<Tab title="Container">
+
+**Harness:** `genai_perf_eval`
+
+**Container:**
+```
+nvcr.io/nvidia/eval-factory/genai-perf:26.03
+```
+
+**Container Digest:**
+```
+sha256:44bba3c51b2bce716c9e713c898d8d9076073d646de522384e526d3c4870b59e
+```
+
+**Container Arch:** `amd`
+
+**Task Type:** `genai_perf_summarization_completions`
+
+</Tab>
+
+<Tab title="Command">
+
+```bash
+genai_perf_eval --model_id {{target.api_endpoint.model_id}} --url {{target.api_endpoint.url}}  {% if target.api_endpoint.api_key_name is not none %}--api-key {{target.api_endpoint.api_key_name}} {% endif %} --concurrencies {{config.params.parallelism}} --isl {{config.params.extra.isl}} --osl {{config.params.extra.osl}}  --tokenizer {{config.params.extra.tokenizer}} --endpoint-type {{target.api_endpoint.type}} --artifact-dir {{config.output_dir}} {% if target.api_endpoint.stream %}--streaming {% endif %}{% if config.params.extra.warmup %}--warmup{% endif %}
+```
+
+</Tab>
+
+<Tab title="Defaults">
+
+```yaml
+framework_name: genai_perf_eval
+pkg_name: genai_perf
+config:
+  params:
+    parallelism: 1
+    task: genai_perf_summarization
+    extra:
+      tokenizer: null
+      warmup: true
+      isl: 5000
+      osl: 500
+  supported_endpoint_types:
+  - completions
+  type: genai_perf_summarization_completions
+target:
+  api_endpoint: {}
+```
+
+</Tab>
+
+</Tabs>
+
