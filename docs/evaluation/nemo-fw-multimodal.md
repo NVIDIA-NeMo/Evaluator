@@ -4,7 +4,7 @@ This guide shows how to convert, deploy, and evaluate a [Qwen2.5-VL](https://hug
 
 ## Prerequisites
 
-- Access to a SLURM cluster with the NeMo Framework container (`nvcr.io/nvidia/nemo:26.02` or later)
+- Access to a SLURM cluster with the NeMo Framework container (`nvcr.io/nvidia/nemo:26.04` or later)
 - Sufficient GPU resources (at least one GPU with enough VRAM for the chosen model size)
 - A Hugging Face account with access to the model weights
 
@@ -13,7 +13,7 @@ This guide shows how to convert, deploy, and evaluate a [Qwen2.5-VL](https://hug
 The [nvidia-vlmeval](https://pypi.org/project/nvidia-vlmeval/) package provides multimodal evaluation tasks, including OCRBench, and must be installed inside the NeMo Framework container:
 
 ```bash
-cd /opt/NeMo-FW && uv pip install nvidia-vlmeval
+cd /opt/Megatron-Bridge && uv pip install nvidia-vlmeval
 ```
 
 :::{note}
