@@ -20,6 +20,6 @@
     "Configures request and response logging interceptors under evaluation.nemo_evaluator_config.config.target.api_endpoint.adapter_config using correct field names (max_logged_requests/max_logged_responses, not max_saved_*)",
     "Handles dry-run failure for missing HF_TOKEN_FOR_GPQA_DIAMOND by offering to fix the config",
     "Successfully submits test run with limit_samples=10 after dry-run passes",
-    "Provides monitoring commands (nel status, nel info --logs) and inspects server logs via SSH when asked"
+    "After submission, refers the user to the launching-evals skill for any monitoring, log inspection, or debugging — does not itself run nel status, nel info, or SSH into cluster hosts"
   ]
 }

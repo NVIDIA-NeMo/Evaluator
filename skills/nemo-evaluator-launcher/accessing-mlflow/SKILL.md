@@ -66,10 +66,20 @@ EOF
 
 If the MLflow MCP server fails to load or its tools are unavailable:
 
-1. **`uvx` not found** — install [uv](https://docs.astral.sh/uv/getting-started/installation/):
+1. **`uvx` not found** — install [uv](https://docs.astral.sh/uv/getting-started/installation/) using whichever option matches your environment:
    ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh
+   # Recommended: install via an existing package manager (no remote script execution)
+   pipx install uv     # if you have pipx
+   pip install uv      # in a virtualenv
+   brew install uv     # macOS
    ```
+   If you prefer the official shell installer, download it, inspect it, and only then run it — do **not** pipe directly to `sh`:
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh -o /tmp/uv-install.sh
+   less /tmp/uv-install.sh   # review the contents before executing
+   sh /tmp/uv-install.sh
+   ```
+   See the [official uv installation docs](https://docs.astral.sh/uv/getting-started/installation/) for further options and checksum verification.
 2. **MCP server not configured** — add the config and restart the agent:
 
    **For Claude Code** — add to `.claude/settings.json` (project or user level), under `"mcpServers"`:
