@@ -1,5 +1,5 @@
 ## Description: <br>
-Query and browse evaluation results stored in MLflow, enabling agents to look up runs by invocation ID, compare metrics across models, fetch artifacts, and set up the MLflow MCP server. <br>
+Query and browse evaluation results stored in MLflow. <br>
 
 This skill is ready for commercial/non-commercial use. <br>
 
@@ -9,7 +9,7 @@ NVIDIA <br>
 ### License/Terms of Use: <br>
 Apache 2.0 <br>
 ## Use Case: <br>
-Developers and engineers who need to query MLflow evaluation results, compare metrics across model runs, and retrieve evaluation artifacts through natural language via an MCP server integration. <br>
+Developers and engineers who need to query, browse, and compare evaluation results stored in MLflow after running evaluations with NeMo Evaluator. <br>
 
 ### Deployment Geography for Use: <br>
 Global <br>
@@ -19,18 +19,18 @@ Risk: Review before execution as proposals could introduce incorrect or misleadi
 Mitigation: Review and scan skill before deployment. <br>
 
 ## Reference(s): <br>
-- [mlflow-mcp (MCP server for MLflow)](https://github.com/kkruglik/mlflow-mcp) <br>
-- [uv Installation Guide](https://docs.astral.sh/uv/getting-started/installation/) <br>
+- [mlflow-mcp — MLflow MCP Server](https://github.com/kkruglik/mlflow-mcp) <br>
+- [NVIDIA NeMo Evaluator](https://github.com/NVIDIA-NeMo/Evaluator) <br>
 
 
 ## Skill Output: <br>
-**Output Type(s):** [Shell commands, Configuration instructions, Code] <br>
+**Output Type(s):** [Shell commands, API Calls, Configuration instructions] <br>
 **Output Format:** [Markdown with inline code blocks] <br>
 **Output Parameters:** [1D] <br>
 **Other Properties Related to Output:** [None] <br>
 
 ## Evaluation Tasks: <br>
-Evaluated via NVSkills-Eval 3-Tier framework (profile: external). Tier 1 static validation (9 checks) and Tier 2 deduplication (2 checks) passed. Overall verdict: PASS. <br>
+NVSkills-Eval 3-Tier evaluation: Tier 1 static validation (9 checks, 14 findings, passed), Tier 2 deduplication (2 checks, 0 findings, passed). Tier 3 live agent evaluation not available. <br>
 
 ## Evaluation Metrics Used: <br>
 Reported benchmark dimensions: <br>
@@ -43,7 +43,7 @@ Reported benchmark dimensions: <br>
 
 
 ## Skill Version(s): <br>
-36975fa7 (source: git SHA, committed 2026-05-28) <br>
+0.2.6 (source: git tag nemo-evaluator-launcher-v0.2.6) <br>
 
 ## Ethical Considerations: <br>
 NVIDIA believes Trustworthy AI is a shared responsibility and we have established policies and practices to enable development for a wide array of AI applications. When downloaded or used in accordance with our terms of service, developers should work with their internal team to ensure this skill meets requirements for the relevant industry and use case and addresses unforeseen product misuse. <br>

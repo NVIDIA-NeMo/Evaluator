@@ -9,7 +9,7 @@ NVIDIA <br>
 ### License/Terms of Use: <br>
 Apache 2.0 <br>
 ## Use Case: <br>
-Developers and engineers use this skill to run, monitor, debug, and analyze LLM evaluations on remote clusters via the nemo-evaluator-launcher CLI. <br>
+Developers and engineers who run LLM evaluations on cluster infrastructure, using nemo-evaluator-launcher to launch, monitor, debug, and analyze evaluation runs. <br>
 
 ### Deployment Geography for Use: <br>
 Global <br>
@@ -19,13 +19,13 @@ Risk: Review before execution as proposals could introduce incorrect or misleadi
 Mitigation: Review and scan skill before deployment. <br>
 
 ## Reference(s): <br>
-- [run-evaluation.md](references/run-evaluation.md) <br>
-- [check-progress.md](references/check-progress.md) <br>
-- [analyze-results.md](references/analyze-results.md) <br>
-- [debug-failed-runs.md](references/debug-failed-runs.md) <br>
-- [swebench-general-info.md](references/benchmarks/swebench-general-info.md) <br>
-- [terminal-bench-general-info.md](references/benchmarks/terminal-bench-general-info.md) <br>
-- [terminal-bench-trace-analysis.md](references/benchmarks/terminal-bench-trace-analysis.md) <br>
+- [Run Evaluation](references/run-evaluation.md) <br>
+- [Check Progress](references/check-progress.md) <br>
+- [Debug Failed Runs](references/debug-failed-runs.md) <br>
+- [Analyze Results](references/analyze-results.md) <br>
+- [SWE-bench General Info](references/benchmarks/swebench-general-info.md) <br>
+- [Terminal Bench General Info](references/benchmarks/terminal-bench-general-info.md) <br>
+- [Terminal Bench Trace Analysis](references/benchmarks/terminal-bench-trace-analysis.md) <br>
 
 
 ## Skill Output: <br>
@@ -35,7 +35,7 @@ Mitigation: Review and scan skill before deployment. <br>
 **Other Properties Related to Output:** [None] <br>
 
 ## Evaluation Tasks: <br>
-3-Tier NVSkills-Eval evaluation (external profile). Tier 1: 9 static validation checks (14 findings). Tier 2: deduplication checks (0 findings). Overall verdict: PASS. <br>
+3-Tier NVSkills-Eval (external profile). Tier 1: 9 static validation checks (passed). Tier 2: 2 deduplication checks (passed). Tier 3 live agent evaluation: not available. <br>
 
 ## Evaluation Metrics Used: <br>
 Reported benchmark dimensions: <br>
@@ -48,7 +48,7 @@ Reported benchmark dimensions: <br>
 
 
 ## Skill Version(s): <br>
-nemo-evaluator-launcher-v0.2.6-12-g36975fa7 (source: git tag) <br>
+0.2.6 (source: git tag nemo-evaluator-launcher-v0.2.6) <br>
 
 ## Ethical Considerations: <br>
 NVIDIA believes Trustworthy AI is a shared responsibility and we have established policies and practices to enable development for a wide array of AI applications. When downloaded or used in accordance with our terms of service, developers should work with their internal team to ensure this skill meets requirements for the relevant industry and use case and addresses unforeseen product misuse. <br>
