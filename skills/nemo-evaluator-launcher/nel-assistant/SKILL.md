@@ -232,7 +232,15 @@ Print the following commands to the user. Propose to execute them in order to co
 **Important**: Ensure required environment variables are available. Ask the user to provide `HF_TOKEN`, even if they are not using a gated model (like Llama) or dataset (like GPQA), to reduce Hugging Face rate limiting errors. Remind the user to get access to GPQA, if it's in the config ("Please, click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa"), and ask them to put missing tokens or keys (e.g. `HF_TOKEN`, `NVIDIA_API_KEY`, `api_key_name` from the config) in a `.env` file in the project root. NEL automatically reads `.env` — no need to source it manually.
 
 ```bash
-# If using pre_cmd or post_cmd:
+# Only set this if the config actually contains pre_cmd or post_cmd entries.
+# WARNING: NEMO_EVALUATOR_TRUST_PRE_CMD=1 allows arbitrary shell commands from
+# pre_cmd / post_cmd fields in the YAML config to execute on the cluster.
+# Before setting it, the assistant MUST:
+#   1. Confirm pre_cmd/post_cmd entries exist in the resolved config,
+#   2. Print them back to the user and ask them to verify each command,
+#   3. Only proceed after the user explicitly confirms the commands are safe.
+# Never set this variable for configs whose origin or pre_cmd content is not
+# fully trusted by the user.
 export NEMO_EVALUATOR_TRUST_PRE_CMD=1
 ```
 
