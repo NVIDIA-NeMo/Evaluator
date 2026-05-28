@@ -27,7 +27,7 @@ help:
 	@echo "  make docs-login        FIRST-TIME — Fern dashboard + CLI auth"
 	@echo "  make docs              Start Fern dev server (localhost:3004)"
 	@echo "  make docs-check        fern check + md check + API script lint/tests"
-	@echo "  make docs-autogen      Regenerate benchmark catalog + API reference MDX"
+	@echo "  make docs-autogen      Regenerate benchmark catalog MDX"
 	@echo "  make docs-preview      Shared preview on *.docs.buildwithfern.com (needs DOCS_FERN_TOKEN)"
 	@echo "  make docs-publish      Trigger 'Publish Fern Docs' on origin/main"
 	@echo "  make docs-snapshot     Freeze docs/ into fern/versions/<ver>/pages (see below)"
