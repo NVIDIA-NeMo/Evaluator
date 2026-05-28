@@ -1,10 +1,6 @@
 # Run the evaluation
 
-Follow the three phases and track your progress in the output.
-
-1. **INPUT** -> EXPLORE -> ACT
-2. ~~INPUT~~ -> **EXPLORE** -> ACT
-3. ~~INPUT~~ -> ~~EXPLORE~~ -> **ACT**
+Walk through the three sections below in order — INPUT → EXPLORE → ACT — before submitting.
 
 ## 1. INPUT
 

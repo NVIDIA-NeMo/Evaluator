@@ -1,6 +1,7 @@
 ---
 name: accessing-mlflow
 description: Query and browse evaluation results stored in MLflow. Use when the user wants to look up runs by invocation ID, compare metrics across models, fetch artifacts (configs, logs, results), or set up the MLflow MCP server. ALWAYS triggers on mentions of MLflow, experiment results, run comparison, invocation IDs in the context of results, or MLflow MCP setup.
+license: Apache-2.0
 ---
 
 # Accessing MLflow

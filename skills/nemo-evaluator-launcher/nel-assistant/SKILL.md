@@ -329,16 +329,4 @@ Direct users with issues to:
 - **GitHub Issues:** https://github.com/NVIDIA-NeMo/Evaluator/issues
 - **GitHub Discussions:** https://github.com/NVIDIA-NeMo/Evaluator/discussions
 
-Now, copy this checklist and track your progress:
-
-```
-Config Generation Progress:
-- [ ] Step 1: Check if nel is installed
-- [ ] Step 2: Build the base config file
-- [ ] Step 3: Configure model path and parameters
-- [ ] Step 4: Fill in remaining missing values
-- [ ] Step 5: Confirm tasks (iterative)
-- [ ] Step 6: Advanced - Multi-node (Data Parallel)
-- [ ] Step 7: Advanced - Interceptors
-- [ ] Step 8: Run the evaluation
-```
+See the Workflow checklist above to track progress.
