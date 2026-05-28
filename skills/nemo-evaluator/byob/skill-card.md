@@ -9,7 +9,7 @@ NVIDIA <br>
 ### License/Terms of Use: <br>
 Apache 2.0 <br>
 ## Use Case: <br>
-Developers and engineers creating custom LLM evaluation benchmarks, including dataset preparation, scorer selection, benchmark compilation, containerization, and LLM-as-Judge evaluation. <br>
+Developers and engineers creating custom LLM evaluation benchmarks from their own datasets, scorers, and prompt templates using the NeMo Evaluator BYOB decorator framework. <br>
 
 ### Deployment Geography for Use: <br>
 Global <br>
@@ -22,7 +22,6 @@ Mitigation: Review and scan skill before deployment. <br>
 - [Bring Your Own Benchmark (BYOB) Documentation](docs/libraries/nemo-evaluator/extending/byob/index.md) <br>
 - [Benchmark Decorator Reference](docs/libraries/nemo-evaluator/extending/byob/benchmark-decorator.md) <br>
 - [NeMo Evaluator SDK Documentation](docs/index.md) <br>
-- [GitHub Repository](https://github.com/NVIDIA-NeMo/Evaluator) <br>
 
 
 ## Skill Output: <br>
@@ -32,7 +31,7 @@ Mitigation: Review and scan skill before deployment. <br>
 **Other Properties Related to Output:** [None] <br>
 
 ## Evaluation Tasks: <br>
-Evaluated via NVSkills-Eval (external profile): Tier 1 static validation (9 checks) and Tier 2 deduplication (2 checks). Tier 3 live agent evaluation not available. <br>
+Evaluated via NVSkills-Eval 3-Tier pipeline (profile: external) including Tier 1 static validation (9 checks) and Tier 2 deduplication (2 checks). Tier 3 live agent evaluation was not available. <br>
 
 ## Evaluation Metrics Used: <br>
 Reported benchmark dimensions: <br>
@@ -43,12 +42,6 @@ Reported benchmark dimensions: <br>
 - Efficiency: Checks whether the agent uses fewer tokens and avoids redundant work. <br>
 
 
-
-## Evaluation Results: <br>
-| Tier | Checks | Findings | Verdict |
-|---|---:|---:|---|
-| Tier 1: Static Validation | 9 | 17 | FAIL |
-| Tier 2: Deduplication | 2 | 0 | PASS |
 
 ## Skill Version(s): <br>
 v2.0 (source: frontmatter) <br>

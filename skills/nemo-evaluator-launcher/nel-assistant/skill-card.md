@@ -9,7 +9,7 @@ NVIDIA <br>
 ### License/Terms of Use: <br>
 Apache 2.0 <br>
 ## Use Case: <br>
-Developers and engineers who need to create NeMo Evaluator Launcher YAML configurations interactively, set up model evaluations from scratch, or modify existing NEL configs for deployment, tasks, multi-node, and interceptors. <br>
+Developers and engineers who need to create new evaluation configs from scratch, set up evaluations from existing configs, or modify NEL configurations for deployment, tasks, multi-node, and interceptors. <br>
 
 ### Deployment Geography for Use: <br>
 Global <br>
@@ -19,19 +19,19 @@ Risk: Review before execution as proposals could introduce incorrect or misleadi
 Mitigation: Review and scan skill before deployment. <br>
 
 ## Reference(s): <br>
-- [NeMo Evaluator GitHub Issues](https://github.com/NVIDIA-NeMo/Evaluator/issues) <br>
-- [NeMo Evaluator GitHub Discussions](https://github.com/NVIDIA-NeMo/Evaluator/discussions) <br>
+- [GitHub Issues](https://github.com/NVIDIA-NeMo/Evaluator/issues) <br>
+- [GitHub Discussions](https://github.com/NVIDIA-NeMo/Evaluator/discussions) <br>
 - [NeMo Evaluator Interceptors Documentation](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/interceptors/index.html) <br>
 
 
 ## Skill Output: <br>
 **Output Type(s):** [Shell commands, Configuration instructions] <br>
-**Output Format:** [Markdown with inline bash code blocks and YAML configurations] <br>
+**Output Format:** [Markdown with inline YAML and bash code blocks] <br>
 **Output Parameters:** [1D] <br>
 **Other Properties Related to Output:** [None] <br>
 
 ## Evaluation Tasks: <br>
-NVSkills-Eval 3-Tier Evaluation (external profile). Tier 1 static validation: 9 checks, PASS. Tier 2 deduplication: 2 checks, PASS. Overall verdict: PASS. <br>
+Evaluated via NVSkills-Eval external profile. Tier 1 static validation (9 checks, 14 findings) and Tier 2 deduplication passed. Overall verdict: PASS. <br>
 
 ## Evaluation Metrics Used: <br>
 Reported benchmark dimensions: <br>
@@ -44,7 +44,7 @@ Reported benchmark dimensions: <br>
 
 
 ## Skill Version(s): <br>
-0.2.6 (source: git tag nemo-evaluator-launcher-v0.2.6) <br>
+nemo-evaluator-launcher-v0.2.6-16-g9865e03f (source: git describe) <br>
 
 ## Ethical Considerations: <br>
 NVIDIA believes Trustworthy AI is a shared responsibility and we have established policies and practices to enable development for a wide array of AI applications. When downloaded or used in accordance with our terms of service, developers should work with their internal team to ensure this skill meets requirements for the relevant industry and use case and addresses unforeseen product misuse. <br>

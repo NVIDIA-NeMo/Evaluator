@@ -40,7 +40,7 @@ Tier 3 dimension rollup was not available in this report.
 
 ## Tier 1: Static Validation Summary
 
-Tier 1 validation passed with observations. NVSkills-Eval ran 9 checks and found 15 total findings.
+Tier 1 validation passed with observations. NVSkills-Eval ran 9 checks and found 16 total findings.
 
 Top findings:
 
