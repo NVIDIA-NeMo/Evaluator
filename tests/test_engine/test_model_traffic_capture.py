@@ -127,6 +127,53 @@ def _jsonl(path: Path):
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
+def test_format_log_record_forwards_opt_in_capture_fields() -> None:
+    """When the store captured tool_calls_full / reasoning_content / message_content,
+    they must land on the model_traffic.jsonl row (not be silently dropped)."""
+    ctx = InterceptorContext()
+    ctx.extra["session_id"] = "cap-session"
+    store = ModelTrafficStore(
+        service_name="solver",
+        capture_tool_calls=True,
+        capture_reasoning=True,
+        capture_messages=True,
+    )
+    store.start_request(
+        AdapterRequest(method="POST", path="/chat/completions", headers={}, body={"model": "m"}, ctx=ctx)
+    )
+    store.finish_response(
+        AdapterResponse(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            latency_ms=10.0,
+            ctx=ctx,
+            body={
+                "model": "m",
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": "the answer is 42",
+                        "reasoning_content": "let me think",
+                        "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "w", "arguments": "{}"}}],
+                    },
+                    "finish_reason": "tool_calls",
+                }],
+                "usage": {"prompt_tokens": 3, "completion_tokens": 4, "total_tokens": 7},
+            },
+        )
+    )
+    rows = format_model_traffic_log_records(
+        store.drain_session("cap-session"), benchmark="b", problem_idx=0, repeat=0
+    )
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["tool_calls"] == {"count": 1, "names": {"w": 1}}
+    assert "tool_calls_full" in row
+    assert row["tool_calls_full"][0]["name"] == "w"
+    assert row["reasoning_content"] == "let me think"
+    assert row["message_content"] == "the answer is 42"
+
+
 def test_model_traffic_parses_streaming_sse_usage_and_tool_calls() -> None:
     ctx = InterceptorContext()
     ctx.extra["session_id"] = "stream-session"
