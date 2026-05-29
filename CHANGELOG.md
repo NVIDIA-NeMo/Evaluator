@@ -5,6 +5,7 @@
 ### CLI
 
 - Fixed `nel list` so missing optional NeMo Skills support is reported as an optional dependency notice instead of crashing benchmark discovery.
+- Quick single-benchmark mode now accepts `NVIDIA_API_KEY` in addition to `NEMO_API_KEY`, matching the quickstart.
 
 ### Adapter Proxy (Breaking — replaces LiteLLM)
 

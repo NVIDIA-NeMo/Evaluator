@@ -55,6 +55,31 @@ class TestEvalRun:
         result = runner.invoke(cli, ["eval", "run"])
         assert result.exit_code != 0
 
+    @patch("nemo_evaluator.executors.get_executor")
+    def test_quick_mode_reads_nvidia_api_key(self, mock_get_exec, runner):
+        mock_executor = MagicMock()
+        mock_get_exec.return_value = mock_executor
+
+        result = runner.invoke(
+            cli,
+            [
+                "eval",
+                "run",
+                "--bench",
+                "gsm8k",
+                "--model-url",
+                "https://integrate.api.nvidia.com/v1",
+                "--model-id",
+                "nvidia/nemotron-3-super-120b-a12b",
+                "--dry-run",
+            ],
+            env={"NVIDIA_API_KEY": "nvapi-test-key"},
+        )
+
+        assert result.exit_code == 0
+        config = mock_executor.run.call_args.args[0]
+        assert config.services["model"].api_key == "nvapi-test-key"
+
     @patch("nemo_evaluator.cli.eval._load_config")
     @patch("nemo_evaluator.executors.get_executor")
     def test_dry_run(self, mock_get_exec, mock_load, runner, tmp_path):

@@ -73,7 +73,7 @@ def eval_cmd():
 @click.option("--bench", "-b", help="Benchmark name (quick single-benchmark mode)")
 @click.option("--model-url", envvar="NEMO_MODEL_URL")
 @click.option("--model-id", envvar="NEMO_MODEL_ID")
-@click.option("--api-key", envvar="NEMO_API_KEY")
+@click.option("--api-key", envvar=["NEMO_API_KEY", "NVIDIA_API_KEY"])
 @click.option("--repeats", "-n", type=int, default=1)
 @click.option("--max-problems", type=int, default=None)
 @click.option("--system-prompt", type=str, default=None)
