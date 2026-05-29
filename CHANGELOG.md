@@ -2,6 +2,10 @@
 
 ## 0.3.0 (unreleased)
 
+### CLI
+
+- Fixed `nel list` so missing optional NeMo Skills support is reported as an optional dependency notice instead of crashing benchmark discovery.
+
 ### Adapter Proxy (Breaking — replaces LiteLLM)
 
 - **LiteLLM removed**: The `litellm` dependency, `proxy` and `proxy-full` extras, and `litellm_settings` config field are all removed. The adapter proxy is now built-in with zero external proxy dependencies.

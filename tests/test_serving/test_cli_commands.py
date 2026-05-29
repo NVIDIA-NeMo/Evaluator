@@ -86,3 +86,10 @@ class TestListCommand:
     def test_list_benchmarks(self, runner):
         result = runner.invoke(cli, ["list", "--help"])
         assert result.exit_code == 0
+
+    @patch("nemo_evaluator.environments.skills.list_skills_benchmarks", side_effect=ImportError("missing skills"))
+    def test_list_skills_handles_missing_optional_dependency(self, _mock_list_skills, runner):
+        result = runner.invoke(cli, ["list", "--source", "skills"])
+
+        assert result.exit_code == 0
+        assert "nemo-skills not installed" in result.output
