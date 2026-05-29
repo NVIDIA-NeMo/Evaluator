@@ -64,7 +64,10 @@ def _list_skills(data_dir: str | None) -> list[str]:
     except ImportError:
         return ["(nemo-skills not installed — pip install nemo-skills)"]
 
-    benchmarks = list_skills_benchmarks(data_dir)
+    try:
+        benchmarks = list_skills_benchmarks(data_dir)
+    except ImportError:
+        return ["(nemo-skills not installed — pip install nemo-skills)"]
     if not benchmarks:
         return ["(none — run: ns prepare_data <benchmark>)"]
 

@@ -1,7 +1,7 @@
 # NeMo Evaluator
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg)](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-green)](https://www.python.org/downloads/)
+[![Python 3.12-3.13](https://img.shields.io/badge/python-3.12--3.13-green)](https://www.python.org/downloads/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
 [**Documentation**](https://docs.nvidia.com/nemo/evaluator/0.3.0/) | [**GitHub**](https://github.com/NVIDIA-NeMo/Evaluator) | [**Issues**](https://github.com/NVIDIA-NeMo/Evaluator/issues)
@@ -18,9 +18,8 @@ pip install -e ".[scoring]"        # + sympy for symbolic math
 pip install -e ".[stats]"          # + scipy (regression analysis)
 pip install -e ".[scoring,stats]"  # + sympy + scipy for confidence intervals
 pip install -e ".[harbor]"         # + Harbor agents (OpenHands, Terminus-2)
-pip install -e ".[proxy]"          # + LiteLLM proxy
 pip install -e ".[inspect]"        # + Inspect AI log export
-pip install -e ".[all]"            # everything
+pip install -e ".[all]"            # common runtime integrations
 ```
 
 ## Quick Start
