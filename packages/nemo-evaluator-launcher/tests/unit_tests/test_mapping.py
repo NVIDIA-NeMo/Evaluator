@@ -124,6 +124,26 @@ def test_load_tasks_mapping_from_container(monkeypatch):
     assert mapping[("harness_x", "task_a")]["endpoint_type"] == "chat"
 
 
+def test_load_tasks_mapping_from_local_container_skips_metadata(monkeypatch):
+    """Local image references cannot be inspected via registry metadata."""
+
+    def _fail(*args, **kwargs):
+        raise AssertionError("container metadata should not be loaded")
+
+    monkeypatch.setattr(
+        "nemo_evaluator_launcher.common.container_metadata.load_tasks_from_container",
+        _fail,
+    )
+    monkeypatch.setattr(
+        "nemo_evaluator_launcher.common.mapping.load_tasks_from_tasks_file",
+        _fail,
+    )
+
+    mapping = load_tasks_mapping(from_container="localhost/rasb-26h1:local")
+
+    assert mapping == {}
+
+
 def test_get_task_definition_for_job_container_missing_task_warns(monkeypatch, caplog):
     """If task is missing in provided container, we warn and proceed."""
 

@@ -691,6 +691,26 @@ class TestIsLocalImagePath:
                 False,
                 id="registry_image_with_tag",
             ),
+            pytest.param(
+                "localhost/rasb-26h1:local",
+                True,
+                id="localhost_registry_image",
+            ),
+            pytest.param(
+                "localhost:5000/org/image:latest",
+                True,
+                id="localhost_registry_with_port",
+            ),
+            pytest.param(
+                "127.0.0.1:5000/org/image:latest",
+                True,
+                id="loopback_registry_with_port",
+            ),
+            pytest.param(
+                "library/ubuntu:latest",
+                False,
+                id="docker_hub_namespace",
+            ),
             pytest.param("/mnt/containers/eval-harness.sqsh", True, id="sqsh_file"),
             pytest.param("containers/eval-harness.sqsh", True, id="sqsh_relative_path"),
             pytest.param("/mnt/containers/my-image", True, id="absolute_path"),

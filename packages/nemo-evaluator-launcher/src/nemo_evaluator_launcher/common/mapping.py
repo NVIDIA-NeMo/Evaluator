@@ -20,6 +20,7 @@ from nemo_evaluator_launcher.common.container_metadata import (
     TaskIntermediateRepresentation,
     load_tasks_from_tasks_file,
 )
+from nemo_evaluator_launcher.common.helpers import is_local_image_path
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 
@@ -130,6 +131,13 @@ def load_tasks_mapping(
     # Explicit container path: extract tasks from container and return mapping built from IRs.
     # This bypasses packaged IRs.
     if from_container is not None:
+        if is_local_image_path(from_container):
+            logger.info(
+                "Skipping container metadata extraction for local image reference",
+                container=from_container,
+            )
+            return {}
+
         try:
             # Optional dependency path; importing may fail in "IR-only" environments.
             from nemo_evaluator_launcher.common.container_metadata import (
