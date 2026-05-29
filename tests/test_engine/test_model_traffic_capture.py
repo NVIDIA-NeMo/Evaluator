@@ -149,22 +149,24 @@ def test_format_log_record_forwards_opt_in_capture_fields() -> None:
             ctx=ctx,
             body={
                 "model": "m",
-                "choices": [{
-                    "message": {
-                        "role": "assistant",
-                        "content": "the answer is 42",
-                        "reasoning_content": "let me think",
-                        "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "w", "arguments": "{}"}}],
-                    },
-                    "finish_reason": "tool_calls",
-                }],
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": "the answer is 42",
+                            "reasoning_content": "let me think",
+                            "tool_calls": [
+                                {"id": "c1", "type": "function", "function": {"name": "w", "arguments": "{}"}}
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ],
                 "usage": {"prompt_tokens": 3, "completion_tokens": 4, "total_tokens": 7},
             },
         )
     )
-    rows = format_model_traffic_log_records(
-        store.drain_session("cap-session"), benchmark="b", problem_idx=0, repeat=0
-    )
+    rows = format_model_traffic_log_records(store.drain_session("cap-session"), benchmark="b", problem_idx=0, repeat=0)
     assert len(rows) == 1
     row = rows[0]
     assert row["tool_calls"] == {"count": 1, "names": {"w": 1}}
