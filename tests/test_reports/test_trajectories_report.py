@@ -59,6 +59,8 @@ def _wire(
     completion: int,
     finish: str = "stop",
     status_code: int = 200,
+    timestamp: str = "2026-05-29T00:00:00.000Z",
+    model: str = "test-model",
 ) -> dict:
     return {
         "problem_idx": problem_idx,
@@ -66,6 +68,8 @@ def _wire(
         "session_id": f"sess-{problem_idx}-{repeat}",
         "status_code": status_code,
         "finish_reason": finish,
+        "timestamp": timestamp,
+        "model": model,
         "usage": {"prompt_tokens": prompt, "completion_tokens": completion, "total_tokens": prompt + completion},
         "latency_ms": 100.0,
     }
@@ -256,8 +260,11 @@ def test_enrich_writes_enriched_jsonl_and_reports_changes(bundle: Path) -> None:
     # latency / finish_reason weren't on steps before; backfilled now
     assert enrichment["steps_backfilled"]["latency_ms"] >= 1
     assert enrichment["steps_backfilled"]["finish_reason"] >= 1
-    # After backfill, no metric field is missing → the "missing" list is empty.
-    assert enrichment["step_field_coverage_after_enrichment_missing"] == []
+    assert enrichment["steps_backfilled"]["timestamp"] >= 1
+    assert enrichment["steps_backfilled"]["model_name"] >= 1
+    # cached_tokens / reasoning_tokens aren't in the fixture's usage block, so they stay missing.
+    missing = {e["field"] for e in enrichment["step_field_coverage_after_enrichment_missing"]}
+    assert missing == {"metrics.extra.cached_tokens", "metrics.extra.reasoning_tokens"}
 
 
 def test_enrich_all_or_nothing_per_trial(tmp_path: Path) -> None:
@@ -295,6 +302,39 @@ def test_enrich_backfills_zero_token_steps(tmp_path: Path) -> None:
     ][0]
     assert enriched_step["metrics"]["prompt_tokens"] == 42
     assert enriched_step["metrics"]["completion_tokens"] == 7
+
+
+def test_enrich_backfills_step_metadata_from_wire(tmp_path: Path) -> None:
+    """Wire-level fields (timestamp, model, status_code, total/cached/reasoning tokens) backfill onto the matching step."""
+    bench = tmp_path / "pb"
+    _write_jsonl(
+        bench / "trajectories.jsonl",
+        [_trial(0, 0, reward=1.0, steps=[_agent_step(0, msg="x", pt=0, ct=0)])],
+    )
+    wire = {
+        **_wire(0, 0, prompt=42, completion=7),
+        "timestamp": "2026-05-29T01:23:45.000Z",
+        "model": "qwen3.5-122b",
+    }
+    wire["usage"]["cached_tokens"] = 10
+    wire["usage"]["reasoning_tokens"] = 12
+    _write_jsonl(bench / "model_traffic.jsonl", [wire])
+    out = generate_trajectories_report(tmp_path, enrich=True)
+    counts = json.loads(out.read_text())["benchmarks"][0]["enrichment"]["steps_backfilled"]
+    assert counts["timestamp"] == 1
+    assert counts["model_name"] == 1
+    assert counts["status_code"] == 1
+    assert counts["total_tokens"] == 1
+    assert counts["cached_tokens"] == 1
+    assert counts["reasoning_tokens"] == 1
+
+    step = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])["trajectory"][0]["steps"][0]
+    assert step["timestamp"] == "2026-05-29T01:23:45.000Z"
+    assert step["model_name"] == "qwen3.5-122b"
+    assert step["status_code"] == 200
+    assert step["metrics"]["total_tokens"] == 49
+    assert step["metrics"]["extra"]["cached_tokens"] == 10
+    assert step["metrics"]["extra"]["reasoning_tokens"] == 12
 
 
 def test_enrichment_section_absent_when_enrich_false(bundle: Path) -> None:

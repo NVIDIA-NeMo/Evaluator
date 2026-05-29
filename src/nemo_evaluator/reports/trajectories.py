@@ -373,8 +373,14 @@ def _enrich_bench(bench_dir: Path) -> dict[str, int]:
         "trials_spliced": 0,
         "trials_stashed_unmatched": 0,
         "trials_no_wire_data": 0,
+        "steps_backfilled_timestamp": 0,
+        "steps_backfilled_model_name": 0,
+        "steps_backfilled_status_code": 0,
         "steps_backfilled_prompt_tokens": 0,
         "steps_backfilled_completion_tokens": 0,
+        "steps_backfilled_total_tokens": 0,
+        "steps_backfilled_cached_tokens": 0,
+        "steps_backfilled_reasoning_tokens": 0,
         "steps_backfilled_latency_ms": 0,
         "steps_backfilled_finish_reason": 0,
         "steps_backfilled_reasoning_content": 0,
@@ -392,6 +398,17 @@ def _enrich_bench(bench_dir: Path) -> dict[str, int]:
             elif len(steps) == len(wire):
                 # 1:1 splice
                 for s, w in zip(steps, wire):
+                    # Top-level step fields populated directly from wire row.
+                    if not s.get("timestamp") and w.get("timestamp"):
+                        s["timestamp"] = w["timestamp"]
+                        counts["steps_backfilled_timestamp"] += 1
+                    if not s.get("model_name") and w.get("model"):
+                        s["model_name"] = w["model"]
+                        counts["steps_backfilled_model_name"] += 1
+                    if s.get("status_code") is None and w.get("status_code") is not None:
+                        s["status_code"] = w["status_code"]
+                        counts["steps_backfilled_status_code"] += 1
+
                     metrics = s.setdefault("metrics", {})
                     usage = w.get("usage") or {}
                     if metrics.get("prompt_tokens") in (None, 0) and usage.get("prompt_tokens"):
@@ -400,7 +417,16 @@ def _enrich_bench(bench_dir: Path) -> dict[str, int]:
                     if metrics.get("completion_tokens") in (None, 0) and usage.get("completion_tokens"):
                         metrics["completion_tokens"] = usage["completion_tokens"]
                         counts["steps_backfilled_completion_tokens"] += 1
+                    if metrics.get("total_tokens") in (None, 0) and usage.get("total_tokens"):
+                        metrics["total_tokens"] = usage["total_tokens"]
+                        counts["steps_backfilled_total_tokens"] += 1
                     extra = metrics.setdefault("extra", {})
+                    if extra.get("cached_tokens") in (None, 0) and usage.get("cached_tokens"):
+                        extra["cached_tokens"] = usage["cached_tokens"]
+                        counts["steps_backfilled_cached_tokens"] += 1
+                    if extra.get("reasoning_tokens") in (None, 0) and usage.get("reasoning_tokens"):
+                        extra["reasoning_tokens"] = usage["reasoning_tokens"]
+                        counts["steps_backfilled_reasoning_tokens"] += 1
                     if extra.get("latency_ms") in (None, 0) and w.get("latency_ms"):
                         extra["latency_ms"] = w["latency_ms"]
                         counts["steps_backfilled_latency_ms"] += 1
@@ -464,8 +490,14 @@ def generate_trajectories_report(
                 "trials_with_unmatched_calls_stashed": counts["trials_stashed_unmatched"],
                 "trials_with_no_wire_data": counts["trials_no_wire_data"],
                 "steps_backfilled": {
+                    "timestamp": counts["steps_backfilled_timestamp"],
+                    "model_name": counts["steps_backfilled_model_name"],
+                    "status_code": counts["steps_backfilled_status_code"],
                     "prompt_tokens": counts["steps_backfilled_prompt_tokens"],
                     "completion_tokens": counts["steps_backfilled_completion_tokens"],
+                    "total_tokens": counts["steps_backfilled_total_tokens"],
+                    "cached_tokens": counts["steps_backfilled_cached_tokens"],
+                    "reasoning_tokens": counts["steps_backfilled_reasoning_tokens"],
                     "latency_ms": counts["steps_backfilled_latency_ms"],
                     "finish_reason": counts["steps_backfilled_finish_reason"],
                     "reasoning_content": counts["steps_backfilled_reasoning_content"],
@@ -477,8 +509,14 @@ def generate_trajectories_report(
                     {
                         ".".join(p): p
                         for p in (
+                            ("timestamp",),
+                            ("model_name",),
+                            ("status_code",),
                             ("metrics", "prompt_tokens"),
                             ("metrics", "completion_tokens"),
+                            ("metrics", "total_tokens"),
+                            ("metrics", "extra", "cached_tokens"),
+                            ("metrics", "extra", "reasoning_tokens"),
                             ("metrics", "extra", "latency_ms"),
                             ("metrics", "extra", "finish_reason"),
                         )
