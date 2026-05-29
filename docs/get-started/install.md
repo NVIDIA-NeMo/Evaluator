@@ -27,7 +27,7 @@ pip install -e ".[scoring]"
 | `harnesses` | `pip install -e ".[harnesses]"` | lm-evaluation-harness tasks |
 | `export` | `pip install -e ".[export]"` | WandB and MLflow experiment tracker export |
 | `docs` | `pip install -e ".[docs]"` | Sphinx, NVIDIA theme, mermaid for building docs |
-| `all` | `pip install -e ".[all]"` | Common runtime integrations: scoring, stats, ray, lm-eval, and Harbor |
+| `all` | `pip install -e ".[all]"` | Common runtime integrations |
 | `dev` | `pip install -e ".[dev]"` | pytest, ruff, and common development extras |
 
 ## Verify Installation
@@ -40,12 +40,12 @@ nel list --source builtin
 Expected output:
 
 ```
-nel, version 0.3.0
+nemo-evaluator 0.12.0
 
-Built-in benchmarks:
-  drop                           nel eval run --bench drop
-  gpqa                           nel eval run --bench gpqa
-  gsm8k                          nel eval run --bench gsm8k
+Available environments:
+  drop, gpqa, gsm8k, healthbench, humaneval, math500,
+  mgsm, mmlu, mmlu_pro, pinchbench, simpleqa,
+  swebench-multilingual, swebench-verified, triviaqa, xstest
   ...
 ```
 
