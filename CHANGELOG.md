@@ -8,6 +8,10 @@
 - Quick single-benchmark mode now accepts `NVIDIA_API_KEY` in addition to `NEMO_API_KEY`, matching the quickstart.
 - Synced CLI reference docs with the current command surface, including `nel export`, `nel cache-sqsh`, and required `nel validate` model options.
 
+### Documentation
+
+- Added missing production SWE-bench, Terminal-Bench v1, NMP, and Dynamo examples to the example config index.
+
 ### Adapter Proxy (Breaking — replaces LiteLLM)
 
 - **LiteLLM removed**: The `litellm` dependency, `proxy` and `proxy-full` extras, and `litellm_settings` config field are all removed. The adapter proxy is now built-in with zero external proxy dependencies.
