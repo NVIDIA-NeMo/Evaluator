@@ -32,7 +32,7 @@ All configs expect `NVIDIA_API_KEY` (or `OPENAI_API_KEY`) set as an environment 
 | 13 | `13_vlmevalkit_mmbench.yaml` | vlmevalkit://MMBench_DEV_EN | simple (VLM) | Local + API | VLMEvalKit VLM benchmark |
 | 14 | `14_container_nemo_skills.yaml` | container://...#gsm8k | container | Docker | Legacy container harness |
 | 15 | `15_slurm_gsm8k_vllm.yaml` | GSM8K | simple | SLURM + vLLM | Auto-deployed vLLM on cluster |
-| 15a | `15a_slurm_gsm8k_vllm_sharded.yaml` | GSM8K | simple | SLURM + vLLM | Sharded eval via SLURM array jobs |
+| 15a | `15a_slurm_gsm8k_vllm_sharded.yaml` | GSM8K | simple | SLURM + vLLM | Sharded eval via independent SLURM jobs |
 | 15c | `15c_slurm_gsm8k_dynamo.yaml` | GSM8K | simple | SLURM + Dynamo | ai-dynamo aggregated SGLang deployment |
 | 15d | `15d_slurm_gsm8k_dynamo_disagg.yaml` | GSM8K | simple | SLURM + Dynamo | ai-dynamo disaggregated prefill/decode deployment |
 | 16 | `16_slurm_swebench_harbor.yaml` | SWE-bench Verified | harbor | SLURM + vLLM | Distributed agentic SWE on SLURM |

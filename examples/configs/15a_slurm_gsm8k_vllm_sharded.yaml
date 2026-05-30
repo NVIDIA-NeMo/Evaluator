@@ -1,12 +1,12 @@
-# Flavor: SLURM array job — sharded evaluation
-# Splits the benchmark across 4 SLURM array tasks for parallel execution.
-# Each task evaluates a disjoint slice of the dataset.
+# Flavor: SLURM sharded evaluation
+# Splits the benchmark across 4 independent SLURM jobs for parallel execution.
+# Each job evaluates a disjoint slice of the dataset.
 #
 # Prerequisites:
 #   - Access to a SLURM cluster with GPU nodes
 #   - Model weights accessible on shared filesystem
-# Run: nel eval run examples/configs/15a_slurm_gsm8k_vllm_sharded.yaml --submit
-# After all tasks complete:
+# Run: nel eval run examples/configs/15a_slurm_gsm8k_vllm_sharded.yaml
+# After all shard jobs complete:
 #   nel eval merge ./eval_results
 
 services:
