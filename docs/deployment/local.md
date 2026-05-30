@@ -93,10 +93,13 @@ nel serve -b gsm8k --gym-compat --port 9090
 
 ## Validate a benchmark
 
-Quick sanity check (10 samples, prints pass/fail per sample):
+Quick sanity check (5 samples by default, prints pass/fail per sample):
 
 ```bash
-nel validate -b gsm8k --samples 10
+nel validate -b gsm8k \
+  --model-url https://integrate.api.nvidia.com/v1/chat/completions \
+  --model-id nvidia/nemotron-3-super-120b-a12b \
+  --samples 5
 ```
 
 ## Environment variables

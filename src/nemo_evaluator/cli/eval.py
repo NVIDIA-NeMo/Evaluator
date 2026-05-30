@@ -302,7 +302,7 @@ def _get_executor_for_run(run_meta):
 @click.option("--output-dir", "-o", default=None)
 @click.option("--job-id", default=None, help="SLURM job ID (legacy)")
 @click.option("--host", default=None, help="SLURM login hostname (legacy)")
-@click.option("--watch", "-w", is_flag=True, default=False, help="Refresh every 10s until Ctrl+C")
+@click.option("--watch", "-w", is_flag=True, default=False, help="Refresh every 60s until Ctrl+C")
 def eval_status(run_id, output_dir, job_id, host, watch):
     """Check evaluation status."""
     import time

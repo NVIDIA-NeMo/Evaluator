@@ -160,6 +160,9 @@ Pyxis/Enroot-based execution with auto-selected container images per URI scheme.
 | `nel list` | List benchmarks |
 | `nel serve -b <name>` | Serve as HTTP endpoint |
 | `nel validate -b <name>` | Sanity check |
+| `nel export <paths> --dest <exporter>` | Export bundles |
+| `nel cache-sqsh <image>` | Build a SLURM `.sqsh` cache image |
+| `nel report <dir>` | Generate multi-benchmark reports |
 | `nel compare` | Paired run comparison |
 | `nel gate` | Multi-benchmark quality gate |
 | `nel config` | Persistent user config |

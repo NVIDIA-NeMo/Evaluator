@@ -45,6 +45,11 @@ class TestCLIStructure:
         assert result.exit_code == 0
         assert "--dry-run" in result.output
 
+    def test_eval_status_help_matches_watch_interval(self, runner):
+        result = runner.invoke(cli, ["eval", "status", "--help"])
+        assert result.exit_code == 0
+        assert "Refresh every 60s" in result.output
+
     def test_list_help(self, runner):
         result = runner.invoke(cli, ["list", "--help"])
         assert result.exit_code == 0
