@@ -11,6 +11,7 @@
 ### Documentation
 
 - Added missing production SWE-bench, Terminal-Bench v1, NMP, and Dynamo examples to the example config index.
+- Fixed Ray launcher option docs, a malformed scoring code block, and navigation coverage for config composition and result-format references.
 
 ### Adapter Proxy (Breaking — replaces LiteLLM)
 

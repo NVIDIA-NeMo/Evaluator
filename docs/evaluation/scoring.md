@@ -80,7 +80,7 @@ fuzzy_match(s)  # {"correct": True, "extracted": "The capital is Canberra."}
 
 Runs code in a Docker container with network isolation, memory limits, and timeouts. Extracts code from markdown fences, concatenates with prompt code and test harness, and checks the exit code.
 
-```python
+~~~python
 from nemo_evaluator import code_sandbox, ScorerInput
 
 s = ScorerInput(
@@ -90,7 +90,7 @@ s = ScorerInput(
               "entry_point": "add"},
 )
 code_sandbox(s)  # {"correct": True, "extracted": "def add(a, b):\n    return a + b"}
-```
+~~~
 
 Requires Docker daemon access.
 

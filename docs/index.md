@@ -149,6 +149,7 @@ get-started/quickstart
 
 tutorials/index
 tutorials/walkthrough
+tutorials/config-composition
 tutorials/byob
 tutorials/gym-integration
 tutorials/skills-integration
@@ -203,4 +204,5 @@ deployment-patterns
 :hidden:
 
 api/index
+result-format
 :::
