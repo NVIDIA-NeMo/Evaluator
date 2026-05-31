@@ -34,6 +34,13 @@ There are three integration modes:
 | **Export** | Evaluator -> Gym | Batch JSONL for `ng_collect_rollouts` |
 | **Consume** | Gym -> Evaluator | Evaluate a model against a remote environment |
 
+Set your model endpoint once before running the `nel eval run` examples:
+
+```bash
+export NEMO_MODEL_URL="https://integrate.api.nvidia.com/v1/chat/completions"
+export NEMO_MODEL_ID="nvidia/nemotron-3-super-120b-a12b"
+```
+
 ## Mode 1: Serve for Gym Training
 
 ### Start the environment server
@@ -81,22 +88,25 @@ nel serve -b gsm8k --export-data /tmp/evaluator_data
 Or via Python:
 
 ```python
-from nemo_evaluator import get_environment
+import asyncio
 import nemo_evaluator.benchmarks  # noqa: F401
+from nemo_evaluator import get_environment
 
-env = get_environment("gsm8k")
+async def main():
+    env = get_environment("gsm8k")
 
-# Export seed data for each problem
-import json
-with open("/tmp/rollout_data.jsonl", "w") as f:
-    for idx in range(len(env)):
-        seed = await env.seed(idx)
-        f.write(json.dumps({
-            "responses_create_params": {"input": seed.messages or [{"role": "user", "content": seed.prompt}]},
-            "expected_answer": seed.expected_answer,
-            "uuid": f"gsm8k-{idx}",
-            "metadata": seed.metadata,
-        }) + "\n")
+    import json
+    with open("/tmp/rollout_data.jsonl", "w") as f:
+        for idx in range(len(env)):
+            seed = await env.seed(idx)
+            f.write(json.dumps({
+                "responses_create_params": {"input": seed.messages or [{"role": "user", "content": seed.prompt}]},
+                "expected_answer": seed.expected_answer,
+                "uuid": f"gsm8k-{idx}",
+                "metadata": seed.metadata,
+            }) + "\n")
+
+asyncio.run(main())
 ```
 
 ## Mode 3: Consume a Remote Environment
@@ -152,12 +162,17 @@ The server is started automatically, health-checked, used for evaluation, and to
 ## Python API
 
 ```python
+import asyncio
 from nemo_evaluator.environments.gym import GymEnvironment
 from nemo_evaluator import run_evaluation, ChatSolver, ModelClient
 
-env = GymEnvironment("http://localhost:9090")
-client = ModelClient(base_url="https://api.example.com/v1", model="my-model")
-solver = ChatSolver(client)
+async def main():
+    env = GymEnvironment("http://localhost:9090")
+    client = ModelClient(base_url="https://api.example.com/v1", model="my-model")
+    solver = ChatSolver(client)
 
-bundle = await run_evaluation(env, solver, n_repeats=4)
+    bundle = await run_evaluation(env, solver, n_repeats=4)
+    return bundle
+
+asyncio.run(main())
 ```

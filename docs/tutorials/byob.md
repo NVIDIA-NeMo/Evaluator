@@ -4,6 +4,8 @@ Define a complete benchmark with `@benchmark` + `@scorer` in under 10 lines.
 
 ## Minimal Example
 
+Save this as `my_bench.py`:
+
 ```python
 from nemo_evaluator import benchmark, scorer, ScorerInput, exact_match
 
@@ -21,11 +23,14 @@ def my_scorer(sample: ScorerInput) -> dict:
 Run it:
 
 ```bash
-nel eval run --bench my-bench
+nel eval run --bench ./my_bench.py \
+  --model-url https://integrate.api.nvidia.com/v1/chat/completions \
+  --model-id nvidia/nemotron-3-super-120b-a12b
 ```
 
-That is the entire workflow. The `@benchmark` decorator registers an environment, loads
-the dataset, formats prompts, and wires scoring. No subclass boilerplate required.
+That is the entire local workflow. Passing the Python file path imports it, lets the
+`@benchmark` decorator register the environment, loads the dataset, formats prompts,
+and wires scoring. No package-internal edits or subclass boilerplate required.
 
 ## How It Works
 
@@ -47,7 +52,7 @@ flowchart LR
 
 ### Step 1: Create the benchmark file
 
-Create `src/nemo_evaluator/benchmarks/my_reasoning.py`:
+Create `benchmarks/my_reasoning.py`:
 
 ```python
 from nemo_evaluator import benchmark, scorer, ScorerInput, answer_line
@@ -67,44 +72,58 @@ def my_reasoning_scorer(sample: ScorerInput) -> dict:
     return answer_line(sample)
 ```
 
-### Step 2: Register the import
+### Step 2: Validate
 
-Add the import to `src/nemo_evaluator/benchmarks/__init__.py`:
-
-```python
-from nemo_evaluator.benchmarks.my_reasoning import my_reasoning_scorer
-```
-
-### Step 3: Validate
+Set your model endpoint once:
 
 ```bash
-nel validate -b my_reasoning --samples 10
+export NEMO_MODEL_URL="https://integrate.api.nvidia.com/v1/chat/completions"
+export NEMO_MODEL_ID="nvidia/nemotron-3-super-120b-a12b"
+```
+
+```bash
+nel validate -b ./benchmarks/my_reasoning.py --samples 5
 ```
 
 Expected output:
 
 ```
-my_reasoning: 10 samples
-  7/10 correct
+my_reasoning: 5 samples
+  4/5 correct
   [PASS] p0: expected='42' got='42' (1230ms 156tok)
   [PASS] p1: expected='7/3' got='7/3' (980ms 134tok)
   [FAIL] p2: expected='256' got='512' (1100ms 201tok)
   ...
 ```
 
-### Step 4: Run full evaluation
+### Step 3: Run full evaluation
 
 ```bash
-nel eval run --bench my_reasoning --repeats 4 --output-dir ./results/my_reasoning
+nel eval run --bench ./benchmarks/my_reasoning.py \
+  --repeats 4 \
+  --output-dir ./results/my_reasoning
 ```
 
-### Step 5: Serve for Gym training
+### Step 4: Serve for Gym training
 
 ```bash
-nel serve -b my_reasoning -p 9090
+nel serve -b ./benchmarks/my_reasoning.py -p 9090
 ```
 
 Gym training connects at `http://hostname:9090`.
+
+### Step 5: Package for sharing
+
+Generate a Dockerfile for the benchmark module:
+
+```bash
+nel package \
+  --module ./benchmarks/my_reasoning.py \
+  --tag my-reasoning:latest \
+  --output Dockerfile
+```
+
+Omit `--output` to build the image directly, and add `--push` to push it after build.
 
 ## Decorator Reference
 
