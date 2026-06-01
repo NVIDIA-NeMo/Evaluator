@@ -68,6 +68,10 @@ logger = logging.getLogger(__name__)
 
 REGISTRY_URL = "https://raw.githubusercontent.com/laude-institute/harbor/main/registry.json"
 
+# Locally-vendored override shards merge into the base registry, with override
+# entries winning on (name, version) collision.  Used to ship dataset entries
+# that aren't yet in upstream's registry.json (e.g. terminal-bench@2.1).
+
 # Matches upstream harbor's VerifierConfig.timeout_sec default (harbor/models/task/config.py).
 # Applied when task.toml [verifier] does not declare its own timeout_sec.
 DEFAULT_HARBOR_VERIFIER_TIMEOUT = 600
@@ -143,18 +147,72 @@ def _parse_raw(raw: list[dict]) -> list[DatasetSpec]:
     ]
 
 
+def _locate_override_dir() -> Path | None:
+    """Return the registry-overrides directory or ``None`` if absent.
+
+    Resolution order: ``HARBOR_REGISTRY_OVERRIDE_DIR`` env var, then the
+    in-tree :func:`nemo_evaluator.paths.local_registry_override_dir`.
+    """
+    from nemo_evaluator.paths import local_registry_override_dir
+
+    env = os.environ.get("HARBOR_REGISTRY_OVERRIDE_DIR")
+    if env:
+        p = Path(env)
+        if p.is_dir():
+            return p
+        logger.warning(
+            "HARBOR_REGISTRY_OVERRIDE_DIR=%r is not a directory; ignoring (no overrides applied)",
+            env,
+        )
+        return None
+
+    return local_registry_override_dir()
+
+
+def _load_override_shards(override_dir: Path) -> list[DatasetSpec]:
+    shards: list[DatasetSpec] = []
+    for shard in sorted(override_dir.glob("*.json")):
+        try:
+            parsed = _parse_raw(json.loads(shard.read_text()))
+        except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
+            logger.warning("Harbor override shard %s malformed (%s); skipping", shard, exc)
+            continue
+        shards.extend(parsed)
+        logger.info("Harbor override shard %s: %d datasets", shard.name, len(parsed))
+    return shards
+
+
+def _apply_overrides(base: list[DatasetSpec], overrides: list[DatasetSpec]) -> list[DatasetSpec]:
+    by_key: dict[tuple[str, str], DatasetSpec] = {(d.name, d.version): d for d in base}
+    for d in overrides:
+        key = (d.name, d.version)
+        if key in by_key:
+            logger.info("Harbor override: replacing %s@%s with vendored entry", *key)
+        by_key[key] = d
+    return list(by_key.values())
+
+
 def _load_registry() -> list[DatasetSpec]:
     local = _locate_registry_json()
     if local:
         logger.info("Loading Harbor registry from %s", local)
-        return _parse_raw(json.loads(local.read_text()))
+        base = _parse_raw(json.loads(local.read_text()))
+    else:
+        logger.info("Downloading Harbor registry from %s", REGISTRY_URL)
+        import urllib.request
 
-    logger.info("Downloading Harbor registry from %s", REGISTRY_URL)
-    import json as _json
-    import urllib.request
+        with urllib.request.urlopen(REGISTRY_URL, timeout=60) as resp:
+            base = _parse_raw(json.loads(resp.read()))
 
-    with urllib.request.urlopen(REGISTRY_URL, timeout=60) as resp:
-        return _parse_raw(_json.loads(resp.read()))
+    override_dir = _locate_override_dir()
+    if override_dir is None:
+        return base
+
+    overrides = _load_override_shards(override_dir)
+    if not overrides:
+        return base
+
+    return _apply_overrides(base, overrides)
 
 
 def get_registry() -> list[DatasetSpec]:
