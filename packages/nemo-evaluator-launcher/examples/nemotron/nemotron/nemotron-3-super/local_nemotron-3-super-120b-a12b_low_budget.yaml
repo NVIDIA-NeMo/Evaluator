@@ -1,0 +1,145 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+# This configuration file is for the NVIDIA Nemotron 3 Super 120B A12B model, deployed on https://build.nvidia.com/nvidia/nemotron-3-super-120b-a12b.
+# If you prefer to deploy the model on your own infrastructure, use the following deployment setup:
+
+### 1. NVIDIA-Nemotron-3-Super-120B-A12B-BF16 ###
+# - Container: vllm/vllm-openai:v0.15.1
+# - vLLM command: vllm serve nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16 --tensor-parallel-size=8
+#     --pipeline-parallel-size=1 --data-parallel-size=1 --port 8000 --trust-remote-code
+#     --served-model-name nvidia/nemotron-3-super-120b-a12b --gpu-memory-utilization 0.8
+#     --enable-log-requests --mamba_ssm_cache_dtype float32 --enable-auto-tool-choice
+#     --tool-call-parser qwen3_coder --attention-backend FLASH_ATTN --reasoning-parser
+#     super_v3 --no-enable-chunked-prefill --no-enable-prefix-caching --model-loader-extra-config
+#     ''{"enable_multithread_load": true, "num_threads": 96}''
+
+
+### 2. NVIDIA-Nemotron-3-Super-120B-A12B-FP8 ###
+# - Container: vllm/vllm-openai:v0.15.1
+# - Environment Variables:
+#       - VLLM_ALLOW_LONG_MAX_MODEL_LEN: 1
+#       - VLLM_USE_FLASHINFER_MOE_FP8: 1
+#       - VLLM_FLASHINFER_MOE_BACKEND: throughput
+#       - MAMBA_CACHE_PHILOX_ROUNDS: 5
+#       - MAMBA_CACHE_RS_ROUNDING: 1
+# - vLLM command: vllm serve nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8 --tensor-parallel-size=4 --pipeline-parallel-size=1
+#     --data-parallel-size=1 --port 8000 --trust-remote-code --served-model-name nvidia/nemotron-3-super-120b-a12b
+#     --gpu-memory-utilization 0.8 --trust-remote-code --no-enable-prefix-caching --no-enable-chunked-prefill
+#     --mamba_ssm_cache_dtype float16 --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser super_v3 
+#     --model-loader-extra-config ''{"enable_multithread_load": true, "num_threads": 96}'' --kv-cache-dtype fp8
+
+
+### 3. NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4 ###
+# - Container: vllm/vllm-openai:v0.15.1
+# - Environment Variables:
+#       - VLLM_ALLOW_LONG_MAX_MODEL_LEN: 1
+#       - VLLM_USE_FLASHINFER_MOE_FP4: 1
+#       - VLLM_USE_FLASHINFER_MOE_FP8: 1
+#       - VLLM_FLASHINFER_MOE_BACKEND: throughput
+#       - MAMBA_CACHE_PHILOX_ROUNDS: 5
+#       - MAMBA_CACHE_RS_ROUNDING: 1
+# - vLLM command: vllm serve nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4 --tensor-parallel-size=4 --pipeline-parallel-size=1
+#    --data-parallel-size=1 --port 8000 --trust-remote-code --served-model-name nvidia/nemotron-3-super-120b-a12b
+#    --gpu-memory-utilization 0.8 --trust-remote-code --no-enable-prefix-caching --no-enable-chunked-prefill
+#    --mamba_ssm_cache_dtype float16 --enable-auto-tool-choice --tool-call-parser qwen3_coder
+#    --reasoning-parser super_v3 --model-loader-extra-config ''{"enable_multithread_load": true, "num_threads":
+#    96}'' --kv-cache-dtype fp8 
+
+
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: ./results_nvidia_nemotron_3_super_120b_a12b
+  mounts:
+    evaluation:
+      ./hf_cache: /root/.cache/huggingface
+target:
+  api_endpoint:
+    model_id: nvidia/nemotron-3-super-120b-a12b
+    url: https://integrate.api.nvidia.com/v1/chat/completions  # or your served model URL
+    api_key_name: NGC_API_KEY # API Key with access to build.nvidia.com
+
+evaluation:
+  env_vars:
+    HF_TOKEN: host:HF_TOKEN
+    JUDGE_API_KEY: host:JUDGE_API_KEY
+  nemo_evaluator_config:
+    config:
+      params:
+        parallelism: 1
+        max_new_tokens: 131072
+        temperature: 1.0 
+        top_p: 0.95       
+        request_timeout: 3600
+        max_retries: 10
+        extra:
+          tokenizer_backend: huggingface
+          tokenizer: NVIDIA-Nemotron-3-Super-120B-A12B-BF16
+    target:
+      api_endpoint:
+        adapter_config:
+          params_to_add: {"chat_template_kwargs": {"enable_thinking": true}, "skip_special_tokens": false}
+          use_caching: true
+          tracking_requests_stats: true
+          log_failed_requests: true
+          use_request_logging: true
+          max_logged_requests: 10
+          use_response_logging: true
+          max_logged_responses: 10
+
+  tasks:
+  - name: nemo_skills.ns_aime2025
+    nemo_evaluator_config:
+      config:
+        params:
+          extra:
+            num_repeats: 64
+            args: ++prompt_config=/prompt_templates/math-oai.yaml
+      target:
+        api_endpoint:
+          adapter_config:
+            params_to_add: {"chat_template_kwargs": {"enable_thinking": true, "low_effort": true}}
+  - name: tau2_bench_telecom
+    env_vars:
+      USER_API_KEY: host:NGC_API_KEY
+    config:
+      config:
+        params:
+          extra:
+            n_samples: 8
+            skip_failed_samples: true
+            cache:
+              enabled: true
+              cache_dir: /results/native_cache
+      target:
+        api_endpoint:
+          adapter_config:
+            params_to_add: {"chat_template_kwargs": {"enable_thinking": true, "low_effort": true}}
+  - name: ns_livecodebench
+    nemo_evaluator_config:
+      config:
+        params:
+          extra:
+            num_repeats: 8
+            dataset_split: test_v6_2408_2505
+      target:
+        api_endpoint:
+          adapter_config:
+            params_to_add: {"chat_template_kwargs": {"enable_thinking": true, "low_effort": true}}
