@@ -52,6 +52,7 @@ _BUILTIN: dict[str, str] = {
     "progress_tracking": "nemo_evaluator.adapters.interceptors.progress_tracking",
     "logging": "nemo_evaluator.adapters.interceptors.request_logging",
     "streaming": "nemo_evaluator.adapters.interceptors.streaming",
+    "http_pairs_dump": "nemo_evaluator.adapters.interceptors.http_pairs_dump",
 }
 
 # External / plugin registrations at runtime.
