@@ -36,6 +36,8 @@ DEFAULT_EXEC_SERVER_PORT = 19542
 # rule`.
 DEFAULT_SSHD_PORT = 52222
 
+DEFAULT_SSM_PROJECT = "harbor"
+
 
 class _SandboxBase(BaseModel):
     """Shared sandbox fields used by the eval loop / lifecycle."""
@@ -122,7 +124,7 @@ class EcsFargateSandbox(_SandboxBase):
     efs_filesystem_id: str | None = None
     efs_access_point_id: str | None = None
 
-    ssm_project: str = "harbor"
+    ssm_project: str = DEFAULT_SSM_PROJECT
 
 
 class _SlurmSandboxBase(_SandboxBase):
