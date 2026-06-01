@@ -268,6 +268,46 @@ class TestSimpleSolverSidecar:
         assert parsed.benchmarks[0].solver.image_detail == "auto"
 
 
+class TestSidecarOutputTrajectories:
+    """`output.trajectories.enrich` must propagate to the sidecar config so
+    the per-shard eval driver actually writes ``trajectories_enriched.jsonl``.
+
+    Regression: ``_extract_bench_config`` hand-built the sidecar ``output:``
+    block with only ``dir``, silently dropping ``trajectories.enrich``. The
+    runner then defaulted to ``enrich=False`` even when the source config
+    said otherwise, and no enriched JSONL was written.
+    """
+
+    def test_enrich_flag_survives_sidecar(self):
+        cfg = EvalConfig.model_validate(
+            {
+                "services": {
+                    "model": {
+                        "type": "api",
+                        "url": "https://example/v1",
+                        "protocol": "chat_completions",
+                        "model": "m",
+                    },
+                },
+                "benchmarks": [
+                    {
+                        "name": "pinchbench",
+                        "solver": {"type": "simple", "service": "model"},
+                    },
+                ],
+                "cluster": {
+                    "type": "slurm",
+                    "walltime": "02:00:00",
+                    "node_pools": {"gpu": {"partition": "batch", "nodes": 1}},
+                },
+                "output": {"trajectories": {"enrich": True}},
+            }
+        )
+        _, sidecars, _ = generate_sbatch(cfg)
+        parsed = _validate_sidecar(list(sidecars.values())[0])
+        assert parsed.output.trajectories.enrich is True
+
+
 class TestSidecarScoringServices:
     """Services referenced from scoring.metrics must appear in sidecar configs.
 
