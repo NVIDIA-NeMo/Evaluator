@@ -17,14 +17,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 if TYPE_CHECKING:
     from nemo_evaluator.sandbox.base import Sandbox
 
 
+ConfigT = TypeVar("ConfigT")
+
+
 @dataclass
-class ScorerInput:
+class ScorerInput(Generic[ConfigT]):
     """Input passed to scorer functions.
 
     The ``sandbox`` field is available for scorers that need to inspect or
@@ -36,5 +39,5 @@ class ScorerInput:
     response: str
     target: Any
     metadata: dict[str, Any] = field(default_factory=dict)
-    config: dict[str, Any] = field(default_factory=dict)
+    config: ConfigT = field(default_factory=dict)
     sandbox: Sandbox | None = None
