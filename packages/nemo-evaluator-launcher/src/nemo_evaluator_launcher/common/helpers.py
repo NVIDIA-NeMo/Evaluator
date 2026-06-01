@@ -95,6 +95,108 @@ def _set_nested_optionally_overriding(
         temp[keys[-1]] = val
 
 
+def apply_task_deployment_overrides(cfg: DictConfig, task: DictConfig) -> DictConfig:
+    """Return cfg with ``task.deployment_overrides`` deeply merged into ``cfg.deployment``.
+
+    Tasks may override deployment fields (image, pre_cmd, command, extra_args,
+    env_vars, topology, etc.) by setting a ``deployment_overrides`` block. The
+    merge is deep (per OmegaConf semantics): nested dicts merge key-by-key,
+    scalars and lists in ``deployment_overrides`` replace the originals.
+
+    The returned cfg is a new object — the input ``cfg`` is not mutated, so
+    other tasks in the same invocation continue to see the unmodified
+    ``cfg.deployment``.
+
+    If the task has no ``deployment_overrides`` (or it is empty), ``cfg`` is
+    returned unchanged.
+    """
+    return _apply_task_section_overrides(cfg, task, "deployment")
+
+
+def apply_task_execution_overrides(cfg: DictConfig, task: DictConfig) -> DictConfig:
+    """Return cfg with ``task.execution_overrides`` deeply merged into ``cfg.execution``.
+
+    Same semantics as ``apply_task_deployment_overrides`` but targets the
+    ``execution`` section instead. Lets a single task in a multi-task config
+    override topology fields like ``num_instances`` and ``num_nodes`` —
+    needed when a task (e.g. nemo_gym CBRNE) only attaches to one Ray
+    cluster, while siblings (e.g. HLE) want multi-instance fan-out.
+    """
+    return _apply_task_section_overrides(cfg, task, "execution")
+
+
+def apply_evaluation_task_overrides(cfg: DictConfig) -> DictConfig:
+    """Return cfg with ``cfg.evaluation.task_overrides[name]`` deeply merged into
+    matching ``cfg.evaluation.tasks[]`` entries.
+
+    Lets a downstream config override specific tasks of an inherited evaluation
+    list without redefining the whole list. Each value is deep-merged into the
+    matching task entry; subsequent ``apply_task_deployment_overrides`` and
+    ``apply_task_execution_overrides`` see the merged result.
+
+    Match is by task ``name``. If multiple tasks share the same name (e.g. the
+    same benchmark configured twice with different parameters), the override
+    applies to every matching entry.
+
+    No-op if ``cfg.evaluation.task_overrides`` is missing or empty.
+    """
+    evaluation = cfg.get("evaluation") if isinstance(cfg, DictConfig) else None
+    if evaluation is None:
+        return cfg
+    overrides = evaluation.get("task_overrides")
+    if not overrides:
+        return cfg
+    new_tasks = []
+    for task in evaluation.tasks:
+        name = task.get("name") if isinstance(task, DictConfig) else task["name"]
+        ovr = overrides.get(name)
+        if ovr:
+            task_open = OmegaConf.create(OmegaConf.to_container(task, resolve=False))
+            OmegaConf.set_struct(task_open, False)
+            ovr_open = OmegaConf.create(
+                OmegaConf.to_container(ovr, resolve=False)
+                if isinstance(ovr, DictConfig)
+                else ovr
+            )
+            OmegaConf.set_struct(ovr_open, False)
+            task = OmegaConf.merge(task_open, ovr_open)
+            OmegaConf.set_struct(task, False)
+        new_tasks.append(task)
+    base_cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=False))
+    OmegaConf.set_struct(base_cfg, False)
+    return OmegaConf.merge(
+        base_cfg,
+        OmegaConf.create({"evaluation": {"tasks": list(new_tasks)}}),
+    )
+
+
+def _apply_task_section_overrides(
+    cfg: DictConfig, task: DictConfig, section: str
+) -> DictConfig:
+    overrides = task.get(f"{section}_overrides")
+    if not overrides:
+        return cfg
+    # Disable struct mode on the merge target so overrides can introduce new
+    # keys (e.g. an env_var that the base section does not declare). The
+    # struct-mode rejection happens both at the section level and inside its
+    # nested dicts, so we open the entire subtree before merging.
+    base_section = OmegaConf.create(OmegaConf.to_container(cfg[section], resolve=False))
+    OmegaConf.set_struct(base_section, False)
+    overrides_open = OmegaConf.create(
+        OmegaConf.to_container(overrides, resolve=False)
+        if isinstance(overrides, DictConfig)
+        else overrides
+    )
+    OmegaConf.set_struct(overrides_open, False)
+    merged_section = OmegaConf.merge(base_section, overrides_open)
+    OmegaConf.set_struct(merged_section, False)
+    # Replace cfg[section] via merge into a struct-disabled copy so the nested
+    # struct flags do not propagate back when we merge into cfg.
+    base_cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=False))
+    OmegaConf.set_struct(base_cfg, False)
+    return OmegaConf.merge(base_cfg, OmegaConf.create({section: merged_section}))
+
+
 _MIGRATION_MESSAGE = """
 `overrides` field is no longer supported. Use `nemo_evaluator_config` field instead, e.g.:
 

@@ -705,3 +705,179 @@ class TestIsLocalImagePath:
         from nemo_evaluator_launcher.common.helpers import is_local_image_path
 
         assert is_local_image_path(image_path) is expected
+
+
+class TestApplyTaskDeploymentOverrides:
+    """Tests for ``apply_task_deployment_overrides``.
+
+    This helper enables per-task deployment customization in
+    ``cfg.evaluation.tasks[*].deployment_overrides``: tasks that need a
+    different image, pre_cmd, command, extra_args, env_vars, or topology than
+    the global ``cfg.deployment`` can declare just the diff. The merge is the
+    standard OmegaConf deep merge.
+    """
+
+    def _base_cfg(self):
+        return OmegaConf.create(
+            {
+                "deployment": {
+                    "type": "vllm",
+                    "image": "vllm/vllm-openai:default",
+                    "tensor_parallel_size": 8,
+                    "extra_args": "--enable-log-requests",
+                    "env_vars": {"HF_TOKEN": "host:HF_TOKEN"},
+                    "command": "vllm serve ...",
+                },
+                "evaluation": {},
+            }
+        )
+
+    def test_no_overrides_returns_cfg_unchanged(self):
+        from nemo_evaluator_launcher.common.helpers import (
+            apply_task_deployment_overrides,
+        )
+
+        cfg = self._base_cfg()
+        task = OmegaConf.create({"name": "task_a"})
+        result = apply_task_deployment_overrides(cfg, task)
+        # Same object — no merge happens when there's nothing to merge.
+        assert result is cfg
+
+    def test_empty_overrides_returns_cfg_unchanged(self):
+        from nemo_evaluator_launcher.common.helpers import (
+            apply_task_deployment_overrides,
+        )
+
+        cfg = self._base_cfg()
+        task = OmegaConf.create({"name": "task_a", "deployment_overrides": {}})
+        result = apply_task_deployment_overrides(cfg, task)
+        assert result is cfg
+
+    def test_scalar_override_replaces(self):
+        from nemo_evaluator_launcher.common.helpers import (
+            apply_task_deployment_overrides,
+        )
+
+        cfg = self._base_cfg()
+        task = OmegaConf.create(
+            {
+                "name": "task_a",
+                "deployment_overrides": {
+                    "image": "rl.nightly.sqsh",
+                    "tensor_parallel_size": 4,
+                },
+            }
+        )
+        result = apply_task_deployment_overrides(cfg, task)
+        assert result.deployment.image == "rl.nightly.sqsh"
+        assert result.deployment.tensor_parallel_size == 4
+        # untouched fields preserved
+        assert result.deployment.command == "vllm serve ..."
+
+    def test_env_vars_deep_merged(self):
+        from nemo_evaluator_launcher.common.helpers import (
+            apply_task_deployment_overrides,
+        )
+
+        cfg = self._base_cfg()
+        task = OmegaConf.create(
+            {
+                "name": "task_a",
+                "deployment_overrides": {
+                    "env_vars": {
+                        "NCCL_MNNVL_ENABLE": "lit:0",
+                        # override existing key
+                        "HF_TOKEN": "host:OTHER_TOKEN",
+                    }
+                },
+            }
+        )
+        result = apply_task_deployment_overrides(cfg, task)
+        # Existing key overridden, new key added.
+        assert result.deployment.env_vars.HF_TOKEN == "host:OTHER_TOKEN"
+        assert result.deployment.env_vars.NCCL_MNNVL_ENABLE == "lit:0"
+
+    def test_pre_cmd_added(self):
+        from nemo_evaluator_launcher.common.helpers import (
+            apply_task_deployment_overrides,
+        )
+
+        cfg = self._base_cfg()
+        custom_pre_cmd = "#!/bin/bash\nset -euo pipefail\necho running custom setup\n"
+        task = OmegaConf.create(
+            {
+                "name": "task_a",
+                "deployment_overrides": {
+                    "pre_cmd": custom_pre_cmd,
+                    "command": "echo 'handled in pre_cmd'",
+                },
+            }
+        )
+        result = apply_task_deployment_overrides(cfg, task)
+        assert result.deployment.pre_cmd == custom_pre_cmd
+        assert result.deployment.command == "echo 'handled in pre_cmd'"
+
+    def test_does_not_mutate_input_cfg(self):
+        """Other tasks in the same invocation must still see the original cfg."""
+        from nemo_evaluator_launcher.common.helpers import (
+            apply_task_deployment_overrides,
+        )
+
+        cfg = self._base_cfg()
+        task = OmegaConf.create(
+            {
+                "name": "task_a",
+                "deployment_overrides": {"image": "different.sqsh"},
+            }
+        )
+        _ = apply_task_deployment_overrides(cfg, task)
+        # Original untouched.
+        assert cfg.deployment.image == "vllm/vllm-openai:default"
+
+    def test_overrides_can_add_new_keys_to_struct_mode_deployment(self):
+        """A struct-mode base deployment must still accept new override keys.
+
+        In real configs ``cfg.deployment`` ends up in struct mode after Hydra
+        composition. Without explicitly opening struct on the merge target,
+        OmegaConf raises ``Key '...' is not in struct`` when an override
+        introduces a new env_var or top-level deployment field.
+        """
+        from nemo_evaluator_launcher.common.helpers import (
+            apply_task_deployment_overrides,
+        )
+
+        cfg = self._base_cfg()
+        OmegaConf.set_struct(cfg.deployment, True)
+        OmegaConf.set_struct(cfg.deployment.env_vars, True)
+        task = OmegaConf.create(
+            {
+                "name": "task_a",
+                "deployment_overrides": {
+                    "env_vars": {"NCCL_MNNVL_ENABLE": "lit:0"},
+                    "pre_cmd": "echo hi",
+                },
+            }
+        )
+        result = apply_task_deployment_overrides(cfg, task)
+        assert result.deployment.env_vars.NCCL_MNNVL_ENABLE == "lit:0"
+        assert result.deployment.pre_cmd == "echo hi"
+
+    def test_other_cfg_fields_preserved(self):
+        from nemo_evaluator_launcher.common.helpers import (
+            apply_task_deployment_overrides,
+        )
+
+        cfg = OmegaConf.create(
+            {
+                "deployment": {"image": "a", "type": "vllm"},
+                "execution": {"num_nodes": 2},
+                "evaluation": {"tasks": [{"name": "t"}]},
+                "env_vars": {"X": "lit:1"},
+            }
+        )
+        task = OmegaConf.create({"name": "t", "deployment_overrides": {"image": "b"}})
+        result = apply_task_deployment_overrides(cfg, task)
+        assert result.deployment.image == "b"
+        assert result.execution.num_nodes == 2
+        assert result.evaluation.tasks[0].name == "t"
+        assert result.env_vars.X == "lit:1"

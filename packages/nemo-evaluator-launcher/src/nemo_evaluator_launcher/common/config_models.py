@@ -140,6 +140,29 @@ class TaskModel(BaseModel):
             "Runs even if evaluation fails (EXIT trap)."
         ),
     )
+    deployment_overrides: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Per-task overrides deeply merged into ``cfg.deployment`` for this "
+            "task only (other tasks in the same invocation see the unmodified "
+            "deployment). Useful when one benchmark needs a different image, "
+            "pre_cmd, command, extra_args, env_vars, or topology than the "
+            "default deployment, while keeping the rest of the invocation "
+            "unchanged. Free-form pass-through; the merge is the standard "
+            "OmegaConf deep merge."
+        ),
+    )
+    execution_overrides: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Per-task overrides deeply merged into ``cfg.execution`` for this "
+            "task only. Same semantics as ``deployment_overrides`` but targets "
+            "the execution section — lets a single task override topology "
+            "fields like ``num_instances`` and ``num_nodes`` (e.g. nemo_gym "
+            "CBRNE attaches to one Ray cluster and needs num_instances=1, "
+            "while sibling tasks fan out for throughput)."
+        ),
+    )
 
 
 class EvaluationModel(BaseModel):
@@ -182,5 +205,18 @@ class EvaluationModel(BaseModel):
         description=(
             "Global post-command executed in all task containers after the evaluator. "
             "Task-level ``post_cmd`` overrides this per task. Runs even if evaluation fails."
+        ),
+    )
+    task_overrides: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description=(
+            "Per-task overrides keyed by task name. Each value is deep-merged "
+            "into the matching ``evaluation.tasks[]`` entry before any of the "
+            "existing ``task.deployment_overrides`` / "
+            "``task.execution_overrides`` machinery runs. Lets a downstream "
+            "config (e.g. an inheriting profile) override specific tasks of a "
+            "shared evaluation list without redefining the entire list. If "
+            "multiple tasks share a name, the override applies to every "
+            "matching entry."
         ),
     )
