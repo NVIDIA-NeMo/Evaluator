@@ -112,7 +112,7 @@ Notice the URL and protocol changed — `/v1/completions` with `protocol: comple
 
 **Config:** `03_mmlu_lmeval.yaml` and `04_mmlu_pro_skills.yaml`
 
-NEL isn't limited to its 15 built-in benchmarks. URI schemes plug in external benchmark libraries:
+NEL isn't limited to its built-in benchmarks. URI schemes plug in external benchmark libraries:
 
 ```yaml
 benchmarks:

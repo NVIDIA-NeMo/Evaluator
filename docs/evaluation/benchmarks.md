@@ -1,6 +1,6 @@
 # Built-in Benchmarks
 
-All 15 built-in benchmarks are defined with `@benchmark` + `@scorer` in `src/nemo_evaluator/benchmarks/`.
+All 17 runtime-registered built-in benchmarks are defined with `@benchmark` + `@scorer` or `@register` in `src/nemo_evaluator/benchmarks/`.
 
 ## Quick Reference
 
@@ -19,12 +19,14 @@ All 15 built-in benchmarks are defined with `@benchmark` + `@scorer` in `src/nem
 | HealthBench | `nel eval run --bench healthbench` | `needs_judge` | Health (LLM judge) |
 | PinchBench | `nel eval run --bench pinchbench` | `code_sandbox` / `needs_judge` | Agentic tasks (code/LLM judge) |
 | XSTest | `nel eval run --bench xstest` | `needs_judge` | Safety |
-| SWE-bench Verified | `nel eval run --bench swebench-verified` | `swebench_score` | Software engineering (Docker) |
-| SWE-bench Multilingual | `nel eval run --bench swebench-multilingual` | `swebench_score` | Software engineering, multi-lang (Docker) |
+| NMP Harbor | `nel eval run --bench nmp_harbor` | Harbor task tests | NMP agentic-use tasks |
+| Terminal-Bench Hard | `nel eval run --bench terminal-bench-hard` | Task test harness | Terminal tasks |
+| Terminal-Bench Hard AA Split | `nel eval run --bench terminal-bench-hard-aa-split` | Task test harness | Terminal tasks |
+| Terminal-Bench v1 | `nel eval run --bench terminal-bench-v1` | Task test harness | Terminal-Bench v1 |
 
 ## Extended Environments
 
-Beyond the 15 built-in benchmarks, NEL resolves additional environment types via URI schemes and namespace prefixes:
+Beyond the 17 built-in benchmarks, NEL resolves additional environment types via URI schemes and namespace prefixes:
 
 | Syntax | Source | Example |
 |--------|--------|---------|
@@ -33,6 +35,7 @@ Beyond the 15 built-in benchmarks, NEL resolves additional environment types via
 | `nel eval run --bench skills://<name>` | NeMo Skills | `nel eval run --bench skills://mmlu-pro` |
 | `nel eval run --bench vlmevalkit://<dataset>` | VLMEvalKit | `nel eval run --bench vlmevalkit://MMBench_DEV_EN` |
 | `nel eval run --bench gym://<host:port>` | Remote Gym server | `nel eval run --bench gym://localhost:9090` |
+| `nel eval run --bench harbor://<suite>@<version>` | Harbor task registry | `nel eval run --bench harbor://swebench-verified@1.0` |
 | `nel eval run --bench container://<image>#<task>` | Legacy container | `nel eval run --bench container://nvcr.io/image#task` |
 
 ## Benchmark Details

@@ -14,6 +14,7 @@
 - Fixed Ray launcher option docs, a malformed scoring code block, and navigation coverage for config composition and result-format references.
 - Synced SLURM deployment docs with current shard script generation, `eval_image`, auto-resume defaults, and remote output directory requirements.
 - Updated BYOB, Gym, and NeMo Skills tutorials so their commands include required model settings and Python snippets are copy-paste runnable.
+- Synced the built-in benchmark catalog with the runtime registry and moved SWE-bench examples to the Harbor URI path.
 
 ### Adapter Proxy (Breaking — replaces LiteLLM)
 

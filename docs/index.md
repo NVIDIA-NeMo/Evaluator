@@ -50,7 +50,7 @@ Run your first evaluation in under 5 minutes.
 - **Cluster backends.** Run locally, in Docker, or on SLURM clusters with automatic model deployment.
 - **Resilient suites.** Per-benchmark checkpointing with failure isolation. Resume partially completed suites with `--resume`.
 - **Statistical regression.** Compare runs with McNemar's exact test, paired flip analysis, and confidence intervals.  Gate releases across benchmark suites with per-benchmark policy thresholds.
-- **15 built-in benchmarks.** MMLU, MMLU-Pro, MATH-500, GPQA, GSM8K, DROP, MGSM, TriviaQA, HumanEval, SimpleQA, HealthBench, PinchBench, XSTest, SWE-bench Verified, SWE-bench Multilingual.
+- **17 built-in benchmarks.** MMLU, MMLU-Pro, MATH-500, GPQA, GSM8K, DROP, MGSM, TriviaQA, HumanEval, SimpleQA, HealthBench, PinchBench, XSTest, Terminal-Bench variants, and NMP Harbor.
 
 ## Tutorials
 
@@ -120,7 +120,7 @@ Deploy on SLURM, Docker, Kubernetes, Ray, and CI/CD pipelines.
 :::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Benchmarks
 :link: evaluation/benchmarks
 :link-type: doc
-All 15 built-in benchmarks with scoring details.
+All runtime-registered built-in benchmarks with scoring details.
 :::
 
 :::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` API Reference

@@ -41,7 +41,7 @@ nel eval report ./eval_results/ -f markdown -o report.md
 
 ## Benchmarks
 
-15 built-in benchmarks plus external harness integrations:
+17 built-in benchmarks plus external harness integrations:
 
 | Benchmark | Type | Scoring |
 |-----------|------|---------|
@@ -52,7 +52,8 @@ nel eval report ./eval_results/ -f markdown -o report.md
 | simpleqa, healthbench | Judge | `needs_judge` |
 | pinchbench | Agentic | `code_sandbox` / `needs_judge` |
 | xstest | Safety | `needs_judge` |
-| swebench-verified, swebench-multilingual | SWE | Docker two-container |
+| terminal-bench-hard, terminal-bench-v1 | Terminal tasks | Task test harness |
+| nmp_harbor | Agentic NMP | Harbor task tests |
 
 External environments via URI schemes: `lm-eval://`, `skills://`, `vlmevalkit://`, `gym://`, `harbor://`, `container://`.
 
