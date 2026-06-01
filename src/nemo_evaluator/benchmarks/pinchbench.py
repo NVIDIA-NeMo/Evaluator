@@ -31,27 +31,36 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import hashlib
+import importlib.util
 import io
 import json
 import logging
 import random
 import re
 import shutil
+import sys
 import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, Callable
+from urllib.parse import quote
 
 from nemo_evaluator.environments.base import SeedResult
-from nemo_evaluator.environments.custom import benchmark, scorer
+from nemo_evaluator.environments.custom import BenchmarkDefinition, ByobEnvironment, scorer
+from nemo_evaluator.environments.registry import register
 from nemo_evaluator.scoring.types import ScorerInput
 
 logger = logging.getLogger(__name__)
 
-_GITHUB_ZIP = "https://github.com/pinchbench/skill/archive/refs/heads/main.zip"
-_CACHE_DIR: Path | None = None
-_TASK_DATA: dict[str, dict[str, Any]] = {}
+_DEFAULT_PINCHBENCH_SOURCE_URL = "https://github.com/pinchbench/skill"
+_DEFAULT_PINCHBENCH_SOURCE_REF = "47efe9bf5e14ae52dd9764c5e831317442b054a5"  # v2.0.0
+_CACHE_DIRS: dict[tuple[str, str], Path] = {}
+_CACHE_METADATA: dict[tuple[str, str], dict[str, str]] = {}
+_TASK_DATA: dict[tuple[str, str, str], dict[str, Any]] = {}
+_UPSTREAM_JUDGE_PROMPT_BUILDERS: dict[Path, Callable[..., str]] = {}
 _WORKSPACES: list[Path] = []
 
 _JUDGE_MAX_ATTEMPTS = 5
@@ -70,13 +79,27 @@ def _cleanup_workspaces() -> None:
 atexit.register(_cleanup_workspaces)
 
 
-def _ensure_cache() -> Path:
-    global _CACHE_DIR
-    if _CACHE_DIR is not None and _CACHE_DIR.exists():
-        return _CACHE_DIR
+def _cache_key(source_ref: str, source_url: str) -> tuple[str, str]:
+    return (source_url.rstrip("/"), source_ref)
 
-    logger.info("Downloading PinchBench tasks from GitHub...")
-    with urllib.request.urlopen(_GITHUB_ZIP, timeout=120) as resp:
+
+def _archive_url(source_url: str, source_ref: str) -> str:
+    return f"{source_url.rstrip('/')}/archive/{quote(source_ref, safe='/')}.zip"
+
+
+def _ensure_cache(
+    *,
+    source_ref: str = _DEFAULT_PINCHBENCH_SOURCE_REF,
+    source_url: str = _DEFAULT_PINCHBENCH_SOURCE_URL,
+) -> Path:
+    key = _cache_key(source_ref, source_url)
+    cached = _CACHE_DIRS.get(key)
+    if cached is not None and cached.exists():
+        return cached
+
+    archive_url = _archive_url(source_url, source_ref)
+    logger.info("Downloading PinchBench tasks from %s", archive_url)
+    with urllib.request.urlopen(archive_url, timeout=120) as resp:
         data = resp.read()
 
     cache = Path(tempfile.mkdtemp(prefix="pinchbench_cache_"))
@@ -85,12 +108,27 @@ def _ensure_cache() -> Path:
 
     extracted = list(cache.iterdir())
     if len(extracted) == 1 and extracted[0].is_dir():
-        _CACHE_DIR = extracted[0]
+        root = extracted[0]
     else:
-        _CACHE_DIR = cache
+        root = cache
 
-    logger.info("PinchBench cached at %s", _CACHE_DIR)
-    return _CACHE_DIR
+    version_file = root / "BENCHMARK_VERSION"
+    benchmark_version = version_file.read_text(encoding="utf-8").strip() if version_file.is_file() else ""
+    _CACHE_DIRS[key] = root
+    _CACHE_METADATA[key] = {
+        "source_url": source_url.rstrip("/"),
+        "source_ref": source_ref,
+        "archive_url": archive_url,
+        "benchmark_version": benchmark_version,
+    }
+
+    logger.info(
+        "PinchBench cached at %s (version=%s ref=%s)",
+        root,
+        benchmark_version or "unknown",
+        source_ref,
+    )
+    return root
 
 
 def _parse_task(path: Path) -> dict[str, Any]:
@@ -131,6 +169,9 @@ def _parse_task(path: Path) -> dict[str, Any]:
         "category": frontmatter.get("category", "general"),
         "grading_type": frontmatter.get("grading_type", "automated"),
         "timeout_seconds": frontmatter.get("timeout_seconds", 120),
+        "multi_session": bool(frontmatter.get("multi_session", False)),
+        "sessions": frontmatter.get("sessions", []),
+        "prerequisites": frontmatter.get("prerequisites", []),
         "workspace_files": frontmatter.get("workspace_files", []),
         "grading_weights": frontmatter.get("grading_weights") or None,
         "prompt": sections.get("Prompt", ""),
@@ -142,22 +183,102 @@ def _parse_task(path: Path) -> dict[str, Any]:
     }
 
 
-def _load_all_tasks() -> list[dict[str, Any]]:
+def _manifest_task_names(value: Any) -> list[str]:
+    names: list[str] = []
+    if isinstance(value, str):
+        names.append(value)
+    elif isinstance(value, list):
+        for item in value:
+            names.extend(_manifest_task_names(item))
+    elif isinstance(value, dict):
+        for key in ("tasks", "task_files", "files", "run_first"):
+            if key in value:
+                names.extend(_manifest_task_names(value[key]))
+        for key in ("task", "file", "path", "id"):
+            if key in value and isinstance(value[key], str):
+                names.append(value[key])
+    return names
+
+
+def _manifest_task_files(tasks_dir: Path) -> list[Path]:
+    task_files = {path.name: path for path in sorted(tasks_dir.glob("task_*.md"))}
+    if not task_files:
+        raise FileNotFoundError(f"No task_*.md files in {tasks_dir}")
+
+    manifest_path = tasks_dir / "manifest.yaml"
+    if not manifest_path.is_file():
+        return list(task_files.values())
+
+    import yaml
+
+    try:
+        manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
+    except Exception as exc:
+        logger.warning("Failed to parse PinchBench manifest %s: %s", manifest_path, exc)
+        return list(task_files.values())
+
+    ordered_names: list[str] = []
+    if isinstance(manifest, dict):
+        ordered_names.extend(_manifest_task_names(manifest.get("run_first", [])))
+        categories = manifest.get("categories", {})
+        if isinstance(categories, dict):
+            for category_value in categories.values():
+                ordered_names.extend(_manifest_task_names(category_value))
+        elif isinstance(categories, list):
+            ordered_names.extend(_manifest_task_names(categories))
+
+    ordered_files: list[Path] = []
+    seen: set[str] = set()
+    for raw_name in ordered_names:
+        name = raw_name if raw_name.endswith(".md") else f"{raw_name}.md"
+        path = task_files.get(Path(name).name)
+        if path is None:
+            logger.warning("PinchBench manifest references missing task file %s", raw_name)
+            continue
+        if path.name not in seen:
+            seen.add(path.name)
+            ordered_files.append(path)
+
+    ordered_files.extend(path for name, path in task_files.items() if name not in seen)
+    return ordered_files
+
+
+def _load_all_tasks(
+    *,
+    source_ref: str = _DEFAULT_PINCHBENCH_SOURCE_REF,
+    source_url: str = _DEFAULT_PINCHBENCH_SOURCE_URL,
+) -> list[dict[str, Any]]:
     """Download, parse, and return all PinchBench tasks."""
-    repo = _ensure_cache()
+    repo = _ensure_cache(source_ref=source_ref, source_url=source_url)
+    source_meta = _CACHE_METADATA.get(
+        _cache_key(source_ref, source_url),
+        {
+            "source_url": source_url.rstrip("/"),
+            "source_ref": source_ref,
+            "archive_url": _archive_url(source_url, source_ref),
+            "benchmark_version": "",
+        },
+    )
     tasks_dir = repo / "tasks"
     if not tasks_dir.exists():
         raise FileNotFoundError(f"No tasks/ directory in {repo}")
 
-    task_files = sorted(tasks_dir.glob("task_*.md"))
-    if not task_files:
-        raise FileNotFoundError(f"No task_*.md files in {tasks_dir}")
+    task_files = _manifest_task_files(tasks_dir)
 
     rows: list[dict[str, Any]] = []
+    source_key = _cache_key(source_ref, source_url)
     for tf in task_files:
         try:
             task = _parse_task(tf)
-            _TASK_DATA[task["id"]] = task
+            task.update(
+                {
+                    "pinchbench_source_url": source_meta["source_url"],
+                    "pinchbench_source_ref": source_meta["source_ref"],
+                    "pinchbench_archive_url": source_meta["archive_url"],
+                    "pinchbench_benchmark_version": source_meta["benchmark_version"],
+                }
+            )
+            _TASK_DATA[(*source_key, task["id"])] = task
             rows.append(task)
         except Exception as exc:
             logger.warning("Failed to parse %s: %s", tf, exc)
@@ -174,7 +295,9 @@ def _seed_fn(row: dict[str, Any], idx: int) -> SeedResult:
     workspace = Path(tempfile.mkdtemp(prefix=f"pinch_{row['id']}_"))
     _WORKSPACES.append(workspace)
 
-    repo = _ensure_cache()
+    source_ref = row.get("pinchbench_source_ref", _DEFAULT_PINCHBENCH_SOURCE_REF)
+    source_url = row.get("pinchbench_source_url", _DEFAULT_PINCHBENCH_SOURCE_URL)
+    repo = _ensure_cache(source_ref=source_ref, source_url=source_url)
     assets_dir = repo / "assets"
     for file_spec in row.get("workspace_files", []):
         if "content" in file_spec:
@@ -209,6 +332,14 @@ def _seed_fn(row: dict[str, Any], idx: int) -> SeedResult:
             "category": row["category"],
             "workspace_path": str(workspace),
             "grading_type": row["grading_type"],
+            "timeout_seconds": row.get("timeout_seconds"),
+            "multi_session": row.get("multi_session", False),
+            "sessions": row.get("sessions", []),
+            "prerequisites": row.get("prerequisites", []),
+            "pinchbench_source_url": row.get("pinchbench_source_url", _DEFAULT_PINCHBENCH_SOURCE_URL),
+            "pinchbench_source_ref": row.get("pinchbench_source_ref", _DEFAULT_PINCHBENCH_SOURCE_REF),
+            "pinchbench_archive_url": row.get("pinchbench_archive_url", _archive_url(source_url, source_ref)),
+            "pinchbench_benchmark_version": row.get("pinchbench_benchmark_version", ""),
         },
     )
 
@@ -370,42 +501,54 @@ def _read_workspace_files_for_judge(workspace_path: str) -> str:
     return "\n\n".join(blocks)
 
 
+def _load_upstream_judge_prompt_builder(source_root: Path) -> Callable[..., str]:
+    root = source_root.resolve()
+    cached = _UPSTREAM_JUDGE_PROMPT_BUILDERS.get(root)
+    if cached is not None:
+        return cached
+
+    module_path = root / "scripts" / "lib_grading.py"
+    if not module_path.is_file():
+        raise FileNotFoundError(f"PinchBench upstream judge prompt not found at {module_path}")
+
+    module_suffix = hashlib.sha1(str(root).encode("utf-8")).hexdigest()[:16]
+    module_name = f"_nel_pinchbench_lib_grading_{module_suffix}"
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not import PinchBench upstream judge prompt from {module_path}")
+
+    previous_path = list(sys.path)
+    sys.path.insert(0, str(module_path.parent))
+    try:
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+    finally:
+        sys.path[:] = previous_path
+
+    builder = getattr(module, "_build_judge_prompt", None)
+    if not callable(builder):
+        raise AttributeError(f"PinchBench upstream module {module_path} does not define _build_judge_prompt")
+
+    _UPSTREAM_JUDGE_PROMPT_BUILDERS[root] = builder
+    return builder
+
+
 def _build_judge_prompt(
     task: dict[str, Any],
     transcript_summary: str,
     rubric: str,
     workspace_content: str,
+    *,
+    source_root: Path,
 ) -> str:
-    """Render the upstream-parity PinchBench judge prompt."""
-    workspace_section = (
-        f"## Workspace Files Created by Agent\n{workspace_content}\n\n" if workspace_content.strip() else ""
+    """Render the judge prompt using PinchBench's upstream grading helper."""
+    builder = _load_upstream_judge_prompt_builder(source_root)
+    upstream_task = SimpleNamespace(
+        prompt=task.get("prompt", ""),
+        expected_behavior=task.get("expected_behavior", ""),
     )
-    return (
-        "You are a grading function. Your ONLY job is to output a single JSON object.\n\n"
-        "CRITICAL RULES:\n"
-        "- Do NOT use any tools (no Read, Write, exec, or any other tool calls)\n"
-        "- Do NOT create files or run commands\n"
-        "- Do NOT write any prose, explanation, or commentary outside the JSON\n"
-        "- Respond with ONLY a JSON object -- nothing else\n\n"
-        "Be a strict evaluator. Reserve 1.0 for genuinely excellent performance. "
-        "An average acceptable completion should score around 0.6-0.7. "
-        "Deduct points for unnecessary steps, verbose output, and inefficient tool usage.\n\n"
-        "## Task\n"
-        f"{task.get('prompt', '')}\n\n"
-        "## Expected Behavior\n"
-        f"{task.get('expected_behavior', '')}\n\n"
-        "## Agent Transcript (summarized)\n"
-        f"{transcript_summary}\n\n"
-        f"{workspace_section}"
-        "## Grading Rubric\n"
-        f"{rubric}\n\n"
-        "Score each criterion from 0.0 to 1.0.\n"
-        'The "total" field must also be between 0.0 and 1.0, and it must be the '
-        "arithmetic mean of the criterion scores, not their sum.\n\n"
-        "Respond with ONLY this JSON structure (no markdown, no code fences, no "
-        "extra text):\n"
-        '{"scores": {"criterion_name": 0.0}, "total": 0.0, "notes": "brief justification"}'
-    )
+    return builder(upstream_task, transcript_summary, rubric, workspace_content)
 
 
 def _resolve_rubric(task: dict[str, Any]) -> str:
@@ -613,13 +756,6 @@ def _make_pinchbench_judge_fn(
     return _run
 
 
-@benchmark(
-    name="pinchbench",
-    dataset=_load_all_tasks,
-    prompt="{prompt}",
-    target_field="id",
-    seed_fn=_seed_fn,
-)
 @scorer
 def pinchbench_scorer(sample: ScorerInput) -> dict[str, Any]:
     """Score a PinchBench task.
@@ -635,7 +771,11 @@ def pinchbench_scorer(sample: ScorerInput) -> dict[str, Any]:
     task_id = sample.metadata.get("task_id", "")
     workspace_path = sample.metadata.get("workspace_path", "")
 
-    task_info = _TASK_DATA.get(task_id, {})
+    source_ref = sample.metadata.get("pinchbench_source_ref", _DEFAULT_PINCHBENCH_SOURCE_REF)
+    source_url = sample.metadata.get("pinchbench_source_url", _DEFAULT_PINCHBENCH_SOURCE_URL)
+    task_info = _TASK_DATA.get((*_cache_key(source_ref, source_url), task_id), {})
+    if not task_info:
+        task_info = next((task for (*_, cached_task_id), task in _TASK_DATA.items() if cached_task_id == task_id), {})
     grading_type = task_info.get("grading_type") or sample.metadata.get("grading_type", "automated")
     grading_code = task_info.get("grading_code", "")
     grading_weights = task_info.get("grading_weights") or None
@@ -664,7 +804,14 @@ def pinchbench_scorer(sample: ScorerInput) -> dict[str, Any]:
         rubric = _resolve_rubric(task_info)
         summary = _summarize_transcript(transcript)
         workspace_blob = _read_workspace_files_for_judge(workspace_path)
-        judge_prompt = _build_judge_prompt(task_info, summary, rubric, workspace_blob)
+        source_root = _ensure_cache(source_ref=source_ref, source_url=source_url)
+        judge_prompt = _build_judge_prompt(
+            task_info,
+            summary,
+            rubric,
+            workspace_blob,
+            source_root=source_root,
+        )
         automated_score = (
             automated_details["automated_score"] if grading_type == "hybrid" and automated_details is not None else None
         )
@@ -705,3 +852,28 @@ def pinchbench_scorer(sample: ScorerInput) -> dict[str, Any]:
     if "error" in automated_details:
         result["error"] = automated_details["error"]
     return result
+
+
+def _pinchbench_definition(source_ref: str, source_url: str) -> BenchmarkDefinition:
+    def _dataset() -> list[dict[str, Any]]:
+        return _load_all_tasks(source_ref=source_ref, source_url=source_url)
+
+    return BenchmarkDefinition(
+        name="pinchbench",
+        dataset=_dataset,
+        prompt="{prompt}",
+        target_field="id",
+        seed_fn=_seed_fn,
+        scorer_fn=pinchbench_scorer,
+    )
+
+
+@register("pinchbench")
+class PinchBenchEnvironment(ByobEnvironment):
+    def __init__(
+        self,
+        num_examples: int | None = None,
+        source_ref: str = _DEFAULT_PINCHBENCH_SOURCE_REF,
+        source_url: str = _DEFAULT_PINCHBENCH_SOURCE_URL,
+    ) -> None:
+        super().__init__(_pinchbench_definition(source_ref, source_url), num_examples)

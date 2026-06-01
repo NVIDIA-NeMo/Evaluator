@@ -61,16 +61,24 @@ def build_atif_trajectory(
         s["step_id"] = i
         numbered_steps.append(s)
 
+    prompt_tokens_present = prompt_tokens is not None
+    completion_tokens_present = completion_tokens is not None
     if prompt_tokens is None and completion_tokens is None:
-        prompt_tokens = 0
-        completion_tokens = 0
+        prompt_tokens = None
+        completion_tokens = None
         for s in numbered_steps:
             m = s.get("metrics") or {}
-            prompt_tokens += m.get("prompt_tokens", 0)
-            completion_tokens += m.get("completion_tokens", 0)
+            if "prompt_tokens" in m:
+                prompt_tokens = (prompt_tokens or 0) + (m.get("prompt_tokens") or 0)
+                prompt_tokens_present = True
+            if "completion_tokens" in m:
+                completion_tokens = (completion_tokens or 0) + (m.get("completion_tokens") or 0)
+                completion_tokens_present = True
     else:
-        prompt_tokens = prompt_tokens or 0
-        completion_tokens = completion_tokens or 0
+        if prompt_tokens is not None:
+            prompt_tokens = prompt_tokens or 0
+        if completion_tokens is not None:
+            completion_tokens = completion_tokens or 0
 
     agent_obj: dict[str, Any] = {
         "name": agent_name,
@@ -86,11 +94,12 @@ def build_atif_trajectory(
         "steps": numbered_steps,
     }
 
-    doc["final_metrics"] = {
-        "total_prompt_tokens": prompt_tokens,
-        "total_completion_tokens": completion_tokens,
-        "total_steps": len(numbered_steps),
-    }
+    final_metrics: dict[str, Any] = {"total_steps": len(numbered_steps)}
+    if prompt_tokens_present:
+        final_metrics["total_prompt_tokens"] = prompt_tokens or 0
+    if completion_tokens_present:
+        final_metrics["total_completion_tokens"] = completion_tokens or 0
+    doc["final_metrics"] = final_metrics
 
     if status:
         doc.setdefault("extra", {})["status"] = status
