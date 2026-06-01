@@ -673,6 +673,21 @@ def _create_slurm_sbatch_script(
     total_aux_nodes = sum(a.num_nodes for a in aux_deployments)
     total_num_nodes = cfg.execution.num_nodes + total_aux_nodes
 
+    eval_ray_cluster_enabled = (
+        cfg.deployment.type == "none"
+        and cfg.execution.num_nodes > 1
+        and cfg.execution.get("eval_ray_cluster", False)
+    )
+    if eval_ray_cluster_enabled and has_aux_deployments:
+        raise ValueError(
+            "execution.eval_ray_cluster=true is not supported together with "
+            "auxiliary deployments. Aux deployments consume nodes from the same "
+            "allocation; supporting them requires per-pool nodelist arithmetic "
+            "that is not yet implemented. Either disable eval_ray_cluster or "
+            "run aux deployments as a separate job and pass their endpoints via "
+            "env_vars."
+        )
+
     s = "#!/bin/bash\n"
 
     # SBATCH headers
@@ -702,7 +717,7 @@ def _create_slurm_sbatch_script(
     s += "#SBATCH --output {}\n".format(remote_task_subdir / "logs" / "slurm-%A.log")
     s += "\n"
     s += f'TASK_DIR="{str(remote_task_subdir)}"\n'
-    s += f'NEL_INVOCATION_ID="{invocation_id}"\n'
+    s += f'export NEL_INVOCATION_ID="{invocation_id}"\n'
     s += "\n"
 
     # Collect env vars using unified pipeline
@@ -969,6 +984,73 @@ def _create_slurm_sbatch_script(
         # Export NEMO_EVALUATOR_DATASET_DIR environment variable
         s += f"export NEMO_EVALUATOR_DATASET_DIR={dataset_mount_container}\n\n"
 
+    # Eval-only Ray cluster bootstrap (multi-node spread for deployment.type=="none")
+    ray_cluster_is_unsafe = False
+    if eval_ray_cluster_enabled:
+        # Bind the adapter on all interfaces so worker-node Stirrup actors can
+        # reach it via $PRIMARY_IP. Passed through --container-env on every srun.
+        s += 'export ADAPTER_HOST="${ADAPTER_HOST:-0.0.0.0}"\n'
+        # Bind a per-node, cross-container-instance shared /tmp/ray so the head's
+        # ray-session files (node_ip_address.json, etc) are visible from the eval
+        # client's pyxis container instance. Without this, pyxis isolates /tmp
+        # per container instance and ray.init(address=...) on the head node
+        # raises "Can't find node_ip_address.json".
+        ray_shared_tmp_host = f"/tmp/ray-${{SLURM_JOB_ID}}"
+        s += "# Create per-node shared /tmp/ray dir on every allocated node\n"
+        s += (
+            f"srun --overlap --jobid=$SLURM_JOB_ID --nodes={cfg.execution.num_nodes} "
+            f"--ntasks-per-node=1 mkdir -p {ray_shared_tmp_host}\n\n"
+        )
+        # Kill leftover Ray daemons from prior runs on the same nodes (each
+        # compute node is reused across consecutive eval jobs). Without this,
+        # the new bootstrap's worker `ray start --address` collides with stale
+        # raylet/object-manager processes on random worker_ports (observed at
+        # cpu-0023 with port 17062 conflict, no overlap on canonical's fixed
+        # ports). pkill runs HOST-side (no --container-image), with the user's
+        # PID namespace, so it can SIGKILL the orphan processes that survived
+        # prior pyxis-container SIGTERMs.
+        s += "# Kill leftover Ray daemons from prior runs on the allocated nodes\n"
+        s += (
+            # Bracket regex `[r]aylet` / `[g]cs_server` / `[r]ay::` matches the
+            # target processes but does NOT match the pkill command's own
+            # cmdline (which contains the literal `[r]aylet`, not `raylet`).
+            # Without this, `pkill -f raylet` self-kills via signal 9.
+            f"srun --overlap --jobid=$SLURM_JOB_ID --nodes={cfg.execution.num_nodes} "
+            f"--ntasks-per-node=1 bash -c "
+            f"'pkill -9 -u $USER -f \"[r]aylet\" 2>/dev/null; "
+            f"pkill -9 -u $USER -f \"[g]cs_server\" 2>/dev/null; "
+            f"pkill -9 -u $USER -f \"[r]ay::\" 2>/dev/null; "
+            f"sleep 1; true'\n\n"
+        )
+        evaluation_mounts_list.append(f"{ray_shared_tmp_host}:/tmp/ray")
+        bootstrap_env_names = sorted(
+            set(
+                list(eval_env_vars.keys())
+                + [
+                    "PRIMARY_IP",
+                    "ADAPTER_HOST",
+                    "EVAL_RAY_PORT",
+                    "EVAL_RAY_DASH_PORT",
+                ]
+            )
+        )
+        # `.secrets.env` defines task-scoped names like `PERSIST_DELIVERABLES_DIR_<sha>_NEMO_GYM_0`;
+        # `eval_reexport_cmd` re-exports them under their unsuffixed names.
+        # Pyxis's `--container-env <NAME>` reads the unsuffixed value from the
+        # sbatch shell, so the re-export must happen BEFORE the bootstrap srun.
+        # The eval-client srun re-exports again later — idempotent.
+        if eval_reexport_cmd:
+            s += f"{eval_reexport_cmd}\n\n"
+        ray_bootstrap = _generate_eval_ray_cluster_bootstrap(
+            cfg,
+            eval_image=eval_image,
+            eval_mounts_list=evaluation_mounts_list,
+            eval_env_var_names=bootstrap_env_names,
+            remote_task_subdir=remote_task_subdir,
+        )
+        s += ray_bootstrap.cmd
+        ray_cluster_is_unsafe = ray_bootstrap.is_potentially_unsafe
+
     eval_factory_command_struct = get_eval_factory_command(
         cfg,
         task,
@@ -1039,23 +1121,28 @@ def _create_slurm_sbatch_script(
     if gpu_devices is not None:
         s += f"export NVIDIA_VISIBLE_DEVICES={gpu_devices}\n"
         extra_eval_env_names.append("NVIDIA_VISIBLE_DEVICES")
-    s += "srun --mpi pmix --overlap "
-    s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
-    s += "--container-image {} ".format(eval_image)
     # Combine eval env vars with auxiliary endpoint env vars
     all_eval_env_names = sorted(
         set(list(eval_env_vars.keys()) + aux_extra_env_names + extra_eval_env_names)
     )
-    if all_eval_env_names:
-        s += "--container-env {} ".format(",".join(all_eval_env_names))
-    if not cfg.execution.get("mounts", {}).get("mount_home", True):
-        s += "--no-container-mount-home "
-
-    s += "--container-mounts {} ".format(",".join(evaluation_mounts_list))
-    s += "--output {} ".format(remote_task_subdir / "logs" / "client-%A.log")
-    s += "bash -c '\n"
-    s += eval_factory_command
-    s += "'\n\n"
+    if eval_ray_cluster_enabled:
+        all_eval_env_names = sorted(
+            set(all_eval_env_names + ["RAY_HEAD_NODE_ADDRESS", "ADAPTER_HOST"])
+        )
+    s += _srun_in_eval_container(
+        eval_image=eval_image,
+        eval_mounts_list=evaluation_mounts_list,
+        eval_env_var_names=all_eval_env_names,
+        inner_cmd=eval_factory_command,
+        nodelist='"${PRIMARY_NODE}"',
+        nodes=1,
+        ntasks=1,
+        output_log=str(remote_task_subdir / "logs" / "client-%A.log"),
+        no_container_mount_home=not cfg.execution.get("mounts", {}).get(
+            "mount_home", True
+        ),
+    )
+    s += "\n"
 
     # terminate the server after all evaluation clients finish
     if cfg.deployment.type != "none":
@@ -1071,6 +1158,13 @@ def _create_slurm_sbatch_script(
             s += f"kill ${aux.proxy_pid_var} 2>/dev/null || true  # terminate {aux.name} proxy\n"
         else:
             s += f"kill ${aux.pid_var}  # terminate the {aux.name} server to finish gracefully\n"
+        s += "\n"
+
+    if eval_ray_cluster_enabled:
+        s += "# Stop eval Ray cluster\n"
+        s += 'kill "$RAY_HEAD_PID" 2>/dev/null || true\n'
+        if cfg.execution.num_nodes > 1:
+            s += 'kill "$RAY_WORKER_PID" 2>/dev/null || true\n'
         s += "\n"
 
     # auto-export
@@ -1108,6 +1202,7 @@ def _create_slurm_sbatch_script(
         eval_factory_command_struct.is_potentially_unsafe
         or deployment_is_unsafe
         or any(aux_is_unsafe.values())
+        or ray_cluster_is_unsafe
     )
 
     return CmdAndReadableComment(
@@ -2314,6 +2409,342 @@ def _generate_haproxy_srun_command(cfg, remote_task_subdir):
     s += "\n"
 
     return s
+
+
+def _srun_in_eval_container(
+    *,
+    eval_image: str,
+    eval_mounts_list: list[str],
+    eval_env_var_names: list[str],
+    inner_cmd: str,
+    nodelist: str,
+    nodes: int = 1,
+    ntasks: int | None = None,
+    ntasks_per_node: int | None = None,
+    output_log: str,
+    overlap: bool = True,
+    mpi_pmix: bool = True,
+    no_container_mount_home: bool = False,
+    background: bool = False,
+) -> str:
+    """Emit a single ``srun --container-image=... bash -c '<inner>'`` invocation.
+
+    Shared by the evaluation srun and the new Ray-cluster bootstrap sruns so the
+    eval container, env, and mounts stay identical across all of them.
+
+    Caller passes ``inner_cmd`` verbatim — no trailing newline is auto-added.
+    Returns a string ending in ``\\n`` (or `` &\\n`` if ``background``).
+    """
+    assert (ntasks is None) ^ (ntasks_per_node is None), (
+        "exactly one of ntasks / ntasks_per_node must be set"
+    )
+    parts: list[str] = ["srun"]
+    if mpi_pmix:
+        parts.append("--mpi pmix")
+    if overlap:
+        parts.append("--overlap")
+    parts.append(f"--nodelist {nodelist}")
+    parts.append(f"--nodes {nodes}")
+    if ntasks is not None:
+        parts.append(f"--ntasks {ntasks}")
+    else:
+        parts.append(f"--ntasks-per-node {ntasks_per_node}")
+    parts.append(f"--container-image {eval_image}")
+    if eval_env_var_names:
+        parts.append(f"--container-env {','.join(sorted(set(eval_env_var_names)))}")
+    if no_container_mount_home:
+        parts.append("--no-container-mount-home")
+    parts.append(f"--container-mounts {','.join(eval_mounts_list)}")
+    parts.append(f"--output {output_log}")
+    cmd = " ".join(parts) + " "
+    cmd += "bash -c '\n"
+    # Escape literal single quotes in inner_cmd so they don't close the outer
+    # ``bash -c '...'`` quoting. Standard POSIX trick: close, escaped literal
+    # single-quote, reopen. No-op when inner_cmd has no single quotes.
+    cmd += inner_cmd.replace("'", "'\\''")
+    cmd += "'"
+    if background:
+        cmd += " &"
+    cmd += "\n"
+    return cmd
+
+
+def _get_wait_for_ray_cluster_handler(
+    *,
+    expected_nodes: int,
+    timeout: int,
+    head_pid_var: str = "RAY_HEAD_PID",
+    worker_pid_var: str | None = None,
+    head_ip_var: str = "PRIMARY_IP",
+    port_var: str = "EVAL_RAY_PORT",
+) -> str:
+    """Generate the wait-for-Ray-cluster shell block.
+
+    Inline (no srun, no container). Runs in the slurm batch shell on PRIMARY_NODE.
+    Checks PID liveness of the background head/worker sruns, then probes the
+    head's GCS via bash ``/dev/tcp`` (built-in). When the TCP port is reachable,
+    waits a short grace period for workers to attach and proceeds.
+
+    Runs inline so it doesn't fight ``ray-head`` / ``ray-worker`` for pyxis
+    container extraction slots on PRIMARY_NODE (a separate ``--overlap`` srun
+    targeting the same node + same image observed deadlocking the head start).
+    Avoids the ``ray status`` dependency and the dashboard REST endpoint
+    altogether — the eval client itself confirms cluster shape via
+    ``ray.init(address=...)``.
+
+    ``expected_nodes`` is recorded in the log message only (the inline check
+    confirms head reachability, not exact node count).
+    """
+    pid_checks = [
+        f'kill -0 "${head_pid_var}" 2>/dev/null '
+        f'|| {{ echo "Ray head srun died"; exit 1; }}',
+    ]
+    if worker_pid_var:
+        pid_checks.append(
+            f'kill -0 "${worker_pid_var}" 2>/dev/null '
+            f'|| {{ echo "Ray worker srun died"; exit 1; }}'
+        )
+    pid_check = "; ".join(pid_checks)
+
+    s = "# Wait for Ray head GCS to be reachable (inline TCP check)\n"
+    s += f"RAY_WAIT_TIMEOUT={timeout}\n"
+    s += "RAY_WAIT_DEADLINE=$(( $(date +%s) + $RAY_WAIT_TIMEOUT ))\n"
+    s += "while true; do\n"
+    s += f"  {pid_check}\n"
+    s += (
+        '  if (echo > "/dev/tcp/${' + head_ip_var + '}/${' + port_var + '}") '
+        "2>/dev/null; then\n"
+    )
+    s += (
+        f'    echo "Ray head GCS reachable at ${{{head_ip_var}}}:${{{port_var}}}"\n'
+    )
+    s += "    break\n"
+    s += "  fi\n"
+    s += '  if [ "$(date +%s)" -gt "$RAY_WAIT_DEADLINE" ]; then\n'
+    s += '    echo "FATAL: timeout waiting for Ray head GCS"\n'
+    s += "    exit 1\n"
+    s += "  fi\n"
+    s += "  sleep 5\n"
+    s += "done\n"
+    s += (
+        "# Grace period for workers to attach (the eval client will\n"
+        f"# verify final cluster shape; targeting {expected_nodes} nodes).\n"
+    )
+    s += "sleep 15\n"
+    return s
+
+
+def _generate_eval_ray_cluster_bootstrap(
+    cfg: DictConfig,
+    eval_image: str,
+    eval_mounts_list: list[str],
+    eval_env_var_names: list[str],
+    remote_task_subdir: Path,
+) -> CmdAndReadableComment:
+    """Bootstrap a Ray cluster across all allocated nodes for an eval-only flow.
+
+    Activation guard (enforced by caller in ``_create_slurm_sbatch_script``):
+      - ``cfg.deployment.type == "none"``
+      - ``cfg.execution.num_nodes > 1``
+      - ``cfg.execution.eval_ray_cluster is True``
+      - no auxiliary deployments (rejected at config-load time)
+    """
+    n = cfg.execution.num_nodes
+    ray_port = cfg.execution.get("eval_ray_port", 6379)
+    dash_port = cfg.execution.get("eval_ray_dashboard_port", 8265)
+    ready_timeout = cfg.execution.get("eval_ray_ready_timeout", 600)
+    pre_cmd = (cfg.execution.get("eval_per_node_pre_cmd") or "").strip()
+    # Prepended to each ``ray start ...`` inner_cmd (head + workers). Use to put
+    # ``ray`` on PATH when the eval container ships it inside a venv (e.g.
+    # Gym's ``/opt/Gym/.venv/bin/activate``). Must end in a statement separator
+    # so we can chain ``ray stop ; ray start ...`` after it.
+    pre_start_cmd = (cfg.execution.get("eval_ray_pre_start_cmd") or "").strip()
+    # Also propagate cfg.evaluation.pre_cmd to bootstrap inner_cmds: the eval
+    # client's pre_cmd (e.g. `pip install nemo-evaluator-internal`) runs inside
+    # its container as `source pre_cmd.sh` from the eval factory command; Ray
+    # actors that fork from the ray-head/worker bootstrap containers need the
+    # SAME packages installed, otherwise pickled exceptions can't round-trip
+    # across the worker→client boundary (observed t12: `TypeError:
+    # APIStatusError.__init__() missing 2 required keyword-only arguments`
+    # when `evaluation.pre_cmd` upgrades httpx/openai on the client but not on
+    # workers). Replicating it guarantees both sides have identical deps.
+    eval_pre_cmd = (
+        (cfg.evaluation.get("pre_cmd") if cfg.evaluation else None) or ""
+    ).strip()
+    # Optional: replace the head's idle `sleep infinity` with a workhorse script.
+    # Used when the driver (e.g. Gym's ng_e2e_collect_rollouts) needs to run
+    # INSIDE the bootstrap container (same Python/venv as Stirrup actors that
+    # fork from this container) — eliminates pickle-ABI skew across multi-venv
+    # container images. Canonical vllm_ray uses this pattern via deployment.pre_cmd
+    # to bash a lustre-rendezvous script (`/cache/huggingface/$NEL_INVOCATION_ID/
+    # GYM_DEPLOYMENT_COMMAND.sh`). For our eval-only Ray cluster, the eval
+    # client's `command:` writes that script; the head's workload waits + bashes.
+    # When unset, the head stays `sleep infinity` (the eval client owns the work).
+    head_workload_cmd = (
+        cfg.execution.get("eval_ray_head_workload_cmd") or ""
+    ).strip()
+    # Pyxis mounts host's $HOME into container as /root by default. uv-managed
+    # venvs ship a symlink from `<venv>/bin/python` to
+    # `/root/.local/share/uv/python/cpython-<ver>/bin/python<ver>` that's BAKED
+    # into the container image's /root. When pyxis overrides /root with host's
+    # $HOME, the baked python disappears and the symlink dangles — breaking
+    # `ray start` ("required file not found"). The eval srun avoids this by
+    # setting `--no-container-mount-home` (driven by cfg.execution.mounts.mount_home).
+    # Apply the same flag to ALL bootstrap sruns so head/workers see the same
+    # baked python as the eval client, eliminating the version-mismatch class
+    # (head daemon 3.12.3 from /opt/venv vs eval client 3.12.12 from the baked venv).
+    no_container_mount_home = not cfg.execution.get("mounts", {}).get(
+        "mount_home", True
+    )
+
+    s = "# ===== Eval-only Ray cluster bootstrap =====\n"
+    s += f"export EVAL_RAY_PORT={ray_port}\n"
+    s += f"export EVAL_RAY_DASH_PORT={dash_port}\n"
+    s += "PRIMARY_IP=$(getent hosts \"$PRIMARY_NODE\" | awk '{print $1}' | head -1)\n"
+    s += "export PRIMARY_IP\n"
+    s += 'echo "PRIMARY_IP=$PRIMARY_IP"\n\n'
+
+    if n > 1:
+        s += "# Build worker nodelist (everything except PRIMARY_NODE)\n"
+        s += (
+            'WORKER_NODES="$(scontrol show hostnames "$SLURM_JOB_NODELIST"'
+            ' | tail -n +2 | paste -sd,)"\n'
+        )
+        s += 'echo "WORKER_NODES=$WORKER_NODES"\n\n'
+
+    is_potentially_unsafe = False
+    if pre_cmd or eval_pre_cmd or pre_start_cmd or head_workload_cmd:
+        # Any user-controlled shell that ends up running inside a container
+        # raises the same NEMO_EVALUATOR_TRUST_PRE_CMD gate.
+        is_potentially_unsafe = True
+    if pre_cmd:
+        s += "# Per-node container setup (apptainer install, FUSE deps, etc.)\n"
+        s += _srun_in_eval_container(
+            eval_image=eval_image,
+            eval_mounts_list=eval_mounts_list,
+            eval_env_var_names=eval_env_var_names,
+            inner_cmd=pre_cmd if pre_cmd.endswith("\n") else pre_cmd + "\n",
+            nodelist='"$SLURM_JOB_NODELIST"',
+            nodes=n,
+            ntasks_per_node=1,
+            output_log=str(
+                remote_task_subdir / "logs" / "ray-bootstrap-pre-cmd-%A-%n.log"
+            ),
+            no_container_mount_home=no_container_mount_home,
+        )
+        s += "\n"
+
+    s += "# Start Ray head on PRIMARY_NODE\n"
+    # The pre-start block runs once per bootstrap container (head + workers).
+    # Order: cfg.evaluation.pre_cmd first (mirrors what the eval client does
+    # before its run_eval) → eval_ray_pre_start_cmd second (user-controlled
+    # Ray-specific setup, e.g. venv activate). This makes the bootstrap
+    # container as close to the eval-client container as possible: same env
+    # vars (via --container-env), same mounts, same pre-install steps. Ray
+    # actors that fork from the bootstrap container inherit identical deps.
+    pre_start_block = ""
+    if eval_pre_cmd:
+        pre_start_block += eval_pre_cmd
+        if not pre_start_block.endswith("\n"):
+            pre_start_block += "\n"
+    if pre_start_cmd:
+        pre_start_block += pre_start_cmd
+        if not pre_start_block.endswith("\n"):
+            pre_start_block += "\n"
+    # Fixed component ports (canonical vllm_ray pattern,
+    # ultra_v3_deployment_gym.yaml:66). Avoids Ray's auto-allocation conflicting
+    # with stale daemons or other components on the same node.
+    ray_fixed_ports = (
+        "--node-manager-port=8266 "
+        "--object-manager-port=8267 "
+        "--metrics-export-port=8269 "
+        "--dashboard-agent-grpc-port=8270 "
+        "--dashboard-agent-listen-port=8271 "
+        "--runtime-env-agent-port=8272 "
+    )
+    # When the user supplies `eval_ray_head_workload_cmd`, the head's bootstrap
+    # container runs that *instead of* `sleep infinity` after `ray start`. This
+    # lets the driver (e.g. ng_e2e_collect_rollouts) execute in the same
+    # container as the Ray daemon — eliminating pickle-ABI skew between
+    # Stirrup-venv actors and a separately-spawned eval-client driver.
+    head_tail = head_workload_cmd if head_workload_cmd else "sleep infinity"
+    if not head_tail.endswith("\n"):
+        head_tail += "\n"
+    ray_head_inner = (
+        "set -e\n"
+        + pre_start_block
+        + "ray stop 2>/dev/null || true\n"
+        "ray start --head "
+        "--port=$EVAL_RAY_PORT "
+        + ray_fixed_ports
+        + "--dashboard-host=0.0.0.0 "
+        "--dashboard-port=$EVAL_RAY_DASH_PORT "
+        "--node-ip-address=\"$(hostname -I | awk '{print $1}')\" "
+        "--num-cpus=$(nproc) "
+        "--temp-dir=/tmp/ray\n"
+        + head_tail
+    )
+    s += _srun_in_eval_container(
+        eval_image=eval_image,
+        eval_mounts_list=eval_mounts_list,
+        eval_env_var_names=eval_env_var_names,
+        inner_cmd=ray_head_inner,
+        nodelist='"$PRIMARY_NODE"',
+        nodes=1,
+        ntasks=1,
+        output_log=str(remote_task_subdir / "logs" / "ray-head-%A.log"),
+        background=True,
+        no_container_mount_home=no_container_mount_home,
+    )
+    s += "RAY_HEAD_PID=$!\n\n"
+
+    worker_pid_var = None
+    if n > 1:
+        s += "# Start Ray workers on remaining nodes\n"
+        ray_worker_inner = (
+            "set -e\n"
+            + pre_start_block
+            + "ray stop 2>/dev/null || true\n"
+            "ray start "
+            "--address=$PRIMARY_IP:$EVAL_RAY_PORT "
+            + ray_fixed_ports
+            + "--node-ip-address=\"$(hostname -I | awk '{print $1}')\" "
+            "--num-cpus=$(nproc) "
+            "--temp-dir=/tmp/ray\n"
+            "sleep infinity\n"
+        )
+        s += _srun_in_eval_container(
+            eval_image=eval_image,
+            eval_mounts_list=eval_mounts_list,
+            eval_env_var_names=eval_env_var_names,
+            inner_cmd=ray_worker_inner,
+            nodelist='"$WORKER_NODES"',
+            nodes=n - 1,
+            ntasks_per_node=1,
+            output_log=str(remote_task_subdir / "logs" / "ray-worker-%A-%n.log"),
+            background=True,
+            no_container_mount_home=no_container_mount_home,
+        )
+        s += "RAY_WORKER_PID=$!\n\n"
+        worker_pid_var = "RAY_WORKER_PID"
+
+    s += "export RAY_HEAD_NODE_ADDRESS=$PRIMARY_IP:$EVAL_RAY_PORT\n"
+    s += 'echo "RAY_HEAD_NODE_ADDRESS=$RAY_HEAD_NODE_ADDRESS"\n\n'
+
+    s += "# Wait for the Ray cluster to assemble\n"
+    s += _get_wait_for_ray_cluster_handler(
+        expected_nodes=n,
+        timeout=ready_timeout,
+        head_pid_var="RAY_HEAD_PID",
+        worker_pid_var=worker_pid_var,
+    )
+    s += "\n"
+
+    return CmdAndReadableComment(
+        cmd=s,
+        debug="# (Eval Ray cluster bootstrap)",
+        is_potentially_unsafe=is_potentially_unsafe,
+    )
 
 
 def _collect_mount_paths(cfg: DictConfig) -> List[str]:
