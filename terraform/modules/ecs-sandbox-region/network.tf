@@ -72,13 +72,13 @@ resource "aws_security_group" "ecs_tasks" {
     description = "Allow all outbound"
   }
 
-  # Inbound: only the sshd port for the reverse tunnel
+  # Inbound: only the sshd port for the reverse tunnel, restricted to orchestrator CIDRs
   ingress {
     from_port   = var.ssh_tunnel_sshd_port
     to_port     = var.ssh_tunnel_sshd_port
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "SSH tunnel sidecar inbound"
+    cidr_blocks = var.orchestrator_allowed_cidrs
+    description = "SSH tunnel sidecar inbound (orchestrator only)"
   }
 
   tags = merge(var.tags, { Name = "${var.project}-ecs-sg" })

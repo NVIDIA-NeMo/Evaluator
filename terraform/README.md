@@ -29,7 +29,7 @@ flowchart LR
     User[You] -->|terraform apply| Stack[stacks/ecs-sandbox]
     Stack --> IAM["IAM (global)<br/>execution role<br/>task role<br/>codebuild role<br/>orchestrator user + access key<br/>orchestrator policy"]
     Stack -->|per region| Module[modules/ecs-sandbox-region]
-    Module --> VPC["VPC<br/>public subnets + IGW<br/>SG (egress all, ingress SSH sidecar port)"]
+    Module --> VPC["VPC<br/>public subnets + IGW<br/>SG (egress all, ingress SSH sidecar port from orchestrator CIDRs only)"]
     Module --> ECS["ECS Fargate<br/>cluster + base task definition<br/>execute-command enabled"]
     Module --> ECR["ECR repository<br/>500-image lifecycle policy"]
     Module --> S3["S3 staging bucket<br/>7-day expiry, no public access"]
@@ -136,7 +136,8 @@ Set the orchestrator AWS credentials via your usual chain (env vars, profile, IR
 | `regions` | 11 regions | Set to `["us-west-2"]` for an MWE |
 | `vpc_base_cidr` | `10.0.0.0/8` | Per-region `/16` carved out via `cidrsubnet` |
 | `subnet_count` | `2` | Public subnets per region |
-| `ssh_tunnel_sshd_port` | `2222` | Sidecar listening port |
+| `ssh_tunnel_sshd_port` | `52222` | Sidecar listening port |
+| `orchestrator_allowed_cidrs` | _(required)_ | CIDR(s) allowed to reach the sidecar port. `0.0.0.0/0` is rejected by validation. |
 | `ecs_task_cpu` | `4096` | Fargate CPU units |
 | `ecs_task_memory` | `16384` | Fargate memory (MiB) |
 | `enable_efs` | `true` | Per-region EFS workspace filesystem |
@@ -162,7 +163,8 @@ For shared state (CI runners, multiple operators), copy [`stacks/ecs-sandbox/bac
 
 ## Security notes
 
-- The ECS-task security group's ingress is open to `0.0.0.0/0` on `ssh_tunnel_sshd_port`. **Tighten this to your orchestrator's egress IP** before using the sandbox for anything beyond a demo (see [`modules/ecs-sandbox-region/network.tf`](modules/ecs-sandbox-region/network.tf)).
+- The ECS-task security group's only ingress is `ssh_tunnel_sshd_port` restricted to `var.orchestrator_allowed_cidrs`. The variable is required and the stack rejects `0.0.0.0/0`; set it to the public egress CIDR(s) of the host(s) running NEL (laptop NAT, CI runner NAT, SLURM login node, etc.).
+- The orchestrator-side LLM endpoint is not exposed on the public internet. The sandbox reaches it via the SSH session's reverse tunnel (`-R`), which terminates on `127.0.0.1` on the orchestrator host. No inbound listener is added to the orchestrator host or to any other public surface.
 - The orchestrator user's access key is stored in Terraform state. Treat the state file as a secret, or move to a remote backend with encryption + access control before sharing.
 - The S3 staging bucket has Public Access Block enabled and a 7-day object expiry; do not put long-term data there.
 - Terraform files are scanned by SonarQube's bundled IaC analyzer in CI ([`sonar-project.properties`](../sonar-project.properties)). New rule findings will surface on every MR.

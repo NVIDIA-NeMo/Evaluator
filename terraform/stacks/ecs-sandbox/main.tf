@@ -43,6 +43,7 @@ module "us_east_1" {
   vpc_cidr                   = cidrsubnet(var.vpc_base_cidr, 8, local.region_cidr_index["us-east-1"])
   subnet_count               = var.subnet_count
   ssh_tunnel_sshd_port       = var.ssh_tunnel_sshd_port
+  orchestrator_allowed_cidrs = var.orchestrator_allowed_cidrs
   exec_server_port           = var.exec_server_port
   ecs_task_cpu               = var.ecs_task_cpu
   ecs_task_memory            = var.ecs_task_memory
@@ -67,6 +68,7 @@ module "us_east_2" {
   vpc_cidr                   = cidrsubnet(var.vpc_base_cidr, 8, local.region_cidr_index["us-east-2"])
   subnet_count               = var.subnet_count
   ssh_tunnel_sshd_port       = var.ssh_tunnel_sshd_port
+  orchestrator_allowed_cidrs = var.orchestrator_allowed_cidrs
   exec_server_port           = var.exec_server_port
   ecs_task_cpu               = var.ecs_task_cpu
   ecs_task_memory            = var.ecs_task_memory
@@ -91,6 +93,7 @@ module "us_west_1" {
   vpc_cidr                   = cidrsubnet(var.vpc_base_cidr, 8, local.region_cidr_index["us-west-1"])
   subnet_count               = var.subnet_count
   ssh_tunnel_sshd_port       = var.ssh_tunnel_sshd_port
+  orchestrator_allowed_cidrs = var.orchestrator_allowed_cidrs
   exec_server_port           = var.exec_server_port
   ecs_task_cpu               = var.ecs_task_cpu
   ecs_task_memory            = var.ecs_task_memory
@@ -115,6 +118,7 @@ module "us_west_2" {
   vpc_cidr                   = cidrsubnet(var.vpc_base_cidr, 8, local.region_cidr_index["us-west-2"])
   subnet_count               = var.subnet_count
   ssh_tunnel_sshd_port       = var.ssh_tunnel_sshd_port
+  orchestrator_allowed_cidrs = var.orchestrator_allowed_cidrs
   exec_server_port           = var.exec_server_port
   ecs_task_cpu               = var.ecs_task_cpu
   ecs_task_memory            = var.ecs_task_memory
@@ -139,6 +143,7 @@ module "ca_central_1" {
   vpc_cidr                   = cidrsubnet(var.vpc_base_cidr, 8, local.region_cidr_index["ca-central-1"])
   subnet_count               = var.subnet_count
   ssh_tunnel_sshd_port       = var.ssh_tunnel_sshd_port
+  orchestrator_allowed_cidrs = var.orchestrator_allowed_cidrs
   exec_server_port           = var.exec_server_port
   ecs_task_cpu               = var.ecs_task_cpu
   ecs_task_memory            = var.ecs_task_memory
@@ -163,6 +168,7 @@ module "eu_west_1" {
   vpc_cidr                   = cidrsubnet(var.vpc_base_cidr, 8, local.region_cidr_index["eu-west-1"])
   subnet_count               = var.subnet_count
   ssh_tunnel_sshd_port       = var.ssh_tunnel_sshd_port
+  orchestrator_allowed_cidrs = var.orchestrator_allowed_cidrs
   exec_server_port           = var.exec_server_port
   ecs_task_cpu               = var.ecs_task_cpu
   ecs_task_memory            = var.ecs_task_memory
@@ -187,6 +193,7 @@ module "eu_west_2" {
   vpc_cidr                   = cidrsubnet(var.vpc_base_cidr, 8, local.region_cidr_index["eu-west-2"])
   subnet_count               = var.subnet_count
   ssh_tunnel_sshd_port       = var.ssh_tunnel_sshd_port
+  orchestrator_allowed_cidrs = var.orchestrator_allowed_cidrs
   exec_server_port           = var.exec_server_port
   ecs_task_cpu               = var.ecs_task_cpu
   ecs_task_memory            = var.ecs_task_memory
@@ -211,6 +218,7 @@ module "eu_west_3" {
   vpc_cidr                   = cidrsubnet(var.vpc_base_cidr, 8, local.region_cidr_index["eu-west-3"])
   subnet_count               = var.subnet_count
   ssh_tunnel_sshd_port       = var.ssh_tunnel_sshd_port
+  orchestrator_allowed_cidrs = var.orchestrator_allowed_cidrs
   exec_server_port           = var.exec_server_port
   ecs_task_cpu               = var.ecs_task_cpu
   ecs_task_memory            = var.ecs_task_memory
@@ -235,6 +243,7 @@ module "eu_central_1" {
   vpc_cidr                   = cidrsubnet(var.vpc_base_cidr, 8, local.region_cidr_index["eu-central-1"])
   subnet_count               = var.subnet_count
   ssh_tunnel_sshd_port       = var.ssh_tunnel_sshd_port
+  orchestrator_allowed_cidrs = var.orchestrator_allowed_cidrs
   exec_server_port           = var.exec_server_port
   ecs_task_cpu               = var.ecs_task_cpu
   ecs_task_memory            = var.ecs_task_memory
@@ -259,6 +268,7 @@ module "eu_north_1" {
   vpc_cidr                   = cidrsubnet(var.vpc_base_cidr, 8, local.region_cidr_index["eu-north-1"])
   subnet_count               = var.subnet_count
   ssh_tunnel_sshd_port       = var.ssh_tunnel_sshd_port
+  orchestrator_allowed_cidrs = var.orchestrator_allowed_cidrs
   exec_server_port           = var.exec_server_port
   ecs_task_cpu               = var.ecs_task_cpu
   ecs_task_memory            = var.ecs_task_memory
@@ -283,6 +293,7 @@ module "sa_east_1" {
   vpc_cidr                   = cidrsubnet(var.vpc_base_cidr, 8, local.region_cidr_index["sa-east-1"])
   subnet_count               = var.subnet_count
   ssh_tunnel_sshd_port       = var.ssh_tunnel_sshd_port
+  orchestrator_allowed_cidrs = var.orchestrator_allowed_cidrs
   exec_server_port           = var.exec_server_port
   ecs_task_cpu               = var.ecs_task_cpu
   ecs_task_memory            = var.ecs_task_memory

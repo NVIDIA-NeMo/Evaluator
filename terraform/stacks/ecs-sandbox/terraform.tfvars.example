@@ -26,6 +26,12 @@ ecs_task_memory = 16384
 # SSH sidecar port. Must match NEL DEFAULT_SSHD_PORT; avoid 2222 (TB2 QEMU hostfwd collision).
 ssh_tunnel_sshd_port = 52222
 
+# CIDRs allowed to reach the sidecar port. Required. 0.0.0.0/0 is rejected.
+# Set to the public egress IP(s) of the host(s) running the NEL orchestrator
+# (laptop NAT, CI runner NAT, SLURM login node, etc.). Use `curl ifconfig.me`
+# from the orchestrator host to find its egress IP. Multiple entries OK.
+# orchestrator_allowed_cidrs = ["REPLACE_ME/32"]
+
 # Per-task exec server port. Must match NEL DEFAULT_EXEC_SERVER_PORT; avoid 5000 (TB2 hf-model-inference Flask collision).
 exec_server_port = 19542
 

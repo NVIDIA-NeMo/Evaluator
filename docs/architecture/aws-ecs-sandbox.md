@@ -97,8 +97,10 @@ to `backend.tf`, supply your bucket and lock table, and run `terraform init -rec
 
 ## Security
 
-- The ECS-task security group's inbound `ssh_tunnel_sshd_port` is open to `0.0.0.0/0` for the MWE. Tighten it to the orchestrator's egress IP before any non-demo use.
+- The ECS-task security group's only ingress is `ssh_tunnel_sshd_port` restricted to `var.orchestrator_allowed_cidrs`. The Terraform variable is required and rejects `0.0.0.0/0`; set it to the orchestrator host's public egress CIDR(s).
+- The orchestrator-side LLM endpoint is not exposed on the public internet: the sandbox reaches it via the SSH session's reverse tunnel (`-R`), which terminates on `127.0.0.1` on the orchestrator host.
 - The orchestrator's IAM access key lives in Terraform state. Either keep state local and treated as a secret, or use an encrypted remote backend with strict access control.
+- The Terraform tree is scanned by SonarQube's bundled IaC analyzer on every MR.
 
 ## Tear down
 

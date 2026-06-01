@@ -40,6 +40,21 @@ variable "ssh_tunnel_sshd_port" {
   default     = 52222
 }
 
+variable "orchestrator_allowed_cidrs" {
+  description = "CIDRs allowed to reach the SSH sidecar port. Set to the orchestrator host's public egress IP(s). 0.0.0.0/0 is rejected."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.orchestrator_allowed_cidrs) > 0
+    error_message = "orchestrator_allowed_cidrs must contain at least one CIDR."
+  }
+
+  validation {
+    condition     = !contains(var.orchestrator_allowed_cidrs, "0.0.0.0/0")
+    error_message = "orchestrator_allowed_cidrs must not contain 0.0.0.0/0; set this to your orchestrator's egress CIDR(s)."
+  }
+}
+
 variable "exec_server_port" {
   description = "Per-task exec server port. Must match NEL DEFAULT_EXEC_SERVER_PORT; avoid 5000 (TB2 hf-model-inference Flask collision)."
   type        = number
