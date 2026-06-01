@@ -22,6 +22,7 @@ import os
 import re
 import subprocess
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any
 
@@ -53,6 +54,15 @@ from nemo_evaluator.engine.step_log import INFERENCE_LOG, MODEL_TRAFFIC_LOG, VER
 from nemo_evaluator.orchestration.artifact_access import apply_artifact_access
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_EXECUTOR_MAX_WORKERS = 200
+
+
+def _install_default_executor(max_workers: int) -> ThreadPoolExecutor:
+    executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="nel-loop")
+    asyncio.get_running_loop().set_default_executor(executor)
+    return executor
+
 
 if TYPE_CHECKING:
     from nemo_evaluator.adapters.proxy import ProxyHandle
@@ -219,6 +229,7 @@ def _build_ecs_sandbox_config(cfg: EcsFargateSandbox) -> Any:
         dockerhub_secret_arn=dockerhub_secret_arn,
         efs_filesystem_id=efs_filesystem_id,
         efs_access_point_id=efs_access_point_id,
+        ssm_project=cfg.ssm_project,
     )
 
 
@@ -297,6 +308,8 @@ def _make_solver(
             cmd_timeout=getattr(solver_cfg, "cmd_timeout", None),
             timeout_strategy=getattr(solver_cfg, "timeout_strategy", "override"),
             max_agent_timeout=getattr(solver_cfg, "max_agent_timeout", None),
+            skill=getattr(solver_cfg, "skill", None),
+            skill_dir=getattr(solver_cfg, "skill_dir", None),
         )
 
     if isinstance(solver_cfg, GymDelegationSolverConfig):
@@ -935,6 +948,9 @@ async def _run_single_benchmark(
     from nemo_evaluator.observability.progress import ConsoleProgress
     from nemo_evaluator.templates import resolve_template_path
 
+    _install_default_executor(_DEFAULT_EXECUTOR_MAX_WORKERS)
+    logger.info("asyncio default ThreadPoolExecutor set to max_workers=%d", _DEFAULT_EXECUTOR_MAX_WORKERS)
+
     solver_cfg = bench.solver
     service_name: str | None = getattr(solver_cfg, "service", None)
 
@@ -1013,11 +1029,20 @@ async def _run_single_benchmark(
         return bundle
     finally:
         if judge_client is not None and hasattr(judge_client, "close"):
-            await judge_client.close()
+            try:
+                await judge_client.close()
+            except Exception:
+                logger.exception("Failed to close judge client for benchmark %s", bench.name)
         if proxy_handle is not None:
-            await proxy_handle.async_stop()
+            try:
+                await proxy_handle.async_stop()
+            except Exception:
+                logger.exception("Failed to stop adapter proxy for benchmark %s", bench.name)
         if model_traffic_store is not None:
-            model_traffic_store.close()
+            try:
+                model_traffic_store.close()
+            except Exception:
+                logger.exception("Failed to close model traffic store for benchmark %s", bench.name)
 
 
 def _load_prior_bundle(task_dir: str) -> dict[str, Any]:
