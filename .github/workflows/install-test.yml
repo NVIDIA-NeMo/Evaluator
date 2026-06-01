@@ -22,7 +22,7 @@ on:
     branches:
       - main
       - dev/0.3.0
-      - "**"
+      - "pull-request/[0-9]+"
       - "deploy-release/*"
 
 concurrency:
