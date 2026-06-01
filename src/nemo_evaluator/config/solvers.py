@@ -78,6 +78,20 @@ class HarborSolverConfig(BaseModel):
             "Useful with 'task' or 'max' strategy to cap runaway timeouts."
         ),
     )
+    skill: str | None = Field(
+        default=None,
+        description=(
+            "Skill name to inject into the task. NEL prepends a 'read /skills/<name>/SKILL.md' "
+            "trigger to the task instruction before the agent runs."
+        ),
+    )
+    skill_dir: str | None = Field(
+        default=None,
+        description=(
+            "Local path to a skill directory. Files are uploaded to /skills/<skill>/ "
+            "inside the container before the agent starts. Requires skill to also be set."
+        ),
+    )
 
 
 class AgentSolverConfig(BaseModel):
@@ -154,6 +168,7 @@ class OpenClawSolverConfig(BaseModel):
     context_window: int | None = None
     max_concurrent: int = 4
     idle_timeout_seconds: int = 600
+    web_search_provider: Literal["tavily"] | None = None
     config_path: str | None = None
     skip_preflight: bool = False
     openclaw_bin: str = "openclaw"

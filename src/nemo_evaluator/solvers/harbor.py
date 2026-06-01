@@ -752,8 +752,12 @@ class HarborSolver:
         cmd_timeout: float | None = None,
         timeout_strategy: str = "override",
         max_agent_timeout: float | None = None,
+        skill: str | None = None,
+        skill_dir: str | None = None,
     ) -> None:
         _check_harbor_installed()
+        self._skill = skill
+        self._skill_dir = Path(skill_dir) if skill_dir else None
         self._harbor_agent = harbor_agent
         self._harbor_agent_kwargs = harbor_agent_kwargs or {}
         self._model_url = model_url
@@ -917,6 +921,73 @@ class HarborSolver:
 
         return timed_out, agent_error
 
+    async def _inject_skill(self, sandbox: "Sandbox", prompt: str) -> str:
+        """Upload skill files to the container and prepend the skill trigger.
+
+        If ``skill_dir`` is configured, files are uploaded to
+        ``/skills/<skill>/`` before the agent starts so it can read them.
+        The instruction receives a preamble pointing at the skill file.
+
+        After uploading, verifies the primary SKILL.md landed in the container
+        and logs a clear ERROR if it didn't so failures aren't silent.
+        """
+        if not self._skill:
+            return prompt
+
+        import shlex
+
+        skill_dest = f"/skills/{self._skill}"
+        await sandbox.exec(f"mkdir -p {shlex.quote(skill_dest)}", timeout_sec=10)
+
+        if self._skill_dir and self._skill_dir.is_dir():
+            uploaded: list[str] = []
+            for skill_file in sorted(self._skill_dir.rglob("*")):
+                if skill_file.is_file():
+                    rel = skill_file.relative_to(self._skill_dir)
+                    dest_path = f"{skill_dest}/{rel}"
+                    if str(rel.parent) != ".":
+                        parent_dest = f"{skill_dest}/{rel.parent}"
+                        await sandbox.exec(f"mkdir -p {shlex.quote(parent_dest)}", timeout_sec=10)
+                    await sandbox.upload(skill_file, dest_path)
+                    uploaded.append(str(rel))
+            logger.info(
+                "HarborSolver: uploaded skill '%s' (%d files) from %s → %s",
+                self._skill,
+                len(uploaded),
+                self._skill_dir,
+                skill_dest,
+            )
+            # Verify the primary SKILL.md actually landed
+            verify = await sandbox.exec(
+                f"ls -la {skill_dest}/SKILL.md 2>&1 && cat {skill_dest}/SKILL.md | head -3",
+                timeout_sec=10,
+            )
+            if verify.return_code == 0:
+                logger.info(
+                    "HarborSolver: skill injection verified — %s/SKILL.md present: %s",
+                    skill_dest,
+                    verify.stdout.strip()[:120] if verify.stdout else "",
+                )
+            else:
+                logger.error(
+                    "HarborSolver: skill injection FAILED — %s/SKILL.md not found after upload "
+                    "(rc=%d stdout=%s). Check sandbox.upload() for this sandbox type.",
+                    skill_dest,
+                    verify.return_code,
+                    (verify.stdout or verify.stderr or "")[:200],
+                )
+        elif self._skill_dir:
+            logger.warning(
+                "HarborSolver: skill_dir '%s' does not exist — skipping upload",
+                self._skill_dir,
+            )
+
+        trigger = (
+            f"Before working on this task, read the skill guidance at "
+            f"`{skill_dest}/SKILL.md` and apply it throughout your work.\n\n"
+        )
+        return trigger + prompt
+
     async def solve(
         self,
         task: SeedResult,
@@ -1034,7 +1105,8 @@ class HarborSolver:
             jitter = random.uniform(0, min(120.0, run_timeout * 0.02))
             effective_timeout = run_timeout + jitter
 
-            agent_task = asyncio.create_task(agent.run(task.prompt, adapter, context))
+            prompt = await self._inject_skill(sandbox, task.prompt)
+            agent_task = asyncio.create_task(agent.run(prompt, adapter, context))
             agent_timed_out, agent_error = await self._wait_for_agent(
                 agent_task,
                 sandbox,

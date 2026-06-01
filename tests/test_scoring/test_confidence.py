@@ -114,8 +114,11 @@ class TestClusteredCI:
         Within each subject, scores are correlated (all high or all low)."""
         scores = []
         clusters = []
-        for subj, acc in [("math", 0.9), ("history", 0.6), ("science", 0.8), ("art", 0.5)]:
-            rng = np.random.default_rng(hash(subj) % 2**32)
+        for (subj, acc), seed in zip(
+            [("math", 0.9), ("history", 0.6), ("science", 0.8), ("art", 0.5)],
+            [17, 31, 53, 97],
+        ):
+            rng = np.random.default_rng(seed)
             scores.extend(list(rng.choice([0.0, 1.0], size=25, p=[1 - acc, acc])))
             clusters.extend([subj] * 25)
 
