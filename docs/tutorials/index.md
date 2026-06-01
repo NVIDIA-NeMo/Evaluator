@@ -12,6 +12,7 @@ skills-integration
 legacy-containers
 distributed-eval
 compare
+config-composition
 quality-gate
 adapters
 ```

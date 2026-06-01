@@ -18,12 +18,12 @@ on:
   push:
     branches:
       - main
-      - "pull-request/[0-9]+"
+      - "**"
       - "deploy-release/*"
 
 jobs:
   pre-flight:
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@v0.66.6
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@v0.73.2
 
   copyright-check:
     needs: [pre-flight]

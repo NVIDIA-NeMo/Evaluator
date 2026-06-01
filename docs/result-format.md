@@ -26,7 +26,7 @@ Each line is a JSON object representing one evaluation problem (or one repeat of
 
 ### Example
 
-```jsonl
+```text
 {"problem_idx": 0, "reward": 1.0, "repeat": 0, "expected_answer": "42", "model_response": "The answer is 42.", "metadata": {"category": "arithmetic"}}
 {"problem_idx": 0, "reward": 1.0, "repeat": 1, "expected_answer": "42", "model_response": "42", "metadata": {"category": "arithmetic"}}
 {"problem_idx": 0, "reward": 0.0, "repeat": 2, "expected_answer": "42", "model_response": "I think it's 41.", "metadata": {"category": "arithmetic"}}
