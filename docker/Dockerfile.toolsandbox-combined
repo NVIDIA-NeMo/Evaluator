@@ -1,0 +1,47 @@
+# ToolSandbox + NEL Next combined evaluation container.
+#
+# Used for SLURM runs where nested Docker is unavailable.  ToolSandbox is
+# installed in an isolated venv (/opt/toolsandbox-venv) so its pinned
+# dependencies (openai==1.17.0, etc.) do not conflict with NEL Next.
+#
+# Build:
+#   docker build -f docker/Dockerfile.toolsandbox-combined \
+#     -t toolsandbox-nel-combined:latest .
+#
+# Convert to squashfs for SLURM (run on a login node with Docker):
+#   enroot import -o /shared/nel/toolsandbox-nel-combined.sqsh \
+#     dockerd://toolsandbox-nel-combined:latest
+#
+# NEL Next config (subprocess runner):
+#   benchmarks:
+#     - name: toolsandbox
+#       params:
+#         runner: subprocess
+#         python_exe: /opt/toolsandbox-venv/bin/python
+#         entrypoint: /opt/toolsandbox_entrypoint.py
+#
+# Required env vars at runtime:
+#   NVIDIA_BASE_URL    – OpenAI-compatible base URL
+#   NVIDIA_API_KEY     – API key
+#   NVIDIA_AGENT_MODEL – model ID for the agent under evaluation
+#   NVIDIA_USER_MODEL  – model ID for user simulator
+
+ARG BASE_IMAGE=nemo-evaluator
+
+FROM ${BASE_IMAGE}
+
+# Install Python 3.11 for the ToolSandbox venv (avoids openai version conflicts
+# with NEL Next which uses the system Python 3.12)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3.11 python3.11-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG TOOLSANDBOX_REF=main
+
+# Create an isolated venv for ToolSandbox with its pinned deps
+RUN python3.11 -m venv /opt/toolsandbox-venv \
+    && /opt/toolsandbox-venv/bin/pip install --no-cache-dir \
+       "tool-sandbox[dev] @ git+https://github.com/apple/ToolSandbox.git@${TOOLSANDBOX_REF}" \
+       "httpx<0.28.0"
+
+COPY docker/toolsandbox_entrypoint.py /opt/toolsandbox_entrypoint.py

@@ -1,0 +1,56 @@
+# Flavor: ToolSandbox on SLURM (subprocess runner — no nested Docker)
+#
+# Uses the subprocess runner so ToolSandbox (pre-installed in
+# /opt/toolsandbox-venv inside the eval container) runs directly without
+# a nested Docker call.  Suitable for any SLURM cluster.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY set in environment (or in cluster.container_env)
+#   - toolsandbox-nel-combined squashfs on shared storage:
+#       docker build -f docker/Dockerfile.toolsandbox-combined \
+#           -t toolsandbox-nel-combined:latest .
+#       enroot import -o /shared/nel/toolsandbox-nel-combined.sqsh \
+#           dockerd://toolsandbox-nel-combined:latest
+#   - SSH access to the SLURM login node
+#
+# Dry-run: nel eval run examples/configs/toolsandbox_slurm.yaml --dry-run
+# Submit:  nel eval run examples/configs/toolsandbox_slurm.yaml --submit
+
+services:
+  nemotron:
+    type: api
+    url: https://inference-api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: azure/openai/gpt-4o
+    api_key: ${INFERENCE_API_KEY}
+
+benchmarks:
+  - name: toolsandbox
+    params:
+      runner: subprocess
+      python_exe: /opt/toolsandbox-venv/bin/python
+      entrypoint: /opt/toolsandbox_entrypoint.py
+      user_model: meta/llama-3.1-70b-instruct
+      parallel: 8
+      test_mode: false
+    solver:
+      type: simple
+      service: nemotron
+    timeout: 14400.0
+
+output:
+  dir: ./results/toolsandbox_slurm
+  report: [markdown, json]
+
+cluster:
+  type: slurm
+  hostname: ${SLURM_LOGIN_HOST}
+  account: ${SLURM_ACCOUNT}
+  walltime: "04:00:00"
+  eval_image: ${SHARED_ROOT}/nel/toolsandbox-nel-combined.sqsh
+  container_env:
+    INFERENCE_API_KEY: ${INFERENCE_API_KEY}
+  node_pools:
+    default:
+      partition: cpu
+      nodes: 1
