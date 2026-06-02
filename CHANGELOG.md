@@ -16,6 +16,10 @@
 - Updated BYOB, Gym, and NeMo Skills tutorials so their commands include required model settings and Python snippets are copy-paste runnable.
 - Synced the built-in benchmark catalog with the runtime registry and moved SWE-bench examples to the Harbor URI path.
 
+### Error Handling
+
+- Made run metadata writes tolerant of unavailable central run-store paths and converted `nel validate` runtime failures into concise Click errors.
+
 ### Adapter Proxy (Breaking — replaces LiteLLM)
 
 - **LiteLLM removed**: The `litellm` dependency, `proxy` and `proxy-full` extras, and `litellm_settings` config field are all removed. The adapter proxy is now built-in with zero external proxy dependencies.

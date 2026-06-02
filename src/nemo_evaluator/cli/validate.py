@@ -48,7 +48,10 @@ def validate_cmd(benchmark, samples, model_url, model_id, api_key, verbose):
     client = ModelClient(base_url=model_url, model=model_id, api_key=api_key)
     solver = ChatSolver(client)
 
-    bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1, max_problems=samples, progress=ConsoleProgress()))
+    try:
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1, max_problems=samples, progress=ConsoleProgress()))
+    except Exception as exc:
+        raise click.ClickException(f"Validation failed for {benchmark!r}: {exc}") from exc
     results = bundle.get("_results", [])
 
     correct = sum(1 for r in results if r["reward"] > 0)

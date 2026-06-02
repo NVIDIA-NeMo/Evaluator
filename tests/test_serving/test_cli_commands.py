@@ -111,6 +111,28 @@ class TestValidateCommand:
         result = runner.invoke(cli, ["eval", "validate", "/nonexistent_xyz.yaml"])
         assert result.exit_code != 0
 
+    @patch("nemo_evaluator.environments.registry.get_environment")
+    @patch("nemo_evaluator.engine.eval_loop.run_evaluation", side_effect=PermissionError("dataset cache is read-only"))
+    def test_validate_reports_runtime_failures_without_traceback(self, _mock_run, mock_get_env, runner):
+        mock_get_env.return_value = MagicMock()
+
+        result = runner.invoke(
+            cli,
+            [
+                "validate",
+                "-b",
+                "gsm8k",
+                "--model-url",
+                "https://example.test/v1",
+                "--model-id",
+                "test-model",
+            ],
+        )
+
+        assert result.exit_code != 0
+        assert "Validation failed for 'gsm8k'" in result.output
+        assert "dataset cache is read-only" in result.output
+
 
 class TestListCommand:
     def test_list_benchmarks(self, runner):
