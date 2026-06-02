@@ -61,10 +61,12 @@ def _list_builtin() -> list[str]:
 def _list_skills(data_dir: str | None) -> list[str]:
     try:
         from nemo_evaluator.environments.skills import list_skills_benchmarks
-    except ImportError:
-        return ["(nemo-skills not installed — pip install nemo-skills)"]
 
-    benchmarks = list_skills_benchmarks(data_dir)
+        benchmarks = list_skills_benchmarks(data_dir)
+    except ImportError:
+        return [
+            '(nemo-skills not installed — pip install "nemo-skills @ git+https://github.com/NVIDIA-NeMo/Skills.git")'
+        ]
     if not benchmarks:
         return ["(none — run: ns prepare_data <benchmark>)"]
 
