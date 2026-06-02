@@ -89,8 +89,6 @@ class TestGetErrorCategory:
 
 class TestCollectorInfraClassification:
     def test_infra_error_classified(self):
-        from nemo_evaluator.observability.collector import ArtifactCollector
-
         collector = ArtifactCollector()
         step = StepRecord(
             problem_idx=0,
@@ -102,8 +100,6 @@ class TestCollectorInfraClassification:
         assert step.failure_category == "infra_error"
 
     def test_graceful_falls_through_to_string_matching(self):
-        from nemo_evaluator.observability.collector import ArtifactCollector
-
         collector = ArtifactCollector()
         step = StepRecord(
             problem_idx=0,
@@ -118,8 +114,6 @@ class TestCollectorInfraClassification:
 
 class TestCollectorSolveTimeoutClassification:
     def test_solve_timeout_classified(self):
-        from nemo_evaluator.observability.collector import ArtifactCollector
-
         collector = ArtifactCollector()
         step = StepRecord(
             problem_idx=0,
@@ -134,8 +128,6 @@ class TestCollectorSolveTimeoutClassification:
         """`solve_timeout` must short-circuit before the substring scan, otherwise a
         model_error string containing 'timed out' would mis-bucket as 'timeout'
         (the HTTP-408/upstream-gateway-timeout label)."""
-        from nemo_evaluator.observability.collector import ArtifactCollector
-
         collector = ArtifactCollector()
         step = StepRecord(
             problem_idx=0,
@@ -148,8 +140,6 @@ class TestCollectorSolveTimeoutClassification:
         assert step.failure_category == "solve_timeout"
 
     def test_solve_timeout_does_not_collide_with_infra_error(self):
-        from nemo_evaluator.observability.collector import ArtifactCollector
-
         collector = ArtifactCollector()
         infra_step = StepRecord(
             problem_idx=0,
