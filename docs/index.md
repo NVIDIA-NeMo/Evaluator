@@ -155,6 +155,7 @@ tutorials/skills-integration
 tutorials/legacy-containers
 tutorials/distributed-eval
 tutorials/compare
+tutorials/config-composition
 tutorials/quality-gate
 tutorials/adapters
 :::
@@ -174,6 +175,7 @@ architecture/aws-ecs-sandbox
 
 evaluation/benchmarks
 evaluation/scoring
+result-format
 :::
 
 :::{toctree}

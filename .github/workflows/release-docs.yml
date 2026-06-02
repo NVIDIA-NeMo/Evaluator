@@ -1,4 +1,4 @@
-# Copyright (c) 2026, NVIDIA CORPORATION.
+# Copyright (c) 2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,12 +24,43 @@ on:
         description: Publish as Latest stable version.
         required: false
         type: boolean
-        default: false
+        default: true
       docs-version-override:
         description: Docs version if commit is not tagged
         required: false
         type: string
-        default: "0.3.0"
+        default: ""
+      update-version-picker:
+        description: Update version picker.
+        required: false
+        type: boolean
+        default: true
+      notify-emails:
+        description: Email addresses to send the notification to. Format as "me@me.com,you@you.com".
+        required: false
+        type: string
+      github-ref:
+        description: Github ref to checkout
+        required: false
+        type: string
+        default: ""
+  workflow_call:
+    inputs:
+      dry-run:
+        description: Whether to run the workflow in dry-run mode
+        required: false
+        type: boolean
+        default: true
+      publish-as-latest:
+        description: Publish as Latest stable version.
+        required: false
+        type: boolean
+        default: true
+      docs-version-override:
+        description: Docs version if commit is not tagged
+        required: false
+        type: string
+        default: ""
       update-version-picker:
         description: Update version picker.
         required: false
@@ -47,11 +78,9 @@ on:
 
 jobs:
   build-docs:
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_build_docs.yml@v0.80.2
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_build_docs.yml@v0.67.0
     with:
       ref: ${{ inputs.github-ref }}
-      requirements-file: .github/config/requirements.txt
-      fail-on-warning: false
 
   publish-docs:
     runs-on: ubuntu-latest
@@ -64,6 +93,11 @@ jobs:
           path: FW-CI-templates
 
       - uses: ./FW-CI-templates/.github/actions/publish-docs
+        # This workflow runs either on main, or on a version tag. Any other git ref will lead
+        # to an error.
+        # If its on main, it will publish to "latest" directory in Akamai.
+        # If its on a versioned tag, it will extract the version number from the tag (strip `v` prefix)
+        # and publish to the versioned directory in Akamai.
         with:
           dry-run: ${{ inputs.dry-run }}
           artifacts-name: docs-html
@@ -72,7 +106,7 @@ jobs:
           overwrite-latest-on-tag: ${{ inputs.publish-as-latest }}
           docs-version-override: ${{ inputs.docs-version-override }}
           update-version-picker: ${{ inputs.update-version-picker }}
-          run-on-version-tag-only: false
+          run-on-version-tag-only: ${{ github.ref_name != 'main' }}
           request-name: nemo-evaluator-publish-docs-${{ github.run_id }}
           aws-region: ${{ vars.DOCS_AWS_REGION }}
           aws-role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
@@ -83,4 +117,4 @@ jobs:
           akamai-client-secret: ${{ secrets.AKAMAI_CLIENT_SECRET }}
           akamai-access-token: ${{ secrets.AKAMAI_ACCESS_TOKEN }}
           s3-target-root: ${{ secrets.S3_BUCKET_NAME }}
-          s3-target-path: nemo/evaluator
+          s3-target-path: nemo/nemo-evaluator

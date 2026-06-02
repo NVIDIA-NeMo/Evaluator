@@ -100,10 +100,6 @@ allow-direct-references = true
 [tool.hatch.build.targets.wheel]
 packages = ["src/nemo_evaluator"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"src/nemo_evaluator/templates" = "nemo_evaluator/templates"
-"src/nemo_evaluator/playbooks" = "nemo_evaluator/playbooks"
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"

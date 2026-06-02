@@ -1,22 +1,22 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Lightweight OSS-side PR checks for the dev/0.3.0 release branch.
+# Lightweight OSS-side PR checks for the main release branch.
 #
 # The repo's heavier `cicd-main.yml` and friends only trigger on `main` and
-# the `pull-request/[0-9]+` mirror branches; PRs against `dev/0.3.0` get no
+# the `pull-request/[0-9]+` mirror branches; PRs against `main` get no
 # automated test coverage. This workflow fills that gap with five
 # essentials: pytest, ruff, install verification, copyright, and secrets.
 
-name: OSS PR checks (dev/0.3.0)
+name: OSS PR checks (main)
 
 on:
   pull_request:
     branches:
-      - dev/0.3.0
+      - main
   push:
     branches:
-      - dev/0.3.0
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
