@@ -100,6 +100,10 @@ allow-direct-references = true
 [tool.hatch.build.targets.wheel]
 packages = ["src/nemo_evaluator"]
 
+# registry_overrides lives outside src/ (and is renamed), so it needs an explicit
+# force-include. Data files under src/nemo_evaluator/ (templates, playbooks, …) are
+# already bundled by the `packages` entry above — re-listing them here would add the
+# same archive path twice, which newer hatchling rejects.
 [tool.hatch.build.targets.wheel.force-include]
 "harbor_datasets/registry_overrides" = "nemo_evaluator/_registry_overrides"
 
