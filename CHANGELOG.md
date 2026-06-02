@@ -1,6 +1,32 @@
 # Changelog
 
-## 0.3.0 (unreleased)
+## 0.3.0-dev (unreleased)
+
+This section tracks the `dev/0.3.0` branch after the initial 0.3.0 architecture snapshot below. It is not a final release tag.
+
+### Exporters and Observability
+
+- **`nel export` CLI**: Added a top-level export command for sending one or more bundles to registered exporters such as MLflow, Inspect, and WandB.
+- **MLflow proxied multipart upload**: Export paths support proxied multipart upload for large artifacts and remote tracking setups.
+- **Trace exporter**: Added a trace-oriented export path for preserving model calls, tool calls, and trajectory details.
+- **Model usage statistics**: Eval runs now collect model usage and token statistics, including prompt, completion, total, cached, and reasoning token fields when providers return them.
+
+### Deployment
+
+- **Dynamo multi-node deployment**: Added ai-dynamo deployment support, including SGLang worker orchestration and multi-node deployment paths.
+- **SGLang multi-node support**: SLURM deployment can launch multi-node SGLang-backed services and track chained job IDs more reliably.
+- **ECS Fargate reference stack**: Added a Terraform reference stack for the ECS Fargate sandbox executor.
+- **Dev wheel publishing**: `dev/0.3.0` publishes rolling development wheels with `.devN` version stamping.
+
+### Solvers and Benchmarks
+
+- **OracleSolver**: Added an oracle solver for infrastructure-ceiling and harness validation runs.
+- **Terminal-Bench-Hard**: Added Terminal-Bench-Hard benchmark coverage for measuring terminal-task infrastructure ceilings.
+
+### Adapter Proxy Additions
+
+- **Reasoning replay interceptor**: Added a `reasoning_replay` interceptor for replaying reasoning traces through the adapter pipeline.
+- **Payload modifier custom headers**: Extended payload modification support to include custom request headers.
 
 ### CLI
 
