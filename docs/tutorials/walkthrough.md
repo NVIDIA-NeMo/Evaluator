@@ -640,13 +640,20 @@ nel eval merge ./results
 ```yaml
 benchmarks:
   - name: "container://registry.example.com/nemo-skills:26.03#gsm8k"
+    params:                          # eval-factory harness params
+      temperature: 1.0
+      top_p: 0.95
+      parallelism: 128
+      extra:
+        num_repeats: 16
     solver:
       type: container
       service: nemotron
-      uri: "container://registry.example.com/nemo-skills:26.03#gsm8k"
-    sandbox:
-      type: docker
-      timeout: 3600.0
+      adapter_config:                # passed verbatim to harness's adapter pipeline
+        use_reasoning: true
+        params_to_remove: [max_tokens, max_completion_tokens]
+      env_vars: { HF_TOKEN: ${HF_TOKEN} }
+      mounts: {}
 ```
 
 The `container://` scheme runs an existing eval harness container as an opaque box. The container owns the full eval loop — NEL parses `results.yml` and `eval_factory_metrics.json` from the output.

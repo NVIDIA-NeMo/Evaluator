@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 
 import pytest
+import yaml
 from click.testing import CliRunner
 
 from nemo_evaluator.cli.export import _parse_override, _parse_value, export_cmd
@@ -277,6 +278,81 @@ class TestCLI:
         assert result.exit_code == 0, result.output
         benchmark_names = {b["benchmark"]["name"] for b in captured["bundles"]}
         assert benchmark_names == {"gsm8k", "mmlu"}
+
+    def test_legacy_results_are_materialized_before_export(self, tmp_path, monkeypatch):
+        captured = {}
+
+        class _FakeExporter:
+            def __init__(self, **kwargs):
+                pass
+
+            def export(self, bundles, config=None):
+                captured["bundles"] = bundles
+
+        monkeypatch.setattr(
+            "nemo_evaluator.engine.exporters.get_exporter",
+            lambda name, **kw: _FakeExporter(**kw),
+        )
+
+        run = tmp_path / "legacy-run"
+        bench_dir = run / "container___legacy"
+        results_dir = bench_dir / "results"
+        results_dir.mkdir(parents=True)
+        (bench_dir / "run_config.yaml").write_text(
+            yaml.dump({"config": {"type": "ifeval", "output_dir": "/results"}}),
+            encoding="utf-8",
+        )
+        (results_dir / "results.yml").write_text(
+            yaml.dump(
+                {
+                    "results": {
+                        "tasks": {
+                            "ifeval": {
+                                "metrics": {
+                                    "prompt_level": {
+                                        "scores": {
+                                            "strict_acc": {
+                                                "value": 0.75,
+                                                "stats": {"count": 4},
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        output_dir = results_dir / "eval-results" / "ifeval"
+        output_dir.mkdir(parents=True)
+        (output_dir / "output.jsonl").write_text(
+            "\n".join(
+                json.dumps({"problem_idx": i, "problem": f"p{i}", "generation": f"g{i}", "symbolic_correct": i < 3})
+                for i in range(4)
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(export_cmd, [str(run), "--dest", "mlflow", "-o", "tracking_uri=http://x"])
+
+        assert result.exit_code == 0, result.output
+        assert list(bench_dir.glob("eval-*.json"))
+        assert (bench_dir / "results.jsonl").read_text(encoding="utf-8").count("\n") == 4
+        assert captured["bundles"][0]["benchmark"]["name"] == "container/ifeval"
+        assert captured["bundles"][0]["benchmark"]["samples"] == 4
+        assert [row["reward"] for row in captured["bundles"][0]["_results"]] == [1.0, 1.0, 1.0, 0.0]
+
+        (bench_dir / "results.jsonl").write_text("", encoding="utf-8")
+        captured.clear()
+        result = runner.invoke(export_cmd, [str(run), "--dest", "mlflow", "-o", "tracking_uri=http://x"])
+
+        assert result.exit_code == 0, result.output
+        assert (bench_dir / "results.jsonl").read_text(encoding="utf-8").count("\n") == 4
+        assert len(captured["bundles"][0]["_results"]) == 4
 
     def test_output_dir_is_run_dir_not_bench_dir(self, tmp_path, monkeypatch):
         """Regression: ``output_dir`` must be the run dir (parent of the bench

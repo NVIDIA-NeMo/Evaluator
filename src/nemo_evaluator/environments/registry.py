@@ -155,7 +155,8 @@ def _make_container(rest: str, **kwargs: Any) -> "EvalEnvironment":
         image, task = rest.rsplit("#", 1)
     else:
         image, task = rest, ""
-    return ContainerEnvironment(image=image, task=task)
+    user_params = kwargs.get("params") or {}
+    return ContainerEnvironment(image=image, task=task, legacy_params=user_params)
 
 
 def _make_harbor(rest: str, **kwargs: Any) -> "EvalEnvironment":

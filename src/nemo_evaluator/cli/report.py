@@ -20,7 +20,7 @@ from pathlib import Path
 
 import click
 
-from nemo_evaluator.reports.eval import RENDERERS, build_table, load_bundles
+from nemo_evaluator.reports.eval import RENDERERS, build_table, discover_bundle_paths, load_bundles
 
 
 @click.command("report")
@@ -30,16 +30,7 @@ from nemo_evaluator.reports.eval import RENDERERS, build_table, load_bundles
 def report_cmd(bundle_paths, fmt, output):
     """Generate a multi-benchmark evaluation report from bundle JSON files."""
     paths = [Path(p) for p in bundle_paths]
-    expanded: list[Path] = []
-    for p in paths:
-        if p.is_dir():
-            top = sorted(p.glob("eval-*.json"))
-            if top:
-                expanded.extend(top)
-            else:
-                expanded.extend(sorted(p.glob("*/eval-*.json")))
-        else:
-            expanded.append(p)
+    expanded = discover_bundle_paths(paths)
 
     if not expanded:
         raise click.ClickException(

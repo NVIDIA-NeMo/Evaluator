@@ -41,8 +41,12 @@ Usage in NEL config:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import os
+import re
+import shutil
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -66,6 +70,217 @@ _NEL_PROTOCOL_TO_LEGACY_TYPE = {
     "responses": "chat",
 }
 
+# Matches `-e KEY=VALUE` argv pairs (either joined or split) so values don't leak to logs.
+_REDACT_ENV_VALUE = re.compile(r"(-e\s+\w+=)\S+")
+
+
+def build_legacy_run_config(
+    task: str,
+    model_url: str,
+    model_id: str,
+    endpoint_type: str,
+    extra_params: dict[str, Any] | None = None,
+    adapter_config: dict[str, Any] | None = None,
+    api_key: str | None = None,
+) -> dict[str, Any]:
+    """Build a legacy Evaluator ``run_config.yaml`` dict.
+
+    Module-level so callers outside ``ContainerEnvironment`` (slurm_gen
+    pre-rendering at submit time) can produce the same yaml the
+    in-process docker dispatch path produces.
+
+    The container's ``nemo-evaluator run_eval --run_config <path>``
+    entrypoint consumes this and merges it with the baked-in
+    ``framework.yml`` defaults.
+
+    ``api_key_name`` is only emitted when *api_key* is truthy.  Mirrors
+    v1 launcher's behaviour for self-deployed vLLM services where the
+    hydra config sets ``target.api_endpoint.api_key_name: null`` — the
+    harness then skips the ``os.environ[NEMO_API_KEY]`` lookup, which
+    would otherwise raise ``ValueError`` when no real key exists.
+    """
+    api_endpoint: dict[str, Any] = {
+        "url": model_url,
+        "model_id": model_id,
+        "type": endpoint_type,
+    }
+    if api_key:
+        api_endpoint["api_key_name"] = _API_KEY_ENV
+    if adapter_config:
+        api_endpoint["adapter_config"] = adapter_config
+    run_config: dict[str, Any] = {
+        "config": {
+            "type": task,
+            "output_dir": _CONTAINER_RESULTS_DIR,
+        },
+        "target": {"api_endpoint": api_endpoint},
+    }
+    if extra_params:
+        run_config["config"]["params"] = extra_params
+    return run_config
+
+
+def parse_legacy_results(results_dir: Path) -> dict[str, Any]:
+    """Parse ``results.yml`` / ``results.json`` from a legacy harness.
+
+    Returns ``{"scores": {...}, "samples": <int>, "repeats": <int>}``.
+    Module-level so post-job report steps can call it without
+    instantiating ``ContainerEnvironment``.
+    """
+    results_file = results_dir / "results.yml"
+    results_json = results_dir / "results.json"
+
+    raw: dict[str, Any] = {}
+    if results_file.exists():
+        raw = yaml.safe_load(results_file.read_text()) or {}
+    elif results_json.exists():
+        raw = json.loads(results_json.read_text())
+
+    scores = ContainerEnvironment._extract_scores(raw)
+    samples = ContainerEnvironment._extract_sample_count(raw, scores)
+    repeats = _extract_repeats(raw)
+    return {"scores": scores, "samples": samples, "repeats": repeats}
+
+
+def _extract_repeats(raw: dict[str, Any]) -> int:
+    """Read ``config.params.extra.num_repeats`` from a legacy harness
+    output.  The eval-factory wrapper round-trips the run_config back
+    into ``results.yml`` so this field is the source of truth for how
+    many times each problem was actually evaluated.  Defaults to 1
+    matching :attr:`BenchmarkConfig.repeats` for native-env bundles.
+    """
+    cfg = raw.get("config") or {}
+    params = cfg.get("params") or {}
+    extra = params.get("extra") or {}
+    n = extra.get("num_repeats")
+    try:
+        return int(n) if n else 1
+    except (TypeError, ValueError):
+        return 1
+
+
+def build_legacy_bundle(image: str, task: str, results_dir: Path) -> dict[str, Any]:
+    """Build a NEL result bundle from a legacy harness ``results.yml``.
+
+    The bundle structure matches what
+    :meth:`ContainerEnvironment.run_batch` returns for the in-process
+    dispatch path, so post-job conversion produces artifacts identical
+    to the live-orchestrator path.
+    """
+    parsed = parse_legacy_results(results_dir)
+    rows = _parse_legacy_output_rows(results_dir)
+    name = f"container/{task or image.split('/')[-1].split(':')[0]}"
+    bundle: dict[str, Any] = {
+        "benchmark": {
+            "name": name,
+            "samples": parsed["samples"],
+            "repeats": parsed["repeats"],
+            "scores": parsed["scores"],
+        },
+        "config": {
+            "benchmark": name,
+            "image": image,
+            "task": task,
+            "framework": "container",
+        },
+    }
+    if rows:
+        bundle["_results"] = rows
+        bundle["n_results"] = len(rows)
+    return bundle
+
+
+def _parse_legacy_output_rows(results_dir: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for path in sorted(results_dir.glob("eval-results/**/output*.jsonl")):
+        with path.open(encoding="utf-8") as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    logger.warning("Skipping malformed legacy output row in %s: %s", path, exc)
+                    continue
+                if isinstance(record, dict):
+                    rows.append(record)
+
+    repeat_counts: dict[Any, int] = {}
+    normalized: list[dict[str, Any]] = []
+    for fallback_idx, row in enumerate(rows):
+        result = dict(row)
+        problem_idx = result.get("problem_idx", fallback_idx)
+        result["problem_idx"] = problem_idx
+        if result.get("repeat") is None:
+            result["repeat"] = repeat_counts.get(problem_idx, 0)
+        repeat_counts[problem_idx] = repeat_counts.get(problem_idx, 0) + 1
+
+        reward = _legacy_row_reward(result)
+        if reward is not None:
+            result.setdefault("reward", reward)
+
+        result.setdefault("prompt", result.get("problem") or result.get("question") or result.get("input", ""))
+        result.setdefault(
+            "model_response", result.get("generation") or result.get("response") or result.get("output", "")
+        )
+        if "expected_answer" not in result and "answer" in result:
+            result["expected_answer"] = result["answer"]
+        if "extracted_answer" not in result and "predicted_answer" in result:
+            result["extracted_answer"] = result["predicted_answer"]
+        result.setdefault("metadata", {})
+        result.setdefault("scoring_details", {})
+        normalized.append(result)
+
+    return normalized
+
+
+def _legacy_row_reward(row: dict[str, Any]) -> float | None:
+    for key in ("reward", "score"):
+        value = row.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return float(value)
+
+    for key in ("symbolic_correct", "correct", "is_correct", "passed", "success"):
+        value = row.get(key)
+        if isinstance(value, bool):
+            return 1.0 if value else 0.0
+        if isinstance(value, (int, float)):
+            return float(value)
+
+    return None
+
+
+def _redact_cmd_for_log(cmd: list[str]) -> str:
+    """Render an argv for log output with ``-e KEY=VALUE`` values redacted."""
+    joined = " ".join(cmd)
+    return _REDACT_ENV_VALUE.sub(r"\1<REDACTED>", joined)
+
+
+def _runs_on_slurm() -> bool:
+    """True when the current process is inside a SLURM allocation.
+
+    When set, ``ContainerEnvironment`` dispatches via ``srun
+    --container-image`` (Pyxis/Enroot) instead of ``docker run`` — HPC
+    compute nodes (e.g., HSG) typically don't have Docker.
+
+    To force the Docker path on a SLURM node, ``unset SLURM_JOB_ID``
+    before invoking nel.
+    """
+    return bool(os.environ.get("SLURM_JOB_ID"))
+
+
+def _resolve_pyxis_image(image: str) -> str:
+    """Format an image string for Pyxis ``--container-image=``.
+
+    File paths (``/srv/.../foo.sqsh``) pass through unchanged; registry
+    URIs (``nvcr.io/x:tag``, ``registry.example.com:5005/.../x:tag``)
+    get a ``docker://`` prefix so enroot imports them on first use.
+    """
+    if image.startswith(("/", "docker://")):
+        return image
+    return f"docker://{image}"
+
 
 class ContainerEnvironment(EvalEnvironment):
     """Runs a legacy eval-factory container and parses its results.
@@ -84,9 +299,9 @@ class ContainerEnvironment(EvalEnvironment):
         api_key: str | None = None,
         endpoint_type: str = "chat",
         legacy_params: dict[str, Any] | None = None,
+        adapter_config: dict[str, Any] | None = None,
         extra_env: dict[str, str] | None = None,
         extra_mounts: list[str] | None = None,
-        pre_cmd: str | None = None,
         timeout: float = 3600.0,
     ) -> None:
         super().__init__()
@@ -98,9 +313,9 @@ class ContainerEnvironment(EvalEnvironment):
         self._api_key = api_key
         self._endpoint_type = endpoint_type
         self._legacy_params = legacy_params or {}
+        self._adapter_config = adapter_config
         self._extra_env = extra_env or {}
         self._extra_mounts = extra_mounts or []
-        self._pre_cmd = pre_cmd
         self._timeout = timeout
 
     async def dataset_size(self) -> int:
@@ -126,8 +341,21 @@ class ContainerEnvironment(EvalEnvironment):
         api_key = self._api_key or config.get("api_key", "")
         endpoint_type = config.get("endpoint_type", self._endpoint_type)
         extra_params = {**self._legacy_params, **config.get("params", {})}
+        adapter_config = config.get("adapter_config") or self._adapter_config
+        cfg_env_vars: dict[str, str] = config.get("env_vars") or {}
+        cfg_mounts: dict[str, str] = config.get("mounts") or {}
 
-        with tempfile.TemporaryDirectory(prefix="nel_container_") as tmpdir:
+        # Manual mkdtemp + try/finally + shutil.rmtree(ignore_errors=True):
+        # legacy eval-factory images run as root and write artifacts
+        # (cache.db, response_stats_cache/) owned by root into the bind-mounted
+        # /results.  On Linux these can't be unlinked by the host's non-root
+        # user.  ``TemporaryDirectory(ignore_cleanup_errors=True)`` is not
+        # enough — its onexc handler still calls _resetperms which raises
+        # PermissionError before the ignore_errors guard, masking the
+        # successful bundle return.  ``shutil.rmtree(ignore_errors=True)`` is
+        # documented "never raises" and skips the chmod entirely.
+        tmpdir = tempfile.mkdtemp(prefix="nel_container_")
+        try:
             results_dir = Path(tmpdir) / "results"
             results_dir.mkdir()
 
@@ -136,47 +364,53 @@ class ContainerEnvironment(EvalEnvironment):
                 model_id,
                 endpoint_type,
                 extra_params,
+                adapter_config,
+                api_key=api_key,
             )
             config_path = Path(tmpdir) / "run_config.yaml"
             config_path.write_text(yaml.dump(run_config, sort_keys=False), encoding="utf-8")
 
-            cmd = self._build_docker_cmd(results_dir, config_path)
+            mounts = list(self._extra_mounts) + [f"{host}:{cont}" for host, cont in cfg_mounts.items()]
 
             env_vars: dict[str, str] = {}
             if api_key:
                 env_vars[_API_KEY_ENV] = api_key
             env_vars.update(self._extra_env)
+            env_vars.update(cfg_env_vars)
 
-            for k, v in env_vars.items():
-                cmd.extend(["-e", f"{k}={v}"])
+            eval_cmd = (
+                "cmd=$(command -v nemo-evaluator >/dev/null 2>&1"
+                " && echo nemo-evaluator || echo eval-factory)"
+                f" && $cmd run_eval --run_config {_CONTAINER_CONFIG_PATH}"
+            )
+            inner_command = ["bash", "-c", eval_cmd]
 
-            cmd.append(self._image)
-
-            if self._pre_cmd:
-                cmd.extend(["bash", "-c", self._pre_cmd])
-            else:
-                cmd.extend(
-                    [
-                        "run_eval",
-                        "--run_config",
-                        _CONTAINER_CONFIG_PATH,
-                        "--output_dir",
-                        _CONTAINER_RESULTS_DIR,
-                    ]
+            if _runs_on_slurm():
+                if shutil.which("srun") is None:
+                    raise RuntimeError(
+                        "SLURM_JOB_ID is set but `srun` is not in PATH. "
+                        "Either run inside an sbatch step on a SLURM cluster, "
+                        "or unset SLURM_JOB_ID to force the Docker dispatch."
+                    )
+                logger.info(
+                    "Detected SLURM_JOB_ID=%s — dispatching via Pyxis (srun --container-image)",
+                    os.environ.get("SLURM_JOB_ID"),
                 )
+                cmd, subprocess_env = self._build_srun_cmd(results_dir, config_path, mounts, env_vars, inner_command)
+            else:
+                cmd, subprocess_env = self._build_docker_cmd(results_dir, config_path, mounts, env_vars, inner_command)
 
-            logger.info("Running container: %s", " ".join(cmd[:12]) + " ...")
+            logger.info("Running container: %s ...", _redact_cmd_for_log(cmd[:12]))
 
-            import asyncio as _aio
-
-            proc = await _aio.create_subprocess_exec(
+            proc = await asyncio.create_subprocess_exec(
                 *cmd,
-                stdout=_aio.subprocess.PIPE,
-                stderr=_aio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=subprocess_env,
             )
             try:
-                stdout, stderr = await _aio.wait_for(proc.communicate(), timeout=self._timeout)
-            except _aio.TimeoutError:
+                _stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=self._timeout)
+            except asyncio.TimeoutError:
                 proc.kill()
                 await proc.wait()
                 stderr = b"timeout"
@@ -184,7 +418,9 @@ class ContainerEnvironment(EvalEnvironment):
             if proc.returncode != 0:
                 logger.error("Container failed (exit %d): %s", proc.returncode, (stderr or b"").decode()[:2000])
 
-            return self._parse_results(results_dir, proc.returncode or 0)
+            return self._parse_results(results_dir)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
     # ------------------------------------------------------------------
     # Legacy run_config generation
@@ -196,36 +432,41 @@ class ContainerEnvironment(EvalEnvironment):
         model_id: str,
         endpoint_type: str,
         extra_params: dict[str, Any],
+        adapter_config: dict[str, Any] | None = None,
+        api_key: str | None = None,
     ) -> dict[str, Any]:
-        """Build a legacy Evaluator ``run_config.yaml``.
-
-        The generated YAML is consumed by the container's
-        ``nemo-evaluator run_eval --run_config <path>`` entrypoint, which
-        merges it with the baked-in ``framework.yml`` defaults.
+        """Thin wrapper around :func:`build_legacy_run_config` that
+        forwards this environment's task name.  Kept on the class so
+        callers that already have a ``ContainerEnvironment`` instance
+        don't need to pass ``task`` again.
         """
-        run_config: dict[str, Any] = {
-            "config": {
-                "type": self._task,
-                "output_dir": _CONTAINER_RESULTS_DIR,
-            },
-            "target": {
-                "api_endpoint": {
-                    "url": model_url,
-                    "model_id": model_id,
-                    "api_key_name": _API_KEY_ENV,
-                    "type": endpoint_type,
-                },
-            },
-        }
-        if extra_params:
-            run_config["config"]["params"] = extra_params
-        return run_config
+        return build_legacy_run_config(
+            task=self._task,
+            model_url=model_url,
+            model_id=model_id,
+            endpoint_type=endpoint_type,
+            extra_params=extra_params,
+            adapter_config=adapter_config,
+            api_key=api_key,
+        )
 
     # ------------------------------------------------------------------
     # Docker plumbing
     # ------------------------------------------------------------------
 
-    def _build_docker_cmd(self, results_dir: Path, config_path: Path) -> list[str]:
+    def _build_docker_cmd(
+        self,
+        results_dir: Path,
+        config_path: Path,
+        mounts: list[str],
+        env_vars: dict[str, str],
+        inner_command: list[str],
+    ) -> tuple[list[str], dict[str, str] | None]:
+        """Build a complete ``docker run`` argv.
+
+        Returns ``(argv, env)`` where ``env`` is ``None`` so the subprocess
+        inherits the parent environment (env values travel inline via ``-e``).
+        """
         cmd = [
             "docker",
             "run",
@@ -235,49 +476,76 @@ class ContainerEnvironment(EvalEnvironment):
             "-v",
             f"{config_path}:{_CONTAINER_CONFIG_PATH}:ro",
         ]
-        for mount in self._extra_mounts:
+        for mount in mounts:
             cmd.extend(["-v", mount])
-        return cmd
+        for k, v in env_vars.items():
+            cmd.extend(["-e", f"{k}={v}"])
+        cmd.append(self._image)
+        cmd.extend(inner_command)
+        return cmd, None
+
+    def _build_srun_cmd(
+        self,
+        results_dir: Path,
+        config_path: Path,
+        mounts: list[str],
+        env_vars: dict[str, str],
+        inner_command: list[str],
+    ) -> tuple[list[str], dict[str, str]]:
+        """Build a ``srun --container-image`` argv for Pyxis/Enroot.
+
+        Pyxis differs from Docker in flag syntax:
+
+        - **Mounts**: a single comma-separated ``--container-mounts=H1:C1,H2:C2``
+          flag instead of repeated ``-v`` args.
+        - **Env vars**: ``--container-env=K1 --container-env=K2 ...`` lists
+          *names only*; Pyxis inherits the values from the caller's process
+          env.  We return the values as the subprocess ``env`` dict so
+          :func:`asyncio.create_subprocess_exec` propagates them.
+
+        Eval-factory containers are single-node by design (they iterate
+        problems and call out to the model server over HTTP), so we hardcode
+        ``--nodes=1 --ntasks=1`` and use ``--overlap`` to share the existing
+        sbatch allocation.  Het-jobs and master-IP pinning are out of scope
+        for this MR — see follow-up issue.
+
+        ``--no-container-mount-home`` prevents Pyxis from mounting the
+        caller's ``$HOME`` into the container; legacy eval-factory images
+        run as root and could otherwise pollute the user's home dir.
+        """
+        all_mounts = [
+            f"{results_dir}:{_CONTAINER_RESULTS_DIR}",
+            f"{config_path}:{_CONTAINER_CONFIG_PATH}:ro",
+            *mounts,
+        ]
+        cmd = [
+            "srun",
+            "--mpi=pmix",
+            "--overlap",
+            "--unbuffered",
+            "--nodes=1",
+            "--ntasks=1",
+            f"--container-image={_resolve_pyxis_image(self._image)}",
+            f"--container-mounts={','.join(all_mounts)}",
+            "--no-container-mount-home",
+        ]
+        cmd.extend(f"--container-env={name}" for name in env_vars)
+        cmd.extend(inner_command)
+        return cmd, {**os.environ, **env_vars}
 
     # ------------------------------------------------------------------
     # Results parsing (handles both legacy and simple formats)
     # ------------------------------------------------------------------
 
-    def _parse_results(self, results_dir: Path, exit_code: int) -> dict[str, Any]:
+    def _parse_results(self, results_dir: Path) -> dict[str, Any]:
         """Parse container output into NEL bundle format.
 
-        Supports two result layouts:
-
-        1. **Legacy Evaluator** — ``results.yml`` with nested
-           ``results.tasks.<task>.metrics.<group>.scores.<metric>.value``
-        2. **Simple** — flat ``metrics:`` or ``scores:`` dict at the top
-           level of ``results.yml`` / ``results.json``.
+        Thin wrapper around :func:`build_legacy_bundle` so the in-process
+        docker/srun path produces the same bundle shape that
+        ``nel eval report`` later materialises from ``results.yml`` for
+        ``--submit`` runs.
         """
-        results_file = results_dir / "results.yml"
-        results_json = results_dir / "results.json"
-
-        raw: dict[str, Any] = {}
-        if results_file.exists():
-            raw = yaml.safe_load(results_file.read_text()) or {}
-        elif results_json.exists():
-            raw = json.loads(results_json.read_text())
-
-        scores = self._extract_scores(raw)
-
-        return {
-            "benchmark": {
-                "name": self.name,
-                "samples": raw.get("samples", raw.get("n_samples", 0)),
-                "scores": scores,
-            },
-            "config": {
-                "benchmark": self.name,
-                "image": self._image,
-                "task": self._task,
-                "framework": "container",
-            },
-            "_container_exit_code": exit_code,
-        }
+        return build_legacy_bundle(self._image, self._task, results_dir)
 
     @staticmethod
     def _extract_scores(raw: dict[str, Any]) -> dict[str, Any]:
@@ -344,3 +612,27 @@ class ContainerEnvironment(EvalEnvironment):
             elif isinstance(value, dict) and "value" in value:
                 scores[key] = value
         return scores
+
+    @staticmethod
+    def _extract_sample_count(raw: dict[str, Any], scores: dict[str, Any]) -> int:
+        """Extract sample count from results.
+
+        Tries (in order): top-level ``samples`` / ``n_samples``,
+        ``stats.count`` from the first scored metric, and finally
+        ``config.params.limit_samples`` from the eval-factory run_config
+        — needed for harnesses like lm-eval-harness that don't emit a
+        per-metric count.
+        """
+        for key in ("samples", "n_samples"):
+            val = raw.get(key)
+            if val is not None:
+                return int(val)
+        for score_data in scores.values():
+            if isinstance(score_data, dict):
+                count = (score_data.get("stats") or {}).get("count")
+                if count is not None:
+                    return int(count)
+        limit = (raw.get("config") or {}).get("params", {}).get("limit_samples")
+        if isinstance(limit, int) and limit > 0:
+            return limit
+        return 0

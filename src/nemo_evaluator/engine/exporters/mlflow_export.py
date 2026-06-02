@@ -416,7 +416,8 @@ class MLflowExporter:
 
         benchmark = bundle.get("benchmark", {}) or {}
         safe_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", benchmark.get("name", "unknown"))
-        task_dir = output_dir / safe_name
+        output_path = bundle.get("_output_path")
+        task_dir = Path(output_path) if output_path else output_dir / safe_name
 
         if not task_dir.exists():
             # Fallback for in-process flows that export before materializing.
