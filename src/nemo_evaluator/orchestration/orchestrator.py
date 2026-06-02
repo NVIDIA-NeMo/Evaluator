@@ -871,6 +871,7 @@ def _build_batch_config(
     api_key: str | None,
     solver_cfg: Any,
     svc: Any,
+    cluster: Any = None,
 ) -> dict[str, Any]:
     """Build the config dict for ``env.run_batch()``."""
     cfg: dict[str, Any] = {"base_url": model_url, "model": model_id, "api_key": api_key}
@@ -881,8 +882,16 @@ def _build_batch_config(
 
     protocol = getattr(svc, "protocol", "chat_completions") if svc else "chat_completions"
     cfg["endpoint_type"] = solver_cfg.endpoint_type or _NEL_PROTOCOL_TO_LEGACY_TYPE.get(protocol, "chat")
-    if solver_cfg.params:
-        cfg["params"] = solver_cfg.params
+    if solver_cfg.adapter_config:
+        cfg["adapter_config"] = solver_cfg.adapter_config
+    # cluster.container_env is the global env-var bag (already honored by the
+    # docker/slurm dispatch paths); solver.env_vars overrides per-benchmark.
+    cluster_env = dict(getattr(cluster, "container_env", {}) or {})
+    merged_env = {**cluster_env, **solver_cfg.env_vars}
+    if merged_env:
+        cfg["env_vars"] = merged_env
+    if solver_cfg.mounts:
+        cfg["mounts"] = solver_cfg.mounts
     return cfg
 
 
@@ -955,7 +964,20 @@ async def _run_single_benchmark(
     service_name: str | None = getattr(solver_cfg, "service", None)
 
     model_url, model_id, api_key, svc = _resolve_service_connection(config, handles, service_name)
-    model_url, proxy_handle, model_traffic_store = _start_proxy(model_url, model_id, api_key, svc, service_name)
+    if isinstance(solver_cfg, ContainerSolverConfig):
+        proxy_cfg = getattr(svc, "proxy", None) if svc else None
+        if proxy_cfg is not None and proxy_cfg.needs_proxy:
+            raise ValueError(
+                f"Service {service_name!r} configures a nel-next adapter proxy "
+                f"(interceptors/extra_body/verbose), but benchmark {bench.name!r} "
+                f"uses ContainerEnvironment which runs the container's internal "
+                f"adapter. Configure interceptors via 'solver.adapter_config' "
+                f"instead — it is passed verbatim into the container's run_config."
+            )
+        proxy_handle = None
+        model_traffic_store = None
+    else:
+        model_url, proxy_handle, model_traffic_store = _start_proxy(model_url, model_id, api_key, svc, service_name)
 
     judge_client = None
     try:
@@ -973,7 +995,9 @@ async def _run_single_benchmark(
         )
 
         shard_info = shard_from_env()
-        batch_config = _build_batch_config(model_url, model_id, api_key, solver_cfg, svc)
+        batch_config = _build_batch_config(
+            model_url, model_id, api_key, solver_cfg, svc, cluster=getattr(config, "cluster", None)
+        )
         batch_result = await env.run_batch(solver=solver, config=batch_config)
         if batch_result is not None:
             return _finalize_batch_result(batch_result, shard_info, bench.name, env, output_dir)

@@ -730,13 +730,44 @@ class TestArtifactPolicy:
         assert "results.jsonl" not in names
         assert "eval-mmlu-000.json" in names
 
+    def test_exporter_uses_bundle_output_path_for_artifacts(self, mlflow_fake, tmp_path, monkeypatch):
+        from nemo_evaluator.engine.exporters import mlflow_export
 
-mlflow_real = pytest.importorskip("mlflow", reason="mlflow not installed")
+        out_root = tmp_path / "out"
+        task_dir = out_root / "container___legacy_task"
+        task_dir.mkdir(parents=True)
+        (task_dir / "eval-container-001.json").write_text('{"run_id":"eval-container-001"}')
+        (task_dir / "results.jsonl").write_text('{"problem_idx":0}\n')
+
+        logged: list[tuple[str, str | None, Path]] = []
+
+        def fake_log_artifact(path, artifact_path=None):
+            p = Path(path)
+            logged.append((p.name, artifact_path, p.parent))
+
+        monkeypatch.setattr(
+            mlflow_export.mlflow,
+            "log_artifact",
+            staticmethod(fake_log_artifact),
+            raising=False,
+        )
+
+        bundle = _make_bundle("container/ifeval", run_id="eval-container-001")
+        bundle["_output_path"] = str(task_dir)
+        mlflow_export.MLflowExporter(
+            tracking_uri="http://mlflow",
+            only_required=True,
+            copy_artifacts=True,
+        ).export([bundle], config={"output_dir": str(out_root)})
+
+        assert ("eval-container-001.json", "container_ifeval", task_dir) in logged
+        assert ("results.jsonl", "container_ifeval", task_dir) in logged
 
 
 @pytest.fixture
 def mlflow_file_tracking(tmp_path, monkeypatch):
     """Point the exporter at a file:// tracking store under tmp_path."""
+    mlflow_real = pytest.importorskip("mlflow", reason="mlflow not installed")
     store = tmp_path / "mlruns"
     store.mkdir()
     uri = f"file://{store}"

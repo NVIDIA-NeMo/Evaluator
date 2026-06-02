@@ -19,7 +19,8 @@ from __future__ import annotations
 import os
 import re
 import shlex
-from pathlib import Path
+import uuid
+from pathlib import Path, PurePosixPath
 
 import yaml
 
@@ -34,6 +35,11 @@ from nemo_evaluator.config import (
     SlurmSandbox,
 )
 from nemo_evaluator.config.clusters import _parse_walltime
+from nemo_evaluator.config.solvers import ContainerSolverConfig
+from nemo_evaluator.environments.container import (
+    _NEL_PROTOCOL_TO_LEGACY_TYPE,
+    build_legacy_run_config,
+)
 from nemo_evaluator.orchestration.artifact_access import chmod_a_rx, warn_if_parent_chain_lacks_execute
 from nemo_evaluator.orchestration.image_resolver import (
     default_base_image,
@@ -67,6 +73,10 @@ _HEADER = """\
 set -uo pipefail
 export NEL_INNER_EXECUTION=1
 export PYTHONUNBUFFERED=1
+# Stable namespace for shared filesystem coordination between sibling
+# Pyxis containers (e.g. legacy gym deployment companion + eval container).
+# Pinned at submit time so auto-resume chain links share the same path.
+export NEL_INVOCATION_ID={nel_invocation_id}
 
 export OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
@@ -160,6 +170,10 @@ _HEADER_HETJOB_FOOTER = """\
 set -uo pipefail
 export NEL_INNER_EXECUTION=1
 export PYTHONUNBUFFERED=1
+# Stable namespace for shared filesystem coordination between sibling
+# Pyxis containers (e.g. legacy gym deployment companion + eval container).
+# Pinned at submit time so auto-resume chain links share the same path.
+export NEL_INVOCATION_ID={nel_invocation_id}
 
 export OUTPUT_DIR="{output_dir}"
 NEL_EXIT_CODE=0
@@ -531,6 +545,31 @@ fi
 if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
 """
 
+
+_TASK_LEGACY_CONTAINER = """\
+# Benchmark {idx}/{total}: {bench_name} (legacy container, direct dispatch)
+echo ""
+echo "============================================================"
+echo "  Benchmark {idx}/{total}: {bench_name} (legacy, repeats={repeats})"
+echo "============================================================"
+echo "  Logs: $OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log"
+mkdir -p "{results_dir}"
+{reexport}\
+if [ -f "{results_dir}/results.yml" ] || [ -f "{results_dir}/results.json" ]; then
+    echo "  Already complete (results.yml present), skipping."
+else
+    srun --mpi=pmix --overlap --unbuffered --nodes 1 --ntasks 1{node_flag} \\
+        --container-image {harness_image} \\
+        --container-mounts={mounts} \\
+        {home_flag}{env_flags} \\
+        bash -c '$(command -v nemo-evaluator >/dev/null 2>&1 && echo nemo-evaluator || echo eval-factory) run_eval --run_config {run_config_in_container}' \\
+        2>&1 | stdbuf -oL tee -a "$OUTPUT_DIR/logs/eval-{safe_name}-$SLURM_JOB_ID.log"
+    _EVAL_RC=${{PIPESTATUS[0]}}
+    ln -sf "eval-{safe_name}-$SLURM_JOB_ID.log" "$OUTPUT_DIR/logs/eval-{safe_name}.log"
+    if [ $_EVAL_RC -ne 0 ]; then echo "  FAILED: {bench_name}"; NEL_EXIT_CODE=1; fi
+fi
+"""
+
 _REPORT = """\
 # Generate reports
 echo ""
@@ -538,6 +577,24 @@ echo "=== Generating reports ==="
 {report_commands}
 chmod a+rx "$OUTPUT_DIR"/report.* 2>/dev/null || true
 """
+
+_EXPORT = """\
+# Export results
+echo ""
+echo "=== Exporting results ==="
+{export_commands}
+"""
+
+_EXPORT_CONFIG_FILE = "export_config.yaml"
+_LEGACY_SHARDING_ERROR = (
+    "cluster.shards is not supported for legacy container:// benchmarks. "
+    "Legacy harness run_config.yaml has no NEL shard range, so each shard would run the same work."
+)
+
+
+def _has_multiple_shards(shards: int | None) -> bool:
+    return shards is not None and shards > 1
+
 
 _PREFLIGHT_IMAGE_CHECK = """\
 # Pre-flight: verify container images are pullable
@@ -1374,6 +1431,7 @@ def _service_block(
     reexport_cmds: str = "",
     mount_home: bool = True,
     pool_to_het: dict[str, int] | None = None,
+    extra_mounts: list[str] | None = None,
 ) -> str:
     upper = _safe(name).upper()
     pool = getattr(svc, "node_pool", None)
@@ -1420,7 +1478,7 @@ def _service_block(
                 cluster_mounts=cluster_mounts or [],
                 env_keys=env_keys or [],
                 mount_home=mount_home,
-                extra_mounts=model_mount + ["$OUTPUT_DIR:$OUTPUT_DIR"],
+                extra_mounts=model_mount + ["$OUTPUT_DIR:$OUTPUT_DIR"] + list(extra_mounts or []),
             )
         tp_flag = f"{tp_flag_name} {svc.tensor_parallel_size} " if svc.tensor_parallel_size else ""
         pp_flag = (
@@ -1455,11 +1513,20 @@ def _service_block(
         else:
             full_cmd = main_cmd
 
-        script_lines = ["set -euo pipefail"] + list(setup_list)
-        if num_nodes > 1 and svc.type == "sglang":
-            script_lines.append('NEL_NODE_RANK="${1:-0}"')
-            script_lines.append("export NEL_NODE_RANK")
-        script_lines.append(full_cmd)
+        if getattr(svc, "pre_cmd", None):
+            # User-supplied pre_cmd replaces the default service command
+            # (e.g. ``vllm serve``).  Used to port v1 launcher
+            # ``deployment.pre_cmd`` blocks for legacy gym etc., where the
+            # user owns the entire service-side script (vLLM startup,
+            # fake-health, gym poll-execute).  ``set -euo pipefail`` stays
+            # off — the user controls error semantics.
+            script_lines = [svc.pre_cmd]
+        else:
+            script_lines = ["set -euo pipefail"] + list(setup_list)
+            if num_nodes > 1 and svc.type == "sglang":
+                script_lines.append('NEL_NODE_RANK="${1:-0}"')
+                script_lines.append("export NEL_NODE_RANK")
+            script_lines.append(full_cmd)
         script_file = f"_svc_{safe_name}_cmd_$SLURM_JOB_ID.sh"
         script_heredoc = (
             f"cat > \"$OUTPUT_DIR/logs/{script_file}\" <<'_NEMO_SVC_CMD_EOF_'\n"
@@ -1819,6 +1886,91 @@ def _get_probe_url(
     return f"http://localhost:{port}{health}"
 
 
+def _is_legacy_container_bench(bench) -> bool:
+    """True iff a benchmark uses the v1 BC container bridge."""
+    return isinstance(bench.solver, ContainerSolverConfig)
+
+
+def _runs_legacy_container_bench(config: EvalConfig) -> bool:
+    return any(_is_legacy_container_bench(bench) for bench in config.benchmarks)
+
+
+# Where the pre-rendered run_config.yaml is mounted inside the harness.
+_LEGACY_RUN_CONFIG_PATH = "/config/run_config.yaml"
+# Where /results is mounted inside the harness; matches container.py.
+_LEGACY_RESULTS_PATH = "/results"
+
+
+def _parse_container_uri(name: str) -> tuple[str, str]:
+    """Split ``container://image#task`` into (image, task)."""
+    rest = name[len("container://") :] if name.startswith("container://") else name
+    if "#" in rest:
+        image, task = rest.rsplit("#", 1)
+        return image, task
+    return rest, ""
+
+
+def _resolve_legacy_url(svc, service_name: str, protocol_to_legacy: dict[str, str]) -> tuple[str, str, str]:
+    """Resolve (model_url, model_id, endpoint_type) for a legacy harness.
+
+    Mirrors the runtime path in ``orchestrator._resolve_service_connection``
+    + ``_build_batch_config`` so submit-time rendering produces the same
+    ``run_config.yaml`` the live dispatch path would generate.
+    """
+    if isinstance(svc, ExternalApiService):
+        url = svc.url
+        model_id = svc.model or service_name
+    else:
+        # Managed model server (vllm/sglang/nim/docker_model): URL is
+        # ``http://localhost:<port>/v1/<protocol-suffix>``.  We append the
+        # protocol-specific suffix so the harness sees the full endpoint.
+        suffix = {
+            "chat_completions": "/chat/completions",
+            "completions": "/completions",
+            "responses": "/responses",
+        }.get(getattr(svc, "protocol", "chat_completions"), "/chat/completions")
+        url = f"{svc.base_url}{suffix}"
+        model_id = getattr(svc, "served_model_name", None) or getattr(svc, "model", "")
+    proto = getattr(svc, "protocol", "chat_completions")
+    endpoint_type = protocol_to_legacy.get(proto, "chat")
+    return url, model_id, endpoint_type
+
+
+def _render_legacy_run_config(bench, services) -> dict:
+    """Render the legacy ``run_config.yaml`` dict for a v1 BC bench.
+
+    Pure function — no filesystem side effects.  The caller
+    (:func:`_write_single_script`) writes the result to disk so that
+    ``generate_sbatch`` stays a pure script-generator.
+    """
+    solver: ContainerSolverConfig = bench.solver  # type: ignore[assignment]
+    svc = services.get(solver.service)
+    if svc is None:
+        raise ValueError(f"Benchmark {bench.name!r} references service {solver.service!r} which is not defined")
+    proxy_cfg = getattr(svc, "proxy", None)
+    if proxy_cfg is not None and proxy_cfg.needs_proxy:
+        raise ValueError(
+            f"Service {solver.service!r} configures a nel-next adapter proxy "
+            f"(interceptors/extra_body/extra_headers/verbose), but benchmark {bench.name!r} "
+            "uses legacy container:// SLURM dispatch. Configure legacy adapter behavior via "
+            "'solver.adapter_config' instead."
+        )
+
+    _image, task = _parse_container_uri(bench.name)
+    model_url, model_id, default_endpoint = _resolve_legacy_url(svc, solver.service, _NEL_PROTOCOL_TO_LEGACY_TYPE)
+    endpoint_type = solver.endpoint_type or default_endpoint
+
+    return build_legacy_run_config(
+        task=task,
+        model_url=model_url,
+        model_id=model_id,
+        endpoint_type=endpoint_type,
+        extra_params=bench.params or None,
+        adapter_config=solver.adapter_config,
+        api_key=getattr(svc, "api_key", None),
+    )
+
+
 def _find_sandbox_bench(config: EvalConfig):
     """Return the first benchmark with a SLURM/Apptainer sandbox that has a node_pool."""
     for b in config.benchmarks:
@@ -1986,6 +2138,12 @@ def generate_sbatch(
     standalone per-shard job (no ``--array``).  Each shard gets its own
     output sub-directory (``shard_N/``) and auto-resume chain.
 
+    Pure script-generator: never touches the filesystem.  For
+    ``container://`` benchmarks the script references a pre-rendered
+    ``run_config.yaml`` at ``{output_dir}/{safe_name}/run_config.yaml`` —
+    :func:`write_sbatch` is responsible for materializing that file (via
+    :func:`_render_legacy_run_config` + ``yaml.dump``).
+
     Returns:
         (script_text, sidecar_configs, secrets_result)
     """
@@ -1996,6 +2154,12 @@ def generate_sbatch(
     parent_output_dir = config.output.dir
     output_dir = f"{parent_output_dir}/shard_{shard_idx}" if shard_idx is not None else parent_output_dir
     job_name = _safe(config.benchmarks[0].name) if len(config.benchmarks) == 1 else "multi"
+    # NEL_INVOCATION_ID: a hex token unique to this submission, exported in
+    # the sbatch header and propagated into every Pyxis container via
+    # --container-env=NEL_INVOCATION_ID.  Used by legacy gym deployments
+    # to namespace their shared-filesystem coordination dir
+    # (/cache/huggingface/$NEL_INVOCATION_ID/).
+    nel_invocation_id = uuid.uuid4().hex
     account_line = f"#SBATCH --account={cluster.account}" if cluster.account else ""
     sbatch_comment_line = f"#SBATCH --comment={shlex.quote(cluster.sbatch_comment)}" if cluster.sbatch_comment else ""
     sbatch_extra_lines = _format_sbatch_extra_flags(cluster.sbatch_extra_flags)
@@ -2008,19 +2172,53 @@ def generate_sbatch(
     # --- Build env groups for disambiguated .secrets.env ---
     env_groups: dict[str, dict[str, str]] = {}
 
+    # v1 BC: solver.env_vars on a container:// benchmark mirrors v1
+    # launcher's container-agnostic ``env_vars:`` block — values reach
+    # both deployment and evaluation containers.  Pre-aggregate per-svc
+    # so a multi-bench config sharing a service unions correctly.
+    legacy_svc_env_vars: dict[str, dict[str, str]] = {}
+    for bench in config.benchmarks:
+        if not _is_legacy_container_bench(bench):
+            continue
+        solver: ContainerSolverConfig = bench.solver  # type: ignore[assignment]
+        if not solver.env_vars:
+            continue
+        legacy_svc_env_vars.setdefault(solver.service, {}).update({k: str(v) for k, v in solver.env_vars.items()})
+
     for name, svc in config.services.items():
-        svc_env = {**cluster.container_env, **getattr(svc, "extra_env", {})}
+        svc_env = {**cluster.container_env, **getattr(svc, "extra_env", {}), **legacy_svc_env_vars.get(name, {})}
         if svc_env:
             env_groups[f"svc_{name}"] = svc_env
 
     for bench in config.benchmarks:
         eval_env = dict(cluster.container_env)
+        # Legacy v1 BC bridge: also fold in the harness's bearer token
+        # (NEMO_API_KEY, drawn from the linked service's resolved api_key)
+        # and the solver's user-declared env_vars (HF_TOKEN,
+        # OPENAI_API_KEY, …).  Going through the secrets mechanism keeps
+        # values out of the sbatch script and out of git.
+        if _is_legacy_container_bench(bench):
+            solver: ContainerSolverConfig = bench.solver  # type: ignore[assignment]
+            svc = config.services.get(solver.service)
+            api_key = getattr(svc, "api_key", None) if svc else None
+            if api_key:
+                eval_env["NEMO_API_KEY"] = str(api_key)
+            for k, v in (solver.env_vars or {}).items():
+                eval_env[k] = str(v)
         if eval_env:
             env_groups[f"eval_{_safe(bench.name)}"] = eval_env
 
     secrets_result = generate_secrets_env(env_groups)
 
-    _IMPLICIT_KEYS = ["PYTHONUNBUFFERED", "NEL_INNER_EXECUTION", "NEL_SHARD_IDX", "NEL_TOTAL_SHARDS"]
+    _IMPLICIT_KEYS = [
+        "PYTHONUNBUFFERED",
+        "NEL_INNER_EXECUTION",
+        "NEL_SHARD_IDX",
+        "NEL_TOTAL_SHARDS",
+        # Forwarded into every Pyxis container so user pre_cmd scripts and
+        # gym's eval-factory wrapper can use it as a shared-mount namespace.
+        "NEL_INVOCATION_ID",
+    ]
 
     parts: list[str] = []
 
@@ -2063,6 +2261,7 @@ def generate_sbatch(
                 sbatch_comment_line=sbatch_comment_line,
                 sbatch_extra_lines=sbatch_extra_lines,
                 het_echo_lines=het_echo_lines,
+                nel_invocation_id=nel_invocation_id,
             )
         )
     else:
@@ -2084,12 +2283,16 @@ def generate_sbatch(
                 account_line=account_line,
                 sbatch_comment_line=sbatch_comment_line,
                 sbatch_extra_lines=sbatch_extra_lines,
+                nel_invocation_id=nel_invocation_id,
             )
         )
 
     is_shard_script = shard_idx is not None
 
-    if cluster.shards is not None and not is_shard_script:
+    if is_shard_script and _runs_legacy_container_bench(config) and _has_multiple_shards(total_shards):
+        raise ValueError(_LEGACY_SHARDING_ERROR)
+
+    if _has_multiple_shards(cluster.shards) and not is_shard_script:
         raise ValueError(
             "generate_sbatch must not be called directly with cluster.shards set. "
             "Use write_sbatch which generates per-shard scripts."
@@ -2137,11 +2340,48 @@ def generate_sbatch(
     if cluster.conda_env:
         parts.append(_CONDA_ACTIVATE.format(conda_env=cluster.conda_env))
 
+    # When a legacy ``container://`` benchmark depends on a service, the
+    # gym CLI (or whatever harness runs in that container) writes results
+    # to ``/results``.  In nel-next, ``_TASK_LEGACY_CONTAINER`` mounts
+    # ``<run_dir>/<safe>/results`` at ``/results`` *only* in the eval
+    # container.  When the harness's actual writes happen on the
+    # deployment side via ``pre_cmd`` (gym Pattern A), the deployment
+    # container needs the same ``/results`` bind so those writes persist
+    # — otherwise gym writes into ephemeral container storage and the
+    # eval-factory output parser finds an empty results dir.  v1 launcher
+    # auto-adds ``<task_artifacts>:/results`` as the first deployment
+    # mount unconditionally (slurm/executor.py:826-828); we mirror that.
+    #
+    # Restriction: ``/results`` is a single bind point per container, so
+    # if multiple legacy benchmarks reference the same service we use the
+    # first one's results dir.  In Pattern A topologies this is 1:1.
+    legacy_results_mount_by_svc: dict[str, str] = {}
+    legacy_results_dirs: list[str] = []
+    for bench in config.benchmarks:
+        if not _is_legacy_container_bench(bench):
+            continue
+        bench_svc = _get_solver_service(bench)
+        if not bench_svc or bench_svc in legacy_results_mount_by_svc:
+            continue
+        bench_safe = _safe(bench.name)
+        bench_results_dir = f"{output_dir}/{bench_safe}/results"
+        legacy_results_mount_by_svc[bench_svc] = f"{bench_results_dir}:{_LEGACY_RESULTS_PATH}"
+        legacy_results_dirs.append(bench_results_dir)
+
+    # Pyxis requires the host-side bind source to exist BEFORE the service
+    # srun starts.  ``_TASK_LEGACY_CONTAINER`` mkdir's its own ``results/``
+    # later in the script, but that's too late for the service block we're
+    # about to emit — so create those dirs up front.
+    if legacy_results_dirs:
+        mkdir_lines = "\n".join(f'mkdir -p "{d}"' for d in legacy_results_dirs)
+        parts.append(mkdir_lines + "\n")
+
     for name, svc in config.services.items():
         group_name = f"svc_{name}"
         svc_env_keys = reexport_keys(group_name, secrets_result) + _IMPLICIT_KEYS
         svc_env_keys = list(dict.fromkeys(svc_env_keys))
         svc_reexport = build_reexport_commands(group_name, secrets_result)
+        legacy_mount = legacy_results_mount_by_svc.get(name)
         parts.append(
             _service_block(
                 name,
@@ -2152,6 +2392,7 @@ def generate_sbatch(
                 reexport_cmds=svc_reexport,
                 mount_home=cluster.mount_home,
                 pool_to_het=pool_to_het if use_het else None,
+                extra_mounts=[legacy_mount] if legacy_mount else None,
             )
         )
 
@@ -2297,6 +2538,85 @@ def generate_sbatch(
         model_id_var = f"{upper}_MODEL"
         safe_name = _safe(bench.name)
 
+        # ----- Legacy v1 BC bridge: direct sibling-srun for the harness.
+        # The harness is self-contained (eval-factory owns the loop), so
+        # nel-next has nothing to do mid-eval.  We pre-render run_config.yaml
+        # at submit time and emit a single ``srun --container-image=<harness>``
+        # alongside (not nested inside) any eval_image wrap — the same
+        # sibling pattern slurm_gen already uses for managed services.
+        # See `_TASK_LEGACY_CONTAINER` for the rendered shape.
+        if _is_legacy_container_bench(bench):
+            harness_image, _task = _parse_container_uri(bench.name)
+            # Validate render works at submit time (raises early on
+            # missing/misconfigured service); the actual file is written by
+            # write_sbatch via the same helper.
+            _render_legacy_run_config(bench, config.services)
+            rc_path = f"{output_dir}/{safe_name}/run_config.yaml"
+            results_dir = f"{output_dir}/{safe_name}/results"
+
+            solver: ContainerSolverConfig = bench.solver  # type: ignore[assignment]
+            user_mounts = [f"{h}:{c}" for h, c in (solver.mounts or {}).items()]
+            mounts = list(
+                dict.fromkeys(
+                    [
+                        f"{rc_path}:{_LEGACY_RUN_CONFIG_PATH}:ro",
+                        f"{results_dir}:{_LEGACY_RESULTS_PATH}",
+                        *list(cluster.container_mounts),
+                        *user_mounts,
+                    ]
+                )
+            )
+
+            # Env keys come from the secrets group built above (NEMO_API_KEY
+            # + solver.env_vars + cluster.container_env), so values stay in
+            # the sourced .secrets.env and never appear in the script itself.
+            group_name = f"eval_{safe_name}"
+            env_keys = reexport_keys(group_name, secrets_result) + _IMPLICIT_KEYS
+            env_keys = list(dict.fromkeys(env_keys))
+            env_flags = " ".join(f"--container-env={k}" for k in env_keys)
+            reexport_lines = build_reexport_commands(group_name, secrets_result)
+            reexport_block = (reexport_lines + "\n") if reexport_lines else ""
+            home_flag = "" if cluster.mount_home else "--no-container-mount-home "
+
+            # Co-locate the legacy harness srun with the head node of the
+            # service it depends on.  Pyxis on the same node shares the host
+            # network namespace, so the eval-factory adapter proxy on
+            # 127.0.0.1:<port> in this container is reachable from the
+            # service's container (e.g. gym CLI) only when both run on the
+            # same node.  Mirror the existing ``_eval_srun_prefix`` rule:
+            # het-mode → pin to the service's het-group; single-pool
+            # multi-node → pin to ``$MASTER_IP`` (the service head).  Single-
+            # node services need no flag — sbatch already runs there.
+            _legacy_node_flag = ""
+            solver_svc = config.services.get(svc_name) if svc_name else None
+            if solver_svc is not None:
+                if use_het:
+                    svc_pool = getattr(solver_svc, "node_pool", None)
+                    if svc_pool and svc_pool in pool_to_het:
+                        _legacy_node_flag = f" --het-group={pool_to_het[svc_pool]}"
+                elif getattr(solver_svc, "num_nodes", 1) > 1:
+                    _legacy_node_flag = " -w $MASTER_IP"
+
+            parts.append(
+                _TASK_LEGACY_CONTAINER.format(
+                    idx=i,
+                    total=total,
+                    bench_name=bench.name,
+                    repeats=bench.repeats,
+                    safe_name=safe_name,
+                    results_dir=results_dir,
+                    reexport=reexport_block,
+                    harness_image=harness_image,
+                    mounts=",".join(mounts),
+                    home_flag=home_flag,
+                    env_flags=env_flags,
+                    node_flag=_legacy_node_flag,
+                    run_config_in_container=_LEGACY_RUN_CONFIG_PATH,
+                )
+            )
+            continue
+
+        # ----- Native env path (unchanged).
         eval_image = ""
         if use_containers:
             eval_image = resolve_eval_image(bench.name, base_override=base_override) or default_base_image(
@@ -2374,6 +2694,16 @@ def generate_sbatch(
             report_cmds.append(f'{eval_run_prefix}nel eval report "$OUTPUT_DIR" -f {fmt} -o "$OUTPUT_DIR/report.{ext}"')
         if report_cmds:
             parts.append(_REPORT.format(report_commands="\n".join(report_cmds)))
+        export_cmds = []
+        export_config_arg = f' --config "$OUTPUT_DIR/{_EXPORT_CONFIG_FILE}"' if config.output.export_config else ""
+        if _runs_legacy_container_bench(config):
+            for exporter_name in config.output.export:
+                export_cmds.append(
+                    f'{eval_run_prefix}nel export "$OUTPUT_DIR" --dest {shlex.quote(exporter_name)}'
+                    f'{export_config_arg} --output-dir "$OUTPUT_DIR"'
+                )
+        if export_cmds:
+            parts.append(_EXPORT.format(export_commands="\n".join(export_cmds)))
 
     if sb_bench and isinstance(sb_bench.sandbox, ApptainerSandbox):
         het_group_flag = (
@@ -2460,6 +2790,15 @@ def _sidecar_contains_secret(cfg_dict: dict) -> bool:
     return False
 
 
+def _write_export_config(out: Path, export_config: dict) -> Path | None:
+    if not export_config:
+        return None
+    path = out / _EXPORT_CONFIG_FILE
+    path.write_text(yaml.dump(export_config, default_flow_style=False, sort_keys=False), encoding="utf-8")
+    path.chmod(0o600)
+    return path
+
+
 def _write_single_script(
     out: Path,
     script: str,
@@ -2467,8 +2806,15 @@ def _write_single_script(
     secrets_result: SecretsEnvResult,
     *,
     dry_run: bool = False,
+    legacy_run_configs: dict[str, dict] | None = None,
 ) -> tuple[Path, list[Path]]:
-    """Write one sbatch script + its sidecar/secrets into *out*."""
+    """Write one sbatch script + its sidecar/secrets into *out*.
+
+    For ``container://`` benchmarks (passed in *legacy_run_configs*), the
+    pre-rendered legacy ``run_config.yaml`` is written under
+    ``{out}/{safe_name}/run_config.yaml`` so the harness srun can
+    bind-mount it.
+    """
     out.mkdir(parents=True, exist_ok=True)
     logs_dir = out / "logs"
     logs_dir.mkdir(exist_ok=True)
@@ -2502,6 +2848,13 @@ def _write_single_script(
             chmod_a_rx(cfg_path)
         extra_paths.append(cfg_path)
 
+    for safe_name, run_config in (legacy_run_configs or {}).items():
+        bench_dir = out / safe_name
+        bench_dir.mkdir(parents=True, exist_ok=True)
+        rc_path = bench_dir / "run_config.yaml"
+        rc_path.write_text(yaml.dump(run_config, default_flow_style=False, sort_keys=False), encoding="utf-8")
+        extra_paths.append(rc_path)
+
     return path, extra_paths
 
 
@@ -2524,6 +2877,27 @@ def write_sbatch(
     artifact_root = Path(config.output.dir)
     cluster = config.cluster
     n_shards = getattr(cluster, "shards", None) if isinstance(cluster, SlurmCluster) else None
+    if _has_multiple_shards(n_shards) and _runs_legacy_container_bench(config):
+        raise ValueError(_LEGACY_SHARDING_ERROR)
+    if n_shards == 1 and _runs_legacy_container_bench(config):
+        n_shards = None
+
+    common_extras: list[Path] = []
+    if config.output.export and _runs_legacy_container_bench(config):
+        out.mkdir(parents=True, exist_ok=True)
+        export_config_path = _write_export_config(out, config.output.export_config)
+        if export_config_path is not None:
+            common_extras.append(export_config_path)
+
+    # Pre-render legacy run_config.yaml content for any container:// benchmark.
+    # generate_sbatch references {output_dir}/{safe_name}/run_config.yaml; we
+    # materialize that file alongside the sbatch script so the harness srun
+    # can bind-mount it.
+    legacy_run_configs: dict[str, dict] = {
+        _safe(b.name): _render_legacy_run_config(b, config.services)
+        for b in config.benchmarks
+        if _is_legacy_container_bench(b)
+    }
 
     out.mkdir(parents=True, exist_ok=True)
     chmod_a_rx(out)
@@ -2546,6 +2920,7 @@ def write_sbatch(
                 sidecars,
                 secrets,
                 dry_run=dry_run,
+                legacy_run_configs=legacy_run_configs,
             )
             script_paths.append(path)
             all_extras.extend(extras)
@@ -2558,5 +2933,6 @@ def write_sbatch(
         sidecar_configs,
         secrets_result,
         dry_run=dry_run,
+        legacy_run_configs=legacy_run_configs,
     )
-    return [path], extras
+    return [path], [*common_extras, *extras]

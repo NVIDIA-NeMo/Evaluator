@@ -133,6 +133,56 @@ def discover_bundle_paths(paths: list[Path]) -> list[Path]:
     return expanded
 
 
+def materialize_legacy_bundles(results: Path) -> list[Path]:
+    """Convert legacy ``results/results.yml`` outputs under *results* into NEL bundles.
+
+    Legacy ``container://`` SLURM dispatch runs the eval-factory harness
+    directly, so the first durable artifact is ``<bench>/results/results.yml``
+    or ``results.json``. Report/export commands consume ``eval-*.json``
+    bundles, so this conversion is the shared bridge between those worlds.
+    """
+    import json as _json
+
+    from nemo_evaluator.engine.artifacts import write_all
+    from nemo_evaluator.environments.container import build_legacy_bundle
+
+    created: list[Path] = []
+    result_files = list(results.rglob("results/results.yml")) + list(results.rglob("results/results.json"))
+    for result_file in result_files:
+        bench_dir = result_file.parent.parent
+
+        rc_path = bench_dir / "run_config.yaml"
+        image, task = bench_dir.name, ""
+        if rc_path.exists():
+            try:
+                import yaml as _yaml
+
+                rc = _yaml.safe_load(rc_path.read_text(encoding="utf-8")) or {}
+                task = (rc.get("config") or {}).get("type") or ""
+            except Exception as exc:
+                logger.warning("Could not read legacy run config %s: %s", rc_path, exc)
+
+        try:
+            bundle = build_legacy_bundle(image, task, result_file.parent)
+        except Exception as exc:
+            logger.warning("Skipping legacy results in %s: %s", bench_dir, exc)
+            continue
+
+        existing_bundles = list(bench_dir.glob("eval-*.json"))
+        if existing_bundles:
+            rows = bundle.get("_results") or []
+            results_jsonl = bench_dir / "results.jsonl"
+            if rows and (not results_jsonl.exists() or not results_jsonl.read_text(encoding="utf-8").strip()):
+                with results_jsonl.open("w", encoding="utf-8") as f:
+                    for row in rows:
+                        f.write(_json.dumps(row, default=str) + "\n")
+            continue
+
+        paths = write_all(bundle, bench_dir)
+        created.append(paths["bundle"])
+    return created
+
+
 def build_table(bundles: list[dict[str, Any]]) -> dict[str, Any]:
     benchmarks: dict[str, dict[str, Any]] = {}
     model_name = ""
@@ -163,14 +213,42 @@ def build_table(bundles: list[dict[str, Any]]) -> dict[str, Any]:
     return {"model": model_name, "benchmarks": benchmarks, "n_benchmarks": len(benchmarks)}
 
 
+_NON_METRIC_ROW_KEYS = {"samples", "repeats", "categories", "total_tokens", "latency_p50_ms"}
+
+# Substrings that mark a metric leaf as auxiliary timing/cost data, not the
+# benchmark's headline score.  Real-world example: nemo-skills math harnesses
+# emit BOTH ``pass@1/symbolic_correct`` (the score) AND ``pass@1/gen_seconds``
+# (latency) under the same group — without this filter the fallback below
+# surfaces "score=140" when the model actually got 100%.
+_TIMING_LEAF_PATTERNS = ("gen_seconds", "latency", "duration", "tokens", "time_ms", "_time", "_ms")
+
+
+def _is_timing_leaf(key: str) -> bool:
+    leaf = key.rsplit("/", 1)[-1].lower()
+    return any(p in leaf for p in _TIMING_LEAF_PATTERNS)
+
+
 def _primary_metric(row: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-    """Pick the best headline metric: mean_reward if available, else pass@1."""
+    """Pick the best headline metric: mean_reward if available, else pass@1.
+
+    Falls back to the first quality-flavored row entry with a numeric
+    ``value`` so legacy container bundles (whose harness-specific scores
+    don't conform to ``mean_reward``/``pass@1``) surface a real number
+    in the report table instead of rendering ``-``.  Timing/cost leaves
+    (``gen_seconds``, ``latency_ms``, ``duration``, etc.) are never used
+    as headlines.
+    """
     mr = row.get("mean_reward", {})
     if isinstance(mr, dict) and "value" in mr:
         return "mean_reward", mr
     p1 = row.get("pass@1", {})
     if isinstance(p1, dict) and "value" in p1:
         return "pass@1", p1
+    for k, v in row.items():
+        if k in _NON_METRIC_ROW_KEYS or k.startswith("scorer:"):
+            continue
+        if isinstance(v, dict) and "value" in v and not _is_timing_leaf(k):
+            return k, v
     return "", {}
 
 

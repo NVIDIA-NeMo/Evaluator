@@ -745,7 +745,7 @@ def eval_report(results_dir, run_id, fmt, output, all_formats, with_results):
     Accepts a local RESULTS_DIR or --run-id to fetch results from a remote
     SLURM cluster automatically.
     """
-    from nemo_evaluator.reports.eval import RENDERERS, build_table, load_bundles
+    from nemo_evaluator.reports.eval import RENDERERS, build_table, load_bundles, materialize_legacy_bundles
 
     if results_dir is None and run_id is None:
         raise click.ClickException("Specify a RESULTS_DIR or --run-id.")
@@ -757,6 +757,12 @@ def eval_report(results_dir, run_id, fmt, output, all_formats, with_results):
         results, cleanup_dir = _fetch_remote_results(run_id, include_results=with_results)
 
     try:
+        # Convert any raw legacy-harness results.yml into NEL bundles
+        # before scanning for eval-*.json.  No-op when no legacy results
+        # are present (native runs already emit bundles directly).
+        for bundle_path in materialize_legacy_bundles(results):
+            click.echo(f"  Materialized legacy bundle: {bundle_path}")
+
         bundle_files = sorted(results.rglob("eval-*.json"))
 
         if not bundle_files:

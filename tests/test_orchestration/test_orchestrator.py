@@ -263,3 +263,36 @@ class TestInstallDefaultExecutor:
             assert executor._max_workers == 50
 
         asyncio.run(_runner())
+
+
+class TestBuildBatchConfigEnvVars:
+    """``_build_batch_config`` merges ``cluster.container_env`` (global) under
+    ``solver.env_vars`` (per-benchmark) so users can declare shared env vars
+    once at cluster scope and override per-benchmark when needed."""
+
+    def _container_solver(self, env_vars=None):
+        from nemo_evaluator.config.solvers import ContainerSolverConfig
+
+        return ContainerSolverConfig(service="endpoint", env_vars=env_vars or {})
+
+    def test_cluster_container_env_propagates_for_container_solver(self):
+        from nemo_evaluator.config.clusters import LocalCluster
+        from nemo_evaluator.orchestration.orchestrator import _build_batch_config
+
+        cluster = LocalCluster(container_env={"HF_TOKEN": "tok", "HF_HOME": "/cache"})
+        solver_cfg = self._container_solver()
+        svc = MagicMock(protocol="chat_completions")
+
+        cfg = _build_batch_config("u", "m", None, solver_cfg, svc, cluster=cluster)
+        assert cfg["env_vars"] == {"HF_TOKEN": "tok", "HF_HOME": "/cache"}
+
+    def test_solver_env_vars_override_cluster(self):
+        from nemo_evaluator.config.clusters import LocalCluster
+        from nemo_evaluator.orchestration.orchestrator import _build_batch_config
+
+        cluster = LocalCluster(container_env={"HF_TOKEN": "global", "HF_HOME": "/cache"})
+        solver_cfg = self._container_solver(env_vars={"HF_TOKEN": "per-bench"})
+        svc = MagicMock(protocol="chat_completions")
+
+        cfg = _build_batch_config("u", "m", None, solver_cfg, svc, cluster=cluster)
+        assert cfg["env_vars"] == {"HF_TOKEN": "per-bench", "HF_HOME": "/cache"}

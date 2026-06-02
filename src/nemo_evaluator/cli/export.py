@@ -88,9 +88,25 @@ def export_cmd(
     from nemo_evaluator.reports.eval import (
         discover_bundle_paths,
         load_bundles_for_export,
+        materialize_legacy_bundles,
     )
 
-    bundle_paths = discover_bundle_paths(list(paths))
+    materialized: list[Path] = []
+    discovery_roots: list[Path] = []
+    for path in paths:
+        if path.is_dir():
+            discovery_roots.append(path)
+            materialized.extend(materialize_legacy_bundles(path))
+        elif path.name in {"results.yml", "results.json"} and path.parent.name == "results":
+            bench_dir = path.parent.parent
+            discovery_roots.append(bench_dir)
+            materialized.extend(materialize_legacy_bundles(bench_dir))
+        else:
+            discovery_roots.append(path)
+    for bundle_path in materialized:
+        click.echo(f"Materialized legacy bundle: {bundle_path}")
+
+    bundle_paths = discover_bundle_paths(discovery_roots)
     if not bundle_paths:
         raise click.ClickException(
             "No eval-*.json bundle files found under the given PATHS. Pass a run directory or bundle file directly."
