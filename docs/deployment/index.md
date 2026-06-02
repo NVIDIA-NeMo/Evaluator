@@ -1,26 +1,15 @@
 # Deployment Guide
 
-```{toctree}
-:maxdepth: 1
-
-local
-docker
-slurm
-kubernetes
-ray
-ci-regression
-```
-
 ## Deployment Matrix
 
 | Environment | Sharding | Live Serve | Regression Gate | Effort |
 |-------------|----------|------------|-----------------|--------|
-| Local | Manual via env vars | `nel serve` | `nel compare` | Minimal |
-| Docker Compose | Per-container env vars | docker-compose service | Script | Low |
-| SLURM | `nel eval run` with executor config | `nel serve` | sbatch chain | Medium |
-| Kubernetes | Indexed Job | Deployment + Service | CI pipeline | Medium |
-| Ray | `@ray.remote` tasks | N/A | Script | Medium |
-| GitLab CI | CI variables per job | N/A | `regression:check` stage | Low |
+| {doc}`Local <local>` | Manual via env vars | `nel serve` | `nel compare` | Minimal |
+| {doc}`Docker Compose <docker>` | Per-container env vars | docker-compose service | Script | Low |
+| {doc}`SLURM <slurm>` | `nel eval run` with executor config | `nel serve` | sbatch chain | Medium |
+| {doc}`Kubernetes <kubernetes>` | Indexed Job | Deployment + Service | CI pipeline | Medium |
+| {doc}`Ray <ray>` | `@ray.remote` tasks | N/A | Script | Medium |
+| {doc}`GitLab CI <ci-regression>` | CI variables per job | N/A | `regression:check` stage | Low |
 
 ## Which deployment to choose?
 
