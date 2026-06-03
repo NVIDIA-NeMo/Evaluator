@@ -240,6 +240,9 @@ Complete record for one seed → model → verify cycle.
 | `nel serve` | Start HTTP server for an environment |
 | `nel validate` | Quick validation of a benchmark |
 | `nel list` | Show available benchmarks and environments |
+| `nel export` | Export bundles to a registered exporter |
+| `nel cache-sqsh` | Build a SLURM `.sqsh` cache image |
+| `nel report` | Generate a multi-benchmark report |
 | `nel compare` | Compare two evaluation bundles |
 | `nel gate` | Apply a multi-benchmark gate policy |
 | `nel config` | Persistent user config |
@@ -251,15 +254,20 @@ Complete record for one seed → model → verify cycle.
 nel eval run [CONFIG_FILE]
     --bench, -b TEXT         Benchmark name
     --repeats, -n INT        Repeats per problem [1]
-    --max-problems, -m INT   Limit problem count
+    --max-problems INT       Limit problem count
     --model-url TEXT         Model API base URL
     --model-id TEXT          Model identifier
+    --api-key TEXT           Model API key
     --system-prompt TEXT     System prompt
-    --adapter TEXT           Adapter URI (gym://host:port, skills://benchmark)
+    --temperature FLOAT      Sampling temperature
+    --max-tokens INT         Maximum generated tokens
     --output-dir, -o TEXT    Output directory [./eval_results]
+    --dry-run                Generate scripts without running
+    --submit                 Submit to cluster via SSH
+    --background             Run locally in background
     --resume                 Resume partially completed suite
     -O, --override TEXT      Dot-path config overrides (e.g. services.model.model=foo)
-    --no-progress            Disable progress bar
+    --verbose, -v            Enable verbose logging
 ```
 
 ### `nel serve`
@@ -277,8 +285,12 @@ nel serve
 
 ```
 nel validate
-    --bench, -b TEXT         Benchmark to validate
-    --samples INT            Number of samples [10]
+    --benchmark, -b TEXT     Benchmark to validate
+    --samples, -s INT        Number of samples [5]
+    --model-url TEXT         Model endpoint URL
+    --model-id TEXT          Model identifier
+    --api-key TEXT           Model API key
+    --verbose, -v            Enable verbose logging
 ```
 
 ### `nel list`

@@ -73,7 +73,7 @@ def eval_cmd():
 @click.option("--bench", "-b", help="Benchmark name (quick single-benchmark mode)")
 @click.option("--model-url", envvar="NEMO_MODEL_URL")
 @click.option("--model-id", envvar="NEMO_MODEL_ID")
-@click.option("--api-key", envvar="NEMO_API_KEY")
+@click.option("--api-key", envvar=["NEMO_API_KEY", "NVIDIA_API_KEY"])
 @click.option("--repeats", "-n", type=int, default=1)
 @click.option("--max-problems", type=int, default=None)
 @click.option("--system-prompt", type=str, default=None)
@@ -302,7 +302,7 @@ def _get_executor_for_run(run_meta):
 @click.option("--output-dir", "-o", default=None)
 @click.option("--job-id", default=None, help="SLURM job ID (legacy)")
 @click.option("--host", default=None, help="SLURM login hostname (legacy)")
-@click.option("--watch", "-w", is_flag=True, default=False, help="Refresh every 10s until Ctrl+C")
+@click.option("--watch", "-w", is_flag=True, default=False, help="Refresh every 60s until Ctrl+C")
 def eval_status(run_id, output_dir, job_id, host, watch):
     """Check evaluation status."""
     import time

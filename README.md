@@ -1,7 +1,7 @@
 # NeMo Evaluator
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg)](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-green)](https://www.python.org/downloads/)
+[![Python 3.12-3.13](https://img.shields.io/badge/python-3.12--3.13-green)](https://www.python.org/downloads/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
 [**Documentation**](https://docs.nvidia.com/nemo/evaluator/0.3.0/) | [**GitHub**](https://github.com/NVIDIA-NeMo/Evaluator) | [**Issues**](https://github.com/NVIDIA-NeMo/Evaluator/issues)
@@ -18,18 +18,20 @@ pip install -e ".[scoring]"        # + sympy for symbolic math
 pip install -e ".[stats]"          # + scipy (regression analysis)
 pip install -e ".[scoring,stats]"  # + sympy + scipy for confidence intervals
 pip install -e ".[harbor]"         # + Harbor agents (OpenHands, Terminus-2)
-pip install -e ".[proxy]"          # + LiteLLM proxy
 pip install -e ".[inspect]"        # + Inspect AI log export
-pip install -e ".[all]"            # everything
+pip install -e ".[all]"            # common runtime integrations
 ```
 
 ## Quick Start
 
 ```bash
+export NVIDIA_API_KEY="your-api-key-here"
+
 # Run a benchmark from the CLI
 nel eval run --bench mmlu \
   --model-url https://integrate.api.nvidia.com/v1 \
   --model-id nvidia/nemotron-3-super-120b-a12b \
+  --api-key $NVIDIA_API_KEY \
   --repeats 3 --max-problems 100
 
 # Run from a YAML config
@@ -42,7 +44,7 @@ nel eval report ./eval_results/ -f markdown -o report.md
 
 ## Benchmarks
 
-15 built-in benchmarks plus external harness integrations:
+17 built-in benchmarks plus external harness integrations:
 
 | Benchmark | Type | Scoring |
 |-----------|------|---------|
@@ -53,7 +55,8 @@ nel eval report ./eval_results/ -f markdown -o report.md
 | simpleqa, healthbench | Judge | `needs_judge` |
 | pinchbench | Agentic | `code_sandbox` / `needs_judge` |
 | xstest | Safety | `needs_judge` |
-| swebench-verified, swebench-multilingual | SWE | Docker two-container |
+| terminal-bench-hard, terminal-bench-v1 | Terminal tasks | Task test harness |
+| nmp_harbor | Agentic NMP | Harbor task tests |
 
 External environments via URI schemes: `lm-eval://`, `skills://`, `vlmevalkit://`, `gym://`, `harbor://`, `container://`.
 
@@ -161,6 +164,9 @@ Pyxis/Enroot-based execution with auto-selected container images per URI scheme.
 | `nel list` | List benchmarks |
 | `nel serve -b <name>` | Serve as HTTP endpoint |
 | `nel validate -b <name>` | Sanity check |
+| `nel export <paths> --dest <exporter>` | Export bundles |
+| `nel cache-sqsh <image>` | Build a SLURM `.sqsh` cache image |
+| `nel report <dir>` | Generate multi-benchmark reports |
 | `nel compare` | Paired run comparison |
 | `nel gate` | Multi-benchmark quality gate |
 | `nel config` | Persistent user config |

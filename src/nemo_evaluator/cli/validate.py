@@ -25,7 +25,7 @@ import click
 @click.option("--samples", "-s", default=5, type=int)
 @click.option("--model-url", required=True, envvar="NEMO_MODEL_URL", help="Model endpoint URL (or set NEMO_MODEL_URL)")
 @click.option("--model-id", required=True, envvar="NEMO_MODEL_ID", help="Model identifier (or set NEMO_MODEL_ID)")
-@click.option("--api-key", envvar="NEMO_API_KEY")
+@click.option("--api-key", envvar=["NEMO_API_KEY", "NVIDIA_API_KEY"])
 @click.option("--verbose", "-v", is_flag=True)
 def validate_cmd(benchmark, samples, model_url, model_id, api_key, verbose):
     """Quick sanity check: run a few samples and report."""
@@ -48,7 +48,10 @@ def validate_cmd(benchmark, samples, model_url, model_id, api_key, verbose):
     client = ModelClient(base_url=model_url, model=model_id, api_key=api_key)
     solver = ChatSolver(client)
 
-    bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1, max_problems=samples, progress=ConsoleProgress()))
+    try:
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1, max_problems=samples, progress=ConsoleProgress()))
+    except Exception as exc:
+        raise click.ClickException(f"Validation failed for {benchmark!r}: {exc}") from exc
     results = bundle.get("_results", [])
 
     correct = sum(1 for r in results if r["reward"] > 0)

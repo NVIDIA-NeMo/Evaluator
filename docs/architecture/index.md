@@ -112,7 +112,7 @@ flowchart TB
 | Package | Responsibility | Key types |
 |---------|---------------|-----------|
 | `environments/` | Base class, registry, `@benchmark` BYOB API, environment types | `EvalEnvironment`, `SeedResult`, `VerifyResult`, `BenchmarkDefinition` |
-| `benchmarks/` | 15 built-in benchmarks (all `@benchmark` + `@scorer`) | Scorer functions |
+| `benchmarks/` | 17 built-in benchmarks (`@benchmark` + `@scorer` or `@register`) | Scorer functions |
 | `solvers/` | Pluggable inference strategies | `Solver`, `ChatSolver`, `VLMSolver`, `HarborSolver`, `GymSolver`, `ReActSolver`, `NatSolver`, `OpenClawSolver` (config `type`: `simple` → ChatSolver/VLMSolver, `harbor`, `tool_calling` → ReActSolver, `gym_delegation`, etc.) |
 | `engine/` | Core eval loop, model client, checkpoint, comparison, export plugins | `run_evaluation()`, `ModelClient`, `CheckpointManager`, `InspectExporter`, `WandBExporter` |
 | `config/` | Pydantic config schemas, env expansion, YAML composition | `EvalConfig`, `parse_eval_config()`, `compose_config()`, `services.py`, `sandboxes.py`, `solvers.py`, `scoring.py`, `clusters.py` |

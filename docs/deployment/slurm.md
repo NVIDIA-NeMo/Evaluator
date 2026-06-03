@@ -41,7 +41,7 @@ This generates an sbatch script, deploys vLLM on the allocated GPU node, and run
 
 ## Sharded evaluation
 
-Split a large benchmark across multiple SLURM array tasks:
+Split a large benchmark across multiple independent SLURM jobs:
 
 ```yaml
 # slurm_sharded.yaml
@@ -77,7 +77,7 @@ cluster:
 nel eval run slurm_sharded.yaml
 ```
 
-This submits a 16-task job array. Each task evaluates a disjoint slice of the dataset. After all tasks complete, merge results:
+This submits 16 independent shard jobs under `shard_0/`, `shard_1/`, and so on. Each job evaluates a disjoint slice of the dataset. After all tasks complete, merge results:
 
 ```bash
 nel eval merge ./eval_results
@@ -87,25 +87,17 @@ nel eval merge ./eval_results
 
 `nel eval run` with a SLURM cluster config generates an sbatch script in `--output-dir`:
 
-### `eval.sbatch`
+### `nel_eval.sbatch`
 
-For sharded runs, the generated script includes:
+For sharded runs, each shard directory gets its own script:
 
 ```bash
-#!/bin/bash
-#SBATCH --job-name=nel-eval-gsm8k
-#SBATCH --array=0-15
-#SBATCH --partition=batch
-#SBATCH --time=2:00:00
-#SBATCH --gres=gpu:4
-
-export NEL_SHARD_IDX=$SLURM_ARRAY_TASK_ID
-export NEL_TOTAL_SHARDS=$SLURM_ARRAY_TASK_COUNT
-OUTPUT_DIR="$OUTPUT_DIR/shard_$SLURM_ARRAY_TASK_ID"
-mkdir -p "$OUTPUT_DIR"
-
-# ... vLLM startup, health check, eval run ...
+./eval_results/shard_0/nel_eval.sbatch
+./eval_results/shard_1/nel_eval.sbatch
+...
 ```
+
+Each script exports fixed shard coordinates, for example `NEL_SHARD_IDX=0` and `NEL_TOTAL_SHARDS=16`, and writes into that shard's output directory.
 
 ## Resume after failure
 
@@ -202,14 +194,14 @@ Note: `shards` is incompatible with heterogeneous jobs (multiple node pools).
 ## Manual workflow
 
 ```bash
-# 1. Generate scripts (set submit: false in config)
-nel eval run slurm_eval.yaml
+# 1. Generate scripts without submitting
+nel eval run slurm_eval.yaml --dry-run
 
 # 2. Review
-cat ./eval_results/eval.sbatch
+cat ./eval_results/nel_eval.sbatch
 
 # 3. Submit eval
-EVAL_JOB=$(sbatch ./eval_results/eval.sbatch | awk '{print $NF}')
+EVAL_JOB=$(sbatch ./eval_results/nel_eval.sbatch | awk '{print $NF}')
 
 # 4. For sharded runs, merge after all tasks complete
 nel eval merge ./eval_results
@@ -230,12 +222,23 @@ Wrap in an sbatch script for SLURM submission.
 | Option | Default | Purpose |
 |--------|---------|---------|
 | `walltime` | `04:00:00` | Job wall time |
-| `shards` | `null` | Number of SLURM array tasks (null = no sharding) |
+| `shards` | `null` | Number of independent shard jobs (null = no sharding) |
 | `account` | `null` | SLURM account for billing |
 | `conda_env` | `null` | Conda environment to activate |
-| `container_image` | `null` | Apptainer/Enroot image for containerized execution |
-| `auto_resume` | `false` | Resubmit failed jobs via dependency chain |
-| `hostname` | `null` | Remote SLURM head node (for SSH submission) |
+| `eval_image` | `null` | Apptainer/Enroot image for evaluator execution |
+| `container_mounts` | `[]` | Extra host paths to mount into containerized jobs |
+| `container_env` | `{}` | Environment variables injected into containerized jobs |
+| `shm_size` | `null` | Shared memory size for container runtime when supported |
+| `mount_home` | `true` | Mount the user home directory into containerized jobs |
+| `auto_resume` | `true` | Resubmit failed jobs via dependency chain |
+| `max_retries` | `3` | Maximum auto-resume retries |
+| `max_walltime` | `null` | Upper bound for accumulated retry walltime |
+| `sbatch_comment` | `null` | Optional `#SBATCH --comment` value |
+| `sbatch_extra_flags` | `{}` | Additional cluster-level `#SBATCH` flags |
+| `hostname` | `null` | Remote SLURM head node for SSH submission |
+| `username` | `null` | SSH username for remote SLURM submission |
+
+For remote SLURM execution (`hostname` set), `output.dir` must be an absolute path visible on the remote login and compute nodes. Relative output paths are rejected because scripts, logs, and shard outputs must be copied and mounted predictably.
 
 ## Node pool options
 
@@ -245,4 +248,6 @@ Wrap in an sbatch script for SLURM submission.
 | `nodes` | `1` | Nodes to allocate |
 | `ntasks_per_node` | `1` | Tasks per node |
 | `gres` | `null` | Generic resources (e.g., `gpu:4`) |
+| `gpus_per_node` | `null` | Structured GPU count when `gres` is not used |
 | `slots_per_node` | `1` | Concurrent sandbox slots per node |
+| `sbatch_extra_flags` | `{}` | Per-pool `#SBATCH` flags for topology constraints |

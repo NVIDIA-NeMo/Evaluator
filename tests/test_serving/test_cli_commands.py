@@ -45,6 +45,11 @@ class TestCLIStructure:
         assert result.exit_code == 0
         assert "--dry-run" in result.output
 
+    def test_eval_status_help_matches_watch_interval(self, runner):
+        result = runner.invoke(cli, ["eval", "status", "--help"])
+        assert result.exit_code == 0
+        assert "Refresh every 60s" in result.output
+
     def test_list_help(self, runner):
         result = runner.invoke(cli, ["list", "--help"])
         assert result.exit_code == 0
@@ -54,6 +59,31 @@ class TestEvalRun:
     def test_no_config_no_bench_errors(self, runner):
         result = runner.invoke(cli, ["eval", "run"])
         assert result.exit_code != 0
+
+    @patch("nemo_evaluator.executors.get_executor")
+    def test_quick_mode_reads_nvidia_api_key(self, mock_get_exec, runner):
+        mock_executor = MagicMock()
+        mock_get_exec.return_value = mock_executor
+
+        result = runner.invoke(
+            cli,
+            [
+                "eval",
+                "run",
+                "--bench",
+                "gsm8k",
+                "--model-url",
+                "https://integrate.api.nvidia.com/v1",
+                "--model-id",
+                "nvidia/nemotron-3-super-120b-a12b",
+                "--dry-run",
+            ],
+            env={"NVIDIA_API_KEY": "nvapi-test-key"},
+        )
+
+        assert result.exit_code == 0
+        config = mock_executor.run.call_args.args[0]
+        assert config.services["model"].api_key == "nvapi-test-key"
 
     @patch("nemo_evaluator.cli.eval._load_config")
     @patch("nemo_evaluator.executors.get_executor")
@@ -81,8 +111,67 @@ class TestValidateCommand:
         result = runner.invoke(cli, ["eval", "validate", "/nonexistent_xyz.yaml"])
         assert result.exit_code != 0
 
+    @patch("nemo_evaluator.environments.registry.get_environment")
+    @patch("nemo_evaluator.engine.eval_loop.run_evaluation", side_effect=PermissionError("dataset cache is read-only"))
+    def test_validate_reports_runtime_failures_without_traceback(self, _mock_run, mock_get_env, runner):
+        mock_get_env.return_value = MagicMock()
+
+        result = runner.invoke(
+            cli,
+            [
+                "validate",
+                "-b",
+                "gsm8k",
+                "--model-url",
+                "https://example.test/v1",
+                "--model-id",
+                "test-model",
+            ],
+        )
+
+        assert result.exit_code != 0
+        assert "Validation failed for 'gsm8k'" in result.output
+        assert "dataset cache is read-only" in result.output
+
+    def test_validate_reads_nvidia_api_key(self, runner: CliRunner) -> None:
+        async def _run_evaluation(*_args: object, **_kwargs: object) -> dict[str, list[object]]:
+            return {"_results": []}
+
+        with (
+            patch("nemo_evaluator.environments.registry.get_environment", return_value=MagicMock()),
+            patch("nemo_evaluator.engine.eval_loop.run_evaluation", side_effect=_run_evaluation),
+            patch("nemo_evaluator.engine.model_client.ModelClient") as mock_model_client,
+        ):
+            result = runner.invoke(
+                cli,
+                [
+                    "validate",
+                    "-b",
+                    "gsm8k",
+                    "--model-url",
+                    "https://example.test/v1",
+                    "--model-id",
+                    "test-model",
+                ],
+                env={"NVIDIA_API_KEY": "nvapi-validate-key"},
+            )
+
+        assert result.exit_code == 0, result.output
+        mock_model_client.assert_called_once_with(
+            base_url="https://example.test/v1",
+            model="test-model",
+            api_key="nvapi-validate-key",
+        )
+
 
 class TestListCommand:
     def test_list_benchmarks(self, runner):
         result = runner.invoke(cli, ["list", "--help"])
         assert result.exit_code == 0
+
+    @patch("nemo_evaluator.environments.skills.list_skills_benchmarks", side_effect=ImportError("missing skills"))
+    def test_list_skills_handles_missing_optional_dependency(self, _mock_list_skills, runner):
+        result = runner.invoke(cli, ["list", "--source", "skills"])
+
+        assert result.exit_code == 0
+        assert "nemo-skills not installed" in result.output

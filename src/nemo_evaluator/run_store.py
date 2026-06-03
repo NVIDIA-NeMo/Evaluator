@@ -63,9 +63,12 @@ class RunMeta:
         except OSError:
             logger.debug("Could not write %s to output dir %s (remote path?)", _RUN_META, self.output_dir)
 
-        store_dir = _runs_store() / self.run_id
-        store_dir.mkdir(parents=True, exist_ok=True)
-        (store_dir / _RUN_META).write_text(data, encoding="utf-8")
+        try:
+            store_dir = _runs_store() / self.run_id
+            store_dir.mkdir(parents=True, exist_ok=True)
+            (store_dir / _RUN_META).write_text(data, encoding="utf-8")
+        except OSError as exc:
+            logger.warning("Could not write run metadata to central store: %s", exc)
 
     def update_details(self, **kwargs) -> None:
         """Merge new keys into details and re-save."""

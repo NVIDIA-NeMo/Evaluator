@@ -14,6 +14,7 @@ export NVIDIA_API_KEY="your-api-key-here"
 nel eval run --bench gsm8k \
   --model-url https://integrate.api.nvidia.com/v1/chat/completions \
   --model-id nvidia/nemotron-3-super-120b-a12b \
+  --api-key $NVIDIA_API_KEY \
   --repeats 2 --max-problems 20
 ```
 
@@ -55,7 +56,11 @@ gsm8k
 ## Step 4: Compare against a baseline
 
 ```bash
-nel eval run --bench gsm8k --repeats 4 -o ./results/candidate
+nel eval run --bench gsm8k \
+  --model-url https://integrate.api.nvidia.com/v1/chat/completions \
+  --model-id nvidia/nemotron-3-super-120b-a12b \
+  --api-key $NVIDIA_API_KEY \
+  --repeats 4 -o ./results/candidate
 
 nel compare ./results/baseline ./results/candidate --strict
 ```
