@@ -19,17 +19,20 @@ services:
     type: api
     url: https://integrate.api.nvidia.com/v1/chat/completions
     protocol: chat_completions
-    model: nvidia/nemotron-3-super-120b-a12b
+    model: nvidia/nemotron-3-nano-30b-a3b
     api_key: ${NVIDIA_API_KEY}
 
 benchmarks:
-  - name: "container://<your-registry>/nemo-skills:<tag>#gsm8k"
+  - name: "container://nvcr.io/nvidia/eval-factory/nemo-skills:26.03#ns_ifeval"
+    params:                          # eval-factory harness params
+      temperature: 1.0
+      top_p: 0.95
+      parallelism: 1
+      limit_samples: 10              # test run on 10 samples for quick verification
     solver:
       type: container
       service: nemotron
-      uri: "container://<your-registry>/nemo-skills:<tag>#gsm8k"
-      # Optional: pass legacy params into config.params (merged with framework.yml defaults)
-      # params:
-      #   temperature: 0.0
-      #   parallelism: 8
-      #   limit_samples: 100
+      adapter_config:                # passed verbatim to harness's adapter pipeline
+        process_reasoning_traces: true
+      env_vars: {}
+      mounts: {}
