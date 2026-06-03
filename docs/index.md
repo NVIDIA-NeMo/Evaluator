@@ -156,7 +156,6 @@ tutorials/skills-integration
 tutorials/legacy-containers
 tutorials/distributed-eval
 tutorials/compare
-tutorials/config-composition
 tutorials/quality-gate
 tutorials/adapters
 :::
