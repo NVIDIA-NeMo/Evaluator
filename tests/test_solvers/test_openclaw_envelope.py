@@ -15,7 +15,7 @@ import time
 
 import pytest
 
-from nemo_evaluator.solvers.openclaw import (
+from nemo_evaluator.solvers.openclaw_helpers import (
     _MAX_SCAN_BYTES,
     _extract_openclaw_envelope,
     _iter_json_objects,

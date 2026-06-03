@@ -10,7 +10,7 @@
 ```bash
 git clone https://github.com/NVIDIA-NeMo/Evaluator.git
 cd Evaluator
-pip install -e ".[scoring]"
+pip install -e ".[all]"
 ```
 
 ## Install Extras
@@ -21,13 +21,13 @@ pip install -e ".[scoring]"
 | `stats` | `pip install -e ".[stats]"` | scipy for confidence intervals, McNemar significance testing, and regression analysis |
 | `skills` | `pip install -e ".[skills]"` | NeMo Skills benchmark integration |
 | `harbor` | `pip install -e ".[harbor]"` | Harbor agent integration (OpenHands, Terminus-2, etc.) |
-| ~~`proxy`~~ | Removed | Adapter proxy is now built-in (no extra install needed) |
+| `lm-eval` | `pip install -e ".[lm-eval]"` | LM-Evaluation-Harness integration |
 | `inspect` | `pip install -e ".[inspect]"` | Inspect AI log export (`inspect_ai`-compatible `EvalLog` files) |
 | `ray` | `pip install -e ".[ray]"` | Ray distributed launcher |
 | `harnesses` | `pip install -e ".[harnesses]"` | lm-evaluation-harness tasks |
 | `export` | `pip install -e ".[export]"` | WandB and MLflow experiment tracker export |
 | `docs` | `pip install -e ".[docs]"` | Sphinx, NVIDIA theme, mermaid for building docs |
-| `all` | `pip install -e ".[all]"` | Everything above |
+| `all` | `pip install -e ".[all]"` | Equivalent to `[scoring,stats,ray,lm-eval,harbor]` |
 | `dev` | `pip install -e ".[dev]"` | pytest, ruff, all extras |
 
 ## Verify Installation

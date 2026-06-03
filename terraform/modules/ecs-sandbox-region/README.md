@@ -22,6 +22,7 @@ Per-region building block for the AWS infrastructure consumed by NEL's `ECSFarga
 | `vpc_cidr` | string | — | `/16` CIDR block for the VPC. The root stack derives this with `cidrsubnet(var.vpc_base_cidr, 8, region_index)`. |
 | `subnet_count` | number | `2` | Number of public subnets (one per AZ). |
 | `ssh_tunnel_sshd_port` | number | — | Port the SSH-tunnel sidecar listens on (allowed inbound on the ECS task SG). |
+| `orchestrator_allowed_cidrs` | list(string) | — | CIDRs allowed inbound on `ssh_tunnel_sshd_port`. Required; `0.0.0.0/0` is rejected by validation. |
 | `ecs_task_cpu` | number | — | Fargate CPU units for the base task definition (`1024` = 1 vCPU). |
 | `ecs_task_memory` | number | — | Fargate memory (MiB) for the base task definition. |
 | `execution_role_arn` | string | — | ARN of the shared ECS task execution role (created in the root stack). |
@@ -59,7 +60,7 @@ Declared in [`versions.tf`](versions.tf):
 
 ## Notes
 
-- The security group allows **all egress** (needed for ECR pulls, S3, DockerHub, etc.) and inbound on `ssh_tunnel_sshd_port` from `0.0.0.0/0`. Tighten the inbound CIDR to the orchestrator's IP before using this for anything sensitive.
+- The security group allows **all egress** (needed for ECR pulls, S3, DockerHub, etc.) and inbound on `ssh_tunnel_sshd_port` from `var.orchestrator_allowed_cidrs` only. The variable is required and the stack rejects `0.0.0.0/0`.
 - The S3 bucket uses `bucket_prefix` so each apply gets a unique global name; `force_destroy = true` lets `terraform destroy` clean up even with objects present.
 - Secrets use `recovery_window_in_days = 0` so they delete immediately on destroy. Adjust if you want AWS's default 7–30 day soft-delete window.
 - The Docker Hub secret's `secret_string` is wrapped in `lifecycle { ignore_changes }` so subsequent applies don't overwrite a manually rotated credential. Rotate via `terraform apply -replace=...aws_secretsmanager_secret_version.dockerhub`.

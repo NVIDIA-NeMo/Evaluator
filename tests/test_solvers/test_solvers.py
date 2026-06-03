@@ -160,3 +160,22 @@ class TestOpenClawSolver:
 
         sig = inspect.signature(OpenClawSolver.solve)
         assert "sandbox" in sig.parameters
+
+    def test_check_web_search_env_raises_when_tavily_key_missing(self, monkeypatch):
+        from nemo_evaluator.solvers.openclaw import _check_web_search_env
+
+        monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+        with pytest.raises(RuntimeError, match="TAVILY_API_KEY"):
+            _check_web_search_env("tavily")
+
+    def test_check_web_search_env_ok_when_tavily_key_present(self, monkeypatch):
+        from nemo_evaluator.solvers.openclaw import _check_web_search_env
+
+        monkeypatch.setenv("TAVILY_API_KEY", "dummy")
+        _check_web_search_env("tavily")
+
+    def test_check_web_search_env_noop_when_provider_none(self, monkeypatch):
+        from nemo_evaluator.solvers.openclaw import _check_web_search_env
+
+        monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+        _check_web_search_env(None)

@@ -21,6 +21,7 @@ import socket
 import threading
 import time
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
 
 import uvicorn
@@ -133,7 +134,17 @@ class _ProxyApp:
     """
 
     def __init__(self, pipeline: AdapterPipeline, model_id: str) -> None:
-        self.state = type("State", (), {"pipeline": pipeline, "model_id": model_id})()
+        self.state = SimpleNamespace(
+            pipeline=pipeline,
+            model_id=model_id,
+        )
+        self._shutdown_complete = False
+
+    async def _shutdown(self) -> None:
+        if self._shutdown_complete:
+            return
+        self._shutdown_complete = True
+        await self.state.pipeline.close()
 
     async def __call__(self, scope, receive, send) -> None:
         if scope["type"] == "lifespan":
@@ -142,6 +153,7 @@ class _ProxyApp:
                 if msg["type"] == "lifespan.startup":
                     await send({"type": "lifespan.startup.complete"})
                 elif msg["type"] == "lifespan.shutdown":
+                    await self._shutdown()
                     await send({"type": "lifespan.shutdown.complete"})
                     return
             return
@@ -184,30 +196,31 @@ class ProxyHandle:
     port: int
     _server: uvicorn.Server
     _thread: threading.Thread
-    _endpoint_interceptor: Any
+    _stop_timeout: float = 10
 
     async def async_stop(self) -> None:
-        """Stop the proxy server and close the endpoint interceptor.
+        """Stop the proxy server.
 
-        Preferred over :meth:`stop` when called from an async context so
-        the interceptor's connection pool is drained before returning.
+        Endpoint cleanup is owned by the proxy ASGI lifespan so aiohttp
+        resources are closed on the uvicorn event loop that created them.
         """
-        self._server.should_exit = True
-        self._thread.join(timeout=10)
-        if self._endpoint_interceptor is not None:
-            await self._endpoint_interceptor.close()
+        await asyncio.to_thread(self.stop)
 
     def stop(self) -> None:
         """Synchronous stop — use :meth:`async_stop` from async code."""
         self._server.should_exit = True
-        self._thread.join(timeout=10)
-        if self._endpoint_interceptor is None:
+        # A public stop may be triggered from proxy-owned code; a thread cannot join itself.
+        if threading.current_thread() is self._thread:
             return
-        loop = asyncio.new_event_loop()
-        try:
-            loop.run_until_complete(self._endpoint_interceptor.close())
-        finally:
-            loop.close()
+        if self._thread.is_alive():
+            self._thread.join(timeout=self._stop_timeout)
+        if self._thread.is_alive():
+            logger.warning(
+                "Adapter proxy thread did not exit within %.1fs (url=%s port=%d)",
+                self._stop_timeout,
+                self.url,
+                self.port,
+            )
 
 
 def start_adapter_proxy(
@@ -254,9 +267,6 @@ def start_adapter_proxy(
     chain_specs = request_side + [endpoint_spec] + response_side
     pipeline = AdapterPipeline.from_config(chain_specs)
 
-    endpoint_idx = len(request_side)
-    endpoint_interceptor = pipeline._chain[endpoint_idx]
-
     actual_port = _find_free_port(port)
     app = _build_app(pipeline, model_id)
 
@@ -282,7 +292,6 @@ def start_adapter_proxy(
         port=actual_port,
         _server=server,
         _thread=thread,
-        _endpoint_interceptor=endpoint_interceptor,
     )
 
 

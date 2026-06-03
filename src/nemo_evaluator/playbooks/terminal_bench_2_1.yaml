@@ -1,0 +1,39 @@
+# Terminal-Bench 2.1 — Reference Playbook
+#
+# Pre-configured defaults for Terminal-Bench 2.1 (89 terminal tasks).
+#
+# Uses StatefulSandbox (stateful: true): agent and verifier share the same ECS
+# container, so system-level changes (installed binaries, apt packages, .git
+# repos) are visible at verification time. This is the correct execution model
+# for Terminal-Bench tasks where the agent is asked to modify the environment.
+#
+# Tasks are pinned via a vendored override at
+# ``harbor_datasets/registry_overrides/terminal_bench_2_1.json`` because
+# upstream's Harbor registry does not yet list this dataset. Remove the
+# override once upstream catches up.
+#
+# Requires a service named "model" in your config's `services:` section.
+#
+# Minimal usage example:
+#   benchmarks:
+#     - playbook: terminal_bench_2_1
+#       sandbox:
+#         region: us-east-1
+#         ecr_repository: "463701203462.dkr.ecr.us-east-1.amazonaws.com/harbor-us-east-1"
+
+name: harbor://terminal-bench/terminal-bench-2-1
+max_concurrent: 10
+timeout: 3600.0
+solver:
+  type: harbor
+  service: model
+  agent: terminus-2
+sandbox:
+  type: ecs_fargate
+  cpu: "4096"
+  memory: "8192"
+  ephemeral_storage_gib: 100
+  max_task_lifetime_sec: 14400
+  log_stream_prefix: terminal-bench-2-1
+  concurrency: 10
+  stateful: true

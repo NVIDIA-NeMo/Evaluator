@@ -639,19 +639,24 @@ nel eval merge ./results
 
 ```yaml
 benchmarks:
-  - name: "container://registry.example.com/nemo-skills:26.03#gsm8k"
+  - name: "container://nvcr.io/nvidia/eval-factory/nemo-skills:26.03#ns_ifeval"
+    params:                          # legacy params passed to the container
+      temperature: 1.0
+      top_p: 0.95
+      parallelism: 1
+      limit_samples: 10              # test run on 10 samples for quick verification
     solver:
       type: container
       service: nemotron
-      uri: "container://registry.example.com/nemo-skills:26.03#gsm8k"
-    sandbox:
-      type: docker
-      timeout: 3600.0
+      adapter_config:                # passed verbatim to harness's adapter pipeline
+        process_reasoning_traces: true
+      env_vars: {}
+      mounts: {}
 ```
 
-The `container://` scheme runs an existing eval harness container as an opaque box. The container owns the full eval loop — NEL parses `results.yml` and `eval_factory_metrics.json` from the output.
+The `container://` scheme runs an legacy eval harness container as an opaque box. The container owns the full eval loop — NEL parses `results.yml` and `eval_factory_metrics.json` from the output.
 
-This is the least observable mode (no per-request trajectories), but it supports any existing harness without modification.
+This is the least observable mode (no per-request trajectories), but it supports any legacy harness without modification.
 
 ---
 

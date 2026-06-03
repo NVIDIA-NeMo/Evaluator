@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from nemo_evaluator.solvers.openclaw import (
+from nemo_evaluator.solvers.openclaw_helpers import (
     _TRANSCRIPT_FILENAME,
     _parse_session_jsonl,
     _persist_session_transcript,

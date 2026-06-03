@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, model_validator
 
 from .services import GenerationConfig
 
@@ -76,6 +76,20 @@ class HarborSolverConfig(BaseModel):
         description=(
             "Hard ceiling (seconds) on agent timeout regardless of strategy. "
             "Useful with 'task' or 'max' strategy to cap runaway timeouts."
+        ),
+    )
+    skill: str | None = Field(
+        default=None,
+        description=(
+            "Skill name to inject into the task. NEL prepends a 'read /skills/<name>/SKILL.md' "
+            "trigger to the task instruction before the agent runs."
+        ),
+    )
+    skill_dir: str | None = Field(
+        default=None,
+        description=(
+            "Local path to a skill directory. Files are uploaded to /skills/<skill>/ "
+            "inside the container before the agent starts. Requires skill to also be set."
         ),
     )
 
@@ -154,6 +168,7 @@ class OpenClawSolverConfig(BaseModel):
     context_window: int | None = None
     max_concurrent: int = 4
     idle_timeout_seconds: int = 600
+    web_search_provider: Literal["tavily"] | None = None
     config_path: str | None = None
     skip_preflight: bool = False
     openclaw_bin: str = "openclaw"
@@ -162,25 +177,29 @@ class OpenClawSolverConfig(BaseModel):
 class ContainerSolverConfig(BaseModel):
     """Container URI solver (NeMo Skills, etc.).
 
-    The container receives a **legacy Evaluator** ``run_config.yaml`` with
-    ``config.type``, ``target.api_endpoint``, and any extra ``params``
-    defined here merged into ``config.params``.
+    Marks a benchmark as legacy-container BC and binds it to a model
+    service.  The container receives a **legacy Evaluator**
+    ``run_config.yaml`` with ``config.type``, ``config.params`` populated
+    from the benchmark-level ``params:`` dict, and ``adapter_config``
+    written verbatim under ``target.api_endpoint.adapter_config`` for the
+    container's internal adapter pipeline.
+
+    ``adapter_config``, ``env_vars``, ``mounts`` mirror v1 launcher
+    vocabulary so v1 configs port across with minimal changes.  Use
+    ``${VAR}`` / ``${VAR:-default}`` for host-env interpolation in any
+    string value.  Harness params (``temperature``, ``parallelism``,
+    ``extra.*``) live at the benchmark level (``BenchmarkConfig.params``)
+    like every other env's constructor kwargs.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     type: Literal["container"] = "container"
     service: str
-    uri: str
     endpoint_type: str | None = None
-    params: dict[str, Any] | None = None
-
-    @field_validator("uri")
-    @classmethod
-    def _validate_uri(cls, v: str) -> str:
-        if not v.startswith("container://"):
-            raise ValueError("container solver uri must start with 'container://'")
-        return v
+    adapter_config: dict[str, Any] | None = None
+    env_vars: dict[str, str] = Field(default_factory=dict)
+    mounts: dict[str, str] = Field(default_factory=dict)
 
 
 class OracleSolverConfig(BaseModel):

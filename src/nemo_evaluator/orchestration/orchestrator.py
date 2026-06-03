@@ -22,6 +22,7 @@ import os
 import re
 import subprocess
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any
 
@@ -53,6 +54,15 @@ from nemo_evaluator.engine.step_log import INFERENCE_LOG, MODEL_TRAFFIC_LOG, VER
 from nemo_evaluator.orchestration.artifact_access import apply_artifact_access
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_EXECUTOR_MAX_WORKERS = 200
+
+
+def _install_default_executor(max_workers: int) -> ThreadPoolExecutor:
+    executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="nel-loop")
+    asyncio.get_running_loop().set_default_executor(executor)
+    return executor
+
 
 if TYPE_CHECKING:
     from nemo_evaluator.adapters.proxy import ProxyHandle
@@ -219,6 +229,7 @@ def _build_ecs_sandbox_config(cfg: EcsFargateSandbox) -> Any:
         dockerhub_secret_arn=dockerhub_secret_arn,
         efs_filesystem_id=efs_filesystem_id,
         efs_access_point_id=efs_access_point_id,
+        ssm_project=cfg.ssm_project,
     )
 
 
@@ -297,6 +308,8 @@ def _make_solver(
             cmd_timeout=getattr(solver_cfg, "cmd_timeout", None),
             timeout_strategy=getattr(solver_cfg, "timeout_strategy", "override"),
             max_agent_timeout=getattr(solver_cfg, "max_agent_timeout", None),
+            skill=getattr(solver_cfg, "skill", None),
+            skill_dir=getattr(solver_cfg, "skill_dir", None),
         )
 
     if isinstance(solver_cfg, GymDelegationSolverConfig):
@@ -858,6 +871,7 @@ def _build_batch_config(
     api_key: str | None,
     solver_cfg: Any,
     svc: Any,
+    cluster: Any = None,
 ) -> dict[str, Any]:
     """Build the config dict for ``env.run_batch()``."""
     cfg: dict[str, Any] = {"base_url": model_url, "model": model_id, "api_key": api_key}
@@ -868,8 +882,16 @@ def _build_batch_config(
 
     protocol = getattr(svc, "protocol", "chat_completions") if svc else "chat_completions"
     cfg["endpoint_type"] = solver_cfg.endpoint_type or _NEL_PROTOCOL_TO_LEGACY_TYPE.get(protocol, "chat")
-    if solver_cfg.params:
-        cfg["params"] = solver_cfg.params
+    if solver_cfg.adapter_config:
+        cfg["adapter_config"] = solver_cfg.adapter_config
+    # cluster.container_env is the global env-var bag (already honored by the
+    # docker/slurm dispatch paths); solver.env_vars overrides per-benchmark.
+    cluster_env = dict(getattr(cluster, "container_env", {}) or {})
+    merged_env = {**cluster_env, **solver_cfg.env_vars}
+    if merged_env:
+        cfg["env_vars"] = merged_env
+    if solver_cfg.mounts:
+        cfg["mounts"] = solver_cfg.mounts
     return cfg
 
 
@@ -935,11 +957,27 @@ async def _run_single_benchmark(
     from nemo_evaluator.observability.progress import ConsoleProgress
     from nemo_evaluator.templates import resolve_template_path
 
+    _install_default_executor(_DEFAULT_EXECUTOR_MAX_WORKERS)
+    logger.info("asyncio default ThreadPoolExecutor set to max_workers=%d", _DEFAULT_EXECUTOR_MAX_WORKERS)
+
     solver_cfg = bench.solver
     service_name: str | None = getattr(solver_cfg, "service", None)
 
     model_url, model_id, api_key, svc = _resolve_service_connection(config, handles, service_name)
-    model_url, proxy_handle, model_traffic_store = _start_proxy(model_url, model_id, api_key, svc, service_name)
+    if isinstance(solver_cfg, ContainerSolverConfig):
+        proxy_cfg = getattr(svc, "proxy", None) if svc else None
+        if proxy_cfg is not None and proxy_cfg.needs_proxy:
+            raise ValueError(
+                f"Service {service_name!r} configures a nel-next adapter proxy "
+                f"(interceptors/extra_body/verbose), but benchmark {bench.name!r} "
+                f"uses ContainerEnvironment which runs the container's internal "
+                f"adapter. Configure interceptors via 'solver.adapter_config' "
+                f"instead — it is passed verbatim into the container's run_config."
+            )
+        proxy_handle = None
+        model_traffic_store = None
+    else:
+        model_url, proxy_handle, model_traffic_store = _start_proxy(model_url, model_id, api_key, svc, service_name)
 
     judge_client = None
     try:
@@ -957,7 +995,9 @@ async def _run_single_benchmark(
         )
 
         shard_info = shard_from_env()
-        batch_config = _build_batch_config(model_url, model_id, api_key, solver_cfg, svc)
+        batch_config = _build_batch_config(
+            model_url, model_id, api_key, solver_cfg, svc, cluster=getattr(config, "cluster", None)
+        )
         batch_result = await env.run_batch(solver=solver, config=batch_config)
         if batch_result is not None:
             return _finalize_batch_result(batch_result, shard_info, bench.name, env, output_dir)
@@ -1013,11 +1053,20 @@ async def _run_single_benchmark(
         return bundle
     finally:
         if judge_client is not None and hasattr(judge_client, "close"):
-            await judge_client.close()
+            try:
+                await judge_client.close()
+            except Exception:
+                logger.exception("Failed to close judge client for benchmark %s", bench.name)
         if proxy_handle is not None:
-            await proxy_handle.async_stop()
+            try:
+                await proxy_handle.async_stop()
+            except Exception:
+                logger.exception("Failed to stop adapter proxy for benchmark %s", bench.name)
         if model_traffic_store is not None:
-            model_traffic_store.close()
+            try:
+                model_traffic_store.close()
+            except Exception:
+                logger.exception("Failed to close model traffic store for benchmark %s", bench.name)
 
 
 def _load_prior_bundle(task_dir: str) -> dict[str, Any]:

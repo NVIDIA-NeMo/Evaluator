@@ -43,7 +43,7 @@ class ProgressTracker(Protocol):
         total_problems: int,
         total_repeats: int,
         reward: float,
-        tokens: int,
+        tokens: int | None,
         latency_ms: float,
     ) -> None: ...
     def on_phase(self, problem: int, repeat: int, total_problems: int, total_repeats: int, phase: str) -> None: ...
@@ -95,10 +95,10 @@ class ConsoleProgress:
         total_problems: int,
         total_repeats: int,
         reward: float,
-        tokens: int,
+        tokens: int | None,
         latency_ms: float,
     ) -> None:
-        self._tokens += tokens
+        self._tokens += tokens or 0
         self._steps += 1
         self._sum_reward += float(reward)
         if reward > 0:
@@ -211,7 +211,7 @@ class NoOpProgress:
         total_problems: int,
         total_repeats: int,
         reward: float,
-        tokens: int,
+        tokens: int | None,
         latency_ms: float,
     ) -> None:
         pass

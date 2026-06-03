@@ -48,6 +48,9 @@ from pathlib import Path
 from typing import Any, Callable, Self, TypeVar
 from urllib.parse import ParseResult, urlparse
 
+import aiohttp
+
+from nemo_evaluator.config.sandboxes import DEFAULT_SSM_PROJECT
 from nemo_evaluator.sandbox.base import ExecResult, OutsideEndpoint, SandboxSpec
 
 logger = logging.getLogger(__name__)
@@ -78,7 +81,7 @@ _ssm_config_cache: dict[str, dict[str, Any]] = {}
 
 def resolve_ecs_config_from_ssm(
     region: str,
-    project: str = "harbor",
+    project: str = DEFAULT_SSM_PROJECT,
 ) -> dict[str, Any]:
     """Read ECS sandbox config from SSM Parameter Store.
 
@@ -190,6 +193,7 @@ class EcsFargateConfig:
     build_parallelism: int = 50
     efs_filesystem_id: str | None = None
     efs_access_point_id: str | None = None
+    ssm_project: str = DEFAULT_SSM_PROJECT
 
 
 @dataclass(frozen=True)
@@ -770,21 +774,42 @@ _TRANSIENT_ERRORS = (
 
 
 class ExecClient:
-    """HTTP client for the exec server (through the SSH tunnel)."""
+    """Async HTTP client for the exec server (through the SSH tunnel).
+
+    Methods are coroutines so each in-flight request occupies an event-loop
+    slot, not an executor thread — required to scale past asyncio's default
+    thread-pool cap when many long agent commands run concurrently (FEP-886).
+    """
 
     def __init__(self, *, port: int, connect_timeout: float = 30.0) -> None:
         self._base = f"http://127.0.0.1:{port}"
         self._timeout = connect_timeout
+        # Lazy: aiohttp.ClientSession must be created inside a running event
+        # loop, but ExecClient is constructed from `_do_start` (which runs in
+        # asyncio.to_thread). Defer creation to the first request.
+        self._session: aiohttp.ClientSession | None = None
 
-    def exec(self, cmd: str, *, timeout: int = 300) -> ExecResult:
-        resp = self._post("/exec", {"cmd": cmd, "timeout": timeout})
+    async def _ensure_session(self) -> aiohttp.ClientSession:
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session
+
+    async def close(self) -> None:
+        if self._session is not None and not self._session.closed:
+            await self._session.close()
+        self._session = None
+
+    async def exec(self, cmd: str, *, timeout: int = 300) -> ExecResult:
+        resp = await self._post("/exec", {"cmd": cmd, "timeout": timeout})
         return ExecResult(
             stdout=resp.get("stdout", ""),
             stderr=resp.get("stderr", ""),
             return_code=resp.get("rc", -1),
         )
 
-    def upload(self, remote_path: str, data: bytes | Path, *, mode: str | None = None, max_retries: int = 3) -> None:
+    async def upload(
+        self, remote_path: str, data: bytes | Path, *, mode: str | None = None, max_retries: int = 3
+    ) -> None:
         if isinstance(data, Path):
             data = data.read_bytes()
         body: dict[str, Any] = {"path": remote_path, "content": base64.b64encode(data).decode()}
@@ -795,7 +820,7 @@ class ExecClient:
         last_err: Exception | None = None
         for attempt in range(1, max_retries + 1):
             try:
-                resp = self._post("/upload", body, timeout_override=upload_timeout)
+                resp = await self._post("/upload", body, timeout_override=upload_timeout)
                 if not resp.get("ok"):
                     raise RuntimeError(f"upload to {remote_path} failed: {resp}")
                 return
@@ -803,25 +828,25 @@ class ExecClient:
                 last_err = exc
                 if attempt < max_retries:
                     logger.warning("upload %s attempt %d/%d: %s", remote_path, attempt, max_retries, exc)
-                    time.sleep(2.0 * attempt)
+                    await asyncio.sleep(2.0 * attempt)
         raise RuntimeError(f"upload to {remote_path} failed after {max_retries} attempts: {last_err}")
 
-    def download(self, remote_path: str, *, max_retries: int = 3) -> bytes:
+    async def download(self, remote_path: str, *, max_retries: int = 3) -> bytes:
         import urllib.parse
 
         url = f"{self._base}/download?path={urllib.parse.quote(remote_path)}"
-        return self._request(
+        return await self._request(
             label=f"download {remote_path}", url=url, method="GET", timeout=self._timeout, max_retries=max_retries
         )
 
-    def health(self) -> bool:
+    async def health(self) -> bool:
         try:
-            self._request(label="health", url=f"{self._base}/health", method="GET", timeout=5, max_retries=1)
+            await self._request(label="health", url=f"{self._base}/health", method="GET", timeout=5, max_retries=1)
             return True
         except (ConnectionError, OSError, TimeoutError, RuntimeError):
             return False
 
-    def _post(
+    async def _post(
         self, path: str, body: dict[str, Any], *, timeout_override: float | None = None, max_retries: int = 4
     ) -> dict[str, Any]:
         url = f"{self._base}{path}"
@@ -833,7 +858,7 @@ class ExecClient:
             http_timeout = (
                 max(self._timeout, cmd_timeout + 30) if isinstance(cmd_timeout, (int, float)) else self._timeout
             )
-        raw = self._request(
+        raw = await self._request(
             label=f"POST {path}",
             url=url,
             method="POST",
@@ -844,7 +869,7 @@ class ExecClient:
         )
         return json.loads(raw)
 
-    def _request(
+    async def _request(
         self,
         *,
         label: str,
@@ -855,26 +880,24 @@ class ExecClient:
         timeout: float,
         max_retries: int,
     ) -> bytes:
-        import urllib.error
-        import urllib.request
-
+        session = await self._ensure_session()
+        client_timeout = aiohttp.ClientTimeout(total=timeout)
         last_err: Exception | None = None
         for attempt in range(1, max_retries + 1):
-            req = urllib.request.Request(url, data=data, method=method)
-            if headers:
-                for k, v in headers.items():
-                    req.add_header(k, v)
             try:
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
-                    return resp.read()
-            except urllib.error.HTTPError as exc:
-                raise RuntimeError(f"{label} failed (HTTP {exc.code}): {exc.read().decode(errors='replace')}") from exc
-            except (*_TRANSIENT_ERRORS, urllib.error.URLError) as exc:
+                async with session.request(method, url, data=data, headers=headers, timeout=client_timeout) as resp:
+                    body = await resp.read()
+                    if resp.status >= 400:
+                        raise RuntimeError(f"{label} failed (HTTP {resp.status}): {body.decode(errors='replace')}")
+                    return body
+            except RuntimeError:
+                raise
+            except (aiohttp.ClientError, TimeoutError, OSError) as exc:
                 last_err = exc
                 if attempt < max_retries:
                     wait = min(15.0, 2.0 ** (attempt - 1))
                     logger.warning("%s attempt %d/%d: %s — retry in %.1fs", label, attempt, max_retries, exc, wait)
-                    time.sleep(wait)
+                    await asyncio.sleep(wait)
                     continue
                 raise ConnectionError(f"{label} failed after {max_retries} attempts: {last_err}") from last_err
         raise ConnectionError(f"{label} unreachable")
@@ -1213,6 +1236,34 @@ _atexit_registered = False
 _PROCESS_NONCE = f"{int(time.time())}-{uuid.uuid4().hex[:8]}"
 _exec_server_url_cache: dict[str, str] = {}
 
+_task_def_cache: dict[str, str] = {}
+_task_def_cache_lock = threading.Lock()
+_task_def_inflight: dict[str, threading.Event] = {}
+
+# Env vars whose values vary per sandbox invocation (workspace session id, etc).
+# Routed via RunTask containerOverrides so the underlying task definition stays
+# content-stable and the FEP-866 hash cache hits across invocations of the same
+# task. Per-invocation env keys discovered dynamically from OutsideEndpoint
+# routing (e.g. MODEL_BASE_URL with session-scoped URLs) are merged in at call
+# time; this set holds the keys that are NOT visible to OutsideEndpoint routing.
+_PER_INVOCATION_ENV_KEYS: frozenset[str] = frozenset({"_NEL_EFS_SESSION"})
+
+
+def _compute_task_def_hash(payload: dict[str, Any]) -> str:
+    # Strip logConfiguration from every container definition before hashing.
+    # Log config (group, stream-prefix, region) is a visibility annotation — it has
+    # no effect on what the sandbox does. Two task defs that differ only in
+    # log_stream_prefix or log_group are functionally identical and should share
+    # a cache entry so cross-run SSM cache hits work across differently-named runs.
+    def _strip_log_cfg(containers: list) -> list:
+        return [{k: v for k, v in c.items() if k != "logConfiguration"} for c in containers]
+
+    canonical = {
+        k: (_strip_log_cfg(v) if k == "containerDefinitions" else v) for k, v in payload.items() if k != "family"
+    }
+    blob = json.dumps(canonical, sort_keys=True, default=str).encode()
+    return hashlib.sha256(blob).hexdigest()[:24]
+
 
 def _emergency_cleanup() -> None:
     with _cleanup_lock:
@@ -1239,6 +1290,8 @@ class EcsFargateSandbox:
         self._stopped = False
         self._ecs: Any = None
         self._ec2: Any = None
+        self._ssm: Any = None
+        self._runtime_container_env: dict[str, str] = {}
         self._ssh_tunnel_port: int | None = None
         self._agent_forward_port: int | None = None
         self._outside_endpoints: list[OutsideEndpoint] = []
@@ -1303,6 +1356,8 @@ class EcsFargateSandbox:
             await asyncio.to_thread(self._do_start)
             self._started = True
         except Exception:
+            if self._exec_client is not None:
+                await self._exec_client.close()
             await asyncio.to_thread(self._cleanup)
             raise
 
@@ -1310,6 +1365,8 @@ class EcsFargateSandbox:
         if self._stopped:
             return
         self._stopped = True
+        if self._exec_client is not None:
+            await self._exec_client.close()
         await asyncio.to_thread(self._cleanup)
         self._unregister_from_cleanup()
 
@@ -1335,7 +1392,7 @@ class EcsFargateSandbox:
             else:
                 shell_cmd = f"su -s /bin/bash {shlex.quote(str(user))} -c {shlex.quote(shell_cmd)}"
         try:
-            return await asyncio.to_thread(self._exec_client.exec, shell_cmd, timeout=int(timeout_sec))  # type: ignore[union-attr]
+            return await self._exec_client.exec(shell_cmd, timeout=int(timeout_sec))  # type: ignore[union-attr]
         except ConnectionError:
             if self._ssh_tunnel and not self._ssh_tunnel.is_open:
                 logger.warning("SSH tunnel dead — attempting reconnect before re-raising")
@@ -1345,8 +1402,11 @@ class EcsFargateSandbox:
                     if sidecar and sidecar.exec_server_port is not None:
                         health_url = f"http://127.0.0.1:{self._ssh_tunnel.local_port}/health"  # type: ignore[union-attr]
                         self._ssh_tunnel.wait_ready(health_url=health_url, timeout=60.0)  # type: ignore[union-attr]
+                        old_client = self._exec_client
                         self._exec_client = ExecClient(port=self._ssh_tunnel.local_port)  # type: ignore[union-attr]
-                        return await asyncio.to_thread(self._exec_client.exec, shell_cmd, timeout=int(timeout_sec))
+                        if old_client is not None:
+                            await old_client.close()
+                        return await self._exec_client.exec(shell_cmd, timeout=int(timeout_sec))
                 except Exception as reconnect_err:
                     logger.warning("Tunnel reconnect failed: %s", reconnect_err)
             raise
@@ -1360,13 +1420,13 @@ class EcsFargateSandbox:
                     await self.upload(child, f"{remote_path}/{child.relative_to(local)}")
             return
         if local.stat().st_size > 512 * 1024 and self._cfg.s3_bucket:
-            await asyncio.to_thread(self._upload_via_s3, [local], os.path.dirname(remote_path) or "/tmp")
+            await self._upload_via_s3([local], os.path.dirname(remote_path) or "/tmp")
         else:
-            await asyncio.to_thread(self._exec_client.upload, remote_path, local)  # type: ignore[union-attr]
+            await self._exec_client.upload(remote_path, local)  # type: ignore[union-attr]
 
     async def download(self, remote_path: str, local_path: Path) -> None:
         self._require_exec_client()
-        data = await asyncio.to_thread(self._exec_client.download, remote_path)  # type: ignore[union-attr]
+        data = await self._exec_client.download(remote_path)  # type: ignore[union-attr]
         dest = Path(local_path)
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(data)
@@ -1426,6 +1486,7 @@ class EcsFargateSandbox:
 
         command = self._build_container_command(sidecar)
         env = self._build_env_vars()
+        stable_env, self._runtime_container_env = self._split_env(env)
         log_region = cfg.region or os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
         sidecar_def = build_ssh_sidecar_container(
             sidecar,
@@ -1436,7 +1497,7 @@ class EcsFargateSandbox:
             log_stream_prefix=cfg.log_stream_prefix or "ecs-sandbox",
         )
         self._task_def_arn = self._register_task_definition(
-            image=image, command=command, env=env, sidecar_def=sidecar_def
+            image=image, command=command, env=stable_env, sidecar_def=sidecar_def
         )
         self._task_arn = self._run_task(self._task_def_arn)
         self._register_for_cleanup()
@@ -1457,6 +1518,7 @@ class EcsFargateSandbox:
         boto_cfg = Config(connect_timeout=30, read_timeout=60, retries={"max_attempts": 8, "mode": "adaptive"})
         self._ecs = boto3.client("ecs", region_name=self._cfg.region, config=boto_cfg)
         self._ec2 = boto3.client("ec2", region_name=self._cfg.region, config=boto_cfg)
+        self._ssm = boto3.client("ssm", region_name=self._cfg.region, config=boto_cfg)
 
     def _resolve_image(self, built_image: str | None = None) -> str:
         if built_image:
@@ -1547,6 +1609,12 @@ class EcsFargateSandbox:
                 env[k] = self._render_env_value(v)
         env.update(self._outside_endpoint_routing.env_overrides())
         return env
+
+    def _split_env(self, env: dict[str, str]) -> tuple[dict[str, str], dict[str, str]]:
+        runtime_keys = _PER_INVOCATION_ENV_KEYS | set(self._outside_endpoint_routing.env_overrides().keys())
+        stable = {k: v for k, v in env.items() if k not in runtime_keys}
+        runtime = {k: v for k, v in env.items() if k in runtime_keys}
+        return stable, runtime
 
     def _render_env_value(self, value: str) -> str:
         if self._ssh_tunnel_port is not None:
@@ -1734,15 +1802,84 @@ class EcsFargateSandbox:
             )
         return task_volumes, mount_points
 
+    def _ssm_lookup_task_def(self, h: str) -> str | None:
+        _, _, ClientError = _require_aws_sdks()
+        param_name = f"/{self._cfg.ssm_project}/task-defs/{h}"
+        try:
+            resp = self._ssm.get_parameter(Name=param_name)
+        except ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            if code == "ParameterNotFound":
+                return None
+            logger.warning("SSM GetParameter %s failed (%s); falling through to register", param_name, code)
+            return None
+
+        arn = resp["Parameter"]["Value"]
+        try:
+            desc = self._ecs.describe_task_definition(taskDefinition=arn)
+        except ClientError as exc:
+            logger.warning(
+                "Cached task def %s no longer describable (%s); re-registering",
+                arn,
+                exc.response["Error"]["Code"],
+            )
+            return None
+        if desc["taskDefinition"]["status"] != "ACTIVE":
+            logger.info("SSM cache entry %s is not ACTIVE; re-registering (hash %s)", arn, h)
+            return None
+        logger.info("Reusing task def from SSM cache: %s (hash %s)", arn, h)
+        return arn
+
+    def _ssm_write_task_def(self, h: str, arn: str) -> None:
+        _, _, ClientError = _require_aws_sdks()
+        param_name = f"/{self._cfg.ssm_project}/task-defs/{h}"
+        try:
+            self._ssm.put_parameter(Name=param_name, Value=arn, Type="String", Overwrite=True)
+            logger.info("Wrote SSM task-def cache entry: %s -> %s", param_name, arn)
+        except ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            logger.warning("SSM PutParameter %s failed (%s); cache entry not written", param_name, code)
+
     def _do_register(self, payload: dict[str, Any]) -> str:
+        h = _compute_task_def_hash(payload)
+
+        while True:
+            with _task_def_cache_lock:
+                if h in _task_def_cache:
+                    arn = _task_def_cache[h]
+                    logger.info("Reusing cached task def %s (hash %s)", arn, h)
+                    return arn
+                if h in _task_def_inflight:
+                    event = _task_def_inflight[h]
+                else:
+                    event = threading.Event()
+                    _task_def_inflight[h] = event
+                    break
+            event.wait()
+
+        try:
+            arn = self._ssm_lookup_task_def(h) or self._register_task_def_fresh(payload, h)
+            with _task_def_cache_lock:
+                _task_def_cache[h] = arn
+            return arn
+        finally:
+            self._release_inflight(h, event)
+
+    def _register_task_def_fresh(self, payload: dict[str, Any], h: str) -> str:
         resp = _retry_with_backoff(
             lambda: self._ecs.register_task_definition(**payload),
             operation_name="register_task_definition",
             max_retries=25,
         )
         arn = resp["taskDefinition"]["taskDefinitionArn"]
-        logger.info("Registered task def: %s", arn)
+        logger.info("Registered task def: %s (hash %s)", arn, h)
+        self._ssm_write_task_def(h, arn)
         return arn
+
+    def _release_inflight(self, h: str, event: threading.Event) -> None:
+        with _task_def_cache_lock:
+            _task_def_inflight.pop(h, None)
+        event.set()
 
     def _make_family_name(self) -> str:
         nonce = uuid.uuid4().hex[:12]
@@ -1768,6 +1905,17 @@ class EcsFargateSandbox:
                 }
             },
         }
+        if self._runtime_container_env:
+            run_kwargs["overrides"] = {
+                "containerOverrides": [
+                    {
+                        "name": cfg.container_name,
+                        "environment": [
+                            {"name": k, "value": v} for k, v in sorted(self._runtime_container_env.items())
+                        ],
+                    }
+                ]
+            }
         has_efs = any(v.is_efs for v in self._spec.volumes)
         if cfg.platform_version:
             run_kwargs["platformVersion"] = cfg.platform_version
@@ -1955,16 +2103,6 @@ class EcsFargateSandbox:
                 logger.info("Stopped ECS task: %s", self._task_arn)
             except Exception as exc:
                 logger.warning("Failed to stop task %s: %s", self._task_arn, exc)
-        if self._task_def_arn and self._ecs:
-            try:
-                _retry_with_backoff(
-                    lambda: self._ecs.deregister_task_definition(taskDefinition=self._task_def_arn),
-                    operation_name="deregister_task_definition",
-                    max_retries=5,
-                )
-                logger.info("Deregistered task def: %s", self._task_def_arn)
-            except Exception as exc:
-                logger.warning("Failed to deregister task def %s: %s", self._task_def_arn, exc)
         if self._ssh_key_file:
             try:
                 os.remove(self._ssh_key_file)
@@ -1986,32 +2124,42 @@ class EcsFargateSandbox:
                 "(ssh_sidecar.exec_server_port). In agent-server mode use sandbox.ssh_tunnel."
             )
 
-    def _upload_via_s3(self, paths: list[Path], dest_dir: str) -> None:
+    async def _upload_via_s3(self, paths: list[Path], dest_dir: str) -> None:
         cfg = self._cfg
         if not cfg.s3_bucket:
             raise ValueError("s3_bucket is required for S3 staging")
-        buf = io.BytesIO()
-        with tarfile.open(fileobj=buf, mode="w:gz") as tar:
-            for p in paths:
-                if p.is_file():
-                    tar.add(str(p), arcname=p.name)
-                elif p.is_dir():
-                    for child in p.rglob("*"):
-                        if child.is_file():
-                            tar.add(str(child), arcname=str(child.relative_to(p)))
-        buf.seek(0)
+
+        def _pack() -> bytes:
+            buf = io.BytesIO()
+            with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+                for p in paths:
+                    if p.is_file():
+                        tar.add(str(p), arcname=p.name)
+                    elif p.is_dir():
+                        for child in p.rglob("*"):
+                            if child.is_file():
+                                tar.add(str(child), arcname=str(child.relative_to(p)))
+            buf.seek(0)
+            return buf.read()
+
+        body = await asyncio.to_thread(_pack)
         boto3, *_ = _require_aws_sdks()
         s3 = boto3.client("s3", region_name=cfg.region)
         prefix = cfg.s3_prefix or "ecs-sandbox"
         nonce = uuid.uuid4().hex[:12]
         key = f"{prefix}/{self._run_id}/upload-{nonce}.tar.gz"
-        body = buf.read()
-        _retry_with_backoff(
+        await asyncio.to_thread(
+            _retry_with_backoff,
             lambda: s3.put_object(Bucket=cfg.s3_bucket, Key=key, Body=body),
             operation_name="s3.put_object(upload)",
             max_retries=5,
         )
-        url = s3.generate_presigned_url("get_object", Params={"Bucket": cfg.s3_bucket, "Key": key}, ExpiresIn=21600)
+        url = await asyncio.to_thread(
+            s3.generate_presigned_url,
+            "get_object",
+            Params={"Bucket": cfg.s3_bucket, "Key": key},
+            ExpiresIn=21600,
+        )
         dl_cmd = (
             f"mkdir -p {shlex.quote(dest_dir)} && TGZ=/tmp/_upload_$$.tar.gz && "
             f"( curl -sf -L --max-time 300 -o $TGZ {shlex.quote(url)} 2>/dev/null || "
@@ -2019,7 +2167,7 @@ class EcsFargateSandbox:
             f"{shlex.quote(url)} $TGZ ) && "
             f"tar xzf $TGZ -C {shlex.quote(dest_dir)} && rm -f $TGZ && echo ok"
         )
-        result = self._exec_client.exec(dl_cmd, timeout=360)  # type: ignore[union-attr]
+        result = await self._exec_client.exec(dl_cmd, timeout=360)  # type: ignore[union-attr]
         if "ok" not in result.stdout:
             raise RuntimeError(
                 f"S3 upload extraction failed (rc={result.return_code}): {result.stderr or result.stdout}"

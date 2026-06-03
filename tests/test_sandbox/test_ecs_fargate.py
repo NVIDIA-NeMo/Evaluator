@@ -6,16 +6,12 @@
 # You may obtain a copy of the License at
 #
 # http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 """Tests for ECS Fargate sandbox — all AWS/SSH/network calls mocked."""
 
 from __future__ import annotations
 
+import threading
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -259,14 +255,15 @@ class TestReverseSpecs:
             OutsideEndpoint(url="http://host-b:4000/form", env_var="B"),
         ]
 
-        register_task_definition, tunnel_cls, _ = await _start_with_mocked_ecs(sb, eps)
+        _, tunnel_cls, _ = await _start_with_mocked_ecs(sb, eps)
 
         specs = tunnel_cls.call_args.kwargs["reverses"]
         assert "4000:host-a:4000" in specs
         assert "20000:host-b:4000" in specs
-        env = register_task_definition.call_args.kwargs["env"]
-        assert env["A"] == "http://127.0.0.1:4000/v1"
-        assert env["B"] == "http://127.0.0.1:20000/form"
+        # OutsideEndpoint env vars are routed via RunTask containerOverrides
+        # (per-invocation), so they don't leak into the cached task definition.
+        assert sb._runtime_container_env["A"] == "http://127.0.0.1:4000/v1"
+        assert sb._runtime_container_env["B"] == "http://127.0.0.1:20000/form"
 
     async def test_duplicate_target_reuses_reverse_port(self):
         sb = _make_sandbox()
@@ -275,13 +272,12 @@ class TestReverseSpecs:
             OutsideEndpoint(url="http://host-a:4000/health", env_var="B"),
         ]
 
-        register_task_definition, tunnel_cls, _ = await _start_with_mocked_ecs(sb, eps)
+        _, tunnel_cls, _ = await _start_with_mocked_ecs(sb, eps)
 
         specs = tunnel_cls.call_args.kwargs["reverses"]
         assert specs == ["4000:host-a:4000"]
-        env = register_task_definition.call_args.kwargs["env"]
-        assert env["A"] == "http://127.0.0.1:4000/v1"
-        assert env["B"] == "http://127.0.0.1:4000/health"
+        assert sb._runtime_container_env["A"] == "http://127.0.0.1:4000/v1"
+        assert sb._runtime_container_env["B"] == "http://127.0.0.1:4000/health"
 
     async def test_exec_server_port_is_reserved(self):
         sb = _make_sandbox()
@@ -300,11 +296,10 @@ class TestReverseSpecs:
             OutsideEndpoint(url="http://host-b:4000/form", env_var="B"),
         ]
 
-        register_task_definition, _, _ = await _start_with_mocked_ecs(sb, eps)
+        await _start_with_mocked_ecs(sb, eps)
 
-        env = register_task_definition.call_args.kwargs["env"]
-        assert env["A"] == "http://127.0.0.1:4000/v1"
-        assert env["B"] == "http://127.0.0.1:20000/form"
+        assert sb._runtime_container_env["A"] == "http://127.0.0.1:4000/v1"
+        assert sb._runtime_container_env["B"] == "http://127.0.0.1:20000/form"
 
 
 class TestEcsFargateLifecycle:
@@ -392,6 +387,9 @@ class TestEcsFargateLifecycle:
         tunnel_mock = MagicMock()
         sb._ssh_tunnel = tunnel_mock
         sb._ssh_key_file = "/tmp/fake.key"
+        exec_client = MagicMock()
+        exec_client.close = AsyncMock(return_value=None)
+        sb._exec_client = exec_client
 
         with patch("os.remove"):
             await sb.stop()
@@ -399,7 +397,8 @@ class TestEcsFargateLifecycle:
         assert sb._stopped
         tunnel_mock.close.assert_called_once()
         ecs_mock.stop_task.assert_called_once()
-        ecs_mock.deregister_task_definition.assert_called_once()
+        ecs_mock.deregister_task_definition.assert_not_called()
+        exec_client.close.assert_awaited_once()
 
     async def test_stop_idempotent(self):
         sb = _make_sandbox()
@@ -423,12 +422,16 @@ class TestEcsFargateLifecycle:
 
 
 class TestEcsFargateExec:
-    """Exec/upload/download with mocked ExecClient."""
+    """Exec/upload/download with mocked ExecClient (now async)."""
 
     def _started_sb(self):
         sb = _make_sandbox()
         sb._started = True
         client = MagicMock()
+        client.exec = AsyncMock(return_value=ExecResult("", "", 0))
+        client.upload = AsyncMock(return_value=None)
+        client.download = AsyncMock(return_value=b"")
+        client.close = AsyncMock(return_value=None)
         sb._exec_client = client
         return sb, client
 
@@ -439,30 +442,65 @@ class TestEcsFargateExec:
         result = await sb.exec("echo hello")
         assert result.stdout == "hello"
         assert result.return_code == 0
-        client.exec.assert_called_once()
+        client.exec.assert_awaited_once()
         cmd_arg = client.exec.call_args[0][0]
         assert "echo hello" in cmd_arg
 
-    async def test_exec_wraps_cwd(self):
+    async def test_exec_does_not_park_a_thread(self):
+        """Regression for FEP-886. The sandbox.exec coroutine must await the
+        ExecClient directly, not via the default executor — otherwise long
+        agent calls park threads and starve the orchestrator at conc>200.
+
+        Patches both ``asyncio.to_thread`` and ``loop.run_in_executor`` since
+        the former is implemented as the latter; a future switch from one to
+        the other would still reintroduce the same starvation pattern.
+        """
+        import asyncio as _asyncio
+
         sb, client = self._started_sb()
         client.exec.return_value = ExecResult("", "", 0)
 
+        loop = _asyncio.get_running_loop()
+        with (
+            patch.object(_asyncio, "to_thread", side_effect=AssertionError("to_thread used")) as no_tt,
+            patch.object(loop, "run_in_executor", side_effect=AssertionError("run_in_executor used")) as no_exec,
+        ):
+            await sb.exec("echo hi")
+        no_tt.assert_not_called()
+        no_exec.assert_not_called()
+
+    async def test_exec_calls_run_concurrently(self):
+        """`exec` calls must overlap — gather of N slow calls should finish in
+        roughly the duration of one, not N × duration."""
+        import asyncio as _asyncio
+        import time as _time
+
+        sb, client = self._started_sb()
+
+        async def _slow(*args, **kwargs):
+            await _asyncio.sleep(0.1)
+            return ExecResult("", "", 0)
+
+        client.exec.side_effect = _slow
+        t0 = _time.monotonic()
+        await _asyncio.gather(*(sb.exec(f"echo {i}") for i in range(20)))
+        elapsed = _time.monotonic() - t0
+        assert elapsed < 1.0, f"20 × 0.1s calls took {elapsed:.2f}s — serialized?"
+
+    async def test_exec_wraps_cwd(self):
+        sb, client = self._started_sb()
         await sb.exec("ls", cwd="/app")
         cmd = client.exec.call_args[0][0]
         assert "cd /app" in cmd
 
     async def test_exec_wraps_env(self):
         sb, client = self._started_sb()
-        client.exec.return_value = ExecResult("", "", 0)
-
         await sb.exec("cmd", env={"FOO": "bar"})
         cmd = client.exec.call_args[0][0]
         assert "FOO=bar" in cmd
 
     async def test_exec_wraps_user_string(self):
         sb, client = self._started_sb()
-        client.exec.return_value = ExecResult("", "", 0)
-
         await sb.exec("whoami", user="testuser")
         cmd = client.exec.call_args[0][0]
         assert "su -s /bin/bash" in cmd
@@ -470,8 +508,6 @@ class TestEcsFargateExec:
 
     async def test_exec_wraps_user_int(self):
         sb, client = self._started_sb()
-        client.exec.return_value = ExecResult("", "", 0)
-
         await sb.exec("id", user=1000)
         cmd = client.exec.call_args[0][0]
         assert "getent passwd 1000" in cmd
@@ -490,21 +526,22 @@ class TestEcsFargateExec:
         f.write_text("data")
 
         await sb.upload(f, "/remote/small.txt")
-        client.upload.assert_called_once_with("/remote/small.txt", f)
+        client.upload.assert_awaited_once_with("/remote/small.txt", f)
 
     async def test_upload_large_file_via_s3(self, tmp_path):
         cfg = _cfg(s3_bucket="my-bucket", s3_prefix="sandbox")
         sb = _make_sandbox(ecs_config=cfg)
         sb._started = True
         client = MagicMock()
+        client.exec = AsyncMock(return_value=ExecResult("", "", 0))
         sb._exec_client = client
 
         f = tmp_path / "big.bin"
         f.write_bytes(b"x" * (600 * 1024))
 
-        with patch.object(sb, "_upload_via_s3") as mock_s3:
+        with patch.object(sb, "_upload_via_s3", new=AsyncMock(return_value=None)) as mock_s3:
             await sb.upload(f, "/remote/big.bin")
-        mock_s3.assert_called_once()
+        mock_s3.assert_awaited_once()
 
     async def test_upload_directory(self, tmp_path):
         sb, client = self._started_sb()
@@ -514,7 +551,7 @@ class TestEcsFargateExec:
         (d / "b.txt").write_text("bbb")
 
         await sb.upload(d, "/remote/mydir")
-        assert client.upload.call_count == 2
+        assert client.upload.await_count == 2
 
     async def test_download(self, tmp_path):
         sb, client = self._started_sb()
@@ -523,7 +560,62 @@ class TestEcsFargateExec:
 
         await sb.download("/remote/result.txt", dest)
         assert dest.read_bytes() == b"file contents"
-        client.download.assert_called_once_with("/remote/result.txt")
+        client.download.assert_awaited_once_with("/remote/result.txt")
+
+    async def test_exec_reconnect_closes_old_client(self):
+        """On tunnel-dead reconnect, the replaced ExecClient must have its
+        aiohttp session closed to avoid leaks across reconnects.
+        """
+        sb, client = self._started_sb()
+        client.exec.side_effect = ConnectionError("tunnel down")
+
+        tunnel = MagicMock()
+        tunnel.is_open = False
+        tunnel.local_port = 19002
+        sb._ssh_tunnel = tunnel
+
+        # The second-attempt exec (after reconnect) succeeds against the NEW client.
+        new_client = MagicMock()
+        new_client.exec = AsyncMock(return_value=ExecResult("ok", "", 0))
+        new_client.close = AsyncMock(return_value=None)
+
+        # Reconnect: open a new tunnel + create a new ExecClient.
+        async def _reconnect():
+            tunnel.is_open = True
+
+        with (
+            patch.object(sb, "reconnect_tunnel", side_effect=_reconnect),
+            patch(f"{_PATCH_PREFIX}.ExecClient", return_value=new_client),
+        ):
+            tunnel.wait_ready = MagicMock()
+            await sb.exec("echo hi")
+
+        client.close.assert_awaited_once()
+
+
+class TestExecClientAsync:
+    """ExecClient is a true coroutine client, not a thread-pool blocker."""
+
+    def test_methods_are_coroutines(self):
+        """Async methods must be coroutine functions so callers can `await`
+        them without `asyncio.to_thread` (the FEP-886 starvation pattern).
+        """
+        import asyncio as _asyncio
+
+        from nemo_evaluator.sandbox.ecs_fargate import ExecClient
+
+        c = ExecClient(port=1)
+        assert _asyncio.iscoroutinefunction(c.exec)
+        assert _asyncio.iscoroutinefunction(c.upload)
+        assert _asyncio.iscoroutinefunction(c.download)
+        assert _asyncio.iscoroutinefunction(c.health)
+        assert _asyncio.iscoroutinefunction(c.close)
+
+    async def test_close_without_session_is_noop(self):
+        from nemo_evaluator.sandbox.ecs_fargate import ExecClient
+
+        c = ExecClient(port=1)
+        await c.close()  # no session created yet; must not raise
 
 
 # ── TestSshTunnel ─────────────────────────────────────────────────────
@@ -757,3 +849,282 @@ class TestImageBuilder:
 
         assert "123.dkr.ecr.us-west-2.amazonaws.com/repo:" in result
         mock_exists.assert_called_once()
+
+
+# ── TestTaskDefCache ──────────────────────────────────────────────────
+
+
+@pytest.fixture
+def clear_task_def_cache():
+    from nemo_evaluator.sandbox import ecs_fargate
+
+    ecs_fargate._task_def_cache.clear()
+    ecs_fargate._task_def_inflight.clear()
+    yield
+    ecs_fargate._task_def_cache.clear()
+    ecs_fargate._task_def_inflight.clear()
+
+
+def _ssm_param_not_found_error():
+    from botocore.exceptions import ClientError
+
+    return ClientError({"Error": {"Code": "ParameterNotFound", "Message": "not found"}}, "GetParameter")
+
+
+def _make_cache_sandbox():
+    sb = _make_sandbox()
+    sb._ecs = MagicMock()
+    sb._ssm = MagicMock()
+    sb._ssm.get_parameter.side_effect = _ssm_param_not_found_error()
+    return sb
+
+
+def _make_ssm_sandbox():
+    sb = _make_sandbox()
+    sb._ecs = MagicMock()
+    sb._ssm = MagicMock()
+    return sb
+
+
+class TestTaskDefCache:
+    def test_same_payload_reuses_cached_arn(self, clear_task_def_cache):
+        sb = _make_cache_sandbox()
+        sb._ecs.register_task_definition.return_value = {
+            "taskDefinition": {"taskDefinitionArn": "arn:aws:ecs:us-east-1:1234:task-definition/test:1"}
+        }
+        payload = {
+            "family": "test-abc",
+            "cpu": "4096",
+            "memory": "8192",
+            "containerDefinitions": [{"name": "main", "image": "python:3.12"}],
+        }
+
+        arn1 = sb._do_register(payload)
+        arn2 = sb._do_register({**payload, "family": "test-xyz"})
+
+        assert arn1 == arn2
+        sb._ecs.register_task_definition.assert_called_once()
+
+    def test_different_payload_registers_new_task_def(self, clear_task_def_cache):
+        sb = _make_cache_sandbox()
+        sb._ecs.register_task_definition.side_effect = [
+            {"taskDefinition": {"taskDefinitionArn": "arn:aws:ecs:us-east-1:1234:task-definition/test:1"}},
+            {"taskDefinition": {"taskDefinitionArn": "arn:aws:ecs:us-east-1:1234:task-definition/test:2"}},
+        ]
+        payload_a = {"family": "test", "cpu": "4096", "containerDefinitions": []}
+        payload_b = {"family": "test", "cpu": "8192", "containerDefinitions": []}
+
+        arn1 = sb._do_register(payload_a)
+        arn2 = sb._do_register(payload_b)
+
+        assert arn1 != arn2
+        assert sb._ecs.register_task_definition.call_count == 2
+
+    def test_concurrent_identical_payloads_register_once(self, clear_task_def_cache):
+        sb = _make_cache_sandbox()
+        gate = threading.Event()
+
+        def slow_register(**_kwargs):
+            gate.wait(timeout=5.0)
+            return {"taskDefinition": {"taskDefinitionArn": "arn:aws:ecs:us-east-1:1234:task-definition/test:1"}}
+
+        sb._ecs.register_task_definition.side_effect = slow_register
+
+        payload = {"family": "test", "cpu": "4096", "memory": "8192", "containerDefinitions": []}
+        results: list[str] = []
+        errors: list[BaseException] = []
+
+        def call():
+            try:
+                results.append(sb._do_register(payload))
+            except BaseException as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=call) for _ in range(8)]
+        for t in threads:
+            t.start()
+        # Poll until the elected registrant has entered slow_register (under the cache
+        # lock it has already added the inflight entry the other threads will wait on).
+        # Avoids a flaky time.sleep that may be too short under CI load.
+        deadline = time.monotonic() + 5.0
+        while sb._ecs.register_task_definition.call_count == 0:
+            if time.monotonic() > deadline:
+                pytest.fail("registrant never reached slow_register within 5s")
+            time.sleep(0.005)
+        gate.set()
+        for t in threads:
+            t.join(timeout=5.0)
+
+        assert not errors, f"thread errors: {errors}"
+        assert sb._ecs.register_task_definition.call_count == 1
+        assert len(results) == 8
+        assert all(r == results[0] for r in results)
+
+
+# ── TestSsmTaskDefCache ───────────────────────────────────────────────
+
+
+class TestSsmTaskDefCache:
+    def test_ssm_hit_active_skips_register(self, clear_task_def_cache):
+        sb = _make_ssm_sandbox()
+        sb._ssm.get_parameter.return_value = {"Parameter": {"Value": "arn:cached:1"}}
+        sb._ecs.describe_task_definition.return_value = {
+            "taskDefinition": {"taskDefinitionArn": "arn:cached:1", "status": "ACTIVE"}
+        }
+        payload = {"family": "test", "cpu": "4096", "containerDefinitions": []}
+
+        arn = sb._do_register(payload)
+
+        assert arn == "arn:cached:1"
+        sb._ssm.get_parameter.assert_called_once()
+        sb._ecs.describe_task_definition.assert_called_once()
+        sb._ecs.register_task_definition.assert_not_called()
+        sb._ssm.put_parameter.assert_not_called()
+
+    def test_ssm_hit_inactive_falls_through_to_register(self, clear_task_def_cache):
+        sb = _make_ssm_sandbox()
+        sb._ssm.get_parameter.return_value = {"Parameter": {"Value": "arn:stale:1"}}
+        sb._ecs.describe_task_definition.return_value = {
+            "taskDefinition": {"taskDefinitionArn": "arn:stale:1", "status": "INACTIVE"}
+        }
+        sb._ecs.register_task_definition.return_value = {"taskDefinition": {"taskDefinitionArn": "arn:fresh:2"}}
+        payload = {"family": "test", "cpu": "4096", "containerDefinitions": []}
+
+        arn = sb._do_register(payload)
+
+        assert arn == "arn:fresh:2"
+        sb._ecs.register_task_definition.assert_called_once()
+        sb._ssm.put_parameter.assert_called_once()
+
+    def test_ssm_miss_registers_and_writes(self, clear_task_def_cache):
+        sb = _make_ssm_sandbox()
+        sb._ssm.get_parameter.side_effect = _ssm_param_not_found_error()
+        sb._ecs.register_task_definition.return_value = {"taskDefinition": {"taskDefinitionArn": "arn:new:1"}}
+        payload = {"family": "test", "cpu": "4096", "containerDefinitions": []}
+
+        arn = sb._do_register(payload)
+
+        assert arn == "arn:new:1"
+        sb._ecs.register_task_definition.assert_called_once()
+        put_kwargs = sb._ssm.put_parameter.call_args.kwargs
+        assert put_kwargs["Value"] == "arn:new:1"
+        assert put_kwargs["Overwrite"] is True
+        assert put_kwargs["Name"].startswith("/harbor/task-defs/")
+
+    def test_ssm_read_error_falls_through_gracefully(self, clear_task_def_cache):
+        from botocore.exceptions import ClientError
+
+        sb = _make_ssm_sandbox()
+        sb._ssm.get_parameter.side_effect = ClientError(
+            {"Error": {"Code": "AccessDeniedException", "Message": "denied"}}, "GetParameter"
+        )
+        sb._ecs.register_task_definition.return_value = {"taskDefinition": {"taskDefinitionArn": "arn:fallback:1"}}
+        payload = {"family": "test", "cpu": "4096", "containerDefinitions": []}
+
+        arn = sb._do_register(payload)
+
+        assert arn == "arn:fallback:1"
+        sb._ecs.register_task_definition.assert_called_once()
+
+    def test_ssm_write_error_does_not_fail_run(self, clear_task_def_cache):
+        from botocore.exceptions import ClientError
+
+        sb = _make_ssm_sandbox()
+        sb._ssm.get_parameter.side_effect = _ssm_param_not_found_error()
+        sb._ecs.register_task_definition.return_value = {"taskDefinition": {"taskDefinitionArn": "arn:ok:1"}}
+        sb._ssm.put_parameter.side_effect = ClientError(
+            {"Error": {"Code": "AccessDeniedException", "Message": "denied"}}, "PutParameter"
+        )
+        payload = {"family": "test", "cpu": "4096", "containerDefinitions": []}
+
+        arn = sb._do_register(payload)
+
+        assert arn == "arn:ok:1"
+        sb._ecs.register_task_definition.assert_called_once()
+
+    def test_ssm_hit_populates_local_cache(self, clear_task_def_cache):
+        from nemo_evaluator.sandbox import ecs_fargate
+
+        sb = _make_ssm_sandbox()
+        sb._ssm.get_parameter.return_value = {"Parameter": {"Value": "arn:cached:1"}}
+        sb._ecs.describe_task_definition.return_value = {
+            "taskDefinition": {"taskDefinitionArn": "arn:cached:1", "status": "ACTIVE"}
+        }
+        payload = {"family": "test", "cpu": "4096", "containerDefinitions": []}
+
+        arn1 = sb._do_register(payload)
+        arn2 = sb._do_register(payload)
+
+        assert arn1 == arn2 == "arn:cached:1"
+        assert sb._ssm.get_parameter.call_count == 1
+        assert sb._ecs.describe_task_definition.call_count == 1
+        h = ecs_fargate._compute_task_def_hash(payload)
+        assert ecs_fargate._task_def_cache[h] == "arn:cached:1"
+
+
+# ── TestTaskDefHashStability ─────────────────────────────────────────
+
+
+class TestTaskDefHashStability:
+    """logConfiguration is stripped before hashing so cross-run cache hits work."""
+
+    def test_different_log_stream_prefix_same_hash(self):
+        from nemo_evaluator.sandbox.ecs_fargate import _compute_task_def_hash
+
+        base_cd = [{"name": "main", "image": "python:3.12", "environment": []}]
+        payload_a = {
+            "family": "run-a",
+            "cpu": "4096",
+            "containerDefinitions": base_cd
+            + [{"name": "ssh-tunnel", "logConfiguration": {"awslogs-stream-prefix": "run-A"}}],
+        }
+        payload_b = {
+            "family": "run-b",
+            "cpu": "4096",
+            "containerDefinitions": base_cd
+            + [{"name": "ssh-tunnel", "logConfiguration": {"awslogs-stream-prefix": "run-B"}}],
+        }
+        assert _compute_task_def_hash(payload_a) == _compute_task_def_hash(payload_b)
+
+    def test_different_image_still_different_hash(self):
+        from nemo_evaluator.sandbox.ecs_fargate import _compute_task_def_hash
+
+        payload_a = {"family": "x", "containerDefinitions": [{"name": "main", "image": "python:3.12"}]}
+        payload_b = {"family": "x", "containerDefinitions": [{"name": "main", "image": "python:3.13"}]}
+        assert _compute_task_def_hash(payload_a) != _compute_task_def_hash(payload_b)
+
+
+# ── TestPerInvocationEnvSplit ─────────────────────────────────────────
+
+
+class TestPerInvocationEnvSplit:
+    def test_split_routes_efs_session_and_outside_endpoint_overrides(self):
+        from nemo_evaluator.sandbox.ecs_fargate import _OutsideEndpointRouting
+
+        sb = _make_sandbox()
+        sb._outside_endpoint_routing = _OutsideEndpointRouting.for_exec_server(
+            [OutsideEndpoint(url="http://api.local:4000/s/abc123", env_var="MODEL_BASE_URL")],
+            _sidecar(),
+        )
+        env = {
+            "HARBOR_TASK_DIR": "harbor_datasets/terminal-bench@2.0/regex-chess",
+            "_NEL_EFS_SESSION": "1779033306_abc",
+            "MODEL_BASE_URL": "http://127.0.0.1:4000/s/abc123",
+        }
+
+        stable, runtime = sb._split_env(env)
+
+        assert stable == {"HARBOR_TASK_DIR": "harbor_datasets/terminal-bench@2.0/regex-chess"}
+        assert runtime == {
+            "_NEL_EFS_SESSION": "1779033306_abc",
+            "MODEL_BASE_URL": "http://127.0.0.1:4000/s/abc123",
+        }
+
+    def test_split_keeps_unrelated_env_in_stable(self):
+        sb = _make_sandbox()
+        env = {"FOO": "bar", "HARBOR_TASK_DIR": "x"}
+
+        stable, runtime = sb._split_env(env)
+
+        assert stable == env
+        assert runtime == {}

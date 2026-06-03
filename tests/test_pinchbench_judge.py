@@ -11,10 +11,17 @@ from pathlib import Path
 import pytest
 
 from nemo_evaluator.benchmarks.pinchbench import (
+    _CACHE_METADATA,
     _TRANSCRIPT_SUMMARY_MAX_CHARS,
     _WORKSPACE_BLOB_MAX_CHARS,
+    _build_judge_prompt,
+    _cache_key,
+    _load_all_tasks,
     _make_pinchbench_judge_fn,
+    _manifest_task_files,
+    _parse_task,
     _read_workspace_files_for_judge,
+    _seed_fn,
     _summarize_transcript,
 )
 
@@ -96,6 +103,145 @@ class TestReadWorkspaceFiles:
     def test_missing_workspace_returns_empty(self, tmp_path: Path) -> None:
         assert _read_workspace_files_for_judge("") == ""
         assert _read_workspace_files_for_judge(str(tmp_path / "nope")) == ""
+
+
+class TestTaskMetadata:
+    def test_frontmatter_runtime_metadata_is_preserved(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        monkeypatch.setattr("nemo_evaluator.benchmarks.pinchbench._ensure_cache", lambda **kwargs: tmp_path)
+        task_file = tmp_path / "task_second_brain.md"
+        task_file.write_text(
+            """---
+id: task_second_brain
+name: Second Brain
+category: memory
+grading_type: hybrid
+timeout_seconds: 321
+multi_session: true
+sessions:
+  - id: store
+    prompt: Save the facts.
+  - id: recall
+    new_session: true
+    prompt: Read the facts.
+prerequisites:
+  - npm:@juppytt/fws
+workspace_files: []
+---
+
+## Prompt
+
+This is a multi-session task.
+
+## Grading Criteria
+
+- Creates a memory file.
+""",
+            encoding="utf-8",
+        )
+
+        row = _parse_task(task_file)
+        seed = _seed_fn(row, 0)
+
+        assert row["multi_session"] is True
+        assert row["timeout_seconds"] == 321
+        assert row["sessions"][1]["new_session"] is True
+        assert row["prerequisites"] == ["npm:@juppytt/fws"]
+        assert seed.metadata["timeout_seconds"] == 321
+        assert seed.metadata["multi_session"] is True
+        assert seed.metadata["sessions"] == row["sessions"]
+        assert seed.metadata["prerequisites"] == row["prerequisites"]
+        assert "pinchbench_source_ref" in seed.metadata
+
+    def test_source_metadata_is_preserved(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        tasks_dir = tmp_path / "tasks"
+        tasks_dir.mkdir()
+        (tasks_dir / "task_source.md").write_text(
+            """---
+id: task_source
+name: Source Metadata
+category: metadata
+grading_type: automated
+workspace_files: []
+---
+
+## Prompt
+
+Check metadata.
+
+## Automated Checks
+
+```python
+def grade(transcript, workspace_path):
+    return {"ok": 1.0}
+```
+""",
+            encoding="utf-8",
+        )
+        source_url = "https://example.test/pinchbench/skill"
+        source_ref = "abc123"
+        _CACHE_METADATA[_cache_key(source_ref, source_url)] = {
+            "source_url": source_url,
+            "source_ref": source_ref,
+            "archive_url": f"{source_url}/archive/{source_ref}.zip",
+            "benchmark_version": "2.0.0",
+        }
+        monkeypatch.setattr("nemo_evaluator.benchmarks.pinchbench._ensure_cache", lambda **kwargs: tmp_path)
+
+        rows = _load_all_tasks(source_ref=source_ref, source_url=source_url)
+
+        assert rows[0]["pinchbench_source_ref"] == source_ref
+        assert rows[0]["pinchbench_source_url"] == source_url
+        assert rows[0]["pinchbench_benchmark_version"] == "2.0.0"
+        seed = _seed_fn(rows[0], 0)
+        assert seed.metadata["pinchbench_source_ref"] == source_ref
+        assert seed.metadata["pinchbench_benchmark_version"] == "2.0.0"
+
+    def test_manifest_order_is_used_before_sorted_fallback(self, tmp_path: Path) -> None:
+        tasks_dir = tmp_path / "tasks"
+        tasks_dir.mkdir()
+        for name in ("task_zeta.md", "task_alpha.md", "task_extra.md"):
+            (tasks_dir / name).write_text("---\nid: x\n---\n\n## Prompt\n\nx\n", encoding="utf-8")
+        (tasks_dir / "manifest.yaml").write_text(
+            """
+run_first:
+  - task_zeta
+categories:
+  core:
+    - task_alpha.md
+""",
+            encoding="utf-8",
+        )
+
+        ordered = [path.name for path in _manifest_task_files(tasks_dir)]
+
+        assert ordered == ["task_zeta.md", "task_alpha.md", "task_extra.md"]
+
+    def test_judge_prompt_comes_from_upstream_grading_helper(self, tmp_path) -> None:
+        scripts_dir = tmp_path / "scripts"
+        scripts_dir.mkdir()
+        (scripts_dir / "lib_grading.py").write_text(
+            """
+def _build_judge_prompt(task, transcript_summary, rubric, workspace_content=""):
+    return (
+        f"UPSTREAM:{task.prompt}|{task.expected_behavior}|{transcript_summary}|{rubric}|{workspace_content}\\n"
+        "Do not penalize the agent's tool usage as a rule violation; "
+        "the rules above apply only to you, the grader"
+    )
+""",
+            encoding="utf-8",
+        )
+
+        prompt = _build_judge_prompt(
+            {"prompt": "do work", "expected_behavior": "done"},
+            "Agent used bash and wrote a file.",
+            "Score it.",
+            "### File: report.md\nok",
+            source_root=tmp_path,
+        )
+
+        assert prompt.startswith("UPSTREAM:do work|done|")
+        assert "Do not penalize the agent's tool usage as a rule violation" in prompt
+        assert "the rules above apply only to you, the grader" in prompt
 
 
 @dataclass

@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 from typing import Any
 
@@ -151,3 +152,16 @@ class AdapterPipeline:
                 raise
 
         return response
+
+    async def close(self) -> None:
+        """Close interceptors that own async resources."""
+        for interceptor in reversed(self._chain):
+            close = getattr(interceptor, "close", None)
+            if close is None:
+                continue
+            try:
+                result = close()
+                if inspect.isawaitable(result):
+                    await result
+            except Exception:
+                logger.exception("Interceptor %s cleanup failed", type(interceptor).__name__)

@@ -8,9 +8,11 @@ max_concurrent: 30
 solver:
   type: openclaw
   service: model
+  # PinchBench v2 research tasks require OpenClaw web search.
+  web_search_provider: tavily
 sandbox:
   type: ecs_fargate
-  image: ghcr.io/openclaw/openclaw:2026.4.15
+  image: 463701203462.dkr.ecr.us-west-2.amazonaws.com/pinchbench:nemo-evaluator-pinchbench-openclaw-2026-5-4
   ecr_repository: ""
   cpu: "2048"
   memory: "4096"

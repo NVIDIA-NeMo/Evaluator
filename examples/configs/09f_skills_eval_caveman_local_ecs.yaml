@@ -1,0 +1,50 @@
+# Skills eval: caveman skill on terminal-bench@2.0, local orchestrator + ECS Fargate
+#
+# No Docker builds — ECS Fargate uses pre-built ECR images (cached).
+# Reverse SSH tunnel connects ECS containers back to local proxy.
+# Skill files uploaded to /skills/caveman/ in each container and verified
+# before the agent starts (_inject_skill logs 'skill injection verified').
+#
+# Prerequisites:
+#   - AWS credentials (orchestrator IAM user, us-west-2) in environment
+#   - NVIDIA_API_KEY in environment
+#   - SKILL_DIR pointing to a skill directory, e.g.:
+#       export SKILL_DIR=/path/to/harbor-datasets/skills/caveman
+#   - git (for sparse checkout of terminal-bench@2.0 tasks on first run)
+#
+# Run:
+#   export SKILL_DIR=/path/to/harbor-datasets/skills/caveman
+#   set -a && source .env_inference && set +a
+#   nel eval run examples/configs/09f_skills_eval_caveman_local_ecs.yaml
+
+services:
+  model:
+    type: api
+    url: https://inference-api.nvidia.com/v1
+    protocol: chat_completions
+    model: nvidia/llama-3.3-70b-instruct
+    api_key: ${NVIDIA_API_KEY}
+    proxy:
+      verbose: true
+      interceptors:
+        - name: turn_counter
+
+benchmarks:
+  - name: harbor://terminal-bench@2.0
+    max_concurrent: 5
+    solver:
+      type: harbor
+      service: model
+      agent: terminus-2
+      timeout_strategy: task
+      skill: caveman
+      skill_dir: ${SKILL_DIR}
+    sandbox:
+      type: ecs_fargate
+      region: us-west-2
+      cpu: "4096"
+      memory: "8192"
+      max_task_lifetime_sec: 7200
+      log_stream_prefix: tb2-caveman
+      timeout: 600.0
+      concurrency: 5

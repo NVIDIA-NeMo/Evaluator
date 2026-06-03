@@ -429,7 +429,12 @@ class SlurmExecutor(Executor):
             submission_error: Exception | None = None
             try:
                 for script_path in script_paths:
-                    shard_extras = [p for p in extra_paths if p.parent == script_path.parent]
+                    # Include all extras under the script's staging dir, not
+                    # just direct siblings — legacy container:// benchmarks
+                    # write run_config.yaml under {staging}/{safe_name}/ which
+                    # the sbatch then bind-mounts.  Filter by ancestor.
+                    local_base = script_path.parent
+                    shard_extras = [p for p in extra_paths if local_base in p.parents]
                     shard_remote = f"{resolved_dir}/{script_path.parent.name}" if is_sharded else resolved_dir
                     meta = submit_eval(
                         script_path=script_path,
@@ -437,6 +442,7 @@ class SlurmExecutor(Executor):
                         remote_dir=shard_remote,
                         username=config.cluster.username,
                         extra_files=shard_extras,
+                        local_base=local_base,
                     )
                     meta["parent_dir"] = parent_dir
                     meta["submitted_at"] = datetime.now(timezone.utc).isoformat()

@@ -37,6 +37,18 @@ logger = logging.getLogger(__name__)
 _HOP_BY_HOP_HEADERS: frozenset[str] = frozenset({"host", "content-length", "connection", "transfer-encoding"})
 
 
+def _redact_request_headers_for_ctx(headers: dict[str, str]) -> dict[str, str]:
+    """Return a shallow copy of *headers* with Authorization headers removed.
+
+    Used when stashing the outbound request headers into the interceptor
+    context so downstream observers (e.g. the http_pairs_dump interceptor)
+    never see the upstream API key. Header names are compared case-insensitively;
+    any key containing the substring "authorization" is dropped. Other headers
+    pass through unchanged.
+    """
+    return {k: v for k, v in headers.items() if "authorization" not in k.lower()}
+
+
 class Interceptor(RequestToResponseInterceptor):
     def __init__(
         self,
@@ -147,6 +159,7 @@ class Interceptor(RequestToResponseInterceptor):
             override_lc = {k.lower() for k in self._extra_headers}
             headers = {k: v for k, v in headers.items() if k.lower() not in override_lc}
             headers.update(self._extra_headers)
+        req.ctx.extra["upstream_request_headers"] = _redact_request_headers_for_ctx(headers)
 
         attempt = 0
         while True:

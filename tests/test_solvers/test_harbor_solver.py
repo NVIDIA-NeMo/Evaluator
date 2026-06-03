@@ -6,12 +6,6 @@
 # You may obtain a copy of the License at
 #
 # http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 """Tests for nemo_evaluator.solvers.harbor — all mocked, no Docker/Harbor."""
 
 from __future__ import annotations
@@ -296,3 +290,89 @@ class TestResolveAgentTimeout:
     )
     def test_effective_timeout(self, strategy, config, task, cap, expected):
         assert _resolve_agent_timeout(strategy, config, task, cap) == expected
+
+
+class TestInjectSkill:
+    """Tests for HarborSolver._inject_skill — mocked sandbox, no Docker."""
+
+    def _make_solver(self, skill=None, skill_dir=None):
+        from unittest.mock import patch
+
+        with patch("nemo_evaluator.solvers.harbor._check_harbor_installed"):
+            from nemo_evaluator.solvers.harbor import HarborSolver
+
+            return HarborSolver(
+                harbor_agent="terminus-2",
+                model_url="http://localhost:8000",
+                model_id="glm5",
+                api_key="test-key",
+                skill=skill,
+                skill_dir=skill_dir,
+            )
+
+    @pytest.mark.asyncio
+    async def test_no_skill_returns_prompt_unchanged(self):
+        solver = self._make_solver()
+        sandbox = AsyncMock()
+        result = await solver._inject_skill(sandbox, "original prompt")
+        assert result == "original prompt"
+        sandbox.exec.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_skill_without_dir_prepends_trigger(self):
+        solver = self._make_solver(skill="caveman")
+        sandbox = AsyncMock()
+        result = await solver._inject_skill(sandbox, "do the task")
+        assert result.startswith("Before working on this task")
+        assert "/skills/caveman/SKILL.md" in result
+        assert result.endswith("do the task")
+        # mkdir only (no upload, no verify)
+        sandbox.exec.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_skill_with_dir_uploads_files(self, tmp_path):
+        skill_dir = tmp_path / "caveman"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text("# Caveman")
+        (skill_dir / "extra.md").write_text("extra")
+
+        solver = self._make_solver(skill="caveman", skill_dir=str(skill_dir))
+        sandbox = AsyncMock()
+        sandbox.exec.return_value.return_code = 0
+        sandbox.exec.return_value.stdout = "-rw-r--r-- 1 root root 9 SKILL.md\n# Caveman"
+        result = await solver._inject_skill(sandbox, "do the task")
+
+        assert "/skills/caveman/SKILL.md" in result
+        # mkdir + verify = 2 exec calls (no nested dirs in flat layout)
+        assert sandbox.exec.call_count == 2
+        assert sandbox.upload.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_skill_with_nested_dirs_creates_parents(self, tmp_path):
+        skill_dir = tmp_path / "caveman"
+        (skill_dir / "references").mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# Caveman")
+        (skill_dir / "references" / "patterns.md").write_text("patterns")
+
+        solver = self._make_solver(skill="caveman", skill_dir=str(skill_dir))
+        sandbox = AsyncMock()
+        sandbox.exec.return_value.return_code = 0
+        sandbox.exec.return_value.stdout = "-rw-r--r-- 1 root root 9 SKILL.md\n# Caveman"
+        await solver._inject_skill(sandbox, "do the task")
+
+        # mkdir top + mkdir references subdir + verify = 3 exec calls
+        assert sandbox.exec.call_count == 3
+        assert sandbox.upload.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_nonexistent_skill_dir_warns_but_continues(self, caplog):
+        import logging
+
+        solver = self._make_solver(skill="caveman", skill_dir="/nonexistent/path")
+        sandbox = AsyncMock()
+        with caplog.at_level(logging.WARNING):
+            result = await solver._inject_skill(sandbox, "do the task")
+
+        assert "does not exist" in caplog.text
+        assert "/skills/caveman/SKILL.md" in result
+        sandbox.upload.assert_not_called()

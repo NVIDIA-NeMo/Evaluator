@@ -41,15 +41,37 @@ import json
 import logging
 import os
 import shlex
+import time
 import uuid
-from collections.abc import Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.observability.types import ModelResponse
 
-from .base import SolveResult
+from .base import ErrorKind, SolveResult
+from .openclaw_helpers import (
+    _CONTAINER_SESSIONS_DIR,
+    _CONTAINER_WORKSPACE,
+    _OPENCLAW_CONFIG_DIR,
+    _coerce_timeout,
+    _container_session_find_command,
+    _container_workspace_find_command,
+    _decode_b64_text,
+    _extract_openclaw_envelope,
+    _finalize_openclaw_solve,
+    _format_timeout_seconds,
+    _iter_workspace_files,
+    _openclaw_error_kind,
+    _parse_response,
+    _redact_secret,
+    _resolve_container_session_path,
+    _resolve_local_session_path,
+    _sandbox_agent_exec_timeout,
+    _session_path_candidates_from_index,
+    _unique_strings,
+    _workspace_rel_is_skipped,
+)
 from .trajectory_util import build_atif_trajectory
 
 if TYPE_CHECKING:
@@ -60,14 +82,100 @@ logger = logging.getLogger(__name__)
 _DEFAULT_TIMEOUT = 600.0
 
 _OPENCLAW_BIN = "/app/openclaw.mjs"
-_OPENCLAW_CONFIG_DIR = "/home/node/.openclaw"
-_CONTAINER_WORKSPACE = "/home/node/workspace"
-_CONTAINER_SESSIONS_DIR = f"{_OPENCLAW_CONFIG_DIR}/agents/main/sessions"
-
 _DEFAULT_CONTEXT_WINDOW: int | None = None
 _DEFAULT_IDLE_TIMEOUT_SECONDS = 600
 _DEFAULT_MAX_TOKENS = 16_384
 _DEFAULT_MAX_CONCURRENT = 4
+_OPENCLAW_AGENT_TIMEOUT_KILL_AFTER_SECONDS = 5.0
+_OPENCLAW_AGENT_TIMEOUT_SENTINEL = "__NEL_OPENCLAW_AGENT_TIMEOUT__"
+
+
+def _normalize_task_sessions(task: SeedResult) -> list[dict[str, Any]]:
+    """Normalize PinchBench task sessions into OpenClaw turns.
+
+    PinchBench frontmatter can provide several prompts for one task and
+    mark a turn with ``new_session`` when the upstream runner should reset
+    OpenClaw conversation state while preserving workspace files.
+    """
+    sessions = task.metadata.get("sessions")
+    if not isinstance(sessions, list) or not sessions:
+        return [{"id": "default", "prompt": task.prompt, "new_session": False}]
+
+    normalized: list[dict[str, Any]] = []
+    for idx, session in enumerate(sessions):
+        if not isinstance(session, dict):
+            continue
+        prompt = session.get("prompt")
+        if not isinstance(prompt, str) or not prompt.strip():
+            continue
+        session_id = session.get("id")
+        normalized.append(
+            {
+                "id": str(session_id) if session_id else f"session_{idx + 1}",
+                "prompt": prompt,
+                "new_session": bool(session.get("new_session", False)),
+            }
+        )
+    return normalized or [{"id": "default", "prompt": task.prompt, "new_session": False}]
+
+
+def _metadata_requires_fws(metadata: dict[str, Any]) -> bool:
+    prerequisites = metadata.get("prerequisites") or []
+    return isinstance(prerequisites, list) and any(
+        isinstance(item, str) and "fws" in item.lower() for item in prerequisites
+    )
+
+
+def _is_pinchbench_task(metadata: dict[str, Any]) -> bool:
+    return metadata.get("source") == "pinchbench" or "pinchbench_source_ref" in metadata
+
+
+def _build_fws_env_setup(metadata: dict[str, Any]) -> str:
+    if not _metadata_requires_fws(metadata):
+        return ""
+    prerequisites = metadata.get("prerequisites") or []
+    has_gh_cli = isinstance(prerequisites, list) and any(
+        isinstance(item, str) and item.strip().lower() == "cli:gh" for item in prerequisites
+    )
+    setup = r"""
+if ! command -v fws >/dev/null 2>&1; then
+  echo "PinchBench task requires fws, but fws is not installed in this sandbox." >&2
+  exit 127
+fi
+if ! fws server status 2>/dev/null | grep -q "Server running"; then
+  if ! fws server start >/tmp/nel-fws-start.log 2>&1; then
+    cat /tmp/nel-fws-start.log >&2 || true
+    exit 127
+  fi
+fi
+_nel_fws_env="$(fws server env 2>/dev/null || true)"
+if [ -n "$_nel_fws_env" ]; then
+  eval "$_nel_fws_env"
+else
+  export GOOGLE_WORKSPACE_CLI_CONFIG_DIR="${GOOGLE_WORKSPACE_CLI_CONFIG_DIR:-$HOME/.local/share/fws/config}"
+  export GOOGLE_WORKSPACE_CLI_TOKEN="${GOOGLE_WORKSPACE_CLI_TOKEN:-fake}"
+  export HTTPS_PROXY="${HTTPS_PROXY:-http://localhost:4101}"
+  _nel_fws_cert="$HOME/.local/share/fws/certs/ca-bundle.crt"
+  if [ ! -f "$_nel_fws_cert" ]; then
+    _nel_fws_cert="$HOME/.local/share/fws/certs/ca.crt"
+  fi
+  export SSL_CERT_FILE="${SSL_CERT_FILE:-$_nel_fws_cert}"
+fi
+"""
+    if has_gh_cli:
+        setup += r"""
+export GH_TOKEN="${GH_TOKEN:-fake}"
+export GH_REPO="${GH_REPO:-testuser/my-project}"
+# OpenClaw strips inherited GH_TOKEN/GITHUB_TOKEN from exec-tool environments;
+# gh still reads this config file when routed through the fws proxy.
+mkdir -p "$HOME/.config/gh"
+cat > "$HOME/.config/gh/hosts.yml" <<'EOF'
+github.com:
+    oauth_token: fake
+    git_protocol: https
+EOF
+"""
+    return setup
 
 
 def _build_openclaw_config(
@@ -79,6 +187,7 @@ def _build_openclaw_config(
     max_tokens: int | None = None,
     max_concurrent: int = _DEFAULT_MAX_CONCURRENT,
     idle_timeout_seconds: int = _DEFAULT_IDLE_TIMEOUT_SECONDS,
+    web_search_provider: Literal["tavily"] | None = None,
 ) -> dict[str, Any]:
     """Build an OpenClaw config for an OpenAI-compatible provider.
 
@@ -113,118 +222,62 @@ def _build_openclaw_config(
         "skipBootstrap": True,
         "compaction": {"mode": "safeguard"},
         "maxConcurrent": max_concurrent,
-        "llm": {"idleTimeoutSeconds": idle_timeout_seconds},
     }
 
     provider_entry: dict[str, Any] = {
         "baseUrl": model_url,
         "api": "openai-completions",
         "models": [model_entry],
+        "timeoutSeconds": idle_timeout_seconds,
     }
     if api_key:
         provider_entry["apiKey"] = api_key
 
-    return {
+    tools: dict[str, Any] = {"fs": {"workspaceOnly": False}}
+    plugins: dict[str, Any] = {}
+    if web_search_provider:
+        tools["web"] = {"search": {"provider": web_search_provider}}
+        if web_search_provider == "tavily":
+            plugins["entries"] = {"tavily": {"enabled": True}}
+
+    config: dict[str, Any] = {
         "models": {
             "mode": "merge",
             "providers": {provider_name: provider_entry},
         },
         "agents": {"defaults": agent_defaults},
-        "tools": {"fs": {"workspaceOnly": False}},
+        "tools": tools,
     }
+    if plugins:
+        config["plugins"] = plugins
+    return config
 
 
-_TEXT_EXTENSIONS = frozenset(
-    {
-        ".txt",
-        ".md",
-        ".py",
-        ".js",
-        ".ts",
-        ".json",
-        ".yaml",
-        ".yml",
-        ".csv",
-        ".html",
-        ".css",
-        ".ics",
-        ".xml",
-        ".toml",
-        ".cfg",
-        ".ini",
-        ".sh",
-        ".bash",
-        ".log",
-        ".rst",
-        ".tex",
-    }
-)
-_MAX_FILE_SIZE = 50_000
+_WEB_SEARCH_PROVIDER_ENV_KEYS: dict[str, str] = {"tavily": "TAVILY_API_KEY"}
 
 
-def _read_workspace_files(
-    workspace: Path,
-    pre_existing: set[str] | None = None,
-) -> str:
-    """Read *new* text files from the workspace and format them for the response.
-
-    Agent solvers create files that automated graders check directly.
-    But the LLM-as-judge pipeline only sees ``SolveResult.response``.
-    Including file contents in the response lets the judge evaluate
-    the actual deliverable, not just the agent's summary.
-
-    ``pre_existing`` is the set of relative paths that existed before the
-    agent ran.  Files in that set and anything under ``.openclaw/`` are
-    skipped so that task inputs don't pollute the response.  OpenClaw's
-    workspace boilerplate is suppressed at the source via the
-    ``skipBootstrap`` config flag.
-    """
-    if pre_existing is None:
-        pre_existing = set()
-
-    parts: list[str] = []
-    for path in sorted(workspace.rglob("*")):
-        if not path.is_file():
-            continue
-        rel = path.relative_to(workspace)
-        rel_str = str(rel)
-        if rel_str.startswith(".openclaw"):
-            continue
-        if rel_str in pre_existing:
-            continue
-        if path.suffix.lower() not in _TEXT_EXTENSIONS:
-            continue
-        if path.stat().st_size > _MAX_FILE_SIZE:
-            continue
-        try:
-            content = path.read_text(encoding="utf-8", errors="replace").rstrip()
-        except OSError:
-            continue
-        parts.append(f"--- {rel} ---\n{content}")
-    return "\n\n".join(parts)
+def _web_search_exec_env(web_search_provider: Literal["tavily"] | None) -> dict[str, str]:
+    if web_search_provider == "tavily":
+        api_key = os.environ.get("TAVILY_API_KEY")
+        return {"TAVILY_API_KEY": api_key} if api_key else {}
+    return {}
 
 
-_TRANSCRIPT_FILENAME = ".nel_transcript.jsonl"
+def _check_web_search_env(web_search_provider: Literal["tavily"] | None) -> None:
+    """Fail fast when a web_search_provider is configured but its credential env var is missing."""
+    if web_search_provider is None:
+        return
+    env_key = _WEB_SEARCH_PROVIDER_ENV_KEYS.get(web_search_provider)
+    if env_key and not os.environ.get(env_key):
+        raise RuntimeError(
+            f"OpenClawSolver web_search_provider='{web_search_provider}' requires "
+            f"{env_key} to be set in the environment."
+        )
 
 
-def _persist_session_transcript(workspace: Path, raw_jsonl: str) -> None:
-    """Write OpenClaw's session JSONL verbatim to ``<workspace>/.nel_transcript.jsonl``.
-
-    Verifiers / scorers (notably PinchBench's ``grade()`` functions) expect
-    the upstream ``{"type": "message", "message": {...}}`` envelope shape,
-    so we persist the bytes unchanged.  This is separate from the ATIF
-    trajectory written to the eval artifact bundle: the trajectory is for
-    observability/dashboards; this file is the *scoring contract* with
-    task-authored grader code.
-
-    Best-effort: a failure here must not fail the solve.
-    """
-    try:
-        if not workspace.is_dir():
-            return
-        (workspace / _TRANSCRIPT_FILENAME).write_text(raw_jsonl, encoding="utf-8")
-    except OSError as exc:
-        logger.warning("Failed to persist session transcript to %s: %s", workspace, exc)
+_WORKSPACE_SYNC_TIMEOUT_SECONDS = 120.0
+_WORKSPACE_FILE_DOWNLOAD_TIMEOUT_SECONDS = 30.0
+_SESSION_JSONL_FETCH_TIMEOUT_SECONDS = 30.0
 
 
 def _check_prerequisites(openclaw_bin: str) -> None:
@@ -257,195 +310,6 @@ def _check_prerequisites(openclaw_bin: str) -> None:
         )
 
 
-_MAX_SCAN_BYTES = 4_000_000
-_JSON_DECODER = json.JSONDecoder()
-
-
-def _iter_json_objects(raw: str) -> Iterator[dict[str, Any]]:
-    """Yield every top-level JSON object embedded in ``raw``, in order.
-
-    Uses :meth:`json.JSONDecoder.raw_decode` so the inner loop runs in C
-    and string literals containing ``{`` / ``}`` are handled correctly.
-    On a failed parse we advance one character and retry, which makes the
-    scanner tolerant of preamble (Node.js experimental warnings, OpenClaw
-    ``[subsystem] ...`` log lines, etc.).  Non-object JSON values are
-    skipped so we never latch onto a bare array or scalar.
-    """
-    pos = 0
-    n = len(raw)
-    while pos < n:
-        start = raw.find("{", pos)
-        if start < 0:
-            return
-        try:
-            obj, end = _JSON_DECODER.raw_decode(raw, start)
-        except json.JSONDecodeError:
-            pos = start + 1
-            continue
-        if isinstance(obj, dict):
-            yield obj
-        pos = max(end, start + 1)
-
-
-def _extract_openclaw_envelope(stdout: str, stderr: str) -> dict[str, Any]:
-    """Locate the ``openclaw agent --json`` result envelope.
-
-    Prefers ``stdout`` (the documented channel) and falls back to ``stderr``.
-    The stderr fallback is **not** transitional — it is load-bearing:
-    upstream OpenClaw misroutes the envelope to stderr whenever ``--json``
-    mode flips ``loggingState.forceConsoleToStderr``, because
-    ``src/agents/command/delivery.ts`` emits via ``runtime.log`` (patched
-    ``console.log``) instead of ``writeRuntimeJson`` (direct
-    ``process.stdout.write``).  The dedicated ``writeRuntimeJson`` API
-    exists in ``src/runtime.ts`` but was never wired into the ``--local``
-    envelope emission.  We intentionally do not patch upstream, so this
-    logic stays.
-
-    We pick the *last* object containing a ``payloads`` key on each stream
-    rather than the first, so that any future pre-envelope diagnostic log
-    which happens to structurally include ``payloads`` cannot hijack the
-    result.  By construction the real envelope is the last thing
-    ``delivery.ts`` emits before command return.
-
-    Each stream is tail-capped to :data:`_MAX_SCAN_BYTES` to bound parse
-    time on multi-MB traces (``raw_decode`` is fast, but callers should
-    not be able to feed us arbitrary input).
-    """
-    for raw in (stdout, stderr):
-        if not raw:
-            continue
-        if len(raw) > _MAX_SCAN_BYTES:
-            raw = raw[-_MAX_SCAN_BYTES:]
-        last: dict[str, Any] | None = None
-        for obj in _iter_json_objects(raw):
-            if "payloads" in obj:
-                last = obj
-        if last is not None:
-            return last
-    return {}
-
-
-def _parse_response(output: dict[str, Any]) -> tuple[str, ModelResponse, list[dict[str, Any]]]:
-    """Extract response text, model response, and trajectory from openclaw JSON output."""
-    payloads = output.get("payloads") or []
-    response_text = "\n".join(p.get("text", "").strip() for p in payloads if p.get("text"))
-    meta = output.get("meta", {})
-    duration_ms = meta.get("durationMs", 0)
-    agent_meta = meta.get("agentMeta", {})
-
-    usage = meta.get("usage", {})
-    prompt_tokens = usage.get("inputTokens", 0) or usage.get("prompt_tokens", 0)
-    completion_tokens = usage.get("outputTokens", 0) or usage.get("completion_tokens", 0)
-    total_tokens = prompt_tokens + completion_tokens
-    if total_tokens == 0 and response_text:
-        total_tokens = len(response_text) // 4
-
-    model_response = ModelResponse(
-        content=response_text,
-        model=agent_meta.get("model", ""),
-        prompt_tokens=prompt_tokens,
-        completion_tokens=completion_tokens,
-        total_tokens=total_tokens,
-        latency_ms=float(duration_ms),
-    )
-
-    steps: list[dict[str, Any]] = []
-    for p in payloads:
-        msg_text = p.get("text", "")
-        step: dict[str, Any] = {
-            "source": "agent",
-            "message": msg_text,
-        }
-        extras: dict[str, Any] = {}
-        if p.get("mediaUrl"):
-            extras["media_urls"] = [p["mediaUrl"]]
-        if p.get("mediaUrls"):
-            extras.setdefault("media_urls", []).extend(p["mediaUrls"])
-        if p.get("isError"):
-            extras["is_error"] = True
-        if extras:
-            step["extra"] = extras
-        if msg_text or extras:
-            steps.append(step)
-
-    oc_extra: dict[str, Any] | None = None
-    if agent_meta:
-        oc_extra = {
-            "provider": agent_meta.get("provider", ""),
-            "model": agent_meta.get("model", ""),
-            "duration_ms": duration_ms,
-            "openclaw_session_id": agent_meta.get("sessionId", ""),
-        }
-
-    return response_text, model_response, steps, oc_extra
-
-
-def _parse_session_jsonl(raw: str) -> list[dict[str, Any]]:
-    """Parse an OpenClaw session JSONL transcript into ATIF step dicts."""
-    steps: list[dict[str, Any]] = []
-    for line in raw.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        role = record.get("role", "")
-        if role == "assistant":
-            content = record.get("content", [])
-            text_parts: list[str] = []
-            tool_calls: list[dict[str, Any]] = []
-            reasoning_parts: list[str] = []
-            for block in content if isinstance(content, list) else []:
-                btype = block.get("type", "")
-                if btype == "text" and block.get("text"):
-                    text_parts.append(block["text"])
-                elif btype == "thinking" and block.get("thinking"):
-                    reasoning_parts.append(block["thinking"])
-                elif btype == "redacted_thinking":
-                    reasoning_parts.append("[redacted_thinking]")
-                elif btype == "tool_use":
-                    tool_calls.append(
-                        {
-                            "tool_call_id": block.get("id", f"call_{len(steps)}"),
-                            "function_name": block.get("name", ""),
-                            "arguments": block.get("input", {}),
-                        }
-                    )
-            step: dict[str, Any] = {
-                "source": "agent",
-                "message": "\n".join(text_parts),
-            }
-            if reasoning_parts:
-                step["reasoning_content"] = "\n".join(reasoning_parts)
-            if tool_calls:
-                step["tool_calls"] = tool_calls
-            if text_parts or tool_calls or reasoning_parts:
-                steps.append(step)
-        elif role == "tool":
-            content = record.get("content", "")
-            if isinstance(content, list):
-                content = "\n".join(b.get("text", "") for b in content if isinstance(b, dict))
-            if steps and steps[-1].get("source") == "agent":
-                steps[-1].setdefault("observation", {"results": []})
-                steps[-1]["observation"]["results"].append(
-                    {
-                        "content": str(content)[:2000],
-                        "source_call_id": record.get("tool_use_id"),
-                    }
-                )
-            else:
-                steps.append(
-                    {
-                        "source": "system",
-                        "message": str(content)[:2000],
-                        "extra": {"tool_use_id": record.get("tool_use_id", "")},
-                    }
-                )
-    return steps
-
-
 class OpenClawSolver:
     """Solver that delegates to an OpenClaw agent.
 
@@ -470,6 +334,7 @@ class OpenClawSolver:
         max_tokens: int | None = None,
         max_concurrent: int = _DEFAULT_MAX_CONCURRENT,
         idle_timeout_seconds: int = _DEFAULT_IDLE_TIMEOUT_SECONDS,
+        web_search_provider: Literal["tavily"] | None = None,
         config_path: str | None = None,
         *,
         skip_preflight: bool = False,
@@ -484,11 +349,21 @@ class OpenClawSolver:
         self._max_tokens = max_tokens
         self._max_concurrent = max_concurrent
         self._idle_timeout_seconds = idle_timeout_seconds
+        self._web_search_provider = web_search_provider
         self._config_path = Path(config_path) if config_path else None
         if self._config_path and not self._config_path.is_file():
             raise FileNotFoundError(f"openclaw_config points to {self._config_path} which does not exist")
         if not skip_preflight:
             _check_prerequisites(openclaw_bin)
+            _check_web_search_env(web_search_provider)
+
+    def _effective_timeout(self, task: SeedResult) -> float:
+        task_timeout = _coerce_timeout(task.metadata.get("timeout_seconds"))
+        if task_timeout is None:
+            task_timeout = _coerce_timeout(task.metadata.get("agent_timeout_sec"))
+        if task_timeout is None:
+            return self._timeout
+        return min(self._timeout, task_timeout)
 
     async def solve(
         self,
@@ -497,6 +372,18 @@ class OpenClawSolver:
     ) -> SolveResult:
         if sandbox is not None:
             return await self._solve_sandbox(task, sandbox)
+        if _is_pinchbench_task(task.metadata):
+            err_msg = "PinchBench OpenClaw execution requires sandbox mode; local OpenClaw execution is not supported."
+            return SolveResult(
+                response="",
+                trajectory=build_atif_trajectory(
+                    [{"source": "system", "message": err_msg}],
+                    agent_name="openclaw",
+                    status="error",
+                ),
+                error=err_msg,
+                error_kind=ErrorKind.INFRA,
+            )
         return await self._solve_local(task)
 
     # ------------------------------------------------------------------
@@ -505,10 +392,10 @@ class OpenClawSolver:
 
     async def _solve_sandbox(self, task: SeedResult, sandbox: Sandbox) -> SolveResult:
         task_id = task.metadata.get("task_id", "task")
-        session_id = f"nel-{task_id}-{uuid.uuid4().hex[:8]}"
         workspace_path = task.metadata.get("workspace_path")
+        effective_timeout = self._effective_timeout(task)
 
-        logger.info("OpenClawSolver[sandbox]: session=%s task=%s", session_id, task_id)
+        logger.info("OpenClawSolver[sandbox]: task=%s timeout=%ss", task_id, effective_timeout)
 
         resolved_model_url = sandbox.resolved_endpoint_url("MODEL_BASE_URL") or (
             sandbox.resolve_outside_endpoint(self._model_url) if self._model_url else self._model_url
@@ -517,109 +404,183 @@ class OpenClawSolver:
 
         pre_existing_files: set[str] = set()
         if workspace_path and Path(workspace_path).is_dir():
-            await self._upload_workspace(sandbox, Path(workspace_path))
+            host_workspace = Path(workspace_path)
+            await self._upload_workspace(sandbox, host_workspace)
             pre_existing_files = {
-                str(p.relative_to(workspace_path)) for p in Path(workspace_path).rglob("*") if p.is_file()
+                str(p.relative_to(host_workspace)) for p in _iter_workspace_files(host_workspace) if p.is_file()
             }
 
-        effective_prompt = self._build_prompt(task.prompt, _CONTAINER_WORKSPACE if workspace_path else None)
+        session_specs = _normalize_task_sessions(task)
+        active_session_id = ""
+        session_ids: list[str] = []
+        effective_prompts: list[str] = []
+        response_texts: list[str] = []
+        envelope_steps: list[dict[str, Any]] = []
+        model_responses: list[ModelResponse] = []
+        oc_extra: dict[str, Any] | None = None
+        agent_timeout_error: str | None = None
+        raw_sessions: list[str] = []
+        session_fetch_timeout = min(_SESSION_JSONL_FETCH_TIMEOUT_SECONDS, effective_timeout)
+        fws_env_setup = _build_fws_env_setup(task.metadata)
+        overall_deadline = time.monotonic() + effective_timeout
 
-        prompt_file = "/tmp/nel_prompt.txt"
-        await self._write_file(sandbox, prompt_file, effective_prompt)
+        await self._cleanup_sessions_sandbox(sandbox)
 
-        cmd_parts = [
-            f"node {_OPENCLAW_BIN} agent",
-            "--agent main",
-            f'--message "$(cat {prompt_file})"',
-            f"--session-id {shlex.quote(session_id)}",
-            "--json",
-            "--local",
-        ]
-        if self._thinking:
-            cmd_parts.append(f"--thinking {shlex.quote(self._thinking)}")
+        for idx, session_spec in enumerate(session_specs):
+            if idx == 0 or session_spec.get("new_session") or not active_session_id:
+                if active_session_id:
+                    raw_session_jsonl = await self._fetch_session_jsonl_sandbox(
+                        sandbox,
+                        active_session_id,
+                        timeout_sec=session_fetch_timeout,
+                    )
+                    if raw_session_jsonl:
+                        raw_sessions.append(raw_session_jsonl)
+                    await self._cleanup_sessions_sandbox(sandbox)
+                active_session_id = f"nel-{task_id}-{session_spec['id']}-{uuid.uuid4().hex[:8]}"
+                session_ids.append(active_session_id)
 
-        env_prefix = ""
-        if self._api_key:
-            env_prefix = f"NVIDIA_API_KEY={shlex.quote(self._api_key)} "
+            effective_prompt = self._build_prompt(
+                str(session_spec["prompt"]),
+                _CONTAINER_WORKSPACE if workspace_path else None,
+            )
+            effective_prompts.append(effective_prompt)
 
-        inner_cmd = f"{env_prefix}{' '.join(cmd_parts)}"
-        full_cmd = f"bash -c {shlex.quote(inner_cmd)}"
+            prompt_file = f"/tmp/nel_prompt_{idx}.txt"
+            await self._write_file(sandbox, prompt_file, effective_prompt)
 
-        result = await sandbox.exec(full_cmd, timeout_sec=self._timeout)
+            cmd_parts = [
+                f"node {_OPENCLAW_BIN} agent",
+                "--agent main",
+                f'--message "$(cat {prompt_file})"',
+                f"--session-id {shlex.quote(active_session_id)}",
+                "--json",
+                "--local",
+            ]
+            if self._thinking:
+                cmd_parts.append(f"--thinking {shlex.quote(self._thinking)}")
+
+            exec_env = _web_search_exec_env(self._web_search_provider)
+            if self._api_key:
+                exec_env["NVIDIA_API_KEY"] = self._api_key
+            exec_env = exec_env or None
+
+            turn_timeout = effective_timeout if idx == 0 else max(0.0, overall_deadline - time.monotonic())
+            if turn_timeout <= 0:
+                agent_timeout_error = f"OpenClaw agent timed out after {effective_timeout}s"
+                envelope_steps.append({"source": "system", "message": agent_timeout_error})
+                break
+            agent_timeout = _format_timeout_seconds(turn_timeout)
+            kill_after = _format_timeout_seconds(_OPENCLAW_AGENT_TIMEOUT_KILL_AFTER_SECONDS)
+            timeout_cmd = (
+                f"timeout --kill-after={shlex.quote(kill_after)} {shlex.quote(agent_timeout)} {' '.join(cmd_parts)}"
+            )
+            inner_cmd = (
+                f"{fws_env_setup}\n"
+                '_nel_timeout_marker="/tmp/nel-openclaw-timeout-$$-${RANDOM:-0}"\n'
+                f'(sleep {shlex.quote(agent_timeout)}; touch "$_nel_timeout_marker") &\n'
+                "_nel_timeout_watcher=$!\n"
+                f"{timeout_cmd}\n"
+                "rc=$?\n"
+                'kill "$_nel_timeout_watcher" 2>/dev/null || true\n'
+                'wait "$_nel_timeout_watcher" 2>/dev/null || true\n'
+                f'if [ "$rc" -eq 124 ] || {{ [ "$rc" -eq 137 ] && [ -f "$_nel_timeout_marker" ]; }}; then echo {shlex.quote(_OPENCLAW_AGENT_TIMEOUT_SENTINEL)} >&2; fi\n'
+                'rm -f "$_nel_timeout_marker"\n'
+                'exit "$rc"'
+            )
+            full_cmd = f"bash -c {shlex.quote(inner_cmd)}"
+
+            logger.info(
+                "OpenClawSolver[sandbox]: session=%s task=%s turn=%d/%d",
+                active_session_id,
+                task_id,
+                idx + 1,
+                len(session_specs),
+            )
+            result = await sandbox.exec(
+                full_cmd,
+                timeout_sec=_sandbox_agent_exec_timeout(turn_timeout),
+                env=exec_env,
+            )
+
+            if result.return_code != 0:
+                stderr = _redact_secret(result.stderr, self._api_key)
+                err_msg = f"exit code {result.return_code}: {stderr[:500]}"
+                logger.warning("OpenClawSolver[sandbox]: %s for %s", err_msg, task_id)
+                if result.return_code in (124, 137) and _OPENCLAW_AGENT_TIMEOUT_SENTINEL in result.stderr:
+                    agent_timeout_error = f"OpenClaw agent timed out after {effective_timeout}s"
+                    envelope_steps.append({"source": "system", "message": agent_timeout_error})
+                    break
+                return SolveResult(
+                    response="",
+                    trajectory=build_atif_trajectory(
+                        [{"source": "system", "message": stderr[:2000]}],
+                        agent_name="openclaw",
+                        status="error",
+                        extra={"exit_code": result.return_code},
+                    ),
+                    error=err_msg,
+                    error_kind=_openclaw_error_kind(err_msg, return_code=result.return_code),
+                )
+
+            output = _extract_openclaw_envelope(result.stdout, result.stderr)
+            if not output:
+                stdout = _redact_secret(result.stdout, self._api_key)
+                stderr = _redact_secret(result.stderr, self._api_key)
+                err_msg = f"no JSON output for {task_id}"
+                logger.warning("OpenClawSolver[sandbox]: %s", err_msg)
+                return SolveResult(
+                    response=(stdout or stderr)[:5000],
+                    trajectory=build_atif_trajectory(
+                        [{"source": "system", "message": stderr.strip()[:2000] or "no JSON output"}],
+                        agent_name="openclaw",
+                        status="error",
+                    ),
+                    error=err_msg,
+                    error_kind=_openclaw_error_kind(f"{stdout}\n{stderr}"),
+                )
+
+            response_text, model_response, steps, turn_extra = _parse_response(output)
+            response_texts.append(response_text)
+            model_responses.append(model_response)
+            envelope_steps.extend(steps)
+            if turn_extra:
+                oc_extra = turn_extra
 
         if workspace_path and Path(workspace_path).is_dir():
-            await self._download_workspace(sandbox, Path(workspace_path))
+            await self._download_workspace(sandbox, Path(workspace_path), timeout_sec=effective_timeout)
 
-        if result.return_code != 0:
-            err_msg = f"exit code {result.return_code}: {result.stderr[:500]}"
-            logger.warning("OpenClawSolver[sandbox]: %s for %s", err_msg, task_id)
-            return SolveResult(
-                response="",
-                trajectory=build_atif_trajectory(
-                    [{"source": "system", "message": result.stderr[:2000]}],
-                    agent_name="openclaw",
-                    status="error",
-                    extra={"exit_code": result.return_code},
-                ),
-                error=err_msg,
+        if active_session_id:
+            raw_session_jsonl = await self._fetch_session_jsonl_sandbox(
+                sandbox,
+                active_session_id,
+                timeout_sec=session_fetch_timeout,
             )
-
-        output = _extract_openclaw_envelope(result.stdout, result.stderr)
-        if not output:
-            err_msg = f"no JSON output for {task_id}"
-            logger.warning("OpenClawSolver[sandbox]: %s", err_msg)
-            return SolveResult(
-                response=(result.stdout or result.stderr)[:5000],
-                trajectory=build_atif_trajectory(
-                    [{"source": "system", "message": result.stderr.strip()[:2000] or "no JSON output"}],
-                    agent_name="openclaw",
-                    status="error",
-                ),
-                error=err_msg,
-            )
-
-        response_text, model_response, steps, oc_extra = _parse_response(output)
-
-        if workspace_path:
-            file_addendum = _read_workspace_files(Path(workspace_path), pre_existing_files)
-            if file_addendum:
-                response_text = f"{response_text}\n\n{file_addendum}" if response_text else file_addendum
-
-        raw_session_jsonl = await self._fetch_session_jsonl_sandbox(sandbox, session_id)
-        if raw_session_jsonl:
-            transcript_steps = _parse_session_jsonl(raw_session_jsonl)
-            if transcript_steps:
-                steps = transcript_steps + steps
-            if workspace_path:
-                _persist_session_transcript(Path(workspace_path), raw_session_jsonl)
-
-        trajectory = build_atif_trajectory(
-            steps,
-            agent_name="openclaw",
-            model_name=model_response.model or None,
-            prompt_tokens=model_response.prompt_tokens or 0,
-            completion_tokens=model_response.completion_tokens or 0,
-            extra=oc_extra,
-            user_prompt=effective_prompt,
-        )
-
-        logger.info(
-            "OpenClawSolver[sandbox]: %s completed in %dms, %d tok, %d steps",
-            task_id,
-            model_response.latency_ms,
-            model_response.total_tokens,
-            len(steps),
-        )
-        return SolveResult(
-            response=response_text,
-            model_response=model_response,
-            trajectory=trajectory,
+            if raw_session_jsonl:
+                raw_sessions.append(raw_session_jsonl)
+        raw_session_jsonl = "\n".join(raw_sessions)
+        return _finalize_openclaw_solve(
+            mode="sandbox",
+            task_id=task_id,
+            workspace_path=workspace_path,
+            pre_existing_files=pre_existing_files,
+            response_texts=response_texts,
+            model_responses=model_responses,
+            envelope_steps=envelope_steps,
+            oc_extra=oc_extra,
+            session_ids=session_ids,
+            effective_prompts=effective_prompts,
+            raw_session_jsonl=raw_session_jsonl,
+            agent_timeout_error=agent_timeout_error,
+            agent_timeout_seconds=effective_timeout if agent_timeout_error else None,
         )
 
     async def _fetch_session_jsonl_sandbox(
         self,
         sandbox: Sandbox,
         session_id: str,
+        *,
+        timeout_sec: float | None = None,
     ) -> str:
         """Return the OpenClaw session JSONL from the container as raw text.
 
@@ -630,16 +591,74 @@ class OpenClawSolver:
         :func:`_parse_session_jsonl` converts it into ATIF steps for the
         trajectory artifact.
         """
-        import base64
-
-        remote_path = f"{_CONTAINER_SESSIONS_DIR}/{session_id}.jsonl"
+        operation_timeout = min(
+            _SESSION_JSONL_FETCH_TIMEOUT_SECONDS,
+            timeout_sec if timeout_sec is not None else _SESSION_JSONL_FETCH_TIMEOUT_SECONDS,
+        )
         try:
-            result = await sandbox.exec(f"base64 {shlex.quote(remote_path)} 2>/dev/null")
-            if result.return_code != 0 or not result.stdout.strip():
-                return ""
-            return base64.b64decode(result.stdout.strip()).decode("utf-8", errors="replace")
-        except Exception:
+            logger.info(
+                "OpenClawSolver[sandbox]: fetching session transcript session=%s timeout=%ss",
+                session_id,
+                operation_timeout,
+            )
+            candidates: list[str] = []
+            index_raw = await self._read_container_file_text(
+                sandbox,
+                f"{_CONTAINER_SESSIONS_DIR}/sessions.json",
+                timeout_sec=operation_timeout,
+            )
+            if index_raw:
+                candidates.extend(
+                    _resolve_container_session_path(candidate)
+                    for candidate in _session_path_candidates_from_index(index_raw, session_id)
+                )
+            candidates.extend(
+                [
+                    f"{_CONTAINER_SESSIONS_DIR}/{session_id}.jsonl",
+                    f"{_CONTAINER_SESSIONS_DIR}/{session_id}.ndjson",
+                ]
+            )
+            listing = await sandbox.exec(_container_session_find_command(), timeout_sec=operation_timeout)
+            if listing.return_code == 0:
+                candidates.extend(line.strip() for line in listing.stdout.splitlines())
+
+            for remote_path in _unique_strings(candidates):
+                raw = await self._read_container_file_text(sandbox, remote_path, timeout_sec=operation_timeout)
+                if raw:
+                    logger.info(
+                        "OpenClawSolver[sandbox]: fetched session transcript session=%s path=%s bytes=%d",
+                        session_id,
+                        remote_path,
+                        len(raw.encode("utf-8")),
+                    )
+                    return raw
             return ""
+        except Exception as exc:
+            logger.warning(
+                "OpenClawSolver[sandbox]: failed to fetch session transcript session=%s: %s",
+                session_id,
+                exc,
+            )
+            return ""
+
+    @staticmethod
+    async def _read_container_file_text(sandbox: Sandbox, remote_path: str, *, timeout_sec: float) -> str:
+        result = await sandbox.exec(
+            f"base64 {shlex.quote(remote_path)} 2>/dev/null",
+            timeout_sec=timeout_sec,
+        )
+        if result.return_code != 0 or not result.stdout.strip():
+            return ""
+        return _decode_b64_text(result.stdout)
+
+    async def _cleanup_sessions_sandbox(self, sandbox: Sandbox) -> None:
+        try:
+            await sandbox.exec(
+                f"rm -rf {shlex.quote(_CONTAINER_SESSIONS_DIR)} && mkdir -p {shlex.quote(_CONTAINER_SESSIONS_DIR)}",
+                timeout_sec=5,
+            )
+        except Exception as exc:
+            logger.debug("OpenClawSolver[sandbox]: failed to clean session directory: %s", exc)
 
     async def _setup_config(self, sandbox: Sandbox, *, model_url_override: str | None = None) -> None:
         """Write an OpenClaw config into the container.
@@ -659,6 +678,7 @@ class OpenClawSolver:
                 max_tokens=self._max_tokens,
                 max_concurrent=self._max_concurrent,
                 idle_timeout_seconds=self._idle_timeout_seconds,
+                web_search_provider=self._web_search_provider,
             )
             config_json = json.dumps(config, indent=2)
         await self._write_file(sandbox, f"{_OPENCLAW_CONFIG_DIR}/openclaw.json", config_json)
@@ -669,14 +689,19 @@ class OpenClawSolver:
         Handles both text and binary files (e.g. PDFs) correctly.
         """
         await sandbox.exec(f"mkdir -p {_CONTAINER_WORKSPACE}")
-        for item in host_workspace.rglob("*"):
-            if item.is_file():
-                rel = item.relative_to(host_workspace)
-                remote = f"{_CONTAINER_WORKSPACE}/{rel}"
-                data = item.read_bytes()
-                await self._write_file(sandbox, remote, data)
+        for item in _iter_workspace_files(host_workspace):
+            rel = item.relative_to(host_workspace)
+            remote = f"{_CONTAINER_WORKSPACE}/{rel}"
+            data = item.read_bytes()
+            await self._write_file(sandbox, remote, data)
 
-    async def _download_workspace(self, sandbox: Sandbox, host_workspace: Path) -> None:
+    async def _download_workspace(
+        self,
+        sandbox: Sandbox,
+        host_workspace: Path,
+        *,
+        timeout_sec: float | None = None,
+    ) -> None:
         """Sync container workspace files back to the host.
 
         The PinchBench grader (and others) inspect files in the host
@@ -691,32 +716,81 @@ class OpenClawSolver:
         """
         import base64
 
-        listing = await sandbox.exec(f"find {_CONTAINER_WORKSPACE} -type f 2>/dev/null || true")
-        remote_files = [
-            line.strip()
-            for line in listing.stdout.splitlines()
-            if line.strip() and line.strip().startswith(_CONTAINER_WORKSPACE)
-        ]
-        if not remote_files:
-            logger.warning(
-                "No files found in container workspace %s; agent may have written elsewhere",
+        operation_timeout = min(
+            _WORKSPACE_SYNC_TIMEOUT_SECONDS,
+            timeout_sec if timeout_sec is not None else _WORKSPACE_SYNC_TIMEOUT_SECONDS,
+        )
+        try:
+            logger.info(
+                "OpenClawSolver[sandbox]: listing container workspace %s timeout=%ss",
                 _CONTAINER_WORKSPACE,
+                operation_timeout,
             )
-        for remote_path in remote_files:
+            listing = await sandbox.exec(_container_workspace_find_command(), timeout_sec=operation_timeout)
+        except Exception as exc:
+            logger.warning(
+                "OpenClawSolver[sandbox]: failed to list container workspace %s: %s",
+                _CONTAINER_WORKSPACE,
+                exc,
+            )
+            return
+
+        remote_files: list[str] = []
+        skipped_files = 0
+        for line in listing.stdout.splitlines():
+            remote_path = line.strip()
+            if not remote_path or not remote_path.startswith(_CONTAINER_WORKSPACE):
+                continue
             rel = remote_path[len(_CONTAINER_WORKSPACE) + 1 :]
             if not rel:
                 continue
+            if _workspace_rel_is_skipped(rel):
+                skipped_files += 1
+                continue
+            remote_files.append(remote_path)
+        if not remote_files:
+            logger.debug(
+                "No files found in container workspace %s; skipping workspace sync",
+                _CONTAINER_WORKSPACE,
+            )
+            return
+
+        logger.info(
+            "OpenClawSolver[sandbox]: downloading %d workspace files to %s%s",
+            len(remote_files),
+            host_workspace,
+            f" ({skipped_files} generated/cache files skipped)" if skipped_files else "",
+        )
+        deadline = time.monotonic() + operation_timeout
+        downloaded = 0
+        for remote_path in remote_files:
+            rel = remote_path[len(_CONTAINER_WORKSPACE) + 1 :]
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                logger.warning(
+                    "OpenClawSolver[sandbox]: workspace sync timed out after %ss; downloaded %d/%d files",
+                    operation_timeout,
+                    downloaded,
+                    len(remote_files),
+                )
+                break
             local_path = host_workspace / rel
             local_path.parent.mkdir(parents=True, exist_ok=True)
             try:
-                result = await sandbox.exec(f"base64 {shlex.quote(remote_path)}")
+                result = await sandbox.exec(
+                    f"base64 {shlex.quote(remote_path)}",
+                    timeout_sec=min(_WORKSPACE_FILE_DOWNLOAD_TIMEOUT_SECONDS, remaining),
+                )
                 if result.return_code == 0 and result.stdout.strip():
                     data = base64.b64decode(result.stdout.strip())
                     local_path.write_bytes(data)
+                    downloaded += 1
             except Exception as exc:
-                logger.debug("Failed to download %s: %s", remote_path, exc)
+                logger.warning("OpenClawSolver[sandbox]: failed to download %s: %s", remote_path, exc)
 
-        logger.debug("Downloaded %d files to %s", len(remote_files), host_workspace)
+        logger.info(
+            "OpenClawSolver[sandbox]: downloaded %d/%d files to %s", downloaded, len(remote_files), host_workspace
+        )
 
     _WRITE_CHUNK_SIZE = 65_536
 
@@ -777,29 +851,15 @@ class OpenClawSolver:
 
     async def _solve_local(self, task: SeedResult) -> SolveResult:
         task_id = task.metadata.get("task_id", "task")
-        session_id = f"nel-{task_id}-{uuid.uuid4().hex[:8]}"
         workspace_path = task.metadata.get("workspace_path")
+        effective_timeout = self._effective_timeout(task)
 
         pre_existing_files: set[str] = set()
         if workspace_path and Path(workspace_path).is_dir():
+            host_workspace = Path(workspace_path)
             pre_existing_files = {
-                str(p.relative_to(workspace_path)) for p in Path(workspace_path).rglob("*") if p.is_file()
+                str(p.relative_to(host_workspace)) for p in _iter_workspace_files(host_workspace) if p.is_file()
             }
-
-        effective_prompt = self._build_prompt(task.prompt, workspace_path)
-
-        cmd = [
-            self._bin,
-            "agent",
-            "--message",
-            effective_prompt,
-            "--session-id",
-            session_id,
-            "--json",
-            "--local",
-        ]
-        if self._thinking:
-            cmd.extend(["--thinking", self._thinking])
 
         env = {**os.environ}
         if self._api_key:
@@ -807,104 +867,145 @@ class OpenClawSolver:
         _tmp_home = self._prepare_local_config(env)
         cwd = workspace_path if workspace_path and Path(workspace_path).is_dir() else None
 
-        logger.info("OpenClawSolver[local]: session=%s workspace=%s", session_id, cwd or "(none)")
+        session_specs = _normalize_task_sessions(task)
+        active_session_id = ""
+        session_ids: list[str] = []
+        effective_prompts: list[str] = []
+        response_texts: list[str] = []
+        envelope_steps: list[dict[str, Any]] = []
+        model_responses: list[ModelResponse] = []
+        oc_extra: dict[str, Any] | None = None
+        agent_timeout_error: str | None = None
+        raw_sessions: list[str] = []
+        overall_deadline = time.monotonic() + effective_timeout
+        solve_started_at = time.time()
 
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=cwd,
-            env=env,
-        )
+        for idx, session_spec in enumerate(session_specs):
+            if idx == 0 or session_spec.get("new_session") or not active_session_id:
+                if active_session_id:
+                    raw_session_jsonl = self._fetch_session_jsonl_local(
+                        env.get("HOME", str(Path.home())),
+                        active_session_id,
+                        started_at=solve_started_at,
+                    )
+                    if raw_session_jsonl:
+                        raw_sessions.append(raw_session_jsonl)
+                active_session_id = f"nel-{task_id}-{session_spec['id']}-{uuid.uuid4().hex[:8]}"
+                session_ids.append(active_session_id)
 
-        try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                process.communicate(),
-                timeout=self._timeout,
-            )
-        except asyncio.TimeoutError:
-            process.kill()
-            await process.wait()
-            err_msg = f"Timeout after {self._timeout}s"
-            logger.warning("OpenClawSolver[local]: %s for %s", err_msg, task_id)
-            return SolveResult(
-                response="",
-                trajectory=build_atif_trajectory(
-                    [{"source": "system", "message": err_msg}],
-                    agent_name="openclaw",
-                    status="error",
-                ),
-                error=err_msg,
-            )
+            effective_prompt = self._build_prompt(str(session_spec["prompt"]), workspace_path)
+            effective_prompts.append(effective_prompt)
 
-        stdout = stdout_bytes.decode("utf-8", errors="replace")
-        stderr = stderr_bytes.decode("utf-8", errors="replace")
+            cmd = [
+                self._bin,
+                "agent",
+                "--message",
+                effective_prompt,
+                "--session-id",
+                active_session_id,
+                "--json",
+                "--local",
+            ]
+            if self._thinking:
+                cmd.extend(["--thinking", self._thinking])
 
-        if process.returncode != 0:
-            err_msg = f"exit code {process.returncode}: {stderr[:500]}"
-            logger.warning("OpenClawSolver[local]: %s for %s", err_msg, task_id)
-            return SolveResult(
-                response="",
-                trajectory=build_atif_trajectory(
-                    [{"source": "system", "message": stderr[:2000]}],
-                    agent_name="openclaw",
-                    status="error",
-                    extra={"exit_code": process.returncode},
-                ),
-                error=err_msg,
-            )
-
-        output = _extract_openclaw_envelope(stdout, stderr)
-        if not output:
-            err_msg = f"no JSON output for {task_id}"
-            logger.warning("OpenClawSolver[local]: %s", err_msg)
-            return SolveResult(
-                response=(stdout or stderr)[:5000],
-                trajectory=build_atif_trajectory(
-                    [{"source": "system", "message": stderr.strip()[:2000] or "no JSON output"}],
-                    agent_name="openclaw",
-                    status="error",
-                ),
-                error=err_msg,
+            logger.info(
+                "OpenClawSolver[local]: session=%s task=%s turn=%d/%d workspace=%s",
+                active_session_id,
+                task_id,
+                idx + 1,
+                len(session_specs),
+                cwd or "(none)",
             )
 
-        response_text, model_response, steps, oc_extra = _parse_response(output)
+            turn_timeout = effective_timeout if idx == 0 else max(0.0, overall_deadline - time.monotonic())
+            if turn_timeout <= 0:
+                agent_timeout_error = f"Timeout after {effective_timeout}s"
+                envelope_steps.append({"source": "system", "message": agent_timeout_error})
+                break
 
-        if workspace_path:
-            file_addendum = _read_workspace_files(Path(workspace_path), pre_existing_files)
-            if file_addendum:
-                response_text = f"{response_text}\n\n{file_addendum}" if response_text else file_addendum
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=cwd,
+                env=env,
+            )
+
+            try:
+                stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=turn_timeout,
+                )
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                err_msg = f"Timeout after {effective_timeout}s"
+                logger.warning("OpenClawSolver[local]: %s for %s", err_msg, task_id)
+                agent_timeout_error = err_msg
+                envelope_steps.append({"source": "system", "message": err_msg})
+                break
+
+            stdout = stdout_bytes.decode("utf-8", errors="replace")
+            stderr = stderr_bytes.decode("utf-8", errors="replace")
+
+            if process.returncode != 0:
+                err_msg = f"exit code {process.returncode}: {stderr[:500]}"
+                logger.warning("OpenClawSolver[local]: %s for %s", err_msg, task_id)
+                return SolveResult(
+                    response="",
+                    trajectory=build_atif_trajectory(
+                        [{"source": "system", "message": stderr[:2000]}],
+                        agent_name="openclaw",
+                        status="error",
+                        extra={"exit_code": process.returncode},
+                    ),
+                    error=err_msg,
+                    error_kind=_openclaw_error_kind(err_msg, return_code=process.returncode),
+                )
+
+            output = _extract_openclaw_envelope(stdout, stderr)
+            if not output:
+                err_msg = f"no JSON output for {task_id}"
+                logger.warning("OpenClawSolver[local]: %s", err_msg)
+                return SolveResult(
+                    response=(stdout or stderr)[:5000],
+                    trajectory=build_atif_trajectory(
+                        [{"source": "system", "message": stderr.strip()[:2000] or "no JSON output"}],
+                        agent_name="openclaw",
+                        status="error",
+                    ),
+                    error=err_msg,
+                    error_kind=_openclaw_error_kind(f"{stdout}\n{stderr}"),
+                )
+
+            response_text, model_response, steps, turn_extra = _parse_response(output)
+            response_texts.append(response_text)
+            model_responses.append(model_response)
+            envelope_steps.extend(steps)
+            if turn_extra:
+                oc_extra = turn_extra
 
         home = env.get("HOME", str(Path.home()))
-        raw_session_jsonl = self._fetch_session_jsonl_local(home, session_id)
-        if raw_session_jsonl:
-            transcript_steps = _parse_session_jsonl(raw_session_jsonl)
-            if transcript_steps:
-                steps = transcript_steps + steps
-            if workspace_path:
-                _persist_session_transcript(Path(workspace_path), raw_session_jsonl)
-
-        trajectory = build_atif_trajectory(
-            steps,
-            agent_name="openclaw",
-            model_name=model_response.model or None,
-            prompt_tokens=model_response.prompt_tokens or 0,
-            completion_tokens=model_response.completion_tokens or 0,
-            extra=oc_extra,
-            user_prompt=effective_prompt,
-        )
-
-        logger.info(
-            "OpenClawSolver[local]: %s completed in %dms, %d tok, %d steps",
-            task_id,
-            model_response.latency_ms,
-            model_response.total_tokens,
-            len(steps),
-        )
-        return SolveResult(
-            response=response_text,
-            model_response=model_response,
-            trajectory=trajectory,
+        if active_session_id:
+            raw_session_jsonl = self._fetch_session_jsonl_local(home, active_session_id, started_at=solve_started_at)
+            if raw_session_jsonl:
+                raw_sessions.append(raw_session_jsonl)
+        raw_session_jsonl = "\n".join(raw_sessions)
+        return _finalize_openclaw_solve(
+            mode="local",
+            task_id=task_id,
+            workspace_path=workspace_path,
+            pre_existing_files=pre_existing_files,
+            response_texts=response_texts,
+            model_responses=model_responses,
+            envelope_steps=envelope_steps,
+            oc_extra=oc_extra,
+            session_ids=session_ids,
+            effective_prompts=effective_prompts,
+            raw_session_jsonl=raw_session_jsonl,
+            agent_timeout_error=agent_timeout_error,
+            agent_timeout_seconds=effective_timeout if agent_timeout_error else None,
         )
 
     # ------------------------------------------------------------------
@@ -912,22 +1013,43 @@ class OpenClawSolver:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _fetch_session_jsonl_local(home: str, session_id: str) -> str:
+    def _fetch_session_jsonl_local(home: str, session_id: str, *, started_at: float | None = None) -> str:
         """Return a local session transcript as raw JSONL text, or empty."""
         sessions_dir = Path(home) / ".openclaw" / "agents" / "main" / "sessions"
-        transcript_path = sessions_dir / f"{session_id}.jsonl"
-        if not transcript_path.exists():
-            return ""
-        return transcript_path.read_text(encoding="utf-8", errors="replace")
+        candidates: list[Path] = []
+        index_path = sessions_dir / "sessions.json"
+        if index_path.exists():
+            raw_index = index_path.read_text(encoding="utf-8", errors="replace")
+            candidates.extend(
+                _resolve_local_session_path(sessions_dir, candidate)
+                for candidate in _session_path_candidates_from_index(raw_index, session_id)
+            )
+        candidates.extend([sessions_dir / f"{session_id}.jsonl", sessions_dir / f"{session_id}.ndjson"])
+        if sessions_dir.exists():
+            min_mtime = None if started_at is None else max(0.0, started_at - 5.0)
+            candidates.extend(
+                sorted(
+                    [
+                        path
+                        for path in [*sessions_dir.glob("*.jsonl"), *sessions_dir.glob("*.ndjson")]
+                        if min_mtime is None or path.stat().st_mtime >= min_mtime
+                    ],
+                    key=lambda path: path.stat().st_mtime,
+                    reverse=True,
+                )
+            )
+        seen: set[Path] = set()
+        for transcript_path in candidates:
+            if transcript_path in seen:
+                continue
+            seen.add(transcript_path)
+            if transcript_path.exists():
+                return transcript_path.read_text(encoding="utf-8", errors="replace")
+        return ""
 
     @staticmethod
     def _build_prompt(raw_prompt: str, workspace_path: str | None) -> str:
-        if workspace_path:
-            return (
-                f"Your working directory for this task is: {workspace_path}\n"
-                f"All file paths should be relative to or within this directory.\n\n"
-                f"{raw_prompt}"
-            )
+        _ = workspace_path
         return raw_prompt
 
     async def close(self) -> None:

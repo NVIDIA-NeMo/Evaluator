@@ -161,8 +161,15 @@ def copy_to_remote(
     local_paths: list[Path],
     remote_dir: str,
     username: str | None = None,
+    local_base: Path | None = None,
 ) -> None:
-    """Copy files to the remote host via scp, preserving permissions."""
+    """Copy files to the remote host via scp, preserving permissions.
+
+    When ``local_base`` is provided, each path's position relative to
+    ``local_base`` is preserved on the remote (so a file at
+    ``{local_base}/sub/x.yaml`` lands at ``{remote_dir}/sub/x.yaml``).
+    Without ``local_base`` files are flattened under ``remote_dir``.
+    """
     target = _ssh_target(hostname, username)
 
     has_secrets = any(p.name == ".secrets.env" for p in local_paths)
@@ -176,9 +183,25 @@ def copy_to_remote(
     else:
         _ssh(target, f"mkdir -p {shlex.quote(remote_dir)}/logs", timeout=15.0)
 
+    if local_base is not None:
+        nested_dirs = sorted(
+            {
+                str(p.relative_to(local_base).parent)
+                for p in local_paths
+                if p.relative_to(local_base).parent != Path(".")
+            }
+        )
+        for d in nested_dirs:
+            _ssh(target, f"mkdir -p {shlex.quote(remote_dir + '/' + d)}", timeout=15.0)
+
     for p in local_paths:
-        _scp(str(p), f"{target}:{remote_dir}/", target)
-        logger.info("Copied %s -> %s:%s/", p.name, target, remote_dir)
+        if local_base is not None:
+            rel = p.relative_to(local_base)
+            dest = f"{target}:{remote_dir}/{rel}"
+        else:
+            dest = f"{target}:{remote_dir}/"
+        _scp(str(p), dest, target)
+        logger.info("Copied %s -> %s", p.name, dest)
 
 
 def submit_sbatch(
@@ -327,10 +350,11 @@ def submit_eval(
     remote_dir: str,
     username: str | None = None,
     extra_files: list[Path] | None = None,
+    local_base: Path | None = None,
 ) -> dict[str, str]:
     """Full submission flow: copy files, sbatch, return job metadata."""
     files = [script_path] + (extra_files or [])
-    copy_to_remote(hostname, files, remote_dir, username)
+    copy_to_remote(hostname, files, remote_dir, username, local_base=local_base)
 
     remote_script = f"{remote_dir}/{script_path.name}"
     job_id = submit_sbatch(hostname, remote_script, username)

@@ -6,18 +6,16 @@
 # You may obtain a copy of the License at
 #
 # http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 """Tests for orchestration/orchestrator.py — wiring and factory tests, all mocked."""
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from nemo_evaluator.config.sandboxes import NoSandbox as NoSandboxConfig
 
@@ -67,6 +65,121 @@ class TestRunLocalArtifactAccess:
 
         artifact_files = apply_access.call_args.kwargs["artifact_files"]
         assert tmp_path / "nel_eval.log" in artifact_files
+
+
+class TestRunSingleBenchmarkCleanup:
+    def _bench(self):
+        return SimpleNamespace(
+            name="bench",
+            solver=SimpleNamespace(),
+            sandbox=NoSandboxConfig(),
+            max_concurrent=1,
+            repeats=1,
+            max_problems=1,
+            scoring=SimpleNamespace(metrics=[]),
+            skip_failed=False,
+            max_system_retries=0,
+            instruction_template=None,
+            shuffle_seed=None,
+        )
+
+    def _config(self, tmp_path):
+        return SimpleNamespace(
+            output=SimpleNamespace(progress_interval=60, dir=str(tmp_path)),
+            services={},
+        )
+
+    def _patch_eval_path(self, monkeypatch, tmp_path, *, eval_side_effect=None):
+        from nemo_evaluator.orchestration import orchestrator
+
+        class _Env:
+            name = "bench@1.0"
+
+            async def run_batch(self, **_kwargs):
+                return None
+
+        class _Proxy:
+            async def async_stop(self):
+                raise RuntimeError("proxy cleanup exploded")
+
+        class _Judge:
+            async def close(self):
+                raise RuntimeError("judge cleanup exploded")
+
+        class _TrafficStore:
+            def close(self):
+                raise RuntimeError("traffic cleanup exploded")
+
+        bundle = {
+            "run_id": "eval-ok",
+            "benchmark": {"name": "bench@1.0", "scores": {"pass@1": {"value": 1.0}}},
+        }
+
+        async def _run_evaluation(*_args, **_kwargs):
+            if eval_side_effect is not None:
+                raise eval_side_effect
+            return bundle
+
+        monkeypatch.setattr(
+            orchestrator,
+            "_resolve_service_connection",
+            lambda *_args: ("http://model", "m", None, None),
+        )
+        monkeypatch.setattr(
+            orchestrator,
+            "_start_proxy",
+            lambda *_args: ("http://proxy", _Proxy(), _TrafficStore()),
+        )
+        monkeypatch.setattr(orchestrator, "_build_environment", lambda *_args: _Env())
+        monkeypatch.setattr(orchestrator, "_create_client_and_solver", lambda *_args: (None, object()))
+        monkeypatch.setattr(orchestrator, "_find_judge_client", lambda *_args: _Judge())
+        monkeypatch.setattr(orchestrator, "_make_sandbox_manager", lambda *_args: None)
+        monkeypatch.setattr("nemo_evaluator.engine.eval_loop.run_evaluation", _run_evaluation)
+        monkeypatch.setattr(
+            "nemo_evaluator.engine.artifacts.write_all",
+            lambda _bundle, _task_dir: {"bundle": tmp_path / "bench@1.0" / "eval-ok.json"},
+        )
+        return bundle
+
+    def test_cleanup_errors_do_not_replace_successful_bundle(self, tmp_path, monkeypatch, caplog):
+        from nemo_evaluator.orchestration.orchestrator import _run_single_benchmark
+
+        caplog.set_level(logging.ERROR)
+        expected = self._patch_eval_path(monkeypatch, tmp_path)
+
+        result = asyncio.run(
+            _run_single_benchmark(
+                self._bench(),
+                self._config(tmp_path),
+                {},
+                tmp_path,
+            )
+        )
+
+        assert result["run_id"] == expected["run_id"]
+        assert "Failed to close judge client" in caplog.text
+        assert "Failed to stop adapter proxy" in caplog.text
+        assert "Failed to close model traffic store" in caplog.text
+
+    def test_cleanup_errors_do_not_hide_eval_failure(self, tmp_path, monkeypatch, caplog):
+        from nemo_evaluator.orchestration.orchestrator import _run_single_benchmark
+
+        caplog.set_level(logging.ERROR)
+        self._patch_eval_path(monkeypatch, tmp_path, eval_side_effect=RuntimeError("eval exploded"))
+
+        with pytest.raises(RuntimeError, match="eval exploded"):
+            asyncio.run(
+                _run_single_benchmark(
+                    self._bench(),
+                    self._config(tmp_path),
+                    {},
+                    tmp_path,
+                )
+            )
+
+        assert "Failed to close judge client" in caplog.text
+        assert "Failed to stop adapter proxy" in caplog.text
+        assert "Failed to close model traffic store" in caplog.text
 
 
 class TestInterceptorSpecs:
@@ -137,3 +250,49 @@ class TestResolveGeneration:
         result = _resolve_generation(config, solver_cfg)
         assert result.temperature == 0.7
         assert result.max_tokens == 100
+
+
+class TestInstallDefaultExecutor:
+    def test_replaces_default_executor_with_given_max_workers(self):
+        from nemo_evaluator.orchestration.orchestrator import _install_default_executor
+
+        async def _runner():
+            executor = _install_default_executor(50)
+            loop = asyncio.get_running_loop()
+            assert loop._default_executor is executor  # type: ignore[attr-defined]
+            assert executor._max_workers == 50
+
+        asyncio.run(_runner())
+
+
+class TestBuildBatchConfigEnvVars:
+    """``_build_batch_config`` merges ``cluster.container_env`` (global) under
+    ``solver.env_vars`` (per-benchmark) so users can declare shared env vars
+    once at cluster scope and override per-benchmark when needed."""
+
+    def _container_solver(self, env_vars=None):
+        from nemo_evaluator.config.solvers import ContainerSolverConfig
+
+        return ContainerSolverConfig(service="endpoint", env_vars=env_vars or {})
+
+    def test_cluster_container_env_propagates_for_container_solver(self):
+        from nemo_evaluator.config.clusters import LocalCluster
+        from nemo_evaluator.orchestration.orchestrator import _build_batch_config
+
+        cluster = LocalCluster(container_env={"HF_TOKEN": "tok", "HF_HOME": "/cache"})
+        solver_cfg = self._container_solver()
+        svc = MagicMock(protocol="chat_completions")
+
+        cfg = _build_batch_config("u", "m", None, solver_cfg, svc, cluster=cluster)
+        assert cfg["env_vars"] == {"HF_TOKEN": "tok", "HF_HOME": "/cache"}
+
+    def test_solver_env_vars_override_cluster(self):
+        from nemo_evaluator.config.clusters import LocalCluster
+        from nemo_evaluator.orchestration.orchestrator import _build_batch_config
+
+        cluster = LocalCluster(container_env={"HF_TOKEN": "global", "HF_HOME": "/cache"})
+        solver_cfg = self._container_solver(env_vars={"HF_TOKEN": "per-bench"})
+        svc = MagicMock(protocol="chat_completions")
+
+        cfg = _build_batch_config("u", "m", None, solver_cfg, svc, cluster=cluster)
+        assert cfg["env_vars"] == {"HF_TOKEN": "per-bench", "HF_HOME": "/cache"}
