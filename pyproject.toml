@@ -100,6 +100,9 @@ allow-direct-references = true
 [tool.hatch.build.targets.wheel]
 packages = ["src/nemo_evaluator"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"harbor_datasets/registry_overrides" = "nemo_evaluator/_registry_overrides"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
