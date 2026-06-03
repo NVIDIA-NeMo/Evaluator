@@ -257,6 +257,55 @@ def _redact_cmd_for_log(cmd: list[str]) -> str:
     return _REDACT_ENV_VALUE.sub(r"\1<REDACTED>", joined)
 
 
+async def _drain_stream(
+    stream: asyncio.StreamReader | None,
+    sink: list[bytes],
+    log_line: Any,
+) -> None:
+    """Read *stream* line by line, logging each line live and buffering it.
+
+    Legacy harnesses emit progress on stdout/stderr only at process exit
+    if we use ``communicate()``; reading line by line surfaces the
+    container's own logs in real time.  Lines are also accumulated into
+    *sink* so :func:`_format_container_failure` can replay the tail.
+    """
+    if stream is None:
+        return
+    while True:
+        try:
+            line = await stream.readline()
+        except (asyncio.LimitOverrunError, ValueError):
+            # Line exceeds the StreamReader buffer; drain what's there and continue.
+            line = await stream.read(65536)
+            if not line:
+                break
+        if not line:
+            break
+        sink.append(line)
+        log_line(line.decode(errors="replace").rstrip())
+
+
+def _format_container_failure(stdout: bytes | None, stderr: bytes | None, tail: int = 4000) -> str:
+    """Format a container's captured output for a failure log.
+
+    Legacy harnesses emit INFO logs first and the actual traceback last,
+    so we show the *tail* of each stream rather than the head — a head
+    truncation cuts off exactly the error that explains the failure.
+    Both streams are included because some harnesses write the traceback
+    to stdout while others use stderr.
+    """
+
+    def _section(label: str, data: bytes | None) -> str:
+        text = (data or b"").decode(errors="replace").strip()
+        if not text:
+            return f"--- container {label} (empty) ---"
+        if len(text) > tail:
+            text = "...[truncated]...\n" + text[-tail:]
+        return f"--- container {label} (last {tail} chars) ---\n{text}"
+
+    return f"{_section('stdout', stdout)}\n{_section('stderr', stderr)}"
+
+
 def _runs_on_slurm() -> bool:
     """True when the current process is inside a SLURM allocation.
 
@@ -400,23 +449,43 @@ class ContainerEnvironment(EvalEnvironment):
             else:
                 cmd, subprocess_env = self._build_docker_cmd(results_dir, config_path, mounts, env_vars, inner_command)
 
-            logger.info("Running container: %s ...", _redact_cmd_for_log(cmd[:12]))
+            logger.info("Running container: %s", _redact_cmd_for_log(cmd))
+            logger.info("Command inside container: %s", " ".join(inner_command))
 
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=subprocess_env,
+                limit=2**20,
             )
+
+            stdout_buf: list[bytes] = []
+            stderr_buf: list[bytes] = []
+            log_line = lambda line: logger.info("%s | %s", self.name, line)  # noqa: E731
+
+            async def _consume() -> None:
+                await asyncio.gather(
+                    _drain_stream(proc.stdout, stdout_buf, log_line),
+                    _drain_stream(proc.stderr, stderr_buf, log_line),
+                )
+                await proc.wait()
+
             try:
-                _stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=self._timeout)
+                await asyncio.wait_for(_consume(), timeout=self._timeout)
+                stdout, stderr = b"".join(stdout_buf), b"".join(stderr_buf)
             except asyncio.TimeoutError:
                 proc.kill()
                 await proc.wait()
-                stderr = b"timeout"
+                stdout = b"".join(stdout_buf)
+                stderr = b"".join(stderr_buf) + f"\ncontainer exceeded timeout of {self._timeout}s".encode()
 
             if proc.returncode != 0:
-                logger.error("Container failed (exit %d): %s", proc.returncode, (stderr or b"").decode()[:2000])
+                logger.error(
+                    "Container failed (exit %d).\n%s",
+                    proc.returncode,
+                    _format_container_failure(stdout, stderr),
+                )
 
             bundle = self._parse_results(results_dir)
             # Persist the run_config the container actually consumed; the
