@@ -10,6 +10,7 @@ ns prepare_data gpqa
 ns prepare_data aime24
 export NEMO_MODEL_URL="https://integrate.api.nvidia.com/v1/chat/completions"
 export NEMO_MODEL_ID="nvidia/nemotron-3-super-120b-a12b"
+export NVIDIA_API_KEY="your-api-key-here"
 ```
 
 ## CLI

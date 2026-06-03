@@ -39,6 +39,7 @@ Set your model endpoint once before running the `nel eval run` examples:
 ```bash
 export NEMO_MODEL_URL="https://integrate.api.nvidia.com/v1/chat/completions"
 export NEMO_MODEL_ID="nvidia/nemotron-3-super-120b-a12b"
+export NVIDIA_API_KEY="your-api-key-here"
 ```
 
 ## Mode 1: Serve for Gym Training

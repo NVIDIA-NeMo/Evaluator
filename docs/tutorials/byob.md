@@ -23,9 +23,12 @@ def my_scorer(sample: ScorerInput) -> dict:
 Run it:
 
 ```bash
+export NVIDIA_API_KEY="your-api-key-here"
+
 nel eval run --bench ./my_bench.py \
   --model-url https://integrate.api.nvidia.com/v1/chat/completions \
-  --model-id nvidia/nemotron-3-super-120b-a12b
+  --model-id nvidia/nemotron-3-super-120b-a12b \
+  --api-key $NVIDIA_API_KEY
 ```
 
 That is the entire local workflow. Passing the Python file path imports it, lets the
@@ -79,6 +82,7 @@ Set your model endpoint once:
 ```bash
 export NEMO_MODEL_URL="https://integrate.api.nvidia.com/v1/chat/completions"
 export NEMO_MODEL_ID="nvidia/nemotron-3-super-120b-a12b"
+export NVIDIA_API_KEY="your-api-key-here"
 ```
 
 ```bash

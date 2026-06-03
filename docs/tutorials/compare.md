@@ -43,10 +43,13 @@ McNemar's test focuses on **discordant pairs** -- problems where the two models 
 Run the same benchmark with the same configuration against both models:
 
 ```bash
+export NVIDIA_API_KEY="your-api-key-here"
+
 # Baseline
 nel eval run --bench mmlu_pro \
   --model-url https://integrate.api.nvidia.com/v1 \
   --model-id baseline-model \
+  --api-key $NVIDIA_API_KEY \
   --repeats 1 \
   --max-problems 500 \
   -o ./results/baseline
@@ -55,6 +58,7 @@ nel eval run --bench mmlu_pro \
 nel eval run --bench mmlu_pro \
   --model-url https://integrate.api.nvidia.com/v1 \
   --model-id candidate-model \
+  --api-key $NVIDIA_API_KEY \
   --repeats 1 \
   --max-problems 500 \
   -o ./results/candidate

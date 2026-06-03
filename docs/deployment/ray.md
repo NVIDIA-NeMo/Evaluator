@@ -11,10 +11,13 @@ pip install -e ".[ray]"
 ## CLI
 
 ```bash
+export NVIDIA_API_KEY="your-api-key-here"
+
 ray job submit --working-dir . -- python -m nemo_evaluator.engine.ray_launcher \
     --benchmark gsm8k --shards 8 --repeats 5 \
     --model-url https://inference-api.nvidia.com/v1 \
     --model-id azure/openai/gpt-5.2 \
+    --api-key $NVIDIA_API_KEY \
     --output-dir ./eval_results/ray
 ```
 

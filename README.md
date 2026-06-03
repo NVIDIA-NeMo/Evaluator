@@ -25,10 +25,13 @@ pip install -e ".[all]"            # common runtime integrations
 ## Quick Start
 
 ```bash
+export NVIDIA_API_KEY="your-api-key-here"
+
 # Run a benchmark from the CLI
 nel eval run --bench mmlu \
   --model-url https://integrate.api.nvidia.com/v1 \
   --model-id nvidia/nemotron-3-super-120b-a12b \
+  --api-key $NVIDIA_API_KEY \
   --repeats 3 --max-problems 100
 
 # Run from a YAML config
