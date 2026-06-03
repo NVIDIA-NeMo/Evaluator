@@ -16,12 +16,37 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
+
+
+def _make_fake_proc(stdout: bytes = b"", stderr: bytes = b"", returncode: int = 0):
+    """Fake subprocess whose .stdout/.stderr are real StreamReaders.
+
+    ContainerEnvironment.run_batch streams both pipes line by line for live
+    logging, so the fakes expose readable StreamReaders rather than a mocked
+    communicate().
+    """
+
+    def _reader(data: bytes) -> asyncio.StreamReader:
+        r = asyncio.StreamReader()
+        r.feed_data(data)
+        r.feed_eof()
+        return r
+
+    proc = AsyncMock()
+    proc.stdout = _reader(stdout)
+    proc.stderr = _reader(stderr)
+    proc.returncode = returncode
+    proc.kill = MagicMock()
+    proc.wait = AsyncMock(return_value=returncode)
+    return proc
+
 
 # ── CompositeEnvironment ─────────────────────────────────────────────────
 
@@ -115,12 +140,7 @@ class TestContainerEnvironment:
                     Path(arg.split(":")[0]).joinpath("results.yml").write_text(_yaml.dump(v1_results))
                 if arg.endswith(":/config/run_config.yaml:ro"):
                     captured_run_config.update(_yaml.safe_load(Path(arg.split(":")[0]).read_text()))
-            proc = AsyncMock()
-            proc.communicate = AsyncMock(return_value=(b"", b""))
-            proc.returncode = 0
-            proc.kill = AsyncMock()
-            proc.wait = AsyncMock()
-            return proc
+            return _make_fake_proc()
 
         env = ContainerEnvironment(image="test:latest", task="ns_mmlu")
 
@@ -159,6 +179,30 @@ class TestContainerEnvironment:
         assert result["benchmark"]["samples"] == 50
         assert result["benchmark"]["scores"]["mmlu/pass@1/symbolic_correct"]["value"] == 80.0
 
+        # The run_config the container consumed rides along in the bundle so
+        # write_all() can persist it to the artifact dir.
+        assert result["_run_config"]["config"]["type"] == "ns_mmlu"
+
+    def test_run_batch_run_config_persisted_by_write_all(self, tmp_path):
+        """The bundle's _run_config is materialized as run_config.yaml in the artifact dir."""
+        import json as _json
+
+        import yaml as _yaml
+
+        from nemo_evaluator.engine.artifacts import write_all
+
+        bundle = {
+            "benchmark": {"name": "container/ns_mmlu", "samples": 1, "scores": {}},
+            "_run_config": {"config": {"type": "ns_mmlu", "output_dir": "/results"}},
+        }
+        paths = write_all(bundle, tmp_path)
+
+        rc_path = paths["run_config"]
+        assert rc_path == tmp_path / "run_config.yaml"
+        assert _yaml.safe_load(rc_path.read_text())["config"]["type"] == "ns_mmlu"
+        # Private payload must not leak into the public bundle JSON.
+        assert "_run_config" not in _json.loads((tmp_path / f"{bundle['run_id']}.json").read_text())
+
     def test_adapter_config_written_verbatim(self):
         """adapter_config lands at target.api_endpoint.adapter_config verbatim."""
         from nemo_evaluator.environments.container import ContainerEnvironment
@@ -196,12 +240,7 @@ class TestContainerEnvironment:
                     for entry in a.split("=", 1)[1].split(","):
                         if entry.endswith(":/results"):
                             Path(entry.split(":")[0]).joinpath("results.yml").write_text("results: {tasks: {}}\n")
-            proc = AsyncMock()
-            proc.communicate = AsyncMock(return_value=(b"", b""))
-            proc.returncode = 0
-            proc.kill = AsyncMock()
-            proc.wait = AsyncMock()
-            return proc
+            return _make_fake_proc()
 
         # Use a sqsh-style file path to exercise the file-vs-registry detection.
         env = ContainerEnvironment(image="/srv/nemo-skills.sqsh", task="ns_mmlu")
@@ -260,12 +299,7 @@ class TestContainerEnvironment:
                     for entry in a.split("=", 1)[1].split(","):
                         if entry.endswith(":/results"):
                             Path(entry.split(":")[0]).joinpath("results.yml").write_text("results: {tasks: {}}\n")
-            proc = AsyncMock()
-            proc.communicate = AsyncMock(return_value=(b"", b""))
-            proc.returncode = 0
-            proc.kill = AsyncMock()
-            proc.wait = AsyncMock()
-            return proc
+            return _make_fake_proc()
 
         env = ContainerEnvironment(image="registry.example.com:5005/x:tag", task="ns_mmlu")
         with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
@@ -317,12 +351,7 @@ class TestContainerEnvironment:
 
         async def fake_exec(*args, **kwargs):
             captured_cmd.extend(a for a in args if isinstance(a, str))
-            proc = AsyncMock()
-            proc.communicate = AsyncMock(return_value=(b"", b""))
-            proc.returncode = 0
-            proc.kill = AsyncMock()
-            proc.wait = AsyncMock()
-            return proc
+            return _make_fake_proc()
 
         env = ContainerEnvironment(image="test:latest", task="ns_mmlu")
 
@@ -349,12 +378,7 @@ class TestContainerEnvironment:
         from nemo_evaluator.environments.container import ContainerEnvironment
 
         async def fake_exec(*args, **kwargs):
-            proc = AsyncMock()
-            proc.communicate = AsyncMock(return_value=(b"", b"task not found"))
-            proc.returncode = 1
-            proc.kill = AsyncMock()
-            proc.wait = AsyncMock()
-            return proc
+            return _make_fake_proc(stderr=b"task not found", returncode=1)
 
         env = ContainerEnvironment(image="test:latest", task="bad_task")
 
@@ -369,6 +393,30 @@ class TestContainerEnvironment:
 
         assert result["benchmark"]["scores"] == {}
         assert result["benchmark"]["samples"] == 0
+
+    async def test_run_batch_streams_container_logs_live(self, caplog):
+        """Container stdout/stderr lines are logged live, not buffered to the end."""
+        import logging
+
+        from nemo_evaluator.environments.container import ContainerEnvironment
+
+        async def fake_exec(*args, **kwargs):
+            return _make_fake_proc(
+                stdout=b"loading dataset\nrunning eval\n",
+                stderr=b"[I] harness started\n",
+                returncode=0,
+            )
+
+        env = ContainerEnvironment(image="test:latest", task="ns_ifeval")
+
+        with caplog.at_level(logging.INFO, logger="nemo_evaluator.environments.container"):
+            with patch("asyncio.create_subprocess_exec", side_effect=fake_exec):
+                await env.run_batch(config={"base_url": "http://m/v1", "model": "m"})
+
+        streamed = [r.getMessage() for r in caplog.records if "container/ns_ifeval |" in r.getMessage()]
+        assert any("loading dataset" in m for m in streamed)
+        assert any("running eval" in m for m in streamed)
+        assert any("harness started" in m for m in streamed)
 
     @pytest.mark.parametrize(
         "raw,scores,expected,case_id",
