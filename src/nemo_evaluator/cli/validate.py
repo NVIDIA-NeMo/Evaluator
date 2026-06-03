@@ -25,7 +25,7 @@ import click
 @click.option("--samples", "-s", default=5, type=int)
 @click.option("--model-url", required=True, envvar="NEMO_MODEL_URL", help="Model endpoint URL (or set NEMO_MODEL_URL)")
 @click.option("--model-id", required=True, envvar="NEMO_MODEL_ID", help="Model identifier (or set NEMO_MODEL_ID)")
-@click.option("--api-key", envvar="NEMO_API_KEY")
+@click.option("--api-key", envvar=["NEMO_API_KEY", "NVIDIA_API_KEY"])
 @click.option("--verbose", "-v", is_flag=True)
 def validate_cmd(benchmark, samples, model_url, model_id, api_key, verbose):
     """Quick sanity check: run a few samples and report."""

@@ -133,6 +133,36 @@ class TestValidateCommand:
         assert "Validation failed for 'gsm8k'" in result.output
         assert "dataset cache is read-only" in result.output
 
+    def test_validate_reads_nvidia_api_key(self, runner: CliRunner) -> None:
+        async def _run_evaluation(*_args: object, **_kwargs: object) -> dict[str, list[object]]:
+            return {"_results": []}
+
+        with (
+            patch("nemo_evaluator.environments.registry.get_environment", return_value=MagicMock()),
+            patch("nemo_evaluator.engine.eval_loop.run_evaluation", side_effect=_run_evaluation),
+            patch("nemo_evaluator.engine.model_client.ModelClient") as mock_model_client,
+        ):
+            result = runner.invoke(
+                cli,
+                [
+                    "validate",
+                    "-b",
+                    "gsm8k",
+                    "--model-url",
+                    "https://example.test/v1",
+                    "--model-id",
+                    "test-model",
+                ],
+                env={"NVIDIA_API_KEY": "nvapi-validate-key"},
+            )
+
+        assert result.exit_code == 0, result.output
+        mock_model_client.assert_called_once_with(
+            base_url="https://example.test/v1",
+            model="test-model",
+            api_key="nvapi-validate-key",
+        )
+
 
 class TestListCommand:
     def test_list_benchmarks(self, runner):

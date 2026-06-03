@@ -9,12 +9,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 from nemo_evaluator.run_store import RunMeta, load_run_meta
 
 
-def test_run_meta_save_does_not_require_central_store(tmp_path):
+def test_run_meta_save_does_not_require_central_store(tmp_path: Path) -> None:
     output_dir = tmp_path / "results"
     central_store_file = tmp_path / "not-a-directory"
     central_store_file.write_text("blocks directory creation")
