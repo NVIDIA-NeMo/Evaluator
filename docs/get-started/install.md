@@ -34,13 +34,13 @@ pip install -e ".[all]"
 
 ```bash
 nel --version
-nel list --source builtin
+nel list
 ```
 
 Expected output:
 
 ```
-nel, version 0.3.0
+nemo-evaluator 0.12.0
 
 Built-in benchmarks:
   drop                           nel eval run --bench drop
