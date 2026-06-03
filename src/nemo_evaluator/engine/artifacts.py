@@ -101,6 +101,15 @@ def write_all(bundle: dict[str, Any], output_dir: str | Path) -> dict[str, Path]
             f.write(json.dumps(r, default=str) + "\n")
     paths["results"] = rp
 
+    # Legacy container run_config (the yaml the container consumed)
+    run_config = bundle.get("_run_config")
+    if run_config:
+        import yaml
+
+        rcp = out / "run_config.yaml"
+        rcp.write_text(yaml.dump(run_config, sort_keys=False))
+        paths["run_config"] = rcp
+
     # Observability artifacts (trajectories, runtime stats, failure analysis)
     artifacts: RunArtifacts | None = bundle.get("_artifacts")
     if artifacts:

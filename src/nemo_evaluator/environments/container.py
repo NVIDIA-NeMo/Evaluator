@@ -418,7 +418,13 @@ class ContainerEnvironment(EvalEnvironment):
             if proc.returncode != 0:
                 logger.error("Container failed (exit %d): %s", proc.returncode, (stderr or b"").decode()[:2000])
 
-            return self._parse_results(results_dir)
+            bundle = self._parse_results(results_dir)
+            # Persist the run_config the container actually consumed; the
+            # tmpdir is destroyed in the finally block, so carry it in the
+            # bundle for write_all() to materialize under the artifact dir
+            # (mirrors the SLURM path's {out}/{safe_name}/run_config.yaml).
+            bundle["_run_config"] = run_config
+            return bundle
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
