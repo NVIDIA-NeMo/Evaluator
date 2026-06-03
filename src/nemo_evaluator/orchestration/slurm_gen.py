@@ -20,7 +20,7 @@ import os
 import re
 import shlex
 import uuid
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 import yaml
 
