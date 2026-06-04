@@ -37,9 +37,11 @@ Required by every benchmark — the model under test:
 
 | `.env` key | Config block | Set / recommended model |
 |---|---|---|
-| `NGC_API_KEY` | `target.api_endpoint` (instruct + base configs) | endpoint `url` + `model_id` — your model under test |
-| `INFERENCE_API_KEY` | `target.api_endpoint` (Gym agentic configs) | endpoint `url` + `model_id` — your model under test |
-| `HF_TOKEN` | — | HuggingFace token (dataset access) |
+| `INFERENCE_API_KEY` | `_endpoints.yaml` → `target.api_endpoint` (instruct + Gym agentic) | endpoint `url` + `model_id` — your model under test |
+| `HF_TOKEN` | `.env` (`evaluation.env_vars`) | HuggingFace token (dataset access) |
+
+The **base suite** is the exception — it deploys its own local vLLM
+(`deployment: vllm`) and needs no policy API key, only `HF_TOKEN`.
 
 Default instruct params (set in the config): `temperature 1.0`, `top_p 0.95`,
 `parallelism 1`, `request_timeout 3600`, `max_retries 10`, thinking on. To self-host,
@@ -94,25 +96,132 @@ retries, `output_dir` must be an absolute path on stable storage (not tmpfs).
 
 ### Instruct suite
 
-One monolithic config (`local_nemotron-3-ultra-550b-a55b.yaml`); pick a single
-benchmark with `-t <task>` (note the mixed `nemo_skills.` prefix). On top of the
-[policy model](#3-policy-model), each row lists the judge / extra key it needs, the
-repeat count, and benchmark-specific notes:
+One monolithic config — `local_nemotron-3-ultra-550b-a55b.yaml` — with one benchmark
+per section below. Select a single benchmark with `-t <task>` (note the mixed
+`nemo_skills.` prefix on some tasks); every command shares this config and differs only
+in `-t`.
 
-| Benchmark | `-t` task | Judge / extra key | Repeats | Notes |
-|---|---|---|---|---|
-| GPQA (Diamond) | `ns_gpqa` | — | 8 | `++prompt_config=eval/aai/mcq-4choices` |
-| HLE | `nemo_skills.ns_hle_aa` | `JUDGE_API_KEY` (gpt-4o) | 1 | `hle_strict_judge`; `++server.enable_soft_fail=True` |
-| MMLU-Pro | `ns_mmlu_pro` | — | 1 | 10-choice boxed (`++prompt_config=eval/aai/mcq-10choices-boxed`) |
-| MMLU-Pro X | `ns_mmlu_prox` | — | 1 | — |
-| SciCode | `ns_scicode` | — | 8 | — |
-| CritPt | `nemo_skills.ns_critpt` | `ARTIFICIAL_ANALYSIS_API_KEY` | 5 | AA grades fixed 70-problem batches (no sub-sampling) |
-| IFBench | `nemo_skills.ns_ifbench` | — | 8 | — |
-| AA-LCR | `ns_aa_lcr` | `QWEN_API_KEY` (non-reasoning Qwen3-235B) | 16 | fill judge `url`/`model_id` in the config |
-| AA-Omniscience | `nemo_skills.ns_omniscience` | `GEMINI_API_KEY` (Gemini-3-Flash) | 10 | `++parse_reasoning=False` |
-| IMO-AnswerBench | `nemo_skills.ns_imo_answerbench` | `JUDGE_API_KEY` | 5 | — |
-| Multi-Challenge | `multi-challenge` | `JUDGE_API_KEY` / `OPENAI_API_KEY` | 8 | `attempts=1`, `seed=42` |
-| WMT24++ | `ns_wmt24pp_comet` | — | default | download [XCOMET-XXL](https://huggingface.co/Unbabel/XCOMET-XXL), mount it, set `comet.model_path`; COMET runs via `--judge_step_fn` (nemo-skills 26.05 ignores `--judge_type=comet`) |
+Every benchmark needs the [policy model](#3-policy-model). Judge-based benchmarks also
+need a judge — its **API key** comes from `.env` (add it there; these judge keys are not
+in `.env.example`) and its **`url`/`model_id`** are filled inline in that task's
+`extra.judge` block in the config. Fill both before running.
+
+#### GPQA (Diamond)
+
+- **Endpoints / keys:** policy model only.
+- **Recommended:** `num_repeats: 8`; `++prompt_config=eval/aai/mcq-4choices`.
+
+```bash
+nel run --config local_nemotron-3-ultra-550b-a55b.yaml --env-file .env -t ns_gpqa
+```
+
+#### HLE
+
+- **Endpoints / keys:** `JUDGE_API_KEY` in `.env`; fill the judge `url` in the
+  `nemo_skills.ns_hle_aa` task's `extra.judge` block (`model_id` defaults to **gpt-4o**).
+- **Recommended:** `num_repeats: 1`; `hle_strict_judge: true`; `++server.enable_soft_fail=True`.
+
+```bash
+nel run --config local_nemotron-3-ultra-550b-a55b.yaml --env-file .env -t nemo_skills.ns_hle_aa
+```
+
+#### MMLU-Pro
+
+- **Endpoints / keys:** policy model only.
+- **Recommended:** `num_repeats: 1`; 10-choice boxed (`++prompt_config=eval/aai/mcq-10choices-boxed`).
+
+```bash
+nel run --config local_nemotron-3-ultra-550b-a55b.yaml --env-file .env -t ns_mmlu_pro
+```
+
+#### MMLU-Pro X
+
+- **Endpoints / keys:** policy model only.
+- **Recommended:** `num_repeats: 1`.
+
+```bash
+nel run --config local_nemotron-3-ultra-550b-a55b.yaml --env-file .env -t ns_mmlu_prox
+```
+
+#### SciCode
+
+- **Endpoints / keys:** policy model only.
+- **Recommended:** `num_repeats: 8`.
+
+```bash
+nel run --config local_nemotron-3-ultra-550b-a55b.yaml --env-file .env -t ns_scicode
+```
+
+#### CritPt
+
+- **Endpoints / keys:** `ARTIFICIAL_ANALYSIS_API_KEY` in `.env` — Artificial Analysis grades the runs.
+- **Recommended:** `num_repeats: 5`. AA grades fixed 70-problem batches (no sub-sampling).
+
+```bash
+nel run --config local_nemotron-3-ultra-550b-a55b.yaml --env-file .env -t nemo_skills.ns_critpt
+```
+
+#### IFBench
+
+- **Endpoints / keys:** policy model only.
+- **Recommended:** `num_repeats: 8`.
+
+```bash
+nel run --config local_nemotron-3-ultra-550b-a55b.yaml --env-file .env -t nemo_skills.ns_ifbench
+```
+
+#### AA-LCR
+
+- **Endpoints / keys:** `QWEN_API_KEY` in `.env` (mapped to `JUDGE_API_KEY` for this task);
+  fill the judge `url`/`model_id` in the `ns_aa_lcr` task's `extra.judge` block — used a
+  **non-reasoning `qwen/qwen3-235b-a22b`**.
+- **Recommended:** `num_repeats: 16`.
+
+```bash
+nel run --config local_nemotron-3-ultra-550b-a55b.yaml --env-file .env -t ns_aa_lcr
+```
+
+#### AA-Omniscience
+
+- **Endpoints / keys:** `GEMINI_API_KEY` in `.env` (mapped to `JUDGE_API_KEY` for this task);
+  fill the judge `url` in the `nemo_skills.ns_omniscience` task's `extra.judge` block
+  (`model_id` defaults to **`gemini-3-flash-preview`**).
+- **Recommended:** `num_repeats: 10`; `++parse_reasoning=False`.
+
+```bash
+nel run --config local_nemotron-3-ultra-550b-a55b.yaml --env-file .env -t nemo_skills.ns_omniscience
+```
+
+#### IMO-AnswerBench
+
+- **Endpoints / keys:** `JUDGE_API_KEY` in `.env` — used **gpt-4o**.
+- **Recommended:** `num_repeats: 5`.
+
+```bash
+nel run --config local_nemotron-3-ultra-550b-a55b.yaml --env-file .env -t nemo_skills.ns_imo_answerbench
+```
+
+#### Multi-Challenge
+
+- **Endpoints / keys:** `JUDGE_API_KEY` in `.env` — the config also exposes it as
+  `OPENAI_API_KEY` inside the container, so no separate var is needed.
+- **Recommended:** `num_repeats: 8`; `attempts: 1`; `seed: 42`.
+
+```bash
+nel run --config local_nemotron-3-ultra-550b-a55b.yaml --env-file .env -t multi-challenge
+```
+
+#### WMT24++
+
+- **Endpoints / keys:** policy model only — COMET scores locally, no judge endpoint.
+- **Prepare:** download [XCOMET-XXL](https://huggingface.co/Unbabel/XCOMET-XXL), mount it,
+  and set `comet.model_path` in the `ns_wmt24pp_comet` task. COMET runs via
+  `--judge_step_fn` (nemo-skills 26.05 ignores `--judge_type=comet`).
+- **Recommended:** suite default repeats.
+
+```bash
+nel run --config local_nemotron-3-ultra-550b-a55b.yaml --env-file .env -t ns_wmt24pp_comet
+```
 
 ### LiveCodeBench v6 Cascade
 
