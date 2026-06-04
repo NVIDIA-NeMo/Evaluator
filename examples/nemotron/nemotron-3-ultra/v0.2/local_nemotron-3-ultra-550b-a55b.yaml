@@ -84,7 +84,7 @@ evaluation:
     HF_TOKEN: host:HF_TOKEN
     HF_HOME: host:HF_HOME
     JUDGE_API_KEY: host:JUDGE_API_KEY # API Key with access to gpt-4o for HLE, IMO-AnswerBench
-    GEMINI_API_KEY: host:GEMINI_API_KEY # API Key with access to Gemini-3-Flash-Preview for AA-Omniscience
+    GEMINI_API_KEY: host:GEMINI_API_KEY # API key for AA-Omniscience judge (gemini-3-flash-preview)
     QWEN_API_KEY: host:QWEN_API_KEY # API Key with access to qwen/qwen3-235b-a22b for AA-LCR
     ARTIFICIAL_ANALYSIS_API_KEY: host:ARTIFICIAL_ANALYSIS_API_KEY # API Key for CritPT
 
@@ -129,6 +129,7 @@ evaluation:
             num_repeats: 8
             args: "++prompt_config=eval/aai/mcq-4choices"
   - name: nemo_skills.ns_hle_aa
+    # Used: OpenAI gpt-4o — set judge.url to your OpenAI-compatible API base.
     nemo_evaluator_config:
       config:
         params:
@@ -137,8 +138,8 @@ evaluation:
             args: "++server.enable_soft_fail=True"
             judge:
               api_key: JUDGE_API_KEY
-              model_id: azure/openai/gpt-4o
-              url: https://inference-api.nvidia.com/v1
+              model_id: gpt-4o
+              url: ...
               hle_strict_judge: true
   - name: ns_mmlu_pro
     nemo_evaluator_config:
@@ -186,6 +187,7 @@ evaluation:
               model_id: ... # Set your model_id for the judge model (non-reasoning qwen/qwen3-235b-a22b)
               api_key: JUDGE_API_KEY
   - name: nemo_skills.ns_omniscience
+    # Used: gemini-3-flash-preview — set judge.url.
     env_vars:
       JUDGE_API_KEY: host:GEMINI_API_KEY
     nemo_evaluator_config:
@@ -196,7 +198,7 @@ evaluation:
             args: "++parse_reasoning=False"
             judge:
               api_key: JUDGE_API_KEY
-              model_id: ...
+              model_id: gemini-3-flash-preview
               url: ...
   - name: nemo_skills.ns_imo_answerbench
     env_vars:

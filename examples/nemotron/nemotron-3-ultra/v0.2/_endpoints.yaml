@@ -54,3 +54,18 @@ gdpval_judge:
   base_url: "<judge-base-url>"   # e.g. https://api.openai.com/v1
   model: "<judge-model>"          # e.g. gpt-4o
   api_key: $GDPVAL_JUDGE_API_KEY
+
+# HLE-AA: strict judge for Humanity's Last Exam.
+# Used: gpt-4o.   Env var: JUDGE_API_KEY
+hle_judge:
+  base_url: "<judge-base-url>"   # e.g. https://api.openai.com/v1
+  model: gpt-4o
+  api_key: $JUDGE_API_KEY
+
+# AA-Omniscience: knowledge / hallucination judge.
+# Used: gemini-3-flash-preview (provider id may be e.g. gcp/google/gemini-3-flash-preview).
+# Env var: GEMINI_API_KEY
+omniscience_judge:
+  base_url: "<judge-base-url>"
+  model: gemini-3-flash-preview
+  api_key: $GEMINI_API_KEY
