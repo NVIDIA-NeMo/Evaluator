@@ -1,0 +1,160 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+#
+# How to use:
+#
+# 1. copy this file locally or clone the repository
+# 2. (optional) uncomment limit_samples in the config file to run with 10 samples for quick testing
+# 3. export your HF token in the terminal (some benchmark datasets might be gated)
+# 4. run `nemo-evaluator-launcher run --config path/to/local_nemotron-3-ultra-550b-a55b-base.yaml`
+#
+# ⚠️  WARNING:
+#     Always run full evaluations (without limit_samples) for actual benchmark results.
+#     Using a subset of samples is solely for testing configuration and setup.
+#     Results from such test runs should NEVER be used to compare models or
+#     report benchmark performance.
+defaults:
+  - execution: local
+  - deployment: vllm
+  - _self_
+
+execution:
+  output_dir: nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16-Base
+  # mode: sequential  # enables sequential execution
+
+# specify deployment arguments
+deployment:
+  env_vars:
+    HF_TOKEN: host:HF_TOKEN
+    VLLM_ATTENTION_BACKEND: lit:FLASH_ATTN
+  image: vllm/vllm-openai:v0.15.0
+  hf_model_handle: nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-Base-BF16
+  served_model_name: nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-Base-BF16
+  tensor_parallel_size: 8
+  data_parallel_size: 1
+  checkpoint_path: /checkpoint
+  extra_args: '--kv-cache-dtype fp8 --enable-expert-parallel --max-num-seqs 256 --mamba-cache-mode align --model-loader-extra-config ''{"enable_multithread_load": true, "num_threads": 96}'''
+
+evaluation:
+  env_vars:
+    HF_TOKEN: host:HF_TOKEN
+    DUMMY_API_KEY: lit:placeholdervalue
+    TRUST_REMOTE_CODE: lit:1
+  nemo_evaluator_config:
+    config:
+      required_capabilities: []
+      params:
+        max_retries: 5
+        parallelism: 1 # number of parallel requests
+        request_timeout: 3600 # timeout for API requests in seconds
+        temperature: 0.01
+        # limit_samples: 10 # uncomment to limit number of samples for quick testing
+        extra:
+          tokenizer: nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-Base-BF16
+          tokenizer_backend: huggingface
+          ruler:
+            tokenizer_path: nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-Base-BF16
+            data_dir: /ruler_data
+
+  tasks:
+    # General Knowledge
+    - name: adlr_mmlu
+      container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
+    - name: adlr_mmlu_pro_5_shot_base
+      container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
+    - name: adlr_agieval_en_cot
+      container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
+    - name: adlr_gpqa_diamond_cot_5_shot
+      container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
+    # Math
+    - name: adlr_gsm8k_cot_8_shot
+      container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
+    - name: adlr_minerva_math_nemo_4_shot
+      container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
+    # Code
+    - name: adlr_humaneval_sampled
+      container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
+      nemo_evaluator_config:
+        target:
+          api_endpoint:
+            adapter_config:
+              # NOTE: Disable caching for tasks that repeat requests with the same seed (i.e. sampled).
+              #       Also, lm-eval has its own caching
+              use_caching: false
+    - name: adlr_mbpp_sanitized_3_shot_sampled
+      container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
+      nemo_evaluator_config:
+        target:
+          api_endpoint:
+            adapter_config:
+              # NOTE: Disable caching for tasks that repeat requests with the same seed (i.e. sampled).
+              #       Also, lm-eval has its own caching
+              use_caching: false
+    # Commonsense Understanding
+    - name: adlr_arc_challenge_llama_25_shot
+      container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
+    - name: hellaswag
+      container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
+    - name: openbookqa
+      container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
+    - name: piqa
+      container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
+    - name: adlr_winogrande_5_shot
+      container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
+    # Reasing comprehension
+    - name: adlr_race
+      container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
+    # Multilingual
+    - name: adlr_global_mmlu_lite_5_shot
+      container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
+    - name: adlr_mgsm_native_cot_8_shot
+      container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.03
+    # Long Context
+    - name: ns_ruler_64k
+      container: nvcr.io/nvidia/eval-factory/nemo-skills:26.05.1
+      nemo_evaluator_config:
+        config:
+          params:
+            temperature: 0.00001
+            top_p: 0.99
+    - name: ns_ruler_128k
+      container: nvcr.io/nvidia/eval-factory/nemo-skills:26.05.1
+      nemo_evaluator_config:
+        config:
+          params:
+            temperature: 0.00001
+            top_p: 0.99
+    - name: ns_ruler_256k
+      container: nvcr.io/nvidia/eval-factory/nemo-skills:26.05.1
+      nemo_evaluator_config:
+        config:
+          params:
+            temperature: 0.00001
+            top_p: 0.99
+    - name: ns_ruler_512k
+      container: nvcr.io/nvidia/eval-factory/nemo-skills:26.05.1
+      nemo_evaluator_config:
+        config:
+          params:
+            temperature: 0.00001
+            top_p: 0.99
+    - name: ns_ruler_1m
+      container: nvcr.io/nvidia/eval-factory/nemo-skills:26.05.1
+      nemo_evaluator_config:
+        config:
+          params:
+            temperature: 0.00001
+            top_p: 0.99

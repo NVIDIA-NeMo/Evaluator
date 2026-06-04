@@ -1,0 +1,73 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# =============================================================================
+# NVIDIA Nemotron 3 Ultra 550B A55B -- SWE-bench Verified (local orchestration)
+#
+# Agentic SWE benchmark: the OpenHands agent solves each task inside an ECS
+# Fargate sandbox; its patch is graded by the task's own test suite.
+#
+# Prerequisites:
+#   - NVIDIA_API_KEY     policy-model endpoint key
+#   - AWS credentials    AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (ECS infra
+#                        auto-discovered from AWS SSM for the sandbox region)
+#   - Terraform applied for the sandbox region (creates the SSM parameter)
+#   - pip install nemo-evaluator[harbor]
+# Run:  nel eval run local_nemotron-3-ultra-550b-a55b_swebench-verified.yaml
+# =============================================================================
+
+services:
+  nemotron:
+    type: api
+    url: https://integrate.api.nvidia.com/v1/chat/completions  # or your served model URL
+    protocol: chat_completions
+    model: nvidia/nemotron-3-ultra-550b-a55b
+    api_key: ${NVIDIA_API_KEY}
+    generation:
+      temperature: 1.0
+      top_p: 0.95
+    proxy:
+      interceptors:
+      - name: turn_counter
+        config:
+          max_turns: 200
+      - name: drop_params
+        config:
+          params: [max_tokens, max_completion_tokens]
+      - name: consolidate_system
+      request_timeout: 3600
+      extra_body:
+        chat_template_kwargs: {enable_thinking: true}
+        skip_special_tokens: false
+
+output:
+  dir: ./results/swebench_verified
+
+benchmarks:
+- playbook: swebench_verified
+  repeats: 3
+  max_concurrent: 10
+  solver:
+    service: nemotron
+    timeout_strategy: max
+    run_timeout: 10800
+  sandbox:
+    region: ${HARBOR_ECS_REGION:-us-east-2}
+    ecr_repository: "<AWS_ACCOUNT_ID>.dkr.ecr.us-west-2.amazonaws.com/harbor-swebench"  # set to your harbor ECR account
+    concurrency: 10
+    log_stream_prefix: swebench-verified-nemotron-local
+
+cluster:
+  type: local
