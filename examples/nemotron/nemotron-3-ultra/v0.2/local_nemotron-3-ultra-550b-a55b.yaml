@@ -70,6 +70,7 @@
 defaults:
   - execution: local
   - deployment: none
+  - _endpoints
   - _self_
 
 execution:
@@ -80,14 +81,13 @@ execution:
 
 target:
   api_endpoint:
-    model_id: nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16
-    url: https://integrate.api.nvidia.com/v1/chat/completions  # or your served model URL
-    api_key_name: NGC_API_KEY # API Key with access to build.nvidia.com
+    api_key_name: NVIDIA_API_KEY
 
 evaluation:
   env_vars:
     HF_TOKEN: host:HF_TOKEN
     HF_HOME: host:HF_HOME
+    NVIDIA_API_KEY: host:NVIDIA_API_KEY
     JUDGE_API_KEY: host:JUDGE_API_KEY # API Key with access to gpt-4o for HLE, IMO-AnswerBench
     GEMINI_API_KEY: host:GEMINI_API_KEY # API Key with access to Gemini-3-Flash-Preview for AA-Omniscience
     QWEN_API_KEY: host:QWEN_API_KEY # API Key with access to qwen/qwen3-235b-a22b for AA-LCR
