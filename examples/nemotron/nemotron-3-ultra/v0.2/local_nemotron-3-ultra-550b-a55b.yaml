@@ -70,6 +70,7 @@
 defaults:
   - execution: local
   - deployment: none
+  - _endpoints
   - _self_
 
 execution:
@@ -77,12 +78,6 @@ execution:
   mounts:
     evaluation:
       ./hf_cache: /root/.cache/huggingface
-
-target:
-  api_endpoint:
-    model_id: nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16
-    url: https://integrate.api.nvidia.com/v1/chat/completions  # or your served model URL
-    api_key_name: NGC_API_KEY # API Key with access to build.nvidia.com
 
 evaluation:
   env_vars:
