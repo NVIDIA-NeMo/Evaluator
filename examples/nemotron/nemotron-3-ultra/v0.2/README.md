@@ -203,8 +203,8 @@ nel run --config local_nemotron-3-ultra-550b-a55b.yaml --env-file .env -t nemo_s
 
 #### Multi-Challenge
 
-- **Endpoints / keys:** `JUDGE_API_KEY` and `OPENAI_API_KEY` in `.env` (the config maps
-  both to the same judge key).
+- **Endpoints / keys:** `JUDGE_API_KEY` in `.env` — the config also exposes it as
+  `OPENAI_API_KEY` inside the container, so no separate var is needed.
 - **Recommended:** `num_repeats: 8`; `attempts: 1`; `seed: 42`.
 
 ```bash
