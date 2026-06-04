@@ -15,8 +15,7 @@
 
 
 # This configuration file is for the NVIDIA Nemotron 3 Ultra 550B A55B model.
-# Nemotron 3 Ultra is not yet available on build.nvidia.com; the expected catalog URL is:
-#   https://build.nvidia.com/nvidia/nemotron-3-ultra-550b-a55b
+# Nemotron 3 Ultra is available on build.nvidia.com via https://build.nvidia.com/nvidia/nemotron-3-ultra-550b-a55b
 # Until then, point target.api_endpoint.url at your self-hosted vLLM endpoint.
 # If you prefer to deploy the model on your own infrastructure, use the following deployment setup:
 
