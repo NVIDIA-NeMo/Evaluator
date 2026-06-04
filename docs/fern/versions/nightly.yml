@@ -1,0 +1,106 @@
+navigation:
+  - page: Home
+    path: ../../index.mdx
+    slug: ""
+  - section: Get Started
+    slug: get-started
+    contents:
+      - page: Installation
+        path: ../../get-started/install.mdx
+        slug: install
+      - page: Quickstart
+        path: ../../get-started/quickstart.mdx
+        slug: quickstart
+  - section: Tutorials
+    slug: tutorials
+    contents:
+      - page: Available Tutorials
+        path: ../../tutorials/index.mdx
+        slug: ""
+      - page: Interactive Walkthrough
+        path: ../../tutorials/walkthrough.mdx
+        slug: walkthrough
+      - page: Config Composition
+        path: ../../tutorials/config-composition.mdx
+        slug: config-composition
+      - page: Write Your Own Benchmark (BYOB)
+        path: ../../tutorials/byob.mdx
+        slug: byob
+      - page: Gym Integration
+        path: ../../tutorials/gym-integration.mdx
+        slug: gym-integration
+      - page: NeMo Skills Integration
+        path: ../../tutorials/skills-integration.mdx
+        slug: skills-integration
+      - page: Legacy Evaluator Containers
+        path: ../../tutorials/legacy-containers.mdx
+        slug: legacy-containers
+      - page: Distributed Evaluation
+        path: ../../tutorials/distributed-eval.mdx
+        slug: distributed-eval
+      - page: Comparing Evaluation Runs
+        path: ../../tutorials/compare.mdx
+        slug: compare
+      - page: Implementing Quality Gates
+        path: ../../tutorials/quality-gate.mdx
+        slug: quality-gate
+      - page: External Environments
+        path: ../../tutorials/adapters.mdx
+        slug: adapters
+  - section: Architecture
+    slug: architecture
+    contents:
+      - page: Architecture
+        path: ../../architecture/index.mdx
+        slug: ""
+      - page: Sandbox Orchestration
+        path: ../../architecture/sandbox.mdx
+        slug: sandbox
+      - page: AWS ECS Fargate Sandbox
+        path: ../../architecture/aws-ecs-sandbox.mdx
+        slug: aws-ecs-sandbox
+  - section: Evaluation
+    slug: evaluation
+    contents:
+      - page: Built-in Benchmarks
+        path: ../../evaluation/benchmarks.mdx
+        slug: benchmarks
+      - page: Scoring
+        path: ../../evaluation/scoring.mdx
+        slug: scoring
+      - page: Evaluation Result Format
+        path: ../../result-format.mdx
+        slug: result-format
+  - section: Deployment
+    slug: deployment
+    contents:
+      - page: Deployment Guide
+        path: ../../deployment/index.mdx
+        slug: ""
+      - page: Local Deployment
+        path: ../../deployment/local.mdx
+        slug: local
+      - page: Docker Deployment
+        path: ../../deployment/docker.mdx
+        slug: docker
+      - page: SLURM Deployment
+        path: ../../deployment/slurm.mdx
+        slug: slurm
+      - page: Kubernetes Deployment
+        path: ../../deployment/kubernetes.mdx
+        slug: kubernetes
+      - page: Ray Deployment
+        path: ../../deployment/ray.mdx
+        slug: ray
+      - page: CI Regression Gate
+        path: ../../deployment/ci-regression.mdx
+        slug: ci-regression
+  - section: Patterns
+    slug: patterns
+    contents:
+      - page: "NeMo Evaluator: Deployment Patterns"
+        path: ../../deployment-patterns.mdx
+        slug: deployment-patterns
+  - page: API Reference
+    path: ../../api/index.mdx
+    slug: api
