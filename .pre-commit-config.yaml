@@ -41,18 +41,3 @@ repos:
           ' --
         files: ^(src|tests)/.*\.py$
         exclude: __init__\.py$
-
-      - id: no-underscore-md
-        name: "Disallow '_' in Markdown filenames"
-        language: system
-        entry: |
-          bash -c '
-            echo "[pre-commit] ERROR: Found Markdown files with underscores:" >&2
-            for file in "$@"; do
-              echo "  - $file (use hyphens instead)" >&2
-            done
-            exit 1
-          '
-        files: '.*\/[^\/]*_[^\/]*\.md$'
-        exclude: '^\.github/'
-        types: [file]

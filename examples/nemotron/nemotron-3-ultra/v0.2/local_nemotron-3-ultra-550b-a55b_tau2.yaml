@@ -1,0 +1,134 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+defaults:
+  - execution: local
+  - deployment: none
+  - _endpoints
+  - _gym_prepare
+  - _self_
+
+# =============================================================================
+# Tau2 — OSS recipe (endpoint-only, no deployment)
+#
+# Covers all three Tau2 domains: telecom, airline, retail.
+#
+# Required env vars: INFERENCE_API_KEY, HF_TOKEN
+# TODO: harmonize install_on_the_fly.commit to a single tagged Gym release.
+# =============================================================================
+
+env_vars:
+  HF_HOME: lit:/cache/huggingface
+  HF_TOKEN: host:HF_TOKEN
+  INFERENCE_API_KEY: host:INFERENCE_API_KEY
+  TAU2_SIMULATOR_API_KEY: host:TAU2_SIMULATOR_API_KEY
+  NEL_INVOCATION_ID: runtime:NEL_INVOCATION_ID
+
+# -----------------------------------------------------------------------------
+# EXECUTION
+# -----------------------------------------------------------------------------
+execution:
+  num_nodes: 1
+  output_dir: ${oc.env:HOME}/nel-results/tau2
+
+  # Local executor honors only extra_docker_args (see README); these caches are optional.
+  extra_docker_args: >-
+    -v /HOST_HF_CACHE:/cache/huggingface
+    -v /HOST_UV_CACHE:/cache/uv
+
+# -----------------------------------------------------------------------------
+# EVALUATION
+# -----------------------------------------------------------------------------
+evaluation:
+  env_vars:
+    DUMMY_API_KEY: lit:dummy
+    UV_CACHE_DIR: lit:/cache/uv
+    TAU2_SIMULATOR_API_KEY: host:TAU2_SIMULATOR_API_KEY
+
+  nemo_evaluator_config:
+    config:
+      params:
+        temperature: 1.0
+        top_p: 0.95
+        parallelism: 16384
+        request_timeout: 36000
+        max_retries: 10
+
+    target:
+      api_endpoint:
+        adapter_config:
+          use_system_prompt: false
+          use_reasoning: true
+          params_to_remove:
+            - max_tokens
+            - max_completion_tokens
+          params_to_add: {}
+          use_caching: false
+          use_progress_tracking: true
+          tracking_requests_stats: true
+          log_failed_requests: true
+          use_request_logging: true
+          max_logged_requests: 10
+          use_response_logging: true
+          max_logged_responses: 10
+
+  tasks:
+    - name: nemo_gym
+      # TODO: replace with verified public nemo-gym image tag.
+      container: nvcr.io/nvidia/eval-factory/nemo-gym:26.05
+      nemo_evaluator_config:
+        config:
+          params:
+            extra:
+              nemo_gym:
+                install_on_the_fly:
+                  url: https://github.com/NVIDIA-NeMo/Gym
+                  # TODO: harmonize to single tagged release.
+                  commit: 5abd9a0bda361670eea4701f3dae9a9d230b634f  # pragma: allowlist secret
+
+                command: |
+                  ${gym_prepare.prepare}
+
+                  ${gym_prepare.run}
+
+                data_prep_params: >-
+                  "+config_paths=[responses_api_models/vllm_model/configs/vllm_model.yaml,benchmarks/tau2/config.yaml]"
+                  +hf_token=$HF_TOKEN
+                  ++use_cached_prepared_benchmarks=true
+
+                collect_rollout_params: >-
+                  "+config_paths=[responses_api_models/vllm_model/configs/vllm_model.yaml,benchmarks/tau2/config.yaml]"
+                  ++port_range_low=63000
+                  ++port_range_high=64000
+                  ++global_aiohttp_connector_limit_per_host={{config.params.parallelism}}
+                  ++uv_cache_dir=$UV_CACHE_DIR
+                  ++skip_venv_if_present=true
+                  ++output_jsonl_fpath={{config.output_dir}}/evaluator_rollouts.jsonl
+                  ++nemo_gym_log_dir={{config.output_dir}}/nemo_gym_logs
+                  ++overwrite_metrics_conflicts=true
+                  ++split=benchmark
+                  ++resume_from_cache=true
+                  ++reuse_existing_data_preparation=true
+                  ++upload_rollouts_to_wandb=false
+                  ++responses_create_params.temperature={{config.params.temperature}}
+                  ++responses_create_params.top_p={{config.params.top_p}}
+
+                common_params: >-
+                  ++policy_base_url={{target.api_endpoint.url}}
+                  ++policy_api_key=$INFERENCE_API_KEY
+                  ++policy_model_name={{target.api_endpoint.model_id}}
+                  ++gpt-5_2-2025-12-11.responses_api_models.openai_model.openai_base_url=${tau2_simulator.base_url}
+                  ++gpt-5_2-2025-12-11.responses_api_models.openai_model.openai_model=${tau2_simulator.model}
+                  ++gpt-5_2-2025-12-11.responses_api_models.openai_model.openai_api_key=${tau2_simulator.api_key}

@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Shared endpoint configuration — include via: defaults: [_endpoints, _self_]
+# Merges at config root (no @-redirection; NEL has no 'target' config group).
+#
+# ─── POLICY MODEL (the model under test) ─────────────────────────────────────
+# Fill in url and model_id below before running. The API key is read from the
+# INFERENCE_API_KEY env var (set it in your .env).
+#
+# Examples:
+#   NVCF (hosted):
+#     url:      https://integrate.api.nvidia.com/v1/chat/completions
+#     model_id: nvidia/nemotron-ultra-v3-550b
+#   Local vLLM / SGLang:
+#     url:      http://localhost:8000/v1/chat/completions
+#     model_id: <served_model_name>
+
+target:
+  api_endpoint:
+    url: "https://integrate.api.nvidia.com/v1/chat/completions"
+    model_id: "nvidia/nemotron-3-ultra-550b-a55b"
+    api_key_name: INFERENCE_API_KEY
+    type: chat
+
+# ─── JUDGES & SIMULATORS ─────────────────────────────────────────────────────
+# One block per external model role. Fill in base_url + model for your judge
+# provider; each block reads its own api_key env var so they can be credentialed
+# independently.
+#   base_url: https://api.openai.com/v1   model: gpt-4o   (example)
+
+# Tau2: plays the customer role in the Tau2 conversation simulator.
+# Used: GPT-5.2.   Env var: TAU2_SIMULATOR_API_KEY
+tau2_simulator:
+  base_url: "<judge-base-url>"   # e.g. https://api.openai.com/v1
+  model: "<judge-model>"          # e.g. gpt-4o
+  api_key: $TAU2_SIMULATOR_API_KEY
+
+# GDPVal: pairwise judge for GDPVal Stirrup scoring.
+# Used: Gemini 3.1 Pro.   Env var: GDPVAL_JUDGE_API_KEY
+gdpval_judge:
+  base_url: "<judge-base-url>"   # e.g. https://api.openai.com/v1
+  model: "<judge-model>"          # e.g. gpt-4o
+  api_key: $GDPVAL_JUDGE_API_KEY

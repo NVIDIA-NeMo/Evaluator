@@ -1,0 +1,210 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+defaults:
+  - execution: local
+  - deployment: none
+  - _endpoints
+  - _gym_prepare
+  - _self_
+
+# GDPVal scoring mode (override at runtime: -o gdpval.reward_mode=comparison):
+#   'rubric'     — standalone LLM-judge scoring; no reference deliverables needed.
+#   'comparison' — pairwise scoring vs reference deliverables; point the
+#                  HOST_GDPVAL_REFS mount (below) at your reference dir.
+gdpval:
+  reward_mode: rubric
+  reference_elo: 1290   # comparison only — ELO of the reference model
+
+# =============================================================================
+# GDPVal — OSS recipe (endpoint-only, no deployment)
+#
+#
+# Prerequisites:
+#   Build the GDPVal SIF once (see README) and bind-mount it (see mounts below).
+#   Apptainer is installed inside the eval container by the pre_cmd.
+#   Provide reference deliverables at HOST_GDPVAL_REFS for comparison-mode scoring.
+#
+# Required env vars: INFERENCE_API_KEY, HF_TOKEN, GDPVAL_JUDGE_API_KEY, TAVILY_API_KEY
+# Optional env vars: GDPVAL_MAX_TURNS (default 100)
+#
+# TODO: harmonize install_on_the_fly.commit to a single tagged Gym release.
+# =============================================================================
+
+env_vars:
+  HF_HOME: lit:/cache/huggingface
+  HF_TOKEN: host:HF_TOKEN
+  INFERENCE_API_KEY: host:INFERENCE_API_KEY
+  GDPVAL_JUDGE_API_KEY: host:GDPVAL_JUDGE_API_KEY
+  TAVILY_API_KEY: host:TAVILY_API_KEY
+  NEL_INVOCATION_ID: runtime:NEL_INVOCATION_ID
+  # Stirrup deliverables (task_<id>/repeat_<n>/...) land under the results dir,
+  # which is already mounted — they persist with the rest of the run output.
+  PERSIST_DELIVERABLES_DIR: lit:/results/gdpval/deliverables
+  # Apptainer SIF for Stirrup's per-task code-exec sandbox (always enabled).
+  GDPVAL_CONTAINER_PATH: lit:/gdpval/sif/python-3.12.gdpval.sif
+  # Staging dir for ref files. TODO: injected via Ray runtime_env in Gym;
+  # OSS Gym pin must include that fix.
+  GDPVAL_REF_FILES_DIR: lit:/gdpval_ref_files
+
+# -----------------------------------------------------------------------------
+# EXECUTION
+# -----------------------------------------------------------------------------
+execution:
+  num_nodes: 1
+  # Set to an absolute host path for resume_from_cache to survive job retries.
+  output_dir: ${oc.env:HOME}/nel-results/gdpval
+
+  # The local executor mounts only the results dir (at /results); all other bind
+  # mounts (and the --privileged flag Apptainer needs) go through extra_docker_args.
+  # Replace the HOST_* paths with your own. The SIF must be bind-mounted to exactly
+  # /gdpval/sif/python-3.12.gdpval.sif (matches GDPVAL_CONTAINER_PATH) or the agent
+  # silently falls back to a non-sandboxed local exec — see README.
+  # /HOST_GDPVAL_REFS is comparison-mode only; drop it for default rubric mode.
+  extra_docker_args: >-
+    --privileged
+    -v /HOST_HF_CACHE:/cache/huggingface
+    -v /HOST_UV_CACHE:/cache/uv
+    -v /HOST_GDPVAL_SIF/python-3.12.gdpval.sif:/gdpval/sif/python-3.12.gdpval.sif
+    -v /HOST_REF_FILES:/gdpval_ref_files
+    -v /HOST_GDPVAL_REFS:/gdpval/refs/test_ref
+
+# -----------------------------------------------------------------------------
+# EVALUATION
+# -----------------------------------------------------------------------------
+evaluation:
+  env_vars:
+    DUMMY_API_KEY: lit:dummy
+    UV_CACHE_DIR: lit:/cache/uv
+    GDPVAL_JUDGE_API_KEY: host:GDPVAL_JUDGE_API_KEY
+
+  # Runs before the framework command inside the eval container.
+  # Installs apptainer (not pre-baked in the eval image) + squashfuse for FUSE-mount.
+  # The setuid apptainer runs under the --privileged container (see README for the
+  # unprivileged/rootless alternative). squashfuse requires /dev/fuse; without it
+  # apptainer falls back to per-call SIF extraction (slower but functional).
+  pre_cmd: |
+    set -ex
+    apt-get update -qq
+    # Install apptainer from GitHub release (not pre-baked in the eval image).
+    wget -q -O /tmp/apptainer.deb \
+      https://github.com/apptainer/apptainer/releases/download/v1.4.2/apptainer_1.4.2_amd64.deb
+    apt-get install -y -qq /tmp/apptainer.deb && rm /tmp/apptainer.deb
+    # squashfuse for FUSE-mount of the SIF (faster); falls back silently if /dev/fuse absent.
+    apt-get install -y -qq squashfuse fuse3 || apt-get install -y -qq squashfuse fuse || true
+    # Session dir must be on container overlay FS (not a network mount).
+    mkdir -p /usr/local/var/apptainer/mnt/session
+
+  nemo_evaluator_config:
+    config:
+      params:
+        temperature: 1.0
+        top_p: 0.95
+        parallelism: 16384
+        request_timeout: 36000
+        max_retries: 10
+
+    target:
+      api_endpoint:
+        adapter_config:
+          use_system_prompt: false
+          process_reasoning_traces: true
+          params_to_remove:
+            - max_tokens
+            - max_completion_tokens
+          # Thinking-mode toggle required: without this the model loses ~86% of
+          # pairwise judgements (empty reasoning_content in non-thinking mode).
+          params_to_add:
+            chat_template_kwargs:
+              enable_thinking: true
+            skip_special_tokens: false
+          use_caching: false
+          use_progress_tracking: true
+          tracking_requests_stats: true
+          log_failed_requests: true
+          use_request_logging: true
+          max_logged_requests: 10
+          use_response_logging: true
+          max_logged_responses: 10
+
+  tasks:
+    - name: nemo_gym
+      # TODO: replace with verified public nemo-gym image tag.
+      container: nvcr.io/nvidia/eval-factory/nemo-gym:26.05
+      nemo_evaluator_config:
+        config:
+          params:
+            extra:
+              nemo_gym:
+                install_on_the_fly:
+                  url: https://github.com/NVIDIA-NeMo/Gym
+                  # TODO: harmonize to single tagged release.
+                  commit: 2502893977e9e9af84adc1fa8d38c9314208d3ee  # pragma: allowlist secret
+
+                command: |
+                  ${gym_prepare.prepare}
+
+                  # Writable staging dir for ref files (bind-mounted, see execution).
+                  mkdir -p /gdpval_ref_files
+
+                  # num_repeats workaround: ++gdpval.*.num_repeats=1 hits OmegaConf
+                  # ListConfig merge error; patch the file directly after checkout.
+                  sed -i 's/num_repeats: 2$/num_repeats: 1/' benchmarks/gdpval/config.yaml
+
+                  ${gym_prepare.run}
+
+                # config_paths: swap internal nemotron_3_ultra/ yamls for generic
+                # vllm_model config; judge endpoints set via ++ overrides in common_params.
+                data_prep_params: >-
+                  "+config_paths=[responses_api_models/vllm_model/configs/vllm_model.yaml,benchmarks/gdpval/config.yaml]"
+                  +hf_token=$HF_TOKEN
+                  ++use_cached_prepared_benchmarks=true
+
+                collect_rollout_params: >-
+                  "+config_paths=[responses_api_models/vllm_model/configs/vllm_model.yaml,benchmarks/gdpval/config.yaml]"
+                  ++port_range_low=63000
+                  ++port_range_high=64000
+                  ++global_aiohttp_connector_limit_per_host={{config.params.parallelism}}
+                  ++uv_cache_dir=$UV_CACHE_DIR
+                  ++skip_venv_if_present=true
+                  ++output_jsonl_fpath={{config.output_dir}}/evaluator_rollouts.jsonl
+                  ++nemo_gym_log_dir={{config.output_dir}}/nemo_gym_logs
+                  ++overwrite_metrics_conflicts=true
+                  ++split=benchmark
+                  ++resume_from_cache=true
+                  ++reuse_existing_data_preparation=true
+                  ++upload_rollouts_to_wandb=false
+                  ++responses_create_params.temperature={{config.params.temperature}}
+                  ++responses_create_params.top_p={{config.params.top_p}}
+
+                common_params: >-
+                  ++use_absolute_ip=true
+                  ++policy_base_url={{target.api_endpoint.url}}
+                  ++policy_api_key=$INFERENCE_API_KEY
+                  ++policy_model_name={{target.api_endpoint.model_id}}
+                  ++gdpval_judge_model.responses_api_models.openai_model.openai_base_url=${gdpval_judge.base_url}
+                  ++gdpval_judge_model.responses_api_models.openai_model.openai_model=${gdpval_judge.model}
+                  ++gdpval_judge_model.responses_api_models.openai_model.openai_api_key=${gdpval_judge.api_key}
+                  ++gdpval_judge_model.responses_api_models.openai_model.max_concurrent_requests=30
+                  ++gdpval_stirrup_agent.responses_api_agents.stirrup_agent.concurrency=48
+                  ++gdpval_stirrup_agent.responses_api_agents.stirrup_agent.tavily_api_key=$TAVILY_API_KEY
+                  ++gdpval_stirrup_agent.responses_api_agents.stirrup_agent.agent_max_turns=${oc.env:GDPVAL_MAX_TURNS,100}
+                  ++gdpval_resources_server.resources_servers.gdpval.reward_mode=${gdpval.reward_mode}
+                  ++gdpval_resources_server.resources_servers.gdpval.reference_deliverables_dir=/gdpval/refs/test_ref
+                  ++gdpval_resources_server.resources_servers.gdpval.reference_elo=${gdpval.reference_elo}
+                  ++gdpval_resources_server.resources_servers.gdpval.persist_raw_judge_responses=true
+                  ++gdpval_resources_server.resources_servers.gdpval.preconvert_max_concurrent=30
+                  ++gdpval_resources_server.resources_servers.gdpval.preconvert_office_to_pdf=true
+                  ++gdpval_resources_server.resources_servers.gdpval.judge_responses_create_params_overrides.model=${gdpval_judge.model}
