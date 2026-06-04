@@ -79,15 +79,10 @@ execution:
     evaluation:
       ./hf_cache: /root/.cache/huggingface
 
-target:
-  api_endpoint:
-    api_key_name: NVIDIA_API_KEY
-
 evaluation:
   env_vars:
     HF_TOKEN: host:HF_TOKEN
     HF_HOME: host:HF_HOME
-    NVIDIA_API_KEY: host:NVIDIA_API_KEY
     JUDGE_API_KEY: host:JUDGE_API_KEY # API Key with access to gpt-4o for HLE, IMO-AnswerBench
     GEMINI_API_KEY: host:GEMINI_API_KEY # API Key with access to Gemini-3-Flash-Preview for AA-Omniscience
     QWEN_API_KEY: host:QWEN_API_KEY # API Key with access to qwen/qwen3-235b-a22b for AA-LCR
