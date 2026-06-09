@@ -1,0 +1,89 @@
+---
+title: "Home"
+description: ""
+position: 1
+---
+LLM evaluation framework: benchmark environments, pluggable solvers, multi-format reporting.
+
+[Installation](/get-started/install)
+
+[Quickstart](/get-started/quickstart)
+
+---
+
+## Get Started
+
+<Cards>
+
+<Card title="Installation" href="/get-started/install">
+Install from source and configure extras (scoring, skills, harbor, proxy).
+</Card>
+
+<Card title="Quickstart" href="/get-started/quickstart">
+Run your first evaluation in under 5 minutes.
+</Card>
+</Cards>
+
+## Features
+
+- **Everything is an Environment.** Built-in benchmarks, NeMo Skills, Gym remotes, lm-eval tasks, and VLMEvalKit datasets all resolve through one registry.
+- **`@benchmark` + `@scorer`.** Define a complete benchmark in under 10 lines of Python.
+- **Pluggable solvers.** `simple`, `harbor`, `tool_calling`, `gym_delegation`, `openclaw` — swap inference strategy per benchmark via config.
+- **Cluster backends.** Run locally, in Docker, or on SLURM clusters with automatic model deployment.
+- **Resilient suites.** Per-benchmark checkpointing with failure isolation. Resume partially completed suites with `--resume`.
+- **Statistical regression.** Compare runs with McNemar's exact test, paired flip analysis, and confidence intervals.  Gate releases across benchmark suites with per-benchmark policy thresholds.
+- **17 built-in benchmarks.** MMLU, MMLU-Pro, MATH-500, GPQA, GSM8K, DROP, MGSM, TriviaQA, HumanEval, SimpleQA, HealthBench, PinchBench, XSTest, Terminal-Bench variants, and NMP Harbor.
+
+## Tutorials
+
+<Cards>
+
+<Card title="Interactive Walkthrough" href="/tutorials/walkthrough">
+Guided tour of all main features through real config examples — start here.
+</Card>
+
+<Card title="Write Your Own Benchmark" href="/tutorials/byob">
+Define a complete benchmark with `@benchmark` + `@scorer` in under 10 lines.
+</Card>
+
+<Card title="Gym Integration" href="/tutorials/gym-integration">
+Serve benchmarks for NeMo Gym training and consume remote Gym environments.
+</Card>
+
+<Card title="NeMo Skills Integration" href="/tutorials/skills-integration">
+Use NeMo Skills benchmarks with full per-request observability.
+</Card>
+
+<Card title="Distributed Evaluation" href="/tutorials/distributed-eval">
+Scale to thousands of problems with SLURM, Kubernetes, Ray, or manual sharding.
+</Card>
+
+<Card title="Compare Runs" href="/tutorials/compare">
+Diagnose what changed between two runs of the same benchmark with `nel compare`.
+</Card>
+
+<Card title="Quality Gates" href="/tutorials/quality-gate">
+Turn benchmark thresholds into a suite-level `GO / NO-GO / INCONCLUSIVE` decision with `nel gate`.
+</Card>
+</Cards>
+
+## Architecture & Deployment
+
+<Cards>
+
+<Card title="Architecture" href="/architecture">
+How the system works: environments, solvers, execution modes, and observability.
+</Card>
+
+<Card title="Deployment Guide" href="/deployment">
+Deploy on SLURM, Docker, Kubernetes, Ray, and CI/CD pipelines.
+</Card>
+
+<Card title="Benchmarks" href="/evaluation/benchmarks">
+All runtime-registered built-in benchmarks with scoring details.
+</Card>
+
+<Card title="API Reference" href="/api">
+Python API and CLI reference.
+</Card>
+</Cards>

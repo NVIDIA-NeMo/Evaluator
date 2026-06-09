@@ -101,9 +101,9 @@ jobs:
       skip-test-wheel: true
       runner: ubuntu-latest
       app-id: ${{ vars.BOT_ID }}
-      publish-docs: ${{ inputs.publish-docs || true }}
-      docs-target-path: nemo/nemo-evaluator
-      docs-requirements-file: .github/config/requirements.txt
+      # Docs are now built and published with Fern (see publish-fern-docs.yml),
+      # not the Sphinx-based release docs build.
+      publish-docs: false
       restrict-to-admins: true
     secrets: inherit  # pragma: allowlist secret
 
