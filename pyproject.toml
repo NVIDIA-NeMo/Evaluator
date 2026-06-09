@@ -118,6 +118,7 @@ exclude_lines = [
 ]
 
 [tool.uv]
+managed = true
 # Force resolver-wide overrides to break dependency conflicts that come from
 # transitive pins we can't easily change upstream. These are honored by `uv`
 # (uv pip / uv sync) but ignored by plain pip — Dockerfiles using plain pip

@@ -17,18 +17,18 @@ The **Recipe** column links to each benchmark's recipe — the v0.2 README secti
 
 | Benchmark | Category | Description | Recipe |
 |---|---|---|---|
-| GPQA (Diamond) | Science | Graduate-level science questions | Instruct ([v0.2](./v0.2/README.md#running)) |
-| HLE | Humanity's Last Exam | Expert-level questions across domains | Instruct ([v0.2](./v0.2/README.md#running)) |
-| MMLU-Pro | Knowledge | Multi-task language understanding (10-choice) | Instruct ([v0.2](./v0.2/README.md#running)) |
-| MMLU-Pro X | Knowledge | MMLU-Pro extended multilingual variant | Instruct ([v0.2](./v0.2/README.md#running)) |
-| SciCode | Scientific Coding | Scientific programming challenges | Instruct ([v0.2](./v0.2/README.md#running)) |
-| CritPt | Physics | Critical Point evaluation | Instruct ([v0.2](./v0.2/README.md#running)) |
-| IFBench | Instruction Following | Instruction following benchmark | Instruct ([v0.2](./v0.2/README.md#running)) |
-| AA-Omniscience | Knowledge / hallucination | AA Omniscience benchmark (Gemini judge) | Instruct ([v0.2](./v0.2/README.md#running)) |
-| IMO-AnswerBench | Mathematics | International Math Olympiad answer benchmark | Instruct ([v0.2](./v0.2/README.md#running)) |
-| AA-LCR | Long-context | Artificial Analysis long-context benchmark | Instruct ([v0.2](./v0.2/README.md#running)) |
-| Multi-Challenge | Multi-turn | Multi-turn instruction-following benchmark | Instruct ([v0.2](./v0.2/README.md#running)) |
-| WMT24++ | Translation | WMT24 translation, scored with XCOMET-XXL | Instruct ([v0.2](./v0.2/README.md#running)) |
+| GPQA (Diamond) | Science | Graduate-level science questions | Instruct ([v0.2](./v0.2/README.md#gpqa-diamond)) |
+| HLE | Humanity's Last Exam | Expert-level questions across domains | Instruct ([v0.2](./v0.2/README.md#hle)) |
+| MMLU-Pro | Knowledge | Multi-task language understanding (10-choice) | Instruct ([v0.2](./v0.2/README.md#mmlu-pro)) |
+| MMLU-Pro X | Knowledge | MMLU-Pro extended multilingual variant | Instruct ([v0.2](./v0.2/README.md#mmlu-pro-x)) |
+| SciCode | Scientific Coding | Scientific programming challenges | Instruct ([v0.2](./v0.2/README.md#scicode)) |
+| CritPt | Physics | Critical Point evaluation | Instruct ([v0.2](./v0.2/README.md#critpt)) |
+| IFBench | Instruction Following | Instruction following benchmark | Instruct ([v0.2](./v0.2/README.md#ifbench)) |
+| AA-Omniscience | Knowledge / hallucination | AA Omniscience benchmark (Gemini judge) | Instruct ([v0.2](./v0.2/README.md#aa-omniscience)) |
+| IMO-AnswerBench | Mathematics | International Math Olympiad answer benchmark | Instruct ([v0.2](./v0.2/README.md#imo-answerbench)) |
+| AA-LCR | Long-context | Artificial Analysis long-context benchmark | Instruct ([v0.2](./v0.2/README.md#aa-lcr)) |
+| Multi-Challenge | Multi-turn | Multi-turn instruction-following benchmark | Instruct ([v0.2](./v0.2/README.md#multi-challenge)) |
+| WMT24++ | Translation | WMT24 translation, scored with XCOMET-XXL | Instruct ([v0.2](./v0.2/README.md#wmt24)) |
 | LiveCodeBench v6 | Coding | Real-world coding problems | Agentic — [v0.2 (Gym)](./v0.2/README.md#livecodebench-v6-cascade) |
 | Tau2 | Tool Use | Tool use across telecom / airline / retail | Agentic — [v0.2 (Gym)](./v0.2/README.md#tau2-taubench-v3) |
 | GDPVal | Office-deliverable agent | Office/PDF deliverables, judged pairwise/rubric | Agentic — [v0.2 (Gym)](./v0.2/README.md#gdpval-stirrup-agent) |

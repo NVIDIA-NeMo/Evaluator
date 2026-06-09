@@ -46,6 +46,11 @@ Every benchmark runs inside an ECS Fargate sandbox via `harbor`, which needs:
 | harbor ECR | `sandbox.ecr_repository` | replace `<AWS_ACCOUNT_ID>` with your harbor ECR account |
 | Terraform applied | — | for the sandbox region (creates the SSM parameter) |
 
+The ECS Fargate sandbox infrastructure is not provisioned by `nemo-evaluator`. You
+must self-provision it in your own AWS account — a reference Terraform stack that
+creates the exact topology `harbor`'s `ECSFargateSandbox` backend expects is in
+[`terraform/`](../../../../terraform/README.md).
+
 ---
 
 ## Running
