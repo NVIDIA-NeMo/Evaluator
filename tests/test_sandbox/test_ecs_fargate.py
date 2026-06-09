@@ -585,12 +585,227 @@ class TestEcsFargateExec:
 
         with (
             patch.object(sb, "reconnect_tunnel", side_effect=_reconnect),
+            patch.object(sb, "_free_remote_reverse_ports") as mock_free,
             patch(f"{_PATCH_PREFIX}.ExecClient", return_value=new_client),
         ):
             tunnel.wait_ready = MagicMock()
             await sb.exec("echo hi")
 
         client.close.assert_awaited_once()
+        # Reconnect must reclaim the stale reverse listen port before rebinding.
+        mock_free.assert_called_once()
+
+    async def test_concurrent_reconnect_happens_once(self):
+        """A burst of concurrent execs hitting a dead tunnel must trigger a
+        *single* serialized reconnect, not one `ssh -R` storm per failing exec
+        (the 'bind: Address in use' pileup across task streams in the EVAL).
+        """
+        import asyncio as _asyncio
+
+        sb, client = self._started_sb()
+        client.exec.side_effect = ConnectionError("tunnel down")
+
+        tunnel = MagicMock()
+        tunnel.is_open = False
+        tunnel.local_port = 19010
+        tunnel.wait_ready = MagicMock()
+        sb._ssh_tunnel = tunnel
+
+        new_client = MagicMock()
+        new_client.exec = AsyncMock(return_value=ExecResult("ok", "", 0))
+        new_client.close = AsyncMock(return_value=None)
+
+        reconnect_calls = 0
+
+        async def _reconnect():
+            nonlocal reconnect_calls
+            reconnect_calls += 1
+            await _asyncio.sleep(0.05)  # let the burst pile up on the lock
+            tunnel.is_open = True
+
+        with (
+            patch.object(sb, "reconnect_tunnel", side_effect=_reconnect),
+            patch.object(sb, "_free_remote_reverse_ports"),
+            patch(f"{_PATCH_PREFIX}.ExecClient", return_value=new_client),
+        ):
+            results = await _asyncio.gather(*(sb.exec(f"echo {i}") for i in range(10)))
+
+        assert all(r.stdout == "ok" for r in results)
+        assert reconnect_calls == 1
+
+    async def test_exec_reraises_original_error_when_reconnect_fails(self):
+        """If recovery can't reopen the tunnel, the original ConnectionError
+        propagates (so callers/Harbor still see the real failure)."""
+        sb, client = self._started_sb()
+        client.exec.side_effect = ConnectionError("tunnel down")
+
+        tunnel = MagicMock()
+        tunnel.is_open = False
+        sb._ssh_tunnel = tunnel
+
+        async def _boom():
+            raise RuntimeError("cannot reopen")
+
+        with (
+            patch.object(sb, "reconnect_tunnel", side_effect=_boom),
+            patch.object(sb, "_free_remote_reverse_ports"),
+        ):
+            with pytest.raises(ConnectionError, match="tunnel down"):
+                await sb.exec("echo hi")
+
+    def test_free_remote_reverse_ports_kills_stale_listener(self):
+        from nemo_evaluator.sandbox.ecs_fargate import _OutsideEndpointRouting
+
+        sb = _make_sandbox()
+        sb._outside_endpoint_routing = _OutsideEndpointRouting.for_exec_server(
+            [OutsideEndpoint(url="http://host-a:5000/v1", env_var="MODEL_BASE_URL")],
+            _sidecar(),
+        )
+        sb._task_ip = "10.0.0.7"
+        sb._ssh_key_file = "/tmp/key"
+
+        with patch(f"{_PATCH_PREFIX}.subprocess.run", return_value=MagicMock(returncode=0)) as mock_run:
+            sb._free_remote_reverse_ports()
+
+        mock_run.assert_called_once()
+        joined = " ".join(mock_run.call_args[0][0])
+        assert "root@10.0.0.7" in joined
+        assert "fuser" in joined
+        # exec_server_port (5000) is reserved, so host-a:5000 maps to 20000.
+        assert "20000" in joined
+
+    def test_free_remote_reverse_ports_noop_without_ports(self):
+        sb = _make_sandbox()
+        sb._task_ip = "10.0.0.7"
+        sb._ssh_key_file = "/tmp/key"
+
+        with patch(f"{_PATCH_PREFIX}.subprocess.run") as mock_run:
+            sb._free_remote_reverse_ports()
+
+        mock_run.assert_not_called()
+
+    async def test_reconnect_aborts_when_ecs_task_stopped(self):
+        """Bug: when the sandbox task itself died, reconnect can't help. Record
+        WHY (stop reason captured before ECS metadata expires) and abort with the
+        original error — don't churn on a dead container (re-triggering the
+        reverse-port bind pileup)."""
+        sb, client = self._started_sb()
+        client.exec.side_effect = ConnectionError("tunnel down")
+        tunnel = MagicMock()
+        tunnel.is_open = False
+        sb._ssh_tunnel = tunnel
+        sb._task_arn = "arn:aws:ecs:us-west-2:1234:task/test/dead"
+
+        diag = "lastStatus=STOPPED; stopCode=EssentialContainerExited; stoppedReason='OOM'; container(main=STOPPED exit=137)"
+        with (
+            patch.object(sb, "_describe_task_diagnostics", return_value=("STOPPED", diag)),
+            patch.object(sb, "reconnect_tunnel") as mock_reconnect,
+            patch.object(sb, "_free_remote_reverse_ports") as mock_free,
+        ):
+            with pytest.raises(ConnectionError, match="tunnel down"):
+                await sb.exec("echo hi")
+
+        # Dead task → no reverse-port reclaim, no reconnect churn.
+        mock_reconnect.assert_not_called()
+        mock_free.assert_not_called()
+        assert sb._task_confirmed_dead is True
+
+    async def test_reconnect_short_circuits_after_task_confirmed_dead(self):
+        """Once the task is known dead, later execs fail fast without re-probing ECS."""
+        sb, client = self._started_sb()
+        client.exec.side_effect = ConnectionError("tunnel down")
+        tunnel = MagicMock()
+        tunnel.is_open = False
+        sb._ssh_tunnel = tunnel
+        sb._task_confirmed_dead = True
+
+        with patch.object(sb, "_describe_task_diagnostics") as mock_diag:
+            with pytest.raises(ConnectionError):
+                await sb.exec("echo hi")
+
+        mock_diag.assert_not_called()
+
+    async def test_reconnect_proceeds_when_task_running(self):
+        """A transient tunnel death with the task still RUNNING reconnects normally."""
+        sb, client = self._started_sb()
+        client.exec.side_effect = ConnectionError("tunnel down")
+        tunnel = MagicMock()
+        tunnel.is_open = False
+        tunnel.local_port = 19020
+        tunnel.wait_ready = MagicMock()
+        sb._ssh_tunnel = tunnel
+
+        new_client = MagicMock()
+        new_client.exec = AsyncMock(return_value=ExecResult("ok", "", 0))
+        new_client.close = AsyncMock(return_value=None)
+
+        async def _reconnect():
+            tunnel.is_open = True
+
+        with (
+            patch.object(sb, "_describe_task_diagnostics", return_value=("RUNNING", "lastStatus=RUNNING")),
+            patch.object(sb, "reconnect_tunnel", side_effect=_reconnect) as mock_reconnect,
+            patch.object(sb, "_free_remote_reverse_ports"),
+            patch(f"{_PATCH_PREFIX}.ExecClient", return_value=new_client),
+        ):
+            result = await sb.exec("echo hi")
+
+        assert result.stdout == "ok"
+        mock_reconnect.assert_called_once()
+        assert sb._task_confirmed_dead is False
+
+    def test_describe_task_diagnostics_captures_stop_reason(self):
+        """Stop reason + container exit code must be surfaced for the post-mortem."""
+        sb = _make_sandbox()
+        sb._task_arn = "arn:aws:ecs:us-west-2:1234:task/test/x"
+        ecs = MagicMock()
+        ecs.describe_tasks.return_value = {
+            "tasks": [
+                {
+                    "lastStatus": "STOPPED",
+                    "stopCode": "EssentialContainerExited",
+                    "stoppedReason": "Essential container in task exited",
+                    "containers": [
+                        {"name": "main", "lastStatus": "STOPPED", "exitCode": 137, "reason": "OutOfMemory"},
+                        {"name": "ssh-tunnel", "lastStatus": "STOPPED", "exitCode": 0},
+                    ],
+                }
+            ]
+        }
+        sb._ecs = ecs
+
+        status, diag = sb._describe_task_diagnostics()
+
+        assert status == "STOPPED"
+        assert "stopCode=EssentialContainerExited" in diag
+        assert "stoppedReason='Essential container in task exited'" in diag
+        assert "exit=137" in diag
+        assert "OutOfMemory" in diag
+
+    def test_describe_task_diagnostics_handles_expired_metadata(self):
+        sb = _make_sandbox()
+        sb._task_arn = "arn:aws:ecs:us-west-2:1234:task/test/x"
+        ecs = MagicMock()
+        ecs.describe_tasks.return_value = {"tasks": []}
+        sb._ecs = ecs
+
+        status, diag = sb._describe_task_diagnostics()
+
+        assert status == "GONE"
+        assert "expired" in diag
+
+    def test_describe_task_diagnostics_best_effort_on_api_error(self):
+        sb = _make_sandbox()
+        sb._task_arn = "arn:aws:ecs:us-west-2:1234:task/test/x"
+        ecs = MagicMock()
+        ecs.describe_tasks.side_effect = RuntimeError("throttled")
+        sb._ecs = ecs
+
+        status, diag = sb._describe_task_diagnostics()
+
+        # UNKNOWN → caller still attempts reconnect (transient API hiccup).
+        assert status == "UNKNOWN"
+        assert "throttled" in diag
 
 
 class TestExecClientAsync:
@@ -694,6 +909,34 @@ class TestSshTunnel:
         assert t.is_open
         assert mock_popen.call_count == 2
 
+    @patch(f"{_PATCH_PREFIX}._free_port", return_value=44444)
+    @patch(f"{_PATCH_PREFIX}.subprocess.Popen")
+    def test_open_retries_on_remote_port_forwarding_failed(self, mock_popen, mock_free_port):
+        """Regression: a reconnect whose reverse port is still held by the dead
+        tunnel's stale listener must retry (the server frees it shortly) instead
+        of aborting immediately — the EVAL connection-refused rollout failures.
+        """
+        fail_proc = MagicMock()
+        fail_proc.poll.return_value = 255
+        fail_proc.stderr = MagicMock()
+        # ssh emits this (via error(), shown even at LogLevel=ERROR) when the
+        # sandbox sshd can't rebind the reverse listen port (address in use).
+        fail_proc.stderr.read.return_value = b"Warning: remote port forwarding failed for listen port 59579"
+
+        ok_proc = MagicMock()
+        ok_proc.poll.return_value = None
+        ok_proc.pid = 777
+
+        mock_popen.side_effect = [fail_proc, ok_proc]
+
+        t = self._make_tunnel(forward_port=5000, reverses=["59579:host-a:5000"])
+        with patch.object(t, "_wait_for_local_port"):
+            with patch(f"{_PATCH_PREFIX}.time.sleep"):
+                t.open(max_retries=3)
+
+        assert t.is_open
+        assert mock_popen.call_count == 2
+
     @patch(f"{_PATCH_PREFIX}._free_port", return_value=33333)
     @patch(f"{_PATCH_PREFIX}.subprocess.Popen")
     def test_open_raises_on_non_retryable_error(self, mock_popen, mock_free_port):
@@ -737,6 +980,31 @@ class TestSshTunnel:
 
         t.wait_ready(health_url="http://127.0.0.1:5000/health", timeout=5)
         mock_urlopen.assert_called_once()
+
+
+# ── TestSshSidecarContainer ───────────────────────────────────────────
+
+
+class TestSshSidecarContainer:
+    """The generated sidecar must ship the tools the reconnect path relies on."""
+
+    def test_sidecar_installs_fuser_for_reverse_port_reclaim(self):
+        from nemo_evaluator.sandbox.ecs_fargate import build_ssh_sidecar_container
+
+        container = build_ssh_sidecar_container(_sidecar(), public_key_value="ssh-rsa fake", max_lifetime_sec=0)
+        cmd = container["command"][0]
+        # psmisc provides `fuser`, used to free a stale reverse listen port.
+        assert "psmisc" in cmd
+
+    def test_sidecar_keeps_long_keepalive_tolerance(self):
+        """EVAL-1143: keepalive stays long so tunnels survive ~2min container
+        setup and multi-hour tasks. The reconnect fix must not regress this."""
+        from nemo_evaluator.sandbox.ecs_fargate import build_ssh_sidecar_container
+
+        container = build_ssh_sidecar_container(_sidecar(), public_key_value="ssh-rsa fake", max_lifetime_sec=0)
+        cmd = container["command"][0]
+        assert "ClientAliveInterval 30" in cmd
+        assert "ClientAliveCountMax 20" in cmd
 
 
 # ── TestImageBuilder ──────────────────────────────────────────────────
