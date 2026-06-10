@@ -172,6 +172,8 @@ The `ArtifactCollector` categorizes failures automatically:
 
 | Category | Detection |
 |----------|-----------|
+| `infra_error` | `scoring_details.error_category == "infra_error"` (set when the solver raises `InfraError` or returns `error_kind=ErrorKind.INFRA`) |
+| `solve_timeout` | `scoring_details.error_category == "solve_timeout"` (set when the solver returns `error_kind=ErrorKind.SOLVE_TIMEOUT` after `agent.run()` exceeded the wall-clock budget; verifier still runs on the partial workspace) |
 | `timeout` | Model error contains "timeout" |
 | `rate_limit` | Model error contains "429" or "rate" |
 | `refusal` | Response contains "I cannot", "I'm sorry" |
