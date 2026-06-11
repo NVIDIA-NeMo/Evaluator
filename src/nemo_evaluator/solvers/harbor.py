@@ -249,10 +249,10 @@ async def _patch_openhands_sdk(sandbox: "Sandbox", *, cmd_timeout: float | None 
        patched loop continues until ``finish`` is called or
        ``max_iterations`` is reached.
 
-    2. **Capture reasoning in ATIF trajectory** — the runner's event
-       serialization drops ``reasoning_content`` / ``thinking_blocks``.
-       Both the event-to-dict conversion and ``build_trajectory`` are
-       patched so reasoning appears in the output JSON.
+    2. **Capture reasoning, metrics, and tool timing in ATIF trajectory** —
+       the runner's event serialization drops reasoning, per-turn token
+       usage, and observation timestamps.  The event conversion and
+       ``build_trajectory`` stages are patched to preserve them.
 
     3. **Enforce 300 s hard timeout on terminal commands** — the SDK
        only applies a hard timeout when the model passes an explicit
@@ -357,14 +357,13 @@ print(f'agent.py FINISHED={ok1} nudge={ok2} at {p}')
             stdout2 or (r2.stderr or "")[:300],
         )
 
-    # -- Patch 2: capture reasoning + per-step metrics in ATIF trajectory ----
+    # -- Patch 2: capture reasoning, metrics, and tool timing in ATIF --------
     # The runner converts SDK events → intermediate dicts → ATIF steps but
-    # never copies reasoning_content / thinking_blocks or per-turn token usage.
-    # We add both at the event-conversion and step-building stages.
+    # never copies reasoning, per-turn token usage, or observation timestamps.
     #
     # Event-collection (A, B): extract reasoning_content and LLM usage from
     # the SDK event object and store in the intermediate dict.
-    # build_trajectory (C): propagate both to ATIF step fields.
+    # build_trajectory (C, D): propagate step fields and observation timing.
 
     _reasoning_script = """\
 import sys
@@ -451,14 +450,62 @@ new_c = (
     '        elif event_type == "tool_result":'
 )
 
+# D: build_trajectory - preserve observation timing
+old_d = (
+    '        elif event_type == "tool_result":\\n'
+    '            # Find the previous step and add observation\\n'
+    '            if steps and steps[-1].get("source") == "agent":\\n'
+    '                steps[-1]["observation"] = {\\n'
+    '                    "results": [\\n'
+    '                        {\\n'
+    '                            "source_call_id": event.get("tool_call_id"),\\n'
+    '                            "content": event.get("content", ""),\\n'
+    '                        }\\n'
+    '                    ]\\n'
+    '                }'
+)
+new_d = (
+    '        elif event_type == "tool_result":\\n'
+    '            if steps and steps[-1].get("source") == "agent":\\n'
+    '                _started_at = steps[-1].get("timestamp")\\n'
+    '                _completed_at = event.get("timestamp")\\n'
+    '                _timing = {\\n'
+    '                    key: value\\n'
+    '                    for key, value in (("started_at", _started_at), ("completed_at", _completed_at))\\n'
+    '                    if value\\n'
+    '                }\\n'
+    '                if _started_at and _completed_at:\\n'
+    '                    try:\\n'
+    '                        from datetime import datetime as _datetime\\n'
+    '                        _start = _datetime.fromisoformat(str(_started_at).replace("Z", "+00:00"))\\n'
+    '                        _end = _datetime.fromisoformat(str(_completed_at).replace("Z", "+00:00"))\\n'
+    '                        _timing["duration_ms"] = max(0.0, (_end - _start).total_seconds() * 1000)\\n'
+    '                    except (TypeError, ValueError):\\n'
+    '                        pass\\n'
+    '                _result = {\\n'
+    '                    "source_call_id": event.get("tool_call_id"),\\n'
+    '                    "content": event.get("content", ""),\\n'
+    '                }\\n'
+    '                if _timing:\\n'
+    '                    _result["extra"] = _timing\\n'
+    '                steps[-1]["observation"] = {"results": [_result]}'
+)
+
+old_schema = '"schema_version": "ATIF-v1.5",'
+new_schema = '"schema_version": "ATIF-v1.7",'
+
 ok_a = old_a in c
 c = c.replace(old_a, new_a, 1) if ok_a else c
 ok_b = old_b in c
 c = c.replace(old_b, new_b, 1) if ok_b else c
 ok_c = old_c in c
 c = c.replace(old_c, new_c, 1) if ok_c else c
+ok_d = old_d in c
+c = c.replace(old_d, new_d, 1) if ok_d else c
+ok_schema = old_schema in c
+c = c.replace(old_schema, new_schema, 1) if ok_d and ok_schema else c
 open(p, 'w').write(c)
-print(f'reasoning+metrics: msg={ok_a} action={ok_b} traj={ok_c}')
+print(f'reasoning+metrics+timing: msg={ok_a} action={ok_b} traj={ok_c} timing={ok_d} schema={ok_schema}')
 """
     encoded = base64.b64encode(_reasoning_script.encode()).decode()
     r3 = await sandbox.exec(
