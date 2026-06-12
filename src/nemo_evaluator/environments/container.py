@@ -56,6 +56,7 @@ if TYPE_CHECKING:
 
 import yaml
 
+from nemo_evaluator.completions_guard import normalize_adapter_config_for_endpoint
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 
 logger = logging.getLogger(__name__)
@@ -106,6 +107,10 @@ def build_legacy_run_config(
     }
     if api_key:
         api_endpoint["api_key_name"] = _API_KEY_ENV
+    # Chat-template controls are inert on a text-completions endpoint and would
+    # silently leave reasoning enabled; strip (or reject under strict mode)
+    # before the container's in-process adapter ever sees them.
+    adapter_config = normalize_adapter_config_for_endpoint(adapter_config, endpoint_type)
     if adapter_config:
         api_endpoint["adapter_config"] = adapter_config
     run_config: dict[str, Any] = {
