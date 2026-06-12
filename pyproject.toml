@@ -1,5 +1,8 @@
 [build-system]
-requires = ["hatchling"]
+# hatchling 1.30.0 turned the "duplicate file in wheel" warning into a hard
+# error, which trips the redundant force-include of in-package data dirs below.
+# Pin to the last 1.29.x line (what green builds used) until that is cleaned up.
+requires = ["hatchling<1.30"]
 build-backend = "hatchling.build"
 
 [project]
