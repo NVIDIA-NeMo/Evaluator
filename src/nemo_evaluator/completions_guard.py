@@ -187,8 +187,9 @@ def enforce_text_completions_body(path: str, body: dict[str, Any], *, strict: bo
     if disabling or strict:
         raise ValueError(message)
     logger.warning(message)
-    for name in [key for key in body if key in CHAT_TEMPLATE_ONLY_FIELDS]:
-        body.pop(name, None)
+    stripped = _strip_chat_template_fields(body)
+    body.clear()
+    body.update(stripped)
 
 
 def normalize_adapter_config_for_endpoint(

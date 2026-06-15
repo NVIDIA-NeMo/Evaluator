@@ -126,6 +126,32 @@ def test_body_noop_on_clean_request() -> None:
     assert body == {"prompt": "rendered", "max_tokens": 16}
 
 
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (
+            {"prompt": "rendered", "extra_body": {"chat_template_kwargs": {"thinking": True}}},
+            {"prompt": "rendered", "extra_body": {}},
+        ),
+        (
+            {"prompt": "rendered", "items": [{"chat_template_kwargs": {"thinking": True}}]},
+            {"prompt": "rendered", "items": [{}]},
+        ),
+        (
+            {"prompt": "rendered", "extra_body": {"chat_template": "{{ jinja }}"}},
+            {"prompt": "rendered", "extra_body": {}},
+        ),
+    ],
+    ids=["nested-dict", "nested-list", "nested-chat-template"],
+)
+def test_body_strips_nested_fields(body: dict, expected: dict, caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.WARNING, logger="nemo_evaluator.completions_guard"):
+        enforce_text_completions_body("/v1/completions", body)
+    assert body == expected
+    assert "chat_template" in caplog.text
+    assert "params.extra.args" in caplog.text
+
+
 # ── adapter_config (#1, launcher/config-assembly path) ────────────────────────
 
 
