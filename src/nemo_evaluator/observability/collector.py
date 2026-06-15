@@ -60,6 +60,9 @@ class ArtifactCollector:
         if isinstance(sd, dict) and sd.get("error_category") == "infra_error":
             step.failure_category = "infra_error"
             return
+        if isinstance(sd, dict) and sd.get("error_category") == "solve_timeout":
+            step.failure_category = "solve_timeout"
+            return
         if step.model_error:
             err = step.model_error
             if any(code in err for code in ("408", "timeout", "Timeout", "timed out")):

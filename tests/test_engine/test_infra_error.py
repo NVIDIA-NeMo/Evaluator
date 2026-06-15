@@ -54,6 +54,12 @@ class TestErrorKind:
         assert sr.error_kind == ErrorKind.INFRA
         assert sr.error_kind.value == "infra_error"
 
+    def test_solve_timeout_kind(self):
+        sr = SolveResult(response="", error_kind=ErrorKind.SOLVE_TIMEOUT)
+        assert sr.error_kind == ErrorKind.SOLVE_TIMEOUT
+        assert sr.error_kind.value == "solve_timeout"
+        assert sr.error is None
+
 
 # ── _get_error_category helper ───────────────────────────────────────
 
@@ -108,6 +114,59 @@ class TestCollectorInfraClassification:
         )
         collector._classify_failure(step)
         assert step.failure_category == "server_error"
+
+
+class TestCollectorSolveTimeoutClassification:
+    def test_solve_timeout_classified(self):
+        from nemo_evaluator.observability.collector import ArtifactCollector
+
+        collector = ArtifactCollector()
+        step = StepRecord(
+            problem_idx=0,
+            repeat=0,
+            prompt="test",
+            scoring_details={"error_category": "solve_timeout", "method": "harbor"},
+        )
+        collector._classify_failure(step)
+        assert step.failure_category == "solve_timeout"
+
+    def test_solve_timeout_takes_precedence_over_substring_scan(self):
+        """`solve_timeout` must short-circuit before the substring scan, otherwise a
+        model_error string containing 'timed out' would mis-bucket as 'timeout'
+        (the HTTP-408/upstream-gateway-timeout label)."""
+        from nemo_evaluator.observability.collector import ArtifactCollector
+
+        collector = ArtifactCollector()
+        step = StepRecord(
+            problem_idx=0,
+            repeat=0,
+            prompt="test",
+            model_error="agent timed out after 3600s",
+            scoring_details={"error_category": "solve_timeout"},
+        )
+        collector._classify_failure(step)
+        assert step.failure_category == "solve_timeout"
+
+    def test_solve_timeout_does_not_collide_with_infra_error(self):
+        from nemo_evaluator.observability.collector import ArtifactCollector
+
+        collector = ArtifactCollector()
+        infra_step = StepRecord(
+            problem_idx=0,
+            repeat=0,
+            prompt="test",
+            scoring_details={"error_category": "infra_error"},
+        )
+        timeout_step = StepRecord(
+            problem_idx=1,
+            repeat=0,
+            prompt="test",
+            scoring_details={"error_category": "solve_timeout"},
+        )
+        collector._classify_failure(infra_step)
+        collector._classify_failure(timeout_step)
+        assert infra_step.failure_category == "infra_error"
+        assert timeout_step.failure_category == "solve_timeout"
 
 
 # ── ModelClient wraps errors as InfraError ───────────────────────────

@@ -36,6 +36,7 @@ class ErrorKind(Enum):
     INFRA = "infra_error"
     TOOL_INFRA = "tool_infra"
     SYSTEM = "system"
+    SOLVE_TIMEOUT = "solve_timeout"
 
 
 @dataclass

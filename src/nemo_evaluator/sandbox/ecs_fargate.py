@@ -428,6 +428,19 @@ def download_secret_to_string(secret_arn: str, region: str | None = None) -> str
 
 # ── SSH tunnel ───────────────────────────────────────────────────────
 
+# ssh stderr substrings worth a tunnel-open retry: connection-level blips, plus a
+# reverse-forward bind failing because the sandbox sshd still holds the port from a
+# prior dead tunnel (frees once reclaimed/reaped). Matched case-insensitively.
+_SSH_RETRYABLE_STDERR: tuple[str, ...] = (
+    "connection refused",
+    "connection timed out",
+    "no route to host",
+    "connection reset",
+    "remote port forwarding failed",
+    "address already in use",
+    "cannot listen to port",
+)
+
 
 class SshTunnel:
     """Manages an ``ssh -N`` subprocess with ``-L`` / ``-R`` tunnels."""
@@ -492,15 +505,7 @@ class SshTunnel:
             stderr = self._proc.stderr.read().decode(errors="replace") if self._proc.stderr else ""
             last_err = stderr.strip()
             self._proc = None
-            if not any(
-                m in last_err
-                for m in (
-                    "Connection refused",
-                    "Connection timed out",
-                    "No route to host",
-                    "Connection reset",
-                )
-            ):
+            if not any(m in last_err.lower() for m in _SSH_RETRYABLE_STDERR):
                 raise RuntimeError(f"SSH tunnel exited immediately (attempt {attempt}): {last_err}")
             logger.warning(
                 "SSH tunnel attempt %d/%d failed: %s — retrying in %.0fs", attempt, max_retries, last_err, backoff
@@ -640,7 +645,8 @@ def build_ssh_sidecar_container(
             "kill 1 2>/dev/null; sleep 3; kill -9 1 2>/dev/null ) & "
         )
     sshd_cmd = (
-        "set -e; apk add --no-cache openssh-server netcat-openbsd; "
+        # psmisc provides `fuser`, used to reclaim a stale reverse-forward port on reconnect.
+        "set -e; apk add --no-cache openssh-server netcat-openbsd psmisc; "
         "mkdir -p /root/.ssh; chmod 700 /root/.ssh; "
         'printf "%s\\n" "$SSH_PUBLIC_KEY" > /root/.ssh/authorized_keys; '
         "chmod 600 /root/.ssh/authorized_keys; ssh-keygen -A; "
@@ -1297,6 +1303,11 @@ class EcsFargateSandbox:
         self._outside_endpoints: list[OutsideEndpoint] = []
         self._outside_endpoint_routing = _OutsideEndpointRouting.empty()
         self._run_id = uuid.uuid4().hex[:12]
+        # Serializes reconnects so a burst of failing execs triggers one reconnect,
+        # not a storm of competing `ssh -R` binds. Lazily bound to the running loop.
+        self._reconnect_lock: asyncio.Lock | None = None
+        # Set once ECS confirms the task itself died, so reconnects fail fast.
+        self._task_confirmed_dead = False
 
     # ── Protocol properties ──────────────────────────────────────────
 
@@ -1394,22 +1405,9 @@ class EcsFargateSandbox:
         try:
             return await self._exec_client.exec(shell_cmd, timeout=int(timeout_sec))  # type: ignore[union-attr]
         except ConnectionError:
-            if self._ssh_tunnel and not self._ssh_tunnel.is_open:
-                logger.warning("SSH tunnel dead — attempting reconnect before re-raising")
-                try:
-                    await self.reconnect_tunnel()
-                    sidecar = self._cfg.ssh_sidecar
-                    if sidecar and sidecar.exec_server_port is not None:
-                        health_url = f"http://127.0.0.1:{self._ssh_tunnel.local_port}/health"  # type: ignore[union-attr]
-                        self._ssh_tunnel.wait_ready(health_url=health_url, timeout=60.0)  # type: ignore[union-attr]
-                        old_client = self._exec_client
-                        self._exec_client = ExecClient(port=self._ssh_tunnel.local_port)  # type: ignore[union-attr]
-                        if old_client is not None:
-                            await old_client.close()
-                        return await self._exec_client.exec(shell_cmd, timeout=int(timeout_sec))
-                except Exception as reconnect_err:
-                    logger.warning("Tunnel reconnect failed: %s", reconnect_err)
-            raise
+            if not await self._ensure_tunnel_recovered():
+                raise
+            return await self._exec_client.exec(shell_cmd, timeout=int(timeout_sec))  # type: ignore[union-attr]
 
     async def upload(self, local_path: Path, remote_path: str) -> None:
         self._require_exec_client()
@@ -1453,6 +1451,148 @@ class EcsFargateSandbox:
             self._ssh_tunnel.close()
             self._ssh_tunnel = None
         await asyncio.to_thread(self._open_tunnel, sidecar)
+
+    # ── Tunnel recovery (exec-server mode) ───────────────────────────
+
+    def _get_reconnect_lock(self) -> asyncio.Lock:
+        # Lazily bound to the running loop; check-and-set has no await, so it's race-free.
+        if self._reconnect_lock is None:
+            self._reconnect_lock = asyncio.Lock()
+        return self._reconnect_lock
+
+    async def _ensure_tunnel_recovered(self) -> bool:
+        """Reconnect after a dead-tunnel ConnectionError; return True if exec should retry.
+
+        Serialized so a burst of failing execs triggers one reconnect, not a storm of
+        competing ``ssh -R`` binds colliding on the reverse port.
+        """
+        tunnel = self._ssh_tunnel
+        if tunnel is None or self._task_confirmed_dead:
+            return False
+        if tunnel.is_open:
+            return True
+        async with self._get_reconnect_lock():
+            # Another caller may have reconnected (or proven the task dead) while we waited.
+            if self._task_confirmed_dead:
+                return False
+            if self._ssh_tunnel is not None and self._ssh_tunnel.is_open:
+                return True
+            try:
+                await self._reconnect_exec_tunnel()
+                return True
+            except Exception as exc:
+                logger.warning("Tunnel reconnect failed: %s", exc)
+                return False
+
+    async def _reconnect_exec_tunnel(self) -> None:
+        sidecar = self._cfg.ssh_sidecar
+        if sidecar is None or sidecar.exec_server_port is None:
+            raise RuntimeError("Tunnel reconnect is only supported in exec-server mode")
+        logger.warning("SSH tunnel dead — reconnecting exec tunnel")
+        # Capture why the tunnel died while ECS metadata is still fresh; if the task
+        # itself is gone, reconnect can't help — record the reason and abort.
+        status, diag = await asyncio.to_thread(self._describe_task_diagnostics)
+        if status not in ("RUNNING", "UNKNOWN"):
+            self._task_confirmed_dead = True
+            logger.error(
+                "ECS task %s is %s — the sandbox died (root cause of the tunnel death); "
+                "reconnect aborted. ECS diagnostics: %s",
+                self._task_arn,
+                status,
+                diag,
+            )
+            raise RuntimeError(f"ECS task not RUNNING ({status}): {diag}")
+        logger.info("ECS task still %s after tunnel death — reconnecting (%s)", status, diag)
+        # Free the reverse port the dead tunnel may still hold so the new `ssh -R`
+        # can rebind without waiting for the server to reap it.
+        await asyncio.to_thread(self._free_remote_reverse_ports)
+        await self.reconnect_tunnel()
+        new_client = await asyncio.to_thread(self._refresh_exec_client)
+        old_client = self._exec_client
+        self._exec_client = new_client
+        if old_client is not None:
+            await old_client.close()
+
+    def _refresh_exec_client(self) -> ExecClient:
+        assert self._ssh_tunnel is not None
+        health_url = f"http://127.0.0.1:{self._ssh_tunnel.local_port}/health"
+        self._ssh_tunnel.wait_ready(health_url=health_url, timeout=60.0)
+        return ExecClient(port=self._ssh_tunnel.local_port)
+
+    def _reverse_listen_ports(self) -> list[int]:
+        """Reverse-tunnel listen ports bound on the sandbox sshd (de-duplicated)."""
+        ports: list[int] = []
+        for spec in self._outside_endpoint_routing.reverse_specs:
+            head = spec.split(":", 1)[0]
+            if head.isdigit():
+                ports.append(int(head))
+        if self._ssh_tunnel_port is not None:
+            ports.append(self._ssh_tunnel_port)
+        return list(dict.fromkeys(ports))
+
+    def _free_remote_reverse_ports(self) -> None:
+        """``fuser -k`` the reverse listen port(s) a dead tunnel may still hold on the
+        sandbox sshd, so the reconnect's ``ssh -R`` can rebind. Best-effort."""
+        ports = self._reverse_listen_ports()
+        sidecar = self._cfg.ssh_sidecar
+        if not ports or not self._task_ip or not self._ssh_key_file or sidecar is None:
+            return
+        port_list = " ".join(str(p) for p in ports)
+        remote_cmd = f'for P in {port_list}; do fuser -k -n tcp "$P" 2>/dev/null || true; done; true'
+        cmd = [
+            "ssh",
+            "-T",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ConnectTimeout=10",
+            "-o",
+            "LogLevel=ERROR",
+            "-i",
+            self._ssh_key_file,
+            "-p",
+            str(sidecar.sshd_port),
+            f"root@{self._task_ip}",
+            remote_cmd,
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, timeout=30, check=False)  # best-effort
+            logger.info("Reclaimed reverse port(s) %s on %s (rc=%d)", port_list, self._task_ip, result.returncode)
+        except Exception as exc:
+            logger.warning("Could not reclaim reverse port(s) %s on %s: %s", port_list, self._task_ip, exc)
+
+    def _describe_task_diagnostics(self) -> tuple[str, str]:
+        """Return ``(last_status, diagnostics)`` for the ECS task, captured at failure
+        time before ECS's stopped-task metadata expires. ``UNKNOWN`` on any API error
+        so callers still attempt a reconnect."""
+        if not self._ecs or not self._task_arn:
+            return ("UNKNOWN", "no ECS client/task ARN available")
+        try:
+            resp = self._ecs.describe_tasks(cluster=self._cfg.cluster, tasks=[self._task_arn])
+        except Exception as exc:
+            return ("UNKNOWN", f"describe_tasks failed: {exc}")
+        tasks = resp.get("tasks") or []
+        if not tasks:
+            return ("GONE", "task not found in ECS (stopped-task metadata may have expired)")
+        task = tasks[0]
+        status = task.get("lastStatus", "UNKNOWN")
+        parts = [f"lastStatus={status}"]
+        if task.get("stopCode"):
+            parts.append(f"stopCode={task['stopCode']}")
+        if task.get("stoppedReason"):
+            parts.append(f"stoppedReason={task['stoppedReason']!r}")
+        for c in task.get("containers") or []:
+            cbits = [f"{c.get('name')}={c.get('lastStatus')}"]
+            if c.get("exitCode") is not None:
+                cbits.append(f"exit={c['exitCode']}")
+            if c.get("reason"):
+                cbits.append(f"reason={c['reason']!r}")
+            if c.get("healthStatus"):
+                cbits.append(f"health={c['healthStatus']}")
+            parts.append("container(" + " ".join(cbits) + ")")
+        return (status, "; ".join(parts))
 
     # ── Sync start (runs via asyncio.to_thread) ──────────────────────
 
