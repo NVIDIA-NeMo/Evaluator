@@ -44,6 +44,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from nemo_evaluator.reports.schemas import AgentStep, TrajectoryRow, fields_as_coverage_paths
+
 logger = logging.getLogger(__name__)
 
 
@@ -183,47 +185,8 @@ def _index_traffic_by_trial(
     return bucket
 
 
-_TRIAL_FIELDS: dict[str, tuple[Any, ...]] = {
-    "problem_idx": ("problem_idx",),
-    "repeat": ("repeat",),
-    "reward": ("reward",),
-    "trajectory": ("trajectory",),
-    "model": ("model",),
-    "trajectory[0].schema_version": ("trajectory", 0, "schema_version"),
-    "trajectory[0].session_id": ("trajectory", 0, "session_id"),
-    "trajectory[0].agent.name": ("trajectory", 0, "agent", "name"),
-    "trajectory[0].agent.version": ("trajectory", 0, "agent", "version"),
-    "trajectory[0].agent.model_name": ("trajectory", 0, "agent", "model_name"),
-    "trajectory[0].agent.parent_agent": ("trajectory", 0, "agent", "parent_agent"),
-    "trajectory[0].extra": ("trajectory", 0, "extra"),
-    "trajectory[0].steps": ("trajectory", 0, "steps"),
-    "trajectory[0].final_metrics.total_prompt_tokens": ("trajectory", 0, "final_metrics", "total_prompt_tokens"),
-    "trajectory[0].final_metrics.total_completion_tokens": (
-        "trajectory",
-        0,
-        "final_metrics",
-        "total_completion_tokens",
-    ),
-    "trajectory[0].final_metrics.total_steps": ("trajectory", 0, "final_metrics", "total_steps"),
-}
-
-_STEP_FIELDS: dict[str, tuple[Any, ...]] = {
-    "step_id": ("step_id",),
-    "source": ("source",),
-    "timestamp": ("timestamp",),
-    "model_name": ("model_name",),
-    "status_code": ("status_code",),
-    "message": ("message",),
-    "reasoning_content": ("reasoning_content",),
-    "tool_calls": ("tool_calls",),
-    "metrics.prompt_tokens": ("metrics", "prompt_tokens"),
-    "metrics.completion_tokens": ("metrics", "completion_tokens"),
-    "metrics.total_tokens": ("metrics", "total_tokens"),
-    "metrics.extra.latency_ms": ("metrics", "extra", "latency_ms"),
-    "metrics.extra.finish_reason": ("metrics", "extra", "finish_reason"),
-    "metrics.extra.cached_tokens": ("metrics", "extra", "cached_tokens"),
-    "metrics.extra.reasoning_tokens": ("metrics", "extra", "reasoning_tokens"),
-}
+_TRIAL_FIELDS: dict[str, tuple[Any, ...]] = fields_as_coverage_paths(TrajectoryRow)
+_STEP_FIELDS: dict[str, tuple[Any, ...]] = fields_as_coverage_paths(AgentStep)
 
 
 def _step_tokens(s: dict[str, Any]) -> int:
