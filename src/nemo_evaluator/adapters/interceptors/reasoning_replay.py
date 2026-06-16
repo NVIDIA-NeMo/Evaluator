@@ -14,13 +14,18 @@
 # limitations under the License.
 """Cross-turn ``reasoning_content`` recovery.
 
-Caches ``reasoning_content`` from upstream responses (keyed by
-``tool_call.id``, with a content-hash fallback for text-only turns) and
+Caches the model's reasoning from upstream responses — the ``reasoning_content``
+field, falling back to ``reasoning`` (vLLM >=0.19 emits the latter) — keyed by
+``tool_call.id`` with a content-hash fallback for text-only turns, and
 re-injects it into matching assistant messages on the next outbound
-request.  Works around agent SDKs (OpenHands, pi-ai) that drop
-``reasoning_content`` from chat-completions assistant messages on
-replay, which would otherwise lose the model's chain-of-thought across
-turns.
+request.  Works around agent SDKs (OpenHands, pi-ai) that drop reasoning
+from chat-completions assistant messages on replay, which would otherwise
+lose the model's chain-of-thought across turns.
+
+In ``native`` / ``both`` modes the re-injection writes **both** the
+``reasoning`` and ``reasoning_content`` fields, because backends disagree on
+which one their chat-message parser reads on input (vLLM >=0.19 keys on
+``reasoning``; SGLang and older vLLM on ``reasoning_content``).
 
 Cache entries are scoped by ``ctx.extra["session_id"]``.
 
@@ -142,7 +147,7 @@ class Interceptor(RequestInterceptor, ResponseInterceptor):
                 msg = ch.get("message")
                 if not isinstance(msg, dict):
                     continue
-                rc = msg.get("reasoning_content")
+                rc = msg.get("reasoning_content") or msg.get("reasoning")
                 if not isinstance(rc, str) or not rc.strip():
                     continue
                 for key in _message_keys(msg, scope):
@@ -163,7 +168,7 @@ class Interceptor(RequestInterceptor, ResponseInterceptor):
             for msg in messages:
                 if not isinstance(msg, dict) or msg.get("role") != "assistant":
                     continue
-                native = msg.get("reasoning_content")
+                native = msg.get("reasoning_content") or msg.get("reasoning")
                 native_set = isinstance(native, str) and bool(native.strip())
                 if self._mode == "native" and native_set:
                     continue
@@ -199,10 +204,14 @@ class Interceptor(RequestInterceptor, ResponseInterceptor):
 
     def _apply(self, msg: dict, reasoning: str) -> bool:
         changed = False
-        native = msg.get("reasoning_content")
+        native = msg.get("reasoning_content") or msg.get("reasoning")
         native_set = isinstance(native, str) and bool(native.strip())
         if self._mode in ("native", "both") and not native_set:
+            # vLLM >=0.19 reads `reasoning` on input; SGLang and older vLLM read
+            # `reasoning_content`. Write both so re-injection survives whichever
+            # key the backend's chat-message parser honors.
             msg["reasoning_content"] = reasoning
+            msg["reasoning"] = reasoning
             changed = True
         if self._mode in ("think_tags", "both") and not _starts_with(msg.get("content"), self._tag_open):
             msg["content"] = _wrap(msg.get("content"), reasoning, self._tag_open, self._tag_close)
