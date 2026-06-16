@@ -679,6 +679,7 @@ async def test_reasoning_replay_native_round_trip():
     result = await ic.intercept_request(req)
     assistant = result.body["messages"][0]
     assert assistant["reasoning_content"] == "hidden chain"
+    assert assistant["reasoning"] == "hidden chain"
     assert assistant["content"] == "visible answer"
 
 
@@ -692,7 +693,89 @@ async def test_reasoning_replay_both_mode():
     result = await ic.intercept_request(req)
     assistant = result.body["messages"][0]
     assert assistant["reasoning_content"] == "hidden"
+    assert assistant["reasoning"] == "hidden"
     assert assistant["content"] == "<think>hidden</think>\ntext"
+
+
+async def test_reasoning_replay_native_writes_both_reasoning_fields():
+    ic = InterceptorRegistry.create("reasoning_replay", {"mode": "native"})
+    await ic.intercept_response(_resp_with_tool_call("hidden chain", "call_abc"))
+
+    req = _req({"messages": [_assistant_with_tool_call("call_abc", content="x")]})
+    result = await ic.intercept_request(req)
+    assistant = result.body["messages"][0]
+    assert assistant["reasoning"] == "hidden chain"
+    assert assistant["reasoning_content"] == "hidden chain"
+    assert req.ctx.extra["reasoning_replay_hits"] == 1
+
+
+async def test_reasoning_replay_caches_from_reasoning_field():
+    ic = InterceptorRegistry.create("reasoning_replay")
+    resp = _resp(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "",
+                        "reasoning": "from-reasoning-field",
+                        "tool_calls": [
+                            {
+                                "id": "call_v",
+                                "type": "function",
+                                "function": {"name": "f", "arguments": "{}"},
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+    )
+    await ic.intercept_response(resp)
+    assert ic._get("|c:call_v") == "from-reasoning-field"
+
+
+async def test_reasoning_replay_native_skips_when_reasoning_field_set():
+    ic = InterceptorRegistry.create("reasoning_replay", {"mode": "native"})
+    await ic.intercept_response(_resp_with_tool_call("from-cache", "call_abc"))
+
+    msg = _assistant_with_tool_call("call_abc", content="x")
+    msg["reasoning"] = "agent-set"
+    req = _req({"messages": [msg]})
+    result = await ic.intercept_request(req)
+    assert result.body["messages"][0]["reasoning"] == "agent-set"
+    assert "reasoning_replay_hits" not in req.ctx.extra
+
+
+async def test_reasoning_replay_standalone_vllm_field_round_trip():
+    ic = InterceptorRegistry.create("reasoning_replay", {"mode": "native"})
+    resp = _resp(
+        {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "",
+                        "reasoning": "hidden chain",
+                        "tool_calls": [
+                            {
+                                "id": "call_abc",
+                                "type": "function",
+                                "function": {"name": "f", "arguments": "{}"},
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+    )
+    await ic.intercept_response(resp)
+
+    req = _req({"messages": [_assistant_with_tool_call("call_abc", content="x")]})
+    result = await ic.intercept_request(req)
+    assistant = result.body["messages"][0]
+    assert assistant["reasoning"] == "hidden chain"
+    assert assistant["reasoning_content"] == "hidden chain"
 
 
 async def test_reasoning_replay_native_skips_when_already_set():
