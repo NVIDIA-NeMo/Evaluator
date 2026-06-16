@@ -406,6 +406,9 @@ def _make_solver(
             max_tokens=gen.max_tokens if gen else None,
             max_concurrent=solver_cfg.max_concurrent,
             idle_timeout_seconds=solver_cfg.idle_timeout_seconds,
+            run_timeout=solver_cfg.run_timeout,
+            timeout_strategy=solver_cfg.timeout_strategy,
+            max_agent_timeout=solver_cfg.max_agent_timeout,
             config_path=solver_cfg.config_path,
             skip_preflight=solver_cfg.skip_preflight or uses_sandbox,
         )
