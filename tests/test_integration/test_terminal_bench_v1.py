@@ -30,6 +30,7 @@ from nemo_evaluator.benchmarks.terminal_bench_v1 import (
     TerminalBenchV1,
     _ensure_dataset,
     _find_tasks_dir,
+    _patch_word2vec_dataset_id,
 )
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.environments.harbor import HarborEnvironment
@@ -286,3 +287,37 @@ class TestTerminalBenchHardAASplit:
         env = TerminalBenchHardAASplit.__new__(TerminalBenchHardAASplit)
         result = await env.seed(0)
         assert result.metadata["category"] == "unsolvable"
+
+
+WORD2VEC_BAD_DOCKERFILE = """\
+FROM ghcr.io/laude-institute/t-bench/python-3-13:latest
+RUN pip install "datasets==2.21.0"
+RUN python -c "import os; from datasets import load_dataset; ds=load_dataset('wikitext','wikitext-2-v1')"
+WORKDIR /app
+"""
+
+
+class TestWord2vecDatasetPatch:
+    def _make_dockerfile(self, root: Path, text: str) -> Path:
+        env_dir = root / "word2vec-from-scratch" / "environment"
+        env_dir.mkdir(parents=True)
+        df = env_dir / "Dockerfile"
+        df.write_text(text)
+        return df
+
+    def test_namespaces_bare_wikitext_id(self, tmp_path):
+        df = self._make_dockerfile(tmp_path, WORD2VEC_BAD_DOCKERFILE)
+        _patch_word2vec_dataset_id(tmp_path)
+        text = df.read_text()
+        assert "load_dataset('Salesforce/wikitext','wikitext-2-v1')" in text
+        assert "load_dataset('wikitext'," not in text
+
+    def test_idempotent(self, tmp_path):
+        df = self._make_dockerfile(tmp_path, WORD2VEC_BAD_DOCKERFILE)
+        _patch_word2vec_dataset_id(tmp_path)
+        after_first = df.read_text()
+        _patch_word2vec_dataset_id(tmp_path)
+        assert df.read_text() == after_first
+
+    def test_noop_when_dockerfile_missing(self, tmp_path):
+        _patch_word2vec_dataset_id(tmp_path)  # no word2vec task dir → must not raise
