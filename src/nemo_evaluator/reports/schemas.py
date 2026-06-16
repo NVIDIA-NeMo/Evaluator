@@ -166,9 +166,7 @@ def _list_item_model(annotation: Any) -> type[BaseModel] | None:
     if origin is list and args:
         return _inner_model(args[0])
     # Optional[list[BaseModel]] — one level of Union unwrap
-    is_union = origin is typing.Union or (
-        hasattr(types, "UnionType") and isinstance(annotation, types.UnionType)
-    )
+    is_union = origin is typing.Union or (hasattr(types, "UnionType") and isinstance(annotation, types.UnionType))
     if is_union:
         for arg in args:
             result = _list_item_model(arg)
@@ -201,9 +199,7 @@ def fields_as_coverage_paths(
 
         if list_model is not None:
             result[label] = path
-            result.update(
-                fields_as_coverage_paths(list_model, _prefix=path + (0,), _label=f"{label}[0]")
-            )
+            result.update(fields_as_coverage_paths(list_model, _prefix=path + (0,), _label=f"{label}[0]"))
         elif inner is not None:
             result.update(fields_as_coverage_paths(inner, _prefix=path, _label=label))
         else:
