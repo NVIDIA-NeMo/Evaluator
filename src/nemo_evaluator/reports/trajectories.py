@@ -125,14 +125,14 @@ def _trial_key(row: dict[str, Any]) -> tuple[Any, Any]:
     return (row.get("problem_idx"), row.get("repeat"))
 
 
-def _count_present(items: list[dict[str, Any]], *keys: Any) -> int:
-    """How many items have a non-empty value at the given path.
+def _count_present(items: list[dict[str, Any]], *keys: Any) -> tuple[int, int]:
+    """Return (present, empty) counts along *keys* path across *items*.
 
-    Keys may be strings (dict lookup) or ints (list index). Counts when the
-    value is not None, not "", and not an empty list/dict -- so ``reward: 0.0``
-    counts but ``trajectory: []`` doesn't.
+    - present: non-None, non-"", non-empty-collection value found at path
+    - empty: path reachable but value is None / "" / [] / {}
+    Key not found anywhere along the path → neither bucket (truly absent).
     """
-    n = 0
+    present = empty = 0
     for item in items:
         cur: Any = item
         ok = True
@@ -150,24 +150,35 @@ def _count_present(items: list[dict[str, Any]], *keys: Any) -> int:
             else:
                 ok = False
                 break
-        if ok and cur is not None and cur != "" and not (isinstance(cur, (list, dict)) and not cur):
-            n += 1
-    return n
+        if not ok:
+            continue
+        if cur is not None and cur != "" and not (isinstance(cur, (list, dict)) and not cur):
+            present += 1
+        else:
+            empty += 1
+    return present, empty
 
 
 def _missing_fields(items: list[dict[str, Any]], paths: dict[str, tuple[Any, ...]]) -> list[dict[str, str]]:
-    """Return entries where fewer than all items carry the field, as ``{field, presence}``.
+    """Return entries where fewer than all items have a non-empty value at the field path.
 
-    A fully-populated field is silent: only gaps show up in the report.
+    Each entry includes ``presence`` (non-empty count), and ``empty`` when some
+    items have the key set to None / [] / {} rather than a real value — so callers
+    can distinguish a capture gap (truly absent) from an intentionally-empty field
+    (e.g. ``tool_calls: null`` on a text-only step).
+    A fully-populated field is silent.
     """
     total = len(items)
     if not total:
         return []
     out: list[dict[str, str]] = []
     for label, path in paths.items():
-        n = _count_present(items, *path)
-        if n < total:
-            out.append({"field": label, "presence": f"{n}/{total}"})
+        present, empty = _count_present(items, *path)
+        if present < total:
+            entry: dict[str, Any] = {"field": label, "presence": f"{present}/{total}"}
+            if empty:
+                entry["empty"] = empty
+            out.append(entry)
     return out
 
 
@@ -371,13 +382,11 @@ def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
             final_metrics_token_sum += fm_total
 
         per_step = sum(_step_tokens(s) for s in steps)
-        # Only flag a mismatch when both sides carry data; missing fm tokens
-        # are captured by problems_with_missing_final_metrics_tokens instead.
-        if per_step > 0 and fm_has_tokens and per_step != fm_total:
+        if per_step > 0 and per_step != fm_total:
             per_step_vs_fm_mismatch += 1
 
         wire_trial_total = sum(_wire_tokens(w) for w in trial_wire_rows)
-        if wire_trial_total > 0 and fm_has_tokens and wire_trial_total != fm_total:
+        if wire_trial_total > 0 and wire_trial_total != fm_total:
             wire_vs_fm_mismatch += 1
 
         # Last wire call: check if the chronologically last call ended with non-200

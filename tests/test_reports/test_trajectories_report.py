@@ -494,7 +494,7 @@ def test_non_200_by_status_empty_when_all_success(bundle: Path) -> None:
 
 
 def test_missing_final_metrics_tokens(tmp_path: Path) -> None:
-    """Trial with no final_metrics token fields → problems_with_missing_final_metrics_tokens=1, no mismatch."""
+    """Trial with no final_metrics token fields → problems_with_missing_final_metrics_tokens=1, wire mismatch fires."""
     bench = tmp_path / "pb"
     row = {
         "problem_idx": 0,
@@ -513,5 +513,5 @@ def test_missing_final_metrics_tokens(tmp_path: Path) -> None:
     _write_jsonl(bench / "model_traffic.jsonl", [_wire(0, 0, prompt=10, completion=5)])
     t = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["tokens_stats"]
     assert t["problems_with_missing_final_metrics_tokens"] == 1
-    assert t["problems_with_wire_vs_final_metrics_mismatch"] == 0
+    assert t["problems_with_wire_vs_final_metrics_mismatch"] == 1
     assert t["all_sources_match"] is False
