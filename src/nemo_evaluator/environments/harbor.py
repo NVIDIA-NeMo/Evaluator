@@ -703,11 +703,13 @@ class HarborEnvironment(EvalEnvironment):
         self,
         dataset_path: str | Path,
         num_examples: int | None = None,
+        keep_swebench_multilingual_hints: bool = True,
     ) -> None:
         super().__init__()
         self._dataset_path = Path(dataset_path)
         self._tasks: list[Path] = []
         self.name = self._dataset_path.name
+        self._keep_swebench_multilingual_hints = keep_swebench_multilingual_hints
         self._hints_strip_logged = False
 
         if not self._dataset_path.is_dir():
@@ -782,7 +784,7 @@ class HarborEnvironment(EvalEnvironment):
         # TODO: remove once harbor/adapters/swebench_multilingual/adapter.py
         # stops concatenating hints_text into instruction.md.
         hints_stripped = False
-        if _is_swebench_multilingual(self.name):
+        if _is_swebench_multilingual(self.name) and not self._keep_swebench_multilingual_hints:
             instruction, hints_stripped = _strip_swebench_hints_block(instruction)
             if hints_stripped and not self._hints_strip_logged:
                 logger.info(
