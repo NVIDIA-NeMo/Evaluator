@@ -19,14 +19,17 @@ Reads two files from each per-benchmark subdir of a run dir:
   trajectories.jsonl   -- one row per trial (rewards, ATIF trajectory)
   model_traffic.jsonl  -- one row per upstream model call
 
-Writes ``trajectories_report.json`` with four sections per benchmark:
+Writes ``trajectories_report.json`` with three sections per benchmark:
 
-  counts          -- trial / problem / repeat shape
-  score           -- mean(row.reward) vs the bundle's reported summary.mean
-  tokens          -- per-step token sum vs wire-call token sum
-  wire_calls      -- duplicates, step/wire alignment, silent-failure trials
-                     (step/wire alignment uses only successful 2xx/3xx rows)
-  field_coverage  -- ATIF / per-step fields that aren't 100% populated
+  trajectories    -- problem count, score, failures, Piotr-style quality
+                     checks (zero-token turns, missed metrics, clean/dirty),
+                     and field coverage
+  tokens_stats    -- per-step vs wire vs final_metrics token comparison;
+                     ``all_sources_match`` is True only when all three agree
+                     and no trial is missing final_metrics token fields
+  wire_calls      -- duplicates, step/wire alignment, non-200 calls (with
+                     status breakdown and one example body per code), last-
+                     call non-200, and silent-failure trials
 
 With ``enrich=True``, also writes ``trajectories_enriched.jsonl``: per-trial,
 when the agent-step count equals the wire-call count, step metrics are
@@ -47,6 +50,11 @@ from typing import Any
 from nemo_evaluator.reports.schemas import AgentStep, TrajectoryRow, fields_as_coverage_paths
 
 logger = logging.getLogger(__name__)
+
+# Coverage-path dicts derived from schemas so the report stays in sync
+# with the schema without manual duplication.
+_TRIAL_FIELDS = fields_as_coverage_paths(TrajectoryRow)
+_STEP_FIELDS = fields_as_coverage_paths(AgentStep)
 
 
 def _is_successful_wire(record: dict[str, Any]) -> bool:
@@ -163,14 +171,6 @@ def _missing_fields(items: list[dict[str, Any]], paths: dict[str, tuple[Any, ...
     return out
 
 
-def _fraction(numer: int, denom: int) -> str:
-    """Render ``N/total (P.P%)``; ``0/0 (0.0%)`` when the denominator is zero."""
-    if denom <= 0:
-        return "0/0 (0.0%)"
-    pct = 100.0 * numer / denom
-    return f"{numer}/{denom} ({pct:.1f}%)"
-
-
 def _index_traffic_by_trial(
     traffic_rows: list[dict[str, Any]],
     *,
@@ -183,10 +183,6 @@ def _index_traffic_by_trial(
         key = (r.get("problem_idx"), r.get("repeat"))
         bucket.setdefault(key, []).append(r)
     return bucket
-
-
-_TRIAL_FIELDS: dict[str, tuple[Any, ...]] = fields_as_coverage_paths(TrajectoryRow)
-_STEP_FIELDS: dict[str, tuple[Any, ...]] = fields_as_coverage_paths(AgentStep)
 
 
 def _step_tokens(s: dict[str, Any]) -> int:
@@ -217,12 +213,112 @@ def _repeats_summary(traj_rows: list[dict[str, Any]]) -> Any:
     return dict(Counter(counts.values()))
 
 
+def _zero_token_turn_count(agent_steps: list[dict[str, Any]]) -> int:
+    """Count turns where both input and completion tokens are zero.
+
+    Uses delta prompt_tokens between consecutive steps (Piotr-style), since
+    prompt_tokens may be cumulative in some solvers. When delta is negative,
+    falls back to the absolute prompt_tokens for that step.
+    """
+    previous_prompt: int | None = None
+    zero_count = 0
+    for step in agent_steps:
+        m = step.get("metrics") or {}
+        prompt_tokens = int(m.get("prompt_tokens") or 0)
+        completion_tokens = int(m.get("completion_tokens") or 0)
+        if previous_prompt is None:
+            input_tokens = prompt_tokens
+        else:
+            input_tokens = prompt_tokens - previous_prompt
+            if input_tokens < 0:
+                input_tokens = prompt_tokens
+        previous_prompt = prompt_tokens
+        if input_tokens == 0 and completion_tokens == 0:
+            zero_count += 1
+    return zero_count
+
+
+def _wire_error_summary(wire_rows: list[dict[str, Any]]) -> tuple[dict[str, int], dict[str, dict[str, Any]]]:
+    """Aggregate non-200 wire calls into a count-by-status dict and one example per code."""
+    by_status: Counter[str] = Counter()
+    examples: dict[str, dict[str, Any]] = {}
+    for r in wire_rows:
+        if not _is_successful_wire(r):
+            code = str(r.get("status_code", "unknown"))
+            by_status[code] += 1
+            if code not in examples:
+                examples[code] = {
+                    k: r[k]
+                    for k in ("status_code", "error_type", "latency_ms", "model", "path")
+                    if r.get(k) is not None
+                }
+    return dict(by_status), examples
+
+
+def _piotr_quality(agent_steps: list[dict[str, Any]]) -> dict[str, int]:
+    """Piotr-style trajectory quality checks over a list of agent steps.
+
+    Returns a dict with zero-token-turn counts, missed-metrics counts, and
+    clean/dirty/fully-zero problem counts (all treated as a single problem).
+    For multi-problem batches use ``_piotr_quality_aggregate`` instead.
+    """
+    ztt = _zero_token_turn_count(agent_steps)
+    missed = sum(1 for s in agent_steps if not s.get("metrics"))
+    has_no_steps = not agent_steps
+    has_zero = ztt > 0
+    return {
+        "zero_token_turns": ztt,
+        "missed_metrics": missed,
+        "has_no_agent_steps": has_no_steps,
+        "has_zero_token_turns": has_zero,
+        "is_fully_zero": bool(agent_steps) and ztt == len(agent_steps),
+        "is_clean": not has_no_steps and not has_zero,
+    }
+
+
+def _piotr_quality_aggregate(traj_rows: list[dict[str, Any]]) -> dict[str, int]:
+    """Aggregate Piotr quality checks across all trials in a benchmark."""
+    total_zero_token_turns = 0
+    total_missed_metrics = 0
+    problems_with_zero_token_turns = 0
+    problems_with_missed_metrics = 0
+    clean_problems = 0
+    dirty_problems = 0
+    fully_zero_problems = 0
+
+    for r in traj_rows:
+        steps = _agent_steps(r)
+        q = _piotr_quality(steps)
+        total_zero_token_turns += q["zero_token_turns"]
+        total_missed_metrics += q["missed_metrics"]
+        if q["has_zero_token_turns"]:
+            problems_with_zero_token_turns += 1
+        if q["missed_metrics"] > 0:
+            problems_with_missed_metrics += 1
+        if q["is_fully_zero"]:
+            fully_zero_problems += 1
+        if q["is_clean"]:
+            clean_problems += 1
+        else:
+            dirty_problems += 1
+
+    return {
+        "clean_problems": clean_problems,
+        "dirty_problems": dirty_problems,
+        "fully_zero_problems": fully_zero_problems,
+        "problems_with_zero_token_turns": problems_with_zero_token_turns,
+        "problems_with_missed_metrics": problems_with_missed_metrics,
+        "total_zero_token_turns": total_zero_token_turns,
+        "total_missed_metrics": total_missed_metrics,
+    }
+
+
 def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
     traj_rows = _read_jsonl(bench_dir / "trajectories.jsonl")
     traffic_rows = _read_jsonl(bench_dir / "model_traffic.jsonl")
     traffic_by_trial = _index_traffic_by_trial(traffic_rows)
+    traffic_by_trial_all = _index_traffic_by_trial(traffic_rows, only_successful=False)
 
-    n_trials = len(traj_rows)
     n_problems = len({r.get("problem_idx") for r in traj_rows if r.get("problem_idx") is not None})
 
     rewards = [r["reward"] for r in traj_rows if isinstance(r.get("reward"), (int, float))]
@@ -233,9 +329,14 @@ def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
     # Single pass over traj_rows: collect everything per-trial needs.
     all_agent_steps: list[dict[str, Any]] = []
     failures: Counter[str] = Counter()
-    trials_more_wire = trials_fewer_wire = 0
-    trials_no_steps = trials_no_wire = trials_silent = 0
+    problems_more_wire = problems_fewer_wire = 0
+    problems_no_steps = problems_no_wire = problems_silent = 0
     per_step_vs_fm_mismatch = 0
+    wire_vs_fm_mismatch = 0
+    problems_missing_fm_tokens = 0
+    final_metrics_token_sum = 0
+    problems_with_last_wire_non_200 = 0
+
     for r in traj_rows:
         steps = _agent_steps(r)
         all_agent_steps.extend(steps)
@@ -245,64 +346,102 @@ def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
             failures[cat] += 1
 
         step_n = len(steps)
-        wire_n = len(traffic_by_trial.get(_trial_key(r), []))
+        trial_wire_rows = traffic_by_trial.get(_trial_key(r), [])
+        wire_n = len(trial_wire_rows)
         if wire_n > step_n:
-            trials_more_wire += 1
+            problems_more_wire += 1
         elif wire_n < step_n:
-            trials_fewer_wire += 1
+            problems_fewer_wire += 1
         if step_n == 0:
-            trials_no_steps += 1
+            problems_no_steps += 1
         if wire_n == 0:
-            trials_no_wire += 1
+            problems_no_wire += 1
         if step_n == 0 or wire_n == 0:
-            trials_silent += 1
+            problems_silent += 1
+
+        fm = ((r.get("trajectory") or [{}])[0]).get("final_metrics") or {}
+        fm_prompt = fm.get("total_prompt_tokens")
+        fm_completion = fm.get("total_completion_tokens")
+        fm_has_tokens = fm_prompt is not None or fm_completion is not None
+        fm_total = int(fm_prompt or 0) + int(fm_completion or 0)
+
+        if not fm_has_tokens:
+            problems_missing_fm_tokens += 1
+        else:
+            final_metrics_token_sum += fm_total
 
         per_step = sum(_step_tokens(s) for s in steps)
-        fm = ((r.get("trajectory") or [{}])[0]).get("final_metrics") or {}
-        fm_total = int(fm.get("total_prompt_tokens") or 0) + int(fm.get("total_completion_tokens") or 0)
-        if (per_step or fm_total) and per_step != fm_total:
+        # Only flag a mismatch when both sides carry data; missing fm tokens
+        # are captured by problems_with_missing_final_metrics_tokens instead.
+        if per_step > 0 and fm_has_tokens and per_step != fm_total:
             per_step_vs_fm_mismatch += 1
+
+        wire_trial_total = sum(_wire_tokens(w) for w in trial_wire_rows)
+        if wire_trial_total > 0 and fm_has_tokens and wire_trial_total != fm_total:
+            wire_vs_fm_mismatch += 1
+
+        # Last wire call: check if the chronologically last call ended with non-200
+        all_trial_wire = traffic_by_trial_all.get(_trial_key(r), [])
+        if all_trial_wire and not _is_successful_wire(all_trial_wire[-1]):
+            problems_with_last_wire_non_200 += 1
 
     per_step_token_sum = sum(_step_tokens(s) for s in all_agent_steps)
     wire_token_sum = sum(_wire_tokens(r) for r in traffic_rows)
 
     # Wire dedup: how many trials had ≥1 dup, and the unique count overall.
-    trials_with_dup_wire = 0
+    problems_with_dup_wire = 0
     for recs in traffic_by_trial.values():
         keys = Counter(_wire_dedup_key(r, i) for i, r in enumerate(recs))
         if any(v > 1 for v in keys.values()):
-            trials_with_dup_wire += 1
+            problems_with_dup_wire += 1
     wire_unique = len({_wire_dedup_key(r, i) for i, r in enumerate(traffic_rows)})
 
-    return {
+    non_200_by_status, non_200_examples = _wire_error_summary(traffic_rows)
+
+    all_sources_match = (
+        per_step_vs_fm_mismatch == 0 and wire_vs_fm_mismatch == 0 and problems_missing_fm_tokens == 0
+    )
+
+    report: dict[str, Any] = {
         "bench": bench_name,
-        "counts": {"trials": n_trials, "problems": n_problems, "repeats": _repeats_summary(traj_rows)},
-        "score": {
+        "trajectories": {
+            "problems": n_problems,
+            "repeats": _repeats_summary(traj_rows),
             "mean_reward": traj_mean,
             "reported_mean": reported_mean,
             "failures_by_category": dict(failures),
+            "quality": _piotr_quality_aggregate(traj_rows),
+            "field_coverage": {
+                "per_trial_missing": _missing_fields(traj_rows, _TRIAL_FIELDS),
+                "per_agent_step_missing": _missing_fields(all_agent_steps, _STEP_FIELDS),
+            },
         },
-        "tokens": {
+        "tokens_stats": {
             "per_step_sum": per_step_token_sum,
             "wire_total": wire_token_sum,
-            "trials_with_per_step_vs_final_metrics_mismatch": per_step_vs_fm_mismatch,
+            "final_metrics_total": final_metrics_token_sum,
+            "problems_with_missing_final_metrics_tokens": problems_missing_fm_tokens,
+            "problems_with_per_step_vs_final_metrics_mismatch": per_step_vs_fm_mismatch,
+            "problems_with_wire_vs_final_metrics_mismatch": wire_vs_fm_mismatch,
+            "all_sources_match": all_sources_match,
         },
         "wire_calls": {
             "total": len(traffic_rows),
             "successful": sum(1 for r in traffic_rows if _is_successful_wire(r)),
+            "non_200": sum(1 for r in traffic_rows if not _is_successful_wire(r)),
+            "non_200_by_status": non_200_by_status,
+            "non_200_examples": non_200_examples,
             "unique": wire_unique,
-            "trials_with_duplicates": trials_with_dup_wire,
-            "trials_with_more_wire_than_steps": trials_more_wire,
-            "trials_with_fewer_wire_than_steps": trials_fewer_wire,
-            "trials_with_no_agent_steps": _fraction(trials_no_steps, n_trials),
-            "trials_with_no_wire_calls": _fraction(trials_no_wire, n_trials),
-            "trials_silent_either_way": _fraction(trials_silent, n_trials),
-        },
-        "field_coverage": {
-            "per_trial_missing": _missing_fields(traj_rows, _TRIAL_FIELDS),
-            "per_agent_step_missing": _missing_fields(all_agent_steps, _STEP_FIELDS),
+            "problems_with_duplicates": problems_with_dup_wire,
+            "problems_with_more_wire_than_steps": problems_more_wire,
+            "problems_with_fewer_wire_than_steps": problems_fewer_wire,
+            "problems_with_no_agent_steps": problems_no_steps,
+            "problems_with_no_wire_calls": problems_no_wire,
+            "problems_silent_either_way": problems_silent,
+            "problems_with_last_wire_non_200": problems_with_last_wire_non_200,
         },
     }
+    return report
 
 
 def _enrich_bench(bench_dir: Path) -> dict[str, int]:
@@ -444,10 +583,9 @@ def generate_trajectories_report(
         bench_report = _build_bench_report(d.name, d)
         if enrich:
             counts = _enrich_bench(d)
-            enriched_steps: list[dict[str, Any]] = []
             enriched_path = d / "trajectories_enriched.jsonl"
-            if enriched_path.is_file():
-                enriched_steps = [s for r in _read_jsonl(enriched_path) for s in _agent_steps(r)]
+            enriched_rows = _read_jsonl(enriched_path) if enriched_path.is_file() else []
+            enriched_steps = [s for r in enriched_rows for s in _agent_steps(r)]
             bench_report["enrichment"] = {
                 "trials_spliced_1_to_1": counts["trials_spliced"],
                 "trials_with_unmatched_calls_stashed": counts["trials_stashed_unmatched"],
@@ -467,11 +605,13 @@ def generate_trajectories_report(
                     "message": counts["steps_backfilled_message"],
                     "tool_calls": counts["steps_backfilled_tool_calls"],
                 },
+                "quality": _piotr_quality_aggregate(enriched_rows),
+                "per_step_sum_after_enrichment": sum(_step_tokens(s) for s in enriched_steps),
                 "step_field_coverage_after_enrichment_missing": _missing_fields(
                     enriched_steps,
                     {
-                        ".".join(p): p
-                        for p in (
+                        ".".join(str(p) for p in path): path
+                        for path in (
                             ("timestamp",),
                             ("model_name",),
                             ("status_code",),
