@@ -27,6 +27,7 @@ from nemo_evaluator.adapters.types import (
     AdapterResponse,
     RequestToResponseInterceptor,
 )
+from nemo_evaluator.completions_guard import enforce_text_completions_body
 from nemo_evaluator.observability.model_traffic import get_store
 
 logger = logging.getLogger(__name__)
@@ -144,6 +145,7 @@ class Interceptor(RequestToResponseInterceptor):
         url = f"{self._upstream_url}{req.path}"
 
         body = {**req.body, **self._extra_body}
+        enforce_text_completions_body(req.path, body)
         # Capture the effective upstream request, including endpoint-level
         # body overrides, before sending it.
         self._request_stream_usage_chunks(req.path, body)
