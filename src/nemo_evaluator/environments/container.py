@@ -108,8 +108,9 @@ def build_legacy_run_config(
     if api_key:
         api_endpoint["api_key_name"] = _API_KEY_ENV
     # Chat-template controls are inert on a text-completions endpoint and would
-    # silently leave reasoning enabled; strip (or reject under strict mode)
-    # before the container's in-process adapter ever sees them.
+    # silently leave reasoning enabled; reject a boolean toggle (or strip other
+    # fields) before the container's in-process adapter ever sees them, unless
+    # NEMO_EVALUATOR_ALLOW_COMPLETIONS_CHAT_TEMPLATE downgrades it to a warning.
     adapter_config = normalize_adapter_config_for_endpoint(adapter_config, endpoint_type)
     if adapter_config:
         api_endpoint["adapter_config"] = adapter_config
