@@ -398,9 +398,7 @@ def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
 
     non_200_by_status, non_200_examples = _wire_error_summary(traffic_rows)
 
-    all_sources_match = (
-        per_step_vs_fm_mismatch == 0 and wire_vs_fm_mismatch == 0 and problems_missing_fm_tokens == 0
-    )
+    all_sources_match = per_step_vs_fm_mismatch == 0 and wire_vs_fm_mismatch == 0 and problems_missing_fm_tokens == 0
 
     report: dict[str, Any] = {
         "bench": bench_name,

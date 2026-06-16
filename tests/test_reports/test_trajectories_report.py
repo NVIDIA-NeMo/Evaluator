@@ -393,9 +393,7 @@ def test_non_uniform_repeats_returns_histogram(tmp_path: Path) -> None:
         ],
     )
     _write_jsonl(bench / "model_traffic.jsonl", [])
-    repeats = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["trajectories"][
-        "repeats"
-    ]
+    repeats = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["trajectories"]["repeats"]
     # Histogram (json keys are strings): 1 problem with 2 trials, 1 problem with 1 trial
     assert repeats == {"2": 1, "1": 1}
 
@@ -418,10 +416,17 @@ def test_quality_checks_zero_token_turn(tmp_path: Path) -> None:
     bench = tmp_path / "pb"
     _write_jsonl(
         bench / "trajectories.jsonl",
-        [_trial(0, 0, reward=1.0, steps=[
-            _agent_step(0, msg="x", pt=10, ct=5),
-            _agent_step(1, msg="y", pt=10, ct=0),  # same prompt_tokens, delta=0, ct=0 → zero turn
-        ])],
+        [
+            _trial(
+                0,
+                0,
+                reward=1.0,
+                steps=[
+                    _agent_step(0, msg="x", pt=10, ct=5),
+                    _agent_step(1, msg="y", pt=10, ct=0),  # same prompt_tokens, delta=0, ct=0 → zero turn
+                ],
+            )
+        ],
     )
     _write_jsonl(bench / "model_traffic.jsonl", [])
     q = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["trajectories"]["quality"]
