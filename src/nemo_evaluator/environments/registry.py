@@ -173,9 +173,16 @@ def _make_harbor(rest: str, **kwargs: Any) -> "EvalEnvironment":
         if not dataset_path.is_dir():
             raise KeyError(f"Harbor dataset {rest!r} not found in registry and {dataset_path} does not exist on disk.")
 
+    params = kwargs.get("params") or {}
+    keep_hints = params.get("keep_swebench_multilingual_hints", True)
+    if not isinstance(keep_hints, bool):
+        raise TypeError(
+            f"keep_swebench_multilingual_hints must be a bool, got {type(keep_hints).__name__}: {keep_hints!r}"
+        )
     return HarborEnvironment(
         dataset_path=dataset_path,
         num_examples=kwargs.get("num_examples"),
+        keep_swebench_multilingual_hints=keep_hints,
     )
 
 
