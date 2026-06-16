@@ -152,6 +152,52 @@ def test_make_harbor_dispatch_pre_staged(tmp_path, monkeypatch, uri, expected_ca
     assert env.name == expected_cache_subdir
 
 
+@pytest.mark.parametrize(
+    "params, expected_keep_hints",
+    [
+        (None, True),
+        ({}, True),
+        ({"keep_swebench_multilingual_hints": False}, False),
+        ({"keep_swebench_multilingual_hints": True}, True),
+    ],
+    ids=["no_params", "empty_params", "explicit_false", "explicit_true"],
+)
+def test_make_harbor_forwards_keep_hints_param(tmp_path, monkeypatch, params, expected_keep_hints):
+    """`_make_harbor` threads the ``keep_swebench_multilingual_hints`` param into the env."""
+    datasets_dir = tmp_path / "harbor_datasets"
+    pre_staged = datasets_dir / "swebench_multilingual@1.0"
+    pre_staged.mkdir(parents=True)
+    (pre_staged / "task-a").mkdir()
+    (pre_staged / "task-a" / "instruction.md").write_text("Do something")
+
+    monkeypatch.setenv("HARBOR_DATASETS_DIR", str(datasets_dir))
+    monkeypatch.setenv("HARBOR_REGISTRY", str(_write_base(tmp_path, [])))
+    monkeypatch.setenv("HARBOR_REGISTRY_OVERRIDE_DIR", str(tmp_path / "no-overrides"))
+
+    kwargs = {} if params is None else {"params": params}
+    env = _make_harbor("swebench_multilingual@1.0", **kwargs)
+    assert env._keep_swebench_multilingual_hints is expected_keep_hints
+
+
+@pytest.mark.parametrize(
+    "bad_value", ["false", "true", 1, 0, None], ids=["str_false", "str_true", "int_1", "int_0", "none"]
+)
+def test_make_harbor_rejects_non_bool_keep_hints(tmp_path, monkeypatch, bad_value):
+    """A non-bool ``keep_swebench_multilingual_hints`` fails fast (no truthiness coercion)."""
+    datasets_dir = tmp_path / "harbor_datasets"
+    pre_staged = datasets_dir / "swebench_multilingual@1.0"
+    pre_staged.mkdir(parents=True)
+    (pre_staged / "task-a").mkdir()
+    (pre_staged / "task-a" / "instruction.md").write_text("Do something")
+
+    monkeypatch.setenv("HARBOR_DATASETS_DIR", str(datasets_dir))
+    monkeypatch.setenv("HARBOR_REGISTRY", str(_write_base(tmp_path, [])))
+    monkeypatch.setenv("HARBOR_REGISTRY_OVERRIDE_DIR", str(tmp_path / "no-overrides"))
+
+    with pytest.raises(TypeError, match="keep_swebench_multilingual_hints must be a bool"):
+        _make_harbor("swebench_multilingual@1.0", params={"keep_swebench_multilingual_hints": bad_value})
+
+
 def test_local_override_dir_prefers_in_package_over_repo_root(tmp_path, monkeypatch):
     """Wheel installs ship the override dir as a package sibling.
 
