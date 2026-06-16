@@ -20,14 +20,19 @@ from unittest.mock import patch
 import pytest
 
 from nemo_evaluator.benchmarks.terminal_bench_hard import (
+    _TB_HARD_AA_SPLIT_TASKS,
+    _TB_HARD_AA_SPLIT_UNSOLVABLE,
     _TB_HARD_TASKS,
     TerminalBenchHard,
+    TerminalBenchHardAASplit,
 )
 from nemo_evaluator.benchmarks.terminal_bench_v1 import (
     TerminalBenchV1,
     _ensure_dataset,
     _find_tasks_dir,
 )
+from nemo_evaluator.environments.base import SeedResult
+from nemo_evaluator.environments.harbor import HarborEnvironment
 
 MINIMAL_TASK_YAML = """\
 instruction: "Do something useful"
@@ -244,3 +249,40 @@ class TestTerminalBenchHard:
         assert "aimo-airline-departures" in task_names
         assert "blind-maze-explorer-5x5" in task_names
         assert "unknown-task" not in task_names
+
+
+class TestTerminalBenchHardAASplit:
+    def test_registered_as_builtin(self):
+        from nemo_evaluator.environments.registry import _REGISTRY
+
+        assert "terminal-bench-hard-aa-split" in _REGISTRY
+        assert _REGISTRY["terminal-bench-hard-aa-split"] is TerminalBenchHardAASplit
+
+    def test_task_list_has_44_entries(self):
+        assert len(_TB_HARD_AA_SPLIT_TASKS) == 44
+
+    def test_unsolvable_is_subset_of_split(self):
+        # Guard against typos / drift: an "unsolvable" id that is not a real
+        # AA-split task would silently never match and mislabel the breakdown.
+        assert _TB_HARD_AA_SPLIT_UNSOLVABLE <= _TB_HARD_AA_SPLIT_TASKS
+        assert len(_TB_HARD_AA_SPLIT_UNSOLVABLE) == 4
+
+    def test_subset_category_buckets_tasks(self):
+        assert TerminalBenchHardAASplit._subset_category("make-doom-for-mips") == "unsolvable"
+        assert TerminalBenchHardAASplit._subset_category("run-pdp11-code") == "unsolvable"
+        assert TerminalBenchHardAASplit._subset_category("aimo-airline-departures") == "solvable"
+        assert TerminalBenchHardAASplit._subset_category("play-zork") == "solvable"
+
+    def test_base_benchmark_leaves_category_unset(self):
+        # The 47-task variant declares no unsolvable set, so it must not tag a
+        # category (preserves existing behavior; no spurious breakdown).
+        assert TerminalBenchHard._subset_category("make-doom-for-mips") is None
+
+    async def test_seed_tags_category(self, monkeypatch):
+        async def fake_seed(self, idx):
+            return SeedResult(prompt="x", expected_answer="", metadata={"task_id": "make-doom-for-mips"})
+
+        monkeypatch.setattr(HarborEnvironment, "seed", fake_seed)
+        env = TerminalBenchHardAASplit.__new__(TerminalBenchHardAASplit)
+        result = await env.seed(0)
+        assert result.metadata["category"] == "unsolvable"

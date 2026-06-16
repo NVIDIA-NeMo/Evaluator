@@ -32,6 +32,7 @@ import logging
 from pathlib import Path
 
 from nemo_evaluator.benchmarks.terminal_bench_v1 import _ensure_dataset
+from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.environments.harbor import HarborEnvironment
 from nemo_evaluator.environments.registry import register
 
@@ -98,6 +99,11 @@ class TerminalBenchHard(HarborEnvironment):
 
     _TASK_SET: frozenset[str] = _TB_HARD_TASKS
     _LABEL: str = "terminal-bench-hard"
+    # Tasks that fail even under the oracle solver — infra / task / upstream caps,
+    # not model capability. When non-empty, ``seed`` tags each task's ``category``
+    # as "solvable"/"unsolvable" so the standard category breakdown surfaces both
+    # subset accuracies alongside the full headline. Empty here; subsets opt in.
+    _UNSOLVABLE_TASKS: frozenset[str] = frozenset()
 
     def __init__(self, num_examples: int | None = None) -> None:
         dataset_path = _ensure_dataset()
@@ -119,6 +125,21 @@ class TerminalBenchHard(HarborEnvironment):
         if num_examples is not None:
             tasks = tasks[:num_examples]
         return tasks
+
+    @classmethod
+    def _subset_category(cls, task_id: str) -> str | None:
+        """Solvable/unsolvable bucket for ``task_id``; None when the benchmark
+        declares no unsolvable tasks (leaves ``category`` unset)."""
+        if not cls._UNSOLVABLE_TASKS:
+            return None
+        return "unsolvable" if task_id in cls._UNSOLVABLE_TASKS else "solvable"
+
+    async def seed(self, idx: int) -> SeedResult:
+        result = await super().seed(idx)
+        category = self._subset_category(result.metadata.get("task_id", ""))
+        if category is not None:
+            result.metadata["category"] = category
+        return result
 
 
 # AA-split — 44-task subset used by the AA scoring pipeline.
@@ -172,9 +193,24 @@ _TB_HARD_AA_SPLIT_TASKS: frozenset[str] = frozenset(
 )
 
 
+# AA-split tasks that fail even under the oracle solver — known infra/task/upstream
+# caps (oracle KNOWN_FAILURES; see FEVPR-175), not model capability. Tagged as the
+# "unsolvable" category so the "solvable"-subset accuracy is reported alongside the
+# full headline.
+_TB_HARD_AA_SPLIT_UNSOLVABLE: frozenset[str] = frozenset(
+    {
+        "feal-differential-cryptanalysis",
+        "install-windows-xp",
+        "make-doom-for-mips",
+        "run-pdp11-code",
+    }
+)
+
+
 @register("terminal-bench-hard-aa-split")
 class TerminalBenchHardAASplit(TerminalBenchHard):
     """Terminal-Bench Hard AA-split — 44-task subset for AA scoring."""
 
     _TASK_SET: frozenset[str] = _TB_HARD_AA_SPLIT_TASKS
     _LABEL: str = "terminal-bench-hard-aa-split"
+    _UNSOLVABLE_TASKS: frozenset[str] = _TB_HARD_AA_SPLIT_UNSOLVABLE
