@@ -151,9 +151,7 @@ def test_body_chat_template_string_strips_not_fails(caplog: pytest.LogCaptureFix
     ],
     ids=["nested-dict", "nested-list"],
 )
-def test_body_strips_nested_fields_when_allowed(
-    body: dict, expected: dict, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_body_strips_nested_fields_when_allowed(body: dict, expected: dict, caplog: pytest.LogCaptureFixture) -> None:
     # Recursive stripping: with the allow opt-out, nested boolean toggles are
     # removed everywhere they were detected (not just at the top level).
     with caplog.at_level(logging.WARNING, logger="nemo_evaluator.completions_guard"):
