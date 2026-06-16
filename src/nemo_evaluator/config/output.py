@@ -25,10 +25,11 @@ class TrajectoriesConfig(BaseModel):
     """Configuration for the trajectories audit/enrichment report.
 
     The audit report (``trajectories_report.json``) is emitted unconditionally
-    by the orchestrator finalize step when ``trajectories.jsonl`` exists. The
-    optional ``enrich`` flag is reserved for splicing ``model_traffic.jsonl``
-    captures into per-trial trajectories; it is wired in but the writer is
-    not yet implemented (audit-only release).
+    by the orchestrator finalize step when ``trajectories.jsonl`` exists.
+    When ``enrich=True``, also writes ``trajectories_enriched.jsonl``: per-trial
+    step metrics are backfilled 1:1 from matching ``model_traffic.jsonl`` wire
+    calls when counts align, otherwise all wire calls land in
+    ``trajectory[0].extra.captured_model_calls``.
     """
 
     model_config = ConfigDict(extra="forbid")
