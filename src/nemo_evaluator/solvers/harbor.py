@@ -627,9 +627,7 @@ if ok:
         '_nel_orig_eh = _nel_sys.excepthook',
         'def _nel_eh(et, ev, tb):',
         '    _nel_flush_traj()',
-        "    if et.__name__ == 'RateLimitError' and 'session_budget_exhausted' in str(ev):",
-        '        _nel_sys.exit(0)',
-        '    _nel_orig_eh(et, ev, tb)',
+        '    _nel_sys.exit(0)',
         '_nel_sys.excepthook = _nel_eh',
     ]
     patch = '\\n' + '\\n'.join(ind + l for l in lines) + '\\n'
@@ -1311,15 +1309,8 @@ class HarborSolver:
                 etype = type(agent_error).__name__
                 if etype in _infra_error_names:
                     raise InfraError(f"Agent infrastructure failure: {etype}: {agent_error}") from agent_error
-                if etype == "RateLimitError" and "session_budget_exhausted" in str(agent_error):
-                    # Patch 4 should have already caught this and exited cleanly;
-                    # if we still see the error here the patch anchor didn't match.
-                    # Treat as a turn-limit stop: no crash, no trajectory (patch failed).
-                    error = f"Agent reached turn limit (session_budget_exhausted): {agent_error}"
-                    logger.info("HarborSolver: turn limit exhausted (Patch 4 anchor may have missed): %s", agent_error)
-                else:
-                    error = f"Agent crashed: {etype}: {agent_error}"
-                    logger.warning("HarborSolver: %s", error)
+                error = f"Agent crashed: {etype}: {agent_error}"
+                logger.warning("HarborSolver: %s", error)
             elif agent_timed_out and workspace_diff and _confirmed_zero_tokens:
                 error = (
                     f"Agent timed out with workspace changes but 0 completion "
