@@ -156,16 +156,21 @@ _NEL_FLUSH_DEBUG_LATEST = Path("/tmp/nel_flush_debug_latest.txt")
 
 
 def _log_nel_flush_debug(agent_logs_dir: Path) -> None:
-    """Read nel_flush_debug.txt written by Patch 4, log it, and copy to a fixed path."""
-    dbg = agent_logs_dir / "nel_flush_debug.txt"
-    if dbg.exists():
-        content = dbg.read_text().strip()
-        if content:
-            logger.info("Patch4 flush debug:\n%s", content)
-            try:
-                _NEL_FLUSH_DEBUG_LATEST.write_text(content)
-            except Exception:
-                pass
+    """Read Patch 4 debug files, log them, and copy to a fixed path."""
+    parts = []
+    patch_result = agent_logs_dir / "nel_patch4_result.txt"
+    flush_debug = agent_logs_dir / "nel_flush_debug.txt"
+    if patch_result.exists():
+        parts.append("=== patch4 result ===\n" + patch_result.read_text().strip())
+    if flush_debug.exists():
+        parts.append("=== flush debug ===\n" + flush_debug.read_text().strip())
+    if parts:
+        combined = "\n".join(parts)
+        logger.info("Patch4 debug:\n%s", combined)
+        try:
+            _NEL_FLUSH_DEBUG_LATEST.write_text(combined)
+        except Exception:
+            pass
 
 
 async def _download_agent_logs(
@@ -255,7 +260,9 @@ async def _download_agent_logs_inner(
             pass
 
 
-async def _patch_openhands_sdk(sandbox: "Sandbox", *, cmd_timeout: float | None = None) -> None:
+async def _patch_openhands_sdk(
+    sandbox: "Sandbox", *, cmd_timeout: float | None = None, debug_dir: Path | None = None
+) -> None:
     """Apply runtime patches to the OpenHands SDK inside the sandbox.
 
     1. **Prevent premature FINISHED on text-only responses** — when the
@@ -671,6 +678,14 @@ print(f'budget_flush={ok}')
             r4.return_code,
             stdout4 or (r4.stderr or "")[:300],
         )
+    if debug_dir is not None:
+        try:
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            (debug_dir / "nel_patch4_result.txt").write_text(
+                f"rc={r4.return_code}\n{stdout4}\n"
+            )
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -1209,7 +1224,7 @@ class HarborSolver:
             await agent.setup(adapter)
 
             if self._harbor_agent.lower() == "openhands-sdk":
-                await _patch_openhands_sdk(sandbox, cmd_timeout=self._cmd_timeout)
+                await _patch_openhands_sdk(sandbox, cmd_timeout=self._cmd_timeout, debug_dir=agent_logs_dir)
 
             context = AgentContext()
 
