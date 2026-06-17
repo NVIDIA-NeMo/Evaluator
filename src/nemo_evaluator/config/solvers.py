@@ -168,6 +168,30 @@ class OpenClawSolverConfig(BaseModel):
     context_window: int | None = None
     max_concurrent: int = 4
     idle_timeout_seconds: int = 600
+    run_timeout: float | None = Field(
+        default=None,
+        description=(
+            "NEL wall-clock timeout (seconds) for the OpenClaw agent on a "
+            "task. Used as the NEL timeout when resolving against a task's "
+            "own timeout_seconds via timeout_strategy. Defaults to the "
+            "benchmark timeout when unset."
+        ),
+    )
+    timeout_strategy: Literal["override", "task", "max"] = Field(
+        default="task",
+        description=(
+            "How to resolve the agent timeout against a task's own "
+            "timeout_seconds. 'task' (default): the task budget bounded by "
+            "the NEL timeout (min) — preserves prior behavior. 'override': "
+            "the NEL run_timeout always wins, ignoring the task budget (use "
+            "for slow models / degraded endpoints). 'max': the larger of NEL "
+            "and task timeout."
+        ),
+    )
+    max_agent_timeout: float | None = Field(
+        default=None,
+        description="Hard ceiling (seconds) on the resolved agent timeout, regardless of strategy.",
+    )
     web_search_provider: Literal["tavily"] | None = None
     config_path: str | None = None
     skip_preflight: bool = False
