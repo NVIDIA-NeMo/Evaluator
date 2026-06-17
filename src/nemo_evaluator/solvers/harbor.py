@@ -159,11 +159,18 @@ def _log_nel_flush_debug(agent_logs_dir: Path) -> None:
     """Read Patch 4 debug files, log them, and copy to a fixed path."""
     parts = []
     patch_result = agent_logs_dir / "nel_patch4_result.txt"
+    setup_ran = agent_logs_dir / "nel_setup_ran.txt"
     flush_debug = agent_logs_dir / "nel_flush_debug.txt"
     if patch_result.exists():
         parts.append("=== patch4 result ===\n" + patch_result.read_text().strip())
+    if setup_ran.exists():
+        parts.append("=== setup ran ===\n" + setup_ran.read_text().strip())
+    else:
+        parts.append("=== setup ran === MISSING — injected code never executed")
     if flush_debug.exists():
         parts.append("=== flush debug ===\n" + flush_debug.read_text().strip())
+    else:
+        parts.append("=== flush debug === MISSING — atexit/excepthook never fired")
     if parts:
         combined = "\n".join(parts)
         logger.info("Patch4 debug:\n%s", combined)
@@ -591,6 +598,11 @@ print(f'anchor={repr(old)} ind={repr(ind)} already={already} ok={ok}')
 
 if ok:
     lines = [
+        # immediate write — proves injected code runs before conversation.run()
+        'import os as _nel_os_early, sys as _nel_sys_early',
+        '_nel_os_early.makedirs("/logs/agent", exist_ok=True)',
+        'open("/logs/agent/nel_setup_ran.txt", "w").write("setup ran\\n")',
+        'print("[NEL setup] patch code executing", flush=True)',
         # capture refs before run() is called
         '_nel_conv_ref = conversation',
         '_nel_llm_ref = llm',
