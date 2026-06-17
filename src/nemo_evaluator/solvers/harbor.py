@@ -152,13 +152,20 @@ def _ensure_claude_host_env(api_key: str, base_url: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+_NEL_FLUSH_DEBUG_LATEST = Path("/tmp/nel_flush_debug_latest.txt")
+
+
 def _log_nel_flush_debug(agent_logs_dir: Path) -> None:
-    """Read nel_flush_debug.txt written by Patch 4 and emit it via logger."""
+    """Read nel_flush_debug.txt written by Patch 4, log it, and copy to a fixed path."""
     dbg = agent_logs_dir / "nel_flush_debug.txt"
     if dbg.exists():
         content = dbg.read_text().strip()
         if content:
             logger.info("Patch4 flush debug:\n%s", content)
+            try:
+                _NEL_FLUSH_DEBUG_LATEST.write_text(content)
+            except Exception:
+                pass
 
 
 async def _download_agent_logs(
