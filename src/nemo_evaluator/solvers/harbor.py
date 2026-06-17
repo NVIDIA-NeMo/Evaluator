@@ -583,6 +583,24 @@ import sys
 p = '/installed-agent/run_agent.py'
 c = open(p).read()
 
+# Sanity-check anchor: top of main() — if a print here doesn't appear in
+# openhands_sdk.txt the patched file is not being executed at all.
+main_anchor = main_ind = None
+for line in c.splitlines():
+    s = line.lstrip()
+    if s.startswith('parser = argparse.ArgumentParser('):
+        main_anchor = line
+        main_ind = line[: len(line) - len(s)]
+        break
+if main_anchor and '_nel_main_probe' not in c:
+    probe = main_ind + 'print("[NEL main-probe] patched run_agent.py is running", flush=True)\\n'
+    c = c.replace(main_anchor, probe + main_anchor, 1)
+    open(p, 'w').write(c)
+    print(f'main_probe inserted at {repr(main_anchor[:60])}')
+    c = open(p).read()  # reload for next patch
+else:
+    print(f'main_probe skip: anchor={main_anchor is not None} already={repr("_nel_main_probe" in c)}')
+
 # Find 'conversation.send_message(' — executes before run(), so our setup
 # code runs even if run() raises.
 old = ind = None
