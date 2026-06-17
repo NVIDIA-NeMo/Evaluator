@@ -974,6 +974,116 @@ def _patch_terminus_tmux_send_keys() -> None:
     logger.info("Applied Harbor terminus-2 tmux send-keys UTF-8 byte-length patch")
 
 
+_TERMINUS_CLE_RESET_PATCHED = False
+
+_TERMINUS_CLE_RESET_REPLACEMENTS = [
+    (
+        "            summary_prompt = None\n            # Fallback 1: Try full summary\n",
+        "            summary_prompt = None\n"
+        "            full_summarize_failed_with_cle = False\n"
+        "            # Fallback 1: Try full summary\n",
+    ),
+    (
+        "            except Exception as e:\n"
+        '                self.logger.debug(f"SUMMARIZATION: Full summary failed: {e}")\n',
+        "            except Exception as e:\n"
+        "                full_summarize_failed_with_cle = isinstance(\n"
+        "                    e, ContextLengthExceededError\n"
+        "                )\n"
+        '                self.logger.debug(f"SUMMARIZATION: Full summary failed: {e}")\n',
+    ),
+    (
+        "            if prompt_path is not None:\n"
+        "                prompt_path.write_text(summary_prompt)\n"
+        "\n"
+        "            try:\n"
+        "                start_time = time.time()\n"
+        "                llm_response = await chat.chat(\n",
+        "            if prompt_path is not None:\n"
+        "                prompt_path.write_text(summary_prompt)\n"
+        "\n"
+        "            if full_summarize_failed_with_cle:\n"
+        "                chat._messages = [chat.messages[0]]\n"
+        "                chat.reset_response_chain()\n"
+        "\n"
+        "            try:\n"
+        "                start_time = time.time()\n"
+        "                llm_response = await chat.chat(\n",
+    ),
+    (
+        "                llm_response = LLMResponse(\n"
+        '                    content="Technical difficulties. Please continue with the task."\n'
+        "                )\n",
+        "                llm_response = LLMResponse(\n"
+        "                    content=self._build_local_fallback_llm_content()\n"
+        "                )\n",
+    ),
+]
+
+
+def _terminus2_build_local_fallback_llm_content(self) -> str:
+    import json
+
+    analysis = "Technical difficulties during context recovery. All summarization fallbacks failed."
+    plan = "Technical difficulties. Please continue with the task."
+    if self._parser_name == "xml":
+        return (
+            "<response>\n"
+            f"<analysis>{analysis}</analysis>\n"
+            f"<plan>{plan}</plan>\n"
+            "<commands>\n"
+            "</commands>\n"
+            "<task_complete>false</task_complete>\n"
+            "</response>"
+        )
+    return json.dumps(
+        {
+            "analysis": analysis,
+            "plan": plan,
+            "commands": [],
+            "task_complete": False,
+        }
+    )
+
+
+def _patch_terminus_cle_reset() -> None:
+    global _TERMINUS_CLE_RESET_PATCHED
+    if _TERMINUS_CLE_RESET_PATCHED:
+        return
+
+    import inspect
+    import textwrap
+
+    from harbor.agents.terminus_2 import terminus_2 as terminus2_mod
+
+    original = terminus2_mod.Terminus2._query_llm
+    src = inspect.getsource(inspect.unwrap(original))
+
+    if "full_summarize_failed_with_cle" in src:
+        _TERMINUS_CLE_RESET_PATCHED = True
+        logger.info("Terminus2._query_llm already contains the CLE chat-reset logic; skipping patch")
+        return
+
+    for anchor, replacement in _TERMINUS_CLE_RESET_REPLACEMENTS:
+        occurrences = src.count(anchor)
+        if occurrences != 1:
+            raise RuntimeError(
+                "Cannot patch Terminus2._query_llm for CLE chat reset: expected exactly "
+                f"one match for an anchor but found {occurrences}. Harbor's terminus_2.py "
+                "has diverged from the expected source."
+            )
+        src = src.replace(anchor, replacement, 1)
+
+    if not hasattr(terminus2_mod.Terminus2, "_build_local_fallback_llm_content"):
+        terminus2_mod.Terminus2._build_local_fallback_llm_content = _terminus2_build_local_fallback_llm_content
+
+    namespace: dict[str, Any] = {}
+    exec(textwrap.dedent(src), terminus2_mod.__dict__, namespace)
+    terminus2_mod.Terminus2._query_llm = namespace["_query_llm"]
+    _TERMINUS_CLE_RESET_PATCHED = True
+    logger.info("Patched Terminus2._query_llm: reset chat on full-summary CLE + parseable local fallback")
+
+
 class HarborSolver:
     """Runs any Harbor agent inside an evaluator :class:`Sandbox`.
 
@@ -1053,6 +1163,8 @@ class HarborSolver:
         kwargs = dict(self._harbor_agent_kwargs)
         url = model_url or self._model_url
         model_id = _model_id_for_openai(self._model_id, bool(url), agent=self._harbor_agent) if self._model_id else ""
+        if self._harbor_agent.replace("_", "-").lower() == "terminus-2":
+            _patch_terminus_cle_reset()
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
         if "api_base" not in kwargs and url:
