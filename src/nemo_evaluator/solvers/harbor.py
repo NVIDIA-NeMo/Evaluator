@@ -152,6 +152,15 @@ def _ensure_claude_host_env(api_key: str, base_url: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _log_nel_flush_debug(agent_logs_dir: Path) -> None:
+    """Read nel_flush_debug.txt written by Patch 4 and emit it via logger."""
+    dbg = agent_logs_dir / "nel_flush_debug.txt"
+    if dbg.exists():
+        content = dbg.read_text().strip()
+        if content:
+            logger.info("Patch4 flush debug:\n%s", content)
+
+
 async def _download_agent_logs(
     sandbox: "Sandbox",
     dest: Path,
@@ -579,53 +588,58 @@ if ok:
     lines = [
         '_nel_el_ref = events_list  # same object; atexit sees appends',
         'import atexit as _nel_at, json as _nel_json, os as _nel_os, sys as _nel_sys',
-        'import traceback as _nel_tb',
+        'import traceback as _nel_tb, io as _nel_io',
+        "_nel_dbg_path = '/logs/agent/nel_flush_debug.txt'",
+        'def _nel_log(msg):',
+        '    try:',
+        "        _nel_os.makedirs('/logs/agent', exist_ok=True)",
+        "        with open(_nel_dbg_path, 'a') as _f: _f.write(msg + '\\n')",
+        '    except Exception: pass',
         'def _nel_flush_traj():',
         '    el = _nel_el_ref',
-        '    print(f"[NEL flush] called: len(events_list)={len(el)}")',
+        '    _nel_log(f"flush called: len(events_list)={len(el)}")',
         '    if not el:',
-        '        print("[NEL flush] events_list empty, skipping")',
-        '        return',
+        '        _nel_log("events_list empty, skipping"); return',
         "    _p = '/logs/agent/trajectory.json'",
         '    if _nel_os.path.exists(_p):',
-        '        print(f"[NEL flush] {_p} already exists, skipping")',
-        '        return',
+        '        _nel_log(f"{_p} already exists, skipping"); return',
         "    bt = globals().get('build_trajectory')",
-        '    print(f"[NEL flush] build_trajectory={bt}")',
+        '    _nel_log(f"build_trajectory={bt}")',
         '    if bt is None:',
-        '        print("[NEL flush] build_trajectory not in globals, dumping raw events")',
+        '        _nel_log("build_trajectory not in globals, dumping raw events")',
         '        try:',
         '            _nel_os.makedirs(_nel_os.path.dirname(_p), exist_ok=True)',
         "            open(_p, 'w').write(_nel_json.dumps({'steps': el, 'agent': {'name': 'openhands-sdk'}, 'final_metrics': {}}))",
-        '            print(f"[NEL flush] wrote raw fallback to {_p}")',
+        '            _nel_log(f"wrote raw fallback to {_p}")',
         '        except Exception as _e:',
-        '            print(f"[NEL flush] raw fallback failed: {_e}")',
+        '            _nel_log(f"raw fallback failed: {_e}")',
         '        return',
         '    try:',
         '        traj = bt(el)',
-        '        print(f"[NEL flush] bt(el) ok: {type(traj)}")',
+        '        _nel_log(f"bt(el) ok: {type(traj)}")',
         '    except TypeError as _te:',
-        '        print(f"[NEL flush] bt(el) TypeError: {_te}, trying with problem_statement")',
+        '        _nel_log(f"bt(el) TypeError: {_te}, trying with problem_statement")',
         '        try:',
         "            traj = bt(el, globals().get('problem_statement') or '')",
+        '            _nel_log("bt(el, ps) ok")',
         '        except Exception as _e2:',
-        '            print(f"[NEL flush] bt fallback failed: {_e2}")',
-        '            _nel_tb.print_exc()',
-        '            return',
+        '            buf = _nel_io.StringIO()',
+        '            _nel_tb.print_exc(file=buf)',
+        '            _nel_log(f"bt fallback failed: {_e2}\\n{buf.getvalue()}"); return',
         '    except Exception as _e:',
-        '        print(f"[NEL flush] bt failed: {_e}")',
-        '        _nel_tb.print_exc()',
-        '        return',
+        '        buf = _nel_io.StringIO()',
+        '        _nel_tb.print_exc(file=buf)',
+        '        _nel_log(f"bt failed: {_e}\\n{buf.getvalue()}"); return',
         '    try:',
         "        _nel_os.makedirs('/logs/agent', exist_ok=True)",
         "        open(_p, 'w').write(_nel_json.dumps(traj))",
-        '        print(f"[NEL flush] wrote trajectory to {_p}")',
+        '        _nel_log(f"wrote trajectory to {_p}")',
         '    except Exception as _e:',
-        '        print(f"[NEL flush] write failed: {_e}")',
+        '        _nel_log(f"write failed: {_e}")',
         '_nel_at.register(_nel_flush_traj)',
         '_nel_orig_eh = _nel_sys.excepthook',
         'def _nel_eh(et, ev, tb):',
-        '    print(f"[NEL excepthook] {et.__name__}: {ev}")',
+        '    _nel_log(f"excepthook: {et.__name__}: {ev}")',
         '    _nel_flush_traj()',
         "    if et.__name__ == 'RateLimitError' and 'session_budget_exhausted' in str(ev):",
         '        _nel_sys.exit(0)',
@@ -1237,6 +1251,7 @@ class HarborSolver:
             # Download container-side logs (no-op when host-mounted)
             if not adapter.is_mounted and sandbox.is_running:
                 await _download_agent_logs(sandbox, agent_logs_dir)
+            _log_nel_flush_debug(agent_logs_dir)
 
             # Let agent parse its own logs into context
             if context.is_empty() and hasattr(agent, "populate_context_post_run"):
@@ -1373,6 +1388,7 @@ class HarborSolver:
                     await _download_agent_logs(sandbox, agent_logs_dir)
             except Exception:
                 logger.debug("Post-failure recovery failed", exc_info=True)
+            _log_nel_flush_debug(agent_logs_dir)
 
             recovered = _recover_from_logs(agent_logs_dir)
             trajectory = recovered["trajectory"] or build_atif_trajectory(
@@ -1416,6 +1432,7 @@ class HarborSolver:
                     await _download_agent_logs(sandbox, agent_logs_dir)
             except Exception:
                 logger.debug("Post-failure recovery failed", exc_info=True)
+            _log_nel_flush_debug(agent_logs_dir)
 
             recovered = _recover_from_logs(agent_logs_dir)
             trajectory = recovered["trajectory"] or build_atif_trajectory(
