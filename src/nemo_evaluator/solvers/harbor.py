@@ -544,94 +544,40 @@ print(f'cmd_timeout_{{_MAX}}s={{ok}} at {{p}}')
     else:
         logger.info("Cmd timeout patch: skipped (cmd_timeout not configured)")
 
-    # -- Patch 4: flush trajectory on exit; handle session_budget_exhausted --
-    # events_list is populated AFTER conversation.run() returns, so anchoring
-    # there is too late — an exception during run() skips that code entirely.
-    # Instead anchor on conversation.send_message() (just before run()), capture
-    # references to conversation and llm, and reconstruct events in the flush
-    # handler from conversation.state.events.
+    # -- Patch 4: wrap conversation.run() so any crash still saves trajectory --
+    # Anchor 1: wrap `conversation.run()` in try/except BaseException so main()
+    # continues to the existing event-reconstruction + build_trajectory + save
+    # code on any failure — no duplication needed.
+    # Anchor 2: after the final print in main(), exit(0) cleanly so Harbor
+    # treats the run as a normal completion and downloads the trajectory.
     _budget_flush_script = """\
 import sys
 p = '/installed-agent/run_agent.py'
 c = open(p).read()
 
-# Find 'conversation.send_message(' — executes before run(), so our setup
-# code runs even if run() raises.
-old = ind = None
+old1 = ind = None
 for line in c.splitlines():
     s = line.lstrip()
-    if s.startswith('conversation.send_message('):
-        old = line
-        ind = line[: len(line) - len(s)]
-        break
-already = '_nel_flush_traj' in c
-ok = old is not None and not already
-print(f'anchor={repr(old)} ind={repr(ind)} already={already} ok={ok}')
+    if s == 'conversation.run()':
+        old1 = line; ind = line[:len(line)-len(s)]; break
+
+old2 = None
+for line in c.splitlines():
+    if 'Total cost:' in line and 'print' in line:
+        old2 = line; break
+
+already = '_nel_run_exc' in c
+ok = old1 is not None and old2 is not None and not already
+print(f'anchor1={repr(old1)} anchor2={repr(old2)} already={already} ok={ok}')
 
 if ok:
-    lines = [
-        # capture refs before run() is called
-        '_nel_conv_ref = conversation',
-        '_nel_llm_ref = llm',
-        '_nel_model_ref = model',
-        'import atexit as _nel_at, json as _nel_json, os as _nel_os, sys as _nel_sys',
-        'def _nel_build_events():',
-        '    el = []',
-        '    try:',
-        '        from openhands.sdk.event import MessageEvent, ActionEvent, ObservationEvent',
-        '        for ev in _nel_conv_ref.state.events:',
-        '            ts = str(getattr(ev, "timestamp", ""))',
-        '            src = getattr(ev, "source", "")',
-        '            if isinstance(ev, MessageEvent):',
-        '                lm = getattr(ev, "llm_message", None)',
-        '                content = ""',
-        '                if lm:',
-        '                    mc = getattr(lm, "content", None)',
-        '                    if isinstance(mc, list):',
-        '                        content = chr(10).join(getattr(c, "text", str(c)) for c in mc if getattr(c, "text", None))',
-        '                    elif mc:',
-        '                        content = str(mc)',
-        '                tcs = []',
-        '                for tc in (getattr(ev, "tool_calls", None) or []):',
-        '                    tcs.append({"id": getattr(tc, "id", ""), "name": getattr(tc, "function_name", getattr(tc, "name", "")), "arguments": getattr(tc, "arguments", {})})',
-        '                entry = {"type": "user_message" if src == "user" else "assistant_message", "content": content, "timestamp": ts}',
-        '                if tcs: entry["tool_calls"] = tcs',
-        '                el.append(entry)',
-        '            elif isinstance(ev, ActionEvent):',
-        '                tcs = [{"id": getattr(ev, "tool_call_id", ""), "name": getattr(ev, "tool_name", ""), "arguments": {}}]',
-        '                el.append({"type": "assistant_message", "content": "", "tool_calls": tcs, "timestamp": ts})',
-        '            elif isinstance(ev, ObservationEvent):',
-        '                el.append({"type": "tool_result", "tool_call_id": getattr(ev, "tool_call_id", ""), "content": str(getattr(ev, "observation", "")), "timestamp": ts})',
-        '    except Exception: pass',
-        '    return el',
-        'def _nel_flush_traj():',
-        "    _p = '/logs/agent/trajectory.json'",
-        '    if _nel_os.path.exists(_p): return',
-        '    el = _nel_build_events()',
-        '    if not el: return',
-        "    bt = globals().get('build_trajectory')",
-        '    if bt is None:',
-        '        try:',
-        "            open(_p, 'w').write(_nel_json.dumps({'steps': el, 'agent': {'name': 'openhands-sdk'}, 'final_metrics': {}}))",
-        '        except Exception: pass',
-        '        return',
-        '    try:',
-        '        tu = getattr(getattr(_nel_llm_ref, "metrics", None), "accumulated_token_usage", None)',
-        '        metrics = {"prompt_tokens": getattr(tu, "prompt_tokens", 0), "completion_tokens": getattr(tu, "completion_tokens", 0), "cached_tokens": getattr(tu, "cache_read_tokens", 0), "cost_usd": 0}',
-        '        traj = bt(el, metrics, _nel_model_ref)',
-        '    except Exception: return',
-        '    try:',
-        "        open(_p, 'w').write(_nel_json.dumps(traj))",
-        '    except Exception: pass',
-        '_nel_at.register(_nel_flush_traj)',
-        '_nel_orig_eh = _nel_sys.excepthook',
-        'def _nel_eh(et, ev, tb):',
-        '    _nel_flush_traj()',
-        '    _nel_sys.exit(0)',
-        '_nel_sys.excepthook = _nel_eh',
-    ]
-    patch = '\\n' + '\\n'.join(ind + l for l in lines) + '\\n'
-    c = c.replace(old, old + patch, 1)
+    wrap = (ind + '_nel_run_exc = None\\n' +
+            ind + 'try:\\n' +
+            ind + '    conversation.run()\\n' +
+            ind + 'except BaseException as _e:\\n' +
+            ind + '    _nel_run_exc = _e')
+    c = c.replace(old1, wrap, 1)
+    c = c.replace(old2, old2 + '\\n' + ind + 'if _nel_run_exc is not None: sys.exit(0)', 1)
     open(p, 'w').write(c)
 print(f'budget_flush={ok}')
 """
