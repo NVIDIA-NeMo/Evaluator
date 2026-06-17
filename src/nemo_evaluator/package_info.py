@@ -14,26 +14,27 @@
 # limitations under the License.
 """Package version constants.
 
-The canonical version is in pyproject.toml; this file mirrors it as
-``MAJOR/MINOR/PATCH/PRE_RELEASE`` constants because the FW-CI-templates
-``_build_test_publish_wheel.yml`` reusable workflow patches ``PATCH``
-in-place for dry-run wheel builds. Removing it would break that build.
-
-When pyproject.toml's ``version`` is bumped, update the constants below
-to keep them in sync.
+Version is derived from git tags via hatch-vcs (PEP 440 local version,
+e.g. ``0.3.0.post5+g1a2b3c4`` for untagged commits). MAJOR/MINOR/PATCH
+are kept for FW-CI-templates compatibility.
 """
 
-# Below is the _next_ version that will be published, not the currently published one.
+from importlib.metadata import version as _v, PackageNotFoundError as _E
+
 MAJOR = 0
 MINOR = 3
-PATCH = 1
+PATCH = 0
 PRE_RELEASE = ""
 
 # Use the following formatting: (major, minor, patch, pre-release)
 VERSION = (MAJOR, MINOR, PATCH, PRE_RELEASE)
 
-__shortversion__ = ".".join(map(str, VERSION[:3]))
-__version__ = ".".join(map(str, VERSION[:3])) + "".join(VERSION[3:])
+try:
+    __version__ = _v("nemo-evaluator")
+except _E:
+    __version__ = ".".join(map(str, VERSION[:3])) + "".join(VERSION[3:])
+
+__shortversion__ = __version__.split("+")[0]
 
 __package_name__ = "nemo_evaluator"
 __contact_names__ = "NVIDIA"

@@ -14,11 +14,12 @@
 # limitations under the License.
 """NeMo Evaluator -- environments, solvers, evaluation orchestration."""
 
-# Kept as literals (not imported from package_info) so that submodules below
-# can safely back-reference ``nemo_evaluator.__version__`` without triggering
-# a circular import while ``__init__.py`` is partially loaded. ``package_info``
-# remains the canonical source for the FW-CI-templates wheel patcher.
-__version__ = "0.3.1"
+from importlib.metadata import version as _v, PackageNotFoundError as _E
+
+try:
+    __version__ = _v("nemo-evaluator")
+except _E:
+    __version__ = "0.0.0.dev0"
 __package_name__ = "nemo_evaluator"
 
 from nemo_evaluator.engine.eval_loop import run_evaluation
