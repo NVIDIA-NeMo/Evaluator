@@ -1115,6 +1115,7 @@ class HarborSolver:
         logs_dir = Path(tempfile.mkdtemp(prefix="eval_harbor_"))
         agent_logs_dir = logs_dir / "agent"
         agent_logs_dir.mkdir(parents=True, exist_ok=True)
+        logger.info("HarborSolver: agent_logs_dir=%s", agent_logs_dir)
 
         try:
             resolved_url = sandbox.resolved_endpoint_url("MODEL_BASE_URL") or (
