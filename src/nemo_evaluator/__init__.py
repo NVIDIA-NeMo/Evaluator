@@ -20,7 +20,7 @@ from importlib.metadata import version as _v
 try:
     __version__ = _v("nemo-evaluator")
 except _E:
-    from nemo_evaluator.package_info import __version__
+    __version__ = "0.3.1"
 __package_name__ = "nemo_evaluator"
 
 from nemo_evaluator.engine.eval_loop import run_evaluation

@@ -96,6 +96,7 @@ nel = "nemo_evaluator.cli.main:cli"
 
 [tool.hatch.version]
 source = "vcs"
+raw-options = { version_scheme = "post-release" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nemo_evaluator"]
