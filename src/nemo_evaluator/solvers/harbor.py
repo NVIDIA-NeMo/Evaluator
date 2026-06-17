@@ -604,7 +604,6 @@ if ok:
         "        with open(_nel_dbg_path, 'a') as _f: _f.write(msg + '\\n')",
         '    except Exception: pass',
         'def _nel_build_events():',
-        '    """Reconstruct events_list from conversation.state.events."""',
         '    el = []',
         '    try:',
         '        from openhands.sdk.event import MessageEvent, ActionEvent, ObservationEvent',
