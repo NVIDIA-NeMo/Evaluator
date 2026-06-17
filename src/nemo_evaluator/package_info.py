@@ -23,7 +23,7 @@ from importlib.metadata import version as _v, PackageNotFoundError as _E
 
 MAJOR = 0
 MINOR = 3
-PATCH = 0
+PATCH = 1
 PRE_RELEASE = ""
 
 # Use the following formatting: (major, minor, patch, pre-release)
