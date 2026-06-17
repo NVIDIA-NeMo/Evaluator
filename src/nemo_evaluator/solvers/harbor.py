@@ -239,7 +239,9 @@ async def _download_agent_logs_inner(
             pass
 
 
-async def _patch_openhands_sdk(sandbox: "Sandbox", *, cmd_timeout: float | None = None) -> None:
+async def _patch_openhands_sdk(
+    sandbox: "Sandbox", *, cmd_timeout: float | None = None
+) -> None:
     """Apply runtime patches to the OpenHands SDK inside the sandbox.
 
     1. **Prevent premature FINISHED on text-only responses** — when the
@@ -541,6 +543,113 @@ print(f'cmd_timeout_{{_MAX}}s={{ok}} at {{p}}')
             )
     else:
         logger.info("Cmd timeout patch: skipped (cmd_timeout not configured)")
+
+    # -- Patch 4: flush trajectory on exit; handle session_budget_exhausted --
+    # events_list is populated AFTER conversation.run() returns, so anchoring
+    # there is too late — an exception during run() skips that code entirely.
+    # Instead anchor on conversation.send_message() (just before run()), capture
+    # references to conversation and llm, and reconstruct events in the flush
+    # handler from conversation.state.events.
+    _budget_flush_script = """\
+import sys
+p = '/installed-agent/run_agent.py'
+c = open(p).read()
+
+# Find 'conversation.send_message(' — executes before run(), so our setup
+# code runs even if run() raises.
+old = ind = None
+for line in c.splitlines():
+    s = line.lstrip()
+    if s.startswith('conversation.send_message('):
+        old = line
+        ind = line[: len(line) - len(s)]
+        break
+already = '_nel_flush_traj' in c
+ok = old is not None and not already
+print(f'anchor={repr(old)} ind={repr(ind)} already={already} ok={ok}')
+
+if ok:
+    lines = [
+        # capture refs before run() is called
+        '_nel_conv_ref = conversation',
+        '_nel_llm_ref = llm',
+        '_nel_model_ref = model',
+        'import atexit as _nel_at, json as _nel_json, os as _nel_os, sys as _nel_sys',
+        'def _nel_build_events():',
+        '    el = []',
+        '    try:',
+        '        from openhands.sdk.event import MessageEvent, ActionEvent, ObservationEvent',
+        '        for ev in _nel_conv_ref.state.events:',
+        '            ts = str(getattr(ev, "timestamp", ""))',
+        '            src = getattr(ev, "source", "")',
+        '            if isinstance(ev, MessageEvent):',
+        '                lm = getattr(ev, "llm_message", None)',
+        '                content = ""',
+        '                if lm:',
+        '                    mc = getattr(lm, "content", None)',
+        '                    if isinstance(mc, list):',
+        '                        content = chr(10).join(getattr(c, "text", str(c)) for c in mc if getattr(c, "text", None))',
+        '                    elif mc:',
+        '                        content = str(mc)',
+        '                tcs = []',
+        '                for tc in (getattr(ev, "tool_calls", None) or []):',
+        '                    tcs.append({"id": getattr(tc, "id", ""), "name": getattr(tc, "function_name", getattr(tc, "name", "")), "arguments": getattr(tc, "arguments", {})})',
+        '                entry = {"type": "user_message" if src == "user" else "assistant_message", "content": content, "timestamp": ts}',
+        '                if tcs: entry["tool_calls"] = tcs',
+        '                el.append(entry)',
+        '            elif isinstance(ev, ActionEvent):',
+        '                tcs = [{"id": getattr(ev, "tool_call_id", ""), "name": getattr(ev, "tool_name", ""), "arguments": {}}]',
+        '                el.append({"type": "assistant_message", "content": "", "tool_calls": tcs, "timestamp": ts})',
+        '            elif isinstance(ev, ObservationEvent):',
+        '                el.append({"type": "tool_result", "tool_call_id": getattr(ev, "tool_call_id", ""), "content": str(getattr(ev, "observation", "")), "timestamp": ts})',
+        '    except Exception: pass',
+        '    return el',
+        'def _nel_flush_traj():',
+        "    _p = '/logs/agent/trajectory.json'",
+        '    if _nel_os.path.exists(_p): return',
+        '    el = _nel_build_events()',
+        '    if not el: return',
+        "    bt = globals().get('build_trajectory')",
+        '    if bt is None:',
+        '        try:',
+        "            open(_p, 'w').write(_nel_json.dumps({'steps': el, 'agent': {'name': 'openhands-sdk'}, 'final_metrics': {}}))",
+        '        except Exception: pass',
+        '        return',
+        '    try:',
+        '        tu = getattr(getattr(_nel_llm_ref, "metrics", None), "accumulated_token_usage", None)',
+        '        metrics = {"prompt_tokens": getattr(tu, "prompt_tokens", 0), "completion_tokens": getattr(tu, "completion_tokens", 0), "cached_tokens": getattr(tu, "cache_read_tokens", 0), "cost_usd": 0}',
+        '        traj = bt(el, metrics, _nel_model_ref)',
+        '    except Exception: return',
+        '    try:',
+        "        open(_p, 'w').write(_nel_json.dumps(traj))",
+        '    except Exception: pass',
+        '_nel_at.register(_nel_flush_traj)',
+        '_nel_orig_eh = _nel_sys.excepthook',
+        'def _nel_eh(et, ev, tb):',
+        '    _nel_flush_traj()',
+        "    if et.__name__ == 'RateLimitError' and 'session_budget_exhausted' in str(ev):",
+        '        _nel_sys.exit(0)',
+        '    _nel_orig_eh(et, ev, tb)',
+        '_nel_sys.excepthook = _nel_eh',
+    ]
+    patch = '\\n' + '\\n'.join(ind + l for l in lines) + '\\n'
+    c = c.replace(old, old + patch, 1)
+    open(p, 'w').write(c)
+print(f'budget_flush={ok}')
+"""
+    encoded4 = base64.b64encode(_budget_flush_script.encode()).decode()
+    r4 = await sandbox.exec(
+        f"echo {encoded4} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout4 = (r4.stdout or "").strip()
+    logger.info("Budget-flush patch: %s", stdout4)
+    if r4.return_code != 0 or "False" in stdout4:
+        logger.warning(
+            "Budget-flush patch problem (rc=%d): %s",
+            r4.return_code,
+            stdout4 or (r4.stderr or "")[:300],
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1128,6 +1237,7 @@ class HarborSolver:
             if not adapter.is_mounted and sandbox.is_running:
                 await _download_agent_logs(sandbox, agent_logs_dir)
 
+
             # Let agent parse its own logs into context
             if context.is_empty() and hasattr(agent, "populate_context_post_run"):
                 try:
@@ -1201,8 +1311,15 @@ class HarborSolver:
                 etype = type(agent_error).__name__
                 if etype in _infra_error_names:
                     raise InfraError(f"Agent infrastructure failure: {etype}: {agent_error}") from agent_error
-                error = f"Agent crashed: {etype}: {agent_error}"
-                logger.warning("HarborSolver: %s", error)
+                if etype == "RateLimitError" and "session_budget_exhausted" in str(agent_error):
+                    # Patch 4 should have already caught this and exited cleanly;
+                    # if we still see the error here the patch anchor didn't match.
+                    # Treat as a turn-limit stop: no crash, no trajectory (patch failed).
+                    error = f"Agent reached turn limit (session_budget_exhausted): {agent_error}"
+                    logger.info("HarborSolver: turn limit exhausted (Patch 4 anchor may have missed): %s", agent_error)
+                else:
+                    error = f"Agent crashed: {etype}: {agent_error}"
+                    logger.warning("HarborSolver: %s", error)
             elif agent_timed_out and workspace_diff and _confirmed_zero_tokens:
                 error = (
                     f"Agent timed out with workspace changes but 0 completion "
@@ -1257,6 +1374,7 @@ class HarborSolver:
             except Exception:
                 logger.debug("Post-failure recovery failed", exc_info=True)
 
+
             recovered = _recover_from_logs(agent_logs_dir)
             trajectory = recovered["trajectory"] or build_atif_trajectory(
                 steps=[{"source": "system", "message": str(exc)}],
@@ -1299,6 +1417,7 @@ class HarborSolver:
                     await _download_agent_logs(sandbox, agent_logs_dir)
             except Exception:
                 logger.debug("Post-failure recovery failed", exc_info=True)
+
 
             recovered = _recover_from_logs(agent_logs_dir)
             trajectory = recovered["trajectory"] or build_atif_trajectory(
