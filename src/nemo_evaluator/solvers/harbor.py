@@ -559,7 +559,7 @@ c = open(p).read()
 old = ind = None
 for line in c.splitlines():
     s = line.lstrip()
-    if s == 'events_list = []' or s == 'events_list: list = []':
+    if s.startswith('events_list') and s.endswith('= []') and '=' in s:
         old = line
         ind = line[: len(line) - len(s)]
         break
