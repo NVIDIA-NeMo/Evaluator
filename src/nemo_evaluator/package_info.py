@@ -15,7 +15,7 @@
 """Package version constants.
 
 Version is derived from git tags via hatch-vcs (PEP 440 local version,
-e.g. ``0.3.0.post5+g1a2b3c4`` for untagged commits). MAJOR/MINOR/PATCH
+e.g. ``0.3.1.post5+g1a2b3c4`` for untagged commits). MAJOR/MINOR/PATCH
 are kept for FW-CI-templates compatibility.
 """
 
