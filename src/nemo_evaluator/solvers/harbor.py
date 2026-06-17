@@ -542,6 +542,68 @@ print(f'cmd_timeout_{{_MAX}}s={{ok}} at {{p}}')
     else:
         logger.info("Cmd timeout patch: skipped (cmd_timeout not configured)")
 
+    # -- Patch 4: flush trajectory on exit; handle session_budget_exhausted --
+    # When turn_counter fires a 429, litellm raises RateLimitError inside
+    # run_agent.py, which exits without writing trajectory.json.  We inject:
+    #   a) atexit handler that calls build_trajectory(events_list) and writes
+    #      trajectory.json if it doesn't already exist — fires even on crash.
+    #   b) sys.excepthook override that catches RateLimitError with
+    #      session_budget_exhausted, flushes trajectory, then sys.exit(0) so
+    #      Harbor sees a clean exit rather than an error container.
+    _budget_flush_script = """\
+import sys
+p = '/installed-agent/run_agent.py'
+c = open(p).read()
+old = 'events_list = []'
+ok = old in c and '_nel_flush_traj' not in c
+if ok:
+    new = (
+        'events_list = []\\n'
+        '_nel_el_ref = events_list  # same object; atexit sees appends\\n'
+        'import atexit as _nel_at, json as _nel_json, os as _nel_os, sys as _nel_sys\\n'
+        'def _nel_flush_traj():\\n'
+        '    el = _nel_el_ref\\n'
+        '    if not el: return\\n'
+        '    _p = \\'/logs/agent/trajectory.json\\'\\n'
+        '    if _nel_os.path.exists(_p): return\\n'
+        '    bt = globals().get(\\'build_trajectory\\')\\n'
+        '    if bt is None: return\\n'
+        '    try: traj = bt(el)\\n'
+        '    except TypeError:\\n'
+        '        try: traj = bt(el, globals().get(\\'problem_statement\\') or \\'\\')\\n'
+        '        except Exception: return\\n'
+        '    except Exception: return\\n'
+        '    try:\\n'
+        '        _nel_os.makedirs(\\'/logs/agent\\', exist_ok=True)\\n'
+        '        open(_p, \\'w\\').write(_nel_json.dumps(traj))\\n'
+        '    except Exception: pass\\n'
+        '_nel_at.register(_nel_flush_traj)\\n'
+        '_nel_orig_eh = _nel_sys.excepthook\\n'
+        'def _nel_eh(et, ev, tb):\\n'
+        '    _nel_flush_traj()  # always flush partial trajectory on any crash\\n'
+        '    if et.__name__ == \\'RateLimitError\\' and \\'session_budget_exhausted\\' in str(ev):\\n'
+        '        _nel_sys.exit(0)  # graceful exit for turn-limit exhaustion\\n'
+        '    _nel_orig_eh(et, ev, tb)\\n'
+        '_nel_sys.excepthook = _nel_eh\\n'
+    )
+    c = c.replace(old, new, 1)
+    open(p, 'w').write(c)
+print(f'budget_flush={ok}')
+"""
+    encoded4 = base64.b64encode(_budget_flush_script.encode()).decode()
+    r4 = await sandbox.exec(
+        f"echo {encoded4} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout4 = (r4.stdout or "").strip()
+    logger.info("Budget-flush patch: %s", stdout4)
+    if r4.return_code != 0 or "False" in stdout4:
+        logger.warning(
+            "Budget-flush patch problem (rc=%d): %s",
+            r4.return_code,
+            stdout4 or (r4.stderr or "")[:300],
+        )
+
 
 # ---------------------------------------------------------------------------
 # Trajectory / token / response recovery  (agent-agnostic)
@@ -1201,8 +1263,15 @@ class HarborSolver:
                 etype = type(agent_error).__name__
                 if etype in _infra_error_names:
                     raise InfraError(f"Agent infrastructure failure: {etype}: {agent_error}") from agent_error
-                error = f"Agent crashed: {etype}: {agent_error}"
-                logger.warning("HarborSolver: %s", error)
+                if etype == "RateLimitError" and "session_budget_exhausted" in str(agent_error):
+                    # Patch 4 should have already caught this and exited cleanly;
+                    # if we still see the error here the patch anchor didn't match.
+                    # Treat as a turn-limit stop: no crash, no trajectory (patch failed).
+                    error = f"Agent reached turn limit (session_budget_exhausted): {agent_error}"
+                    logger.info("HarborSolver: turn limit exhausted (Patch 4 anchor may have missed): %s", agent_error)
+                else:
+                    error = f"Agent crashed: {etype}: {agent_error}"
+                    logger.warning("HarborSolver: %s", error)
             elif agent_timed_out and workspace_diff and _confirmed_zero_tokens:
                 error = (
                     f"Agent timed out with workspace changes but 0 completion "
