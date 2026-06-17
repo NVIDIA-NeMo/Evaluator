@@ -1270,6 +1270,12 @@ class HarborSolver:
 
             if self._harbor_agent.lower() == "openhands-sdk":
                 await _patch_openhands_sdk(sandbox, cmd_timeout=self._cmd_timeout, debug_dir=agent_logs_dir)
+                # Verify patch survived — if probe count is 0 the file was overwritten after patching
+                _verify = await sandbox.exec(
+                    "grep -c '_nel_main_probe' /installed-agent/run_agent.py 2>/dev/null || echo 0",
+                    timeout_sec=5,
+                )
+                logger.info("Patch4 probe in container file: %s", (_verify.stdout or "").strip())
 
             context = AgentContext()
 
