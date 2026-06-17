@@ -41,7 +41,8 @@ COPY pyproject.toml README.md ./
 COPY src/ src/
 COPY harbor_datasets/registry_overrides/ harbor_datasets/registry_overrides/
 
-RUN pip install --no-cache-dir ".[scoring,stats]"
+RUN pip install --no-cache-dir ".[scoring,stats]" \
+    && python -c "import nemo_evaluator; print('nemo-evaluator:', nemo_evaluator.__version__)"
 
 ENV PYTHONUNBUFFERED=1
 
