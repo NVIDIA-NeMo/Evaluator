@@ -566,31 +566,22 @@ print(f'cmd_timeout_{{_MAX}}s={{ok}} at {{p}}')
         logger.info("Cmd timeout patch: skipped (cmd_timeout not configured)")
 
     # -- Patch 4: flush trajectory on exit; handle session_budget_exhausted --
-    # When turn_counter fires a 429, litellm raises RateLimitError inside
-    # run_agent.py, which exits without writing trajectory.json.  We inject:
-    #   a) atexit handler that calls build_trajectory(events_list) and writes
-    #      trajectory.json if it doesn't already exist — fires even on crash.
-    #   b) sys.excepthook override that catches RateLimitError with
-    #      session_budget_exhausted, flushes trajectory, then sys.exit(0) so
-    #      Harbor sees a clean exit rather than an error container.
+    # events_list is populated AFTER conversation.run() returns, so anchoring
+    # there is too late — an exception during run() skips that code entirely.
+    # Instead anchor on conversation.send_message() (just before run()), capture
+    # references to conversation and llm, and reconstruct events in the flush
+    # handler from conversation.state.events.
     _budget_flush_script = """\
-import sys, re
+import sys
 p = '/installed-agent/run_agent.py'
 c = open(p).read()
 
-# Diagnostic: show all events_list lines for debugging
-all_el = [repr(l) for l in c.splitlines() if 'events_list' in l]
-print('all_events_list_lines=' + str(all_el[:10]))
-
-# Also show build_trajectory definition lines
-all_bt = [repr(l) for l in c.splitlines() if 'build_trajectory' in l]
-print('all_build_trajectory_lines=' + str(all_bt[:10]))
-
-# Find the exact initialization line regardless of indentation
+# Find 'conversation.send_message(' — executes before run(), so our setup
+# code runs even if run() raises.
 old = ind = None
 for line in c.splitlines():
     s = line.lstrip()
-    if s.startswith('events_list') and '=' in s and '[]' in s.split('=')[-1]:
+    if s.startswith('conversation.send_message('):
         old = line
         ind = line[: len(line) - len(s)]
         break
@@ -600,7 +591,10 @@ print(f'anchor={repr(old)} ind={repr(ind)} already={already} ok={ok}')
 
 if ok:
     lines = [
-        '_nel_el_ref = events_list  # same object; atexit sees appends',
+        # capture refs before run() is called
+        '_nel_conv_ref = conversation',
+        '_nel_llm_ref = llm',
+        '_nel_model_ref = model',
         'import atexit as _nel_at, json as _nel_json, os as _nel_os, sys as _nel_sys',
         'import traceback as _nel_tb, io as _nel_io',
         "_nel_dbg_path = '/logs/agent/nel_flush_debug.txt'",
@@ -609,43 +603,64 @@ if ok:
         "        _nel_os.makedirs('/logs/agent', exist_ok=True)",
         "        with open(_nel_dbg_path, 'a') as _f: _f.write(msg + '\\n')",
         '    except Exception: pass',
+        'def _nel_build_events():',
+        '    """Reconstruct events_list from conversation.state.events."""',
+        '    el = []',
+        '    try:',
+        '        from openhands.sdk.event import MessageEvent, ActionEvent, ObservationEvent',
+        '        for ev in _nel_conv_ref.state.events:',
+        '            ts = str(getattr(ev, "timestamp", ""))',
+        '            src = getattr(ev, "source", "")',
+        '            if isinstance(ev, MessageEvent):',
+        '                lm = getattr(ev, "llm_message", None)',
+        '                content = ""',
+        '                if lm:',
+        '                    mc = getattr(lm, "content", None)',
+        '                    if isinstance(mc, list):',
+        '                        content = "\\n".join(getattr(c, "text", str(c)) for c in mc if getattr(c, "text", None))',
+        '                    elif mc:',
+        '                        content = str(mc)',
+        '                tcs = []',
+        '                for tc in (getattr(ev, "tool_calls", None) or []):',
+        '                    tcs.append({"id": getattr(tc, "id", ""), "name": getattr(tc, "function_name", getattr(tc, "name", "")), "arguments": getattr(tc, "arguments", {})})',
+        '                entry = {"type": "user_message" if src == "user" else "assistant_message", "content": content, "timestamp": ts}',
+        '                if tcs: entry["tool_calls"] = tcs',
+        '                el.append(entry)',
+        '            elif isinstance(ev, ActionEvent):',
+        '                tcs = [{"id": getattr(ev, "tool_call_id", ""), "name": getattr(ev, "tool_name", ""), "arguments": {}}]',
+        '                el.append({"type": "assistant_message", "content": "", "tool_calls": tcs, "timestamp": ts})',
+        '            elif isinstance(ev, ObservationEvent):',
+        '                el.append({"type": "tool_result", "tool_call_id": getattr(ev, "tool_call_id", ""), "content": str(getattr(ev, "observation", "")), "timestamp": ts})',
+        '    except Exception as _e:',
+        '        _nel_log(f"event reconstruction failed: {_e}")',
+        '    return el',
         'def _nel_flush_traj():',
-        '    el = _nel_el_ref',
-        '    _nel_log(f"flush called: len(events_list)={len(el)}")',
-        '    if not el:',
-        '        _nel_log("events_list empty, skipping"); return',
+        '    _nel_log("flush called")',
         "    _p = '/logs/agent/trajectory.json'",
         '    if _nel_os.path.exists(_p):',
         '        _nel_log(f"{_p} already exists, skipping"); return',
+        '    el = _nel_build_events()',
+        '    _nel_log(f"reconstructed {len(el)} events")',
+        '    if not el:',
+        '        _nel_log("no events, skipping"); return',
         "    bt = globals().get('build_trajectory')",
-        '    _nel_log(f"build_trajectory={bt}")',
+        '    _nel_log(f"build_trajectory={bt is not None}")',
         '    if bt is None:',
-        '        _nel_log("build_trajectory not in globals, dumping raw events")',
         '        try:',
-        '            _nel_os.makedirs(_nel_os.path.dirname(_p), exist_ok=True)',
         "            open(_p, 'w').write(_nel_json.dumps({'steps': el, 'agent': {'name': 'openhands-sdk'}, 'final_metrics': {}}))",
         '            _nel_log(f"wrote raw fallback to {_p}")',
         '        except Exception as _e:',
         '            _nel_log(f"raw fallback failed: {_e}")',
         '        return',
         '    try:',
-        '        traj = bt(el)',
-        '        _nel_log(f"bt(el) ok: {type(traj)}")',
-        '    except TypeError as _te:',
-        '        _nel_log(f"bt(el) TypeError: {_te}, trying with problem_statement")',
-        '        try:',
-        "            traj = bt(el, globals().get('problem_statement') or '')",
-        '            _nel_log("bt(el, ps) ok")',
-        '        except Exception as _e2:',
-        '            buf = _nel_io.StringIO()',
-        '            _nel_tb.print_exc(file=buf)',
-        '            _nel_log(f"bt fallback failed: {_e2}\\n{buf.getvalue()}"); return',
+        '        tu = getattr(getattr(_nel_llm_ref, "metrics", None), "accumulated_token_usage", None)',
+        '        metrics = {"prompt_tokens": getattr(tu, "prompt_tokens", 0), "completion_tokens": getattr(tu, "completion_tokens", 0), "cached_tokens": getattr(tu, "cache_read_tokens", 0), "cost_usd": 0}',
+        '        traj = bt(el, metrics, _nel_model_ref)',
+        '        _nel_log(f"bt ok: {type(traj)}")',
         '    except Exception as _e:',
-        '        buf = _nel_io.StringIO()',
-        '        _nel_tb.print_exc(file=buf)',
+        '        buf = _nel_io.StringIO(); _nel_tb.print_exc(file=buf)',
         '        _nel_log(f"bt failed: {_e}\\n{buf.getvalue()}"); return',
         '    try:',
-        "        _nel_os.makedirs('/logs/agent', exist_ok=True)",
         "        open(_p, 'w').write(_nel_json.dumps(traj))",
         '        _nel_log(f"wrote trajectory to {_p}")',
         '    except Exception as _e:',
