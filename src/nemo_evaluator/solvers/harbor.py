@@ -555,47 +555,80 @@ import sys, re
 p = '/installed-agent/run_agent.py'
 c = open(p).read()
 
+# Diagnostic: show all events_list lines for debugging
+all_el = [repr(l) for l in c.splitlines() if 'events_list' in l]
+print('all_events_list_lines=' + str(all_el[:10]))
+
+# Also show build_trajectory definition lines
+all_bt = [repr(l) for l in c.splitlines() if 'build_trajectory' in l]
+print('all_build_trajectory_lines=' + str(all_bt[:10]))
+
 # Find the exact initialization line regardless of indentation
 old = ind = None
 for line in c.splitlines():
     s = line.lstrip()
-    if s.startswith('events_list') and s.endswith('= []') and '=' in s:
+    if s.startswith('events_list') and '=' in s and '[]' in s.split('=')[-1]:
         old = line
         ind = line[: len(line) - len(s)]
         break
 already = '_nel_flush_traj' in c
 ok = old is not None and not already
-
-if not ok:
-    hits = [repr(l) for l in c.splitlines() if 'events_list' in l and '=' in l and '[]' in l]
-    print('el_lines=' + str(hits[:5]))
+print(f'anchor={repr(old)} ind={repr(ind)} already={already} ok={ok}')
 
 if ok:
     lines = [
         '_nel_el_ref = events_list  # same object; atexit sees appends',
         'import atexit as _nel_at, json as _nel_json, os as _nel_os, sys as _nel_sys',
+        'import traceback as _nel_tb',
         'def _nel_flush_traj():',
         '    el = _nel_el_ref',
-        '    if not el: return',
+        '    print(f"[NEL flush] called: len(events_list)={len(el)}")',
+        '    if not el:',
+        '        print("[NEL flush] events_list empty, skipping")',
+        '        return',
         "    _p = '/logs/agent/trajectory.json'",
-        '    if _nel_os.path.exists(_p): return',
+        '    if _nel_os.path.exists(_p):',
+        '        print(f"[NEL flush] {_p} already exists, skipping")',
+        '        return',
         "    bt = globals().get('build_trajectory')",
-        '    if bt is None: return',
-        '    try: traj = bt(el)',
-        '    except TypeError:',
-        "        try: traj = bt(el, globals().get('problem_statement') or '')",
-        '        except Exception: return',
-        '    except Exception: return',
+        '    print(f"[NEL flush] build_trajectory={bt}")',
+        '    if bt is None:',
+        '        print("[NEL flush] build_trajectory not in globals, dumping raw events")',
+        '        try:',
+        '            _nel_os.makedirs(_nel_os.path.dirname(_p), exist_ok=True)',
+        "            open(_p, 'w').write(_nel_json.dumps({'steps': el, 'agent': {'name': 'openhands-sdk'}, 'final_metrics': {}}))",
+        '            print(f"[NEL flush] wrote raw fallback to {_p}")',
+        '        except Exception as _e:',
+        '            print(f"[NEL flush] raw fallback failed: {_e}")',
+        '        return',
+        '    try:',
+        '        traj = bt(el)',
+        '        print(f"[NEL flush] bt(el) ok: {type(traj)}")',
+        '    except TypeError as _te:',
+        '        print(f"[NEL flush] bt(el) TypeError: {_te}, trying with problem_statement")',
+        '        try:',
+        "            traj = bt(el, globals().get('problem_statement') or '')",
+        '        except Exception as _e2:',
+        '            print(f"[NEL flush] bt fallback failed: {_e2}")',
+        '            _nel_tb.print_exc()',
+        '            return',
+        '    except Exception as _e:',
+        '        print(f"[NEL flush] bt failed: {_e}")',
+        '        _nel_tb.print_exc()',
+        '        return',
         '    try:',
         "        _nel_os.makedirs('/logs/agent', exist_ok=True)",
         "        open(_p, 'w').write(_nel_json.dumps(traj))",
-        '    except Exception: pass',
+        '        print(f"[NEL flush] wrote trajectory to {_p}")',
+        '    except Exception as _e:',
+        '        print(f"[NEL flush] write failed: {_e}")',
         '_nel_at.register(_nel_flush_traj)',
         '_nel_orig_eh = _nel_sys.excepthook',
         'def _nel_eh(et, ev, tb):',
-        '    _nel_flush_traj()  # always flush partial trajectory on any crash',
+        '    print(f"[NEL excepthook] {et.__name__}: {ev}")',
+        '    _nel_flush_traj()',
         "    if et.__name__ == 'RateLimitError' and 'session_budget_exhausted' in str(ev):",
-        '        _nel_sys.exit(0)  # graceful exit for turn-limit exhaustion',
+        '        _nel_sys.exit(0)',
         '    _nel_orig_eh(et, ev, tb)',
         '_nel_sys.excepthook = _nel_eh',
     ]
