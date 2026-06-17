@@ -84,6 +84,9 @@ class Interceptor(RequestInterceptor):
     * ``trigger`` — when the reminder fires
       (``threshold`` at 80% / 95% of ``max_turns``; ``periodic`` every
       ``interval`` turns).
+    * ``remind_every`` — optional threshold-mode reminder cadence. When
+      set to ``N > 0``, appends the environment reminder to the trailing
+      tool message every ``N`` turns before the threshold reminder starts.
 
     All four combinations are valid. Defaults reproduce the prior
     threshold-based system-message behavior.
@@ -97,14 +100,18 @@ class Interceptor(RequestInterceptor):
         position: str | InjectionPosition = InjectionPosition.SYSTEM_MESSAGE,
         trigger: str | InjectionTrigger = InjectionTrigger.THRESHOLD,
         interval: int = 1,
+        remind_every: int | None = None,
     ) -> None:
         if interval < 1:
             raise ValueError(f"interval must be >= 1, got {interval}")
+        if remind_every is not None and remind_every < 0:
+            raise ValueError(f"remind_every must be >= 0, got {remind_every}")
         self._every = max(every, 1)
         self._max = max_turns
         self._position = InjectionPosition(position)
         self._trigger = InjectionTrigger(trigger)
         self._interval = interval
+        self._remind_every = remind_every or None
         self._sessions: dict[str, _Session] = {}
         self._lock = asyncio.Lock()
         self._last_gc = time.monotonic()
@@ -172,6 +179,9 @@ class Interceptor(RequestInterceptor):
         if self._trigger is InjectionTrigger.THRESHOLD:
             severity = self._threshold_severity(n)
             if severity is _Severity.NON_ACTIONABLE:
+                if self._remind_every is not None and n % self._remind_every == 0:
+                    notice = _REMINDER_TEMPLATE.format(remaining=remaining)
+                    self._append_to_trailing_tool_message(messages, notice, key, n)
                 return req
             body = self._threshold_message_body(n, remaining, severity)
             notice = (
@@ -240,6 +250,44 @@ class Interceptor(RequestInterceptor):
                     msg["content"] = notice
                 return
         logger.debug("turn_counter: no user message found in %d-message payload; notice not injected.", len(messages))
+
+    def _append_to_trailing_tool_message(self, messages: list, notice: str, key: str, n: int) -> None:
+        if not messages:
+            return
+
+        last = messages[-1]
+        if last.get("role") != "tool":
+            logger.info(
+                "turn_counter: task %s turn %d — skipping reminder, last msg role=%s (not 'tool')",
+                key,
+                n,
+                last.get("role"),
+            )
+            return
+
+        content = last.get("content")
+        if content is None:
+            last["content"] = notice
+        elif isinstance(content, str):
+            last["content"] = f"{content}\n\n{notice}" if content else notice
+        elif isinstance(content, list):
+            last["content"] = list(content) + [{"type": "text", "text": notice}]
+        else:
+            logger.warning(
+                "turn_counter: task %s turn %d — FAILED to append reminder (tool content type=%s)",
+                key,
+                n,
+                type(content).__name__,
+            )
+            return
+
+        logger.info(
+            "turn_counter: task %s turn %d/%d — appended reminder to tool msg (tool_call_id=%s)",
+            key,
+            n,
+            self._max,
+            last.get("tool_call_id", "<none>"),
+        )
 
     def _gc(self, now: float) -> None:
         """Remove sessions idle longer than ``_STALE_SESSION_SEC``."""

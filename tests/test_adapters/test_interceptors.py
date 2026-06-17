@@ -485,6 +485,53 @@ async def test_turn_counter_threshold_new_user_appends_trailing_user_message():
     assert "Begin wrapping up" in result.body["messages"][-1]["content"]
 
 
+async def test_turn_counter_remind_every_appends_to_trailing_tool_before_threshold():
+    ic = InterceptorRegistry.create("turn_counter", {"max_turns": 10, "remind_every": 2})
+    base_messages = [
+        {"role": "user", "content": "initial task"},
+        {"role": "assistant", "content": "calling tool"},
+        {"role": "tool", "tool_call_id": "call_1", "content": "tool result"},
+    ]
+
+    for turn in range(1, 8):
+        body = {"model": "test", "messages": [msg.copy() for msg in base_messages]}
+        r = _req(body)
+        r.ctx.extra["session_id"] = "remind-every-tool"
+        result = await ic.intercept_request(r)
+        last = result.body["messages"][-1]
+        if turn in {2, 4, 6}:
+            assert last["role"] == "tool"
+            assert last["content"].endswith(
+                f"\n\nENVIRONMENT REMINDER: You have {10 - turn} turns left to complete the task."
+            )
+        else:
+            assert result.body["messages"] == base_messages
+
+    body = {"model": "test", "messages": [msg.copy() for msg in base_messages]}
+    r = _req(body)
+    r.ctx.extra["session_id"] = "remind-every-tool"
+    result = await ic.intercept_request(r)
+    assert result.body["messages"][:-1] == base_messages
+    assert result.body["messages"][-1]["role"] == "system"
+    assert result.body["messages"][-1]["content"].startswith("[SYSTEM] Turn 8/10")
+
+
+async def test_turn_counter_remind_every_skips_when_last_message_is_not_tool():
+    ic = InterceptorRegistry.create("turn_counter", {"max_turns": 10, "remind_every": 2})
+    messages = [
+        {"role": "user", "content": "initial task"},
+        {"role": "assistant", "content": "not a tool result"},
+    ]
+
+    for _ in range(2):
+        body = {"model": "test", "messages": [msg.copy() for msg in messages]}
+        r = _req(body)
+        r.ctx.extra["session_id"] = "remind-every-skip"
+        result = await ic.intercept_request(r)
+
+    assert result.body["messages"] == messages
+
+
 async def test_turn_counter_invalid_position_raises():
     with pytest.raises(ValueError, match="not a valid InjectionPosition"):
         InterceptorRegistry.create(
@@ -507,6 +554,11 @@ async def test_turn_counter_invalid_interval_raises():
             "turn_counter",
             {"max_turns": 10, "position": "user_message", "trigger": "periodic", "interval": 0},
         )
+
+
+async def test_turn_counter_invalid_remind_every_raises():
+    with pytest.raises(ValueError, match="remind_every"):
+        InterceptorRegistry.create("turn_counter", {"max_turns": 10, "remind_every": -1})
 
 
 async def test_turn_counter_warns_when_max_turns_is_unset(caplog):
