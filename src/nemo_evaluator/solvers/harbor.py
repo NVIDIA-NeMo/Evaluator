@@ -152,34 +152,6 @@ def _ensure_claude_host_env(api_key: str, base_url: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-_NEL_FLUSH_DEBUG_LATEST = Path("/tmp/nel_flush_debug_latest.txt")
-
-
-def _log_nel_flush_debug(agent_logs_dir: Path) -> None:
-    """Read Patch 4 debug files, log them, and copy to a fixed path."""
-    parts = []
-    patch_result = agent_logs_dir / "nel_patch4_result.txt"
-    setup_ran = agent_logs_dir / "nel_setup_ran.txt"
-    flush_debug = agent_logs_dir / "nel_flush_debug.txt"
-    if patch_result.exists():
-        parts.append("=== patch4 result ===\n" + patch_result.read_text().strip())
-    if setup_ran.exists():
-        parts.append("=== setup ran ===\n" + setup_ran.read_text().strip())
-    else:
-        parts.append("=== setup ran === MISSING — injected code never executed")
-    if flush_debug.exists():
-        parts.append("=== flush debug ===\n" + flush_debug.read_text().strip())
-    else:
-        parts.append("=== flush debug === MISSING — atexit/excepthook never fired")
-    if parts:
-        combined = "\n".join(parts)
-        logger.info("Patch4 debug:\n%s", combined)
-        try:
-            _NEL_FLUSH_DEBUG_LATEST.write_text(combined)
-        except Exception:
-            pass
-
-
 async def _download_agent_logs(
     sandbox: "Sandbox",
     dest: Path,
@@ -268,7 +240,7 @@ async def _download_agent_logs_inner(
 
 
 async def _patch_openhands_sdk(
-    sandbox: "Sandbox", *, cmd_timeout: float | None = None, debug_dir: Path | None = None
+    sandbox: "Sandbox", *, cmd_timeout: float | None = None
 ) -> None:
     """Apply runtime patches to the OpenHands SDK inside the sandbox.
 
@@ -583,24 +555,6 @@ import sys
 p = '/installed-agent/run_agent.py'
 c = open(p).read()
 
-# Sanity-check anchor: top of main() — if a print here doesn't appear in
-# openhands_sdk.txt the patched file is not being executed at all.
-main_anchor = main_ind = None
-for line in c.splitlines():
-    s = line.lstrip()
-    if s.startswith('parser = argparse.ArgumentParser('):
-        main_anchor = line
-        main_ind = line[: len(line) - len(s)]
-        break
-if main_anchor and '_nel_main_probe' not in c:
-    probe = main_ind + 'print("[NEL main-probe] patched run_agent.py is running", flush=True)\\n'
-    c = c.replace(main_anchor, probe + main_anchor, 1)
-    open(p, 'w').write(c)
-    print(f'main_probe inserted at {repr(main_anchor[:60])}')
-    c = open(p).read()  # reload for next patch
-else:
-    print(f'main_probe skip: anchor={main_anchor is not None} already={repr("_nel_main_probe" in c)}')
-
 # Find 'conversation.send_message(' — executes before run(), so our setup
 # code runs even if run() raises.
 old = ind = None
@@ -616,24 +570,11 @@ print(f'anchor={repr(old)} ind={repr(ind)} already={already} ok={ok}')
 
 if ok:
     lines = [
-        # immediate write — proves injected code runs before conversation.run()
-        'import os as _nel_os_early, sys as _nel_sys_early',
-        '_nel_os_early.makedirs("/logs/agent", exist_ok=True)',
-        'open("/logs/agent/nel_setup_ran.txt", "w").write("setup ran")',
-        'print("[NEL setup] patch code executing", flush=True)',
         # capture refs before run() is called
         '_nel_conv_ref = conversation',
         '_nel_llm_ref = llm',
         '_nel_model_ref = model',
         'import atexit as _nel_at, json as _nel_json, os as _nel_os, sys as _nel_sys',
-        'import traceback as _nel_tb, io as _nel_io',
-        "_nel_dbg_path = '/logs/agent/nel_flush_debug.txt'",
-        'def _nel_log(msg):',
-        '    print(f"[NEL] {msg}", flush=True)  # goes to openhands_sdk.txt via tee',
-        '    try:',
-        "        _nel_os.makedirs('/logs/agent', exist_ok=True)",
-        "        with open(_nel_dbg_path, 'a') as _f: _f.write(msg + chr(10))",
-        '    except Exception as _le: print(f"[NEL] _nel_log write failed: {_le}", flush=True)',
         'def _nel_build_events():',
         '    el = []',
         '    try:',
@@ -661,44 +602,30 @@ if ok:
         '                el.append({"type": "assistant_message", "content": "", "tool_calls": tcs, "timestamp": ts})',
         '            elif isinstance(ev, ObservationEvent):',
         '                el.append({"type": "tool_result", "tool_call_id": getattr(ev, "tool_call_id", ""), "content": str(getattr(ev, "observation", "")), "timestamp": ts})',
-        '    except Exception as _e:',
-        '        _nel_log(f"event reconstruction failed: {_e}")',
+        '    except Exception: pass',
         '    return el',
         'def _nel_flush_traj():',
-        '    _nel_log("flush called")',
         "    _p = '/logs/agent/trajectory.json'",
-        '    if _nel_os.path.exists(_p):',
-        '        _nel_log(f"{_p} already exists, skipping"); return',
+        '    if _nel_os.path.exists(_p): return',
         '    el = _nel_build_events()',
-        '    _nel_log(f"reconstructed {len(el)} events")',
-        '    if not el:',
-        '        _nel_log("no events, skipping"); return',
+        '    if not el: return',
         "    bt = globals().get('build_trajectory')",
-        '    _nel_log(f"build_trajectory={bt is not None}")',
         '    if bt is None:',
         '        try:',
         "            open(_p, 'w').write(_nel_json.dumps({'steps': el, 'agent': {'name': 'openhands-sdk'}, 'final_metrics': {}}))",
-        '            _nel_log(f"wrote raw fallback to {_p}")',
-        '        except Exception as _e:',
-        '            _nel_log(f"raw fallback failed: {_e}")',
+        '        except Exception: pass',
         '        return',
         '    try:',
         '        tu = getattr(getattr(_nel_llm_ref, "metrics", None), "accumulated_token_usage", None)',
         '        metrics = {"prompt_tokens": getattr(tu, "prompt_tokens", 0), "completion_tokens": getattr(tu, "completion_tokens", 0), "cached_tokens": getattr(tu, "cache_read_tokens", 0), "cost_usd": 0}',
         '        traj = bt(el, metrics, _nel_model_ref)',
-        '        _nel_log(f"bt ok: {type(traj)}")',
-        '    except Exception as _e:',
-        '        buf = _nel_io.StringIO(); _nel_tb.print_exc(file=buf)',
-        '        _nel_log("bt failed: " + str(_e) + " | " + buf.getvalue()); return',
+        '    except Exception: return',
         '    try:',
         "        open(_p, 'w').write(_nel_json.dumps(traj))",
-        '        _nel_log(f"wrote trajectory to {_p}")',
-        '    except Exception as _e:',
-        '        _nel_log(f"write failed: {_e}")',
+        '    except Exception: pass',
         '_nel_at.register(_nel_flush_traj)',
         '_nel_orig_eh = _nel_sys.excepthook',
         'def _nel_eh(et, ev, tb):',
-        '    _nel_log(f"excepthook: {et.__name__}: {ev}")',
         '    _nel_flush_traj()',
         "    if et.__name__ == 'RateLimitError' and 'session_budget_exhausted' in str(ev):",
         '        _nel_sys.exit(0)',
@@ -723,14 +650,6 @@ print(f'budget_flush={ok}')
             r4.return_code,
             stdout4 or (r4.stderr or "")[:300],
         )
-    if debug_dir is not None:
-        try:
-            debug_dir.mkdir(parents=True, exist_ok=True)
-            (debug_dir / "nel_patch4_result.txt").write_text(
-                f"rc={r4.return_code}\n{stdout4}\n"
-            )
-        except Exception:
-            pass
 
 
 # ---------------------------------------------------------------------------
@@ -1196,7 +1115,6 @@ class HarborSolver:
         logs_dir = Path(tempfile.mkdtemp(prefix="eval_harbor_"))
         agent_logs_dir = logs_dir / "agent"
         agent_logs_dir.mkdir(parents=True, exist_ok=True)
-        logger.info("HarborSolver: agent_logs_dir=%s", agent_logs_dir)
 
         try:
             resolved_url = sandbox.resolved_endpoint_url("MODEL_BASE_URL") or (
@@ -1269,13 +1187,7 @@ class HarborSolver:
             await agent.setup(adapter)
 
             if self._harbor_agent.lower() == "openhands-sdk":
-                await _patch_openhands_sdk(sandbox, cmd_timeout=self._cmd_timeout, debug_dir=agent_logs_dir)
-                # Verify patch survived — if probe count is 0 the file was overwritten after patching
-                _verify = await sandbox.exec(
-                    "grep -c '_nel_main_probe' /installed-agent/run_agent.py 2>/dev/null || echo 0",
-                    timeout_sec=5,
-                )
-                logger.info("Patch4 probe in container file: %s", (_verify.stdout or "").strip())
+                await _patch_openhands_sdk(sandbox, cmd_timeout=self._cmd_timeout)
 
             context = AgentContext()
 
@@ -1324,7 +1236,7 @@ class HarborSolver:
             # Download container-side logs (no-op when host-mounted)
             if not adapter.is_mounted and sandbox.is_running:
                 await _download_agent_logs(sandbox, agent_logs_dir)
-            _log_nel_flush_debug(agent_logs_dir)
+
 
             # Let agent parse its own logs into context
             if context.is_empty() and hasattr(agent, "populate_context_post_run"):
@@ -1461,7 +1373,7 @@ class HarborSolver:
                     await _download_agent_logs(sandbox, agent_logs_dir)
             except Exception:
                 logger.debug("Post-failure recovery failed", exc_info=True)
-            _log_nel_flush_debug(agent_logs_dir)
+
 
             recovered = _recover_from_logs(agent_logs_dir)
             trajectory = recovered["trajectory"] or build_atif_trajectory(
@@ -1505,7 +1417,7 @@ class HarborSolver:
                     await _download_agent_logs(sandbox, agent_logs_dir)
             except Exception:
                 logger.debug("Post-failure recovery failed", exc_info=True)
-            _log_nel_flush_debug(agent_logs_dir)
+
 
             recovered = _recover_from_logs(agent_logs_dir)
             trajectory = recovered["trajectory"] or build_atif_trajectory(
