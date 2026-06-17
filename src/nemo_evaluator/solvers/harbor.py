@@ -551,42 +551,56 @@ print(f'cmd_timeout_{{_MAX}}s={{ok}} at {{p}}')
     #      session_budget_exhausted, flushes trajectory, then sys.exit(0) so
     #      Harbor sees a clean exit rather than an error container.
     _budget_flush_script = """\
-import sys
+import sys, re
 p = '/installed-agent/run_agent.py'
 c = open(p).read()
-old = 'events_list = []'
-ok = old in c and '_nel_flush_traj' not in c
+
+# Find the exact initialization line regardless of indentation
+old = ind = None
+for line in c.splitlines():
+    s = line.lstrip()
+    if s == 'events_list = []' or s == 'events_list: list = []':
+        old = line
+        ind = line[: len(line) - len(s)]
+        break
+already = '_nel_flush_traj' in c
+ok = old is not None and not already
+
+if not ok:
+    hits = [repr(l) for l in c.splitlines() if 'events_list' in l and '=' in l and '[]' in l]
+    print('el_lines=' + str(hits[:5]))
+
 if ok:
-    new = (
-        'events_list = []\\n'
-        '_nel_el_ref = events_list  # same object; atexit sees appends\\n'
-        'import atexit as _nel_at, json as _nel_json, os as _nel_os, sys as _nel_sys\\n'
-        'def _nel_flush_traj():\\n'
-        '    el = _nel_el_ref\\n'
-        '    if not el: return\\n'
-        '    _p = \\'/logs/agent/trajectory.json\\'\\n'
-        '    if _nel_os.path.exists(_p): return\\n'
-        '    bt = globals().get(\\'build_trajectory\\')\\n'
-        '    if bt is None: return\\n'
-        '    try: traj = bt(el)\\n'
-        '    except TypeError:\\n'
-        '        try: traj = bt(el, globals().get(\\'problem_statement\\') or \\'\\')\\n'
-        '        except Exception: return\\n'
-        '    except Exception: return\\n'
-        '    try:\\n'
-        '        _nel_os.makedirs(\\'/logs/agent\\', exist_ok=True)\\n'
-        '        open(_p, \\'w\\').write(_nel_json.dumps(traj))\\n'
-        '    except Exception: pass\\n'
-        '_nel_at.register(_nel_flush_traj)\\n'
-        '_nel_orig_eh = _nel_sys.excepthook\\n'
-        'def _nel_eh(et, ev, tb):\\n'
-        '    _nel_flush_traj()  # always flush partial trajectory on any crash\\n'
-        '    if et.__name__ == \\'RateLimitError\\' and \\'session_budget_exhausted\\' in str(ev):\\n'
-        '        _nel_sys.exit(0)  # graceful exit for turn-limit exhaustion\\n'
-        '    _nel_orig_eh(et, ev, tb)\\n'
-        '_nel_sys.excepthook = _nel_eh\\n'
-    )
-    c = c.replace(old, new, 1)
+    lines = [
+        '_nel_el_ref = events_list  # same object; atexit sees appends',
+        'import atexit as _nel_at, json as _nel_json, os as _nel_os, sys as _nel_sys',
+        'def _nel_flush_traj():',
+        '    el = _nel_el_ref',
+        '    if not el: return',
+        "    _p = '/logs/agent/trajectory.json'",
+        '    if _nel_os.path.exists(_p): return',
+        "    bt = globals().get('build_trajectory')",
+        '    if bt is None: return',
+        '    try: traj = bt(el)',
+        '    except TypeError:',
+        "        try: traj = bt(el, globals().get('problem_statement') or '')",
+        '        except Exception: return',
+        '    except Exception: return',
+        '    try:',
+        "        _nel_os.makedirs('/logs/agent', exist_ok=True)",
+        "        open(_p, 'w').write(_nel_json.dumps(traj))",
+        '    except Exception: pass',
+        '_nel_at.register(_nel_flush_traj)',
+        '_nel_orig_eh = _nel_sys.excepthook',
+        'def _nel_eh(et, ev, tb):',
+        '    _nel_flush_traj()  # always flush partial trajectory on any crash',
+        "    if et.__name__ == 'RateLimitError' and 'session_budget_exhausted' in str(ev):",
+        '        _nel_sys.exit(0)  # graceful exit for turn-limit exhaustion',
+        '    _nel_orig_eh(et, ev, tb)',
+        '_nel_sys.excepthook = _nel_eh',
+    ]
+    patch = '\\n' + '\\n'.join(ind + l for l in lines) + '\\n'
+    c = c.replace(old, old + patch, 1)
     open(p, 'w').write(c)
 print(f'budget_flush={ok}')
 """
