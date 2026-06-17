@@ -774,6 +774,46 @@ def _silence_harbor_debug(level: int = logging.INFO) -> None:
             logging.getLogger(name).setLevel(level)
 
 
+_TOKENIZER_REGISTRY: dict[str, dict] = {}
+_TOKEN_COUNTER_PATCHED = False
+
+
+def _build_custom_tokenizer(spec: str) -> dict:
+    from litellm.utils import create_pretrained_tokenizer, create_tokenizer
+
+    spec_path = Path(spec)
+    if spec_path.is_file():
+        return create_tokenizer(spec_path.read_text())
+    return create_pretrained_tokenizer(spec)
+
+
+def _install_token_counter_patch() -> None:
+    global _TOKEN_COUNTER_PATCHED
+    if _TOKEN_COUNTER_PATCHED:
+        return
+
+    import litellm.utils as litellm_utils
+
+    _original_token_counter = litellm_utils.token_counter
+
+    def _patched_token_counter(*args, **kwargs):
+        model = kwargs["model"] if "model" in kwargs else (args[0] if args else "")
+        passes_custom = kwargs.get("custom_tokenizer") is not None or len(args) >= 2
+        if model in _TOKENIZER_REGISTRY and not passes_custom:
+            kwargs["custom_tokenizer"] = _TOKENIZER_REGISTRY[model]
+        return _original_token_counter(*args, **kwargs)
+
+    litellm_utils.token_counter = _patched_token_counter
+    _TOKEN_COUNTER_PATCHED = True
+
+
+def _register_harbor_tokenizer(model_id: str, spec: str) -> None:
+    if model_id not in _TOKENIZER_REGISTRY:
+        _TOKENIZER_REGISTRY[model_id] = _build_custom_tokenizer(spec)
+        logger.info("Registered custom tokenizer %r for model %r", spec, model_id)
+    _install_token_counter_patch()
+
+
 class HarborSolver:
     """Runs any Harbor agent inside an evaluator :class:`Sandbox`.
 
@@ -796,6 +836,7 @@ class HarborSolver:
         container_env: dict[str, str] | None = None,
         max_input_tokens: int | None = None,
         max_output_tokens: int | None = None,
+        tokenizer: str | None = None,
         cmd_timeout: float | None = None,
         timeout_strategy: str = "override",
         max_agent_timeout: float | None = None,
@@ -825,6 +866,7 @@ class HarborSolver:
             self._container_env.setdefault("LLM_NATIVE_TOOL_CALLING", "true")
         self._max_input_tokens = max_input_tokens
         self._max_output_tokens = max_output_tokens
+        self._tokenizer = tokenizer
         self._api_key = _resolve_api_key(api_key)
         if not self._api_key:
             self._api_key = "no-key-needed"
@@ -848,6 +890,8 @@ class HarborSolver:
         kwargs = dict(self._harbor_agent_kwargs)
         url = model_url or self._model_url
         model_id = _model_id_for_openai(self._model_id, bool(url), agent=self._harbor_agent) if self._model_id else ""
+        if self._tokenizer and model_id:
+            _register_harbor_tokenizer(model_id, self._tokenizer)
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
         if "api_base" not in kwargs and url:
