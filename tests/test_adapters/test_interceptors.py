@@ -453,6 +453,38 @@ async def test_turn_counter_threshold_user_uses_threshold_body_without_system_pr
                 assert "Begin wrapping up" in last_content
 
 
+async def test_turn_counter_threshold_new_user_appends_trailing_user_message():
+    """threshold+new_user_message appends a new user turn without mutating prior messages."""
+    ic = InterceptorRegistry.create(
+        "turn_counter",
+        {"max_turns": 10, "position": "new_user_message", "trigger": "threshold"},
+    )
+    original_messages = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "initial task"},
+        {"role": "assistant", "content": "working"},
+        {"role": "tool", "content": "tool result"},
+    ]
+
+    for turn in range(1, 8):
+        body = {"model": "test", "messages": [msg.copy() for msg in original_messages]}
+        r = _req(body)
+        r.ctx.extra["session_id"] = "threshold-new-user"
+        result = await ic.intercept_request(r)
+        if turn < 8:
+            assert result.body["messages"] == original_messages
+
+    body = {"model": "test", "messages": [msg.copy() for msg in original_messages]}
+    r = _req(body)
+    r.ctx.extra["session_id"] = "threshold-new-user"
+    result = await ic.intercept_request(r)
+
+    assert result.body["messages"][:-1] == original_messages
+    assert result.body["messages"][-1]["role"] == "user"
+    assert result.body["messages"][-1]["content"].startswith("[SYSTEM] Turn 8/10")
+    assert "Begin wrapping up" in result.body["messages"][-1]["content"]
+
+
 async def test_turn_counter_invalid_position_raises():
     with pytest.raises(ValueError, match="not a valid InjectionPosition"):
         InterceptorRegistry.create(

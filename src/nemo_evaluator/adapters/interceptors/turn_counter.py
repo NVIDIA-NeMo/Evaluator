@@ -35,6 +35,7 @@ _GC_INTERVAL_SEC = 300.0
 class InjectionPosition(str, Enum):
     SYSTEM_MESSAGE = "system_message"
     USER_MESSAGE = "user_message"
+    NEW_USER_MESSAGE = "new_user_message"
 
 
 class InjectionTrigger(str, Enum):
@@ -78,7 +79,8 @@ class Interceptor(RequestInterceptor):
 
     * ``position`` — where the reminder lands in the request payload
       (``system_message`` appends a new system message; ``user_message``
-      appends to the last user message's content).
+      appends to the last user message's content; ``new_user_message``
+      appends a new user message).
     * ``trigger`` — when the reminder fires
       (``threshold`` at 80% / 95% of ``max_turns``; ``periodic`` every
       ``interval`` turns).
@@ -172,7 +174,11 @@ class Interceptor(RequestInterceptor):
             if severity is _Severity.NON_ACTIONABLE:
                 return req
             body = self._threshold_message_body(n, remaining, severity)
-            notice = f"[SYSTEM] {body}" if self._position is InjectionPosition.SYSTEM_MESSAGE else body
+            notice = (
+                f"[SYSTEM] {body}"
+                if self._position in (InjectionPosition.SYSTEM_MESSAGE, InjectionPosition.NEW_USER_MESSAGE)
+                else body
+            )
         else:
             if n % self._interval != 0:
                 return req
@@ -180,6 +186,8 @@ class Interceptor(RequestInterceptor):
 
         if self._position is InjectionPosition.SYSTEM_MESSAGE:
             messages.append({"role": "system", "content": notice})
+        elif self._position is InjectionPosition.NEW_USER_MESSAGE:
+            messages.append({"role": "user", "content": notice})
         else:
             self._append_to_last_user_message(messages, notice)
         return req
