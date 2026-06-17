@@ -19,7 +19,8 @@ e.g. ``0.3.1.post5+g1a2b3c4`` for untagged commits). MAJOR/MINOR/PATCH
 are kept for FW-CI-templates compatibility.
 """
 
-from importlib.metadata import version as _v, PackageNotFoundError as _E
+from importlib.metadata import PackageNotFoundError as _E
+from importlib.metadata import version as _v
 
 MAJOR = 0
 MINOR = 3
