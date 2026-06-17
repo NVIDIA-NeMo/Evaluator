@@ -1,5 +1,5 @@
 # OpenTelemetry Collector config: accept OTLP from in-container engines
-# (e.g. dynamo frontend) and write traces + logs as JSONL to Lustre.
+# (e.g. dynamo frontend) and write traces + logs as JSONL to the output directory.
 #
 # Used by `nemo_evaluator.orchestration.slurm_gen._dynamo_benchmark_command`
 # which spawns `otelcol-contrib --config /etc/otelcol/file-exporter.yaml`
@@ -8,12 +8,11 @@
 #
 # Identity attribution (run_id, model, slurm_job_id) is added via the
 # `resource` processor below, reading from env vars the bench shell
-# exports before spawning the collector. This is the OTel equivalent of
-# MR !167's `--label` flags on scrape_metrics — keeps multiple runs in
-# one Tempo/Loki store distinguishable.
+# exports before spawning the collector. This keeps multiple concurrent
+# runs distinguishable in the output.
 #
 # Metrics are NOT in any pipeline here: dynamo exposes them on /metrics
-# (Prometheus shape, scraped by scrape_metrics.py — see MR !167).
+# (Prometheus shape, scraped by scrape_metrics.py).
 
 receivers:
   otlp:
