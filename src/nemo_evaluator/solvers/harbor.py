@@ -776,6 +776,8 @@ def _silence_harbor_debug(level: int = logging.INFO) -> None:
 
 _TOKENIZER_REGISTRY: dict[str, dict] = {}
 _TOKEN_COUNTER_PATCHED = False
+_MISSING_TOKENIZER_WARNED: set[str] = set()
+_IGNORED_TOKENIZER_LOGGED: set[str] = set()
 
 
 def _build_custom_tokenizer(spec: str) -> dict:
@@ -807,19 +809,55 @@ def _install_token_counter_patch() -> None:
     _TOKEN_COUNTER_PATCHED = True
 
 
-def _register_harbor_tokenizer(model_id: str, spec: str) -> None:
-    if model_id not in _TOKENIZER_REGISTRY:
-        _TOKENIZER_REGISTRY[model_id] = _build_custom_tokenizer(spec)
-        logger.info("Registered custom tokenizer %r for model %r", spec, model_id)
+def _register_harbor_tokenizer(model_name: str, spec: str) -> None:
+    if model_name not in _TOKENIZER_REGISTRY:
+        try:
+            tokenizer = _build_custom_tokenizer(spec)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Failed to load tokenizer {spec!r} configured for model {model_name!r}. "
+                "Provide a valid Hugging Face repo id or a local tokenizer.json path, or "
+                "remove the 'tokenizer' field from the model service config. "
+                f"Underlying error: {exc}"
+            ) from exc
+        _TOKENIZER_REGISTRY[model_name] = tokenizer
+        logger.info("Registered custom tokenizer %r for model %r", spec, model_name)
     _install_token_counter_patch()
+
+
+def _configure_terminus_tokenizer(*, is_terminus2: bool, model_name: str, tokenizer: str | None) -> None:
+    if not is_terminus2:
+        if tokenizer and model_name and model_name not in _IGNORED_TOKENIZER_LOGGED:
+            _IGNORED_TOKENIZER_LOGGED.add(model_name)
+            logger.info(
+                "Tokenizer %r is configured for model %r but is only used by the "
+                "terminus-2 agent; ignoring it for the current agent.",
+                tokenizer,
+                model_name,
+            )
+        return
+
+    if not tokenizer:
+        if model_name and model_name not in _MISSING_TOKENIZER_WARNED:
+            _MISSING_TOKENIZER_WARNED.add(model_name)
+            logger.warning(
+                "No tokenizer configured for model %r used with terminus-2; token "
+                "counts will use litellm's default tokenizer and may undercount. Set the "
+                "'tokenizer' field (Hugging Face repo id or local tokenizer.json path) on "
+                "the model service config.",
+                model_name,
+            )
+        return
+
+    if model_name:
+        _register_harbor_tokenizer(model_name, tokenizer)
 
 
 _TERMINUS_CLE_RESET_PATCHED = False
 
 _TERMINUS_CLE_RESET_REPLACEMENTS = [
     (
-        "            summary_prompt = None\n"
-        "            # Fallback 1: Try full summary\n",
+        "            summary_prompt = None\n            # Fallback 1: Try full summary\n",
         "            summary_prompt = None\n"
         "            full_summarize_failed_with_cle = False\n"
         "            # Fallback 1: Try full summary\n",
@@ -865,10 +903,7 @@ _TERMINUS_CLE_RESET_REPLACEMENTS = [
 def _terminus2_build_local_fallback_llm_content(self) -> str:
     import json
 
-    analysis = (
-        "Technical difficulties during context recovery. "
-        "All summarization fallbacks failed."
-    )
+    analysis = "Technical difficulties during context recovery. All summarization fallbacks failed."
     plan = "Technical difficulties. Please continue with the task."
     if self._parser_name == "xml":
         return (
@@ -905,9 +940,7 @@ def _patch_terminus_cle_reset() -> None:
 
     if "full_summarize_failed_with_cle" in src:
         _TERMINUS_CLE_RESET_PATCHED = True
-        logger.info(
-            "Terminus2._query_llm already contains the CLE chat-reset logic; skipping patch"
-        )
+        logger.info("Terminus2._query_llm already contains the CLE chat-reset logic; skipping patch")
         return
 
     for anchor, replacement in _TERMINUS_CLE_RESET_REPLACEMENTS:
@@ -921,17 +954,13 @@ def _patch_terminus_cle_reset() -> None:
         src = src.replace(anchor, replacement, 1)
 
     if not hasattr(terminus2_mod.Terminus2, "_build_local_fallback_llm_content"):
-        terminus2_mod.Terminus2._build_local_fallback_llm_content = (
-            _terminus2_build_local_fallback_llm_content
-        )
+        terminus2_mod.Terminus2._build_local_fallback_llm_content = _terminus2_build_local_fallback_llm_content
 
     namespace: dict[str, Any] = {}
     exec(textwrap.dedent(src), terminus2_mod.__dict__, namespace)
     terminus2_mod.Terminus2._query_llm = namespace["_query_llm"]
     _TERMINUS_CLE_RESET_PATCHED = True
-    logger.info(
-        "Patched Terminus2._query_llm: reset chat on full-summary CLE + parseable local fallback"
-    )
+    logger.info("Patched Terminus2._query_llm: reset chat on full-summary CLE + parseable local fallback")
 
 
 class HarborSolver:
@@ -1010,12 +1039,16 @@ class HarborSolver:
         kwargs = dict(self._harbor_agent_kwargs)
         url = model_url or self._model_url
         model_id = _model_id_for_openai(self._model_id, bool(url), agent=self._harbor_agent) if self._model_id else ""
-        if self._harbor_agent.replace("_", "-").lower() == "terminus-2":
-            _patch_terminus_cle_reset()
-        if self._tokenizer and model_id:
-            _register_harbor_tokenizer(model_id, self._tokenizer)
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
+        is_terminus2 = self._harbor_agent.replace("_", "-").lower() == "terminus-2"
+        if is_terminus2:
+            _patch_terminus_cle_reset()
+        _configure_terminus_tokenizer(
+            is_terminus2=is_terminus2,
+            model_name=kwargs.get("model_name") or model_id,
+            tokenizer=self._tokenizer,
+        )
         if "api_base" not in kwargs and url:
             kwargs["api_base"] = url
         if "api_key" not in kwargs and self._api_key:

@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+import nemo_evaluator.solvers.harbor as harbor_mod
 from nemo_evaluator.solvers.harbor import (
     _ensure_claude_host_env,
     _ensure_host_env,
@@ -366,6 +367,68 @@ class TestSandboxEnvironmentAdapter:
         adapter = SandboxEnvironmentAdapter(MagicMock(), session_id="test-session", logs_dir=tmp_path)
         missing = {a for a in base_attrs if not hasattr(adapter, a)}
         assert not missing, f"SandboxEnvironmentAdapter missing public attrs: {missing}"
+
+
+class TestConfigureTerminusTokenizer:
+    """Tokenizer is fetched/registered only for terminus-2; failures fail fast."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_state(self, monkeypatch):
+        monkeypatch.setattr(harbor_mod, "_TOKENIZER_REGISTRY", {})
+        monkeypatch.setattr(harbor_mod, "_MISSING_TOKENIZER_WARNED", set())
+        monkeypatch.setattr(harbor_mod, "_IGNORED_TOKENIZER_LOGGED", set())
+
+    def test_non_terminus_with_tokenizer_does_not_fetch(self, monkeypatch, caplog):
+        import logging
+
+        build = MagicMock()
+        monkeypatch.setattr(harbor_mod, "_build_custom_tokenizer", build)
+        with caplog.at_level(logging.INFO):
+            harbor_mod._configure_terminus_tokenizer(is_terminus2=False, model_name="my-model", tokenizer="Qwen/Qwen3")
+        build.assert_not_called()
+        assert harbor_mod._TOKENIZER_REGISTRY == {}
+        assert "ignoring it for the current agent" in caplog.text
+
+    def test_non_terminus_info_logged_once(self, monkeypatch, caplog):
+        import logging
+
+        monkeypatch.setattr(harbor_mod, "_build_custom_tokenizer", MagicMock())
+        with caplog.at_level(logging.INFO):
+            for _ in range(3):
+                harbor_mod._configure_terminus_tokenizer(
+                    is_terminus2=False, model_name="my-model", tokenizer="Qwen/Qwen3"
+                )
+        assert caplog.text.count("ignoring it for the current agent") == 1
+
+    def test_terminus_without_tokenizer_warns_once(self, caplog):
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            for _ in range(3):
+                harbor_mod._configure_terminus_tokenizer(is_terminus2=True, model_name="my-model", tokenizer=None)
+        assert caplog.text.count("No tokenizer configured") == 1
+
+    def test_terminus_with_tokenizer_registers(self, monkeypatch):
+        monkeypatch.setattr(harbor_mod, "_build_custom_tokenizer", lambda spec: {"spec": spec})
+        monkeypatch.setattr(harbor_mod, "_install_token_counter_patch", MagicMock())
+        harbor_mod._configure_terminus_tokenizer(is_terminus2=True, model_name="my-model", tokenizer="Qwen/Qwen3")
+        assert harbor_mod._TOKENIZER_REGISTRY["my-model"] == {"spec": "Qwen/Qwen3"}
+
+    def test_terminus_tokenizer_fetch_failure_raises(self, monkeypatch):
+        def boom(spec):
+            raise OSError("offline: cannot reach huggingface")
+
+        monkeypatch.setattr(harbor_mod, "_build_custom_tokenizer", boom)
+        with pytest.raises(RuntimeError, match="Failed to load tokenizer"):
+            harbor_mod._configure_terminus_tokenizer(is_terminus2=True, model_name="my-model", tokenizer="Qwen/Qwen3")
+
+    def test_terminus_tokenizer_built_once_per_model(self, monkeypatch):
+        build = MagicMock(return_value={"tok": 1})
+        monkeypatch.setattr(harbor_mod, "_build_custom_tokenizer", build)
+        monkeypatch.setattr(harbor_mod, "_install_token_counter_patch", MagicMock())
+        for _ in range(3):
+            harbor_mod._configure_terminus_tokenizer(is_terminus2=True, model_name="my-model", tokenizer="Qwen/Qwen3")
+        build.assert_called_once()
 
 
 class TestResolveAgentTimeout:
