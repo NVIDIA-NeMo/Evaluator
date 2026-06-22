@@ -61,6 +61,22 @@ class InterceptorConfig(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class ModelTrafficCaptureConfig(BaseModel):
+    """Opt-in extras for what ``model_traffic.jsonl`` captures per call.
+
+    By default the store records stats only (tokens, finish_reason, latency,
+    model, tool_calls.count). Set any of these flags to ``true`` to also
+    persist the corresponding fields from the upstream response.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    capture_tool_calls: bool = False  # full {id, name, arguments} per call
+    capture_reasoning: bool = False  # message.reasoning_content (or SSE delta)
+    capture_messages: bool = False  # message.content
+    max_content_chars: int = 100_000  # truncation guard for the three above
+
+
 class ProxyConfig(BaseModel):
     """Adapter proxy settings for a service.
 
@@ -71,6 +87,7 @@ class ProxyConfig(BaseModel):
     ``request_timeout`` sets the HTTP timeout for upstream requests.
     ``max_retries`` and ``retry_on_status`` control retry behavior.
     ``max_concurrent_upstream`` limits concurrent requests to the upstream.
+    ``model_traffic`` controls what model_traffic.jsonl captures per call.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -83,6 +100,7 @@ class ProxyConfig(BaseModel):
     max_retries: int = 0
     retry_on_status: list[int] = Field(default_factory=lambda: [429, 502, 503, 504])
     max_concurrent_upstream: int = 64
+    model_traffic: ModelTrafficCaptureConfig = Field(default_factory=ModelTrafficCaptureConfig)
 
     @property
     def needs_proxy(self) -> bool:
