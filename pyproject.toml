@@ -108,6 +108,7 @@ markers = [
     "integration: integration tests that wire real components together",
     "slow: tests that take > 30s (deselect via: -m 'not slow')",
     "e2e: end-to-end smoke tests requiring infrastructure",
+    "tmux: tests that require a real tmux binary",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
