@@ -226,6 +226,116 @@ class TestPatchOpenhandsSDK:
             f"runner patch must disable the default visualizer to avoid rich grapheme hang; got:\n{runner_patch}"
         )
 
+    async def test_runner_patch_preserves_tool_timing(self, tmp_path):
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            """\
+import os
+
+
+def build_trajectory(events, llm_metrics, model_name):
+    steps = []
+    step_id = 1
+
+    for event in events:
+        event_type = event.get("type", "")
+
+        if event_type == "assistant_message":
+            step = {
+                "step_id": step_id,
+                "timestamp": event.get("timestamp"),
+                "source": "agent",
+                "message": event.get("content", ""),
+                "model_name": model_name,
+            }
+            tool_calls = event.get("tool_calls", [])
+            if tool_calls:
+                step["tool_calls"] = [
+                    {
+                        "tool_call_id": tc.get("id", ""),
+                        "function_name": tc.get("name", ""),
+                        "arguments": tc.get("arguments", {}),
+                    }
+                    for tc in tool_calls
+                ]
+            steps.append(step)
+            step_id += 1
+
+        elif event_type == "tool_result":
+            # Find the previous step and add observation
+            if steps and steps[-1].get("source") == "agent":
+                steps[-1]["observation"] = {
+                    "results": [
+                        {
+                            "source_call_id": event.get("tool_call_id"),
+                            "content": event.get("content", ""),
+                        }
+                    ]
+                }
+
+    trajectory = {
+        "schema_version": "ATIF-v1.5",
+        "session_id": os.environ.get("SESSION_ID", "harbor-session"),
+        "agent": {"name": "openhands-sdk", "version": "unknown"},
+        "steps": steps,
+        "final_metrics": {},
+    }
+    return trajectory
+"""
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        trajectory_patch = next(s for s in decoded_scripts if "reasoning+metrics" in s)
+        trajectory_patch = trajectory_patch.replace(
+            "p = '/installed-agent/run_agent.py'",
+            f"p = {str(runner)!r}",
+        )
+        exec(compile(trajectory_patch, "trajectory_patch.py", "exec"), {})
+
+        namespace = {}
+        exec(compile(runner.read_text(), str(runner), "exec"), namespace)
+        trajectory = namespace["build_trajectory"](
+            [
+                {
+                    "type": "assistant_message",
+                    "timestamp": "2026-06-05T12:00:00.000Z",
+                    "tool_calls": [{"id": "call_1", "name": "terminal", "arguments": {"command": "pwd"}}],
+                },
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_1",
+                    "content": "/testbed",
+                    "timestamp": "2026-06-05T12:00:01.250Z",
+                },
+            ],
+            {},
+            "model",
+        )
+
+        assert trajectory["schema_version"] == "ATIF-v1.7"
+        result = trajectory["steps"][0]["observation"]["results"][0]
+        assert result["source_call_id"] == "call_1"
+        assert result["content"] == "/testbed"
+        assert result["extra"] == {
+            "started_at": "2026-06-05T12:00:00.000Z",
+            "completed_at": "2026-06-05T12:00:01.250Z",
+            "duration_ms": 1250.0,
+        }
+
 
 class TestSandboxEnvironmentAdapter:
     def test_exposes_all_base_environment_public_attrs(self, tmp_path):
