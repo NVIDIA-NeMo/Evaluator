@@ -1155,6 +1155,80 @@ def _patch_terminus_unwind_min_pairs() -> None:
     )
 
 
+_TERMINUS_API_ANCHOR_PATCHED = False
+_CHAT_TOKEN_ANCHOR_PATCHED = False
+
+
+def _terminus2_count_total_tokens(self, chat) -> int:
+    from litellm.utils import token_counter
+
+    messages = chat.messages
+    anchor = getattr(chat, "_api_token_anchor", None)
+    if anchor is None:
+        if not getattr(chat, "_api_anchor_warned", False):
+            chat._api_anchor_warned = True
+            logger.warning(
+                "No API token-usage anchor available for terminus-2; falling back to litellm's "
+                "default tokenizer, which may provide inaccurate token count estimates."
+            )
+        return token_counter(model=self._model_name, messages=messages)
+
+    anchor_len, anchor_total = anchor
+    if len(messages) > anchor_len:
+        return anchor_total + token_counter(model=self._model_name, messages=messages[anchor_len:])
+    if len(messages) == anchor_len:
+        return anchor_total
+    return token_counter(model=self._model_name, messages=messages)
+
+
+def _patch_chat_token_anchor() -> None:
+    global _CHAT_TOKEN_ANCHOR_PATCHED
+    if _CHAT_TOKEN_ANCHOR_PATCHED:
+        return
+
+    from harbor.llms.chat import Chat
+
+    if getattr(Chat, "_records_api_token_anchor", False):
+        _CHAT_TOKEN_ANCHOR_PATCHED = True
+        return
+
+    original_chat = Chat.chat
+
+    async def _chat_with_token_anchor(self, *args, **kwargs):
+        response = await original_chat(self, *args, **kwargs)
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            self._api_token_anchor = (len(self._messages), usage.prompt_tokens + usage.completion_tokens)
+        return response
+
+    Chat.chat = _chat_with_token_anchor
+    Chat._records_api_token_anchor = True
+    _CHAT_TOKEN_ANCHOR_PATCHED = True
+    logger.info("Patched Chat.chat to record the API token anchor (prompt + completion) after each call")
+
+
+def _patch_terminus_api_token_anchor() -> None:
+    global _TERMINUS_API_ANCHOR_PATCHED
+    if _TERMINUS_API_ANCHOR_PATCHED:
+        return
+
+    import inspect
+
+    from harbor.agents.terminus_2 import terminus_2 as terminus2_mod
+
+    src = inspect.getsource(inspect.unwrap(terminus2_mod.Terminus2._count_total_tokens))
+    if "token_counter(model=self._model_name, messages=chat.messages)" not in src:
+        raise RuntimeError(
+            "Cannot patch Terminus2._count_total_tokens for API-anchored token counting: "
+            "Harbor's terminus_2.py has diverged from the expected source."
+        )
+
+    _patch_chat_token_anchor()
+    terminus2_mod.Terminus2._count_total_tokens = _terminus2_count_total_tokens
+    _TERMINUS_API_ANCHOR_PATCHED = True
+    logger.info("Patched Terminus2._count_total_tokens: anchor on API usage + litellm-default token remainder")
+
+
 class HarborSolver:
     """Runs any Harbor agent inside an evaluator :class:`Sandbox`.
 
@@ -1237,6 +1311,7 @@ class HarborSolver:
         if self._harbor_agent.replace("_", "-").lower() == "terminus-2":
             _patch_terminus_cle_reset()
             _patch_terminus_unwind_min_pairs()
+            _patch_terminus_api_token_anchor()
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
         if "api_base" not in kwargs and url:
