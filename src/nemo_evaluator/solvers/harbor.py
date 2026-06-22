@@ -40,6 +40,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_INFRA_ERROR_NAMES = frozenset(
+    {
+        "ServiceUnavailableError",
+        "ConnectionError",
+        "TimeoutError",
+        "ConnectError",
+        "ReadTimeout",
+        "APIConnectionError",
+    }
+)
+
 
 def _resolve_agent_timeout(
     strategy: str,
@@ -240,7 +251,7 @@ async def _download_agent_logs_inner(
             pass
 
 
-async def _patch_openhands_sdk(sandbox: "Sandbox", *, cmd_timeout: float | None = None) -> None:
+async def _patch_openhands_sdk(sandbox: Sandbox, *, cmd_timeout: float | None = None) -> None:
     """Apply runtime patches to the OpenHands SDK inside the sandbox.
 
     1. **Prevent premature FINISHED on text-only responses** — when the
@@ -590,6 +601,64 @@ print(f'cmd_timeout_{{_MAX}}s={{ok}} at {{p}}')
     else:
         logger.info("Cmd timeout patch: skipped (cmd_timeout not configured)")
 
+    # -- Patch 4: wrap conversation.run() so any crash still saves trajectory --
+    # Anchor 1: wrap `conversation.run()` in try/except BaseException so main()
+    # continues to the existing event-reconstruction + build_trajectory + save
+    # code on any failure — no duplication needed.
+    # Anchor 2: after the final print in main(), exit(0) cleanly so Harbor
+    # treats the run as a normal completion and downloads the trajectory.
+    _budget_flush_script = """\
+import sys
+p = '/installed-agent/run_agent.py'
+c = open(p).read()
+
+old1 = ind = None
+for line in c.splitlines():
+    s = line.lstrip()
+    if s == 'conversation.run()':
+        old1 = line; ind = line[:len(line)-len(s)]; break
+
+old2 = None
+for line in c.splitlines():
+    if 'Total cost:' in line and 'print' in line:
+        old2 = line; break
+
+already = '_nel_run_exc' in c
+ok = old1 is not None and old2 is not None and not already
+print(f'anchor1={repr(old1)} anchor2={repr(old2)} already={already} ok={ok}')
+
+if ok:
+    wrap = (ind + '_nel_run_exc = None\\n' +
+            ind + 'try:\\n' +
+            ind + '    conversation.run()\\n' +
+            ind + 'except BaseException as _e:\\n' +
+            ind + '    _nel_run_exc = _e')
+    c = c.replace(old1, wrap, 1)
+    exit_block = (
+        ind + 'if _nel_run_exc is not None:\\n' +
+        ind + '    import json as _j, os as _os\\n' +
+        ind + '    _os.makedirs("/logs/agent", exist_ok=True)\\n' +
+        ind + '    open("/logs/agent/nel_agent_error.json", "w").write(\\n' +
+        ind + '        _j.dumps({"etype": type(_nel_run_exc).__name__, "emsg": str(_nel_run_exc)}))\\n' +
+        ind + '    sys.exit(0)')
+    c = c.replace(old2, old2 + '\\n' + exit_block, 1)
+    open(p, 'w').write(c)
+print(f'budget_flush={ok}')
+"""
+    encoded4 = base64.b64encode(_budget_flush_script.encode()).decode()
+    r4 = await sandbox.exec(
+        f"echo {encoded4} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout4 = (r4.stdout or "").strip()
+    logger.info("Budget-flush patch: %s", stdout4)
+    if r4.return_code != 0 or "False" in stdout4:
+        logger.warning(
+            "Budget-flush patch problem (rc=%d): %s",
+            r4.return_code,
+            stdout4 or (r4.stderr or "")[:300],
+        )
+
 
 # ---------------------------------------------------------------------------
 # Trajectory / token / response recovery  (agent-agnostic)
@@ -680,6 +749,26 @@ def _recover_from_logs(agent_logs_dir: Path) -> dict[str, Any]:
             return out
 
     return out
+
+
+def _error_from_crash_marker(agent_logs_dir: Path) -> str | None:
+    """Return a user-facing crash error from the agent sidecar, or raise infra errors."""
+    crash_file = agent_logs_dir / "nel_agent_error.json"
+    if not crash_file.is_file():
+        return None
+
+    try:
+        crash = json.loads(crash_file.read_text())
+        etype = crash.get("etype", "AgentCrash")
+        emsg = crash.get("emsg", "")
+        if etype in _INFRA_ERROR_NAMES:
+            raise InfraError(f"Agent infrastructure failure: {etype}: {emsg}")
+        return f"Agent crashed: {etype}: {emsg}"
+    except InfraError:
+        raise
+    except Exception:
+        logger.warning("HarborSolver: failed to read crash marker", exc_info=True)
+        return None
 
 
 def _parse_atif(raw: Any) -> dict[str, Any] | None:
@@ -1349,22 +1438,16 @@ class HarborSolver:
                 context.n_output_tokens is None and recovered["completion_tokens"] == 0 and not recovered["response"]
             )
 
-            _infra_error_names = {
-                "ServiceUnavailableError",
-                "ConnectionError",
-                "TimeoutError",
-                "ConnectError",
-                "ReadTimeout",
-                "APIConnectionError",
-            }
-
             error = None
             error_kind = ErrorKind.NONE
             if agent_error is not None:
                 etype = type(agent_error).__name__
-                if etype in _infra_error_names:
+                if etype in _INFRA_ERROR_NAMES:
                     raise InfraError(f"Agent infrastructure failure: {etype}: {agent_error}") from agent_error
                 error = f"Agent crashed: {etype}: {agent_error}"
+                logger.warning("HarborSolver: %s", error)
+            elif crash_error := _error_from_crash_marker(agent_logs_dir):
+                error = crash_error
                 logger.warning("HarborSolver: %s", error)
             elif agent_timed_out and workspace_diff and _confirmed_zero_tokens:
                 error = (
