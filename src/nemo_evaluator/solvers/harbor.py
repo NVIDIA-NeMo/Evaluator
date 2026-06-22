@@ -281,6 +281,12 @@ async def _patch_openhands_sdk(sandbox: Sandbox, *, cmd_timeout: float | None = 
        ``run_timeout`` without ever reaching the LLM.  ``stuck_detection``
        is also disabled in the same patch because its heuristic
        mis-flags reasoning-model turns.
+
+    5. **Honor ``LLM_TIMEOUT`` in the Harbor runner** — older Harbor
+       images ship ``run_agent.py`` without reading ``LLM_TIMEOUT``.
+       Inject the env lookup so ``solver.agent_kwargs.llm_kwargs.timeout``
+       (mapped to ``container_env.LLM_TIMEOUT``) reaches OpenHands
+       ``LLM(timeout=...)`` and LiteLLM per-request timeouts.
     """
     # -- Patch 0: disable stuck detection + default visualizer -----------
     # stuck_detection=False: the SDK's heuristic mis-flags reasoning-model
@@ -316,6 +322,40 @@ async def _patch_openhands_sdk(sandbox: Sandbox, *, cmd_timeout: float | None = 
         timeout_sec=10,
     )
     logger.info("Runner patch: %s", (r0.stdout or "").strip())
+
+    _llm_timeout_patch_script = """\
+p = '/installed-agent/run_agent.py'
+c = open(p).read()
+if 'LLM_TIMEOUT' in c:
+    print('llm_timeout: already present')
+else:
+    old = '    llm = LLM(**llm_kwargs)'
+    new = (
+        '    import os\\n'
+        '    timeout_raw = os.environ.get("LLM_TIMEOUT")\\n'
+        '    if timeout_raw:\\n'
+        '        llm_kwargs["timeout"] = int(timeout_raw)\\n'
+        '    llm = LLM(**llm_kwargs)'
+    )
+    if old in c:
+        open(p, 'w').write(c.replace(old, new, 1))
+        print('llm_timeout: patched')
+    else:
+        print('llm_timeout: pattern not found')
+"""
+    encoded_timeout = base64.b64encode(_llm_timeout_patch_script.encode()).decode()
+    r_timeout = await sandbox.exec(
+        f"echo {encoded_timeout} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout_timeout = (r_timeout.stdout or "").strip()
+    logger.info("LLM timeout patch: %s", stdout_timeout)
+    if r_timeout.return_code != 0 or "pattern not found" in stdout_timeout:
+        logger.warning(
+            "LLM timeout patch problem (rc=%d): %s",
+            r_timeout.return_code,
+            stdout_timeout or (r_timeout.stderr or "")[:300],
+        )
 
     # -- Patch 1: don't FINISHED on text-only responses ------------------
     # In agent.py, when the LLM produces text without a tool call the SDK
@@ -1365,6 +1405,11 @@ class HarborSolver:
             self._container_env.setdefault("SECURITY_CONFIRMATION_MODE", "false")
             self._container_env.setdefault("SECURITY_ENABLE_SECURITY_ANALYZER", "false")
             self._container_env.setdefault("LLM_NATIVE_TOOL_CALLING", "true")
+            llm_kw = self._harbor_agent_kwargs.get("llm_kwargs")
+            if isinstance(llm_kw, dict):
+                llm_timeout = llm_kw.get("timeout")
+                if llm_timeout is not None:
+                    self._container_env.setdefault("LLM_TIMEOUT", str(int(float(llm_timeout))))
         self._max_input_tokens = max_input_tokens
         self._max_output_tokens = max_output_tokens
         self._tokenizer = tokenizer
