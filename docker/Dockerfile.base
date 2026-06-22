@@ -34,8 +34,6 @@ RUN wget -q "https://github.com/open-telemetry/opentelemetry-collector-releases/
     && rm /tmp/otelcol.tar.gz \
     && /usr/local/bin/otelcol-contrib --version
 
-COPY docker/observability/otel-collector.yaml /etc/otelcol/file-exporter.yaml
-
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
 WORKDIR /app
 

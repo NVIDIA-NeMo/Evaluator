@@ -781,7 +781,14 @@ def _start_proxy(
 
     from nemo_evaluator.observability.model_traffic import ModelTrafficStore, register_store
 
-    traffic_store = ModelTrafficStore(service_name=service_name)
+    capture_cfg = getattr(proxy_cfg, "model_traffic", None) if proxy_cfg is not None else None
+    traffic_store = ModelTrafficStore(
+        service_name=service_name,
+        capture_tool_calls=getattr(capture_cfg, "capture_tool_calls", False),
+        capture_reasoning=getattr(capture_cfg, "capture_reasoning", False),
+        capture_messages=getattr(capture_cfg, "capture_messages", False),
+        max_content_chars=getattr(capture_cfg, "max_content_chars", 100_000),
+    )
     register_store(traffic_store)
     proxy_kwargs["model_traffic_store_id"] = traffic_store.store_id
 
@@ -1277,6 +1284,19 @@ def _generate_reports(
         path.write_text(renderer(table), encoding="utf-8")
         paths.append(path)
         click.echo(f"Report: {path}")
+
+    try:
+        from nemo_evaluator.reports.trajectories import generate_trajectories_report
+
+        traj_path = generate_trajectories_report(
+            output_dir,
+            enrich=config.output.trajectories.enrich,
+        )
+        if traj_path is not None:
+            paths.append(traj_path)
+            click.echo(f"Trajectories report: {traj_path}")
+    except Exception:
+        logger.warning("Trajectories report generation failed", exc_info=True)
 
     export_bundles = in_memory_bundles if in_memory_bundles else bundles
 
