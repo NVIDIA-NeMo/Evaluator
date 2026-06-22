@@ -1084,6 +1084,77 @@ def _patch_terminus_cle_reset() -> None:
     logger.info("Patched Terminus2._query_llm: reset chat on full-summary CLE + parseable local fallback")
 
 
+_TERMINUS_UNWIND_MIN_PAIRS = 3
+_TERMINUS_UNWIND_PATCHED = False
+
+_TERMINUS_UNWIND_REPLACEMENTS = [
+    (
+        "        context_limit = self._llm.get_model_context_limit()\n"
+        "\n"
+        "        while len(chat.messages) > 1:  # Keep at least the first message\n",
+        "        context_limit = self._llm.get_model_context_limit()\n"
+        "\n"
+        f"        min_pairs_to_remove = {_TERMINUS_UNWIND_MIN_PAIRS}\n"
+        "        pairs_removed = 0\n"
+        "        while len(chat.messages) > 1:  # Keep at least the first message\n",
+    ),
+    (
+        "            if free_tokens >= target_free_tokens:\n                break\n",
+        "            if free_tokens >= target_free_tokens and pairs_removed >= min_pairs_to_remove:\n"
+        "                break\n",
+    ),
+    (
+        "            if len(chat.messages) >= 2:\n"
+        "                chat._messages = chat.messages[:-2]\n"
+        "            else:\n"
+        "                break\n",
+        "            if len(chat.messages) >= 2:\n"
+        "                chat._messages = chat.messages[:-2]\n"
+        "                pairs_removed += 1\n"
+        "            else:\n"
+        "                break\n",
+    ),
+]
+
+
+def _patch_terminus_unwind_min_pairs() -> None:
+    global _TERMINUS_UNWIND_PATCHED
+    if _TERMINUS_UNWIND_PATCHED:
+        return
+
+    import inspect
+    import textwrap
+
+    from harbor.agents.terminus_2 import terminus_2 as terminus2_mod
+
+    original = terminus2_mod.Terminus2._unwind_messages_to_free_tokens
+    src = inspect.getsource(inspect.unwrap(original))
+
+    if "min_pairs_to_remove" in src:
+        _TERMINUS_UNWIND_PATCHED = True
+        logger.info("Terminus2._unwind_messages_to_free_tokens already enforces a minimum pair removal; skipping patch")
+        return
+
+    for anchor, replacement in _TERMINUS_UNWIND_REPLACEMENTS:
+        occurrences = src.count(anchor)
+        if occurrences != 1:
+            raise RuntimeError(
+                "Cannot patch Terminus2._unwind_messages_to_free_tokens for minimum pair "
+                f"removal: expected exactly one match for an anchor but found {occurrences}. "
+                "Harbor's terminus_2.py has diverged from the expected source."
+            )
+        src = src.replace(anchor, replacement, 1)
+
+    namespace: dict[str, Any] = {}
+    exec(textwrap.dedent(src), terminus2_mod.__dict__, namespace)
+    terminus2_mod.Terminus2._unwind_messages_to_free_tokens = namespace["_unwind_messages_to_free_tokens"]
+    _TERMINUS_UNWIND_PATCHED = True
+    logger.info(
+        "Patched Terminus2._unwind_messages_to_free_tokens: always remove at least %d message pairs",
+        _TERMINUS_UNWIND_MIN_PAIRS,
+    )
+
+
 class HarborSolver:
     """Runs any Harbor agent inside an evaluator :class:`Sandbox`.
 
@@ -1165,6 +1236,7 @@ class HarborSolver:
         model_id = _model_id_for_openai(self._model_id, bool(url), agent=self._harbor_agent) if self._model_id else ""
         if self._harbor_agent.replace("_", "-").lower() == "terminus-2":
             _patch_terminus_cle_reset()
+            _patch_terminus_unwind_min_pairs()
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
         if "api_base" not in kwargs and url:
