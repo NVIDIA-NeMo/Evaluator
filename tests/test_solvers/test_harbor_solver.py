@@ -10,15 +10,18 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from nemo_evaluator.errors import InfraError
 from nemo_evaluator.solvers.harbor import (
     _ensure_claude_host_env,
     _ensure_host_env,
+    _error_from_crash_marker,
     _extract_response,
     _model_id_for_openai,
     _resolve_agent_timeout,
@@ -173,6 +176,21 @@ class TestDownloadAgentLogs:
 
         await _download_agent_logs_inner(sandbox, tmp_path, max_retries=2)
         assert sandbox.download.call_count == 2
+
+
+class TestCrashMarker:
+    def test_non_infra_marker_returns_agent_crash_error(self, tmp_path):
+        (tmp_path / "nel_agent_error.json").write_text(json.dumps({"etype": "ValueError", "emsg": "bad input"}))
+
+        assert _error_from_crash_marker(tmp_path) == "Agent crashed: ValueError: bad input"
+
+    def test_infra_marker_raises_infra_error(self, tmp_path):
+        (tmp_path / "nel_agent_error.json").write_text(
+            json.dumps({"etype": "APIConnectionError", "emsg": "connection failed"})
+        )
+
+        with pytest.raises(InfraError, match="Agent infrastructure failure: APIConnectionError: connection failed"):
+            _error_from_crash_marker(tmp_path)
 
 
 # ── Patch functions ──────────────────────────────────────────────────────
