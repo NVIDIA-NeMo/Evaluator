@@ -238,6 +238,7 @@ class TestSandboxEnvironmentAdapter:
         from unittest.mock import MagicMock
 
         from harbor.environments.base import BaseEnvironment
+
         from nemo_evaluator.solvers.harbor_adapter import SandboxEnvironmentAdapter
 
         base_src = inspect.getsource(BaseEnvironment.__init__)
