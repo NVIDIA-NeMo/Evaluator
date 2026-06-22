@@ -239,9 +239,7 @@ async def _download_agent_logs_inner(
             pass
 
 
-async def _patch_openhands_sdk(
-    sandbox: "Sandbox", *, cmd_timeout: float | None = None
-) -> None:
+async def _patch_openhands_sdk(sandbox: "Sandbox", *, cmd_timeout: float | None = None) -> None:
     """Apply runtime patches to the OpenHands SDK inside the sandbox.
 
     1. **Prevent premature FINISHED on text-only responses** — when the
@@ -577,7 +575,14 @@ if ok:
             ind + 'except BaseException as _e:\\n' +
             ind + '    _nel_run_exc = _e')
     c = c.replace(old1, wrap, 1)
-    c = c.replace(old2, old2 + '\\n' + ind + 'if _nel_run_exc is not None: sys.exit(0)', 1)
+    exit_block = (
+        ind + 'if _nel_run_exc is not None:\\n' +
+        ind + '    import json as _j, os as _os\\n' +
+        ind + '    _os.makedirs("/logs/agent", exist_ok=True)\\n' +
+        ind + '    open("/logs/agent/nel_agent_error.json", "w").write(\\n' +
+        ind + '        _j.dumps({"etype": type(_nel_run_exc).__name__, "emsg": str(_nel_run_exc)}))\\n' +
+        ind + '    sys.exit(0)')
+    c = c.replace(old2, old2 + '\\n' + exit_block, 1)
     open(p, 'w').write(c)
 print(f'budget_flush={ok}')
 """
@@ -1050,7 +1055,6 @@ class HarborSolver:
             raise RuntimeError("HarborSolver requires a sandbox.")
 
         from harbor.models.agent.context import AgentContext
-
         from nemo_evaluator.solvers.harbor_adapter import SandboxEnvironmentAdapter
 
         _silence_harbor_debug()
@@ -1181,7 +1185,6 @@ class HarborSolver:
             if not adapter.is_mounted and sandbox.is_running:
                 await _download_agent_logs(sandbox, agent_logs_dir)
 
-
             # Let agent parse its own logs into context
             if context.is_empty() and hasattr(agent, "populate_context_post_run"):
                 try:
@@ -1257,6 +1260,16 @@ class HarborSolver:
                     raise InfraError(f"Agent infrastructure failure: {etype}: {agent_error}") from agent_error
                 error = f"Agent crashed: {etype}: {agent_error}"
                 logger.warning("HarborSolver: %s", error)
+            elif (_crash_file := agent_logs_dir / "nel_agent_error.json").is_file():
+                try:
+                    _crash = json.loads(_crash_file.read_text())
+                    _etype = _crash.get("etype", "AgentCrash")
+                    _emsg = _crash.get("emsg", "")
+                    if _etype not in _infra_error_names:
+                        error = f"Agent crashed: {_etype}: {_emsg}"
+                        logger.warning("HarborSolver: %s", error)
+                except Exception:
+                    logger.warning("HarborSolver: failed to read crash marker", exc_info=True)
             elif agent_timed_out and workspace_diff and _confirmed_zero_tokens:
                 error = (
                     f"Agent timed out with workspace changes but 0 completion "
@@ -1311,7 +1324,6 @@ class HarborSolver:
             except Exception:
                 logger.debug("Post-failure recovery failed", exc_info=True)
 
-
             recovered = _recover_from_logs(agent_logs_dir)
             trajectory = recovered["trajectory"] or build_atif_trajectory(
                 steps=[{"source": "system", "message": str(exc)}],
@@ -1354,7 +1366,6 @@ class HarborSolver:
                     await _download_agent_logs(sandbox, agent_logs_dir)
             except Exception:
                 logger.debug("Post-failure recovery failed", exc_info=True)
-
 
             recovered = _recover_from_logs(agent_logs_dir)
             trajectory = recovered["trajectory"] or build_atif_trajectory(
