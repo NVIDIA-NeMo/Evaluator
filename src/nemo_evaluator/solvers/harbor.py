@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import random
+import shlex
 import tempfile
 import time
 from pathlib import Path
@@ -774,6 +775,116 @@ def _silence_harbor_debug(level: int = logging.INFO) -> None:
             logging.getLogger(name).setLevel(level)
 
 
+def _patch_terminus_tmux_send_keys() -> None:
+    """Make Harbor's Terminus 2 ``tmux send-keys`` chunking byte-accurate.
+
+    Harbor's ``TmuxSession._tmux_send_keys`` splits keystrokes so each emitted
+    ``tmux send-keys`` command stays under ``_TMUX_SEND_KEYS_MAX_COMMAND_LENGTH``,
+    but it measures length with ``len()`` (Unicode code points) while tmux's
+    limit is in **bytes**.  Multibyte UTF-8 payloads (e.g. Lean proofs full of
+    ``ℕ ∀ ∃``) therefore produce commands that pass the character-count check yet
+    exceed tmux's byte limit, raising ``command too long`` — the agent crashes,
+    verify is skipped, and the trial scores 0.
+    """
+    try:
+        from harbor.agents.terminus_2.tmux_session import TmuxSession
+    except ImportError:
+        logger.debug("Harbor terminus_2 TmuxSession not importable; skipping tmux byte-length patch")
+        return
+
+    if getattr(TmuxSession, "_nel_tmux_bytelen_patched", False):
+        return
+
+    missing = [
+        attr
+        for attr in ("_tmux_send_keys", "_split_key_for_tmux", "_TMUX_SEND_KEYS_MAX_COMMAND_LENGTH")
+        if not hasattr(TmuxSession, attr)
+    ]
+    if missing:
+        logger.warning(
+            "Harbor TmuxSession is missing %s; skipping tmux send-keys byte-length patch "
+            "(Harbor internals may have changed — review nemo_evaluator.solvers.harbor).",
+            missing,
+        )
+        return
+
+    def _utf8_len(value: str) -> int:
+        return len(value.encode("utf-8"))
+
+    def _tmux_send_keys(self: Any, keys: list[str]) -> list[str]:
+        prefix = "tmux send-keys -t " + shlex.quote(self._session_name)
+        prefix_len = _utf8_len(prefix)
+        max_len = self._TMUX_SEND_KEYS_MAX_COMMAND_LENGTH
+
+        escaped_keys = [shlex.quote(key) for key in keys]
+        single = prefix + " " + " ".join(escaped_keys)
+        if _utf8_len(single) <= max_len:
+            return [single]
+
+        commands: list[str] = []
+        current_escaped: list[str] = []
+        current_len = prefix_len
+
+        def _flush() -> None:
+            nonlocal current_len
+            if current_escaped:
+                commands.append(prefix + " " + " ".join(current_escaped))
+                current_escaped.clear()
+                current_len = prefix_len
+
+        for key in keys:
+            escaped = shlex.quote(key)
+            addition = 1 + _utf8_len(escaped)  # space + quoted key
+
+            if current_len + addition <= max_len:
+                current_escaped.append(escaped)
+                current_len += addition
+            elif prefix_len + addition <= max_len:
+                _flush()
+                current_escaped.append(escaped)
+                current_len = prefix_len + addition
+            else:
+                _flush()
+                max_escaped = max_len - prefix_len - 1
+                for chunk_escaped in _split_key_for_tmux(key, max_escaped):
+                    addition = 1 + _utf8_len(chunk_escaped)
+                    if current_len + addition <= max_len:
+                        current_escaped.append(chunk_escaped)
+                        current_len += addition
+                    else:
+                        _flush()
+                        current_escaped.append(chunk_escaped)
+                        current_len = prefix_len + addition
+
+        _flush()
+        return commands
+
+    def _split_key_for_tmux(key: str, max_escaped_len: int) -> list[str]:
+        """Split *key* into ``shlex.quote``-d chunks each ≤ *max_escaped_len* bytes."""
+        chunks: list[str] = []
+        remaining = key
+        while remaining:
+            lo, hi, best = 1, len(remaining), 0
+            while lo <= hi:
+                mid = (lo + hi) // 2
+                if _utf8_len(shlex.quote(remaining[:mid])) <= max_escaped_len:
+                    best = mid
+                    lo = mid + 1
+                else:
+                    hi = mid - 1
+            if best == 0:
+                raise ValueError("tmux send-keys command prefix leaves no room for key")
+            chunks.append(shlex.quote(remaining[:best]))
+            remaining = remaining[best:]
+        return chunks
+
+    TmuxSession._utf8_len = staticmethod(_utf8_len)
+    TmuxSession._tmux_send_keys = _tmux_send_keys
+    TmuxSession._split_key_for_tmux = staticmethod(_split_key_for_tmux)
+    TmuxSession._nel_tmux_bytelen_patched = True
+    logger.info("Applied Harbor terminus-2 tmux send-keys UTF-8 byte-length patch")
+
+
 class HarborSolver:
     """Runs any Harbor agent inside an evaluator :class:`Sandbox`.
 
@@ -844,6 +955,11 @@ class HarborSolver:
 
     def _create_agent(self, logs_dir: Path, *, model_url: str = "") -> Any:
         from harbor.agents.factory import AgentFactory
+
+        # AgentFactory eagerly imports every built-in agent (including
+        # terminus_2), so the byte-length patch target is
+        # loaded regardless of which agent we build.
+        _patch_terminus_tmux_send_keys()
 
         kwargs = dict(self._harbor_agent_kwargs)
         url = model_url or self._model_url
