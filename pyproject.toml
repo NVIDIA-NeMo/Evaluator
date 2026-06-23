@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nemo-evaluator"
-version = "0.3.1"
+version = "0.4.0"
 description = "NeMo Evaluator — benchmark environments, pluggable solvers, interceptor proxy, and decision-grade scoring for LLMs"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
