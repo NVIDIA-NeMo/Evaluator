@@ -154,6 +154,57 @@ class TestCountTotalTokens:
         assert "shrank below the API anchor" not in caplog.text
 
 
+# ── anchored estimate + custom tokenizer integration ─────────────────────
+
+
+class TestAnchoredEstimateUsesCustomTokenizer:
+    """The anchored estimate routes its token_counter calls through the custom tokenizer."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_counter_patch(self, monkeypatch):
+        monkeypatch.setattr(harbor, "_TOKEN_COUNTER_PATCHED", False)
+        monkeypatch.setattr(harbor, "_TOKENIZER_REGISTRY", {})
+
+    @staticmethod
+    def _install_with_fake_original(monkeypatch):
+        def fake_original(*args, model=None, messages=None, custom_tokenizer=None, **kwargs):
+            per_msg = 100 if custom_tokenizer is not None else 10
+            return len(messages) * per_msg
+
+        monkeypatch.setattr("litellm.utils.token_counter", fake_original)
+        harbor._install_token_counter_patch()
+
+    @staticmethod
+    def _messages(n):
+        return [{"role": "user", "content": "x"} for _ in range(n)]
+
+    def test_remainder_estimate_uses_custom_tokenizer(self, monkeypatch):
+        self._install_with_fake_original(monkeypatch)
+        harbor._TOKENIZER_REGISTRY["M"] = {"sentinel": True}
+
+        agent = SimpleNamespace(_model_name="M")
+        chat = SimpleNamespace(messages=self._messages(5), _api_token_anchor=(2, 1000))
+        result = _terminus2_count_total_tokens(agent, chat)
+        assert result == 1000 + 3 * 100
+
+    def test_full_fallback_uses_custom_tokenizer(self, monkeypatch):
+        self._install_with_fake_original(monkeypatch)
+        harbor._TOKENIZER_REGISTRY["M"] = {"sentinel": True}
+
+        agent = SimpleNamespace(_model_name="M")
+        chat = SimpleNamespace(messages=self._messages(4))
+        result = _terminus2_count_total_tokens(agent, chat)
+        assert result == 4 * 100
+
+    def test_unregistered_model_uses_default_tokenizer(self, monkeypatch):
+        self._install_with_fake_original(monkeypatch)
+
+        agent = SimpleNamespace(_model_name="unregistered")
+        chat = SimpleNamespace(messages=self._messages(5), _api_token_anchor=(2, 1000))
+        result = _terminus2_count_total_tokens(agent, chat)
+        assert result == 1000 + 3 * 10
+
+
 # ── _terminus2_build_local_fallback_llm_content ──────────────────────────
 
 

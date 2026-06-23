@@ -17,6 +17,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+import nemo_evaluator.solvers.harbor as harbor_mod
 from nemo_evaluator.errors import InfraError
 from nemo_evaluator.solvers.harbor import (
     _ensure_claude_host_env,
@@ -384,6 +385,164 @@ class TestSandboxEnvironmentAdapter:
         adapter = SandboxEnvironmentAdapter(MagicMock(), session_id="test-session", logs_dir=tmp_path)
         missing = {a for a in base_attrs if not hasattr(adapter, a)}
         assert not missing, f"SandboxEnvironmentAdapter missing public attrs: {missing}"
+
+
+class TestConfigureTerminusTokenizer:
+    """Tokenizer is fetched/registered only for terminus-2; failures fail fast."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_state(self, monkeypatch):
+        monkeypatch.setattr(harbor_mod, "_TOKENIZER_REGISTRY", {})
+        monkeypatch.setattr(harbor_mod, "_MISSING_TOKENIZER_WARNED", set())
+        monkeypatch.setattr(harbor_mod, "_IGNORED_TOKENIZER_LOGGED", set())
+
+    def test_non_terminus_with_tokenizer_does_not_fetch(self, monkeypatch, caplog):
+        import logging
+
+        build = MagicMock()
+        monkeypatch.setattr(harbor_mod, "_build_custom_tokenizer", build)
+        with caplog.at_level(logging.INFO):
+            harbor_mod._configure_terminus_tokenizer(is_terminus2=False, model_name="my-model", tokenizer="Qwen/Qwen3")
+        build.assert_not_called()
+        assert harbor_mod._TOKENIZER_REGISTRY == {}
+        assert "ignoring it for the current agent" in caplog.text
+
+    def test_non_terminus_info_logged_once(self, monkeypatch, caplog):
+        import logging
+
+        monkeypatch.setattr(harbor_mod, "_build_custom_tokenizer", MagicMock())
+        with caplog.at_level(logging.INFO):
+            for _ in range(3):
+                harbor_mod._configure_terminus_tokenizer(
+                    is_terminus2=False, model_name="my-model", tokenizer="Qwen/Qwen3"
+                )
+        assert caplog.text.count("ignoring it for the current agent") == 1
+
+    def test_terminus_without_tokenizer_warns_once(self, caplog):
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            for _ in range(3):
+                harbor_mod._configure_terminus_tokenizer(is_terminus2=True, model_name="my-model", tokenizer=None)
+        assert caplog.text.count("No tokenizer configured") == 1
+
+    def test_terminus_with_tokenizer_registers(self, monkeypatch):
+        monkeypatch.setattr(harbor_mod, "_build_custom_tokenizer", lambda spec: {"spec": spec})
+        monkeypatch.setattr(harbor_mod, "_install_token_counter_patch", MagicMock())
+        harbor_mod._configure_terminus_tokenizer(is_terminus2=True, model_name="my-model", tokenizer="Qwen/Qwen3")
+        assert harbor_mod._TOKENIZER_REGISTRY["my-model"] == {"spec": "Qwen/Qwen3"}
+
+    def test_terminus_tokenizer_fetch_failure_raises(self, monkeypatch):
+        def boom(spec):
+            raise OSError("offline: cannot reach huggingface")
+
+        monkeypatch.setattr(harbor_mod, "_build_custom_tokenizer", boom)
+        with pytest.raises(RuntimeError, match="Failed to load tokenizer"):
+            harbor_mod._configure_terminus_tokenizer(is_terminus2=True, model_name="my-model", tokenizer="Qwen/Qwen3")
+
+    def test_terminus_tokenizer_built_once_per_model(self, monkeypatch):
+        build = MagicMock(return_value={"tok": 1})
+        monkeypatch.setattr(harbor_mod, "_build_custom_tokenizer", build)
+        monkeypatch.setattr(harbor_mod, "_install_token_counter_patch", MagicMock())
+        for _ in range(3):
+            harbor_mod._configure_terminus_tokenizer(is_terminus2=True, model_name="my-model", tokenizer="Qwen/Qwen3")
+        build.assert_called_once()
+
+
+class TestBuildCustomTokenizer:
+    """Local tokenizer.json paths use create_tokenizer; repo ids use create_pretrained_tokenizer."""
+
+    def test_local_file_uses_create_tokenizer(self, monkeypatch, tmp_path):
+        token_file = tmp_path / "tokenizer.json"
+        token_file.write_text('{"fake": "tokenizer"}')
+        created = MagicMock(return_value={"type": "local"})
+        pretrained = MagicMock()
+        monkeypatch.setattr("litellm.utils.create_tokenizer", created)
+        monkeypatch.setattr("litellm.utils.create_pretrained_tokenizer", pretrained)
+
+        result = harbor_mod._build_custom_tokenizer(str(token_file))
+
+        created.assert_called_once_with('{"fake": "tokenizer"}')
+        pretrained.assert_not_called()
+        assert result == {"type": "local"}
+
+    def test_repo_id_uses_create_pretrained_tokenizer(self, monkeypatch):
+        created = MagicMock()
+        pretrained = MagicMock(return_value={"type": "hf"})
+        monkeypatch.setattr("litellm.utils.create_tokenizer", created)
+        monkeypatch.setattr("litellm.utils.create_pretrained_tokenizer", pretrained)
+
+        result = harbor_mod._build_custom_tokenizer("Qwen/Qwen3-8B")
+
+        pretrained.assert_called_once_with("Qwen/Qwen3-8B")
+        created.assert_not_called()
+        assert result == {"type": "hf"}
+
+
+class TestPatchedTokenCounter:
+    """litellm.utils.token_counter is wrapped to inject the registered custom tokenizer."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_state(self, monkeypatch):
+        monkeypatch.setattr(harbor_mod, "_TOKEN_COUNTER_PATCHED", False)
+        monkeypatch.setattr(harbor_mod, "_TOKENIZER_REGISTRY", {})
+
+    @staticmethod
+    def _install_recorder(monkeypatch):
+        calls = {}
+
+        def fake_original(*args, **kwargs):
+            calls["custom_tokenizer"] = kwargs.get("custom_tokenizer")
+            calls["args"] = args
+            return 0
+
+        monkeypatch.setattr("litellm.utils.token_counter", fake_original)
+        harbor_mod._install_token_counter_patch()
+        import litellm.utils as litellm_utils
+
+        return litellm_utils.token_counter, calls
+
+    def test_rebinds_litellm_token_counter(self, monkeypatch):
+        monkeypatch.setattr("litellm.utils.token_counter", lambda **kwargs: 0)
+        import litellm.utils as litellm_utils
+
+        before = litellm_utils.token_counter
+        harbor_mod._install_token_counter_patch()
+        assert litellm_utils.token_counter is not before
+        assert harbor_mod._TOKEN_COUNTER_PATCHED is True
+
+    def test_injects_custom_tokenizer_for_registered_model(self, monkeypatch):
+        patched, calls = self._install_recorder(monkeypatch)
+        harbor_mod._TOKENIZER_REGISTRY["M"] = {"sentinel": 1}
+        patched(model="M", messages=[{"role": "user", "content": "x"}])
+        assert calls["custom_tokenizer"] == {"sentinel": 1}
+
+    def test_does_not_inject_for_unregistered_model(self, monkeypatch):
+        patched, calls = self._install_recorder(monkeypatch)
+        patched(model="other", messages=[{"role": "user", "content": "x"}])
+        assert calls["custom_tokenizer"] is None
+
+    def test_respects_explicit_custom_tokenizer_kwarg(self, monkeypatch):
+        patched, calls = self._install_recorder(monkeypatch)
+        harbor_mod._TOKENIZER_REGISTRY["M"] = {"sentinel": 1}
+        patched(model="M", messages=[], custom_tokenizer={"explicit": 2})
+        assert calls["custom_tokenizer"] == {"explicit": 2}
+
+    def test_respects_positional_custom_tokenizer(self, monkeypatch):
+        patched, calls = self._install_recorder(monkeypatch)
+        harbor_mod._TOKENIZER_REGISTRY["M"] = {"sentinel": 1}
+        patched("M", {"explicit": 2})
+        assert calls["custom_tokenizer"] is None
+        assert calls["args"] == ("M", {"explicit": 2})
+
+    def test_idempotent_install(self, monkeypatch):
+        monkeypatch.setattr("litellm.utils.token_counter", lambda **kwargs: 0)
+        harbor_mod._install_token_counter_patch()
+        import litellm.utils as litellm_utils
+
+        first = litellm_utils.token_counter
+        harbor_mod._install_token_counter_patch()
+        assert litellm_utils.token_counter is first
 
 
 class TestResolveAgentTimeout:

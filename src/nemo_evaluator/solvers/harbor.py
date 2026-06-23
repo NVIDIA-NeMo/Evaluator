@@ -1169,7 +1169,7 @@ def _terminus2_count_total_tokens(self, chat) -> int:
             chat._api_anchor_warned = True
             logger.warning(
                 "No API token-usage anchor available for terminus-2; falling back to litellm's "
-                "default tokenizer, which may provide inaccurate token count estimates."
+                "tokenizer, which may provide inaccurate token count estimates."
             )
         return token_counter(model=self._model_name, messages=messages)
 
@@ -1181,7 +1181,7 @@ def _terminus2_count_total_tokens(self, chat) -> int:
     if not getattr(chat, "_api_anchor_below_warned", False):
         chat._api_anchor_below_warned = True
         logger.debug(
-            "terminus-2 messages (%d) shrank below the API anchor (%d); using litellm's default tokenizer estimate",
+            "terminus-2 messages (%d) shrank below the API anchor (%d); using litellm's tokenizer for token count estimation",
             len(messages),
             anchor_len,
         )
@@ -1233,7 +1233,86 @@ def _patch_terminus_api_token_anchor() -> None:
     _patch_chat_token_anchor()
     terminus2_mod.Terminus2._count_total_tokens = _terminus2_count_total_tokens
     _TERMINUS_API_ANCHOR_PATCHED = True
-    logger.info("Patched Terminus2._count_total_tokens: anchor on API usage + litellm-default token remainder")
+    logger.info("Patched Terminus2._count_total_tokens: anchor on API usage + litellm token remainder")
+
+
+_TOKENIZER_REGISTRY: dict[str, dict] = {}
+_TOKEN_COUNTER_PATCHED = False
+_MISSING_TOKENIZER_WARNED: set[str] = set()
+_IGNORED_TOKENIZER_LOGGED: set[str] = set()
+
+
+def _build_custom_tokenizer(spec: str) -> dict:
+    from litellm.utils import create_pretrained_tokenizer, create_tokenizer
+
+    spec_path = Path(spec)
+    if spec_path.is_file():
+        return create_tokenizer(spec_path.read_text())
+    return create_pretrained_tokenizer(spec)
+
+
+def _install_token_counter_patch() -> None:
+    global _TOKEN_COUNTER_PATCHED
+    if _TOKEN_COUNTER_PATCHED:
+        return
+
+    import litellm.utils as litellm_utils
+
+    _original_token_counter = litellm_utils.token_counter
+
+    def _patched_token_counter(*args, **kwargs):
+        model = kwargs["model"] if "model" in kwargs else (args[0] if args else "")
+        passes_custom = kwargs.get("custom_tokenizer") is not None or len(args) >= 2
+        if model in _TOKENIZER_REGISTRY and not passes_custom:
+            kwargs["custom_tokenizer"] = _TOKENIZER_REGISTRY[model]
+        return _original_token_counter(*args, **kwargs)
+
+    litellm_utils.token_counter = _patched_token_counter
+    _TOKEN_COUNTER_PATCHED = True
+
+
+def _register_harbor_tokenizer(model_name: str, spec: str) -> None:
+    if model_name not in _TOKENIZER_REGISTRY:
+        try:
+            tokenizer = _build_custom_tokenizer(spec)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Failed to load tokenizer {spec!r} configured for model {model_name!r}. "
+                "Provide a valid Hugging Face repo id or a local tokenizer.json path, or "
+                "remove the 'tokenizer' field from the model service config. "
+                f"Underlying error: {exc}"
+            ) from exc
+        _TOKENIZER_REGISTRY[model_name] = tokenizer
+        logger.info("Registered custom tokenizer %r for model %r", spec, model_name)
+    _install_token_counter_patch()
+
+
+def _configure_terminus_tokenizer(*, is_terminus2: bool, model_name: str, tokenizer: str | None) -> None:
+    if not is_terminus2:
+        if tokenizer and model_name and model_name not in _IGNORED_TOKENIZER_LOGGED:
+            _IGNORED_TOKENIZER_LOGGED.add(model_name)
+            logger.info(
+                "Tokenizer %r is configured for model %r but is only used by the "
+                "terminus-2 agent; ignoring it for the current agent.",
+                tokenizer,
+                model_name,
+            )
+        return
+
+    if not tokenizer:
+        if model_name and model_name not in _MISSING_TOKENIZER_WARNED:
+            _MISSING_TOKENIZER_WARNED.add(model_name)
+            logger.warning(
+                "No tokenizer configured for model %r used with terminus-2; token "
+                "counts will use litellm's tokenizer and may be inaccurate. Set the "
+                "'tokenizer' field (Hugging Face repo id or local tokenizer.json path) on "
+                "the model service config.",
+                model_name,
+            )
+        return
+
+    if model_name:
+        _register_harbor_tokenizer(model_name, tokenizer)
 
 
 class HarborSolver:
@@ -1258,6 +1337,7 @@ class HarborSolver:
         container_env: dict[str, str] | None = None,
         max_input_tokens: int | None = None,
         max_output_tokens: int | None = None,
+        tokenizer: str | None = None,
         cmd_timeout: float | None = None,
         timeout_strategy: str = "override",
         max_agent_timeout: float | None = None,
@@ -1287,6 +1367,7 @@ class HarborSolver:
             self._container_env.setdefault("LLM_NATIVE_TOOL_CALLING", "true")
         self._max_input_tokens = max_input_tokens
         self._max_output_tokens = max_output_tokens
+        self._tokenizer = tokenizer
         self._api_key = _resolve_api_key(api_key)
         if not self._api_key:
             self._api_key = "no-key-needed"
@@ -1315,12 +1396,18 @@ class HarborSolver:
         kwargs = dict(self._harbor_agent_kwargs)
         url = model_url or self._model_url
         model_id = _model_id_for_openai(self._model_id, bool(url), agent=self._harbor_agent) if self._model_id else ""
-        if self._harbor_agent.replace("_", "-").lower() == "terminus-2":
+        is_terminus2 = self._harbor_agent.replace("_", "-").lower() == "terminus-2"
+        if is_terminus2:
             _patch_terminus_cle_reset()
             _patch_terminus_unwind_min_pairs()
             _patch_terminus_api_token_anchor()
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
+        _configure_terminus_tokenizer(
+            is_terminus2=is_terminus2,
+            model_name=kwargs.get("model_name") or model_id,
+            tokenizer=self._tokenizer,
+        )
         if "api_base" not in kwargs and url:
             kwargs["api_base"] = url
         if "api_key" not in kwargs and self._api_key:
