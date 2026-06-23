@@ -1178,6 +1178,13 @@ def _terminus2_count_total_tokens(self, chat) -> int:
         return anchor_total + token_counter(model=self._model_name, messages=messages[anchor_len:])
     if len(messages) == anchor_len:
         return anchor_total
+    if not getattr(chat, "_api_anchor_below_warned", False):
+        chat._api_anchor_below_warned = True
+        logger.debug(
+            "terminus-2 messages (%d) shrank below the API anchor (%d); using litellm's default tokenizer estimate",
+            len(messages),
+            anchor_len,
+        )
     return token_counter(model=self._model_name, messages=messages)
 
 
@@ -1197,7 +1204,7 @@ def _patch_chat_token_anchor() -> None:
     async def _chat_with_token_anchor(self, *args, **kwargs):
         response = await original_chat(self, *args, **kwargs)
         usage = getattr(response, "usage", None)
-        if usage is not None:
+        if usage is not None and hasattr(usage, "prompt_tokens") and hasattr(usage, "completion_tokens"):
             self._api_token_anchor = (len(self._messages), usage.prompt_tokens + usage.completion_tokens)
         return response
 
