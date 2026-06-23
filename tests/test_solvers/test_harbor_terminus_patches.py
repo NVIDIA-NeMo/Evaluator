@@ -41,7 +41,7 @@ def _query_llm_with_marker(self, *args, **kwargs):
 
 
 def _unwind_with_marker(self, chat, target_free_tokens=4000):
-    min_pairs_to_remove = 3
+    min_pairs_to_remove = 10
     return min_pairs_to_remove
 
 
@@ -227,7 +227,7 @@ class TestPatchUnwindMinPairs:
         assert harbor._TERMINUS_UNWIND_PATCHED is True
         assert terminus._unwind_messages_to_free_tokens is not original
 
-    def test_removes_at_least_three_pairs_even_when_target_met(self, patch_sandbox):
+    def test_removes_at_least_min_pairs_even_when_target_met(self, patch_sandbox):
         terminus = patch_sandbox.terminus
         _patch_terminus_unwind_min_pairs()
         unwind = terminus._unwind_messages_to_free_tokens
@@ -237,13 +237,15 @@ class TestPatchUnwindMinPairs:
             logger=SimpleNamespace(debug=lambda *a, **k: None),
             _count_total_tokens=lambda chat: 10,
         )
-        chat = _FakeChat(["system"] + [f"m{i}" for i in range(8)])  # 1 + 8 = 9 messages
+        min_pairs = harbor._TERMINUS_UNWIND_MIN_PAIRS
+        remainder = 4
+        chat = _FakeChat(["system"] + [f"m{i}" for i in range(2 * min_pairs + remainder)])
 
         unwind(fake_self, chat, target_free_tokens=4000)
 
-        # Free-token target is met from the start, but the minimum of 3 pairs
-        # (6 messages) must still be removed: 9 - 6 = 3 remain.
-        assert len(chat.messages) == 3
+        # Free-token target is met from the start, but the minimum of min_pairs
+        # pairs (2 * min_pairs messages) must still be removed.
+        assert len(chat.messages) == 1 + remainder
 
     def test_idempotent_when_flag_set(self, patch_sandbox):
         terminus = patch_sandbox.terminus

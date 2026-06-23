@@ -1084,7 +1084,7 @@ def _patch_terminus_cle_reset() -> None:
     logger.info("Patched Terminus2._query_llm: reset chat on full-summary CLE + parseable local fallback")
 
 
-_TERMINUS_UNWIND_MIN_PAIRS = 3
+_TERMINUS_UNWIND_MIN_PAIRS = 10
 _TERMINUS_UNWIND_PATCHED = False
 
 _TERMINUS_UNWIND_REPLACEMENTS = [
