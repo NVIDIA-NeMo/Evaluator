@@ -798,6 +798,12 @@ def _start_proxy(
         if overrides:
             interceptor_specs.append({"name": "payload_modifier", "config": {"params_to_add": overrides}})
 
+    # Always-on safety net: relabel cap-truncated `stop` responses to `length`
+    # and warn on empty generations. Appended last so its request phase observes
+    # any token cap injected by payload_modifier above.
+    if not any(spec["name"] == "finish_reason" for spec in interceptor_specs):
+        interceptor_specs.append({"name": "finish_reason", "config": {}})
+
     if interceptor_specs:
         proxy_kwargs["interceptor_specs"] = interceptor_specs
 
