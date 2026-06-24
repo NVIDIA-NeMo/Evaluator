@@ -305,6 +305,7 @@ def _make_solver(
             container_env=container_env,
             max_input_tokens=getattr(svc, "max_input_tokens", None),
             max_output_tokens=getattr(svc, "max_output_tokens", None),
+            tokenizer=getattr(svc, "tokenizer", None),
             cmd_timeout=getattr(solver_cfg, "cmd_timeout", None),
             timeout_strategy=getattr(solver_cfg, "timeout_strategy", "override"),
             max_agent_timeout=getattr(solver_cfg, "max_agent_timeout", None),

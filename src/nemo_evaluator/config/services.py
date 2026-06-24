@@ -135,6 +135,7 @@ class _ModelServerBase(BaseModel):
     reasoning_pattern: str | None = None
     max_input_tokens: int | None = None
     max_output_tokens: int | None = None
+    tokenizer: str | None = None
     generation: GenerationConfig = Field(default_factory=GenerationConfig)
     proxy: ProxyConfig | None = None
     depends_on: list[str] = Field(default_factory=list)
@@ -248,6 +249,7 @@ class ExternalApiService(BaseModel):
     health_path: str | None = None
     max_input_tokens: int | None = None
     max_output_tokens: int | None = None
+    tokenizer: str | None = None
     generation: GenerationConfig = Field(default_factory=GenerationConfig)
     proxy: ProxyConfig | None = None
 
