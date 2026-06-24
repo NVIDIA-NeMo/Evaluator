@@ -5,19 +5,29 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from nemo_evaluator.adapters.interceptors.finish_reason import Interceptor
 from nemo_evaluator.adapters.types import AdapterRequest, AdapterResponse, InterceptorContext
 
 
-def _make_pair(request_body, response_body):
+def _make_pair(
+    request_body: dict[str, Any],
+    response_body: dict[str, Any],
+) -> tuple[AdapterRequest, AdapterResponse]:
     ctx = InterceptorContext()
     req = AdapterRequest(method="POST", path="/chat/completions", headers={}, body=request_body, ctx=ctx)
     resp = AdapterResponse(status_code=200, headers={}, body=response_body, ctx=ctx)
     return req, resp
 
 
-def _chat_response(*, finish_reason, content, completion_tokens=None, reasoning_tokens=None):
+def _chat_response(
+    *,
+    finish_reason: str,
+    content: str,
+    completion_tokens: int | None = None,
+    reasoning_tokens: int | None = None,
+) -> dict[str, Any]:
     usage = {}
     if completion_tokens is not None:
         usage["completion_tokens"] = completion_tokens
@@ -59,6 +69,38 @@ class TestFinishReasonRelabel:
         await i.intercept_request(req)
         out = await i.intercept_response(resp)
         assert out.body["choices"][0]["finish_reason"] == "length"
+
+    async def test_does_not_relabel_multi_choice_from_aggregate_usage(self):
+        i = Interceptor()
+        req, resp = _make_pair(
+            {"max_tokens": 100},
+            {
+                "choices": [
+                    {"finish_reason": "stop", "message": {"content": "first"}},
+                    {"finish_reason": "stop", "message": {"content": "second"}},
+                ],
+                "usage": {"completion_tokens": 100},
+            },
+        )
+        await i.intercept_request(req)
+        out = await i.intercept_response(resp)
+        assert [choice["finish_reason"] for choice in out.body["choices"]] == ["stop", "stop"]
+
+    async def test_relabels_multi_choice_using_choice_usage(self):
+        i = Interceptor()
+        req, resp = _make_pair(
+            {"max_tokens": 100},
+            {
+                "choices": [
+                    {"finish_reason": "stop", "message": {"content": ""}, "usage": {"completion_tokens": 100}},
+                    {"finish_reason": "stop", "message": {"content": "second"}, "usage": {"completion_tokens": 50}},
+                ],
+                "usage": {"completion_tokens": 150},
+            },
+        )
+        await i.intercept_request(req)
+        out = await i.intercept_response(resp)
+        assert [choice["finish_reason"] for choice in out.body["choices"]] == ["length", "stop"]
 
     async def test_keeps_stop_when_under_cap(self):
         i = Interceptor()

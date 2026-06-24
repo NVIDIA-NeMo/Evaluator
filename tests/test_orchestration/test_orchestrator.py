@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -201,16 +202,16 @@ class TestInterceptorSpecs:
 
 
 class TestStartProxyFinishReason:
-    def _run(self, svc):
+    def _run(self, svc: object) -> list[str]:
         import nemo_evaluator.adapters.proxy as proxy_mod
         from nemo_evaluator.orchestration.orchestrator import _start_proxy
 
-        captured: dict = {}
+        captured: dict[str, Any] = {}
 
         class _Handle:
             url = "http://127.0.0.1:0"
 
-        def _fake_start(**kwargs):
+        def _fake_start(**kwargs: Any) -> _Handle:
             captured.update(kwargs)
             return _Handle()
 

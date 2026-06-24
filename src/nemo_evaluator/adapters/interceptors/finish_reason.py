@@ -69,12 +69,19 @@ class Interceptor(RequestInterceptor, ResponseInterceptor):
             return resp
 
         cap = resp.ctx.extra.get(_CAP_CTX_KEY)
-        generated = self._generated_tokens(body)
-        truncated = isinstance(cap, int) and isinstance(generated, int) and generated >= cap
+        choices = body.get("choices")
+        if not isinstance(choices, list):
+            choices = []
+        response_generated = self._generated_tokens(body)
+        single_choice = len(choices) == 1
 
-        for choice in body.get("choices") or []:
+        for choice in choices:
             if not isinstance(choice, dict):
                 continue
+            generated = self._choice_generated_tokens(choice)
+            if generated is None and single_choice:
+                generated = response_generated
+            truncated = isinstance(cap, int) and isinstance(generated, int) and generated >= cap
             if truncated and choice.get("finish_reason") == "stop":
                 choice["finish_reason"] = "length"
                 logger.warning(
@@ -95,6 +102,17 @@ class Interceptor(RequestInterceptor, ResponseInterceptor):
         usage = body.get("usage")
         if not isinstance(usage, dict):
             return None
+        return Interceptor._tokens_from_usage(usage)
+
+    @staticmethod
+    def _choice_generated_tokens(choice: dict) -> int | None:
+        usage = choice.get("usage")
+        if isinstance(usage, dict):
+            return Interceptor._tokens_from_usage(usage)
+        return Interceptor._tokens_from_usage(choice)
+
+    @staticmethod
+    def _tokens_from_usage(usage: dict) -> int | None:
         completion = usage.get("completion_tokens")
         details = usage.get("completion_tokens_details")
         reasoning = details.get("reasoning_tokens") if isinstance(details, dict) else None
