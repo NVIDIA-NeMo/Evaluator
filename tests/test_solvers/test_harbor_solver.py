@@ -204,7 +204,7 @@ class TestPatchOpenhandsSDK:
         sandbox = AsyncMock()
         sandbox.exec.return_value = MagicMock(stdout="stuck_detection disabled", stderr="", return_code=0)
         await _patch_openhands_sdk(sandbox)
-        assert sandbox.exec.call_count >= 3
+        assert sandbox.exec.call_count >= 4
 
     async def test_runner_patch_disables_visualizer(self):
         """Patch 0 must inject both stuck_detection=False AND visualizer=None.
@@ -244,6 +244,42 @@ class TestPatchOpenhandsSDK:
         assert 'conv_kwargs["visualizer"] = None' in runner_patch, (
             f"runner patch must disable the default visualizer to avoid rich grapheme hang; got:\n{runner_patch}"
         )
+
+    async def test_runner_patch_injects_llm_timeout(self, tmp_path):
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text("import os\nllm_kwargs = {'model': 'm'}\n    llm = LLM(**llm_kwargs)\n")
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        timeout_patch = next(
+            (s for s in decoded_scripts if "llm_timeout" in s and "LLM_TIMEOUT" in s),
+            None,
+        )
+        assert timeout_patch is not None, "LLM timeout patch script not emitted"
+
+        timeout_patch = timeout_patch.replace(
+            "p = '/installed-agent/run_agent.py'",
+            f"p = {str(runner)!r}",
+        )
+        exec(compile(timeout_patch, "llm_timeout_patch.py", "exec"), {})  # noqa: S102
+
+        patched = runner.read_text()
+        assert "import os" in patched
+        assert 'os.environ.get("LLM_TIMEOUT")' in patched
+        assert 'llm_kwargs["timeout"] = int(timeout_raw)' in patched
 
     async def test_runner_patch_preserves_tool_timing(self, tmp_path):
         import base64
@@ -577,6 +613,39 @@ class TestResolveAgentTimeout:
     )
     def test_effective_timeout(self, strategy, config, task, cap, expected):
         assert _resolve_agent_timeout(strategy, config, task, cap) == expected
+
+
+class TestHarborSolverLlmTimeout:
+    def test_llm_kwargs_timeout_maps_to_container_env(self):
+        from unittest.mock import patch
+
+        with patch("nemo_evaluator.solvers.harbor._check_harbor_installed"):
+            from nemo_evaluator.solvers.harbor import HarborSolver
+
+            solver = HarborSolver(
+                harbor_agent="openhands-sdk",
+                model_url="http://localhost:8000",
+                model_id="test-model",
+                api_key="test-key",
+                harbor_agent_kwargs={"llm_kwargs": {"timeout": 3600}},
+            )
+            assert solver._container_env["LLM_TIMEOUT"] == "3600"
+
+    def test_explicit_container_env_overrides_llm_kwargs_timeout(self):
+        from unittest.mock import patch
+
+        with patch("nemo_evaluator.solvers.harbor._check_harbor_installed"):
+            from nemo_evaluator.solvers.harbor import HarborSolver
+
+            solver = HarborSolver(
+                harbor_agent="openhands-sdk",
+                model_url="http://localhost:8000",
+                model_id="test-model",
+                api_key="test-key",
+                harbor_agent_kwargs={"llm_kwargs": {"timeout": 3600}},
+                container_env={"LLM_TIMEOUT": "7200"},
+            )
+            assert solver._container_env["LLM_TIMEOUT"] == "7200"
 
 
 class TestInjectSkill:
