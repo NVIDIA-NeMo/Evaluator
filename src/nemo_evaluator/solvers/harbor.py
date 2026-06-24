@@ -281,6 +281,12 @@ async def _patch_openhands_sdk(sandbox: Sandbox, *, cmd_timeout: float | None = 
        ``run_timeout`` without ever reaching the LLM.  ``stuck_detection``
        is also disabled in the same patch because its heuristic
        mis-flags reasoning-model turns.
+
+    5. **Honor ``LLM_TIMEOUT`` in the Harbor runner** — older Harbor
+       images ship ``run_agent.py`` without reading ``LLM_TIMEOUT``.
+       Inject the env lookup so ``solver.agent_kwargs.llm_kwargs.timeout``
+       (mapped to ``container_env.LLM_TIMEOUT``) reaches OpenHands
+       ``LLM(timeout=...)`` and LiteLLM per-request timeouts.
     """
     # -- Patch 0: disable stuck detection + default visualizer -----------
     # stuck_detection=False: the SDK's heuristic mis-flags reasoning-model
@@ -316,6 +322,40 @@ async def _patch_openhands_sdk(sandbox: Sandbox, *, cmd_timeout: float | None = 
         timeout_sec=10,
     )
     logger.info("Runner patch: %s", (r0.stdout or "").strip())
+
+    _llm_timeout_patch_script = """\
+p = '/installed-agent/run_agent.py'
+c = open(p).read()
+if 'LLM_TIMEOUT' in c:
+    print('llm_timeout: already present')
+else:
+    old = '    llm = LLM(**llm_kwargs)'
+    new = (
+        '    import os\\n'
+        '    timeout_raw = os.environ.get("LLM_TIMEOUT")\\n'
+        '    if timeout_raw:\\n'
+        '        llm_kwargs["timeout"] = int(timeout_raw)\\n'
+        '    llm = LLM(**llm_kwargs)'
+    )
+    if old in c:
+        open(p, 'w').write(c.replace(old, new, 1))
+        print('llm_timeout: patched')
+    else:
+        print('llm_timeout: pattern not found')
+"""
+    encoded_timeout = base64.b64encode(_llm_timeout_patch_script.encode()).decode()
+    r_timeout = await sandbox.exec(
+        f"echo {encoded_timeout} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout_timeout = (r_timeout.stdout or "").strip()
+    logger.info("LLM timeout patch: %s", stdout_timeout)
+    if r_timeout.return_code != 0 or "pattern not found" in stdout_timeout:
+        logger.warning(
+            "LLM timeout patch problem (rc=%d): %s",
+            r_timeout.return_code,
+            stdout_timeout or (r_timeout.stderr or "")[:300],
+        )
 
     # -- Patch 1: don't FINISHED on text-only responses ------------------
     # In agent.py, when the LLM produces text without a tool call the SDK
@@ -974,6 +1014,347 @@ def _patch_terminus_tmux_send_keys() -> None:
     logger.info("Applied Harbor terminus-2 tmux send-keys UTF-8 byte-length patch")
 
 
+_TERMINUS_CLE_RESET_PATCHED = False
+
+_TERMINUS_CLE_RESET_REPLACEMENTS = [
+    (
+        "            summary_prompt = None\n            # Fallback 1: Try full summary\n",
+        "            summary_prompt = None\n"
+        "            full_summarize_failed_with_cle = False\n"
+        "            # Fallback 1: Try full summary\n",
+    ),
+    (
+        "            except Exception as e:\n"
+        '                self.logger.debug(f"SUMMARIZATION: Full summary failed: {e}")\n',
+        "            except Exception as e:\n"
+        "                full_summarize_failed_with_cle = isinstance(\n"
+        "                    e, ContextLengthExceededError\n"
+        "                )\n"
+        '                self.logger.debug(f"SUMMARIZATION: Full summary failed: {e}")\n',
+    ),
+    (
+        "            if prompt_path is not None:\n"
+        "                prompt_path.write_text(summary_prompt)\n"
+        "\n"
+        "            try:\n"
+        "                start_time = time.time()\n"
+        "                llm_response = await chat.chat(\n",
+        "            if prompt_path is not None:\n"
+        "                prompt_path.write_text(summary_prompt)\n"
+        "\n"
+        "            if full_summarize_failed_with_cle:\n"
+        "                chat._messages = [chat.messages[0]]\n"
+        "                chat.reset_response_chain()\n"
+        "\n"
+        "            try:\n"
+        "                start_time = time.time()\n"
+        "                llm_response = await chat.chat(\n",
+    ),
+    (
+        "                llm_response = LLMResponse(\n"
+        '                    content="Technical difficulties. Please continue with the task."\n'
+        "                )\n",
+        "                llm_response = LLMResponse(\n"
+        "                    content=self._build_local_fallback_llm_content()\n"
+        "                )\n",
+    ),
+]
+
+
+def _terminus2_build_local_fallback_llm_content(self) -> str:
+    import json
+
+    analysis = "Technical difficulties during context recovery. All summarization fallbacks failed."
+    plan = "Technical difficulties. Please continue with the task."
+    if self._parser_name == "xml":
+        return (
+            "<response>\n"
+            f"<analysis>{analysis}</analysis>\n"
+            f"<plan>{plan}</plan>\n"
+            "<commands>\n"
+            "</commands>\n"
+            "<task_complete>false</task_complete>\n"
+            "</response>"
+        )
+    return json.dumps(
+        {
+            "analysis": analysis,
+            "plan": plan,
+            "commands": [],
+            "task_complete": False,
+        }
+    )
+
+
+def _patch_terminus_cle_reset() -> None:
+    global _TERMINUS_CLE_RESET_PATCHED
+    if _TERMINUS_CLE_RESET_PATCHED:
+        return
+
+    import inspect
+    import textwrap
+
+    from harbor.agents.terminus_2 import terminus_2 as terminus2_mod
+
+    original = terminus2_mod.Terminus2._query_llm
+    src = inspect.getsource(inspect.unwrap(original))
+
+    if "full_summarize_failed_with_cle" in src:
+        _TERMINUS_CLE_RESET_PATCHED = True
+        logger.info("Terminus2._query_llm already contains the CLE chat-reset logic; skipping patch")
+        return
+
+    for anchor, replacement in _TERMINUS_CLE_RESET_REPLACEMENTS:
+        occurrences = src.count(anchor)
+        if occurrences != 1:
+            raise RuntimeError(
+                "Cannot patch Terminus2._query_llm for CLE chat reset: expected exactly "
+                f"one match for an anchor but found {occurrences}. Harbor's terminus_2.py "
+                "has diverged from the expected source."
+            )
+        src = src.replace(anchor, replacement, 1)
+
+    if not hasattr(terminus2_mod.Terminus2, "_build_local_fallback_llm_content"):
+        terminus2_mod.Terminus2._build_local_fallback_llm_content = _terminus2_build_local_fallback_llm_content
+
+    namespace: dict[str, Any] = {}
+    exec(textwrap.dedent(src), terminus2_mod.__dict__, namespace)
+    terminus2_mod.Terminus2._query_llm = namespace["_query_llm"]
+    _TERMINUS_CLE_RESET_PATCHED = True
+    logger.info("Patched Terminus2._query_llm: reset chat on full-summary CLE + parseable local fallback")
+
+
+_TERMINUS_UNWIND_MIN_PAIRS = 10
+_TERMINUS_UNWIND_PATCHED = False
+
+_TERMINUS_UNWIND_REPLACEMENTS = [
+    (
+        "        context_limit = self._llm.get_model_context_limit()\n"
+        "\n"
+        "        while len(chat.messages) > 1:  # Keep at least the first message\n",
+        "        context_limit = self._llm.get_model_context_limit()\n"
+        "\n"
+        f"        min_pairs_to_remove = {_TERMINUS_UNWIND_MIN_PAIRS}\n"
+        "        pairs_removed = 0\n"
+        "        while len(chat.messages) > 1:  # Keep at least the first message\n",
+    ),
+    (
+        "            if free_tokens >= target_free_tokens:\n                break\n",
+        "            if free_tokens >= target_free_tokens and pairs_removed >= min_pairs_to_remove:\n"
+        "                break\n",
+    ),
+    (
+        "            if len(chat.messages) >= 2:\n"
+        "                chat._messages = chat.messages[:-2]\n"
+        "            else:\n"
+        "                break\n",
+        "            if len(chat.messages) >= 2:\n"
+        "                chat._messages = chat.messages[:-2]\n"
+        "                pairs_removed += 1\n"
+        "            else:\n"
+        "                break\n",
+    ),
+]
+
+
+def _patch_terminus_unwind_min_pairs() -> None:
+    global _TERMINUS_UNWIND_PATCHED
+    if _TERMINUS_UNWIND_PATCHED:
+        return
+
+    import inspect
+    import textwrap
+
+    from harbor.agents.terminus_2 import terminus_2 as terminus2_mod
+
+    original = terminus2_mod.Terminus2._unwind_messages_to_free_tokens
+    src = inspect.getsource(inspect.unwrap(original))
+
+    if "min_pairs_to_remove" in src:
+        _TERMINUS_UNWIND_PATCHED = True
+        logger.info("Terminus2._unwind_messages_to_free_tokens already enforces a minimum pair removal; skipping patch")
+        return
+
+    for anchor, replacement in _TERMINUS_UNWIND_REPLACEMENTS:
+        occurrences = src.count(anchor)
+        if occurrences != 1:
+            raise RuntimeError(
+                "Cannot patch Terminus2._unwind_messages_to_free_tokens for minimum pair "
+                f"removal: expected exactly one match for an anchor but found {occurrences}. "
+                "Harbor's terminus_2.py has diverged from the expected source."
+            )
+        src = src.replace(anchor, replacement, 1)
+
+    namespace: dict[str, Any] = {}
+    exec(textwrap.dedent(src), terminus2_mod.__dict__, namespace)
+    terminus2_mod.Terminus2._unwind_messages_to_free_tokens = namespace["_unwind_messages_to_free_tokens"]
+    _TERMINUS_UNWIND_PATCHED = True
+    logger.info(
+        "Patched Terminus2._unwind_messages_to_free_tokens: always remove at least %d message pairs",
+        _TERMINUS_UNWIND_MIN_PAIRS,
+    )
+
+
+_TERMINUS_API_ANCHOR_PATCHED = False
+_CHAT_TOKEN_ANCHOR_PATCHED = False
+
+
+def _terminus2_count_total_tokens(self, chat) -> int:
+    from litellm.utils import token_counter
+
+    messages = chat.messages
+    anchor = getattr(chat, "_api_token_anchor", None)
+    if anchor is None:
+        if not getattr(chat, "_api_anchor_warned", False):
+            chat._api_anchor_warned = True
+            logger.warning(
+                "No API token-usage anchor available for terminus-2; falling back to litellm's "
+                "tokenizer, which may provide inaccurate token count estimates."
+            )
+        return token_counter(model=self._model_name, messages=messages)
+
+    anchor_len, anchor_total = anchor
+    if len(messages) > anchor_len:
+        return anchor_total + token_counter(model=self._model_name, messages=messages[anchor_len:])
+    if len(messages) == anchor_len:
+        return anchor_total
+    if not getattr(chat, "_api_anchor_below_warned", False):
+        chat._api_anchor_below_warned = True
+        logger.debug(
+            "terminus-2 messages (%d) shrank below the API anchor (%d); using litellm's tokenizer for token count estimation",
+            len(messages),
+            anchor_len,
+        )
+    return token_counter(model=self._model_name, messages=messages)
+
+
+def _patch_chat_token_anchor() -> None:
+    global _CHAT_TOKEN_ANCHOR_PATCHED
+    if _CHAT_TOKEN_ANCHOR_PATCHED:
+        return
+
+    from harbor.llms.chat import Chat
+
+    if getattr(Chat, "_records_api_token_anchor", False):
+        _CHAT_TOKEN_ANCHOR_PATCHED = True
+        return
+
+    original_chat = Chat.chat
+
+    async def _chat_with_token_anchor(self, *args, **kwargs):
+        response = await original_chat(self, *args, **kwargs)
+        usage = getattr(response, "usage", None)
+        if usage is not None and hasattr(usage, "prompt_tokens") and hasattr(usage, "completion_tokens"):
+            self._api_token_anchor = (len(self._messages), usage.prompt_tokens + usage.completion_tokens)
+        return response
+
+    Chat.chat = _chat_with_token_anchor
+    Chat._records_api_token_anchor = True
+    _CHAT_TOKEN_ANCHOR_PATCHED = True
+    logger.info("Patched Chat.chat to record the API token anchor (prompt + completion) after each call")
+
+
+def _patch_terminus_api_token_anchor() -> None:
+    global _TERMINUS_API_ANCHOR_PATCHED
+    if _TERMINUS_API_ANCHOR_PATCHED:
+        return
+
+    import inspect
+
+    from harbor.agents.terminus_2 import terminus_2 as terminus2_mod
+
+    src = inspect.getsource(inspect.unwrap(terminus2_mod.Terminus2._count_total_tokens))
+    if "token_counter(model=self._model_name, messages=chat.messages)" not in src:
+        raise RuntimeError(
+            "Cannot patch Terminus2._count_total_tokens for API-anchored token counting: "
+            "Harbor's terminus_2.py has diverged from the expected source."
+        )
+
+    _patch_chat_token_anchor()
+    terminus2_mod.Terminus2._count_total_tokens = _terminus2_count_total_tokens
+    _TERMINUS_API_ANCHOR_PATCHED = True
+    logger.info("Patched Terminus2._count_total_tokens: anchor on API usage + litellm token remainder")
+
+
+_TOKENIZER_REGISTRY: dict[str, dict] = {}
+_TOKEN_COUNTER_PATCHED = False
+_MISSING_TOKENIZER_WARNED: set[str] = set()
+_IGNORED_TOKENIZER_LOGGED: set[str] = set()
+
+
+def _build_custom_tokenizer(spec: str) -> dict:
+    from litellm.utils import create_pretrained_tokenizer, create_tokenizer
+
+    spec_path = Path(spec)
+    if spec_path.is_file():
+        return create_tokenizer(spec_path.read_text())
+    return create_pretrained_tokenizer(spec)
+
+
+def _install_token_counter_patch() -> None:
+    global _TOKEN_COUNTER_PATCHED
+    if _TOKEN_COUNTER_PATCHED:
+        return
+
+    import litellm.utils as litellm_utils
+
+    _original_token_counter = litellm_utils.token_counter
+
+    def _patched_token_counter(*args, **kwargs):
+        model = kwargs["model"] if "model" in kwargs else (args[0] if args else "")
+        passes_custom = kwargs.get("custom_tokenizer") is not None or len(args) >= 2
+        if model in _TOKENIZER_REGISTRY and not passes_custom:
+            kwargs["custom_tokenizer"] = _TOKENIZER_REGISTRY[model]
+        return _original_token_counter(*args, **kwargs)
+
+    litellm_utils.token_counter = _patched_token_counter
+    _TOKEN_COUNTER_PATCHED = True
+
+
+def _register_harbor_tokenizer(model_name: str, spec: str) -> None:
+    if model_name not in _TOKENIZER_REGISTRY:
+        try:
+            tokenizer = _build_custom_tokenizer(spec)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Failed to load tokenizer {spec!r} configured for model {model_name!r}. "
+                "Provide a valid Hugging Face repo id or a local tokenizer.json path, or "
+                "remove the 'tokenizer' field from the model service config. "
+                f"Underlying error: {exc}"
+            ) from exc
+        _TOKENIZER_REGISTRY[model_name] = tokenizer
+        logger.info("Registered custom tokenizer %r for model %r", spec, model_name)
+    _install_token_counter_patch()
+
+
+def _configure_terminus_tokenizer(*, is_terminus2: bool, model_name: str, tokenizer: str | None) -> None:
+    if not is_terminus2:
+        if tokenizer and model_name and model_name not in _IGNORED_TOKENIZER_LOGGED:
+            _IGNORED_TOKENIZER_LOGGED.add(model_name)
+            logger.info(
+                "Tokenizer %r is configured for model %r but is only used by the "
+                "terminus-2 agent; ignoring it for the current agent.",
+                tokenizer,
+                model_name,
+            )
+        return
+
+    if not tokenizer:
+        if model_name and model_name not in _MISSING_TOKENIZER_WARNED:
+            _MISSING_TOKENIZER_WARNED.add(model_name)
+            logger.warning(
+                "No tokenizer configured for model %r used with terminus-2; token "
+                "counts will use litellm's tokenizer and may be inaccurate. Set the "
+                "'tokenizer' field (Hugging Face repo id or local tokenizer.json path) on "
+                "the model service config.",
+                model_name,
+            )
+        return
+
+    if model_name:
+        _register_harbor_tokenizer(model_name, tokenizer)
+
+
 class HarborSolver:
     """Runs any Harbor agent inside an evaluator :class:`Sandbox`.
 
@@ -996,6 +1377,7 @@ class HarborSolver:
         container_env: dict[str, str] | None = None,
         max_input_tokens: int | None = None,
         max_output_tokens: int | None = None,
+        tokenizer: str | None = None,
         cmd_timeout: float | None = None,
         timeout_strategy: str = "override",
         max_agent_timeout: float | None = None,
@@ -1023,8 +1405,14 @@ class HarborSolver:
             self._container_env.setdefault("SECURITY_CONFIRMATION_MODE", "false")
             self._container_env.setdefault("SECURITY_ENABLE_SECURITY_ANALYZER", "false")
             self._container_env.setdefault("LLM_NATIVE_TOOL_CALLING", "true")
+            llm_kw = self._harbor_agent_kwargs.get("llm_kwargs")
+            if isinstance(llm_kw, dict):
+                llm_timeout = llm_kw.get("timeout")
+                if llm_timeout is not None:
+                    self._container_env.setdefault("LLM_TIMEOUT", str(int(float(llm_timeout))))
         self._max_input_tokens = max_input_tokens
         self._max_output_tokens = max_output_tokens
+        self._tokenizer = tokenizer
         self._api_key = _resolve_api_key(api_key)
         if not self._api_key:
             self._api_key = "no-key-needed"
@@ -1053,8 +1441,18 @@ class HarborSolver:
         kwargs = dict(self._harbor_agent_kwargs)
         url = model_url or self._model_url
         model_id = _model_id_for_openai(self._model_id, bool(url), agent=self._harbor_agent) if self._model_id else ""
+        is_terminus2 = self._harbor_agent.replace("_", "-").lower() == "terminus-2"
+        if is_terminus2:
+            _patch_terminus_cle_reset()
+            _patch_terminus_unwind_min_pairs()
+            _patch_terminus_api_token_anchor()
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
+        _configure_terminus_tokenizer(
+            is_terminus2=is_terminus2,
+            model_name=kwargs.get("model_name") or model_id,
+            tokenizer=self._tokenizer,
+        )
         if "api_base" not in kwargs and url:
             kwargs["api_base"] = url
         if "api_key" not in kwargs and self._api_key:
