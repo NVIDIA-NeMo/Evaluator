@@ -25,7 +25,7 @@ to keep them in sync.
 
 # Below is the _next_ version that will be published, not the currently published one.
 MAJOR = 0
-MINOR = 3
+MINOR = 4
 PATCH = 0
 PRE_RELEASE = ""
 

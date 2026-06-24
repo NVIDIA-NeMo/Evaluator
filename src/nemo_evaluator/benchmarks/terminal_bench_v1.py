@@ -100,6 +100,25 @@ def _find_tasks_dir(repo: Path) -> Path | None:
     return None
 
 
+_WORD2VEC_TASK = "word2vec-from-scratch"
+# Upstream downloads wikitext at build time by the bare id 'wikitext'; current
+# huggingface_hub rejects bare ids (requires 'namespace/name'), failing the image
+# build. 'Salesforce/wikitext' is the canonical namespaced location (same configs).
+_WORD2VEC_BAD_DATASET_ID = "load_dataset('wikitext',"
+_WORD2VEC_FIXED_DATASET_ID = "load_dataset('Salesforce/wikitext',"
+
+
+def _patch_word2vec_dataset_id(output_dir: Path) -> None:
+    """Namespace the wikitext dataset id so the build-time download resolves."""
+    dockerfile = output_dir / _WORD2VEC_TASK / "environment" / "Dockerfile"
+    if not dockerfile.exists():
+        return
+    text = dockerfile.read_text(encoding="utf-8")
+    if _WORD2VEC_BAD_DATASET_ID not in text:
+        return
+    dockerfile.write_text(text.replace(_WORD2VEC_BAD_DATASET_ID, _WORD2VEC_FIXED_DATASET_ID), encoding="utf-8")
+
+
 def _patch_install_windows_xp_entrypoint(output_dir: Path) -> None:
     """Patch upstream's service ENTRYPOINT into a command-friendly wrapper."""
     env_dir = output_dir / _XP_TASK / "environment"
@@ -131,6 +150,7 @@ def _ensure_dataset(datasets_dir: str | None = None) -> Path:
 
     if marker.exists():
         _patch_install_windows_xp_entrypoint(output_dir)
+        _patch_word2vec_dataset_id(output_dir)
         n = sum(1 for d in output_dir.iterdir() if d.is_dir() and (d / "instruction.md").exists())
         logger.info("terminal-bench-v1: %d cached tasks", n)
         return output_dir
@@ -168,6 +188,7 @@ def _ensure_dataset(datasets_dir: str | None = None) -> Path:
                 failed += 1
 
         _patch_install_windows_xp_entrypoint(output_dir)
+        _patch_word2vec_dataset_id(output_dir)
         logger.info(
             "terminal-bench-v1: mapped %d tasks (%d failed)",
             mapped,
