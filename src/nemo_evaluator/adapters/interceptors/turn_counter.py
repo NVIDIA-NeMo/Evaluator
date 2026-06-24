@@ -84,12 +84,16 @@ class Interceptor(RequestInterceptor):
     * ``trigger`` — when the reminder fires
       (``threshold`` at 80% / 95% of ``max_turns``; ``periodic`` every
       ``interval`` turns).
+
+    All position/trigger combinations are valid. Defaults reproduce the prior
+    threshold-based system-message behavior.
+
+    Additional threshold-only option:
+
     * ``remind_every`` — optional threshold-mode reminder cadence. When
       set to ``N > 0``, appends the environment reminder to the trailing
-      tool message every ``N`` turns before the threshold reminder starts.
-
-    All four combinations are valid. Defaults reproduce the prior
-    threshold-based system-message behavior.
+      tool message every ``N`` turns before threshold reminders start. It
+      is ignored for ``trigger=periodic``.
     """
 
     def __init__(
@@ -115,6 +119,13 @@ class Interceptor(RequestInterceptor):
         self._sessions: dict[str, _Session] = {}
         self._lock = asyncio.Lock()
         self._last_gc = time.monotonic()
+
+        if self._trigger is InjectionTrigger.PERIODIC and self._remind_every is not None:
+            logger.warning(
+                "turn_counter: remind_every is only applied with trigger=threshold; "
+                "ignoring remind_every=%d for trigger=periodic.",
+                self._remind_every,
+            )
 
         if max_turns is None:
             logger.warning(

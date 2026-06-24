@@ -429,6 +429,34 @@ async def test_turn_counter_periodic_system_emits_template_as_system_message():
             assert result.body["messages"][-1]["role"] == "user"
 
 
+async def test_turn_counter_periodic_new_user_appends_trailing_user_message():
+    """periodic+new_user_message appends a new user turn without mutating prior messages."""
+    ic = InterceptorRegistry.create(
+        "turn_counter",
+        {"max_turns": 10, "position": "new_user_message", "trigger": "periodic", "interval": 2},
+    )
+    original_messages = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "initial task"},
+        {"role": "assistant", "content": "working"},
+        {"role": "tool", "content": "tool result"},
+    ]
+
+    for turn in range(1, 5):
+        body = {"model": "test", "messages": [msg.copy() for msg in original_messages]}
+        r = _req(body)
+        r.ctx.extra["session_id"] = "periodic-new-user"
+        result = await ic.intercept_request(r)
+        if turn % 2 == 0:
+            assert result.body["messages"][:-1] == original_messages
+            assert result.body["messages"][-1] == {
+                "role": "user",
+                "content": f"ENVIRONMENT REMINDER: You have {10 - turn} turns left to complete the task.",
+            }
+        else:
+            assert result.body["messages"] == original_messages
+
+
 async def test_turn_counter_threshold_user_uses_threshold_body_without_system_prefix():
     """threshold+user_message reuses the threshold WARN/URGENT body (without [SYSTEM] prefix)."""
     ic = InterceptorRegistry.create(
@@ -559,6 +587,17 @@ async def test_turn_counter_invalid_interval_raises():
 async def test_turn_counter_invalid_remind_every_raises():
     with pytest.raises(ValueError, match="remind_every"):
         InterceptorRegistry.create("turn_counter", {"max_turns": 10, "remind_every": -1})
+
+
+async def test_turn_counter_warns_when_remind_every_is_used_with_periodic_trigger(caplog):
+    """remind_every is threshold-only, so periodic configs log that it is ignored."""
+
+    with caplog.at_level(logging.WARNING, logger="nemo_evaluator.adapters.interceptors.turn_counter"):
+        InterceptorRegistry.create(
+            "turn_counter",
+            {"max_turns": 10, "trigger": "periodic", "remind_every": 2},
+        )
+    assert any("remind_every is only applied with trigger=threshold" in record.message for record in caplog.records)
 
 
 async def test_turn_counter_warns_when_max_turns_is_unset(caplog):
