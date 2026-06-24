@@ -306,12 +306,14 @@ async def _patch_openhands_sdk(sandbox: Sandbox, *, cmd_timeout: float | None = 
     _runner_patch_script = (
         "p = '/installed-agent/run_agent.py'\n"
         "c = open(p).read()\n"
-        "old = 'conversation = Conversation(**conv_kwargs)'\n"
-        'new = \'conv_kwargs["stuck_detection"] = False\\n'
-        '    conv_kwargs["visualizer"] = None\\n'
-        "    conversation = Conversation(**conv_kwargs)'\n"
-        "if old in c:\n"
-        "    open(p, 'w').write(c.replace(old, new, 1))\n"
+        'old = \'    conv_kwargs: dict[str, Any] = {"agent": agent, "workspace": workspace}\\n\'\n'
+        'new = old + \'    conv_kwargs["stuck_detection"] = False\\n    conv_kwargs["visualizer"] = None\\n\'\n'
+        "already = 'conv_kwargs[\"visualizer\"] = None' in c\n"
+        "if old in c and not already:\n"
+        "    c = c.replace(old, new, 1)\n"
+        "    open(p, 'w').write(c)\n"
+        "    already = True\n"
+        "if already:\n"
         "    print('stuck_detection disabled, visualizer disabled')\n"
         "else:\n"
         "    print('pattern not found')\n"
@@ -641,10 +643,14 @@ print(f'cmd_timeout_{{_MAX}}s={{ok}} at {{p}}')
     else:
         logger.info("Cmd timeout patch: skipped (cmd_timeout not configured)")
 
-    # -- Patch 4: wrap conversation.run() so any crash still saves trajectory --
-    # Anchor 1: wrap `conversation.run()` in try/except BaseException so main()
-    # continues to the existing event-reconstruction + build_trajectory + save
-    # code on any failure — no duplication needed.
+    # -- Patch 4: flush trajectory when the runner is interrupted ----------
+    # Anchor 1: wrap `conversation.send_message()` + `conversation.run()` in
+    # try/except BaseException so main() continues to the existing
+    # event-reconstruction + build_trajectory + save code on timeout/crash.
+    # SIGTERM/SIGINT are converted to KeyboardInterrupt so evaluator timeout
+    # cancellation gets the same flush path.  On interruption, first write a
+    # cheap partial trajectory from already-received model events.  The normal
+    # full writer below overwrites it if post-run serialization completes.
     # Anchor 2: after the final print in main(), exit(0) cleanly so Harbor
     # treats the run as a normal completion and downloads the trajectory.
     _budget_flush_script = """\
@@ -652,11 +658,12 @@ import sys
 p = '/installed-agent/run_agent.py'
 c = open(p).read()
 
-old1 = ind = None
-for line in c.splitlines():
-    s = line.lstrip()
-    if s == 'conversation.run()':
-        old1 = line; ind = line[:len(line)-len(s)]; break
+old1 = (
+    '    # Send instruction and run\\n'
+    '    conversation.send_message(args.instruction)\\n'
+    '    conversation.run()'
+)
+ind = '    '
 
 old2 = None
 for line in c.splitlines():
@@ -664,15 +671,85 @@ for line in c.splitlines():
         old2 = line; break
 
 already = '_nel_run_exc' in c
-ok = old1 is not None and old2 is not None and not already
+ok = old1 in c and old2 is not None and not already
 print(f'anchor1={repr(old1)} anchor2={repr(old2)} already={already} ok={ok}')
 
 if ok:
-    wrap = (ind + '_nel_run_exc = None\\n' +
-            ind + 'try:\\n' +
-            ind + '    conversation.run()\\n' +
-            ind + 'except BaseException as _e:\\n' +
-            ind + '    _nel_run_exc = _e')
+    partial = (
+        ind + 'def _nel_text_from_event(_event):\\n' +
+        ind + '    _msg = getattr(_event, "llm_message", None)\\n' +
+        ind + '    _raw = getattr(_msg, "content", None) if _msg is not None else None\\n' +
+        ind + '    if isinstance(_raw, list):\\n' +
+        ind + '        return chr(10).join(getattr(_c, "text", str(_c)) for _c in _raw if getattr(_c, "text", None))\\n' +
+        ind + '    return str(_raw) if _raw else ""\\n' +
+        ind + 'def _nel_tool_args(_event):\\n' +
+        ind + '    if getattr(_event, "tool_call", None) and hasattr(_event.tool_call, "function"):\\n' +
+        ind + '        _raw_args = getattr(_event.tool_call.function, "arguments", None)\\n' +
+        ind + '        if isinstance(_raw_args, str):\\n' +
+        ind + '            try:\\n' +
+        ind + '                return json.loads(_raw_args)\\n' +
+        ind + '            except json.JSONDecodeError:\\n' +
+        ind + '                return {"raw": _raw_args}\\n' +
+        ind + '        if isinstance(_raw_args, dict):\\n' +
+        ind + '            return _raw_args\\n' +
+        ind + '    if getattr(_event, "action", None):\\n' +
+        ind + '        try:\\n' +
+        ind + '            _ad = _event.action.model_dump() if hasattr(_event.action, "model_dump") else vars(_event.action)\\n' +
+        ind + '            return {_k: _v for _k, _v in _ad.items() if _k != "kind" and _v is not None}\\n' +
+        ind + '        except Exception:\\n' +
+        ind + '            pass\\n' +
+        ind + '    return {}\\n' +
+        ind + 'def _nel_write_partial_trajectory(_reason):\\n' +
+        ind + '    try:\\n' +
+        ind + '        _metric_obj = getattr(llm, "metrics", None)\\n' +
+        ind + '        _usage = getattr(_metric_obj, "accumulated_token_usage", None)\\n' +
+        ind + '        _metrics = {\\n' +
+        ind + '            "prompt_tokens": int(getattr(_usage, "prompt_tokens", 0) or 0),\\n' +
+        ind + '            "completion_tokens": int(getattr(_usage, "completion_tokens", 0) or 0),\\n' +
+        ind + '            "cached_tokens": int(getattr(_usage, "cache_read_tokens", 0) or 0),\\n' +
+        ind + '            "cost_usd": float(getattr(_metric_obj, "accumulated_cost", 0.0) or 0.0),\\n' +
+        ind + '        }\\n' +
+        ind + '        _events_list = []\\n' +
+        ind + '        for _event in list(getattr(getattr(conversation, "state", None), "events", []) or []):\\n' +
+        ind + '            if isinstance(_event, MessageEvent):\\n' +
+        ind + '                if _event.source in ("user", "agent"):\\n' +
+        ind + '                    _entry_type = "assistant_message" if _event.source == "agent" else "user_message"\\n' +
+        ind + '                    _entry = {"type": _entry_type, "content": _nel_text_from_event(_event), "timestamp": _event.timestamp}\\n' +
+        ind + '                    _events_list.append(_entry)\\n' +
+        ind + '            elif isinstance(_event, ActionEvent):\\n' +
+        ind + '                _events_list.append({"type": "assistant_message", "content": "", "timestamp": _event.timestamp, "tool_calls": [{"id": _event.tool_call_id, "name": _event.tool_name, "arguments": _nel_tool_args(_event)}]})\\n' +
+        ind + '        _trajectory = build_trajectory(_events_list, _metrics, model)\\n' +
+        ind + '        _trajectory.setdefault("extra", {})["nel_partial_trajectory"] = {"reason": _reason, "events": len(_events_list)}\\n' +
+        ind + '        _path = Path(args.trajectory_path)\\n' +
+        ind + '        _path.parent.mkdir(parents=True, exist_ok=True)\\n' +
+        ind + '        _tmp = _path.with_suffix(_path.suffix + ".partial")\\n' +
+        ind + '        with open(_tmp, "w") as _f:\\n' +
+        ind + '            json.dump(_trajectory, _f, indent=2)\\n' +
+        ind + '        os.replace(_tmp, _path)\\n' +
+        ind + '        print(f"NEL: partial trajectory saved to {_path}", file=sys.stderr, flush=True)\\n' +
+        ind + '    except BaseException as _save_e:\\n' +
+        ind + '        print(f"NEL: partial trajectory save failed: {type(_save_e).__name__}: {_save_e}", file=sys.stderr, flush=True)\\n'
+    )
+    wrap = (
+        ind + '# Send instruction and run\\n' +
+        ind + '_nel_run_exc = None\\n' +
+        partial +
+        ind + 'def _nel_timeout_handler(_signum, _frame):\\n' +
+        ind + '    raise KeyboardInterrupt(f"NEL timeout signal {_signum}")\\n' +
+        ind + 'try:\\n' +
+        ind + '    import signal as _nel_signal\\n' +
+        ind + '    _nel_signal.signal(_nel_signal.SIGTERM, _nel_timeout_handler)\\n' +
+        ind + '    _nel_signal.signal(_nel_signal.SIGINT, _nel_timeout_handler)\\n' +
+        ind + 'except Exception:\\n' +
+        ind + '    pass\\n' +
+        ind + 'try:\\n' +
+        ind + '    conversation.send_message(args.instruction)\\n' +
+        ind + '    conversation.run()\\n' +
+        ind + 'except BaseException as _e:\\n' +
+        ind + '    _nel_run_exc = _e\\n' +
+        ind + '    print(f"NEL: flushing trajectory after {type(_e).__name__}: {_e}", file=sys.stderr, flush=True)\\n' +
+        ind + '    _nel_write_partial_trajectory(type(_e).__name__)'
+    )
     c = c.replace(old1, wrap, 1)
     exit_block = (
         ind + 'if _nel_run_exc is not None:\\n' +
@@ -801,6 +878,8 @@ def _error_from_crash_marker(agent_logs_dir: Path) -> str | None:
         crash = json.loads(crash_file.read_text())
         etype = crash.get("etype", "AgentCrash")
         emsg = crash.get("emsg", "")
+        if etype == "KeyboardInterrupt" and str(emsg).startswith("NEL timeout signal "):
+            return None
         if etype in _INFRA_ERROR_NAMES:
             raise InfraError(f"Agent infrastructure failure: {etype}: {emsg}")
         return f"Agent crashed: {etype}: {emsg}"
@@ -1558,9 +1637,39 @@ class HarborSolver:
                 jitter,
                 self._timeout_strategy,
             )
-            agent_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await agent_task
+            if sandbox.is_running:
+                try:
+                    await sandbox.exec(
+                        "python3 - <<'PY'\n"
+                        "import os, signal, subprocess\n"
+                        "me = os.getpid()\n"
+                        "try:\n"
+                        "    out = subprocess.check_output(['ps', '-eo', 'pid=,comm=,args='], text=True)\n"
+                        "except Exception:\n"
+                        "    out = ''\n"
+                        "for line in out.splitlines():\n"
+                        "    parts = line.strip().split(None, 2)\n"
+                        "    if len(parts) < 3:\n"
+                        "        continue\n"
+                        "    try:\n"
+                        "        pid = int(parts[0])\n"
+                        "    except ValueError:\n"
+                        "        continue\n"
+                        "    comm, args = parts[1], parts[2]\n"
+                        "    if pid != me and 'python' in comm and '/installed-agent/run_agent.py' in args:\n"
+                        "        os.kill(pid, signal.SIGTERM)\n"
+                        "PY",
+                        timeout_sec=10,
+                    )
+                    done_after_signal, _ = await asyncio.wait({agent_task}, timeout=30.0)
+                    if agent_task in done_after_signal:
+                        logger.info("HarborSolver: timed-out agent flushed after SIGTERM")
+                except Exception:
+                    logger.debug("HarborSolver: timed-out agent flush signal failed", exc_info=True)
+            if not agent_task.done():
+                agent_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await agent_task
 
         agent_error: Exception | None = None
         if agent_task.done() and not agent_task.cancelled():
@@ -1757,10 +1866,11 @@ class HarborSolver:
 
             prompt = await self._inject_skill(sandbox, task.prompt)
             agent_task = asyncio.create_task(agent.run(prompt, adapter, context))
+            agent_t0 = time.monotonic()
             agent_timed_out, agent_error = await self._wait_for_agent(
                 agent_task,
                 sandbox,
-                t0,
+                agent_t0,
                 effective_timeout,
                 jitter,
             )
