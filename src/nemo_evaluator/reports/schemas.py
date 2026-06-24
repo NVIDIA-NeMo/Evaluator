@@ -137,6 +137,9 @@ class ModelTrafficRow(BaseModel):
     usage: ModelTrafficUsage | None = None
     token_provenance: str | None = None
     error_type: str | None = None
+    error_message: str | None = None
+    error_body: str | None = None
+    error_code: str | None = None
     request_hash: str | None = None
     tool_calls_full: list | None = None
     reasoning_content: str | None = None

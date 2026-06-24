@@ -126,6 +126,9 @@ def test_tokens_section(bundle: Path) -> None:
     # 2 trials × (pt+ct): trial0=15, trial1=20+10+30+8=68 → 83 across all
     assert t["per_step_sum"] == 83
     assert t["wire_total"] == 83
+    assert t["wire_total_for_trajectory_comparison"] == 83
+    assert t["wire_total_all_sessions"] == 83
+    assert t["wire_total_earlier_retry_sessions"] == 0
     assert t["final_metrics_total"] == 83
     assert t["problems_with_missing_final_metrics_tokens"] == 0
     assert t["problems_with_per_step_vs_final_metrics_mismatch"] == 0
@@ -140,6 +143,13 @@ def test_wire_calls_section(bundle: Path) -> None:
     assert wc["successful"] == 3
     assert wc["unique"] == 3
     assert wc["problems_with_duplicates"] == 0
+    assert wc["selected_session_policy"] == "last_wire_session"
+    assert wc["problems_with_retries"] == 0
+    assert wc["retry_sessions"] == 0
+    assert wc["problems_with_multiple_finish_calls"] == 0
+    assert wc["retry_successful_wire_calls"] == 0
+    assert wc["retry_wire_tokens"] == 0
+    assert wc["retry_examples"] == []
     assert wc["problems_with_more_wire_than_steps"] == 0
     assert wc["problems_with_fewer_wire_than_steps"] == 0
     assert wc["non_200"] == 0
@@ -238,6 +248,87 @@ def test_wire_dedup_via_request_hash(tmp_path: Path) -> None:
     assert wc["total"] == 2
     assert wc["unique"] == 1
     assert wc["problems_with_duplicates"] == 1
+
+
+def test_last_session_selected_for_wire_token_alignment(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    _write_jsonl(
+        bench / "trajectories.jsonl",
+        [
+            _trial(
+                7,
+                0,
+                reward=1.0,
+                steps=[
+                    _agent_step(0, msg="x", pt=5, ct=3),
+                    _agent_step(1, msg="y", pt=7, ct=2),
+                ],
+            )
+        ],
+    )
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [
+            {
+                **_wire(7, 0, prompt=10, completion=1),
+                "session_id": "sess-old",
+                "request_hash": "old-a",
+                "model_traffic_request_id": "sess-old:req-a",
+            },
+            {
+                **_wire(7, 0, prompt=11, completion=1),
+                "session_id": "sess-old",
+                "request_hash": "old-b",
+                "model_traffic_request_id": "sess-old:req-b",
+                "tool_calls": {"names": {"finish": 1}},
+            },
+            {
+                **_wire(7, 0, prompt=5, completion=3),
+                "session_id": "sess-final",
+                "request_hash": "final-a",
+                "model_traffic_request_id": "sess-final:req-a",
+            },
+            {
+                **_wire(7, 0, prompt=7, completion=2),
+                "session_id": "sess-final",
+                "request_hash": "final-b",
+                "model_traffic_request_id": "sess-final:req-b",
+                "tool_calls": {"names": {"finish": 1}},
+            },
+        ],
+    )
+
+    report = json.loads(generate_trajectories_report(tmp_path, enrich=True).read_text())["benchmarks"][0]
+    tokens = report["tokens_stats"]
+    wc = report["wire_calls"]
+
+    assert tokens["per_step_sum"] == 17
+    assert tokens["wire_total"] == 17
+    assert tokens["wire_total_for_trajectory_comparison"] == 17
+    assert tokens["wire_total_all_sessions"] == 40
+    assert tokens["wire_total_earlier_retry_sessions"] == 23
+    assert tokens["final_metrics_total"] == 17
+    assert tokens["all_sources_match"] is True
+    assert wc["total"] == 2
+    assert wc["successful"] == 2
+    assert wc["total_all_sessions"] == 4
+    assert wc["successful_all_sessions"] == 4
+    assert wc["problems_with_more_wire_than_steps"] == 0
+    assert wc["problems_with_fewer_wire_than_steps"] == 0
+    assert wc["problems_with_retries"] == 1
+    assert wc["retry_sessions"] == 1
+    assert wc["problems_with_multiple_finish_calls"] == 1
+    assert wc["retry_successful_wire_calls"] == 2
+    assert wc["retry_wire_tokens"] == 23
+    assert wc["retry_examples"][0]["selected_session_id"] == "sess-final"
+    assert wc["retry_examples"][0]["retry_session_count"] == 1
+    assert report["enrichment"]["trials_spliced_1_to_1"] == 1
+    assert report["enrichment"]["trials_with_unmatched_calls_stashed"] == 0
+    enriched = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])
+    steps = enriched["trajectory"][0]["steps"]
+    assert [s["metrics"]["prompt_tokens"] for s in steps] == [5, 7]
+    assert [s["metrics"]["completion_tokens"] for s in steps] == [3, 2]
+    assert "captured_model_calls" not in enriched["trajectory"][0].get("extra", {})
 
 
 def test_tokens_per_step_vs_wire_mismatch(tmp_path: Path) -> None:
@@ -482,6 +573,109 @@ def test_last_wire_non_200(tmp_path: Path) -> None:
     assert wc["non_200_by_status"] == {"429": 1}
     assert wc["non_200_examples"]["429"]["status_code"] == 429
     assert wc["non_200_examples"]["429"]["error_type"] == "rate_limit"
+    assert wc["non_success_examples"]["rate_limit"]["count"] == 1
+    assert wc["non_success_examples"]["rate_limit"]["examples"][0]["status_code"] == 429
+    assert wc["non_success_examples"]["rate_limit"]["examples"][0]["is_last_wire"] is True
+    assert wc["last_non_success_examples"]["rate_limit"]["examples"][0]["status_code"] == 429
+
+
+def test_non_success_wire_examples_include_invalid_response_details(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    _write_jsonl(
+        bench / "trajectories.jsonl",
+        [_trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="x", pt=5, ct=3)])],
+    )
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [
+            {**_wire(7, 2, prompt=5, completion=3, status_code=200), "model_traffic_request_id": "sess:req-ok"},
+            {
+                **_wire(7, 2, prompt=0, completion=0, status_code=400),
+                "model_traffic_request_id": "sess:req-bad",
+                "error_type": "invalid_request_error",
+                "error_code": "bad_tool_json",
+                "error_message": "OpenAIException - Expecting ',' delimiter: line 1 column 237 (char 236)",
+                "error_body": '{"error":{"code":"bad_tool_json"}}',
+            },
+        ],
+    )
+
+    report = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]
+    wc = report["wire_calls"]
+    assert wc["non_200"] == 1
+    assert wc["non_200_examples"]["400"]["error_message"].startswith("OpenAIException")
+    assert wc["non_200_examples"]["400"]["error_body"] == '{"error":{"code":"bad_tool_json"}}'
+    assert wc["non_success_examples"]["invalid_request_error"] == {
+        "count": 1,
+        "examples": [
+            {
+                "problem_idx": 7,
+                "repeat": 2,
+                "status_code": 400,
+                "error_type": "invalid_request_error",
+                "error_code": "bad_tool_json",
+                "error_message": "OpenAIException - Expecting ',' delimiter: line 1 column 237 (char 236)",
+                "latency_ms": 100.0,
+                "finish_reason": "stop",
+                "model": "test-model",
+                "path": "",
+                "model_traffic_request_id": "sess:req-bad",
+                "session_id": "sess-7-2",
+                "adapter_request_id": "",
+                "request_hash": "",
+                "is_last_wire": True,
+                "error_body": '{"error":{"code":"bad_tool_json"}}',
+            }
+        ],
+    }
+    failure = report["trajectories"]["failure_examples"][0]
+    assert failure["problem_idx"] == 7
+    assert failure["last_wire_status_code"] == 400
+    assert failure["last_wire_error_message"].startswith("OpenAIException")
+    assert failure["last_wire_error_body"] == '{"error":{"code":"bad_tool_json"}}'
+
+
+def test_timeout_no_step_examples_keep_wire_counts(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    row = _trial(3, 1, reward=0.0, steps=[])
+    row["failure_category"] = "infra_error"
+    row["scoring_details"] = {
+        "error_category": "infra_error",
+        "error": "Agent timed out with workspace changes but 0 completion tokens (run_timeout=5400s). Model may have died mid-solve.",
+    }
+    row["trajectory"][0]["final_metrics"] = {
+        "total_steps": 0,
+        "workspace_diff_preview": "diff --git a/file.py b/file.py",
+    }
+    _write_jsonl(bench / "trajectories.jsonl", [row])
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [
+            _wire(3, 1, prompt=10, completion=5, finish="tool_calls"),
+            _wire(3, 1, prompt=20, completion=7, finish="tool_calls"),
+        ],
+    )
+
+    report = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]
+    traj = report["trajectories"]
+    wc = report["wire_calls"]
+
+    assert wc["problems_with_no_agent_steps"] == 1
+    assert wc["problems_with_more_wire_than_steps"] == 1
+    assert report["tokens_stats"]["problems_with_missing_final_metrics_tokens"] == 1
+
+    assert len(traj["failure_examples"]) == 1
+    failure = traj["failure_examples"][0]
+    assert failure["problem_idx"] == 3
+    assert failure["repeat"] == 1
+    assert failure["agent_steps"] == 0
+    assert failure["successful_wire_calls"] == 2
+    assert failure["all_wire_calls"] == 2
+    assert failure["missing_final_metrics_tokens"] is True
+    assert failure["workspace_diff_preview_present"] is True
+    assert failure["error"].startswith("Agent timed out with workspace changes")
+    assert traj["timeout_examples"] == [failure]
+    assert traj["no_agent_step_examples"] == [failure]
 
 
 def test_non_200_by_status_empty_when_all_success(bundle: Path) -> None:
@@ -490,7 +684,33 @@ def test_non_200_by_status_empty_when_all_success(bundle: Path) -> None:
     wc = report["wire_calls"]
     assert wc["non_200_by_status"] == {}
     assert wc["non_200_examples"] == {}
+    assert wc["non_success_examples"] == {}
+    assert wc["last_non_success_examples"] == {}
     assert wc["problems_with_last_wire_non_200"] == 0
+
+
+def test_non_success_examples_are_bounded_by_error_type(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    _write_jsonl(
+        bench / "trajectories.jsonl",
+        [_trial(i, 0, reward=0.0, steps=[_agent_step(0, msg="x", pt=1, ct=1)]) for i in range(25)],
+    )
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [
+            {
+                **_wire(i, 0, prompt=0, completion=0, status_code=400),
+                "error_type": "invalid_request_error",
+            }
+            for i in range(25)
+        ],
+    )
+
+    wc = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]["wire_calls"]
+    bucket = wc["non_success_examples"]["invalid_request_error"]
+    assert bucket["count"] == 25
+    assert len(bucket["examples"]) == 5
+    assert bucket["omitted_examples"] == 20
 
 
 def test_missing_final_metrics_tokens(tmp_path: Path) -> None:

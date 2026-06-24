@@ -55,6 +55,9 @@ logger = logging.getLogger(__name__)
 # with the schema without manual duplication.
 _TRIAL_FIELDS = fields_as_coverage_paths(TrajectoryRow)
 _STEP_FIELDS = fields_as_coverage_paths(AgentStep)
+_EXAMPLE_TEXT_CHARS = 500
+_MAX_EXAMPLES_PER_ERROR_TYPE = 5
+_MAX_RETRY_EXAMPLES = 5
 
 
 def _is_successful_wire(record: dict[str, Any]) -> bool:
@@ -83,6 +86,30 @@ def _wire_dedup_key(record: dict[str, Any], fallback_id: int) -> Any:
     return record.get("request_hash") or ("_no_hash", fallback_id)
 
 
+def _wire_session_id(record: dict[str, Any]) -> str:
+    session_id = str(record.get("session_id") or "").strip()
+    if session_id:
+        return session_id
+    request_id = str(record.get("model_traffic_request_id") or "")
+    if ":" in request_id:
+        return request_id.split(":", 1)[0]
+    return ""
+
+
+def _wire_has_tool(record: dict[str, Any], name: str) -> bool:
+    names = ((record.get("tool_calls") or {}).get("names") or {}) if isinstance(record.get("tool_calls"), dict) else {}
+    if names.get(name):
+        return True
+    for tool_call in record.get("tool_calls_full") or []:
+        if not isinstance(tool_call, dict):
+            continue
+        fn = tool_call.get("function") if isinstance(tool_call.get("function"), dict) else {}
+        tool_name = tool_call.get("name") or tool_call.get("function_name") or fn.get("name")
+        if tool_name == name:
+            return True
+    return False
+
+
 def _agent_steps(row: dict[str, Any]) -> list[dict[str, Any]]:
     traj = row.get("trajectory") or []
     if not traj:
@@ -105,6 +132,215 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
             except json.JSONDecodeError:
                 logger.warning("trajectories_report: skipping invalid JSON line in %s", path)
     return rows
+
+
+def _truncate_text(value: Any, limit: int = _EXAMPLE_TEXT_CHARS) -> str:
+    text = "" if value is None else str(value)
+    text = " ".join(text.split())
+    if len(text) > limit:
+        return text[:limit] + f"...[truncated, {len(text) - limit} chars dropped]"
+    return text
+
+
+def _trajectory_doc(row: dict[str, Any]) -> dict[str, Any]:
+    traj = row.get("trajectory") or []
+    if not traj or not isinstance(traj[0], dict):
+        return {}
+    return traj[0]
+
+
+def _final_metrics(row: dict[str, Any]) -> dict[str, Any]:
+    return _trajectory_doc(row).get("final_metrics") or {}
+
+
+def _failure_category(row: dict[str, Any]) -> str:
+    return str((row.get("scoring_details") or {}).get("error_category") or row.get("failure_category") or "")
+
+
+def _failure_error(row: dict[str, Any]) -> str:
+    scoring_details = row.get("scoring_details") or {}
+    return _truncate_text(scoring_details.get("error") or row.get("model_error") or row.get("error") or "")
+
+
+def _has_final_metric_tokens(row: dict[str, Any]) -> bool:
+    fm = _final_metrics(row)
+    return fm.get("total_prompt_tokens") is not None or fm.get("total_completion_tokens") is not None
+
+
+def _wire_example(record: dict[str, Any], *, is_last_wire: bool) -> dict[str, Any]:
+    example = {
+        "problem_idx": record.get("problem_idx"),
+        "repeat": record.get("repeat"),
+        "status_code": record.get("status_code"),
+        "error_type": record.get("error_type") or "",
+        "error_code": record.get("error_code") or "",
+        "error_message": _truncate_text(record.get("error_message")),
+        "latency_ms": record.get("latency_ms"),
+        "finish_reason": record.get("finish_reason") or "",
+        "model": record.get("model") or "",
+        "path": record.get("path") or "",
+        "model_traffic_request_id": record.get("model_traffic_request_id") or "",
+        "session_id": record.get("session_id") or "",
+        "adapter_request_id": record.get("adapter_request_id") or "",
+        "request_hash": record.get("request_hash") or "",
+        "is_last_wire": is_last_wire,
+    }
+    if record.get("error_body"):
+        example["error_body"] = _truncate_text(record.get("error_body"))
+    return example
+
+
+def _wire_error_type_key(example: dict[str, Any]) -> str:
+    error_type = str(example.get("error_type") or "").strip()
+    if error_type:
+        return error_type
+    error_code = str(example.get("error_code") or "").strip()
+    if error_code:
+        return error_code
+    status_code = example.get("status_code")
+    if status_code is not None and status_code != "":
+        return f"http_{status_code}"
+    return "unknown_error_type"
+
+
+def _group_wire_examples_by_error_type(examples: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
+    for example in examples:
+        key = _wire_error_type_key(example)
+        bucket = grouped.setdefault(key, {"count": 0, "examples": []})
+        bucket["count"] += 1
+        if len(bucket["examples"]) < _MAX_EXAMPLES_PER_ERROR_TYPE:
+            bucket["examples"].append(example)
+        else:
+            bucket["omitted_examples"] = bucket.get("omitted_examples", 0) + 1
+    return grouped
+
+
+def _session_group_example(
+    trial_key: tuple[Any, Any],
+    sessions: dict[str, list[dict[str, Any]]],
+    *,
+    selected_session_id: str = "",
+) -> dict[str, Any]:
+    session_rows = []
+    for session_id, rows in sessions.items():
+        session_rows.append(
+            {
+                "session_id": session_id,
+                "selected": session_id == selected_session_id,
+                "wire_calls": len(rows),
+                "successful_wire_calls": sum(1 for row in rows if _is_successful_wire(row)),
+                "non_success_wire_calls": sum(1 for row in rows if not _is_successful_wire(row)),
+                "finish_calls": sum(1 for row in rows if _wire_has_tool(row, "finish")),
+                "wire_tokens": sum(_wire_tokens(row) for row in rows if _is_successful_wire(row)),
+                "first_timestamp": rows[0].get("timestamp") or "",
+                "last_timestamp": rows[-1].get("timestamp") or "",
+                "first_model_traffic_request_id": rows[0].get("model_traffic_request_id") or "",
+                "last_model_traffic_request_id": rows[-1].get("model_traffic_request_id") or "",
+            }
+        )
+    return {
+        "problem_idx": trial_key[0],
+        "repeat": trial_key[1],
+        "session_count": len(sessions),
+        "selected_session_id": selected_session_id,
+        "retry_session_count": max(0, len(sessions) - 1),
+        "total_wire_calls": sum(len(rows) for rows in sessions.values()),
+        "total_finish_calls": sum(row["finish_calls"] for row in session_rows),
+        "retry_successful_wire_calls": sum(
+            row["successful_wire_calls"] for row in session_rows if row["session_id"] != selected_session_id
+        ),
+        "retry_wire_tokens": sum(
+            row["wire_tokens"] for row in session_rows if row["session_id"] != selected_session_id
+        ),
+        "sessions": session_rows,
+    }
+
+
+def _retry_summary(
+    traffic_by_trial_all: dict[tuple[Any, Any], list[dict[str, Any]]],
+    selected_sessions_by_trial: dict[tuple[Any, Any], str],
+) -> dict[str, Any]:
+    examples: list[dict[str, Any]] = []
+    problems_with_retries = 0
+    problems_with_multiple_finish_calls = 0
+    retry_sessions = 0
+    retry_successful_wire_calls = 0
+    retry_wire_tokens = 0
+
+    for trial_key, rows in traffic_by_trial_all.items():
+        sessions: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            session_id = _wire_session_id(row)
+            if not session_id:
+                continue
+            sessions.setdefault(session_id, []).append(row)
+
+        if len(sessions) <= 1:
+            continue
+
+        problems_with_retries += 1
+        total_finish_calls = sum(
+            1 for session_rows in sessions.values() for row in session_rows if _wire_has_tool(row, "finish")
+        )
+        if total_finish_calls > 1:
+            problems_with_multiple_finish_calls += 1
+
+        selected_session_id = selected_sessions_by_trial.get(trial_key, "")
+        if selected_session_id:
+            extra_rows = [
+                row
+                for session_id, session_rows in sessions.items()
+                if session_id != selected_session_id
+                for row in session_rows
+            ]
+            retry_sessions += sum(1 for session_id in sessions if session_id != selected_session_id)
+            retry_successful_wire_calls += sum(1 for row in extra_rows if _is_successful_wire(row))
+            retry_wire_tokens += sum(_wire_tokens(row) for row in extra_rows if _is_successful_wire(row))
+
+        if len(examples) < _MAX_RETRY_EXAMPLES:
+            examples.append(_session_group_example(trial_key, sessions, selected_session_id=selected_session_id))
+
+    return {
+        "problems_with_retries": problems_with_retries,
+        "problems_with_multiple_finish_calls": problems_with_multiple_finish_calls,
+        "retry_sessions": retry_sessions,
+        "retry_successful_wire_calls": retry_successful_wire_calls,
+        "retry_wire_tokens": retry_wire_tokens,
+        "retry_examples": examples,
+    }
+
+
+def _trial_failure_example(
+    row: dict[str, Any],
+    *,
+    agent_step_count: int,
+    successful_wire_count: int,
+    all_wire_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    fm = _final_metrics(row)
+    last_wire = all_wire_rows[-1] if all_wire_rows else {}
+    return {
+        "problem_idx": row.get("problem_idx"),
+        "repeat": row.get("repeat"),
+        "reward": row.get("reward"),
+        "failure_category": _failure_category(row),
+        "error": _failure_error(row),
+        "agent_steps": agent_step_count,
+        "successful_wire_calls": successful_wire_count,
+        "all_wire_calls": len(all_wire_rows),
+        "last_wire_status_code": last_wire.get("status_code"),
+        "last_wire_error_type": last_wire.get("error_type") or "",
+        "last_wire_error_message": _truncate_text(last_wire.get("error_message")),
+        "last_wire_error_body": _truncate_text(last_wire.get("error_body")),
+        "missing_final_metrics_tokens": not _has_final_metric_tokens(row),
+        "workspace_diff_preview_present": bool(fm.get("workspace_diff_preview")),
+    }
+
+
+def _is_timeout_failure(example: dict[str, Any]) -> bool:
+    text = f"{example.get('failure_category', '')} {example.get('error', '')}".lower()
+    return "timeout" in text or "run_timeout" in text
 
 
 def _load_eval_summary(bench_dir: Path) -> dict[str, Any] | None:
@@ -196,6 +432,55 @@ def _index_traffic_by_trial(
     return bucket
 
 
+def _last_wire_session_id(rows: list[dict[str, Any]]) -> str:
+    for row in reversed(rows):
+        session_id = _wire_session_id(row)
+        if session_id:
+            return session_id
+    return ""
+
+
+def _select_wire_session_id(_row: dict[str, Any], wire_rows: list[dict[str, Any]]) -> str:
+    """Select the wire session that represents a trajectory row.
+
+    Model traffic can contain abandoned/replayed sessions for the same
+    ``(problem_idx, repeat)``. The saved trajectory corresponds to the final
+    attempt, so token/step alignment uses the last session in file order.
+    Rows with no session ids are left unfiltered by returning an empty string.
+    """
+    return _last_wire_session_id(wire_rows)
+
+
+def _selected_sessions_by_trial(
+    traj_rows: list[dict[str, Any]],
+    traffic_by_trial_all: dict[tuple[Any, Any], list[dict[str, Any]]],
+) -> dict[tuple[Any, Any], str]:
+    selected: dict[tuple[Any, Any], str] = {}
+    for row in traj_rows:
+        key = _trial_key(row)
+        selected[key] = _select_wire_session_id(row, traffic_by_trial_all.get(key, []))
+    return selected
+
+
+def _filter_traffic_to_selected_sessions(
+    traffic_by_trial_all: dict[tuple[Any, Any], list[dict[str, Any]]],
+    selected_sessions_by_trial: dict[tuple[Any, Any], str],
+    *,
+    only_successful: bool = True,
+) -> dict[tuple[Any, Any], list[dict[str, Any]]]:
+    selected_rows: dict[tuple[Any, Any], list[dict[str, Any]]] = {}
+    for key, rows in traffic_by_trial_all.items():
+        if key not in selected_sessions_by_trial:
+            continue
+        selected_session_id = selected_sessions_by_trial[key]
+        if selected_session_id:
+            rows = [row for row in rows if _wire_session_id(row) == selected_session_id]
+        if only_successful:
+            rows = [row for row in rows if _is_successful_wire(row)]
+        selected_rows[key] = rows
+    return selected_rows
+
+
 def _step_tokens(s: dict[str, Any]) -> int:
     m = s.get("metrics") or {}
     return int(m.get("prompt_tokens") or 0) + int(m.get("completion_tokens") or 0)
@@ -260,7 +545,17 @@ def _wire_error_summary(wire_rows: list[dict[str, Any]]) -> tuple[dict[str, int]
             if code not in examples:
                 examples[code] = {
                     k: r[k]
-                    for k in ("status_code", "error_type", "latency_ms", "model", "path")
+                    for k in (
+                        "status_code",
+                        "error_type",
+                        "error_code",
+                        "error_message",
+                        "error_body",
+                        "latency_ms",
+                        "model",
+                        "path",
+                        "model_traffic_request_id",
+                    )
                     if r.get(k) is not None
                 }
     return dict(by_status), examples
@@ -327,8 +622,14 @@ def _piotr_quality_aggregate(traj_rows: list[dict[str, Any]]) -> dict[str, int]:
 def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
     traj_rows = _read_jsonl(bench_dir / "trajectories.jsonl")
     traffic_rows = _read_jsonl(bench_dir / "model_traffic.jsonl")
-    traffic_by_trial = _index_traffic_by_trial(traffic_rows)
-    traffic_by_trial_all = _index_traffic_by_trial(traffic_rows, only_successful=False)
+    traffic_by_trial_all_raw = _index_traffic_by_trial(traffic_rows, only_successful=False)
+    selected_sessions = _selected_sessions_by_trial(traj_rows, traffic_by_trial_all_raw)
+    traffic_by_trial = _filter_traffic_to_selected_sessions(traffic_by_trial_all_raw, selected_sessions)
+    traffic_by_trial_all = _filter_traffic_to_selected_sessions(
+        traffic_by_trial_all_raw,
+        selected_sessions,
+        only_successful=False,
+    )
 
     n_problems = len({r.get("problem_idx") for r in traj_rows if r.get("problem_idx") is not None})
 
@@ -347,18 +648,22 @@ def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
     problems_missing_fm_tokens = 0
     final_metrics_token_sum = 0
     problems_with_last_wire_non_200 = 0
+    failure_examples: list[dict[str, Any]] = []
+    timeout_examples: list[dict[str, Any]] = []
+    no_agent_step_examples: list[dict[str, Any]] = []
 
     for r in traj_rows:
         steps = _agent_steps(r)
         all_agent_steps.extend(steps)
 
-        cat = (r.get("scoring_details") or {}).get("error_category") or r.get("failure_category")
+        cat = _failure_category(r)
         if cat:
             failures[cat] += 1
 
         step_n = len(steps)
         trial_wire_rows = traffic_by_trial.get(_trial_key(r), [])
         wire_n = len(trial_wire_rows)
+        all_trial_wire = traffic_by_trial_all.get(_trial_key(r), [])
         if wire_n > step_n:
             problems_more_wire += 1
         elif wire_n < step_n:
@@ -370,7 +675,7 @@ def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
         if step_n == 0 or wire_n == 0:
             problems_silent += 1
 
-        fm = ((r.get("trajectory") or [{}])[0]).get("final_metrics") or {}
+        fm = _final_metrics(r)
         fm_prompt = fm.get("total_prompt_tokens")
         fm_completion = fm.get("total_completion_tokens")
         fm_has_tokens = fm_prompt is not None or fm_completion is not None
@@ -390,22 +695,56 @@ def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
             wire_vs_fm_mismatch += 1
 
         # Last wire call: check if the chronologically last call ended with non-200
-        all_trial_wire = traffic_by_trial_all.get(_trial_key(r), [])
         if all_trial_wire and not _is_successful_wire(all_trial_wire[-1]):
             problems_with_last_wire_non_200 += 1
 
+        failure_signal = bool(
+            cat
+            or _failure_error(r)
+            or step_n == 0
+            or not fm_has_tokens
+            or any(not _is_successful_wire(w) for w in all_trial_wire)
+        )
+        if failure_signal:
+            example = _trial_failure_example(
+                r,
+                agent_step_count=step_n,
+                successful_wire_count=wire_n,
+                all_wire_rows=all_trial_wire,
+            )
+            failure_examples.append(example)
+            if example["agent_steps"] == 0:
+                no_agent_step_examples.append(example)
+            if _is_timeout_failure(example):
+                timeout_examples.append(example)
+
     per_step_token_sum = sum(_step_tokens(s) for s in all_agent_steps)
-    wire_token_sum = sum(_wire_tokens(r) for r in traffic_rows)
+    selected_all_traffic_rows = [row for rows in traffic_by_trial_all.values() for row in rows]
+    selected_successful_traffic_rows = [row for rows in traffic_by_trial.values() for row in rows]
+    wire_token_sum = sum(_wire_tokens(r) for r in selected_successful_traffic_rows)
+    wire_token_sum_all_sessions = sum(_wire_tokens(r) for r in traffic_rows if _is_successful_wire(r))
 
     # Wire dedup: how many trials had ≥1 dup, and the unique count overall.
     problems_with_dup_wire = 0
-    for recs in traffic_by_trial.values():
+    for recs in traffic_by_trial_all_raw.values():
         keys = Counter(_wire_dedup_key(r, i) for i, r in enumerate(recs))
         if any(v > 1 for v in keys.values()):
             problems_with_dup_wire += 1
     wire_unique = len({_wire_dedup_key(r, i) for i, r in enumerate(traffic_rows)})
 
-    non_200_by_status, non_200_examples = _wire_error_summary(traffic_rows)
+    non_200_by_status, non_200_examples = _wire_error_summary(selected_all_traffic_rows)
+    non_200_by_status_all_sessions, non_200_examples_all_sessions = _wire_error_summary(traffic_rows)
+    last_wire_by_trial = {key: rows[-1] for key, rows in traffic_by_trial_all_raw.items() if rows}
+    non_success_examples = [
+        _wire_example(r, is_last_wire=last_wire_by_trial.get(_trial_key(r)) is r)
+        for r in traffic_rows
+        if not _is_successful_wire(r)
+    ]
+    non_success_by_error_type = _group_wire_examples_by_error_type(non_success_examples)
+    last_non_success_by_error_type = _group_wire_examples_by_error_type(
+        [e for e in non_success_examples if e["is_last_wire"]]
+    )
+    retry_summary = _retry_summary(traffic_by_trial_all_raw, selected_sessions)
 
     all_sources_match = per_step_vs_fm_mismatch == 0 and wire_vs_fm_mismatch == 0 and problems_missing_fm_tokens == 0
 
@@ -417,6 +756,9 @@ def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
             "mean_reward": traj_mean,
             "reported_mean": reported_mean,
             "failures_by_category": dict(failures),
+            "failure_examples": failure_examples,
+            "timeout_examples": timeout_examples,
+            "no_agent_step_examples": no_agent_step_examples,
             "quality": _piotr_quality_aggregate(traj_rows),
             "field_coverage": {
                 "per_trial_missing": _missing_fields(traj_rows, _TRIAL_FIELDS),
@@ -426,6 +768,9 @@ def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
         "tokens_stats": {
             "per_step_sum": per_step_token_sum,
             "wire_total": wire_token_sum,
+            "wire_total_for_trajectory_comparison": wire_token_sum,
+            "wire_total_all_sessions": wire_token_sum_all_sessions,
+            "wire_total_earlier_retry_sessions": retry_summary["retry_wire_tokens"],
             "final_metrics_total": final_metrics_token_sum,
             "problems_with_missing_final_metrics_tokens": problems_missing_fm_tokens,
             "problems_with_per_step_vs_final_metrics_mismatch": per_step_vs_fm_mismatch,
@@ -433,13 +778,29 @@ def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
             "all_sources_match": all_sources_match,
         },
         "wire_calls": {
-            "total": len(traffic_rows),
-            "successful": sum(1 for r in traffic_rows if _is_successful_wire(r)),
-            "non_200": sum(1 for r in traffic_rows if not _is_successful_wire(r)),
+            "total": len(selected_all_traffic_rows),
+            "successful": len(selected_successful_traffic_rows),
+            "non_200": sum(1 for r in selected_all_traffic_rows if not _is_successful_wire(r)),
+            "total_for_trajectory_comparison": len(selected_all_traffic_rows),
+            "successful_for_trajectory_comparison": len(selected_successful_traffic_rows),
+            "total_all_sessions": len(traffic_rows),
+            "successful_all_sessions": sum(1 for r in traffic_rows if _is_successful_wire(r)),
+            "non_200_all_sessions": sum(1 for r in traffic_rows if not _is_successful_wire(r)),
             "non_200_by_status": non_200_by_status,
             "non_200_examples": non_200_examples,
+            "non_200_by_status_all_sessions": non_200_by_status_all_sessions,
+            "non_200_examples_all_sessions": non_200_examples_all_sessions,
+            "non_success_examples": non_success_by_error_type,
+            "last_non_success_examples": last_non_success_by_error_type,
             "unique": wire_unique,
             "problems_with_duplicates": problems_with_dup_wire,
+            "selected_session_policy": "last_wire_session",
+            "problems_with_retries": retry_summary["problems_with_retries"],
+            "retry_sessions": retry_summary["retry_sessions"],
+            "problems_with_multiple_finish_calls": retry_summary["problems_with_multiple_finish_calls"],
+            "retry_successful_wire_calls": retry_summary["retry_successful_wire_calls"],
+            "retry_wire_tokens": retry_summary["retry_wire_tokens"],
+            "retry_examples": retry_summary["retry_examples"],
             "problems_with_more_wire_than_steps": problems_more_wire,
             "problems_with_fewer_wire_than_steps": problems_fewer_wire,
             "problems_with_no_agent_steps": problems_no_steps,
@@ -476,7 +837,9 @@ def _enrich_bench(bench_dir: Path) -> dict[str, int]:
 
     traj_rows = _read_jsonl(traj_path)
     traffic_rows = _read_jsonl(traffic_path)
-    by_trial = _index_traffic_by_trial(traffic_rows)
+    all_by_trial = _index_traffic_by_trial(traffic_rows, only_successful=False)
+    selected_sessions = _selected_sessions_by_trial(traj_rows, all_by_trial)
+    by_trial = _filter_traffic_to_selected_sessions(all_by_trial, selected_sessions)
 
     counts = {
         "trials_spliced": 0,

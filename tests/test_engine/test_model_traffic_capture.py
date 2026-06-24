@@ -19,6 +19,8 @@ import json
 import threading
 from pathlib import Path
 
+import pytest
+
 from nemo_evaluator.adapters.proxy import start_adapter_proxy
 from nemo_evaluator.adapters.types import AdapterRequest, AdapterResponse, InterceptorContext
 from nemo_evaluator.engine.eval_loop import run_evaluation
@@ -127,17 +129,45 @@ def _jsonl(path: Path):
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
-def test_format_log_record_forwards_opt_in_capture_fields() -> None:
-    """When the store captured tool_calls_full / reasoning_content / message_content,
-    they must land on the model_traffic.jsonl row (not be silently dropped)."""
+def _capture_response_body(
+    *,
+    content: str = "the answer is 42",
+    reasoning: str = "let me think",
+    tool_calls: list[dict] | None = None,
+) -> dict:
+    return {
+        "model": "m",
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": content,
+                    "reasoning_content": reasoning,
+                    "tool_calls": tool_calls
+                    or [{"id": "c1", "type": "function", "function": {"name": "w", "arguments": "{}"}}],
+                },
+                "finish_reason": "tool_calls",
+            }
+        ],
+        "usage": {"prompt_tokens": 3, "completion_tokens": 4, "total_tokens": 7},
+    }
+
+
+@pytest.mark.parametrize(
+    "capture_kwargs,expect_response_fields",
+    [
+        pytest.param({}, True, id="default-capture"),
+        pytest.param(
+            {"capture_tool_calls": False, "capture_reasoning": False, "capture_messages": False},
+            False,
+            id="capture-disabled",
+        ),
+    ],
+)
+def test_format_log_record_response_capture_fields(capture_kwargs: dict, expect_response_fields: bool) -> None:
     ctx = InterceptorContext()
     ctx.extra["session_id"] = "cap-session"
-    store = ModelTrafficStore(
-        service_name="solver",
-        capture_tool_calls=True,
-        capture_reasoning=True,
-        capture_messages=True,
-    )
+    store = ModelTrafficStore(service_name="solver", **capture_kwargs)
     store.start_request(
         AdapterRequest(method="POST", path="/chat/completions", headers={}, body={"model": "m"}, ctx=ctx)
     )
@@ -147,33 +177,62 @@ def test_format_log_record_forwards_opt_in_capture_fields() -> None:
             headers={"content-type": "application/json"},
             latency_ms=10.0,
             ctx=ctx,
-            body={
-                "model": "m",
-                "choices": [
-                    {
-                        "message": {
-                            "role": "assistant",
-                            "content": "the answer is 42",
-                            "reasoning_content": "let me think",
-                            "tool_calls": [
-                                {"id": "c1", "type": "function", "function": {"name": "w", "arguments": "{}"}}
-                            ],
-                        },
-                        "finish_reason": "tool_calls",
-                    }
-                ],
-                "usage": {"prompt_tokens": 3, "completion_tokens": 4, "total_tokens": 7},
-            },
+            body=_capture_response_body(),
         )
     )
     rows = format_model_traffic_log_records(store.drain_session("cap-session"), benchmark="b", problem_idx=0, repeat=0)
     assert len(rows) == 1
     row = rows[0]
     assert row["tool_calls"] == {"count": 1, "names": {"w": 1}}
-    assert "tool_calls_full" in row
-    assert row["tool_calls_full"][0]["name"] == "w"
-    assert row["reasoning_content"] == "let me think"
-    assert row["message_content"] == "the answer is 42"
+    if expect_response_fields:
+        assert row["tool_calls_full"] == [{"id": "c1", "name": "w", "arguments": "{}"}]
+        assert row["reasoning_content"] == "let me think"
+        assert row["message_content"] == "the answer is 42"
+    else:
+        assert "tool_calls_full" not in row
+        assert "reasoning_content" not in row
+        assert "message_content" not in row
+
+
+def test_non_success_response_forwards_compact_error_summary() -> None:
+    ctx = InterceptorContext()
+    ctx.extra["session_id"] = "bad-request-session"
+    store = ModelTrafficStore(service_name="solver")
+    store.start_request(
+        AdapterRequest(method="POST", path="/chat/completions", headers={}, body={"model": "m"}, ctx=ctx)
+    )
+    store.finish_response(
+        AdapterResponse(
+            status_code=400,
+            headers={"content-type": "application/json"},
+            latency_ms=5.0,
+            ctx=ctx,
+            body={
+                "error": {
+                    "message": "OpenAIException - Expecting ',' delimiter: line 1 column 237 (char 236)",
+                    "type": "invalid_request_error",
+                    "code": "bad_tool_json",
+                }
+            },
+        )
+    )
+
+    rows = format_model_traffic_log_records(
+        store.drain_session("bad-request-session"),
+        benchmark="b",
+        problem_idx=0,
+        repeat=0,
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["status_code"] == 400
+    assert row["usage"] == {}
+    assert "token_provenance" not in row
+    assert row["error_message"] == "OpenAIException - Expecting ',' delimiter: line 1 column 237 (char 236)"
+    assert row["error_type"] == "invalid_request_error"
+    assert row["error_code"] == "bad_tool_json"
+    assert "bad_tool_json" in row["error_body"]
 
 
 def test_model_traffic_parses_streaming_sse_usage_and_tool_calls() -> None:
@@ -267,6 +326,9 @@ async def test_model_traffic_writes_compact_log_and_inference_stats(tmp_path: Pa
             "cached_tokens": 3,
         }
         assert traffic["tool_calls"] == {"count": 1, "names": {"bash": 1}}
+        assert traffic["message_content"] == "answer"
+        assert traffic["reasoning_content"] == "I need to inspect the workspace."
+        assert traffic["tool_calls_full"] == [{"id": "call_1", "name": "bash", "arguments": '{"command":"ls"}'}]
         assert traffic["token_provenance"] == "provider_reported"
         assert "request" not in traffic
         assert "response" not in traffic
@@ -293,59 +355,51 @@ async def test_model_traffic_writes_compact_log_and_inference_stats(tmp_path: Pa
         upstream.shutdown()
 
 
-# ─── opt-in capture flags (this MR) ─────────────────────────────────
+# ─── response capture flags ──────────────────────────────────────────
 
 
-def test_summary_from_json_capture_flags_off_keeps_default_shape() -> None:
-    """Default behavior: stats only — no tool_calls_full / reasoning_content / message_content."""
+@pytest.mark.parametrize(
+    "capture_kwargs,expect_response_fields",
+    [
+        pytest.param({}, True, id="default-capture"),
+        pytest.param(
+            {"capture_tool_calls": False, "capture_reasoning": False, "capture_messages": False},
+            False,
+            id="capture-disabled",
+        ),
+        pytest.param(
+            {"capture_tool_calls": True, "capture_reasoning": True, "capture_messages": True},
+            True,
+            id="capture-explicit",
+        ),
+    ],
+)
+def test_summary_from_json_response_capture_fields(capture_kwargs: dict, expect_response_fields: bool) -> None:
     from nemo_evaluator.observability.model_traffic import _summary_from_json
 
-    body = {
-        "model": "qwen",
-        "choices": [
-            {
-                "finish_reason": "stop",
-                "message": {
-                    "content": "hello",
-                    "reasoning_content": "think",
-                    "tool_calls": [{"id": "t1", "function": {"name": "search", "arguments": '{"q":"x"}'}}],
-                },
-            }
+    body = _capture_response_body(
+        content="calling search",
+        reasoning="I need to look this up",
+        tool_calls=[
+            {"id": "t1", "function": {"name": "search", "arguments": '{"q":"x"}'}},
+            {"id": "t2", "function": {"name": "fetch", "arguments": '{"u":"y"}'}},
         ],
-        "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
-    }
-    out = _summary_from_json(body)
-    assert "tool_calls_full" not in out
-    assert "reasoning_content" not in out
-    assert "message_content" not in out
-    assert out["tool_calls"]["count"] == 1  # stats still there
-
-
-def test_summary_from_json_capture_flags_on_populate_fields() -> None:
-    from nemo_evaluator.observability.model_traffic import _summary_from_json
-
-    body = {
-        "model": "qwen",
-        "choices": [
-            {
-                "finish_reason": "tool_calls",
-                "message": {
-                    "content": "calling search",
-                    "reasoning_content": "I need to look this up",
-                    "tool_calls": [
-                        {"id": "t1", "function": {"name": "search", "arguments": '{"q":"x"}'}},
-                        {"id": "t2", "function": {"name": "fetch", "arguments": '{"u":"y"}'}},
-                    ],
-                },
-            }
-        ],
-        "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
-    }
-    out = _summary_from_json(body, capture_tool_calls=True, capture_reasoning=True, capture_messages=True)
-    assert out["reasoning_content"] == "I need to look this up"
-    assert out["message_content"] == "calling search"
-    assert len(out["tool_calls_full"]) == 2
-    assert out["tool_calls_full"][0] == {"id": "t1", "name": "search", "arguments": '{"q":"x"}'}
+    )
+    body["model"] = "qwen"
+    body["usage"] = {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+    out = _summary_from_json(body, **capture_kwargs)
+    assert out["tool_calls"] == {"count": 2, "names": {"search": 1, "fetch": 1}}
+    if expect_response_fields:
+        assert out["reasoning_content"] == "I need to look this up"
+        assert out["message_content"] == "calling search"
+        assert out["tool_calls_full"] == [
+            {"id": "t1", "name": "search", "arguments": '{"q":"x"}'},
+            {"id": "t2", "name": "fetch", "arguments": '{"u":"y"}'},
+        ]
+    else:
+        assert "tool_calls_full" not in out
+        assert "reasoning_content" not in out
+        assert "message_content" not in out
 
 
 def test_summary_truncates_long_content() -> None:
