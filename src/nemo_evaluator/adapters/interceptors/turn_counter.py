@@ -35,6 +35,7 @@ _GC_INTERVAL_SEC = 300.0
 class InjectionPosition(str, Enum):
     SYSTEM_MESSAGE = "system_message"
     USER_MESSAGE = "user_message"
+    NEW_USER_MESSAGE = "new_user_message"
 
 
 class InjectionTrigger(str, Enum):
@@ -78,13 +79,21 @@ class Interceptor(RequestInterceptor):
 
     * ``position`` — where the reminder lands in the request payload
       (``system_message`` appends a new system message; ``user_message``
-      appends to the last user message's content).
+      appends to the last user message's content; ``new_user_message``
+      appends a new user message).
     * ``trigger`` — when the reminder fires
       (``threshold`` at 80% / 95% of ``max_turns``; ``periodic`` every
       ``interval`` turns).
 
-    All four combinations are valid. Defaults reproduce the prior
+    All position/trigger combinations are valid. Defaults reproduce the prior
     threshold-based system-message behavior.
+
+    Additional threshold-only option:
+
+    * ``remind_every`` — optional threshold-mode reminder cadence. When
+      set to ``N > 0``, appends the environment reminder to the trailing
+      tool message every ``N`` turns before threshold reminders start. It
+      is ignored for ``trigger=periodic``.
     """
 
     def __init__(
@@ -95,17 +104,28 @@ class Interceptor(RequestInterceptor):
         position: str | InjectionPosition = InjectionPosition.SYSTEM_MESSAGE,
         trigger: str | InjectionTrigger = InjectionTrigger.THRESHOLD,
         interval: int = 1,
+        remind_every: int | None = None,
     ) -> None:
         if interval < 1:
             raise ValueError(f"interval must be >= 1, got {interval}")
+        if remind_every is not None and remind_every < 0:
+            raise ValueError(f"remind_every must be >= 0, got {remind_every}")
         self._every = max(every, 1)
         self._max = max_turns
         self._position = InjectionPosition(position)
         self._trigger = InjectionTrigger(trigger)
         self._interval = interval
+        self._remind_every = remind_every or None
         self._sessions: dict[str, _Session] = {}
         self._lock = asyncio.Lock()
         self._last_gc = time.monotonic()
+
+        if self._trigger is InjectionTrigger.PERIODIC and self._remind_every is not None:
+            logger.warning(
+                "turn_counter: remind_every is only applied with trigger=threshold; "
+                "ignoring remind_every=%d for trigger=periodic.",
+                self._remind_every,
+            )
 
         if max_turns is None:
             logger.warning(
@@ -170,9 +190,16 @@ class Interceptor(RequestInterceptor):
         if self._trigger is InjectionTrigger.THRESHOLD:
             severity = self._threshold_severity(n)
             if severity is _Severity.NON_ACTIONABLE:
+                if self._remind_every is not None and n % self._remind_every == 0:
+                    notice = _REMINDER_TEMPLATE.format(remaining=remaining)
+                    self._append_to_trailing_tool_message(messages, notice, key, n)
                 return req
             body = self._threshold_message_body(n, remaining, severity)
-            notice = f"[SYSTEM] {body}" if self._position is InjectionPosition.SYSTEM_MESSAGE else body
+            notice = (
+                f"[SYSTEM] {body}"
+                if self._position in (InjectionPosition.SYSTEM_MESSAGE, InjectionPosition.NEW_USER_MESSAGE)
+                else body
+            )
         else:
             if n % self._interval != 0:
                 return req
@@ -180,6 +207,8 @@ class Interceptor(RequestInterceptor):
 
         if self._position is InjectionPosition.SYSTEM_MESSAGE:
             messages.append({"role": "system", "content": notice})
+        elif self._position is InjectionPosition.NEW_USER_MESSAGE:
+            messages.append({"role": "user", "content": notice})
         else:
             self._append_to_last_user_message(messages, notice)
         return req
@@ -232,6 +261,44 @@ class Interceptor(RequestInterceptor):
                     msg["content"] = notice
                 return
         logger.debug("turn_counter: no user message found in %d-message payload; notice not injected.", len(messages))
+
+    def _append_to_trailing_tool_message(self, messages: list, notice: str, key: str, n: int) -> None:
+        if not messages:
+            return
+
+        last = messages[-1]
+        if last.get("role") != "tool":
+            logger.info(
+                "turn_counter: task %s turn %d — skipping reminder, last msg role=%s (not 'tool')",
+                key,
+                n,
+                last.get("role"),
+            )
+            return
+
+        content = last.get("content")
+        if content is None:
+            last["content"] = notice
+        elif isinstance(content, str):
+            last["content"] = f"{content}\n\n{notice}" if content else notice
+        elif isinstance(content, list):
+            last["content"] = list(content) + [{"type": "text", "text": notice}]
+        else:
+            logger.warning(
+                "turn_counter: task %s turn %d — FAILED to append reminder (tool content type=%s)",
+                key,
+                n,
+                type(content).__name__,
+            )
+            return
+
+        logger.info(
+            "turn_counter: task %s turn %d/%d — appended reminder to tool msg (tool_call_id=%s)",
+            key,
+            n,
+            self._max,
+            last.get("tool_call_id", "<none>"),
+        )
 
     def _gc(self, now: float) -> None:
         """Remove sessions idle longer than ``_STALE_SESSION_SEC``."""
