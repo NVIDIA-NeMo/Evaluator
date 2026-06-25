@@ -334,6 +334,9 @@ class OpenClawSolver:
         max_tokens: int | None = None,
         max_concurrent: int = _DEFAULT_MAX_CONCURRENT,
         idle_timeout_seconds: int = _DEFAULT_IDLE_TIMEOUT_SECONDS,
+        run_timeout: float | None = None,
+        timeout_strategy: str = "task",
+        max_agent_timeout: float | None = None,
         web_search_provider: Literal["tavily"] | None = None,
         config_path: str | None = None,
         *,
@@ -342,6 +345,9 @@ class OpenClawSolver:
         self._bin = openclaw_bin
         self._thinking = thinking
         self._timeout = timeout
+        self._run_timeout = run_timeout
+        self._timeout_strategy = timeout_strategy
+        self._max_agent_timeout = max_agent_timeout
         self._model_url = model_url
         self._model_id = model_id
         self._api_key = api_key
@@ -358,12 +364,23 @@ class OpenClawSolver:
             _check_web_search_env(web_search_provider)
 
     def _effective_timeout(self, task: SeedResult) -> float:
+        # Resolve the agent wall-clock against the task's own ``timeout_seconds``.
+        # ``timeout_strategy`` selects how (default ``task`` preserves the prior
+        # min() behavior); ``override`` lets the NEL timeout win so slow-but-
+        # healthy rollouts aren't SIGKILLed when upstream latency is high.
         task_timeout = _coerce_timeout(task.metadata.get("timeout_seconds"))
         if task_timeout is None:
             task_timeout = _coerce_timeout(task.metadata.get("agent_timeout_sec"))
-        if task_timeout is None:
-            return self._timeout
-        return min(self._timeout, task_timeout)
+        nel_timeout = self._run_timeout if self._run_timeout is not None else self._timeout
+        if task_timeout is None or self._timeout_strategy == "override":
+            effective = nel_timeout
+        elif self._timeout_strategy == "max":
+            effective = max(nel_timeout, task_timeout)
+        else:  # "task": task budget bounded by the NEL timeout
+            effective = min(nel_timeout, task_timeout)
+        if self._max_agent_timeout is not None:
+            effective = min(effective, self._max_agent_timeout)
+        return effective
 
     async def solve(
         self,

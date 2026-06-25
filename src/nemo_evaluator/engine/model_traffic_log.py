@@ -95,7 +95,14 @@ def format_model_traffic_log_records(
         }
         if row["usage"]:
             row["token_provenance"] = _PROVIDER
-        if record.get("error_type"):
-            row["error_type"] = record["error_type"]
+        for key in ("error_type", "error_message", "error_body", "error_code"):
+            if record.get(key):
+                row[key] = record[key]
+        # Opt-in capture fields from ModelTrafficStore.finish_response: only
+        # forwarded when present in the in-memory record (controlled by the
+        # service's proxy.model_traffic.capture_{tool_calls,reasoning,messages}).
+        for key in ("tool_calls_full", "reasoning_content", "message_content"):
+            if key in record:
+                row[key] = record[key]
         rows.append(row)
     return rows

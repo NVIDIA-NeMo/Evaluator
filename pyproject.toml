@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nemo-evaluator"
-version = "0.3.0"
+version = "0.4.0"
 description = "NeMo Evaluator — benchmark environments, pluggable solvers, interceptor proxy, and decision-grade scoring for LLMs"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
@@ -99,6 +99,7 @@ markers = [
     "integration: integration tests that wire real components together",
     "slow: tests that take > 30s (deselect via: -m 'not slow')",
     "e2e: end-to-end smoke tests requiring infrastructure",
+    "tmux: tests that require a real tmux binary",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

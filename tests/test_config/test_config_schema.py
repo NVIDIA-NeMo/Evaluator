@@ -106,6 +106,75 @@ class TestParseEvalConfig:
         assert cfg.benchmarks[0].name == "gsm8k"
         assert isinstance(cfg.benchmarks[0].solver, SimpleSolver)
         assert cfg.benchmarks[0].solver.service == "solver"
+        assert cfg.output.trajectories.enrich is True
+
+    @pytest.mark.parametrize(
+        "service_overrides,output_overrides,expected_capture,expected_enrich",
+        [
+            pytest.param(
+                {"proxy": {}},
+                {},
+                {"messages": True, "reasoning": True, "tool_calls": True},
+                True,
+                id="model-traffic-defaults",
+            ),
+            pytest.param(
+                {
+                    "proxy": {
+                        "model_traffic": {
+                            "capture_messages": False,
+                            "capture_reasoning": False,
+                            "capture_tool_calls": False,
+                        }
+                    }
+                },
+                {},
+                {"messages": False, "reasoning": False, "tool_calls": False},
+                True,
+                id="model-traffic-disabled",
+            ),
+            pytest.param(
+                {"proxy": {}},
+                {"trajectories": {"enrich": False}},
+                {"messages": True, "reasoning": True, "tool_calls": True},
+                False,
+                id="trajectory-enrichment-disabled",
+            ),
+        ],
+    )
+    def test_output_and_model_traffic_capture_options(
+        self,
+        service_overrides,
+        output_overrides,
+        expected_capture,
+        expected_enrich,
+    ):
+        service = {
+            "type": "api",
+            "url": "http://localhost:8000/v1/chat/completions",
+            "protocol": "chat_completions",
+            "model": "gpt-4",
+            **service_overrides,
+        }
+        raw = {
+            "services": {"solver": service},
+            "benchmarks": [
+                {
+                    "name": "gsm8k",
+                    "solver": {"type": "simple", "service": "solver"},
+                },
+            ],
+        }
+        if output_overrides:
+            raw["output"] = output_overrides
+
+        cfg = parse_eval_config(raw)
+        capture = cfg.services["solver"].proxy.model_traffic
+        assert capture.capture_messages is expected_capture["messages"]
+        assert capture.capture_reasoning is expected_capture["reasoning"]
+        assert capture.capture_tool_calls is expected_capture["tool_calls"]
+        assert capture.max_content_chars == 100_000
+        assert cfg.output.trajectories.enrich is expected_enrich
 
     def test_vllm_service(self):
         raw = {

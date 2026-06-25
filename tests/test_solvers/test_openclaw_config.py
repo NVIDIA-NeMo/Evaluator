@@ -219,3 +219,23 @@ class TestEffectiveTimeout:
     def test_never_exceeds_solver_default(self) -> None:
         task = SeedResult(prompt="p", expected_answer="", metadata={"timeout_seconds": 9999})
         assert self._solver(timeout=100.0)._effective_timeout(task) == 100.0
+
+    def test_override_ignores_task_timeout(self) -> None:
+        task = SeedResult(prompt="p", expected_answer="", metadata={"timeout_seconds": 10})
+        solver = OpenClawSolver(timeout=100.0, timeout_strategy="override", skip_preflight=True)
+        assert solver._effective_timeout(task) == 100.0
+
+    def test_override_uses_run_timeout_over_benchmark(self) -> None:
+        task = SeedResult(prompt="p", expected_answer="", metadata={"timeout_seconds": 10})
+        solver = OpenClawSolver(timeout=100.0, run_timeout=500.0, timeout_strategy="override", skip_preflight=True)
+        assert solver._effective_timeout(task) == 500.0
+
+    def test_max_takes_larger_of_nel_and_task(self) -> None:
+        task = SeedResult(prompt="p", expected_answer="", metadata={"timeout_seconds": 9999})
+        solver = OpenClawSolver(timeout=100.0, timeout_strategy="max", skip_preflight=True)
+        assert solver._effective_timeout(task) == 9999.0
+
+    def test_max_agent_timeout_caps_result(self) -> None:
+        task = SeedResult(prompt="p", expected_answer="", metadata={"timeout_seconds": 9999})
+        solver = OpenClawSolver(timeout=100.0, timeout_strategy="max", max_agent_timeout=500.0, skip_preflight=True)
+        assert solver._effective_timeout(task) == 500.0

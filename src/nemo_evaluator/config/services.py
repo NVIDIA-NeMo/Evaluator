@@ -61,6 +61,22 @@ class InterceptorConfig(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class ModelTrafficCaptureConfig(BaseModel):
+    """Controls what ``model_traffic.jsonl`` captures per call.
+
+    By default the store records the assistant message, reasoning content, and
+    full tool-call payloads in addition to stats. Set these flags to ``false``
+    to opt out of the corresponding response fields.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    capture_tool_calls: bool = True  # full {id, name, arguments} per call
+    capture_reasoning: bool = True  # message.reasoning_content (or SSE delta)
+    capture_messages: bool = True  # message.content
+    max_content_chars: int = 100_000  # truncation guard for the three above
+
+
 class ProxyConfig(BaseModel):
     """Adapter proxy settings for a service.
 
@@ -71,6 +87,7 @@ class ProxyConfig(BaseModel):
     ``request_timeout`` sets the HTTP timeout for upstream requests.
     ``max_retries`` and ``retry_on_status`` control retry behavior.
     ``max_concurrent_upstream`` limits concurrent requests to the upstream.
+    ``model_traffic`` controls what model_traffic.jsonl captures per call.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -83,6 +100,7 @@ class ProxyConfig(BaseModel):
     max_retries: int = 0
     retry_on_status: list[int] = Field(default_factory=lambda: [429, 502, 503, 504])
     max_concurrent_upstream: int = 64
+    model_traffic: ModelTrafficCaptureConfig = Field(default_factory=ModelTrafficCaptureConfig)
 
     @property
     def needs_proxy(self) -> bool:
@@ -117,6 +135,7 @@ class _ModelServerBase(BaseModel):
     reasoning_pattern: str | None = None
     max_input_tokens: int | None = None
     max_output_tokens: int | None = None
+    tokenizer: str | None = None
     generation: GenerationConfig = Field(default_factory=GenerationConfig)
     proxy: ProxyConfig | None = None
     depends_on: list[str] = Field(default_factory=list)
@@ -230,6 +249,7 @@ class ExternalApiService(BaseModel):
     health_path: str | None = None
     max_input_tokens: int | None = None
     max_output_tokens: int | None = None
+    tokenizer: str | None = None
     generation: GenerationConfig = Field(default_factory=GenerationConfig)
     proxy: ProxyConfig | None = None
 

@@ -137,7 +137,7 @@ async def test_seed_strips_multilingual_hints_block(tmp_path):
         "apache__druid-12345",
         "Original bug report.\nSteps to reproduce.\n\n## Hints\n\nReviewer said: patch should go in X.java line 10.",
     )
-    env = HarborEnvironment(dataset_path=str(dataset))
+    env = HarborEnvironment(dataset_path=str(dataset), keep_swebench_multilingual_hints=False)
     seed = await env.seed(0)
     assert "## Hints" not in seed.prompt
     assert "Reviewer said" not in seed.prompt
@@ -182,7 +182,7 @@ async def test_seed_records_hints_stripped_in_metadata(tmp_path):
         "apache__druid-12345",
         "Problem body.\n\n## Hints\n\nsome body.",
     )
-    env = HarborEnvironment(dataset_path=str(dataset))
+    env = HarborEnvironment(dataset_path=str(dataset), keep_swebench_multilingual_hints=False)
     seed = await env.seed(0)
     assert seed.metadata.get("hints_stripped") is True
 
@@ -191,7 +191,7 @@ async def test_seed_records_hints_stripped_in_metadata(tmp_path):
 async def test_seed_omits_hints_stripped_when_noop(tmp_path):
     dataset = tmp_path / "swebench_multilingual@1.0"
     _make_task(dataset, "apache__druid-noop", "No hints here at all.")
-    env = HarborEnvironment(dataset_path=str(dataset))
+    env = HarborEnvironment(dataset_path=str(dataset), keep_swebench_multilingual_hints=False)
     seed = await env.seed(0)
     assert "hints_stripped" not in seed.metadata
 
@@ -202,10 +202,58 @@ async def test_seed_handles_adapter_canary_empty_hints_bytes(tmp_path):
     dataset = tmp_path / "swebench_multilingual@1.0"
     instruction_bytes = "Problem body text.\n\n## Hints\n\n\n"
     _make_task(dataset, "apache__druid-canary", instruction_bytes)
-    env = HarborEnvironment(dataset_path=str(dataset))
+    env = HarborEnvironment(dataset_path=str(dataset), keep_swebench_multilingual_hints=False)
     seed = await env.seed(0)
     assert "## Hints" not in seed.prompt
     assert seed.prompt == "Problem body text."
+    assert seed.metadata.get("hints_stripped") is True
+
+
+@pytest.mark.asyncio
+async def test_seed_keep_hints_true_preserves_multilingual_hints(tmp_path):
+    """``keep_swebench_multilingual_hints=True`` disables the strip."""
+    dataset = tmp_path / "swebench_multilingual@1.0"
+    _make_task(
+        dataset,
+        "apache__druid-12345",
+        "Original bug report.\n\n## Hints\n\nReviewer said: patch X.java line 10.",
+    )
+    env = HarborEnvironment(dataset_path=str(dataset), keep_swebench_multilingual_hints=True)
+    seed = await env.seed(0)
+    assert "## Hints" in seed.prompt
+    assert "Reviewer said" in seed.prompt
+    assert "hints_stripped" not in seed.metadata
+
+
+@pytest.mark.asyncio
+async def test_seed_default_keeps_multilingual_hints(tmp_path):
+    """The default (``keep_swebench_multilingual_hints=True``) preserves hints."""
+    dataset = tmp_path / "swebench_multilingual@1.0"
+    _make_task(
+        dataset,
+        "apache__druid-12345",
+        "Original bug report.\n\n## Hints\n\nReviewer said: patch X.java line 10.",
+    )
+    env = HarborEnvironment(dataset_path=str(dataset))
+    seed = await env.seed(0)
+    assert "## Hints" in seed.prompt
+    assert "Reviewer said" in seed.prompt
+    assert "hints_stripped" not in seed.metadata
+
+
+@pytest.mark.asyncio
+async def test_seed_keep_hints_false_strips(tmp_path):
+    """``keep_swebench_multilingual_hints=False`` opts into the MR !82 strip."""
+    dataset = tmp_path / "swebench_multilingual@1.0"
+    _make_task(
+        dataset,
+        "apache__druid-12345",
+        "Original bug report.\n\n## Hints\n\nReviewer said: patch X.java line 10.",
+    )
+    env = HarborEnvironment(dataset_path=str(dataset), keep_swebench_multilingual_hints=False)
+    seed = await env.seed(0)
+    assert "## Hints" not in seed.prompt
+    assert "Reviewer said" not in seed.prompt
     assert seed.metadata.get("hints_stripped") is True
 
 
@@ -220,7 +268,7 @@ async def test_seed_handles_adapter_normal_hints_bytes(tmp_path):
         "reply: I'll patch it tomorrow.\n"
     )
     _make_task(dataset, "apache__druid-hints", instruction_bytes)
-    env = HarborEnvironment(dataset_path=str(dataset))
+    env = HarborEnvironment(dataset_path=str(dataset), keep_swebench_multilingual_hints=False)
     seed = await env.seed(0)
     assert "## Hints" not in seed.prompt
     assert "maintainer" not in seed.prompt.lower()

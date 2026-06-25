@@ -21,6 +21,23 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class TrajectoriesConfig(BaseModel):
+    """Configuration for the trajectories audit/enrichment report.
+
+    The audit report (``trajectories_report.json``) is emitted unconditionally
+    by the orchestrator finalize step when ``trajectories.jsonl`` exists.
+    Enrichment is enabled by default. Set ``enrich=False`` to opt out of
+    writing ``trajectories_enriched.jsonl``. When enabled, per-trial step
+    metrics are backfilled 1:1 from matching ``model_traffic.jsonl`` wire calls
+    when counts align, otherwise all wire calls land in
+    ``trajectory[0].extra.captured_model_calls``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enrich: bool = True
+
+
 class OutputConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -30,3 +47,4 @@ class OutputConfig(BaseModel):
     report: list[str] = Field(default_factory=lambda: ["markdown"])
     export: list[str] = Field(default_factory=list)
     export_config: dict[str, Any] = Field(default_factory=dict)
+    trajectories: TrajectoriesConfig = Field(default_factory=TrajectoriesConfig)

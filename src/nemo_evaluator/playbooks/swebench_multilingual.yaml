@@ -10,6 +10,11 @@ name: harbor://swebench_multilingual@1.0
 instruction_template: swebench-instruction.md
 max_concurrent: 20
 timeout: 10800.0
+params:
+  # The adapter concatenates the PR author's hints_text under a "## Hints"
+  # header. Kept by default pending FEP-1103 (whether to use hints is undecided);
+  # set false to strip them (official SWE-bench excludes hints_text).
+  keep_swebench_multilingual_hints: true
 solver:
   type: harbor
   service: model

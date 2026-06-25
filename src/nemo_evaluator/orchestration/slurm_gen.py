@@ -2057,7 +2057,13 @@ def _extract_bench_config(config: EvalConfig, bench_idx: int, svc_url_var: str, 
     return {
         "services": services,
         "benchmarks": [bench_dict],
-        "output": {"dir": "${NEL_OUTPUT_DIR}"},
+        "output": {
+            "dir": "${NEL_OUTPUT_DIR}",
+            # Carry the per-shard finalize flags through to the eval driver.
+            # Hand-picking these (instead of dumping config.output wholesale)
+            # avoids overriding NEL_OUTPUT_DIR and bench-specific export wiring.
+            "trajectories": config.output.trajectories.model_dump(exclude_none=True),
+        },
     }
 
 
