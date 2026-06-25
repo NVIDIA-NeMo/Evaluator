@@ -21,9 +21,23 @@ import re
 from nemo_evaluator.scoring.types import ScorerInput
 
 
-def multichoice_regex(sample: ScorerInput, pattern: str = r"(?i)Answer\s*:\s*([A-D])") -> dict:
-    m = re.search(pattern, sample.response)
-    extracted = m.group(1).upper() if m else None
+def multichoice_regex(
+    sample: ScorerInput,
+    letters: str = "A-D",
+    pattern: str | None = None,
+) -> dict:
+    """Extract a single multiple-choice letter from the response.
+
+    ``letters`` is a regex character-class fragment for the valid options, so the
+    same scorer serves 4-choice (``"A-D"``), 10-choice (``"A-J"``), etc. The pattern
+    built from it tolerates LaTeX/markdown wrapping ("Answer: $B$", "**B**", "(B)")
+    and takes the LAST match (the final answer, after any intermediate mentions in a
+    reasoning trace). An explicit ``pattern`` overrides ``letters`` for full control.
+    """
+    if pattern is None:
+        pattern = rf"(?i)answer\s*:\s*(?:\\boxed\s*\{{\s*)?[\$\*\(\[\\{{\s]*([{letters}])(?![a-zA-Z])"
+    ms = re.findall(pattern, sample.response)
+    extracted = ms[-1].upper() if ms else None
     return {"correct": extracted == str(sample.target).upper(), "extracted": extracted}
 
 

@@ -64,6 +64,29 @@ class TestChatSolver:
         mock_client.chat.assert_awaited_once()
 
     @pytest.mark.asyncio
+    async def test_folds_reasoning_content_into_scored_response(self):
+        from types import SimpleNamespace
+
+        from nemo_evaluator.solvers.chat import ChatSolver
+
+        # Reasoning model: final answer is in reasoning_content, content is empty.
+        # Scoring content alone would mis-score; the solver must fold reasoning in.
+        resp = SimpleNamespace(
+            content="",
+            reasoning_content="...weighing the options, so the answer is.\nAnswer: B",
+            model="test-model",
+            prompt_tokens=10,
+            completion_tokens=20,
+        )
+        mock_client = AsyncMock()
+        mock_client.chat = AsyncMock(return_value=resp)
+
+        solver = ChatSolver(client=mock_client)
+        result = await solver.solve(_make_seed())
+
+        assert "Answer: B" in result.response
+
+    @pytest.mark.asyncio
     async def test_system_prompt_passed(self):
         from nemo_evaluator.solvers.chat import ChatSolver
 

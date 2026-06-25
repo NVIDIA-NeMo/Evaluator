@@ -14,6 +14,8 @@
 # limitations under the License.
 """Golden tests: verify benchmark scorers produce correct results on known data."""
 
+import pytest
+
 from nemo_evaluator.scoring import (
     ScorerInput,
     answer_line,
@@ -44,6 +46,30 @@ class TestMultichoiceRegex:
     def test_10_choice(self):
         s = ScorerInput(response="Answer: H", target="H")
         assert multichoice_regex(s, pattern=r"(?i)Answer\s*:\s*([A-J])")["correct"] is True
+
+    @pytest.mark.parametrize(
+        "response,target,letters,correct,expect_none",
+        [
+            ("Final reasoning.\nAnswer: $B$", "B", "A-D", True, False),
+            ("Answer: **C**", "C", "A-D", True, False),
+            ("Answer: (A)", "A", "A-D", True, False),
+            (r"Answer: \boxed{D}", "D", "A-D", True, False),
+            # the final answer wins over an intermediate mention in the reasoning trace
+            ("At first Answer: A, but on reflection Answer: D", "D", "A-D", True, False),
+            # an unfilled template placeholder must not extract a letter
+            ("Answer: $LETTER", "B", "A-D", False, True),
+            # 10-choice via the generic letters arg still gets wrapper tolerance
+            ("...corresponds to option **H**.\nAnswer: $H$", "H", "A-J", True, False),
+            # a letter outside the configured range is not recognized
+            ("Answer: H", "H", "A-D", False, True),
+        ],
+        ids=["latex", "markdown", "paren", "boxed", "last-match", "placeholder", "ten-choice", "out-of-range"],
+    )
+    def test_wrapped_and_ranged_answers(self, response, target, letters, correct, expect_none):
+        r = multichoice_regex(ScorerInput(response=response, target=target), letters=letters)
+        assert r["correct"] is correct
+        if expect_none:
+            assert r["extracted"] is None
 
 
 class TestAnswerLine:

@@ -211,18 +211,38 @@ class TestLocalSandbox:
         assert result.return_code == 0
         await sb.stop()
 
+    @patch("nemo_evaluator.sandbox.local.os.killpg")
+    @patch("nemo_evaluator.sandbox.local.os.getpgid", return_value=4321)
     @patch("nemo_evaluator.sandbox.local.asyncio.create_subprocess_shell")
-    async def test_exec_timeout(self, mock_shell):
+    async def test_exec_timeout(self, mock_shell, _mock_getpgid, mock_killpg):
         proc = AsyncMock()
         proc.communicate.side_effect = asyncio.TimeoutError()
-        proc.kill = MagicMock()
+        proc.pid = 4321
         proc.wait = AsyncMock()
         mock_shell.return_value = proc
 
         sb = self._make()
         await sb.start()
         result = await sb.exec("sleep 999", timeout_sec=0.01)
-        assert result.return_code == -1
+        # 124 = conventional "timed out"; the whole process group is killed so a
+        # wedged child cannot keep exec() hanging.
+        assert result.return_code == 124
+        mock_killpg.assert_called_once()
+        await sb.stop()
+
+    @patch("nemo_evaluator.sandbox.local.asyncio.create_subprocess_shell")
+    async def test_exec_cwd_falls_back_to_workdir(self, mock_shell):
+        proc = AsyncMock()
+        proc.communicate.return_value = (b"", b"")
+        proc.returncode = 0
+        mock_shell.return_value = proc
+
+        sb = self._make()
+        await sb.start()
+        # the spec's default workdir ("/workspace") doesn't exist in a tempdir sandbox;
+        # exec must fall back to the tempdir workspace rather than fail.
+        await sb.exec("pwd", cwd="/does/not/exist")
+        assert mock_shell.call_args.kwargs["cwd"] == sb._workdir
         await sb.stop()
 
     async def test_upload_download(self, tmp_path):
@@ -250,6 +270,34 @@ class TestLocalSandbox:
         async with LocalSandbox(SandboxSpec(image="x")) as sb:
             assert sb.is_running
         assert not sb.is_running
+
+
+# ── local sandbox config exposure ────────────────────────────────────────
+
+
+class TestLocalSandboxConfig:
+    def test_local_type_provisions_sandbox_without_seed_spec(self):
+        from types import SimpleNamespace
+
+        from nemo_evaluator.config import LocalSandbox
+        from nemo_evaluator.orchestration.orchestrator import _make_sandbox_manager
+        from nemo_evaluator.sandbox.strategies import NoSandbox, pick_lifecycle
+
+        mgr = _make_sandbox_manager(LocalSandbox(type="local"))
+        assert mgr is not None
+        assert mgr._backend == "local"
+
+        # a tool benchmark whose seed carries no sandbox_spec (e.g. gpqa) must still
+        # get a sandbox so the tool_calling solver has a backend to dispatch into.
+        seed = SimpleNamespace(
+            sandbox_spec=None,
+            metadata={},
+            verify_sandbox_spec=None,
+            capture_cmd=None,
+            apply_cmd=None,
+        )
+        assert mgr.resolve_spec(seed) is not None
+        assert not isinstance(pick_lifecycle(seed, mgr), NoSandbox)
 
 
 # ── SandboxSpec / ExecResult / VolumeMount ───────────────────────────────

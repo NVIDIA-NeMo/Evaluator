@@ -2472,7 +2472,11 @@ def generate_sbatch(
                     het_group_flag=het_group_flag,
                 )
             )
-        elif isinstance(sb, SlurmSandbox) and sb_image:
+        elif isinstance(sb, SlurmSandbox) and sb_image and not (sb_image.endswith(".sqsh") or sb_image.startswith("/")):
+            # Local .sqsh / absolute-path images are consumed directly by pyxis
+            # (--container-image=<sqsh>); the registry pre-pull (enroot import
+            # docker://<img>) can't handle them and isn't needed. Skip it so
+            # sandboxed benchmarks run on registry-restricted clusters.
             parts.append(
                 _SANDBOX_PRE_PULL.format(
                     images=shlex.quote(sb_image),
