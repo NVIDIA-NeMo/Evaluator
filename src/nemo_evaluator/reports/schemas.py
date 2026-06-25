@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Pydantic schemas for trajectories.jsonl and model_traffic.jsonl rows.
+"""Pydantic schemas for trajectory report coverage checks.
 
 Required fields (no default) mark the minimum a writer must emit.
 Optional fields (``= None``) are expected but may be absent in older logs
@@ -98,49 +98,6 @@ class TrajectoryRow(BaseModel):
     reward: float
     model: str | None = None
     trajectory: list[TrajectoryEntry] | None = None
-
-
-# ---------------------------------------------------------------------------
-# Model-traffic row (model_traffic.jsonl)
-# ---------------------------------------------------------------------------
-
-
-class ModelTrafficUsage(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    total_tokens: int = 0
-    reasoning_tokens: int = 0
-    cached_tokens: int = 0
-
-
-class ModelTrafficRow(BaseModel):
-    """One row in ``model_traffic.jsonl``."""
-
-    model_config = ConfigDict(extra="allow")
-
-    model_traffic_request_id: str
-    timestamp: str
-    benchmark: str
-    problem_idx: int
-    repeat: int
-    model: str = ""
-    finish_reason: str = ""
-    session_id: str | None = None
-    adapter_request_id: str | None = None
-    service: str | None = None
-    method: str | None = None
-    path: str | None = None
-    status_code: int | None = None
-    latency_ms: float | None = None
-    usage: ModelTrafficUsage | None = None
-    token_provenance: str | None = None
-    error_type: str | None = None
-    request_hash: str | None = None
-    tool_calls_full: list | None = None
-    reasoning_content: str | None = None
-    message_content: str | None = None
 
 
 # ---------------------------------------------------------------------------
