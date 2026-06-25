@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -198,6 +199,52 @@ class TestInterceptorSpecs:
         from nemo_evaluator.orchestration.orchestrator import _interceptor_specs
 
         assert _interceptor_specs([]) == []
+
+
+class TestStartProxyFinishReason:
+    def _run(self, svc: object) -> list[str]:
+        import nemo_evaluator.adapters.proxy as proxy_mod
+        from nemo_evaluator.orchestration.orchestrator import _start_proxy
+
+        captured: dict[str, Any] = {}
+
+        class _Handle:
+            url = "http://127.0.0.1:0"
+
+        def _fake_start(**kwargs: Any) -> _Handle:
+            captured.update(kwargs)
+            return _Handle()
+
+        with patch.object(proxy_mod, "start_adapter_proxy", _fake_start):
+            _url, _handle, store = _start_proxy("http://upstream:8000", "m", None, svc, "svc")
+        if store is not None:
+            store.close()
+        return [s["name"] for s in (captured.get("interceptor_specs") or [])]
+
+    def test_injected_by_default_and_last(self):
+        svc = MagicMock()
+        svc.proxy = None
+        svc.generation = None
+        names = self._run(svc)
+        assert names[-1] == "finish_reason"
+
+    def test_injected_after_payload_modifier(self):
+        svc = MagicMock()
+        svc.proxy = None
+        gen = MagicMock()
+        gen.model_dump.return_value = {"temperature": 0.0}
+        svc.generation = gen
+        names = self._run(svc)
+        assert names == ["payload_modifier", "finish_reason"]
+
+    def test_not_duplicated_when_configured(self):
+        from nemo_evaluator.config.services import InterceptorConfig, ProxyConfig
+
+        svc = MagicMock()
+        svc.generation = None
+        svc.proxy = ProxyConfig(interceptors=[InterceptorConfig(name="finish_reason")])
+        names = self._run(svc)
+        assert names.count("finish_reason") == 1
 
 
 class TestGenerateReports:
