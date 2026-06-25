@@ -672,6 +672,7 @@ for line in c.splitlines():
 
 already = '_nel_run_exc' in c
 ok = old1 in c and old2 is not None and not already
+success = already or ok
 print(f'anchor1={repr(old1)} anchor2={repr(old2)} already={already} ok={ok}')
 
 if ok:
@@ -760,7 +761,7 @@ if ok:
         ind + '    sys.exit(0)')
     c = c.replace(old2, old2 + '\\n' + exit_block, 1)
     open(p, 'w').write(c)
-print(f'budget_flush={ok}')
+print(f'budget_flush={success}')
 """
     encoded4 = base64.b64encode(_budget_flush_script.encode()).decode()
     r4 = await sandbox.exec(
@@ -769,7 +770,7 @@ print(f'budget_flush={ok}')
     )
     stdout4 = (r4.stdout or "").strip()
     logger.info("Budget-flush patch: %s", stdout4)
-    if r4.return_code != 0 or "False" in stdout4:
+    if r4.return_code != 0 or "budget_flush=True" not in stdout4:
         logger.warning(
             "Budget-flush patch problem (rc=%d): %s",
             r4.return_code,
@@ -1565,7 +1566,7 @@ class HarborSolver:
         self,
         agent_task: asyncio.Task[None],
         sandbox: "Sandbox",
-        t0: float,
+        agent_started_at: float,
         effective_timeout: float,
         jitter: float,
     ) -> tuple[bool, Exception | None]:
@@ -1620,7 +1621,7 @@ class HarborSolver:
                 )
 
             # Phase 2 — progress confirmed, wait remaining time
-            remaining = effective_timeout - (time.monotonic() - t0)
+            remaining = effective_timeout - (time.monotonic() - agent_started_at)
             done, _ = await asyncio.wait(
                 {agent_task},
                 timeout=max(0.0, remaining),
@@ -1632,7 +1633,7 @@ class HarborSolver:
             logger.warning(
                 "HarborSolver: agent.run() timed out after %.0fs "
                 "(effective=%.0fs+%.0fs jitter, strategy=%s) — collecting partial results",
-                time.monotonic() - t0,
+                time.monotonic() - agent_started_at,
                 effective_timeout - jitter,
                 jitter,
                 self._timeout_strategy,
