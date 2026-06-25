@@ -28,26 +28,27 @@ from nemo_evaluator.scoring import (
 
 class TestMultichoiceRegex:
     @pytest.mark.parametrize(
-        "response,target,letters,correct,expect_none",
+        "response,target,letters,correct,expected_extracted",
         [
             # basic extraction with the default A-D pattern
-            ("I think the answer is B.\n\nAnswer: B", "B", "A-D", True, False),
-            ("Answer: C", "A", "A-D", False, False),
-            ("answer: d", "D", "A-D", True, False),
-            ("I'm not sure about this one", "A", "A-D", False, True),
+            ("I think the answer is B.\n\nAnswer: B", "B", "A-D", True, "B"),
+            # wrong target still extracts the right letter
+            ("Answer: C", "A", "A-D", False, "C"),
+            ("answer: d", "D", "A-D", True, "D"),
+            ("I'm not sure about this one", "A", "A-D", False, None),
             # LaTeX/markdown wrapper tolerance
-            ("Final reasoning.\nAnswer: $B$", "B", "A-D", True, False),
-            ("Answer: **C**", "C", "A-D", True, False),
-            ("Answer: (A)", "A", "A-D", True, False),
-            (r"Answer: \boxed{D}", "D", "A-D", True, False),
+            ("Final reasoning.\nAnswer: $B$", "B", "A-D", True, "B"),
+            ("Answer: **C**", "C", "A-D", True, "C"),
+            ("Answer: (A)", "A", "A-D", True, "A"),
+            (r"Answer: \boxed{D}", "D", "A-D", True, "D"),
             # the final answer wins over an intermediate mention in the reasoning trace
-            ("At first Answer: A, but on reflection Answer: D", "D", "A-D", True, False),
+            ("At first Answer: A, but on reflection Answer: D", "D", "A-D", True, "D"),
             # an unfilled template placeholder must not extract a letter
-            ("Answer: $LETTER", "B", "A-D", False, True),
+            ("Answer: $LETTER", "B", "A-D", False, None),
             # 10-choice via the generic letters arg still gets wrapper tolerance
-            ("...corresponds to option **H**.\nAnswer: $H$", "H", "A-J", True, False),
+            ("...corresponds to option **H**.\nAnswer: $H$", "H", "A-J", True, "H"),
             # a letter outside the configured range is not recognized
-            ("Answer: H", "H", "A-D", False, True),
+            ("Answer: H", "H", "A-D", False, None),
         ],
         ids=[
             "plain-correct",
@@ -64,11 +65,10 @@ class TestMultichoiceRegex:
             "out-of-range",
         ],
     )
-    def test_multichoice_extraction(self, response, target, letters, correct, expect_none):
+    def test_multichoice_extraction(self, response, target, letters, correct, expected_extracted):
         r = multichoice_regex(ScorerInput(response=response, target=target), letters=letters)
         assert r["correct"] is correct
-        if expect_none:
-            assert r["extracted"] is None
+        assert r["extracted"] == expected_extracted
 
     @pytest.mark.parametrize(
         "pattern",
@@ -83,7 +83,9 @@ class TestMultichoiceRegex:
         # finditer + group(1) must keep working where findall+`[-1].upper()` would crash
         # on a tuple. group(1) is the answer letter in both patterns.
         s = ScorerInput(response="Answer: H", target="H")
-        assert multichoice_regex(s, pattern=pattern)["correct"] is True
+        result = multichoice_regex(s, pattern=pattern)
+        assert result["correct"] is True
+        assert result["extracted"] == "H"
 
 
 class TestAnswerLine:

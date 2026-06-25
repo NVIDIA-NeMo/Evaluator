@@ -139,7 +139,7 @@ def _resolve_generation(config: EvalConfig, solver_cfg: Any) -> GenerationConfig
     return svc_gen
 
 
-def _resolve_request_timeout(service: Any) -> float:
+def _resolve_request_timeout(service: object | None) -> float:
     """Timeout for the eval->proxy model client: the service's ``proxy.request_timeout``
     if set, else 120s. The 120s default is too short for reasoning models that emit long
     outputs under concurrency. (A falsy ``0`` also falls back to the default — 0 is not a
