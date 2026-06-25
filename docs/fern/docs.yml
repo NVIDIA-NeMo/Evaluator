@@ -1,6 +1,7 @@
 instances:
   - url: evaluator.docs.buildwithfern.com/nemo/evaluator
     custom-domain: docs.nvidia.com/nemo/evaluator
+    multi-source: true
 
 title: NVIDIA NeMo Evaluator
 
