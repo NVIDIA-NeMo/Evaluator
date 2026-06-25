@@ -28,7 +28,7 @@ from nemo_evaluator.scoring import (
 
 class TestMultichoiceRegex:
     @pytest.mark.parametrize(
-        "response,target,letters,correct,expected_extracted",
+        ("response", "target", "letters", "correct", "expected_extracted"),
         [
             # basic extraction with the default A-D pattern
             ("I think the answer is B.\n\nAnswer: B", "B", "A-D", True, "B"),
