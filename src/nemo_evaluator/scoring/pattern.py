@@ -36,8 +36,11 @@ def multichoice_regex(
     """
     if pattern is None:
         pattern = rf"(?i)answer\s*:\s*(?:\\boxed\s*\{{\s*)?[\$\*\(\[\\{{\s]*([{letters}])(?![a-zA-Z])"
-    ms = re.findall(pattern, sample.response)
-    extracted = ms[-1].upper() if ms else None
+    # finditer (not findall): a caller-supplied ``pattern`` may add auxiliary capture
+    # groups, which would make findall yield tuples and crash ``.upper()``. Reading
+    # group(1) of the last Match keeps the override contract and the last-answer-wins rule.
+    ms = list(re.finditer(pattern, sample.response))
+    extracted = ms[-1].group(1).upper() if ms else None
     return {"correct": extracted == str(sample.target).upper(), "extracted": extracted}
 
 

@@ -44,6 +44,11 @@ class ChatSolver:
         content = resp.content or ""
         reasoning = getattr(resp, "reasoning_content", "") or ""
         scored = f"{reasoning}\n{content}".strip() if reasoning else content
+        # The eval loop persists `model_response` separately from `response`, so keep its
+        # content aligned with what we actually scored — otherwise a reasoning-only model
+        # records an empty answer artifact. (ReActSolver normalizes ModelResponse.content
+        # to the final text the same way.)
+        resp.content = scored
         trajectory = build_single_turn_atif(
             task.prompt,
             scored,

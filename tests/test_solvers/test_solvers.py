@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -23,6 +24,7 @@ import pytest
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.observability.types import ModelResponse
 from nemo_evaluator.solvers.base import SolveResult
+from nemo_evaluator.solvers.chat import ChatSolver
 
 
 def _make_seed(prompt: str = "What is 2+2?", expected: str = "4") -> SeedResult:
@@ -51,8 +53,6 @@ def _make_model_response(content: str = "The answer is 4.") -> ModelResponse:
 class TestChatSolver:
     @pytest.mark.asyncio
     async def test_basic_solve(self):
-        from nemo_evaluator.solvers.chat import ChatSolver
-
         mock_client = AsyncMock()
         mock_client.chat = AsyncMock(return_value=_make_model_response("Answer: B"))
 
@@ -65,10 +65,6 @@ class TestChatSolver:
 
     @pytest.mark.asyncio
     async def test_folds_reasoning_content_into_scored_response(self):
-        from types import SimpleNamespace
-
-        from nemo_evaluator.solvers.chat import ChatSolver
-
         # Reasoning model: final answer is in reasoning_content, content is empty.
         # Scoring content alone would mis-score; the solver must fold reasoning in.
         resp = SimpleNamespace(
@@ -85,11 +81,11 @@ class TestChatSolver:
         result = await solver.solve(_make_seed())
 
         assert "Answer: B" in result.response
+        # the persisted model_response must carry the scored text, not the empty content
+        assert "Answer: B" in result.model_response.content
 
     @pytest.mark.asyncio
     async def test_system_prompt_passed(self):
-        from nemo_evaluator.solvers.chat import ChatSolver
-
         mock_client = AsyncMock()
         mock_client.chat = AsyncMock(return_value=_make_model_response("42"))
 
@@ -103,8 +99,6 @@ class TestChatSolver:
 
     @pytest.mark.asyncio
     async def test_empty_response_handled(self):
-        from nemo_evaluator.solvers.chat import ChatSolver
-
         mock_client = AsyncMock()
         mock_client.chat = AsyncMock(return_value=_make_model_response(""))
 

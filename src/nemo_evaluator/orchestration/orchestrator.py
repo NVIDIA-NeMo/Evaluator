@@ -139,6 +139,14 @@ def _resolve_generation(config: EvalConfig, solver_cfg: Any) -> GenerationConfig
     return svc_gen
 
 
+def _resolve_request_timeout(service: Any) -> float:
+    """Timeout for the eval->proxy model client: the service's ``proxy.request_timeout``
+    if set, else 120s. The 120s default is too short for reasoning models that emit long
+    outputs under concurrency. (A falsy ``0`` also falls back to the default — 0 is not a
+    meaningful request timeout here.)"""
+    return getattr(getattr(service, "proxy", None), "request_timeout", None) or 120.0
+
+
 def _build_ecs_sandbox_config(cfg: EcsFargateSandbox) -> Any:
     from nemo_evaluator.sandbox.ecs_fargate import (
         EcsFargateConfig as SandboxEcsConfig,
@@ -339,7 +347,7 @@ def _make_solver(
         reasoning_pat = getattr(svc, "reasoning_pattern", None)
         # honor the service's request_timeout for the eval->proxy client (see note in
         # _create_client_and_solver); 120s default is too short for long tool-use turns.
-        _req_timeout = getattr(getattr(svc, "proxy", None), "request_timeout", None) or 120.0
+        _req_timeout = _resolve_request_timeout(svc)
         tc_client = ModelClient(
             base_url=model_url,
             model=model_id,
@@ -883,7 +891,7 @@ def _create_client_and_solver(
         # proxy->server hop). The 120s default is too short for reasoning models that
         # emit long outputs under concurrency, so honor the service's request_timeout.
         _svc = config.get_service(service_name) if service_name else None
-        _req_timeout = getattr(getattr(_svc, "proxy", None), "request_timeout", None) or 120.0
+        _req_timeout = _resolve_request_timeout(_svc)
         client = ModelClient(
             base_url=model_url,
             model=model_id,
