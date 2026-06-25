@@ -287,9 +287,55 @@ class TestPatchOpenhandsSDK:
         exec(compile(timeout_patch, "llm_timeout_patch.py", "exec"), {})  # noqa: S102
 
         patched = runner.read_text()
-        assert "import os" in patched
-        assert 'os.environ.get("LLM_TIMEOUT")' in patched
+        assert "import os as _nel_os" in patched
+        assert '_nel_os.environ.get("LLM_TIMEOUT")' in patched
         assert 'llm_kwargs["timeout"] = int(timeout_raw)' in patched
+
+    async def test_runner_timeout_patch_does_not_shadow_os(self, tmp_path):
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            """\
+import os
+
+
+def main():
+    model = os.environ.get("LLM_MODEL", "m")
+    llm_kwargs = {"model": model}
+    llm = LLM(**llm_kwargs)
+"""
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        timeout_patch = next(
+            (s for s in decoded_scripts if "llm_timeout" in s and "LLM_TIMEOUT" in s),
+            None,
+        )
+        assert timeout_patch is not None, "LLM timeout patch script not emitted"
+
+        timeout_patch = timeout_patch.replace(
+            "p = '/installed-agent/run_agent.py'",
+            f"p = {str(runner)!r}",
+        )
+        exec(compile(timeout_patch, "llm_timeout_patch.py", "exec"), {})  # noqa: S102
+
+        patched = runner.read_text()
+        namespace = {"LLM": lambda **kwargs: kwargs}
+        exec(compile(patched, str(runner), "exec"), namespace)  # noqa: S102
+        namespace["main"]()
 
     async def test_runner_patch_preserves_tool_timing(self, tmp_path):
         import base64

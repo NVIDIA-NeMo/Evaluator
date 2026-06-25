@@ -333,8 +333,8 @@ if 'LLM_TIMEOUT' in c:
 else:
     old = '    llm = LLM(**llm_kwargs)'
     new = (
-        '    import os\\n'
-        '    timeout_raw = os.environ.get("LLM_TIMEOUT")\\n'
+        '    import os as _nel_os\\n'
+        '    timeout_raw = _nel_os.environ.get("LLM_TIMEOUT")\\n'
         '    if timeout_raw:\\n'
         '        llm_kwargs["timeout"] = int(timeout_raw)\\n'
         '    llm = LLM(**llm_kwargs)'
