@@ -248,6 +248,11 @@ class GymEnvironment(EvalEnvironment):
         body: dict[str, Any] = {
             "responses_create_params": rcp,
             "response": wrap_text_as_gym_response(response),
+            # In native mode the evaluator holds the dataset and never calls
+            # /seed_session, so the resource server can't learn the gold any
+            # other way — forward it. Dataset-graded servers (e.g. mcqa) read
+            # `body.expected_answer`; without it every reward is 0.
+            "expected_answer": expected,
         }
         # Forward benchmark-specific fields from the original row
         for k, v in row.items():
