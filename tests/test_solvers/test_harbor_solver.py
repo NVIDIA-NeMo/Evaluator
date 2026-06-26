@@ -447,6 +447,139 @@ def build_trajectory(events, llm_metrics, model_name):
             "duration_ms": 1250.0,
         }
 
+    async def test_runner_patch_flushes_partial_trajectory_on_interrupt(self, tmp_path, monkeypatch):
+        """Patch 4 must wrap the run with a flush path that survives execution.
+
+        The injected block is the largest patch (helpers + signal handlers +
+        two anchors), so a stub run is the only thing that catches an
+        indentation slip or a closure-scope mistake before a live eval.  Drive
+        a stub whose ``conversation.run()`` raises and assert the partial
+        trajectory is serialized from the already-received events.
+        """
+        import base64
+        import contextlib
+        import signal
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        traj_path = tmp_path / "trajectory" / "out.json"
+        monkeypatch.setenv("NEL_TEST_TRAJECTORY_PATH", str(traj_path))
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            '''\
+import json
+import os
+import sys
+from pathlib import Path
+
+
+class MessageEvent:
+    def __init__(self, source, content, timestamp):
+        self.source = source
+        self.timestamp = timestamp
+        self.llm_message = type("LM", (), {"content": content})()
+
+
+class ActionEvent:
+    def __init__(self, timestamp, tool_call_id, tool_name, arguments):
+        self.timestamp = timestamp
+        self.tool_call_id = tool_call_id
+        self.tool_name = tool_name
+        fn = type("Fn", (), {"arguments": arguments})()
+        self.tool_call = type("TC", (), {"function": fn})()
+
+
+def build_trajectory(events, metrics, model):
+    return {"steps": events, "final_metrics": metrics, "model_name": model}
+
+
+class _Args:
+    instruction = "solve it"
+
+
+class _Conversation:
+    def __init__(self, events):
+        self.state = type("S", (), {"events": events})()
+
+    def send_message(self, instruction):
+        self._sent = instruction
+
+    def run(self):
+        raise RuntimeError("simulated timeout interrupt")
+
+
+def main():
+    args = _Args()
+    args.trajectory_path = os.environ["NEL_TEST_TRAJECTORY_PATH"]
+    model = "test-model"
+    llm = type("LLM", (), {"metrics": None})()
+    conversation = _Conversation(
+        [
+            MessageEvent("agent", "partial reasoning", 1.0),
+            ActionEvent(2.0, "call-1", "bash", \'{"command": "ls"}\'),
+        ]
+    )
+
+    # Send instruction and run
+    conversation.send_message(args.instruction)
+    conversation.run()
+
+    print("Total cost: 0.0")
+'''
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="budget_flush=True", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        flush_patch = next(
+            (s for s in decoded_scripts if "_trajectory_flush_exc" in s and "budget_flush" in s),
+            None,
+        )
+        assert flush_patch is not None, "trajectory-flush patch script not emitted"
+
+        flush_patch = flush_patch.replace(
+            "p = '/installed-agent/run_agent.py'",
+            f"p = {str(runner)!r}",
+        )
+        exec(compile(flush_patch, "flush_patch.py", "exec"), {})  # noqa: S102
+
+        patched = runner.read_text()
+        assert "_trajectory_flush_exc = None" in patched
+        assert "def _write_partial_trajectory" in patched
+        assert "class TrajectoryFlushRequested" in patched
+        assert 'open("/logs/agent/agent_error.json", "w")' in patched
+        assert "sys.exit(0)" in patched
+
+        # Execute the patched runner: run() raises, so the flush path writes a
+        # partial trajectory before main() exits.  The hardcoded /logs write in
+        # the exit block is not writable under test, so tolerate its OSError /
+        # the clean sys.exit(0) — the trajectory is serialized before either.
+        namespace = {}
+        exec(compile(patched, str(runner), "exec"), namespace)  # noqa: S102
+        old_term = signal.getsignal(signal.SIGTERM)
+        old_int = signal.getsignal(signal.SIGINT)
+        try:
+            with contextlib.suppress(SystemExit, OSError):
+                namespace["main"]()
+        finally:
+            signal.signal(signal.SIGTERM, old_term)
+            signal.signal(signal.SIGINT, old_int)
+
+        assert traj_path.is_file(), "partial trajectory was not flushed"
+        data = json.loads(traj_path.read_text())
+        assert data["extra"]["partial_trajectory"]["reason"] == "RuntimeError"
+        assert data["extra"]["partial_trajectory"]["events"] == 2
+        assert len(data["steps"]) == 2
+
 
 class TestSandboxEnvironmentAdapter:
     def test_exposes_all_base_environment_public_attrs(self, tmp_path):
