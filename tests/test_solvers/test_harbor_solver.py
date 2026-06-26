@@ -556,7 +556,11 @@ def main():
         assert "_trajectory_flush_exc = None" in patched
         assert "def _write_partial_trajectory" in patched
         assert "class TrajectoryFlushRequested" in patched
-        assert 'open("/logs/agent/agent_error.json", "w")' in patched
+        # Crash marker is written atomically (tmp + os.replace), matching the
+        # partial-trajectory write, so a kill mid-write can't leave a truncated
+        # marker that _error_from_crash_marker would silently drop.
+        assert '_marker = "/logs/agent/agent_error.json"' in patched
+        assert "_os.replace(_marker_tmp, _marker)" in patched
         assert "sys.exit(0)" in patched
 
         # Execute the patched runner: run() raises, so the flush path writes a

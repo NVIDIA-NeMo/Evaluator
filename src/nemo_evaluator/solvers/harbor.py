@@ -758,8 +758,11 @@ if ok:
         ind + 'if _trajectory_flush_exc is not None:\\n' +
         ind + '    import json as _j, os as _os\\n' +
         ind + '    _os.makedirs("/logs/agent", exist_ok=True)\\n' +
-        ind + '    open("/logs/agent/agent_error.json", "w").write(\\n' +
-        ind + '        _j.dumps({"etype": type(_trajectory_flush_exc).__name__, "emsg": str(_trajectory_flush_exc)}))\\n' +
+        ind + '    _marker = "/logs/agent/agent_error.json"\\n' +
+        ind + '    _marker_tmp = _marker + ".tmp"\\n' +
+        ind + '    with open(_marker_tmp, "w") as _mf:\\n' +
+        ind + '        _mf.write(_j.dumps({"etype": type(_trajectory_flush_exc).__name__, "emsg": str(_trajectory_flush_exc)}))\\n' +
+        ind + '    _os.replace(_marker_tmp, _marker)\\n' +
         ind + '    sys.exit(0)')
     c = c.replace(old2, old2 + '\\n' + exit_block, 1)
     open(p, 'w').write(c)
