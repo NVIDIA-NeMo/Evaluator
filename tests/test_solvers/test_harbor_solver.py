@@ -188,12 +188,13 @@ class TestCrashMarker:
 
         assert _error_from_crash_marker(tmp_path) == "Agent crashed: ValueError: bad input"
 
-    def test_timeout_signal_marker_is_not_agent_crash(self, tmp_path):
-        (tmp_path / "agent_error.json").write_text(
-            json.dumps({"etype": "TrajectoryFlushRequested", "emsg": "signal 15"})
-        )
+    def test_litellm_timeout_marker_treated_as_crash_not_infra(self, tmp_path):
+        # TODO: litellm request timeouts (etype "Timeout") are currently surfaced as a
+        # generic crash, not infra. Whether they should be retryable infra is deferred —
+        # see the TODO on _INFRA_ERROR_NAMES. This test pins the current behavior.
+        (tmp_path / "agent_error.json").write_text(json.dumps({"etype": "Timeout", "emsg": "request timed out"}))
 
-        assert _error_from_crash_marker(tmp_path) is None
+        assert _error_from_crash_marker(tmp_path) == "Agent crashed: Timeout: request timed out"
 
     def test_infra_marker_raises_infra_error(self, tmp_path):
         (tmp_path / "agent_error.json").write_text(
@@ -447,31 +448,28 @@ def build_trajectory(events, llm_metrics, model_name):
             "duration_ms": 1250.0,
         }
 
-    async def test_runner_patch_flushes_partial_trajectory_on_interrupt(self, tmp_path, monkeypatch):
-        """Patch 4 must wrap the run with a flush path that survives execution.
+    _EVENTS_MSG_AND_ACTION = (
+        'MessageEvent("agent", "partial reasoning", 1.0), ActionEvent(2.0, "call-1", "bash", \'{"command": "ls"}\')'
+    )
+    _EVENTS_TWO_MESSAGES = (
+        'MessageEvent("agent", "partial reasoning", 1.0), MessageEvent("agent", "more reasoning", 2.0)'
+    )
 
-        The injected block is the largest patch (helpers + signal handlers +
-        two anchors), so a stub run is the only thing that catches an
-        indentation slip or a closure-scope mistake before a live eval.  Drive
-        a stub whose ``conversation.run()`` raises and assert the partial
-        trajectory is serialized from the already-received events.
+    @staticmethod
+    def _stub_runner(module_imports: str, run_body: str, events: str) -> str:
+        """Build a minimal run_agent.py stub for the flush patch to wrap.
+
+        ``module_imports`` controls which names exist at module scope (used to
+        prove ``_write_partial_trajectory`` self-imports its dependencies).
+        ``run_body`` is the indented body of ``_Conversation.run`` — raise to
+        exercise the crash path, ``raise_signal`` to exercise the timeout path.
+        ``events`` is the comma-separated event constructor list; use message-
+        only events to keep the flush off the ``_trajectory_tool_args`` sibling
+        helper (which is not in change #5's self-sufficiency scope).
         """
-        import base64
-        import contextlib
-        import signal
-
-        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
-
-        traj_path = tmp_path / "trajectory" / "out.json"
-        monkeypatch.setenv("NEL_TEST_TRAJECTORY_PATH", str(traj_path))
-
-        runner = tmp_path / "run_agent.py"
-        runner.write_text(
-            '''\
-import json
-import os
-import sys
-from pathlib import Path
+        return (
+            module_imports
+            + """
 
 
 class MessageEvent:
@@ -506,28 +504,31 @@ class _Conversation:
         self._sent = instruction
 
     def run(self):
-        raise RuntimeError("simulated timeout interrupt")
-
+"""
+            + run_body
+            + """
 
 def main():
     args = _Args()
     args.trajectory_path = os.environ["NEL_TEST_TRAJECTORY_PATH"]
     model = "test-model"
     llm = type("LLM", (), {"metrics": None})()
-    conversation = _Conversation(
-        [
-            MessageEvent("agent", "partial reasoning", 1.0),
-            ActionEvent(2.0, "call-1", "bash", \'{"command": "ls"}\'),
-        ]
-    )
+    conversation = _Conversation([__EVENTS__])
 
     # Send instruction and run
     conversation.send_message(args.instruction)
     conversation.run()
 
     print("Total cost: 0.0")
-'''
+""".replace("__EVENTS__", events)
         )
+
+    @staticmethod
+    async def _apply_flush_patch(runner: Path) -> str:
+        """Emit the trajectory-flush patch and apply it to *runner* in place."""
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
 
         sandbox = AsyncMock()
         sandbox.exec.return_value = MagicMock(stdout="budget_flush=True", stderr="", return_code=0)
@@ -551,8 +552,60 @@ def main():
             f"p = {str(runner)!r}",
         )
         exec(compile(flush_patch, "flush_patch.py", "exec"), {})  # noqa: S102
+        return runner.read_text()
 
-        patched = runner.read_text()
+    @staticmethod
+    def _run_patched_main(patched: str, runner: Path, monkeypatch) -> list[str]:
+        """Execute the patched ``main()``, returning the marker dir creations.
+
+        The exit block's ``/logs/agent`` marker write is not writable under
+        test, so ``os.makedirs`` is spied to both record whether the marker
+        branch was taken and short-circuit the unwritable path.  Signal
+        handlers installed by the wrap are saved and restored.
+        """
+        import contextlib
+        import signal
+
+        makedirs_calls: list[str] = []
+
+        def _spy_makedirs(path, *a, **k):
+            makedirs_calls.append(path)
+            raise OSError("marker dir not writable under test")
+
+        monkeypatch.setattr(os, "makedirs", _spy_makedirs)
+
+        namespace: dict = {}
+        exec(compile(patched, str(runner), "exec"), namespace)  # noqa: S102
+        old_term = signal.getsignal(signal.SIGTERM)
+        old_int = signal.getsignal(signal.SIGINT)
+        try:
+            with contextlib.suppress(SystemExit, OSError):
+                namespace["main"]()
+        finally:
+            signal.signal(signal.SIGTERM, old_term)
+            signal.signal(signal.SIGINT, old_int)
+        return makedirs_calls
+
+    async def test_flush_patch_crash_writes_trajectory_and_marker(self, tmp_path, monkeypatch):
+        """Genuine crash → flush with reason=etype AND the marker branch is taken.
+
+        The injected block is the largest patch (helpers + signal handlers +
+        two anchors), so a stub run is the only thing that catches an
+        indentation slip or a closure-scope mistake before a live eval.
+        """
+        traj_path = tmp_path / "trajectory" / "out.json"
+        monkeypatch.setenv("NEL_TEST_TRAJECTORY_PATH", str(traj_path))
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            self._stub_runner(
+                "import json\nimport os\nimport sys\nfrom pathlib import Path",
+                '        raise RuntimeError("simulated crash")\n',
+                self._EVENTS_MSG_AND_ACTION,
+            )
+        )
+        patched = await self._apply_flush_patch(runner)
+
         assert "_trajectory_flush_exc = None" in patched
         assert "def _write_partial_trajectory" in patched
         assert "class TrajectoryFlushRequested" in patched
@@ -563,24 +616,67 @@ def main():
         assert "_os.replace(_marker_tmp, _marker)" in patched
         assert "sys.exit(0)" in patched
 
-        # Execute the patched runner: run() raises, so the flush path writes a
-        # partial trajectory before main() exits.  The hardcoded /logs write in
-        # the exit block is not writable under test, so tolerate its OSError /
-        # the clean sys.exit(0) — the trajectory is serialized before either.
-        namespace = {}
-        exec(compile(patched, str(runner), "exec"), namespace)  # noqa: S102
-        old_term = signal.getsignal(signal.SIGTERM)
-        old_int = signal.getsignal(signal.SIGINT)
-        try:
-            with contextlib.suppress(SystemExit, OSError):
-                namespace["main"]()
-        finally:
-            signal.signal(signal.SIGTERM, old_term)
-            signal.signal(signal.SIGINT, old_int)
+        makedirs_calls = self._run_patched_main(patched, runner, monkeypatch)
 
         assert traj_path.is_file(), "partial trajectory was not flushed"
         data = json.loads(traj_path.read_text())
         assert data["extra"]["partial_trajectory"]["reason"] == "RuntimeError"
+        assert data["extra"]["partial_trajectory"]["events"] == 2
+        assert len(data["steps"]) == 2
+        assert "/logs/agent" in makedirs_calls, "a genuine crash must take the marker-write branch"
+
+    async def test_flush_patch_timeout_writes_trajectory_no_marker(self, tmp_path, monkeypatch):
+        """NEL timeout signal → flush with reason='timeout' and NO crash marker.
+
+        Raising SIGINT inside ``run()`` fires the installed handler, which
+        raises ``TrajectoryFlushRequested``; the guarded exit block must skip
+        the marker write so the host never sees a bogus crash.
+        """
+        traj_path = tmp_path / "trajectory" / "out.json"
+        monkeypatch.setenv("NEL_TEST_TRAJECTORY_PATH", str(traj_path))
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            self._stub_runner(
+                "import json\nimport os\nimport sys\nfrom pathlib import Path",
+                "        import signal as _sig\n        _sig.raise_signal(_sig.SIGINT)\n",
+                self._EVENTS_MSG_AND_ACTION,
+            )
+        )
+        patched = await self._apply_flush_patch(runner)
+
+        makedirs_calls = self._run_patched_main(patched, runner, monkeypatch)
+
+        assert traj_path.is_file(), "partial trajectory was not flushed on timeout"
+        data = json.loads(traj_path.read_text())
+        assert data["extra"]["partial_trajectory"]["reason"] == "timeout"
+        assert data["extra"]["partial_trajectory"]["events"] == 2
+        assert "/logs/agent" not in makedirs_calls, "the timeout path must not write a crash marker"
+
+    async def test_flush_patch_self_sufficient_without_module_imports(self, tmp_path, monkeypatch):
+        """_write_partial_trajectory flushes even without module-scope json/Path.
+
+        Proves change #5: the function self-imports its dependencies.  ``os``
+        and ``sys`` remain at module scope because the wrap/exit blocks (out of
+        scope for #5) still reference them there.
+        """
+        traj_path = tmp_path / "trajectory" / "out.json"
+        monkeypatch.setenv("NEL_TEST_TRAJECTORY_PATH", str(traj_path))
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            self._stub_runner(
+                "import os\nimport sys",
+                '        raise RuntimeError("simulated crash")\n',
+                self._EVENTS_TWO_MESSAGES,
+            )
+        )
+        patched = await self._apply_flush_patch(runner)
+
+        self._run_patched_main(patched, runner, monkeypatch)
+
+        assert traj_path.is_file(), "flush must not depend on module-scope json/Path"
+        data = json.loads(traj_path.read_text())
         assert data["extra"]["partial_trajectory"]["events"] == 2
         assert len(data["steps"]) == 2
 

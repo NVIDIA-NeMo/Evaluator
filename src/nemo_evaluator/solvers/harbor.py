@@ -48,6 +48,12 @@ _INFRA_ERROR_NAMES = frozenset(
         "ConnectError",
         "ReadTimeout",
         "APIConnectionError",
+        # TODO: decide whether litellm request timeouts ("Timeout" / "APITimeoutError")
+        # belong here. Classifying them as infra makes them retryable, but it also
+        # raises InfraError ahead of the `agent_timed_out and workspace_diff` branch
+        # that submits a partial patch for verification — so a timeout that already
+        # produced a usable workspace diff would be discarded instead of scored.
+        # Deferred to a follow-up to keep this change from altering scoring.
     }
 )
 
@@ -701,6 +707,8 @@ if ok:
         ind + '            pass\\n' +
         ind + '    return {}\\n' +
         ind + 'def _write_partial_trajectory(_reason):\\n' +
+        ind + '    import json, os, sys\\n' +
+        ind + '    from pathlib import Path\\n' +
         ind + '    try:\\n' +
         ind + '        _metric_obj = getattr(llm, "metrics", None)\\n' +
         ind + '        _usage = getattr(_metric_obj, "accumulated_token_usage", None)\\n' +
@@ -728,8 +736,10 @@ if ok:
         ind + '            json.dump(_trajectory, _f, indent=2)\\n' +
         ind + '        os.replace(_tmp, _path)\\n' +
         ind + '        print(f"trajectory flush: partial trajectory saved to {_path}", file=sys.stderr, flush=True)\\n' +
-        ind + '    except BaseException as _save_e:\\n' +
-        ind + '        print(f"trajectory flush: partial trajectory save failed: {type(_save_e).__name__}: {_save_e}", file=sys.stderr, flush=True)\\n'
+        ind + '        return True\\n' +
+        ind + '    except Exception as _save_e:\\n' +
+        ind + '        print(f"trajectory flush: partial trajectory save failed: {type(_save_e).__name__}: {_save_e}", file=sys.stderr, flush=True)\\n' +
+        ind + '        return False\\n'
     )
     wrap = (
         ind + '# Send instruction and run\\n' +
@@ -748,6 +758,10 @@ if ok:
         ind + 'try:\\n' +
         ind + '    conversation.send_message(args.instruction)\\n' +
         ind + '    conversation.run()\\n' +
+        ind + 'except TrajectoryFlushRequested as _e:\\n' +
+        ind + '    _trajectory_flush_exc = _e\\n' +
+        ind + '    print(f"trajectory flush: flushing after NEL timeout signal: {_e}", file=sys.stderr, flush=True)\\n' +
+        ind + '    _write_partial_trajectory("timeout")\\n' +
         ind + 'except BaseException as _e:\\n' +
         ind + '    _trajectory_flush_exc = _e\\n' +
         ind + '    print(f"trajectory flush: flushing after {type(_e).__name__}: {_e}", file=sys.stderr, flush=True)\\n' +
@@ -756,13 +770,14 @@ if ok:
     c = c.replace(old1, wrap, 1)
     exit_block = (
         ind + 'if _trajectory_flush_exc is not None:\\n' +
-        ind + '    import json as _j, os as _os\\n' +
-        ind + '    _os.makedirs("/logs/agent", exist_ok=True)\\n' +
-        ind + '    _marker = "/logs/agent/agent_error.json"\\n' +
-        ind + '    _marker_tmp = _marker + ".tmp"\\n' +
-        ind + '    with open(_marker_tmp, "w") as _mf:\\n' +
-        ind + '        _mf.write(_j.dumps({"etype": type(_trajectory_flush_exc).__name__, "emsg": str(_trajectory_flush_exc)}))\\n' +
-        ind + '    _os.replace(_marker_tmp, _marker)\\n' +
+        ind + '    if not isinstance(_trajectory_flush_exc, TrajectoryFlushRequested):\\n' +
+        ind + '        import json as _j, os as _os\\n' +
+        ind + '        _os.makedirs("/logs/agent", exist_ok=True)\\n' +
+        ind + '        _marker = "/logs/agent/agent_error.json"\\n' +
+        ind + '        _marker_tmp = _marker + ".tmp"\\n' +
+        ind + '        with open(_marker_tmp, "w") as _mf:\\n' +
+        ind + '            _mf.write(_j.dumps({"etype": type(_trajectory_flush_exc).__name__, "emsg": str(_trajectory_flush_exc)}))\\n' +
+        ind + '        _os.replace(_marker_tmp, _marker)\\n' +
         ind + '    sys.exit(0)')
     c = c.replace(old2, old2 + '\\n' + exit_block, 1)
     open(p, 'w').write(c)
@@ -884,8 +899,6 @@ def _error_from_crash_marker(agent_logs_dir: Path) -> str | None:
         crash = json.loads(crash_file.read_text())
         etype = crash.get("etype", "AgentCrash")
         emsg = crash.get("emsg", "")
-        if etype == "TrajectoryFlushRequested":
-            return None
         if etype in _INFRA_ERROR_NAMES:
             raise InfraError(f"Agent infrastructure failure: {etype}: {emsg}")
         return f"Agent crashed: {etype}: {emsg}"
@@ -1977,6 +1990,11 @@ class HarborSolver:
                     "workspace changes — submitting for verification",
                     self._run_timeout,
                 )
+                if not trajectory:
+                    logger.warning(
+                        "HarborSolver: timeout trajectory flush produced no events "
+                        "(empty trajectory); verifying on workspace patch only"
+                    )
                 error_kind = ErrorKind.SOLVE_TIMEOUT
             elif not response and prompt_tokens + completion_tokens == 0:
                 error = "Agent produced no output (0 tokens, empty response). Check agent logs for details."
@@ -1989,6 +2007,11 @@ class HarborSolver:
                     prompt_tokens,
                     completion_tokens,
                 )
+                if not trajectory:
+                    logger.warning(
+                        "HarborSolver: timeout trajectory flush produced no events "
+                        "(empty trajectory); verifying on workspace patch only"
+                    )
                 error_kind = ErrorKind.SOLVE_TIMEOUT
 
             return SolveResult(
