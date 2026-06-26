@@ -190,7 +190,7 @@ class TestCrashMarker:
 
     def test_timeout_signal_marker_is_not_agent_crash(self, tmp_path):
         (tmp_path / "agent_error.json").write_text(
-            json.dumps({"etype": "KeyboardInterrupt", "emsg": "trajectory flush signal 15"})
+            json.dumps({"etype": "TrajectoryFlushRequested", "emsg": "signal 15"})
         )
 
         assert _error_from_crash_marker(tmp_path) is None

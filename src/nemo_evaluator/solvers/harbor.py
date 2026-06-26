@@ -647,10 +647,10 @@ print(f'cmd_timeout_{{_MAX}}s={{ok}} at {{p}}')
     # Anchor 1: wrap `conversation.send_message()` + `conversation.run()` in
     # try/except BaseException so main() continues to the existing
     # event-reconstruction + build_trajectory + save code on timeout/crash.
-    # SIGTERM/SIGINT are converted to KeyboardInterrupt so evaluator timeout
-    # cancellation gets the same flush path.  On interruption, first write a
-    # cheap partial trajectory from already-received model events.  The normal
-    # full writer below overwrites it if post-run serialization completes.
+    # SIGTERM/SIGINT are converted to a catchable BaseException so evaluator
+    # timeout cancellation gets the same flush path.  On interruption, first
+    # write a cheap partial trajectory from already-received model events.  The
+    # normal full writer below overwrites it if post-run serialization completes.
     # Anchor 2: after the final print in main(), exit(0) cleanly so Harbor
     # treats the run as a normal completion and downloads the trajectory.
     _budget_flush_script = """\
@@ -735,8 +735,10 @@ if ok:
         ind + '# Send instruction and run\\n' +
         ind + '_trajectory_flush_exc = None\\n' +
         partial +
+        ind + 'class TrajectoryFlushRequested(BaseException):\\n' +
+        ind + '    pass\\n' +
         ind + 'def _trajectory_timeout_handler(_signum, _frame):\\n' +
-        ind + '    raise KeyboardInterrupt(f"trajectory flush signal {_signum}")\\n' +
+        ind + '    raise TrajectoryFlushRequested(f"signal {_signum}")\\n' +
         ind + 'try:\\n' +
         ind + '    import signal as _trajectory_signal\\n' +
         ind + '    _trajectory_signal.signal(_trajectory_signal.SIGTERM, _trajectory_timeout_handler)\\n' +
@@ -879,7 +881,7 @@ def _error_from_crash_marker(agent_logs_dir: Path) -> str | None:
         crash = json.loads(crash_file.read_text())
         etype = crash.get("etype", "AgentCrash")
         emsg = crash.get("emsg", "")
-        if etype == "KeyboardInterrupt" and str(emsg).startswith("trajectory flush signal "):
+        if etype == "TrajectoryFlushRequested":
             return None
         if etype in _INFRA_ERROR_NAMES:
             raise InfraError(f"Agent infrastructure failure: {etype}: {emsg}")
