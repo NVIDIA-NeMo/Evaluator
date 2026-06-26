@@ -333,8 +333,8 @@ if 'LLM_TIMEOUT' in c:
 else:
     old = '    llm = LLM(**llm_kwargs)'
     new = (
-        '    import os as _nel_os\\n'
-        '    timeout_raw = _nel_os.environ.get("LLM_TIMEOUT")\\n'
+        '    import os as _llm_timeout_os\\n'
+        '    timeout_raw = _llm_timeout_os.environ.get("LLM_TIMEOUT")\\n'
         '    if timeout_raw:\\n'
         '        llm_kwargs["timeout"] = int(timeout_raw)\\n'
         '    llm = LLM(**llm_kwargs)'
@@ -670,20 +670,20 @@ for line in c.splitlines():
     if 'Total cost:' in line and 'print' in line:
         old2 = line; break
 
-already = '_nel_run_exc' in c
+already = '_trajectory_flush_exc' in c
 ok = old1 in c and old2 is not None and not already
 success = already or ok
 print(f'anchor1={repr(old1)} anchor2={repr(old2)} already={already} ok={ok}')
 
 if ok:
     partial = (
-        ind + 'def _nel_text_from_event(_event):\\n' +
+        ind + 'def _trajectory_text_from_event(_event):\\n' +
         ind + '    _msg = getattr(_event, "llm_message", None)\\n' +
         ind + '    _raw = getattr(_msg, "content", None) if _msg is not None else None\\n' +
         ind + '    if isinstance(_raw, list):\\n' +
         ind + '        return chr(10).join(getattr(_c, "text", str(_c)) for _c in _raw if getattr(_c, "text", None))\\n' +
         ind + '    return str(_raw) if _raw else ""\\n' +
-        ind + 'def _nel_tool_args(_event):\\n' +
+        ind + 'def _trajectory_tool_args(_event):\\n' +
         ind + '    if getattr(_event, "tool_call", None) and hasattr(_event.tool_call, "function"):\\n' +
         ind + '        _raw_args = getattr(_event.tool_call.function, "arguments", None)\\n' +
         ind + '        if isinstance(_raw_args, str):\\n' +
@@ -700,7 +700,7 @@ if ok:
         ind + '        except Exception:\\n' +
         ind + '            pass\\n' +
         ind + '    return {}\\n' +
-        ind + 'def _nel_write_partial_trajectory(_reason):\\n' +
+        ind + 'def _write_partial_trajectory(_reason):\\n' +
         ind + '    try:\\n' +
         ind + '        _metric_obj = getattr(llm, "metrics", None)\\n' +
         ind + '        _usage = getattr(_metric_obj, "accumulated_token_usage", None)\\n' +
@@ -715,49 +715,49 @@ if ok:
         ind + '            if isinstance(_event, MessageEvent):\\n' +
         ind + '                if _event.source in ("user", "agent"):\\n' +
         ind + '                    _entry_type = "assistant_message" if _event.source == "agent" else "user_message"\\n' +
-        ind + '                    _entry = {"type": _entry_type, "content": _nel_text_from_event(_event), "timestamp": _event.timestamp}\\n' +
+        ind + '                    _entry = {"type": _entry_type, "content": _trajectory_text_from_event(_event), "timestamp": _event.timestamp}\\n' +
         ind + '                    _events_list.append(_entry)\\n' +
         ind + '            elif isinstance(_event, ActionEvent):\\n' +
-        ind + '                _events_list.append({"type": "assistant_message", "content": "", "timestamp": _event.timestamp, "tool_calls": [{"id": _event.tool_call_id, "name": _event.tool_name, "arguments": _nel_tool_args(_event)}]})\\n' +
+        ind + '                _events_list.append({"type": "assistant_message", "content": "", "timestamp": _event.timestamp, "tool_calls": [{"id": _event.tool_call_id, "name": _event.tool_name, "arguments": _trajectory_tool_args(_event)}]})\\n' +
         ind + '        _trajectory = build_trajectory(_events_list, _metrics, model)\\n' +
-        ind + '        _trajectory.setdefault("extra", {})["nel_partial_trajectory"] = {"reason": _reason, "events": len(_events_list)}\\n' +
+        ind + '        _trajectory.setdefault("extra", {})["partial_trajectory"] = {"reason": _reason, "events": len(_events_list)}\\n' +
         ind + '        _path = Path(args.trajectory_path)\\n' +
         ind + '        _path.parent.mkdir(parents=True, exist_ok=True)\\n' +
         ind + '        _tmp = _path.with_suffix(_path.suffix + ".partial")\\n' +
         ind + '        with open(_tmp, "w") as _f:\\n' +
         ind + '            json.dump(_trajectory, _f, indent=2)\\n' +
         ind + '        os.replace(_tmp, _path)\\n' +
-        ind + '        print(f"NEL: partial trajectory saved to {_path}", file=sys.stderr, flush=True)\\n' +
+        ind + '        print(f"trajectory flush: partial trajectory saved to {_path}", file=sys.stderr, flush=True)\\n' +
         ind + '    except BaseException as _save_e:\\n' +
-        ind + '        print(f"NEL: partial trajectory save failed: {type(_save_e).__name__}: {_save_e}", file=sys.stderr, flush=True)\\n'
+        ind + '        print(f"trajectory flush: partial trajectory save failed: {type(_save_e).__name__}: {_save_e}", file=sys.stderr, flush=True)\\n'
     )
     wrap = (
         ind + '# Send instruction and run\\n' +
-        ind + '_nel_run_exc = None\\n' +
+        ind + '_trajectory_flush_exc = None\\n' +
         partial +
-        ind + 'def _nel_timeout_handler(_signum, _frame):\\n' +
-        ind + '    raise KeyboardInterrupt(f"NEL timeout signal {_signum}")\\n' +
+        ind + 'def _trajectory_timeout_handler(_signum, _frame):\\n' +
+        ind + '    raise KeyboardInterrupt(f"trajectory flush signal {_signum}")\\n' +
         ind + 'try:\\n' +
-        ind + '    import signal as _nel_signal\\n' +
-        ind + '    _nel_signal.signal(_nel_signal.SIGTERM, _nel_timeout_handler)\\n' +
-        ind + '    _nel_signal.signal(_nel_signal.SIGINT, _nel_timeout_handler)\\n' +
+        ind + '    import signal as _trajectory_signal\\n' +
+        ind + '    _trajectory_signal.signal(_trajectory_signal.SIGTERM, _trajectory_timeout_handler)\\n' +
+        ind + '    _trajectory_signal.signal(_trajectory_signal.SIGINT, _trajectory_timeout_handler)\\n' +
         ind + 'except Exception:\\n' +
         ind + '    pass\\n' +
         ind + 'try:\\n' +
         ind + '    conversation.send_message(args.instruction)\\n' +
         ind + '    conversation.run()\\n' +
         ind + 'except BaseException as _e:\\n' +
-        ind + '    _nel_run_exc = _e\\n' +
-        ind + '    print(f"NEL: flushing trajectory after {type(_e).__name__}: {_e}", file=sys.stderr, flush=True)\\n' +
-        ind + '    _nel_write_partial_trajectory(type(_e).__name__)'
+        ind + '    _trajectory_flush_exc = _e\\n' +
+        ind + '    print(f"trajectory flush: flushing after {type(_e).__name__}: {_e}", file=sys.stderr, flush=True)\\n' +
+        ind + '    _write_partial_trajectory(type(_e).__name__)'
     )
     c = c.replace(old1, wrap, 1)
     exit_block = (
-        ind + 'if _nel_run_exc is not None:\\n' +
+        ind + 'if _trajectory_flush_exc is not None:\\n' +
         ind + '    import json as _j, os as _os\\n' +
         ind + '    _os.makedirs("/logs/agent", exist_ok=True)\\n' +
-        ind + '    open("/logs/agent/nel_agent_error.json", "w").write(\\n' +
-        ind + '        _j.dumps({"etype": type(_nel_run_exc).__name__, "emsg": str(_nel_run_exc)}))\\n' +
+        ind + '    open("/logs/agent/agent_error.json", "w").write(\\n' +
+        ind + '        _j.dumps({"etype": type(_trajectory_flush_exc).__name__, "emsg": str(_trajectory_flush_exc)}))\\n' +
         ind + '    sys.exit(0)')
     c = c.replace(old2, old2 + '\\n' + exit_block, 1)
     open(p, 'w').write(c)
@@ -871,7 +871,7 @@ def _recover_from_logs(agent_logs_dir: Path) -> dict[str, Any]:
 
 def _error_from_crash_marker(agent_logs_dir: Path) -> str | None:
     """Return a user-facing crash error from the agent sidecar, or raise infra errors."""
-    crash_file = agent_logs_dir / "nel_agent_error.json"
+    crash_file = agent_logs_dir / "agent_error.json"
     if not crash_file.is_file():
         return None
 
@@ -879,7 +879,7 @@ def _error_from_crash_marker(agent_logs_dir: Path) -> str | None:
         crash = json.loads(crash_file.read_text())
         etype = crash.get("etype", "AgentCrash")
         emsg = crash.get("emsg", "")
-        if etype == "KeyboardInterrupt" and str(emsg).startswith("NEL timeout signal "):
+        if etype == "KeyboardInterrupt" and str(emsg).startswith("trajectory flush signal "):
             return None
         if etype in _INFRA_ERROR_NAMES:
             raise InfraError(f"Agent infrastructure failure: {etype}: {emsg}")

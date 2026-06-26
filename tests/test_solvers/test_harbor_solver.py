@@ -184,19 +184,19 @@ class TestDownloadAgentLogs:
 
 class TestCrashMarker:
     def test_non_infra_marker_returns_agent_crash_error(self, tmp_path):
-        (tmp_path / "nel_agent_error.json").write_text(json.dumps({"etype": "ValueError", "emsg": "bad input"}))
+        (tmp_path / "agent_error.json").write_text(json.dumps({"etype": "ValueError", "emsg": "bad input"}))
 
         assert _error_from_crash_marker(tmp_path) == "Agent crashed: ValueError: bad input"
 
     def test_timeout_signal_marker_is_not_agent_crash(self, tmp_path):
-        (tmp_path / "nel_agent_error.json").write_text(
-            json.dumps({"etype": "KeyboardInterrupt", "emsg": "NEL timeout signal 15"})
+        (tmp_path / "agent_error.json").write_text(
+            json.dumps({"etype": "KeyboardInterrupt", "emsg": "trajectory flush signal 15"})
         )
 
         assert _error_from_crash_marker(tmp_path) is None
 
     def test_infra_marker_raises_infra_error(self, tmp_path):
-        (tmp_path / "nel_agent_error.json").write_text(
+        (tmp_path / "agent_error.json").write_text(
             json.dumps({"etype": "APIConnectionError", "emsg": "connection failed"})
         )
 
@@ -287,8 +287,8 @@ class TestPatchOpenhandsSDK:
         exec(compile(timeout_patch, "llm_timeout_patch.py", "exec"), {})  # noqa: S102
 
         patched = runner.read_text()
-        assert "import os as _nel_os" in patched
-        assert '_nel_os.environ.get("LLM_TIMEOUT")' in patched
+        assert "import os as _llm_timeout_os" in patched
+        assert '_llm_timeout_os.environ.get("LLM_TIMEOUT")' in patched
         assert 'llm_kwargs["timeout"] = int(timeout_raw)' in patched
 
     async def test_runner_timeout_patch_does_not_shadow_os(self, tmp_path):
