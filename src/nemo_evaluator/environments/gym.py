@@ -179,6 +179,14 @@ class GymEnvironment(EvalEnvironment):
         if "reasoning" in rcp:
             meta["reasoning"] = rcp["reasoning"]
 
+        # Carry the row index through to verify: the eval loop calls
+        # env.verify(..., **seed.metadata), and _verify_native looks the full row
+        # up by problem_idx to forward per-sample fields a dataset-graded server
+        # requires (e.g. ifbench's id/instruction_id_list/kwargs). Without it the
+        # row lookup fails and required-field servers 422. (_verify_native excludes
+        # problem_idx from the /verify body, so this is metadata-only.)
+        meta["problem_idx"] = idx
+
         return SeedResult(
             prompt=prompt,
             expected_answer=expected,
