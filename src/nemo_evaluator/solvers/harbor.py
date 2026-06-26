@@ -48,6 +48,12 @@ _INFRA_ERROR_NAMES = frozenset(
         "ConnectError",
         "ReadTimeout",
         "APIConnectionError",
+        # TODO: decide whether litellm request timeouts ("Timeout" / "APITimeoutError")
+        # belong here. Classifying them as infra makes them retryable, but it also
+        # raises InfraError ahead of the `agent_timed_out and workspace_diff` branch
+        # that submits a partial patch for verification — so a timeout that already
+        # produced a usable workspace diff would be discarded instead of scored.
+        # Deferred to a follow-up to keep this change from altering scoring.
     }
 )
 
@@ -306,12 +312,14 @@ async def _patch_openhands_sdk(sandbox: Sandbox, *, cmd_timeout: float | None = 
     _runner_patch_script = (
         "p = '/installed-agent/run_agent.py'\n"
         "c = open(p).read()\n"
-        "old = 'conversation = Conversation(**conv_kwargs)'\n"
-        'new = \'conv_kwargs["stuck_detection"] = False\\n'
-        '    conv_kwargs["visualizer"] = None\\n'
-        "    conversation = Conversation(**conv_kwargs)'\n"
-        "if old in c:\n"
-        "    open(p, 'w').write(c.replace(old, new, 1))\n"
+        'old = \'    conv_kwargs: dict[str, Any] = {"agent": agent, "workspace": workspace}\\n\'\n'
+        'new = old + \'    conv_kwargs["stuck_detection"] = False\\n    conv_kwargs["visualizer"] = None\\n\'\n'
+        "already = 'conv_kwargs[\"visualizer\"] = None' in c\n"
+        "if old in c and not already:\n"
+        "    c = c.replace(old, new, 1)\n"
+        "    open(p, 'w').write(c)\n"
+        "    already = True\n"
+        "if already:\n"
         "    print('stuck_detection disabled, visualizer disabled')\n"
         "else:\n"
         "    print('pattern not found')\n"
@@ -331,8 +339,8 @@ if 'LLM_TIMEOUT' in c:
 else:
     old = '    llm = LLM(**llm_kwargs)'
     new = (
-        '    import os\\n'
-        '    timeout_raw = os.environ.get("LLM_TIMEOUT")\\n'
+        '    import os as _llm_timeout_os\\n'
+        '    timeout_raw = _llm_timeout_os.environ.get("LLM_TIMEOUT")\\n'
         '    if timeout_raw:\\n'
         '        llm_kwargs["timeout"] = int(timeout_raw)\\n'
         '    llm = LLM(**llm_kwargs)'
@@ -641,10 +649,14 @@ print(f'cmd_timeout_{{_MAX}}s={{ok}} at {{p}}')
     else:
         logger.info("Cmd timeout patch: skipped (cmd_timeout not configured)")
 
-    # -- Patch 4: wrap conversation.run() so any crash still saves trajectory --
-    # Anchor 1: wrap `conversation.run()` in try/except BaseException so main()
-    # continues to the existing event-reconstruction + build_trajectory + save
-    # code on any failure — no duplication needed.
+    # -- Patch 4: flush trajectory when the runner is interrupted ----------
+    # Anchor 1: wrap `conversation.send_message()` + `conversation.run()` in
+    # try/except BaseException so main() continues to the existing
+    # event-reconstruction + build_trajectory + save code on timeout/crash.
+    # SIGTERM/SIGINT are converted to a catchable BaseException so evaluator
+    # timeout cancellation gets the same flush path.  On interruption, first
+    # write a cheap partial trajectory from already-received model events.  The
+    # normal full writer below overwrites it if post-run serialization completes.
     # Anchor 2: after the final print in main(), exit(0) cleanly so Harbor
     # treats the run as a normal completion and downloads the trajectory.
     _budget_flush_script = """\
@@ -652,38 +664,124 @@ import sys
 p = '/installed-agent/run_agent.py'
 c = open(p).read()
 
-old1 = ind = None
-for line in c.splitlines():
-    s = line.lstrip()
-    if s == 'conversation.run()':
-        old1 = line; ind = line[:len(line)-len(s)]; break
+old1 = (
+    '    # Send instruction and run\\n'
+    '    conversation.send_message(args.instruction)\\n'
+    '    conversation.run()'
+)
+ind = '    '
 
 old2 = None
 for line in c.splitlines():
     if 'Total cost:' in line and 'print' in line:
         old2 = line; break
 
-already = '_nel_run_exc' in c
-ok = old1 is not None and old2 is not None and not already
+already = '_trajectory_flush_exc' in c
+ok = old1 in c and old2 is not None and not already
+success = already or ok
 print(f'anchor1={repr(old1)} anchor2={repr(old2)} already={already} ok={ok}')
 
 if ok:
-    wrap = (ind + '_nel_run_exc = None\\n' +
-            ind + 'try:\\n' +
-            ind + '    conversation.run()\\n' +
-            ind + 'except BaseException as _e:\\n' +
-            ind + '    _nel_run_exc = _e')
+    partial = (
+        ind + 'def _trajectory_text_from_event(_event):\\n' +
+        ind + '    _msg = getattr(_event, "llm_message", None)\\n' +
+        ind + '    _raw = getattr(_msg, "content", None) if _msg is not None else None\\n' +
+        ind + '    if isinstance(_raw, list):\\n' +
+        ind + '        return chr(10).join(getattr(_c, "text", str(_c)) for _c in _raw if getattr(_c, "text", None))\\n' +
+        ind + '    return str(_raw) if _raw else ""\\n' +
+        ind + 'def _trajectory_tool_args(_event):\\n' +
+        ind + '    if getattr(_event, "tool_call", None) and hasattr(_event.tool_call, "function"):\\n' +
+        ind + '        _raw_args = getattr(_event.tool_call.function, "arguments", None)\\n' +
+        ind + '        if isinstance(_raw_args, str):\\n' +
+        ind + '            try:\\n' +
+        ind + '                return json.loads(_raw_args)\\n' +
+        ind + '            except json.JSONDecodeError:\\n' +
+        ind + '                return {"raw": _raw_args}\\n' +
+        ind + '        if isinstance(_raw_args, dict):\\n' +
+        ind + '            return _raw_args\\n' +
+        ind + '    if getattr(_event, "action", None):\\n' +
+        ind + '        try:\\n' +
+        ind + '            _ad = _event.action.model_dump() if hasattr(_event.action, "model_dump") else vars(_event.action)\\n' +
+        ind + '            return {_k: _v for _k, _v in _ad.items() if _k != "kind" and _v is not None}\\n' +
+        ind + '        except Exception:\\n' +
+        ind + '            pass\\n' +
+        ind + '    return {}\\n' +
+        ind + 'def _write_partial_trajectory(_reason):\\n' +
+        ind + '    import json, os, sys\\n' +
+        ind + '    from pathlib import Path\\n' +
+        ind + '    try:\\n' +
+        ind + '        _metric_obj = getattr(llm, "metrics", None)\\n' +
+        ind + '        _usage = getattr(_metric_obj, "accumulated_token_usage", None)\\n' +
+        ind + '        _metrics = {\\n' +
+        ind + '            "prompt_tokens": int(getattr(_usage, "prompt_tokens", 0) or 0),\\n' +
+        ind + '            "completion_tokens": int(getattr(_usage, "completion_tokens", 0) or 0),\\n' +
+        ind + '            "cached_tokens": int(getattr(_usage, "cache_read_tokens", 0) or 0),\\n' +
+        ind + '            "cost_usd": float(getattr(_metric_obj, "accumulated_cost", 0.0) or 0.0),\\n' +
+        ind + '        }\\n' +
+        ind + '        _events_list = []\\n' +
+        ind + '        for _event in list(getattr(getattr(conversation, "state", None), "events", []) or []):\\n' +
+        ind + '            if isinstance(_event, MessageEvent):\\n' +
+        ind + '                if _event.source in ("user", "agent"):\\n' +
+        ind + '                    _entry_type = "assistant_message" if _event.source == "agent" else "user_message"\\n' +
+        ind + '                    _entry = {"type": _entry_type, "content": _trajectory_text_from_event(_event), "timestamp": _event.timestamp}\\n' +
+        ind + '                    _events_list.append(_entry)\\n' +
+        ind + '            elif isinstance(_event, ActionEvent):\\n' +
+        ind + '                _events_list.append({"type": "assistant_message", "content": "", "timestamp": _event.timestamp, "tool_calls": [{"id": _event.tool_call_id, "name": _event.tool_name, "arguments": _trajectory_tool_args(_event)}]})\\n' +
+        ind + '        _trajectory = build_trajectory(_events_list, _metrics, model)\\n' +
+        ind + '        _trajectory.setdefault("extra", {})["partial_trajectory"] = {"reason": _reason, "events": len(_events_list)}\\n' +
+        ind + '        _path = Path(args.trajectory_path)\\n' +
+        ind + '        _path.parent.mkdir(parents=True, exist_ok=True)\\n' +
+        ind + '        _tmp = _path.with_suffix(_path.suffix + ".partial")\\n' +
+        ind + '        with open(_tmp, "w") as _f:\\n' +
+        ind + '            json.dump(_trajectory, _f, indent=2)\\n' +
+        ind + '        os.replace(_tmp, _path)\\n' +
+        ind + '        print(f"trajectory flush: partial trajectory saved to {_path}", file=sys.stderr, flush=True)\\n' +
+        ind + '        return True\\n' +
+        ind + '    except Exception as _save_e:\\n' +
+        ind + '        print(f"trajectory flush: partial trajectory save failed: {type(_save_e).__name__}: {_save_e}", file=sys.stderr, flush=True)\\n' +
+        ind + '        return False\\n'
+    )
+    wrap = (
+        ind + '# Send instruction and run\\n' +
+        ind + '_trajectory_flush_exc = None\\n' +
+        partial +
+        ind + 'class TrajectoryFlushRequested(BaseException):\\n' +
+        ind + '    pass\\n' +
+        ind + 'def _trajectory_timeout_handler(_signum, _frame):\\n' +
+        ind + '    raise TrajectoryFlushRequested(f"signal {_signum}")\\n' +
+        ind + 'try:\\n' +
+        ind + '    import signal as _trajectory_signal\\n' +
+        ind + '    _trajectory_signal.signal(_trajectory_signal.SIGTERM, _trajectory_timeout_handler)\\n' +
+        ind + '    _trajectory_signal.signal(_trajectory_signal.SIGINT, _trajectory_timeout_handler)\\n' +
+        ind + 'except Exception:\\n' +
+        ind + '    pass\\n' +
+        ind + 'try:\\n' +
+        ind + '    conversation.send_message(args.instruction)\\n' +
+        ind + '    conversation.run()\\n' +
+        ind + 'except TrajectoryFlushRequested as _e:\\n' +
+        ind + '    _trajectory_flush_exc = _e\\n' +
+        ind + '    print(f"trajectory flush: flushing after NEL timeout signal: {_e}", file=sys.stderr, flush=True)\\n' +
+        ind + '    _write_partial_trajectory("timeout")\\n' +
+        ind + 'except BaseException as _e:\\n' +
+        ind + '    _trajectory_flush_exc = _e\\n' +
+        ind + '    print(f"trajectory flush: flushing after {type(_e).__name__}: {_e}", file=sys.stderr, flush=True)\\n' +
+        ind + '    _write_partial_trajectory(type(_e).__name__)'
+    )
     c = c.replace(old1, wrap, 1)
     exit_block = (
-        ind + 'if _nel_run_exc is not None:\\n' +
-        ind + '    import json as _j, os as _os\\n' +
-        ind + '    _os.makedirs("/logs/agent", exist_ok=True)\\n' +
-        ind + '    open("/logs/agent/nel_agent_error.json", "w").write(\\n' +
-        ind + '        _j.dumps({"etype": type(_nel_run_exc).__name__, "emsg": str(_nel_run_exc)}))\\n' +
+        ind + 'if _trajectory_flush_exc is not None:\\n' +
+        ind + '    if not isinstance(_trajectory_flush_exc, TrajectoryFlushRequested):\\n' +
+        ind + '        import json as _j, os as _os\\n' +
+        ind + '        _os.makedirs("/logs/agent", exist_ok=True)\\n' +
+        ind + '        _marker = "/logs/agent/agent_error.json"\\n' +
+        ind + '        _marker_tmp = _marker + ".tmp"\\n' +
+        ind + '        with open(_marker_tmp, "w") as _mf:\\n' +
+        ind + '            _mf.write(_j.dumps({"etype": type(_trajectory_flush_exc).__name__, "emsg": str(_trajectory_flush_exc)}))\\n' +
+        ind + '        _os.replace(_marker_tmp, _marker)\\n' +
         ind + '    sys.exit(0)')
     c = c.replace(old2, old2 + '\\n' + exit_block, 1)
     open(p, 'w').write(c)
-print(f'budget_flush={ok}')
+print(f'budget_flush={success}')
 """
     encoded4 = base64.b64encode(_budget_flush_script.encode()).decode()
     r4 = await sandbox.exec(
@@ -692,7 +790,7 @@ print(f'budget_flush={ok}')
     )
     stdout4 = (r4.stdout or "").strip()
     logger.info("Budget-flush patch: %s", stdout4)
-    if r4.return_code != 0 or "False" in stdout4:
+    if r4.return_code != 0 or "budget_flush=True" not in stdout4:
         logger.warning(
             "Budget-flush patch problem (rc=%d): %s",
             r4.return_code,
@@ -793,7 +891,7 @@ def _recover_from_logs(agent_logs_dir: Path) -> dict[str, Any]:
 
 def _error_from_crash_marker(agent_logs_dir: Path) -> str | None:
     """Return a user-facing crash error from the agent sidecar, or raise infra errors."""
-    crash_file = agent_logs_dir / "nel_agent_error.json"
+    crash_file = agent_logs_dir / "agent_error.json"
     if not crash_file.is_file():
         return None
 
@@ -1486,7 +1584,7 @@ class HarborSolver:
         self,
         agent_task: asyncio.Task[None],
         sandbox: "Sandbox",
-        t0: float,
+        agent_started_at: float,
         effective_timeout: float,
         jitter: float,
     ) -> tuple[bool, Exception | None]:
@@ -1541,7 +1639,7 @@ class HarborSolver:
                 )
 
             # Phase 2 — progress confirmed, wait remaining time
-            remaining = effective_timeout - (time.monotonic() - t0)
+            remaining = effective_timeout - (time.monotonic() - agent_started_at)
             done, _ = await asyncio.wait(
                 {agent_task},
                 timeout=max(0.0, remaining),
@@ -1553,14 +1651,44 @@ class HarborSolver:
             logger.warning(
                 "HarborSolver: agent.run() timed out after %.0fs "
                 "(effective=%.0fs+%.0fs jitter, strategy=%s) — collecting partial results",
-                time.monotonic() - t0,
+                time.monotonic() - agent_started_at,
                 effective_timeout - jitter,
                 jitter,
                 self._timeout_strategy,
             )
-            agent_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await agent_task
+            if sandbox.is_running:
+                try:
+                    await sandbox.exec(
+                        "python3 - <<'PY'\n"
+                        "import os, signal, subprocess\n"
+                        "me = os.getpid()\n"
+                        "try:\n"
+                        "    out = subprocess.check_output(['ps', '-eo', 'pid=,comm=,args='], text=True)\n"
+                        "except Exception:\n"
+                        "    out = ''\n"
+                        "for line in out.splitlines():\n"
+                        "    parts = line.strip().split(None, 2)\n"
+                        "    if len(parts) < 3:\n"
+                        "        continue\n"
+                        "    try:\n"
+                        "        pid = int(parts[0])\n"
+                        "    except ValueError:\n"
+                        "        continue\n"
+                        "    comm, args = parts[1], parts[2]\n"
+                        "    if pid != me and 'python' in comm and '/installed-agent/run_agent.py' in args:\n"
+                        "        os.kill(pid, signal.SIGTERM)\n"
+                        "PY",
+                        timeout_sec=10,
+                    )
+                    done_after_signal, _ = await asyncio.wait({agent_task}, timeout=30.0)
+                    if agent_task in done_after_signal:
+                        logger.info("HarborSolver: timed-out agent flushed after SIGTERM")
+                except Exception:
+                    logger.debug("HarborSolver: timed-out agent flush signal failed", exc_info=True)
+            if not agent_task.done():
+                agent_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await agent_task
 
         agent_error: Exception | None = None
         if agent_task.done() and not agent_task.cancelled():
@@ -1757,10 +1885,11 @@ class HarborSolver:
 
             prompt = await self._inject_skill(sandbox, task.prompt)
             agent_task = asyncio.create_task(agent.run(prompt, adapter, context))
+            agent_t0 = time.monotonic()
             agent_timed_out, agent_error = await self._wait_for_agent(
                 agent_task,
                 sandbox,
-                t0,
+                agent_t0,
                 effective_timeout,
                 jitter,
             )
@@ -1861,6 +1990,11 @@ class HarborSolver:
                     "workspace changes — submitting for verification",
                     self._run_timeout,
                 )
+                if not trajectory:
+                    logger.warning(
+                        "HarborSolver: timeout trajectory flush produced no events "
+                        "(empty trajectory); verifying on workspace patch only"
+                    )
                 error_kind = ErrorKind.SOLVE_TIMEOUT
             elif not response and prompt_tokens + completion_tokens == 0:
                 error = "Agent produced no output (0 tokens, empty response). Check agent logs for details."
@@ -1873,6 +2007,11 @@ class HarborSolver:
                     prompt_tokens,
                     completion_tokens,
                 )
+                if not trajectory:
+                    logger.warning(
+                        "HarborSolver: timeout trajectory flush produced no events "
+                        "(empty trajectory); verifying on workspace patch only"
+                    )
                 error_kind = ErrorKind.SOLVE_TIMEOUT
 
             return SolveResult(

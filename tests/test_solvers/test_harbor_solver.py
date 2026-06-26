@@ -10,14 +10,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 import nemo_evaluator.solvers.harbor as harbor_mod
+from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.errors import InfraError
 from nemo_evaluator.solvers.harbor import (
     _ensure_claude_host_env,
@@ -181,12 +184,20 @@ class TestDownloadAgentLogs:
 
 class TestCrashMarker:
     def test_non_infra_marker_returns_agent_crash_error(self, tmp_path):
-        (tmp_path / "nel_agent_error.json").write_text(json.dumps({"etype": "ValueError", "emsg": "bad input"}))
+        (tmp_path / "agent_error.json").write_text(json.dumps({"etype": "ValueError", "emsg": "bad input"}))
 
         assert _error_from_crash_marker(tmp_path) == "Agent crashed: ValueError: bad input"
 
+    def test_litellm_timeout_marker_treated_as_crash_not_infra(self, tmp_path):
+        # TODO: litellm request timeouts (etype "Timeout") are currently surfaced as a
+        # generic crash, not infra. Whether they should be retryable infra is deferred —
+        # see the TODO on _INFRA_ERROR_NAMES. This test pins the current behavior.
+        (tmp_path / "agent_error.json").write_text(json.dumps({"etype": "Timeout", "emsg": "request timed out"}))
+
+        assert _error_from_crash_marker(tmp_path) == "Agent crashed: Timeout: request timed out"
+
     def test_infra_marker_raises_infra_error(self, tmp_path):
-        (tmp_path / "nel_agent_error.json").write_text(
+        (tmp_path / "agent_error.json").write_text(
             json.dumps({"etype": "APIConnectionError", "emsg": "connection failed"})
         )
 
@@ -277,9 +288,55 @@ class TestPatchOpenhandsSDK:
         exec(compile(timeout_patch, "llm_timeout_patch.py", "exec"), {})  # noqa: S102
 
         patched = runner.read_text()
-        assert "import os" in patched
-        assert 'os.environ.get("LLM_TIMEOUT")' in patched
+        assert "import os as _llm_timeout_os" in patched
+        assert '_llm_timeout_os.environ.get("LLM_TIMEOUT")' in patched
         assert 'llm_kwargs["timeout"] = int(timeout_raw)' in patched
+
+    async def test_runner_timeout_patch_does_not_shadow_os(self, tmp_path):
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            """\
+import os
+
+
+def main():
+    model = os.environ.get("LLM_MODEL", "m")
+    llm_kwargs = {"model": model}
+    llm = LLM(**llm_kwargs)
+"""
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        timeout_patch = next(
+            (s for s in decoded_scripts if "llm_timeout" in s and "LLM_TIMEOUT" in s),
+            None,
+        )
+        assert timeout_patch is not None, "LLM timeout patch script not emitted"
+
+        timeout_patch = timeout_patch.replace(
+            "p = '/installed-agent/run_agent.py'",
+            f"p = {str(runner)!r}",
+        )
+        exec(compile(timeout_patch, "llm_timeout_patch.py", "exec"), {})  # noqa: S102
+
+        patched = runner.read_text()
+        namespace = {"LLM": lambda **kwargs: kwargs}
+        exec(compile(patched, str(runner), "exec"), namespace)  # noqa: S102
+        namespace["main"]()
 
     async def test_runner_patch_preserves_tool_timing(self, tmp_path):
         import base64
@@ -390,6 +447,238 @@ def build_trajectory(events, llm_metrics, model_name):
             "completed_at": "2026-06-05T12:00:01.250Z",
             "duration_ms": 1250.0,
         }
+
+    _EVENTS_MSG_AND_ACTION = (
+        'MessageEvent("agent", "partial reasoning", 1.0), ActionEvent(2.0, "call-1", "bash", \'{"command": "ls"}\')'
+    )
+    _EVENTS_TWO_MESSAGES = (
+        'MessageEvent("agent", "partial reasoning", 1.0), MessageEvent("agent", "more reasoning", 2.0)'
+    )
+
+    @staticmethod
+    def _stub_runner(module_imports: str, run_body: str, events: str) -> str:
+        """Build a minimal run_agent.py stub for the flush patch to wrap.
+
+        ``module_imports`` controls which names exist at module scope (used to
+        prove ``_write_partial_trajectory`` self-imports its dependencies).
+        ``run_body`` is the indented body of ``_Conversation.run`` — raise to
+        exercise the crash path, ``raise_signal`` to exercise the timeout path.
+        ``events`` is the comma-separated event constructor list; use message-
+        only events to keep the flush off the ``_trajectory_tool_args`` sibling
+        helper (which is not in change #5's self-sufficiency scope).
+        """
+        return (
+            module_imports
+            + """
+
+
+class MessageEvent:
+    def __init__(self, source, content, timestamp):
+        self.source = source
+        self.timestamp = timestamp
+        self.llm_message = type("LM", (), {"content": content})()
+
+
+class ActionEvent:
+    def __init__(self, timestamp, tool_call_id, tool_name, arguments):
+        self.timestamp = timestamp
+        self.tool_call_id = tool_call_id
+        self.tool_name = tool_name
+        fn = type("Fn", (), {"arguments": arguments})()
+        self.tool_call = type("TC", (), {"function": fn})()
+
+
+def build_trajectory(events, metrics, model):
+    return {"steps": events, "final_metrics": metrics, "model_name": model}
+
+
+class _Args:
+    instruction = "solve it"
+
+
+class _Conversation:
+    def __init__(self, events):
+        self.state = type("S", (), {"events": events})()
+
+    def send_message(self, instruction):
+        self._sent = instruction
+
+    def run(self):
+"""
+            + run_body
+            + """
+
+def main():
+    args = _Args()
+    args.trajectory_path = os.environ["NEL_TEST_TRAJECTORY_PATH"]
+    model = "test-model"
+    llm = type("LLM", (), {"metrics": None})()
+    conversation = _Conversation([__EVENTS__])
+
+    # Send instruction and run
+    conversation.send_message(args.instruction)
+    conversation.run()
+
+    print("Total cost: 0.0")
+""".replace("__EVENTS__", events)
+        )
+
+    @staticmethod
+    async def _apply_flush_patch(runner: Path) -> str:
+        """Emit the trajectory-flush patch and apply it to *runner* in place."""
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="budget_flush=True", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        flush_patch = next(
+            (s for s in decoded_scripts if "_trajectory_flush_exc" in s and "budget_flush" in s),
+            None,
+        )
+        assert flush_patch is not None, "trajectory-flush patch script not emitted"
+
+        flush_patch = flush_patch.replace(
+            "p = '/installed-agent/run_agent.py'",
+            f"p = {str(runner)!r}",
+        )
+        exec(compile(flush_patch, "flush_patch.py", "exec"), {})  # noqa: S102
+        return runner.read_text()
+
+    @staticmethod
+    def _run_patched_main(patched: str, runner: Path, monkeypatch) -> list[str]:
+        """Execute the patched ``main()``, returning the marker dir creations.
+
+        The exit block's ``/logs/agent`` marker write is not writable under
+        test, so ``os.makedirs`` is spied to both record whether the marker
+        branch was taken and short-circuit the unwritable path.  Signal
+        handlers installed by the wrap are saved and restored.
+        """
+        import contextlib
+        import signal
+
+        makedirs_calls: list[str] = []
+
+        def _spy_makedirs(path, *a, **k):
+            makedirs_calls.append(path)
+            raise OSError("marker dir not writable under test")
+
+        monkeypatch.setattr(os, "makedirs", _spy_makedirs)
+
+        namespace: dict = {}
+        exec(compile(patched, str(runner), "exec"), namespace)  # noqa: S102
+        old_term = signal.getsignal(signal.SIGTERM)
+        old_int = signal.getsignal(signal.SIGINT)
+        try:
+            with contextlib.suppress(SystemExit, OSError):
+                namespace["main"]()
+        finally:
+            signal.signal(signal.SIGTERM, old_term)
+            signal.signal(signal.SIGINT, old_int)
+        return makedirs_calls
+
+    async def test_flush_patch_crash_writes_trajectory_and_marker(self, tmp_path, monkeypatch):
+        """Genuine crash → flush with reason=etype AND the marker branch is taken.
+
+        The injected block is the largest patch (helpers + signal handlers +
+        two anchors), so a stub run is the only thing that catches an
+        indentation slip or a closure-scope mistake before a live eval.
+        """
+        traj_path = tmp_path / "trajectory" / "out.json"
+        monkeypatch.setenv("NEL_TEST_TRAJECTORY_PATH", str(traj_path))
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            self._stub_runner(
+                "import json\nimport os\nimport sys\nfrom pathlib import Path",
+                '        raise RuntimeError("simulated crash")\n',
+                self._EVENTS_MSG_AND_ACTION,
+            )
+        )
+        patched = await self._apply_flush_patch(runner)
+
+        assert "_trajectory_flush_exc = None" in patched
+        assert "def _write_partial_trajectory" in patched
+        assert "class TrajectoryFlushRequested" in patched
+        # Crash marker is written atomically (tmp + os.replace), matching the
+        # partial-trajectory write, so a kill mid-write can't leave a truncated
+        # marker that _error_from_crash_marker would silently drop.
+        assert '_marker = "/logs/agent/agent_error.json"' in patched
+        assert "_os.replace(_marker_tmp, _marker)" in patched
+        assert "sys.exit(0)" in patched
+
+        makedirs_calls = self._run_patched_main(patched, runner, monkeypatch)
+
+        assert traj_path.is_file(), "partial trajectory was not flushed"
+        data = json.loads(traj_path.read_text())
+        assert data["extra"]["partial_trajectory"]["reason"] == "RuntimeError"
+        assert data["extra"]["partial_trajectory"]["events"] == 2
+        assert len(data["steps"]) == 2
+        assert "/logs/agent" in makedirs_calls, "a genuine crash must take the marker-write branch"
+
+    async def test_flush_patch_timeout_writes_trajectory_no_marker(self, tmp_path, monkeypatch):
+        """NEL timeout signal → flush with reason='timeout' and NO crash marker.
+
+        Raising SIGINT inside ``run()`` fires the installed handler, which
+        raises ``TrajectoryFlushRequested``; the guarded exit block must skip
+        the marker write so the host never sees a bogus crash.
+        """
+        traj_path = tmp_path / "trajectory" / "out.json"
+        monkeypatch.setenv("NEL_TEST_TRAJECTORY_PATH", str(traj_path))
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            self._stub_runner(
+                "import json\nimport os\nimport sys\nfrom pathlib import Path",
+                "        import signal as _sig\n        _sig.raise_signal(_sig.SIGINT)\n",
+                self._EVENTS_MSG_AND_ACTION,
+            )
+        )
+        patched = await self._apply_flush_patch(runner)
+
+        makedirs_calls = self._run_patched_main(patched, runner, monkeypatch)
+
+        assert traj_path.is_file(), "partial trajectory was not flushed on timeout"
+        data = json.loads(traj_path.read_text())
+        assert data["extra"]["partial_trajectory"]["reason"] == "timeout"
+        assert data["extra"]["partial_trajectory"]["events"] == 2
+        assert "/logs/agent" not in makedirs_calls, "the timeout path must not write a crash marker"
+
+    async def test_flush_patch_self_sufficient_without_module_imports(self, tmp_path, monkeypatch):
+        """_write_partial_trajectory flushes even without module-scope json/Path.
+
+        Proves change #5: the function self-imports its dependencies.  ``os``
+        and ``sys`` remain at module scope because the wrap/exit blocks (out of
+        scope for #5) still reference them there.
+        """
+        traj_path = tmp_path / "trajectory" / "out.json"
+        monkeypatch.setenv("NEL_TEST_TRAJECTORY_PATH", str(traj_path))
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            self._stub_runner(
+                "import os\nimport sys",
+                '        raise RuntimeError("simulated crash")\n',
+                self._EVENTS_TWO_MESSAGES,
+            )
+        )
+        patched = await self._apply_flush_patch(runner)
+
+        self._run_patched_main(patched, runner, monkeypatch)
+
+        assert traj_path.is_file(), "flush must not depend on module-scope json/Path"
+        data = json.loads(traj_path.read_text())
+        assert data["extra"]["partial_trajectory"]["events"] == 2
+        assert len(data["steps"]) == 2
 
 
 class TestSandboxEnvironmentAdapter:
@@ -646,6 +935,183 @@ class TestHarborSolverLlmTimeout:
                 container_env={"LLM_TIMEOUT": "7200"},
             )
             assert solver._container_env["LLM_TIMEOUT"] == "7200"
+
+
+class _TimeoutFlushSandbox:
+    is_running = True
+
+    def __init__(
+        self,
+        flush_event: asyncio.Event | None = None,
+        *,
+        signal_error: Exception | None = None,
+    ) -> None:
+        self.flush_event = flush_event
+        self.signal_error = signal_error
+        self.exec_calls: list[tuple[str, float | None]] = []
+
+    async def exec(self, command: str, timeout_sec: float | None = None):
+        self.exec_calls.append((command, timeout_sec))
+        if "find /logs/agent" in command:
+            return MagicMock(stdout="1\n", stderr="", return_code=0)
+        if "/installed-agent/run_agent.py" in command:
+            if self.signal_error is not None:
+                raise self.signal_error
+            if self.flush_event is not None:
+                self.flush_event.set()
+            return MagicMock(stdout="", stderr="", return_code=0)
+        return MagicMock(stdout="", stderr="", return_code=0)
+
+
+class TestWaitForAgentTimeout:
+    def _solver(self):
+        from nemo_evaluator.solvers.harbor import HarborSolver
+
+        solver = HarborSolver.__new__(HarborSolver)
+        solver._run_timeout = 0.05
+        solver._timeout_strategy = "override"
+        return solver
+
+    @pytest.mark.asyncio
+    async def test_timeout_sends_sigterm_and_waits_for_trajectory_flush(self):
+        solver = self._solver()
+        flush_event = asyncio.Event()
+        sandbox = _TimeoutFlushSandbox(flush_event)
+
+        async def agent_run():
+            await flush_event.wait()
+
+        agent_task = asyncio.create_task(agent_run())
+
+        timed_out, agent_error = await solver._wait_for_agent(
+            agent_task,
+            sandbox,
+            time.monotonic(),
+            effective_timeout=0.05,
+            jitter=0.0,
+        )
+
+        assert timed_out is True
+        assert agent_error is None
+        assert agent_task.done()
+        assert not agent_task.cancelled()
+        assert any("/installed-agent/run_agent.py" in command for command, _ in sandbox.exec_calls)
+
+    @pytest.mark.asyncio
+    async def test_timeout_cancels_agent_if_sigterm_flush_fails(self):
+        solver = self._solver()
+        sandbox = _TimeoutFlushSandbox(signal_error=RuntimeError("signal failed"))
+
+        async def agent_run():
+            await asyncio.Event().wait()
+
+        agent_task = asyncio.create_task(agent_run())
+
+        timed_out, agent_error = await solver._wait_for_agent(
+            agent_task,
+            sandbox,
+            time.monotonic(),
+            effective_timeout=0.05,
+            jitter=0.0,
+        )
+
+        assert timed_out is True
+        assert agent_error is None
+        assert agent_task.cancelled()
+        assert any("/installed-agent/run_agent.py" in command for command, _ in sandbox.exec_calls)
+
+
+class TestSolveTimeoutPlumbing:
+    @pytest.mark.asyncio
+    async def test_solve_starts_timeout_clock_at_agent_run(self, monkeypatch):
+        import nemo_evaluator.solvers.harbor as harbor_mod
+        from nemo_evaluator.solvers.harbor import HarborSolver
+
+        class FakeContext:
+            def __init__(self) -> None:
+                self.metadata = {}
+                self.rollout_details = []
+                self.n_input_tokens = 0
+                self.n_output_tokens = 0
+
+            def is_empty(self) -> bool:
+                return False
+
+        class FakeAdapter:
+            is_mounted = True
+
+            def __init__(self, *args, **kwargs) -> None:
+                pass
+
+        class FakeAgent:
+            async def setup(self, adapter) -> None:
+                pass
+
+            async def run(self, prompt, adapter, context) -> None:
+                context.metadata["response"] = "agent answer"
+                context.n_input_tokens = 3
+                context.n_output_tokens = 4
+
+        class FakeSandbox:
+            is_running = True
+
+            def resolved_endpoint_url(self, name):
+                return None
+
+            def resolve_outside_endpoint(self, url):
+                return url
+
+            async def exec(self, command: str, timeout_sec: float | None = None):
+                return MagicMock(stdout="", stderr="", return_code=0)
+
+        import harbor.models.agent.context as context_mod
+
+        import nemo_evaluator.solvers.harbor_adapter as harbor_adapter_mod
+
+        monkeypatch.setattr(context_mod, "AgentContext", FakeContext)
+        monkeypatch.setattr(harbor_adapter_mod, "SandboxEnvironmentAdapter", FakeAdapter)
+        monkeypatch.setattr(harbor_mod, "_capture_workspace_diff", AsyncMock(return_value=""))
+        monkeypatch.setattr(
+            harbor_mod,
+            "_recover_from_logs",
+            lambda logs_dir: {"trajectory": [], "prompt_tokens": 0, "completion_tokens": 0, "response": ""},
+        )
+        monkeypatch.setattr(harbor_mod.random, "uniform", lambda low, high: 0.0)
+
+        solver = HarborSolver.__new__(HarborSolver)
+        solver._model_url = "http://model"
+        solver._model_id = "model"
+        solver._timeout = 60.0
+        solver._run_timeout = 60.0
+        solver._timeout_strategy = "override"
+        solver._max_agent_timeout = None
+        solver._harbor_agent = "terminus-2"
+        solver._container_env = {}
+        solver._skill = None
+        solver._skill_dir = None
+        solver._create_agent = lambda logs_dir, model_url="": FakeAgent()
+
+        wait_args: dict[str, float] = {}
+
+        async def fake_wait_for_agent(agent_task, sandbox, agent_started_at, effective_timeout, jitter):
+            wait_args["agent_started_at"] = agent_started_at
+            wait_args["effective_timeout"] = effective_timeout
+            wait_args["jitter"] = jitter
+            await agent_task
+            return False, None
+
+        solver._wait_for_agent = fake_wait_for_agent
+
+        result = await solver.solve(
+            SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "task-1"}),
+            sandbox=FakeSandbox(),
+        )
+
+        assert result.response == "agent answer"
+        assert result.model_response.total_tokens == 7
+        assert wait_args["agent_started_at"] > 0
+        assert wait_args["effective_timeout"] == 60.0
+        assert wait_args["jitter"] == 0.0
 
 
 class TestInjectSkill:
