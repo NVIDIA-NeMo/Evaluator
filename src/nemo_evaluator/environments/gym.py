@@ -207,7 +207,7 @@ class GymEnvironment(EvalEnvironment):
         return SeedResult(
             prompt=d.get("prompt", ""),
             expected_answer=d.get("expected_answer", ""),
-            metadata=d.get("metadata", {}),
+            metadata=(d.get("metadata") or {}),
             messages=d.get("messages"),
             system=d.get("system"),
             sandbox_spec=sandbox_spec,
@@ -232,7 +232,7 @@ class GymEnvironment(EvalEnvironment):
             reward=float(d.get("reward", 0.0)),
             extracted_answer=d.get("extracted_answer"),
             scoring_details=d.get("scoring_details", {}),
-            metadata=d.get("metadata", {}),
+            metadata=(d.get("metadata") or {}),
         )
 
     async def _verify_native(self, response: str, expected: str, **meta: Any) -> VerifyResult:
@@ -286,7 +286,7 @@ class GymEnvironment(EvalEnvironment):
             reward=float(d.get("reward", 0.0)),
             extracted_answer=d.get("extracted_sql") or d.get("extracted_answer"),
             scoring_details={k: v for k, v in d.items() if k not in ("reward", "responses_create_params", "response")},
-            metadata=d.get("metadata", {}),
+            metadata=(d.get("metadata") or {}),
         )
 
     # -- dataset_size -------------------------------------------------------
