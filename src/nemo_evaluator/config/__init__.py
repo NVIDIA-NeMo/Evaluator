@@ -48,6 +48,7 @@ from .sandboxes import (
     CustomSandbox,
     DockerSandbox,
     EcsFargateSandbox,
+    LocalSandbox,
     NoSandbox,
     SandboxConfig,
     SlurmSandbox,
@@ -123,6 +124,7 @@ __all__ = [
     "SlurmSandbox",
     "ApptainerSandbox",
     "NoSandbox",
+    "LocalSandbox",
     "CustomSandbox",
     "SandboxConfig",
     # Solvers
