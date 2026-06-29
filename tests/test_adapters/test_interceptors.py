@@ -513,7 +513,34 @@ async def test_turn_counter_threshold_new_user_appends_trailing_user_message():
     assert "Begin wrapping up" in result.body["messages"][-1]["content"]
 
 
-async def test_turn_counter_pre_threshold_tool_reminder_appends_to_trailing_tool_before_threshold():
+@pytest.mark.parametrize(
+    ("tool_message", "expected_content"),
+    [
+        pytest.param(
+            {"role": "tool", "tool_call_id": "call_1", "content": "tool result"},
+            lambda reminder: f"tool result\n\n{reminder}",
+            id="string-content",
+        ),
+        pytest.param(
+            {"role": "tool", "tool_call_id": "call_1"},
+            lambda reminder: reminder,
+            id="missing-content",
+        ),
+        pytest.param(
+            {"role": "tool", "tool_call_id": "call_1", "content": None},
+            lambda reminder: reminder,
+            id="none-content",
+        ),
+        pytest.param(
+            {"role": "tool", "tool_call_id": "call_1", "content": [{"type": "text", "text": "tool result"}]},
+            lambda reminder: [{"type": "text", "text": "tool result"}, {"type": "text", "text": reminder}],
+            id="list-content",
+        ),
+    ],
+)
+async def test_turn_counter_pre_threshold_tool_reminder_appends_to_trailing_tool_before_threshold(
+    tool_message, expected_content
+):
     ic = InterceptorRegistry.create(
         "turn_counter",
         {"max_turns": 10, "pre_threshold_tool_reminder_interval": 2},
@@ -521,7 +548,7 @@ async def test_turn_counter_pre_threshold_tool_reminder_appends_to_trailing_tool
     base_messages = [
         {"role": "user", "content": "initial task"},
         {"role": "assistant", "content": "calling tool"},
-        {"role": "tool", "tool_call_id": "call_1", "content": "tool result"},
+        tool_message,
     ]
 
     for turn in range(1, 8):
@@ -531,10 +558,9 @@ async def test_turn_counter_pre_threshold_tool_reminder_appends_to_trailing_tool
         result = await ic.intercept_request(r)
         last = result.body["messages"][-1]
         if turn in {2, 4, 6}:
+            reminder = f"ENVIRONMENT REMINDER: You have {10 - turn} turns left to complete the task."
             assert last["role"] == "tool"
-            assert last["content"].endswith(
-                f"\n\nENVIRONMENT REMINDER: You have {10 - turn} turns left to complete the task."
-            )
+            assert last["content"] == expected_content(reminder)
         else:
             assert result.body["messages"] == base_messages
 
