@@ -204,7 +204,7 @@ class TestPatchOpenhandsSDK:
         sandbox = AsyncMock()
         sandbox.exec.return_value = MagicMock(stdout="stuck_detection disabled", stderr="", return_code=0)
         await _patch_openhands_sdk(sandbox)
-        assert sandbox.exec.call_count >= 4
+        assert sandbox.exec.call_count >= 6
 
     async def test_runner_patch_disables_visualizer(self):
         """Patch 0 must inject both stuck_detection=False AND visualizer=None.
@@ -390,6 +390,71 @@ def build_trajectory(events, llm_metrics, model_name):
             "completed_at": "2026-06-05T12:00:01.250Z",
             "duration_ms": 1250.0,
         }
+
+    async def test_runner_patch_injects_compaction_logging(self, tmp_path):
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            """\
+import os
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
+
+def build_trajectory(events_list, metrics, model, system_prompt=None, tool_definitions=None):
+    return {"steps": []}
+
+
+def main():
+    events_list = []
+    metrics = {}
+    model = "model"
+    system_prompt = None
+    tool_definitions = None
+    args = SimpleNamespace(trajectory_path="trajectory.json")
+    trajectory = build_trajectory(
+        events_list,
+        metrics,
+        model,
+        system_prompt=system_prompt,
+        tool_definitions=tool_definitions,
+    )
+
+    trajectory_path = Path(args.trajectory_path)
+"""
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        compaction_patch = next(
+            (s for s in decoded_scripts if "enrich_trajectory_with_compaction" in s),
+            None,
+        )
+        assert compaction_patch is not None, "compaction inject patch script not emitted"
+
+        compaction_patch = compaction_patch.replace(
+            "p = '/installed-agent/run_agent.py'",
+            f"p = {str(runner)!r}",
+        )
+        exec(compile(compaction_patch, "compaction_patch.py", "exec"), {})
+
+        patched = runner.read_text()
+        assert "enrich_trajectory_with_compaction" in patched
+        assert "OPENHANDS_CONDENSER_MAX_SIZE" in patched
+        assert 'sys.path.insert(0, "/installed-agent/nel")' in patched
 
 
 class TestSandboxEnvironmentAdapter:
