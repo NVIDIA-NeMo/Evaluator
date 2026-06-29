@@ -633,7 +633,7 @@ async def run_evaluation(
                                     step.reward = float(reward)
                                     vr.reward = float(reward)
                             else:
-                                from nemo_evaluator.scoring.judge import judge_score
+                                from nemo_evaluator.scoring.judge import is_parse_error, judge_score
 
                                 judge_result = await judge_score(
                                     instruction=seed_result.prompt,
@@ -642,7 +642,10 @@ async def run_evaluation(
                                     client=judge_client,
                                 )
                                 step.scoring_details["judge"] = judge_result
-                                if "normalized" in judge_result:
+                                if is_parse_error(judge_result):
+                                    # Unparseable judge reply: a judge failure, not a real 0.
+                                    judge_result["error"] = "unparseable_judge_response"
+                                elif "normalized" in judge_result:
                                     step.reward = judge_result["normalized"]
                                     vr.reward = judge_result["normalized"]
                         except (KeyboardInterrupt, asyncio.CancelledError):
