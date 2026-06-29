@@ -524,3 +524,34 @@ class TestUnparseableJudgeNotScoredZero:
         assert len(bundle["_results"]) == 2
         flagged = [r for r in bundle["_results"] if r["scoring_details"].get("error_category") == "judge_parse_error"]
         assert len(flagged) == 1
+
+    def test_resumed_run_excludes_cached_parse_error(self, tmp_path):
+        # A judge_parse_error sample is persisted to the verified cache, so a
+        # resumed run replays it through the cached-result branch. Its placeholder
+        # must be excluded there too, or fresh and resumed runs would disagree.
+        log_dir = tmp_path / "logs"
+        fresh = asyncio.run(
+            run_evaluation(
+                _JudgeScoreEnv(2),
+                _ScriptedSolver(["good", "bad"]),
+                n_repeats=1,
+                judge_client=_ScriptedJudgeClient(),
+                step_log_dir=log_dir,
+            )
+        )
+        resumed = asyncio.run(
+            run_evaluation(
+                _JudgeScoreEnv(2),
+                _ScriptedSolver(["good", "bad"]),
+                n_repeats=1,
+                judge_client=_ScriptedJudgeClient(),
+                step_log_dir=log_dir,
+                resume=True,
+            )
+        )
+
+        resumed_scores = resumed["benchmark"]["scores"]
+        assert resumed_scores["mean_reward"]["value"] == 0.8
+        assert resumed_scores["summary"]["n"] == 1
+        # Resumed metrics match the fresh run rather than counting the placeholder 0.
+        assert resumed_scores["mean_reward"]["value"] == fresh["benchmark"]["scores"]["mean_reward"]["value"]

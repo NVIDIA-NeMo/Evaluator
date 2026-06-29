@@ -311,10 +311,11 @@ async def run_evaluation(
                 async with lock:
                     collector.record(cached_step)
                     results.append(result_dict)
-                    if reward > 0:
-                        cum_correct += 1
-                    cum_total += 1
-                    problem_correct.setdefault(idx, []).append(reward)
+                    if not is_unscored_result(result_dict):
+                        if reward > 0:
+                            cum_correct += 1
+                        cum_total += 1
+                        problem_correct.setdefault(idx, []).append(reward)
                 pg.on_step(slot, rep, n_problems, n_repeats, reward, tokens, 0)
                 return
 
