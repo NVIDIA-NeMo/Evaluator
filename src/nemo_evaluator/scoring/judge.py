@@ -113,6 +113,12 @@ def parse_judge_response(text: str, max_score: int = 5) -> dict[str, Any]:
     return {"score": 0, "normalized": 0.0, "reasoning": text, "raw": text, "parse_error": True}
 
 
+def is_parse_error(judge_result: dict[str, Any]) -> bool:
+    """Whether a judge result came from an unparseable reply. Its 0 means
+    "judge unreadable", not "scored 0", so callers must not treat it as a reward."""
+    return bool(judge_result.get("parse_error"))
+
+
 def needs_judge(sample: ScorerInput) -> dict:
     """Signals that this sample needs LLM-as-judge post-processing in the eval loop."""
     return {"correct": False, "needs_judge": True, "extracted": sample.response[:500]}

@@ -67,6 +67,18 @@ def _get_error_category(entry: dict) -> str | None:
     return sd.get("error_category")
 
 
+# error_category for a sample the judge could not score (e.g. an unparseable
+# reply). Its reward is a placeholder 0, not a real score.
+JUDGE_PARSE_ERROR_CATEGORY = "judge_parse_error"
+
+
+def is_unscored_result(entry: dict) -> bool:
+    """Whether a result's reward is a non-score placeholder that must be excluded
+    from reward aggregation rather than counted as a real value. Today this is the
+    unparseable-judge-reply case; counting its 0 would silently drag scores down."""
+    return _get_error_category(entry) == JUDGE_PARSE_ERROR_CATEGORY
+
+
 async def run_evaluation(
     env: EvalEnvironment,
     solver: Solver,
@@ -299,10 +311,11 @@ async def run_evaluation(
                 async with lock:
                     collector.record(cached_step)
                     results.append(result_dict)
-                    if reward > 0:
-                        cum_correct += 1
-                    cum_total += 1
-                    problem_correct.setdefault(idx, []).append(reward)
+                    if not is_unscored_result(result_dict):
+                        if reward > 0:
+                            cum_correct += 1
+                        cum_total += 1
+                        problem_correct.setdefault(idx, []).append(reward)
                 pg.on_step(slot, rep, n_problems, n_repeats, reward, tokens, 0)
                 return
 
@@ -633,7 +646,7 @@ async def run_evaluation(
                                     step.reward = float(reward)
                                     vr.reward = float(reward)
                             else:
-                                from nemo_evaluator.scoring.judge import judge_score
+                                from nemo_evaluator.scoring.judge import is_parse_error, judge_score
 
                                 judge_result = await judge_score(
                                     instruction=seed_result.prompt,
@@ -642,7 +655,14 @@ async def run_evaluation(
                                     client=judge_client,
                                 )
                                 step.scoring_details["judge"] = judge_result
-                                if "normalized" in judge_result:
+                                if is_parse_error(judge_result):
+                                    # Unparseable judge reply: a judge failure, not a
+                                    # real 0. Flag it so the placeholder reward is
+                                    # excluded from metrics (see is_unscored_result)
+                                    # instead of quietly dragging the score down.
+                                    judge_result["error"] = "unparseable_judge_response"
+                                    step.scoring_details["error_category"] = JUDGE_PARSE_ERROR_CATEGORY
+                                elif "normalized" in judge_result:
                                     step.reward = judge_result["normalized"]
                                     vr.reward = judge_result["normalized"]
                         except (KeyboardInterrupt, asyncio.CancelledError):
@@ -695,10 +715,11 @@ async def run_evaluation(
                 async with lock:
                     collector.record(step)
                     results.append(result_dict)
-                    if vr.reward > 0:
-                        cum_correct += 1
-                    cum_total += 1
-                    problem_correct.setdefault(idx, []).append(vr.reward)
+                    if not is_unscored_result(result_dict):
+                        if vr.reward > 0:
+                            cum_correct += 1
+                        cum_total += 1
+                        problem_correct.setdefault(idx, []).append(vr.reward)
 
                 pg.on_step(slot, rep, n_problems, n_repeats, vr.reward, tokens, step.total_ms)
 
@@ -801,7 +822,10 @@ async def run_evaluation(
     if first_error is not None:
         raise RuntimeError(f"Evaluation aborted (skip_failed=False): {first_error}") from first_error
 
-    all_rewards = [r["reward"] for r in results]
+    # Samples the judge could not score carry a placeholder reward; exclude them
+    # from reward aggregation so a judge glitch is not counted as a real 0.
+    scored_results = [r for r in results if not is_unscored_result(r)]
+    all_rewards = [r["reward"] for r in scored_results]
 
     # Fractional-vs-binary metric selection lives in
     # :mod:`nemo_evaluator.metrics.headline` so the single-shard path and
@@ -820,14 +844,14 @@ async def run_evaluation(
     metrics["summary"] = summary_stats(all_rewards)
 
     cats = None
-    if results and "category" in results[0].get("metadata", {}):
-        cat_results = category_breakdown(results, "category")
+    if scored_results and "category" in scored_results[0].get("metadata", {}):
+        cat_results = category_breakdown(scored_results, "category")
         cats = [
             {"category": c.category, "n_samples": c.n_samples, "mean_reward": round(c.mean_reward, 4)}
             for c in cat_results
         ]
 
-    sd_breakdowns = scoring_details_breakdown(results)
+    sd_breakdowns = scoring_details_breakdown(scored_results)
     if sd_breakdowns:
         metrics["breakdowns"] = {
             field: [
