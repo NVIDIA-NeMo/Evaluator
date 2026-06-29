@@ -33,6 +33,16 @@ from typing import TYPE_CHECKING, Any
 from nemo_evaluator.errors import GracefulError, InfraError
 from nemo_evaluator.observability.types import ModelResponse
 from nemo_evaluator.solvers.base import ErrorKind, SolveResult
+from nemo_evaluator.solvers.compaction_logging import (
+    CompactionAttempt,
+    CompactionEvent,
+    CompactionMechanism,
+    CompactionStrategy,
+    CompactionTokens,
+    CompactionTokensIntermediate,
+    CompactionTrigger,
+    StepsCompacted,
+)
 from nemo_evaluator.solvers.trajectory_util import build_atif_trajectory
 
 if TYPE_CHECKING:
@@ -1249,6 +1259,7 @@ def _patch_terminus_tmux_send_keys() -> None:
 
 
 _TERMINUS_CLE_RESET_PATCHED = False
+_TERMINUS_QUERY_LLM_SRC: str | None = None
 
 _TERMINUS_CLE_RESET_REPLACEMENTS = [
     (
@@ -1321,7 +1332,7 @@ def _terminus2_build_local_fallback_llm_content(self) -> str:
 
 
 def _patch_terminus_cle_reset() -> None:
-    global _TERMINUS_CLE_RESET_PATCHED
+    global _TERMINUS_CLE_RESET_PATCHED, _TERMINUS_QUERY_LLM_SRC
     if _TERMINUS_CLE_RESET_PATCHED:
         return
 
@@ -1331,7 +1342,9 @@ def _patch_terminus_cle_reset() -> None:
     from harbor.agents.terminus_2 import terminus_2 as terminus2_mod
 
     original = terminus2_mod.Terminus2._query_llm
-    src = inspect.getsource(inspect.unwrap(original))
+    if _TERMINUS_QUERY_LLM_SRC is None:
+        _TERMINUS_QUERY_LLM_SRC = inspect.getsource(inspect.unwrap(original))
+    src = _TERMINUS_QUERY_LLM_SRC
 
     if "full_summarize_failed_with_cle" in src:
         _TERMINUS_CLE_RESET_PATCHED = True
@@ -1354,6 +1367,7 @@ def _patch_terminus_cle_reset() -> None:
     namespace: dict[str, Any] = {}
     exec(textwrap.dedent(src), terminus2_mod.__dict__, namespace)
     terminus2_mod.Terminus2._query_llm = namespace["_query_llm"]
+    _TERMINUS_QUERY_LLM_SRC = src
     _TERMINUS_CLE_RESET_PATCHED = True
     logger.info("Patched Terminus2._query_llm: reset chat on full-summary CLE + parseable local fallback")
 
@@ -1387,6 +1401,16 @@ _TERMINUS_UNWIND_REPLACEMENTS = [
         "                pairs_removed += 1\n"
         "            else:\n"
         "                break\n",
+    ),
+    (
+        "        chat.reset_response_chain()\n"
+        "        free_tokens = context_limit - self._count_total_tokens(chat)\n"
+        "        self.logger.debug(\n",
+        "        chat.reset_response_chain()\n"
+        "        self._nel_last_unwind_pairs = pairs_removed\n"
+        "        self._nel_last_unwind_target = target_free_tokens\n"
+        "        free_tokens = context_limit - self._count_total_tokens(chat)\n"
+        "        self.logger.debug(\n",
     ),
 ]
 
@@ -1578,6 +1602,565 @@ def _patch_harbor_lite_llm_context_length_matcher() -> None:
     harbor_litellm.LiteLLM._is_context_length_error = _patched
     _HARBOR_LITELLM_CTXLIM_PATCHED = True
     logger.info('Patched Harbor LiteLLM._is_context_length_error to recognize vLLM "model\'s context length" phrasing')
+
+
+_TERMINUS_COMPACTION_PATCHED = False
+
+_RUN_AGENT_LOOP_COMPACTION_ANCHOR = (
+    "            # If we have pending subagent refs, add a system step to record the delegation\n"
+    "            # This must happen before we build the agent step\n"
+    "            # We use len(self._trajectory_steps) + 1 as the step_id to ensure it's sequential\n"
+    "            if self._pending_subagent_refs:\n"
+    "                self._trajectory_steps.append(\n"
+    "                    Step(\n"
+    "                        step_id=len(self._trajectory_steps) + 1,\n"
+    "                        timestamp=datetime.now(timezone.utc).isoformat(),\n"
+    '                        source="system",\n'
+    '                        message="Performed context summarization and handoff to continue task.",\n'
+    "                        observation=Observation(\n"
+    "                            results=[\n"
+    "                                ObservationResult(\n"
+    "                                    subagent_trajectory_ref=self._pending_subagent_refs\n"
+    "                                )\n"
+    "                            ]\n"
+    "                        ),\n"
+    "                    )\n"
+    "                )\n"
+    "                self._pending_subagent_refs = None\n"
+    "\n"
+    "            # Handle handoff prompt based on linear_history mode\n"
+    "            if self._pending_handoff_prompt:\n"
+    "                # If linear_history mode is enabled, split trajectory immediately WITHOUT adding handoff step\n"
+    "                # The handoff step will be added to the continuation trajectory during the split\n"
+    "                if self._linear_history:\n"
+    "                    self._split_trajectory_on_summarization(\n"
+    "                        self._pending_handoff_prompt\n"
+    "                    )\n"
+    "                else:\n"
+    "                    # For non-linear mode, add the handoff prompt as a user step\n"
+    "                    self._trajectory_steps.append(\n"
+    "                        Step(\n"
+    "                            step_id=len(self._trajectory_steps) + 1,\n"
+    "                            timestamp=datetime.now(timezone.utc).isoformat(),\n"
+    '                            source="user",\n'
+    "                            message=self._pending_handoff_prompt,\n"
+    "                        )\n"
+    "                    )\n"
+    "                self._pending_handoff_prompt = None\n"
+)
+
+_RUN_AGENT_LOOP_COMPACTION_REPLACEMENT = "            self._nel_flush_pending_compaction(chat)\n"
+
+_PROACTIVE_COMPACTION_ANCHOR = (
+    "                if proactive_summary_result:\n"
+    "                    prompt, subagent_refs = proactive_summary_result\n"
+    "                    # Store subagent_refs to add a system step later\n"
+    "                    self._pending_subagent_refs = subagent_refs\n"
+    "                    # Also store the handoff prompt to add as a user step\n"
+    "                    self._pending_handoff_prompt = prompt\n"
+)
+
+_PROACTIVE_COMPACTION_REPLACEMENT = (
+    "                if proactive_summary_result:\n"
+    "                    prompt, subagent_refs = proactive_summary_result\n"
+    "                    self._pending_subagent_refs = subagent_refs\n"
+    "                    self._pending_handoff_prompt = prompt\n"
+    "                    self._nel_set_proactive_pending_compaction(chat, prompt, subagent_refs)\n"
+)
+
+_PROACTIVE_CHECK_ANCHOR = (
+    "            try:\n"
+    "                summary_prompt, subagent_trajectory_refs = await self._summarize(\n"
+    "                    chat, original_instruction, session\n"
+    "                )\n"
+    "                return (summary_prompt, subagent_trajectory_refs)\n"
+)
+
+_PROACTIVE_CHECK_REPLACEMENT = (
+    "            try:\n"
+    "                nel_proactive_tokens_before = self._nel_token_snapshot(chat)\n"
+    "                summary_prompt, subagent_trajectory_refs = await self._summarize(\n"
+    "                    chat, original_instruction, session\n"
+    "                )\n"
+    "                nel_proactive_tokens_after = self._nel_token_snapshot(chat)\n"
+    "                self._nel_stash_compaction_token_snapshots(\n"
+    "                    nel_proactive_tokens_before,\n"
+    "                    nel_proactive_tokens_after,\n"
+    "                    None,\n"
+    "                )\n"
+    "                return (summary_prompt, subagent_trajectory_refs)\n"
+)
+
+
+def _terminus2_nel_ensure_compaction_state(self) -> None:
+    if not hasattr(self, "_nel_pending_compaction"):
+        self._nel_pending_compaction = None
+    if not hasattr(self, "_nel_compaction_step_overlays"):
+        self._nel_compaction_step_overlays: dict[int, dict[str, Any]] = {}
+    if not hasattr(self, "_nel_last_unwind_pairs"):
+        self._nel_last_unwind_pairs = 0
+    if not hasattr(self, "_nel_last_unwind_target"):
+        self._nel_last_unwind_target = None
+    if not hasattr(self, "_nel_cle_chat_reset_applied"):
+        self._nel_cle_chat_reset_applied = False
+    if not hasattr(self, "_nel_stashed_tokens_before"):
+        self._nel_stashed_tokens_before = None
+    if not hasattr(self, "_nel_stashed_tokens_after"):
+        self._nel_stashed_tokens_after = None
+    if not hasattr(self, "_nel_stashed_tokens_intermediate"):
+        self._nel_stashed_tokens_intermediate = None
+
+
+def _terminus2_nel_stash_compaction_token_snapshots(
+    self,
+    tokens_before: CompactionTokens,
+    tokens_after: CompactionTokens,
+    tokens_intermediate: CompactionTokensIntermediate | None,
+) -> None:
+    self._nel_ensure_compaction_state()
+    self._nel_stashed_tokens_before = tokens_before
+    self._nel_stashed_tokens_after = tokens_after
+    self._nel_stashed_tokens_intermediate = tokens_intermediate
+
+
+def _terminus2_nel_token_snapshot(self, chat) -> CompactionTokens:
+    from nemo_evaluator.solvers.compaction_logging import CompactionTokens
+
+    context_limit = self._llm.get_model_context_limit()
+    current_tokens = self._count_total_tokens(chat)
+    return CompactionTokens(
+        prompt_tokens_approx=current_tokens,
+        context_limit=context_limit,
+        free_tokens=context_limit - current_tokens,
+    )
+
+
+def _terminus2_nel_steps_compacted(self) -> StepsCompacted | None:
+    from nemo_evaluator.solvers.compaction_logging import StepsCompacted
+
+    if not self._trajectory_steps:
+        return None
+    first_step_id = 2 if len(self._trajectory_steps) > 1 else 1
+    last_step_id = len(self._trajectory_steps)
+    if last_step_id < first_step_id:
+        return None
+    return StepsCompacted(
+        first_step_id=first_step_id,
+        last_step_id=last_step_id,
+        step_count=last_step_id - first_step_id + 1,
+    )
+
+
+def _terminus2_nel_compaction_mechanism(self) -> CompactionMechanism:
+    from nemo_evaluator.solvers.compaction_logging import CompactionMechanism
+
+    unwind_pairs = int(getattr(self, "_nel_last_unwind_pairs", 0) or 0)
+    return CompactionMechanism(
+        unwind_applied=unwind_pairs > 0,
+        chat_reset_applied=bool(getattr(self, "_nel_cle_chat_reset_applied", False)),
+        messages_unwound_pairs=unwind_pairs,
+        unwind_target_free_tokens=getattr(self, "_nel_last_unwind_target", None),
+    )
+
+
+def _terminus2_nel_make_compaction_event(
+    self,
+    *,
+    trigger: CompactionTrigger,
+    strategy: CompactionStrategy,
+    replacement_content: str,
+    subagent_refs: Any,
+    attempts: list[CompactionAttempt] | None,
+    tokens_before: CompactionTokens,
+    tokens_after: CompactionTokens,
+    tokens_intermediate: CompactionTokensIntermediate | None = None,
+) -> CompactionEvent:
+    from nemo_evaluator.solvers.compaction_logging import (
+        CompactionEvent,
+        llm_call_count_for_strategy,
+        subagent_trajectory_refs_to_dicts,
+    )
+
+    if strategy != "terminus_three_phase_subagent":
+        self._summarization_count += 1
+    compaction_index = self._summarization_count
+    return CompactionEvent(
+        compaction_index=compaction_index,
+        trigger=trigger,
+        strategy=strategy,
+        replacement_content=replacement_content,
+        tokens_before=tokens_before,
+        tokens_after=tokens_after,
+        tokens_intermediate=tokens_intermediate,
+        llm_call_count=llm_call_count_for_strategy(strategy),
+        steps_compacted=self._nel_steps_compacted(),
+        mechanism=self._nel_compaction_mechanism(),
+        subagent_trajectory_ref=subagent_trajectory_refs_to_dicts(subagent_refs),
+        attempts=attempts or None,
+    )
+
+
+def _terminus2_nel_record_failed_compaction_attempt(
+    self,
+    attempts: list[CompactionAttempt],
+    strategy: CompactionStrategy,
+    error: str,
+) -> None:
+    from nemo_evaluator.solvers.compaction_logging import CompactionAttempt, llm_call_count_for_strategy
+
+    attempts.append(
+        CompactionAttempt(
+            strategy=strategy,
+            error=error,
+            llm_calls=llm_call_count_for_strategy(strategy),
+        )
+    )
+
+
+def _terminus2_nel_set_proactive_pending_compaction(self, chat, prompt: str, subagent_refs: Any) -> None:
+    self._nel_ensure_compaction_state()
+    tokens_before = self._nel_stashed_tokens_before
+    tokens_after = self._nel_stashed_tokens_after
+    tokens_intermediate = self._nel_stashed_tokens_intermediate
+    if tokens_before is None or tokens_after is None:
+        raise RuntimeError(
+            "Proactive compaction token snapshots are missing; "
+            "_check_proactive_summarization was not patched to capture them."
+        )
+    self._nel_last_unwind_pairs = 0
+    self._nel_last_unwind_target = None
+    self._nel_cle_chat_reset_applied = False
+    self._nel_pending_compaction = self._nel_make_compaction_event(
+        trigger="proactive_threshold",
+        strategy="terminus_three_phase_subagent",
+        replacement_content=prompt,
+        subagent_refs=subagent_refs,
+        attempts=None,
+        tokens_before=tokens_before,
+        tokens_after=tokens_after,
+        tokens_intermediate=tokens_intermediate,
+    )
+    self._nel_stashed_tokens_before = None
+    self._nel_stashed_tokens_after = None
+    self._nel_stashed_tokens_intermediate = None
+
+
+def _terminus2_nel_set_cle_pending_compaction(
+    self,
+    summary_prompt: str,
+    strategy: CompactionStrategy,
+    attempts: list[CompactionAttempt],
+    subagent_refs: Any,
+    tokens_before: CompactionTokens,
+    tokens_after: CompactionTokens,
+    tokens_after_unwind: CompactionTokens | None,
+    tokens_after_chat_reset: CompactionTokens | None,
+) -> None:
+    from nemo_evaluator.solvers.compaction_logging import CompactionTokensIntermediate
+
+    self._nel_ensure_compaction_state()
+    tokens_intermediate = None
+    if tokens_after_unwind is not None or tokens_after_chat_reset is not None:
+        tokens_intermediate = CompactionTokensIntermediate(
+            after_unwind=tokens_after_unwind,
+            after_chat_reset=tokens_after_chat_reset,
+        )
+    self._nel_pending_compaction = self._nel_make_compaction_event(
+        trigger="context_length_exceeded",
+        strategy=strategy,
+        replacement_content=summary_prompt,
+        subagent_refs=subagent_refs,
+        attempts=attempts or None,
+        tokens_before=tokens_before,
+        tokens_after=tokens_after,
+        tokens_intermediate=tokens_intermediate,
+    )
+
+
+def _terminus2_nel_flush_pending_compaction(self, chat) -> None:
+    from nemo_evaluator.solvers.compaction_logging import compaction_event_to_harbor_step
+
+    self._nel_ensure_compaction_state()
+    event = self._nel_pending_compaction
+    if event is None:
+        return
+
+    step_id = len(self._trajectory_steps) + 1
+    step, llm_call_count = compaction_event_to_harbor_step(event, step_id)
+    self._trajectory_steps.append(step)
+    self._nel_compaction_step_overlays[step_id] = {"llm_call_count": llm_call_count}
+
+    handoff_prompt = event.replacement_content
+    self._nel_pending_compaction = None
+    self._pending_subagent_refs = None
+    self._pending_handoff_prompt = None
+    self._nel_cle_chat_reset_applied = False
+    self._nel_last_unwind_pairs = 0
+    self._nel_last_unwind_target = None
+
+    if self._linear_history and handoff_prompt:
+        self._split_trajectory_on_summarization(handoff_prompt)
+
+
+def _terminus2_nel_dump_trajectory_with_continuation_index(self, continuation_index: int) -> None:
+    from harbor.models.trajectories.agent import Agent
+    from harbor.models.trajectories.final_metrics import FinalMetrics
+    from harbor.models.trajectories.trajectory import Trajectory
+    from harbor.utils.trajectory_utils import format_trajectory_json
+
+    if not self._context:
+        self.logger.warning("No context available, skipping trajectory dump")
+        return
+
+    final_metrics = FinalMetrics(
+        total_prompt_tokens=self._context.n_input_tokens,
+        total_completion_tokens=self._context.n_output_tokens,
+        total_cached_tokens=self._context.n_cache_tokens or 0,
+        total_cost_usd=self._context.cost_usd if self._context.cost_usd else None,
+    )
+
+    agent_extra = {
+        "parser": self._parser_name,
+        "temperature": self._temperature,
+    }
+    if self._llm_kwargs:
+        agent_extra["llm_kwargs"] = self._llm_kwargs
+    if self._linear_history and continuation_index > 0:
+        agent_extra["continuation_index"] = continuation_index
+
+    continued_trajectory_ref = None
+    if self._linear_history and continuation_index < self._summarization_count:
+        next_continuation_index = continuation_index + 1
+        continued_trajectory_ref = f"trajectory.cont-{next_continuation_index}.json"
+
+    trajectory = Trajectory(
+        session_id=self._session_id,
+        agent=Agent(
+            name=self.name(),
+            version=self.version() or "unknown",
+            model_name=self._model_name,
+            extra=agent_extra,
+        ),
+        steps=self._trajectory_steps,
+        final_metrics=final_metrics,
+        continued_trajectory_ref=continued_trajectory_ref,
+    )
+
+    if self._linear_history and continuation_index > 0:
+        trajectory_path = self.logs_dir / f"trajectory.cont-{continuation_index}.json"
+    else:
+        trajectory_path = self.logs_dir / "trajectory.json"
+
+    trajectory_dict = trajectory.to_json_dict()
+    overlays = getattr(self, "_nel_compaction_step_overlays", None) or {}
+    for step in trajectory_dict.get("steps", []):
+        step_id = step.get("step_id")
+        if step_id in overlays:
+            step.update(overlays[step_id])
+
+    try:
+        with open(trajectory_path, "w") as f:
+            json_str = format_trajectory_json(trajectory_dict)
+            f.write(json_str)
+        self.logger.debug(f"Trajectory dumped to {trajectory_path}")
+    except Exception as e:
+        self.logger.error(f"Failed to dump trajectory: {e}")
+
+
+def _apply_source_replacements(src: str, replacements: list[tuple[str, str]], *, label: str) -> str:
+    for anchor, replacement in replacements:
+        occurrences = src.count(anchor)
+        if occurrences != 1:
+            raise RuntimeError(
+                f"Cannot patch {label}: expected exactly one match for an anchor but found "
+                f"{occurrences}. Harbor's terminus_2.py has diverged from the expected source."
+            )
+        src = src.replace(anchor, replacement, 1)
+    return src
+
+
+def _patch_terminus_compaction_logging() -> None:
+    global _TERMINUS_COMPACTION_PATCHED, _TERMINUS_QUERY_LLM_SRC
+    if _TERMINUS_COMPACTION_PATCHED:
+        return
+
+    import inspect
+    import textwrap
+
+    from harbor.agents.terminus_2 import terminus_2 as terminus2_mod
+
+    terminus2_mod.Terminus2._nel_ensure_compaction_state = _terminus2_nel_ensure_compaction_state
+    terminus2_mod.Terminus2._nel_stash_compaction_token_snapshots = _terminus2_nel_stash_compaction_token_snapshots
+    terminus2_mod.Terminus2._nel_token_snapshot = _terminus2_nel_token_snapshot
+    terminus2_mod.Terminus2._nel_steps_compacted = _terminus2_nel_steps_compacted
+    terminus2_mod.Terminus2._nel_compaction_mechanism = _terminus2_nel_compaction_mechanism
+    terminus2_mod.Terminus2._nel_make_compaction_event = _terminus2_nel_make_compaction_event
+    terminus2_mod.Terminus2._nel_record_failed_compaction_attempt = _terminus2_nel_record_failed_compaction_attempt
+    terminus2_mod.Terminus2._nel_set_proactive_pending_compaction = _terminus2_nel_set_proactive_pending_compaction
+    terminus2_mod.Terminus2._nel_set_cle_pending_compaction = _terminus2_nel_set_cle_pending_compaction
+    terminus2_mod.Terminus2._nel_flush_pending_compaction = _terminus2_nel_flush_pending_compaction
+    terminus2_mod.Terminus2._dump_trajectory_with_continuation_index = (
+        _terminus2_nel_dump_trajectory_with_continuation_index
+    )
+
+    run_loop_src = inspect.getsource(inspect.unwrap(terminus2_mod.Terminus2._run_agent_loop))
+    if "_nel_flush_pending_compaction" in run_loop_src:
+        _TERMINUS_COMPACTION_PATCHED = True
+        logger.info("Terminus2._run_agent_loop already contains compaction logging; skipping patch")
+        return
+
+    run_loop_src = _apply_source_replacements(
+        run_loop_src,
+        [
+            (_PROACTIVE_COMPACTION_ANCHOR, _PROACTIVE_COMPACTION_REPLACEMENT),
+            (_RUN_AGENT_LOOP_COMPACTION_ANCHOR, _RUN_AGENT_LOOP_COMPACTION_REPLACEMENT),
+        ],
+        label="Terminus2._run_agent_loop for compaction logging",
+    )
+    run_loop_namespace: dict[str, Any] = {}
+    exec(textwrap.dedent(run_loop_src), terminus2_mod.__dict__, run_loop_namespace)
+    terminus2_mod.Terminus2._run_agent_loop = run_loop_namespace["_run_agent_loop"]
+
+    proactive_method = inspect.unwrap(terminus2_mod.Terminus2._check_proactive_summarization)
+    try:
+        proactive_src = inspect.getsource(proactive_method)
+    except OSError:
+        proactive_src = ""
+    if "_nel_stash_compaction_token_snapshots" not in proactive_src:
+        if not proactive_src:
+            if "_nel_stash_compaction_token_snapshots" not in proactive_method.__code__.co_names:
+                raise RuntimeError(
+                    "Cannot patch Terminus2._check_proactive_summarization for compaction logging: "
+                    "source is unavailable and the method is not already patched."
+                )
+        else:
+            proactive_src = _apply_source_replacements(
+                proactive_src,
+                [(_PROACTIVE_CHECK_ANCHOR, _PROACTIVE_CHECK_REPLACEMENT)],
+                label="Terminus2._check_proactive_summarization for compaction logging",
+            )
+            proactive_namespace: dict[str, Any] = {}
+            exec(textwrap.dedent(proactive_src), terminus2_mod.__dict__, proactive_namespace)
+            terminus2_mod.Terminus2._check_proactive_summarization = proactive_namespace[
+                "_check_proactive_summarization"
+            ]
+
+    if _TERMINUS_QUERY_LLM_SRC is None:
+        _TERMINUS_QUERY_LLM_SRC = inspect.getsource(inspect.unwrap(terminus2_mod.Terminus2._query_llm))
+    query_src = _TERMINUS_QUERY_LLM_SRC
+    if "_nel_set_cle_pending_compaction" not in query_src:
+        query_replacements = [
+            (
+                "            self._unwind_messages_to_free_tokens(chat, target_free_tokens=4000)\n"
+                "\n"
+                "            summary_prompt = None\n",
+                "            nel_cle_tokens_before = self._nel_token_snapshot(chat)\n"
+                "            nel_cle_tokens_after_unwind = None\n"
+                "            nel_cle_tokens_after_chat_reset = None\n"
+                "            self._unwind_messages_to_free_tokens(chat, target_free_tokens=4000)\n"
+                "            nel_cle_tokens_after_unwind = self._nel_token_snapshot(chat)\n"
+                "            nel_cle_attempts = []\n"
+                '            nel_cle_strategy = "terminus_ultimate_fallback"\n'
+                "            nel_cle_subagent_refs = None\n"
+                "\n"
+                "            summary_prompt = None\n",
+            ),
+            (
+                '                self.logger.debug("SUMMARIZATION: Full summary succeeded")\n',
+                '                self.logger.debug("SUMMARIZATION: Full summary succeeded")\n'
+                '                nel_cle_strategy = "terminus_three_phase_subagent"\n'
+                "                nel_cle_subagent_refs = subagent_trajectory_refs\n",
+            ),
+            (
+                '                self.logger.debug(f"SUMMARIZATION: Full summary failed: {e}")\n',
+                '                self.logger.debug(f"SUMMARIZATION: Full summary failed: {e}")\n'
+                "                self._nel_record_failed_compaction_attempt(\n"
+                '                    nel_cle_attempts, "terminus_three_phase_subagent", str(e)\n'
+                "                )\n",
+            ),
+            (
+                '                    self.logger.debug("SUMMARIZATION: Short summary succeeded")\n',
+                '                    self.logger.debug("SUMMARIZATION: Short summary succeeded")\n'
+                '                    nel_cle_strategy = "terminus_short_fallback"\n',
+            ),
+            (
+                '                    self.logger.error(f"SUMMARIZATION: Short summary failed: {e}")\n',
+                '                    self.logger.error(f"SUMMARIZATION: Short summary failed: {e}")\n'
+                "                    self._nel_record_failed_compaction_attempt(\n"
+                '                        nel_cle_attempts, "terminus_short_fallback", str(e)\n'
+                "                    )\n",
+            ),
+        ]
+        if "full_summarize_failed_with_cle" in query_src:
+            query_replacements.append(
+                (
+                    "            if full_summarize_failed_with_cle:\n"
+                    "                chat._messages = [chat.messages[0]]\n"
+                    "                chat.reset_response_chain()\n",
+                    "            if full_summarize_failed_with_cle:\n"
+                    "                chat._messages = [chat.messages[0]]\n"
+                    "                chat.reset_response_chain()\n"
+                    "                self._nel_cle_chat_reset_applied = True\n"
+                    "                nel_cle_tokens_after_chat_reset = self._nel_token_snapshot(chat)\n",
+                )
+            )
+        else:
+            query_replacements.append(
+                (
+                    "            if prompt_path is not None:\n"
+                    "                prompt_path.write_text(summary_prompt)\n"
+                    "\n"
+                    "            try:\n"
+                    "                start_time = time.time()\n"
+                    "                llm_response = await chat.chat(\n",
+                    "            if prompt_path is not None:\n"
+                    "                prompt_path.write_text(summary_prompt)\n"
+                    "\n"
+                    "            self._nel_cle_chat_reset_applied = False\n"
+                    "\n"
+                    "            try:\n"
+                    "                start_time = time.time()\n"
+                    "                llm_response = await chat.chat(\n",
+                )
+            )
+
+        query_replacements.append(
+            (
+                "            if response_path is not None:\n"
+                "                response_path.write_text(llm_response.content)\n"
+                "            return llm_response\n"
+                "\n"
+                "        except OutputLengthExceededError as e:\n",
+                "            if response_path is not None:\n"
+                "                response_path.write_text(llm_response.content)\n"
+                "            nel_cle_tokens_after = self._nel_token_snapshot(chat)\n"
+                "            self._nel_set_cle_pending_compaction(\n"
+                "                summary_prompt,\n"
+                "                nel_cle_strategy,\n"
+                "                nel_cle_attempts,\n"
+                "                nel_cle_subagent_refs,\n"
+                "                nel_cle_tokens_before,\n"
+                "                nel_cle_tokens_after,\n"
+                "                nel_cle_tokens_after_unwind,\n"
+                "                nel_cle_tokens_after_chat_reset,\n"
+                "            )\n"
+                "            return llm_response\n"
+                "\n"
+                "        except OutputLengthExceededError as e:\n",
+            )
+        )
+        query_src = _apply_source_replacements(
+            query_src,
+            query_replacements,
+            label="Terminus2._query_llm for compaction logging",
+        )
+        query_namespace: dict[str, Any] = {}
+        exec(textwrap.dedent(query_src), terminus2_mod.__dict__, query_namespace)
+        terminus2_mod.Terminus2._query_llm = query_namespace["_query_llm"]
+        _TERMINUS_QUERY_LLM_SRC = query_src
+
+    _TERMINUS_COMPACTION_PATCHED = True
+    logger.info("Patched Terminus2 for ATIF context compaction logging")
 
 
 _TOKENIZER_REGISTRY: dict[str, dict] = {}
@@ -1788,6 +2371,7 @@ class HarborSolver:
             _patch_terminus_unwind_min_pairs()
             _patch_terminus_api_token_anchor()
             _patch_harbor_lite_llm_context_length_matcher()
+            _patch_terminus_compaction_logging()
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
         _configure_terminus_tokenizer(
