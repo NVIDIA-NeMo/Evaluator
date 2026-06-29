@@ -26,15 +26,16 @@ class TrajectoriesConfig(BaseModel):
 
     The audit report (``trajectories_report.json``) is emitted unconditionally
     by the orchestrator finalize step when ``trajectories.jsonl`` exists.
-    When ``enrich=True``, also writes ``trajectories_enriched.jsonl``: per-trial
-    step metrics are backfilled 1:1 from matching ``model_traffic.jsonl`` wire
-    calls when counts align, otherwise all wire calls land in
+    Enrichment is enabled by default. Set ``enrich=False`` to opt out of
+    writing ``trajectories_enriched.jsonl``. When enabled, per-trial step
+    metrics are backfilled 1:1 from matching ``model_traffic.jsonl`` wire calls
+    when counts align, otherwise all wire calls land in
     ``trajectory[0].extra.captured_model_calls``.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    enrich: bool = False
+    enrich: bool = True
 
 
 class OutputConfig(BaseModel):
