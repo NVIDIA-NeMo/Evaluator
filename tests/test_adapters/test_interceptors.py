@@ -522,6 +522,11 @@ async def test_turn_counter_threshold_new_user_appends_trailing_user_message():
             id="string-content",
         ),
         pytest.param(
+            {"role": "tool", "tool_call_id": "call_1", "content": ""},
+            lambda reminder: reminder,
+            id="empty-string-content",
+        ),
+        pytest.param(
             {"role": "tool", "tool_call_id": "call_1"},
             lambda reminder: reminder,
             id="missing-content",
