@@ -513,8 +513,11 @@ async def test_turn_counter_threshold_new_user_appends_trailing_user_message():
     assert "Begin wrapping up" in result.body["messages"][-1]["content"]
 
 
-async def test_turn_counter_remind_every_appends_to_trailing_tool_before_threshold():
-    ic = InterceptorRegistry.create("turn_counter", {"max_turns": 10, "remind_every": 2})
+async def test_turn_counter_pre_threshold_tool_reminder_appends_to_trailing_tool_before_threshold():
+    ic = InterceptorRegistry.create(
+        "turn_counter",
+        {"max_turns": 10, "pre_threshold_tool_reminder_interval": 2},
+    )
     base_messages = [
         {"role": "user", "content": "initial task"},
         {"role": "assistant", "content": "calling tool"},
@@ -524,7 +527,7 @@ async def test_turn_counter_remind_every_appends_to_trailing_tool_before_thresho
     for turn in range(1, 8):
         body = {"model": "test", "messages": [msg.copy() for msg in base_messages]}
         r = _req(body)
-        r.ctx.extra["session_id"] = "remind-every-tool"
+        r.ctx.extra["session_id"] = "pre-threshold-tool-reminder"
         result = await ic.intercept_request(r)
         last = result.body["messages"][-1]
         if turn in {2, 4, 6}:
@@ -537,15 +540,18 @@ async def test_turn_counter_remind_every_appends_to_trailing_tool_before_thresho
 
     body = {"model": "test", "messages": [msg.copy() for msg in base_messages]}
     r = _req(body)
-    r.ctx.extra["session_id"] = "remind-every-tool"
+    r.ctx.extra["session_id"] = "pre-threshold-tool-reminder"
     result = await ic.intercept_request(r)
     assert result.body["messages"][:-1] == base_messages
     assert result.body["messages"][-1]["role"] == "system"
     assert result.body["messages"][-1]["content"].startswith("[SYSTEM] Turn 8/10")
 
 
-async def test_turn_counter_remind_every_skips_when_last_message_is_not_tool():
-    ic = InterceptorRegistry.create("turn_counter", {"max_turns": 10, "remind_every": 2})
+async def test_turn_counter_pre_threshold_tool_reminder_skips_when_last_message_is_not_tool():
+    ic = InterceptorRegistry.create(
+        "turn_counter",
+        {"max_turns": 10, "pre_threshold_tool_reminder_interval": 2},
+    )
     messages = [
         {"role": "user", "content": "initial task"},
         {"role": "assistant", "content": "not a tool result"},
@@ -554,7 +560,7 @@ async def test_turn_counter_remind_every_skips_when_last_message_is_not_tool():
     for _ in range(2):
         body = {"model": "test", "messages": [msg.copy() for msg in messages]}
         r = _req(body)
-        r.ctx.extra["session_id"] = "remind-every-skip"
+        r.ctx.extra["session_id"] = "pre-threshold-tool-reminder-skip"
         result = await ic.intercept_request(r)
 
     assert result.body["messages"] == messages
@@ -584,20 +590,26 @@ async def test_turn_counter_invalid_interval_raises():
         )
 
 
-async def test_turn_counter_invalid_remind_every_raises():
-    with pytest.raises(ValueError, match="remind_every"):
-        InterceptorRegistry.create("turn_counter", {"max_turns": 10, "remind_every": -1})
+async def test_turn_counter_invalid_pre_threshold_tool_reminder_interval_raises():
+    with pytest.raises(ValueError, match="pre_threshold_tool_reminder_interval"):
+        InterceptorRegistry.create(
+            "turn_counter",
+            {"max_turns": 10, "pre_threshold_tool_reminder_interval": -1},
+        )
 
 
-async def test_turn_counter_warns_when_remind_every_is_used_with_periodic_trigger(caplog):
-    """remind_every is threshold-only, so periodic configs log that it is ignored."""
+async def test_turn_counter_warns_when_pre_threshold_tool_reminder_is_used_with_periodic_trigger(caplog):
+    """pre_threshold_tool_reminder_interval is threshold-only, so periodic configs log that it is ignored."""
 
     with caplog.at_level(logging.WARNING, logger="nemo_evaluator.adapters.interceptors.turn_counter"):
         InterceptorRegistry.create(
             "turn_counter",
-            {"max_turns": 10, "trigger": "periodic", "remind_every": 2},
+            {"max_turns": 10, "trigger": "periodic", "pre_threshold_tool_reminder_interval": 2},
         )
-    assert any("remind_every is only applied with trigger=threshold" in record.message for record in caplog.records)
+    assert any(
+        "pre_threshold_tool_reminder_interval is only applied with trigger=threshold" in record.message
+        for record in caplog.records
+    )
 
 
 async def test_turn_counter_warns_when_max_turns_is_unset(caplog):

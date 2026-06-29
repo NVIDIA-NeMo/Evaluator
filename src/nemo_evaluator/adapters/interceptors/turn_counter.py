@@ -90,10 +90,10 @@ class Interceptor(RequestInterceptor):
 
     Additional threshold-only option:
 
-    * ``remind_every`` — optional threshold-mode reminder cadence. When
-      set to ``N > 0``, appends the environment reminder to the trailing
-      tool message every ``N`` turns before threshold reminders start. It
-      is ignored for ``trigger=periodic``.
+    * ``pre_threshold_tool_reminder_interval`` — optional threshold-mode
+      reminder cadence. When set to ``N > 0``, appends the environment
+      reminder to the trailing tool message every ``N`` turns before
+      threshold reminders start. It is ignored for ``trigger=periodic``.
     """
 
     def __init__(
@@ -104,27 +104,29 @@ class Interceptor(RequestInterceptor):
         position: str | InjectionPosition = InjectionPosition.SYSTEM_MESSAGE,
         trigger: str | InjectionTrigger = InjectionTrigger.THRESHOLD,
         interval: int = 1,
-        remind_every: int | None = None,
+        pre_threshold_tool_reminder_interval: int | None = None,
     ) -> None:
         if interval < 1:
             raise ValueError(f"interval must be >= 1, got {interval}")
-        if remind_every is not None and remind_every < 0:
-            raise ValueError(f"remind_every must be >= 0, got {remind_every}")
+        if pre_threshold_tool_reminder_interval is not None and pre_threshold_tool_reminder_interval < 0:
+            raise ValueError(
+                f"pre_threshold_tool_reminder_interval must be >= 0, got {pre_threshold_tool_reminder_interval}"
+            )
         self._every = max(every, 1)
         self._max = max_turns
         self._position = InjectionPosition(position)
         self._trigger = InjectionTrigger(trigger)
         self._interval = interval
-        self._remind_every = remind_every or None
+        self._pre_threshold_tool_reminder_interval = pre_threshold_tool_reminder_interval or None
         self._sessions: dict[str, _Session] = {}
         self._lock = asyncio.Lock()
         self._last_gc = time.monotonic()
 
-        if self._trigger is InjectionTrigger.PERIODIC and self._remind_every is not None:
+        if self._trigger is InjectionTrigger.PERIODIC and self._pre_threshold_tool_reminder_interval is not None:
             logger.warning(
-                "turn_counter: remind_every is only applied with trigger=threshold; "
-                "ignoring remind_every=%d for trigger=periodic.",
-                self._remind_every,
+                "turn_counter: pre_threshold_tool_reminder_interval is only applied with trigger=threshold; "
+                "ignoring pre_threshold_tool_reminder_interval=%d for trigger=periodic.",
+                self._pre_threshold_tool_reminder_interval,
             )
 
         if max_turns is None:
@@ -190,11 +192,17 @@ class Interceptor(RequestInterceptor):
         if self._trigger is InjectionTrigger.THRESHOLD:
             severity = self._threshold_severity(n)
             if severity is _Severity.NON_ACTIONABLE:
-                if self._remind_every is not None and n % self._remind_every == 0:
+                if (
+                    self._pre_threshold_tool_reminder_interval is not None
+                    and n % self._pre_threshold_tool_reminder_interval == 0
+                ):
                     notice = _REMINDER_TEMPLATE.format(remaining=remaining)
                     self._append_to_trailing_tool_message(messages, notice, key, n)
                 return req
             body = self._threshold_message_body(n, remaining, severity)
+            # ``new_user_message`` uses role="user" for chat APIs that reject
+            # mid-conversation system messages (Qwen/OpenAI strict). Keep the
+            # [SYSTEM] prefix so the reminder still reads as a framework directive.
             notice = (
                 f"[SYSTEM] {body}"
                 if self._position in (InjectionPosition.SYSTEM_MESSAGE, InjectionPosition.NEW_USER_MESSAGE)
