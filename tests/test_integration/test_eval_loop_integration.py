@@ -439,3 +439,88 @@ class TestJudgeFnSerialization:
         judge = result["scoring_details"]["judge"]
         assert judge["total"] is None
         assert "judge exploded" in judge["error"]
+
+
+class _JudgeScoreEnv(EvalEnvironment):
+    """Env whose verify() requests the built-in judge_score path (no _judge_fn)."""
+
+    name = "mock_judge_score"
+
+    def __init__(self, n):
+        super().__init__()
+        self._dataset = [{"idx": i} for i in range(n)]
+
+    async def seed(self, idx):
+        return SeedResult(prompt=f"q{idx}", expected_answer="a", metadata={"idx": idx})
+
+    async def verify(self, response, expected, **meta):  # noqa: ARG002
+        return VerifyResult(reward=0.0, extracted_answer=response, scoring_details={"needs_judge": True})
+
+
+class _ScriptedSolver:
+    """Echoes the response it is told to emit per problem index."""
+
+    def __init__(self, responses):
+        self._responses = responses
+
+    async def solve(self, task):
+        return SolveResult(response=self._responses[task.metadata["idx"]])
+
+    async def close(self):
+        pass
+
+
+class _ScriptedJudgeClient:
+    """Returns a valid score for a 'good' response and an unparseable reply otherwise."""
+
+    model = "mock-judge"
+
+    async def chat(self, prompt, system):  # noqa: ARG002
+        if "good" in prompt:
+            return ModelResponse(content='{"score": 4, "reasoning": "ok"}', model=self.model)
+        return ModelResponse(content="No score here, just vibes.", model=self.model)
+
+
+class TestUnparseableJudgeNotScoredZero:
+    """Regression: an unparseable judge reply is recorded as a judge error and
+    excluded from reward metrics rather than counted as a real 0 (PR #1094)."""
+
+    def test_unparseable_reply_recorded_as_judge_error(self, tmp_path):
+        env = _JudgeScoreEnv(1)
+        bundle = asyncio.run(
+            run_evaluation(
+                env,
+                _ScriptedSolver(["bad"]),
+                n_repeats=1,
+                judge_client=_ScriptedJudgeClient(),
+                step_log_dir=tmp_path,
+            )
+        )
+
+        (result,) = bundle["_results"]
+        judge = result["scoring_details"]["judge"]
+        assert judge["error"] == "unparseable_judge_response"
+        assert result["scoring_details"]["error_category"] == "judge_parse_error"
+
+    def test_unparseable_reply_excluded_from_reward_metrics(self, tmp_path):
+        # Problem 0 gets a clean 4/5 (normalized 0.8); problem 1's judge reply is
+        # unparseable. The unparseable sample must not pull the mean down to 0.4.
+        env = _JudgeScoreEnv(2)
+        bundle = asyncio.run(
+            run_evaluation(
+                env,
+                _ScriptedSolver(["good", "bad"]),
+                n_repeats=1,
+                judge_client=_ScriptedJudgeClient(),
+                step_log_dir=tmp_path,
+            )
+        )
+
+        scores = bundle["benchmark"]["scores"]
+        # Only the parseable sample contributes — mean reflects 0.8, not (0.8+0)/2.
+        assert scores["mean_reward"]["value"] == 0.8
+        assert scores["summary"]["n"] == 1
+        # Both samples are still recorded; the unparseable one is flagged, not dropped.
+        assert len(bundle["_results"]) == 2
+        flagged = [r for r in bundle["_results"] if r["scoring_details"].get("error_category") == "judge_parse_error"]
+        assert len(flagged) == 1
