@@ -268,6 +268,20 @@ async def _download_agent_logs_inner(
             pass
 
 
+def _openhands_compaction_module_files() -> dict[str, bytes]:
+    solvers_dir = Path(__file__).parent
+    return {
+        "/installed-agent/nel/nemo_evaluator/__init__.py": b"",
+        "/installed-agent/nel/nemo_evaluator/solvers/__init__.py": b"",
+        "/installed-agent/nel/nemo_evaluator/solvers/compaction_logging.py": (
+            solvers_dir / "compaction_logging.py"
+        ).read_bytes(),
+        "/installed-agent/nel/nemo_evaluator/solvers/openhands_compaction.py": (
+            solvers_dir / "openhands_compaction.py"
+        ).read_bytes(),
+    }
+
+
 async def _patch_openhands_sdk(sandbox: Sandbox, *, cmd_timeout: float | None = None) -> None:
     """Apply runtime patches to the OpenHands SDK inside the sandbox.
 
@@ -304,6 +318,10 @@ async def _patch_openhands_sdk(sandbox: Sandbox, *, cmd_timeout: float | None = 
        Inject the env lookup so ``solver.agent_kwargs.llm_kwargs.timeout``
        (mapped to ``container_env.LLM_TIMEOUT``) reaches OpenHands
        ``LLM(timeout=...)`` and LiteLLM per-request timeouts.
+
+    6. **Log OpenHands condensation in ATIF trajectories** — upload NEL
+       compaction helpers and splice system compaction steps after
+       ``build_trajectory()`` when ``Condensation`` events are present.
     """
     # -- Patch 0: disable stuck detection + default visualizer -----------
     # stuck_detection=False: the SDK's heuristic mis-flags reasoning-model
@@ -895,6 +913,97 @@ print(f'budget_flush={success}')
             "Budget-flush patch problem (rc=%d): %s",
             r4.return_code,
             stdout4 or (r4.stderr or "")[:300],
+        )
+
+    _compaction_files_payload = {
+        path: base64.b64encode(content).decode() for path, content in _openhands_compaction_module_files().items()
+    }
+    _compaction_upload_script = (
+        "import base64, json, os\n"
+        f"files = json.loads({json.dumps(_compaction_files_payload)!r})\n"
+        "for path, content_b64 in files.items():\n"
+        "    os.makedirs(os.path.dirname(path), exist_ok=True)\n"
+        "    with open(path, 'wb') as f:\n"
+        "        f.write(base64.b64decode(content_b64))\n"
+        "print('nel_compaction_modules=ok')\n"
+    )
+    encoded_compaction_upload = base64.b64encode(_compaction_upload_script.encode()).decode()
+    r_compaction_upload = await sandbox.exec(
+        f"echo {encoded_compaction_upload} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout_compaction_upload = (r_compaction_upload.stdout or "").strip()
+    logger.info("OpenHands compaction module upload: %s", stdout_compaction_upload)
+    if r_compaction_upload.return_code != 0 or "ok" not in stdout_compaction_upload:
+        logger.warning(
+            "OpenHands compaction module upload problem (rc=%d): %s",
+            r_compaction_upload.return_code,
+            stdout_compaction_upload or (r_compaction_upload.stderr or "")[:300],
+        )
+
+    _compaction_inject_script = """\
+import sys
+p = '/installed-agent/run_agent.py'
+c = open(p).read()
+
+old = (
+    '    trajectory = build_trajectory(\\n'
+    '        events_list,\\n'
+    '        metrics,\\n'
+    '        model,\\n'
+    '        system_prompt=system_prompt,\\n'
+    '        tool_definitions=tool_definitions,\\n'
+    '    )\\n'
+    '\\n'
+    '    trajectory_path = Path(args.trajectory_path)'
+)
+
+new = (
+    '    trajectory = build_trajectory(\\n'
+    '        events_list,\\n'
+    '        metrics,\\n'
+    '        model,\\n'
+    '        system_prompt=system_prompt,\\n'
+    '        tool_definitions=tool_definitions,\\n'
+    '    )\\n'
+    '    if "/installed-agent/nel" not in sys.path:\\n'
+    '        sys.path.insert(0, "/installed-agent/nel")\\n'
+    '    from nemo_evaluator.solvers.openhands_compaction import enrich_trajectory_with_compaction\\n'
+    '    _ctx_lim_raw = os.environ.get("CONTEXT_LIMIT") or os.environ.get("MAX_INPUT_TOKENS") or "128000"\\n'
+    '    _ctx_lim = int(_ctx_lim_raw)\\n'
+    '    _oh_cfg = {}\\n'
+    '    if os.environ.get("OPENHANDS_CONDENSER_MAX_SIZE"):\\n'
+    '        _oh_cfg["max_size"] = int(os.environ["OPENHANDS_CONDENSER_MAX_SIZE"])\\n'
+    '    if os.environ.get("OPENHANDS_CONDENSER_MAX_TOKENS"):\\n'
+    '        _oh_cfg["max_tokens"] = int(os.environ["OPENHANDS_CONDENSER_MAX_TOKENS"])\\n'
+    '    if os.environ.get("OPENHANDS_CONDENSER_KEEP_FIRST"):\\n'
+    '        _oh_cfg["keep_first"] = int(os.environ["OPENHANDS_CONDENSER_KEEP_FIRST"])\\n'
+    '    trajectory = enrich_trajectory_with_compaction(\\n'
+    '        trajectory, conversation.state.events, llm, _ctx_lim, condenser_config=_oh_cfg or None,\\n'
+    '    )\\n'
+    '\\n'
+    '    trajectory_path = Path(args.trajectory_path)'
+)
+
+already = 'enrich_trajectory_with_compaction' in c
+ok = old in c and not already
+if ok:
+    c = c.replace(old, new, 1)
+    open(p, 'w').write(c)
+print(f'openhands_compaction_inject={ok} already={already}')
+"""
+    encoded_compaction_inject = base64.b64encode(_compaction_inject_script.encode()).decode()
+    r_compaction_inject = await sandbox.exec(
+        f"echo {encoded_compaction_inject} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout_compaction_inject = (r_compaction_inject.stdout or "").strip()
+    logger.info("OpenHands compaction inject: %s", stdout_compaction_inject)
+    if r_compaction_inject.return_code != 0 or "openhands_compaction_inject=False" in stdout_compaction_inject:
+        logger.warning(
+            "OpenHands compaction inject problem (rc=%d): %s",
+            r_compaction_inject.return_code,
+            stdout_compaction_inject or (r_compaction_inject.stderr or "")[:300],
         )
 
 
@@ -1831,7 +1940,7 @@ def _terminus2_nel_set_proactive_pending_compaction(self, chat, prompt: str, sub
     self._nel_last_unwind_target = None
     self._nel_cle_chat_reset_applied = False
     self._nel_pending_compaction = self._nel_make_compaction_event(
-        trigger="proactive_threshold",
+        trigger="terminus_proactive_threshold",
         strategy="terminus_three_phase_subagent",
         replacement_content=prompt,
         subagent_refs=subagent_refs,
@@ -1866,7 +1975,7 @@ def _terminus2_nel_set_cle_pending_compaction(
             after_chat_reset=tokens_after_chat_reset,
         )
     self._nel_pending_compaction = self._nel_make_compaction_event(
-        trigger="context_length_exceeded",
+        trigger="terminus_context_length_exceeded",
         strategy=strategy,
         replacement_content=summary_prompt,
         subagent_refs=subagent_refs,

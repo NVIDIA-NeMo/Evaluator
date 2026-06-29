@@ -7,9 +7,13 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 
 CompactionTrigger = Literal[
-    "proactive_threshold",
-    "context_length_exceeded",
-    "agent_initiated",
+    "terminus_proactive_threshold",
+    "terminus_context_length_exceeded",
+    "terminus_agent_initiated",
+    "openhands_condensation_events",
+    "openhands_condensation_tokens",
+    "openhands_condensation_request",
+    "openhands_condensation_hard_reset",
     "unknown",
 ]
 
@@ -70,6 +74,35 @@ class CompactionAttempt:
 
 
 @dataclass
+class OpenHandsCompactionExtra:
+    reason: str | None = None
+    requirement: str | None = None
+    hard_reset: bool = False
+    forgotten_event_count: int = 0
+    max_size: int | None = None
+    max_tokens: int | None = None
+    keep_first: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        if self.reason is not None:
+            out["reason"] = self.reason
+        if self.requirement is not None:
+            out["requirement"] = self.requirement
+        if self.hard_reset:
+            out["hard_reset"] = True
+        if self.forgotten_event_count:
+            out["forgotten_event_count"] = self.forgotten_event_count
+        if self.max_size is not None:
+            out["max_size"] = self.max_size
+        if self.max_tokens is not None:
+            out["max_tokens"] = self.max_tokens
+        if self.keep_first is not None:
+            out["keep_first"] = self.keep_first
+        return out
+
+
+@dataclass
 class CompactionObservationExtra:
     compaction_prompt_tokens: int | None = None
     compaction_completion_tokens: int | None = None
@@ -102,6 +135,7 @@ class CompactionEvent:
     subagent_trajectory_ref: list[dict[str, Any]] | None = None
     attempts: list[CompactionAttempt] | None = None
     observation_extra: CompactionObservationExtra | None = None
+    openhands_extra: OpenHandsCompactionExtra | None = None
     timestamp: str | None = None
     message: str = COMPACTION_MESSAGE
 
@@ -250,6 +284,10 @@ def build_compaction_step(event: CompactionEvent, step_id: int) -> dict[str, Any
         compaction_extra["mechanism"] = _mechanism_to_dict(event.mechanism)
     if event.attempts:
         compaction_extra["attempts"] = [_attempt_to_dict(a) for a in event.attempts]
+    if event.openhands_extra is not None:
+        oh_extra = event.openhands_extra.to_dict()
+        if oh_extra:
+            compaction_extra["openhands"] = oh_extra
 
     return {
         "step_id": step_id,

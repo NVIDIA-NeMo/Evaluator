@@ -19,7 +19,7 @@ from nemo_evaluator.solvers.compaction_logging import (
 def _minimal_event(**overrides) -> CompactionEvent:
     base = CompactionEvent(
         compaction_index=1,
-        trigger="proactive_threshold",
+        trigger="terminus_proactive_threshold",
         strategy="terminus_three_phase_subagent",
         replacement_content="handoff text",
         tokens_before=CompactionTokens(
@@ -69,7 +69,7 @@ def test_build_compaction_step_full_three_phase() -> None:
 
 def test_build_compaction_step_with_intermediate_tokens() -> None:
     event = _minimal_event(
-        trigger="context_length_exceeded",
+        trigger="terminus_context_length_exceeded",
         strategy="terminus_short_fallback",
         tokens_intermediate=CompactionTokensIntermediate(
             after_unwind=CompactionTokens(
@@ -131,6 +131,30 @@ def test_llm_call_count_for_strategy() -> None:
     assert llm_call_count_for_strategy("terminus_three_phase_subagent") == 3
     assert llm_call_count_for_strategy("terminus_short_fallback") == 1
     assert llm_call_count_for_strategy("terminus_ultimate_fallback") == 0
+
+
+def test_build_compaction_step_openhands_extra() -> None:
+    from nemo_evaluator.solvers.compaction_logging import OpenHandsCompactionExtra
+
+    event = _minimal_event(
+        trigger="openhands_condensation_events",
+        strategy="openhands_condensation",
+        llm_call_count=1,
+        subagent_trajectory_ref=None,
+        mechanism=None,
+        openhands_extra=OpenHandsCompactionExtra(
+            reason="events",
+            requirement="soft",
+            forgotten_event_count=12,
+            max_size=80,
+        ),
+    )
+    step = build_compaction_step(event, step_id=4)
+    openhands = step["extra"]["compaction"]["openhands"]
+    assert openhands["reason"] == "events"
+    assert openhands["forgotten_event_count"] == 12
+    assert openhands["max_size"] == 80
+    assert "mechanism" not in step["extra"]["compaction"]
 
 
 def test_compaction_event_to_harbor_step() -> None:
