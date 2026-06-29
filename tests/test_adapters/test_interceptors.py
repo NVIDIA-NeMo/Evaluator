@@ -429,6 +429,34 @@ async def test_turn_counter_periodic_system_emits_template_as_system_message():
             assert result.body["messages"][-1]["role"] == "user"
 
 
+async def test_turn_counter_periodic_new_user_appends_trailing_user_message():
+    """periodic+new_user_message appends a new user turn without mutating prior messages."""
+    ic = InterceptorRegistry.create(
+        "turn_counter",
+        {"max_turns": 10, "position": "new_user_message", "trigger": "periodic", "interval": 2},
+    )
+    original_messages = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "initial task"},
+        {"role": "assistant", "content": "working"},
+        {"role": "tool", "content": "tool result"},
+    ]
+
+    for turn in range(1, 5):
+        body = {"model": "test", "messages": [msg.copy() for msg in original_messages]}
+        r = _req(body)
+        r.ctx.extra["session_id"] = "periodic-new-user"
+        result = await ic.intercept_request(r)
+        if turn % 2 == 0:
+            assert result.body["messages"][:-1] == original_messages
+            assert result.body["messages"][-1] == {
+                "role": "user",
+                "content": f"ENVIRONMENT REMINDER: You have {10 - turn} turns left to complete the task.",
+            }
+        else:
+            assert result.body["messages"] == original_messages
+
+
 async def test_turn_counter_threshold_user_uses_threshold_body_without_system_prefix():
     """threshold+user_message reuses the threshold WARN/URGENT body (without [SYSTEM] prefix)."""
     ic = InterceptorRegistry.create(
@@ -453,6 +481,122 @@ async def test_turn_counter_threshold_user_uses_threshold_body_without_system_pr
                 assert "Begin wrapping up" in last_content
 
 
+async def test_turn_counter_threshold_new_user_appends_trailing_user_message():
+    """threshold+new_user_message appends a new user turn without mutating prior messages."""
+    ic = InterceptorRegistry.create(
+        "turn_counter",
+        {"max_turns": 10, "position": "new_user_message", "trigger": "threshold"},
+    )
+    original_messages = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "initial task"},
+        {"role": "assistant", "content": "working"},
+        {"role": "tool", "content": "tool result"},
+    ]
+
+    for turn in range(1, 8):
+        body = {"model": "test", "messages": [msg.copy() for msg in original_messages]}
+        r = _req(body)
+        r.ctx.extra["session_id"] = "threshold-new-user"
+        result = await ic.intercept_request(r)
+        if turn < 8:
+            assert result.body["messages"] == original_messages
+
+    body = {"model": "test", "messages": [msg.copy() for msg in original_messages]}
+    r = _req(body)
+    r.ctx.extra["session_id"] = "threshold-new-user"
+    result = await ic.intercept_request(r)
+
+    assert result.body["messages"][:-1] == original_messages
+    assert result.body["messages"][-1]["role"] == "user"
+    assert result.body["messages"][-1]["content"].startswith("[SYSTEM] Turn 8/10")
+    assert "Begin wrapping up" in result.body["messages"][-1]["content"]
+
+
+@pytest.mark.parametrize(
+    ("tool_message", "expected_content"),
+    [
+        pytest.param(
+            {"role": "tool", "tool_call_id": "call_1", "content": "tool result"},
+            lambda reminder: f"tool result\n\n{reminder}",
+            id="string-content",
+        ),
+        pytest.param(
+            {"role": "tool", "tool_call_id": "call_1", "content": ""},
+            lambda reminder: reminder,
+            id="empty-string-content",
+        ),
+        pytest.param(
+            {"role": "tool", "tool_call_id": "call_1"},
+            lambda reminder: reminder,
+            id="missing-content",
+        ),
+        pytest.param(
+            {"role": "tool", "tool_call_id": "call_1", "content": None},
+            lambda reminder: reminder,
+            id="none-content",
+        ),
+        pytest.param(
+            {"role": "tool", "tool_call_id": "call_1", "content": [{"type": "text", "text": "tool result"}]},
+            lambda reminder: [{"type": "text", "text": "tool result"}, {"type": "text", "text": reminder}],
+            id="list-content",
+        ),
+    ],
+)
+async def test_turn_counter_pre_threshold_tool_reminder_appends_to_trailing_tool_before_threshold(
+    tool_message, expected_content
+):
+    ic = InterceptorRegistry.create(
+        "turn_counter",
+        {"max_turns": 10, "pre_threshold_tool_reminder_interval": 2},
+    )
+    base_messages = [
+        {"role": "user", "content": "initial task"},
+        {"role": "assistant", "content": "calling tool"},
+        tool_message,
+    ]
+
+    for turn in range(1, 8):
+        body = {"model": "test", "messages": [msg.copy() for msg in base_messages]}
+        r = _req(body)
+        r.ctx.extra["session_id"] = "pre-threshold-tool-reminder"
+        result = await ic.intercept_request(r)
+        last = result.body["messages"][-1]
+        if turn in {2, 4, 6}:
+            reminder = f"ENVIRONMENT REMINDER: You have {10 - turn} turns left to complete the task."
+            assert last["role"] == "tool"
+            assert last["content"] == expected_content(reminder)
+        else:
+            assert result.body["messages"] == base_messages
+
+    body = {"model": "test", "messages": [msg.copy() for msg in base_messages]}
+    r = _req(body)
+    r.ctx.extra["session_id"] = "pre-threshold-tool-reminder"
+    result = await ic.intercept_request(r)
+    assert result.body["messages"][:-1] == base_messages
+    assert result.body["messages"][-1]["role"] == "system"
+    assert result.body["messages"][-1]["content"].startswith("[SYSTEM] Turn 8/10")
+
+
+async def test_turn_counter_pre_threshold_tool_reminder_skips_when_last_message_is_not_tool():
+    ic = InterceptorRegistry.create(
+        "turn_counter",
+        {"max_turns": 10, "pre_threshold_tool_reminder_interval": 2},
+    )
+    messages = [
+        {"role": "user", "content": "initial task"},
+        {"role": "assistant", "content": "not a tool result"},
+    ]
+
+    for _ in range(2):
+        body = {"model": "test", "messages": [msg.copy() for msg in messages]}
+        r = _req(body)
+        r.ctx.extra["session_id"] = "pre-threshold-tool-reminder-skip"
+        result = await ic.intercept_request(r)
+
+    assert result.body["messages"] == messages
+
+
 async def test_turn_counter_invalid_position_raises():
     with pytest.raises(ValueError, match="not a valid InjectionPosition"):
         InterceptorRegistry.create(
@@ -475,6 +619,28 @@ async def test_turn_counter_invalid_interval_raises():
             "turn_counter",
             {"max_turns": 10, "position": "user_message", "trigger": "periodic", "interval": 0},
         )
+
+
+async def test_turn_counter_invalid_pre_threshold_tool_reminder_interval_raises():
+    with pytest.raises(ValueError, match="pre_threshold_tool_reminder_interval"):
+        InterceptorRegistry.create(
+            "turn_counter",
+            {"max_turns": 10, "pre_threshold_tool_reminder_interval": -1},
+        )
+
+
+async def test_turn_counter_warns_when_pre_threshold_tool_reminder_is_used_with_periodic_trigger(caplog):
+    """pre_threshold_tool_reminder_interval is threshold-only, so periodic configs log that it is ignored."""
+
+    with caplog.at_level(logging.WARNING, logger="nemo_evaluator.adapters.interceptors.turn_counter"):
+        InterceptorRegistry.create(
+            "turn_counter",
+            {"max_turns": 10, "trigger": "periodic", "pre_threshold_tool_reminder_interval": 2},
+        )
+    assert any(
+        "pre_threshold_tool_reminder_interval is only applied with trigger=threshold" in record.message
+        for record in caplog.records
+    )
 
 
 async def test_turn_counter_warns_when_max_turns_is_unset(caplog):
