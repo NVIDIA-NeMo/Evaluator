@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import copy
 import json
 import logging
 import os
@@ -901,6 +902,46 @@ print(f'budget_flush={success}')
 # ---------------------------------------------------------------------------
 
 
+def _flatten_atif_continuation_chain(root: dict[str, Any], agent_logs_dir: Path) -> dict[str, Any]:
+    merged = copy.deepcopy(root)
+    steps: list[dict[str, Any]] = list(merged.get("steps") or [])
+    current = root
+    while True:
+        continued_ref = current.get("continued_trajectory_ref")
+        if not continued_ref or not isinstance(continued_ref, str):
+            break
+        next_path = agent_logs_dir / continued_ref
+        if not next_path.is_file():
+            logger.warning(
+                "continued_trajectory_ref %r points to missing file %s",
+                continued_ref,
+                next_path,
+            )
+            break
+        try:
+            continuation = json.loads(next_path.read_text())
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Failed to read continuation trajectory %s: %s", next_path, exc)
+            break
+        if not isinstance(continuation, dict):
+            break
+        cont_steps = continuation.get("steps")
+        if isinstance(cont_steps, list):
+            steps.extend(copy.deepcopy(cont_steps))
+        current = continuation
+
+    for index, step in enumerate(steps, start=1):
+        if isinstance(step, dict):
+            step["step_id"] = index
+
+    merged["steps"] = steps
+    merged.pop("continued_trajectory_ref", None)
+    final_metrics = current.get("final_metrics")
+    if isinstance(final_metrics, dict):
+        merged["final_metrics"] = copy.deepcopy(final_metrics)
+    return merged
+
+
 def _recover_from_logs(agent_logs_dir: Path) -> dict[str, Any]:
     """Read trajectory + token counts from *agent_logs_dir*.
 
@@ -932,8 +973,14 @@ def _recover_from_logs(agent_logs_dir: Path) -> dict[str, Any]:
 
         parsed = _parse_atif(raw)
         if parsed:
+            doc = parsed["doc"]
+            if tf.name == "trajectory.json":
+                doc = _flatten_atif_continuation_chain(doc, agent_logs_dir)
+                merged_parse = _parse_atif(doc)
+                if merged_parse:
+                    parsed = merged_parse
             logger.info("Trajectory loaded from %s", tf.name)
-            out["trajectory"] = [parsed["doc"]]
+            out["trajectory"] = [doc]
             out["prompt_tokens"] = parsed["prompt_tokens"]
             out["completion_tokens"] = parsed["completion_tokens"]
             out["response"] = parsed["response"]
