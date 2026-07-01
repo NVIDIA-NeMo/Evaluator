@@ -499,11 +499,9 @@ new_c = (
     '            _rc = event.get("reasoning_content", "")\\n'
     '            if _rc:\\n'
     '                step["reasoning_content"] = _rc\\n'
-    '            _u = event.get("usage") or {}\\n'
-    '            _pt = int(_u.get("prompt_tokens", 0) or 0) if isinstance(_u, dict) else 0\\n'
-    '            _ct = int(_u.get("completion_tokens", 0) or 0) if isinstance(_u, dict) else 0\\n'
-    '            if _pt or _ct:\\n'
-    '                step["metrics"] = {"prompt_tokens": _pt, "completion_tokens": _ct}\\n'
+    '            _u = event.get("usage")\\n'
+    '            if isinstance(_u, dict):\\n'
+    '                step["metrics"] = {"prompt_tokens": int(_u.get("prompt_tokens", 0) or 0), "completion_tokens": int(_u.get("completion_tokens", 0) or 0)}\\n'
     '            steps.append(step)\\n'
     '            step_id += 1\\n'
     '\\n'
@@ -554,6 +552,86 @@ new_d = (
 old_schema = '"schema_version": "ATIF-v1.5",'
 new_schema = '"schema_version": "ATIF-v1.7",'
 
+# Enable the LLM summarizing condenser when OH_CONDENSER_MAX_SIZE is set.
+old_cond_build = '    agent = Agent(**agent_kwargs)'
+new_cond_build = (
+    '    _cms = os.environ.get("OH_CONDENSER_MAX_SIZE")\\n'
+    '    if _cms:\\n'
+    '        from openhands.sdk.context.condenser import LLMSummarizingCondenser\\n'
+    '        _ck = {"llm": llm, "max_size": int(_cms), "keep_first": 4}\\n'
+    '        _cmt = os.environ.get("OH_CONDENSER_MAX_TOKENS")\\n'
+    '        if _cmt:\\n'
+    '            _ck["max_tokens"] = int(_cmt)\\n'
+    '        agent_kwargs["condenser"] = LLMSummarizingCondenser(**_ck)\\n'
+    '        print(f"Condenser enabled: max_size={_cms} max_tokens={_cmt}")\\n'
+    '    agent = Agent(**agent_kwargs)'
+)
+
+# Import the Condensation event type (used by the condensation logging below).
+old_cond_import = (
+    '    ActionEvent,\\n'
+    '    MessageEvent,'
+)
+new_cond_import = (
+    '    ActionEvent,\\n'
+    '    Condensation,\\n'
+    '    MessageEvent,'
+)
+
+# Initialise condensation tracking + per-event word counts before the event loop.
+old_cond_init = (
+    '    last_agent_timestamp: str | None = None\\n'
+    '    for event in conversation.state.events:\\n'
+    '        if isinstance(event, MessageEvent):'
+)
+new_cond_init = (
+    '    last_agent_timestamp: str | None = None\\n'
+    '    event_words_by_id = {}\\n'
+    '    _cond_records = []\\n'
+    '    for event in conversation.state.events:\\n'
+    '        event_words_by_id[getattr(event, "id", "")] = len(str(event).split())\\n'
+    '        if isinstance(event, MessageEvent):'
+)
+
+# Record each condensation event and persist the totals to metrics.
+old_cond_branch = (
+    '                        break\\n'
+    '\\n'
+    '    # Build and save trajectory\\n'
+    '    trajectory = build_trajectory('
+)
+new_cond_branch = (
+    '                        break\\n'
+    '        elif isinstance(event, Condensation):\\n'
+    '            _forgotten = list(event.forgotten_event_ids or [])\\n'
+    '            _summary = event.summary or ""\\n'
+    '            _cond_records.append({"forgotten_events": len(_forgotten), "forgotten_words": sum(event_words_by_id.get(fid, 0) for fid in _forgotten), "summary_words": len(_summary.split()), "summary_chars": len(_summary), "success": bool(_summary.strip())})\\n'
+    '            print(f"Condensation #{len(_cond_records)}: forgot {len(_forgotten)} events -> summary {len(_summary.split())} words ({len(_summary)} chars), success={bool(_summary.strip())}")\\n'
+    '\\n'
+    '    if _cond_records:\\n'
+    '        metrics["condensations"] = len(_cond_records)\\n'
+    '        metrics["condensation_details"] = _cond_records\\n'
+    '\\n'
+    '    # Build and save trajectory\\n'
+    '    trajectory = build_trajectory('
+)
+
+# Surface the condensation summary in build_trajectory's final_metrics.
+old_cond_final = (
+    '    }\\n'
+    '\\n'
+    '    return trajectory'
+)
+new_cond_final = (
+    '    }\\n'
+    '\\n'
+    '    if llm_metrics.get("condensations"):\\n'
+    '        trajectory["final_metrics"]["condensations"] = llm_metrics["condensations"]\\n'
+    '        trajectory["final_metrics"]["condensation_details"] = llm_metrics.get("condensation_details", [])\\n'
+    '\\n'
+    '    return trajectory'
+)
+
 ok_a = old_a in c
 c = c.replace(old_a, new_a, 1) if ok_a else c
 ok_b = old_b in c
@@ -564,8 +642,19 @@ ok_d = old_d in c
 c = c.replace(old_d, new_d, 1) if ok_d else c
 ok_schema = old_schema in c
 c = c.replace(old_schema, new_schema, 1) if ok_d and ok_schema else c
+ok_cond_build = old_cond_build in c
+c = c.replace(old_cond_build, new_cond_build, 1) if ok_cond_build else c
+ok_cond_import = old_cond_import in c
+c = c.replace(old_cond_import, new_cond_import, 1) if ok_cond_import else c
+ok_cond_init = old_cond_init in c
+c = c.replace(old_cond_init, new_cond_init, 1) if ok_cond_init else c
+ok_cond_branch = old_cond_branch in c
+c = c.replace(old_cond_branch, new_cond_branch, 1) if ok_cond_branch else c
+ok_cond_final = old_cond_final in c
+c = c.replace(old_cond_final, new_cond_final, 1) if ok_cond_final else c
 open(p, 'w').write(c)
 print(f'reasoning+metrics+timing: msg={ok_a} action={ok_b} traj={ok_c} timing={ok_d} schema={ok_schema}')
+print(f'condenser: build={ok_cond_build} import={ok_cond_import} init={ok_cond_init} branch={ok_cond_branch} final={ok_cond_final}')
 """
     encoded = base64.b64encode(_reasoning_script.encode()).decode()
     r3 = await sandbox.exec(
@@ -1453,6 +1542,28 @@ def _configure_terminus_tokenizer(*, is_terminus2: bool, model_name: str, tokeni
         _register_harbor_tokenizer(model_name, tokenizer)
 
 
+def _count_zero_token_agent_turns(trajectory: Any) -> int:
+    """Count agent LLM turns recorded with zero prompt+completion tokens.
+
+    A zero-token turn means an LLM response carried no usage — the symptom of a
+    context reset/condensation that failed to fire (local ``litellm.token_counter``
+    vs. API token-count mismatch). Surfaced for observability, not classified as
+    an infra error.
+    """
+    docs = trajectory if isinstance(trajectory, list) else [trajectory]
+    count = 0
+    for doc in docs:
+        if not isinstance(doc, dict):
+            continue
+        for step in doc.get("steps") or []:
+            if not isinstance(step, dict) or step.get("source") != "agent":
+                continue
+            metrics = step.get("metrics")
+            if isinstance(metrics, dict) and metrics.get("prompt_tokens") == 0 and metrics.get("completion_tokens") == 0:
+                count += 1
+    return count
+
+
 class HarborSolver:
     """Runs any Harbor agent inside an evaluator :class:`Sandbox`.
 
@@ -1508,6 +1619,14 @@ class HarborSolver:
                 llm_timeout = llm_kw.get("timeout")
                 if llm_timeout is not None:
                     self._container_env.setdefault("LLM_TIMEOUT", str(int(float(llm_timeout))))
+            # Config-driven OpenHands condenser: agent_kwargs.condenser_max_size ->
+            # env var read by the run_agent.py patch (see _reasoning_script).
+            cms = self._harbor_agent_kwargs.get("condenser_max_size")
+            if cms is not None:
+                self._container_env.setdefault("OH_CONDENSER_MAX_SIZE", str(int(cms)))
+            cmt = self._harbor_agent_kwargs.get("condenser_max_tokens")
+            if cmt is not None:
+                self._container_env.setdefault("OH_CONDENSER_MAX_TOKENS", str(int(cmt)))
         self._max_input_tokens = max_input_tokens
         self._max_output_tokens = max_output_tokens
         self._tokenizer = tokenizer
@@ -1537,6 +1656,9 @@ class HarborSolver:
         _patch_terminus_tmux_send_keys()
 
         kwargs = dict(self._harbor_agent_kwargs)
+        # Consumed via OH_CONDENSER_MAX_SIZE env (see __init__); not a harbor agent kwarg.
+        kwargs.pop("condenser_max_size", None)
+        kwargs.pop("condenser_max_tokens", None)
         url = model_url or self._model_url
         model_id = _model_id_for_openai(self._model_id, bool(url), agent=self._harbor_agent) if self._model_id else ""
         is_terminus2 = self._harbor_agent.replace("_", "-").lower() == "terminus-2"
@@ -1940,6 +2062,22 @@ class HarborSolver:
                 if isinstance(doc, dict):
                     fm = doc.setdefault("final_metrics", {})
                     fm["workspace_diff_preview"] = workspace_diff[:100_000]
+
+            # OpenHands: flag zero-token agent turns — symptom of a context
+            # reset/condensation that failed to fire (litellm vs API token
+            # mismatch). Observability only; not classified as infra.
+            if self._harbor_agent.lower() in ("openhands", "openhands-sdk") and trajectory:
+                zero_token_turns = _count_zero_token_agent_turns(trajectory)
+                if zero_token_turns:
+                    logger.warning(
+                        "HarborSolver: OpenHands produced %d zero-token agent turn(s) — "
+                        "possible context-reset/condensation failure (litellm vs API token "
+                        "mismatch). See trajectory final_metrics.zero_token_turns.",
+                        zero_token_turns,
+                    )
+                    doc = trajectory[0] if isinstance(trajectory, list) and trajectory else None
+                    if isinstance(doc, dict):
+                        doc.setdefault("final_metrics", {})["zero_token_turns"] = zero_token_turns
 
             # Response: prefer actual agent text, sentinel if empty/echo.
             response = _extract_response(context) or recovered["response"]
