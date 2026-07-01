@@ -33,6 +33,7 @@ _REGISTRY: dict[str, "ModelTrafficStore"] = {}
 _REGISTRY_LOCK = threading.Lock()
 _USAGE_KEYS = ("prompt_tokens", "completion_tokens", "total_tokens", "reasoning_tokens", "cached_tokens")
 _PROVIDER = "provider_reported"
+_ERROR_SUMMARY_CHARS = 4000
 
 
 def register_store(store: "ModelTrafficStore") -> str:
@@ -132,6 +133,52 @@ def _truncate(value: Any, limit: int) -> Any:
     return value
 
 
+def _first_str(data: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        value = data.get(key)
+        if value is not None and value != "":
+            return str(value)
+    return ""
+
+
+def _error_summary(body: Any, max_content_chars: int) -> dict[str, Any]:
+    """Return a compact, non-request error summary for non-success responses."""
+    limit = min(max_content_chars, _ERROR_SUMMARY_CHARS)
+    out: dict[str, Any] = {}
+
+    if isinstance(body, dict):
+        error = body.get("error")
+        if isinstance(error, dict):
+            message = _first_str(error, "message", "detail", "type", "code")
+            if message:
+                out["error_message"] = _truncate(message, limit)
+            if error.get("type") is not None:
+                out["error_type"] = str(error["type"])
+            if error.get("code") is not None:
+                out["error_code"] = str(error["code"])
+        elif error is not None:
+            out["error_message"] = _truncate(str(error), limit)
+
+        if "error_message" not in out:
+            message = _first_str(body, "message", "detail", "error_message")
+            if message:
+                out["error_message"] = _truncate(message, limit)
+        try:
+            out["error_body"] = _truncate(json.dumps(body, sort_keys=True, default=str), limit)
+        except (TypeError, ValueError):
+            pass
+        return out
+
+    if isinstance(body, bytes):
+        text = body.decode("utf-8", errors="replace")
+    else:
+        text = str(body) if body is not None else ""
+    if text:
+        out["error_message"] = _truncate(text, limit)
+        out["error_body"] = _truncate(text, limit)
+    return out
+
+
 def _full_tool_calls_from_message(message: dict[str, Any], limit: int) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for raw in message.get("tool_calls") or []:
@@ -159,9 +206,9 @@ def _full_tool_calls_from_message(message: dict[str, Any], limit: int) -> list[d
 def _summary_from_json(
     body: dict[str, Any],
     *,
-    capture_tool_calls: bool = False,
-    capture_reasoning: bool = False,
-    capture_messages: bool = False,
+    capture_tool_calls: bool = True,
+    capture_reasoning: bool = True,
+    capture_messages: bool = True,
     max_content_chars: int = 100_000,
 ) -> dict[str, Any]:
     tool_names: list[str] = []
@@ -241,9 +288,9 @@ def _iter_sse(body: Any) -> Iterator[dict[str, Any]]:
 def _summary_from_sse(
     body: Any,
     *,
-    capture_tool_calls: bool = False,
-    capture_reasoning: bool = False,
-    capture_messages: bool = False,
+    capture_tool_calls: bool = True,
+    capture_reasoning: bool = True,
+    capture_messages: bool = True,
     max_content_chars: int = 100_000,
 ) -> dict[str, Any]:
     model = ""
@@ -324,9 +371,9 @@ class ModelTrafficStore:
         self,
         *,
         service_name: str | None = None,
-        capture_tool_calls: bool = False,
-        capture_reasoning: bool = False,
-        capture_messages: bool = False,
+        capture_tool_calls: bool = True,
+        capture_reasoning: bool = True,
+        capture_messages: bool = True,
         max_content_chars: int = 100_000,
     ) -> None:
         self.store_id = uuid.uuid4().hex
@@ -334,7 +381,7 @@ class ModelTrafficStore:
         self._lock = threading.Lock()
         self._pending: dict[str, dict[str, Any]] = {}
         self._records_by_session: dict[str, list[dict[str, Any]]] = {}
-        # Opt-in capture: extra fields persisted to model_traffic.jsonl when set.
+        # Capture options for extra response fields persisted to model_traffic.jsonl.
         self._capture_opts = {
             "capture_tool_calls": capture_tool_calls,
             "capture_reasoning": capture_reasoning,
@@ -385,6 +432,8 @@ class ModelTrafficStore:
                 "tool_calls": summary["tool_calls"] if success else {"count": 0, "names": {}},
             }
         )
+        if not success:
+            record.update(_error_summary(resp.body, self._capture_opts["max_content_chars"]))
         # Persist opt-in capture fields when present (and the call succeeded).
         if success:
             for key in ("tool_calls_full", "reasoning_content", "message_content"):
