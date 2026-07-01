@@ -246,6 +246,24 @@ class TestStartProxyFinishReason:
         names = self._run(svc)
         assert names.count("finish_reason") == 1
 
+    def test_preconfigured_finish_reason_moved_to_end(self):
+        from nemo_evaluator.config.services import InterceptorConfig, ProxyConfig
+
+        svc = MagicMock()
+        gen = MagicMock()
+        gen.model_dump.return_value = {"max_tokens": 16}
+        svc.generation = gen
+        svc.proxy = ProxyConfig(
+            interceptors=[
+                InterceptorConfig(name="finish_reason"),
+                InterceptorConfig(name="turn_counter"),
+            ]
+        )
+        names = self._run(svc)
+        assert names.count("finish_reason") == 1
+        assert names[-1] == "finish_reason"
+        assert names.index("finish_reason") > names.index("payload_modifier")
+
     def test_opt_out_via_proxy_flag(self):
         from nemo_evaluator.config.services import ProxyConfig
 
