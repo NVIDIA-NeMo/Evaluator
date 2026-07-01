@@ -128,4 +128,10 @@ class Interceptor(RequestInterceptor, ResponseInterceptor):
             content = message.get("content")
         else:
             content = choice.get("text")
-        return not (content or "").strip()
+        if isinstance(content, str):
+            text = content
+        elif isinstance(content, list):
+            text = "".join(part.get("text", "") for part in content if isinstance(part, dict))
+        else:
+            text = ""
+        return not text.strip()

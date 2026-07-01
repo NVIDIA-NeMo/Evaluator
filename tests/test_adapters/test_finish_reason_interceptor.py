@@ -174,3 +174,27 @@ class TestEmptyGenerationWarning:
         await i.intercept_request(req)
         await i.intercept_response(resp)
         assert not any("empty generation" in r.getMessage() for r in caplog.records)
+
+    async def test_warns_on_empty_structured_content(self, caplog):
+        caplog.set_level(logging.WARNING, logger="nemo_evaluator.adapters.interceptors.finish_reason")
+        i = Interceptor()
+        resp_body = {
+            "choices": [{"finish_reason": "stop", "message": {"content": [{"type": "text", "text": "   "}]}}],
+            "usage": {"completion_tokens": 10},
+        }
+        req, resp = _make_pair({"max_tokens": 100}, resp_body)
+        await i.intercept_request(req)
+        await i.intercept_response(resp)
+        assert any("empty generation" in r.getMessage() for r in caplog.records)
+
+    async def test_no_warning_with_structured_content_text(self, caplog):
+        caplog.set_level(logging.WARNING, logger="nemo_evaluator.adapters.interceptors.finish_reason")
+        i = Interceptor()
+        resp_body = {
+            "choices": [{"finish_reason": "stop", "message": {"content": [{"type": "text", "text": "real answer"}]}}],
+            "usage": {"completion_tokens": 10},
+        }
+        req, resp = _make_pair({"max_tokens": 100}, resp_body)
+        await i.intercept_request(req)
+        await i.intercept_response(resp)
+        assert not any("empty generation" in r.getMessage() for r in caplog.records)
