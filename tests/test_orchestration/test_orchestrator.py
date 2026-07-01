@@ -246,6 +246,27 @@ class TestStartProxyFinishReason:
         names = self._run(svc)
         assert names.count("finish_reason") == 1
 
+    def test_opt_out_via_proxy_flag(self):
+        from nemo_evaluator.config.services import ProxyConfig
+
+        svc = MagicMock()
+        svc.generation = None
+        svc.proxy = ProxyConfig(finish_reason_fixup=False)
+        names = self._run(svc)
+        assert "finish_reason" not in names
+
+    def test_opt_out_still_keeps_other_interceptors(self):
+        from nemo_evaluator.config.services import InterceptorConfig, ProxyConfig
+
+        svc = MagicMock()
+        svc.generation = None
+        svc.proxy = ProxyConfig(
+            interceptors=[InterceptorConfig(name="turn_counter")],
+            finish_reason_fixup=False,
+        )
+        names = self._run(svc)
+        assert names == ["turn_counter"]
+
 
 class TestGenerateReports:
     """Smoke test: _generate_reports can import from reports.eval and produce output."""
