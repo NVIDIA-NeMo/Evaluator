@@ -1559,7 +1559,11 @@ def _count_zero_token_agent_turns(trajectory: Any) -> int:
             if not isinstance(step, dict) or step.get("source") != "agent":
                 continue
             metrics = step.get("metrics")
-            if isinstance(metrics, dict) and metrics.get("prompt_tokens") == 0 and metrics.get("completion_tokens") == 0:
+            if (
+                isinstance(metrics, dict)
+                and metrics.get("prompt_tokens") == 0
+                and metrics.get("completion_tokens") == 0
+            ):
                 count += 1
     return count
 
