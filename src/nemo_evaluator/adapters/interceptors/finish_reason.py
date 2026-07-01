@@ -131,7 +131,9 @@ class Interceptor(RequestInterceptor, ResponseInterceptor):
         if isinstance(content, str):
             text = content
         elif isinstance(content, list):
-            text = "".join(part.get("text", "") for part in content if isinstance(part, dict))
+            text = "".join(
+                part["text"] for part in content if isinstance(part, dict) and isinstance(part.get("text"), str)
+            )
         else:
             text = ""
         return not text.strip()
