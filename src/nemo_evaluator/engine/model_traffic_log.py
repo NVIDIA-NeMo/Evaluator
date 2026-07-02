@@ -83,6 +83,7 @@ def format_model_traffic_log_records(
             "repeat": repeat,
             "session_id": record.get("session_id"),
             "adapter_request_id": record.get("request_id"),
+            "request_hash": record.get("request_hash") or "",
             "service": record.get("service"),
             "method": record.get("method"),
             "path": record.get("path"),

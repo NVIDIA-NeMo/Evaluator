@@ -183,6 +183,7 @@ def test_format_log_record_response_capture_fields(capture_kwargs: dict, expect_
     rows = format_model_traffic_log_records(store.drain_session("cap-session"), benchmark="b", problem_idx=0, repeat=0)
     assert len(rows) == 1
     row = rows[0]
+    assert row["request_hash"]
     assert row["tool_calls"] == {"count": 1, "names": {"w": 1}}
     if expect_response_fields:
         assert row["tool_calls_full"] == [{"id": "c1", "name": "w", "arguments": "{}"}]
@@ -192,6 +193,36 @@ def test_format_log_record_response_capture_fields(capture_kwargs: dict, expect_
         assert "tool_calls_full" not in row
         assert "reasoning_content" not in row
         assert "message_content" not in row
+
+
+def test_duplicate_requests_persist_same_request_hash() -> None:
+    store = ModelTrafficStore(service_name="solver")
+    body = {"model": "m", "messages": [{"role": "user", "content": "same request"}], "temperature": 0}
+
+    for request_id in ("req-a", "req-b"):
+        ctx = InterceptorContext(request_id=request_id)
+        ctx.extra["session_id"] = "dup-session"
+        store.start_request(AdapterRequest(method="POST", path="/chat/completions", headers={}, body=body, ctx=ctx))
+        store.finish_response(
+            AdapterResponse(
+                status_code=200,
+                headers={"content-type": "application/json"},
+                latency_ms=5.0,
+                ctx=ctx,
+                body=_capture_response_body(),
+            )
+        )
+
+    rows = format_model_traffic_log_records(
+        store.drain_session("dup-session"),
+        benchmark="b",
+        problem_idx=0,
+        repeat=0,
+    )
+
+    assert [row["adapter_request_id"] for row in rows] == ["req-a", "req-b"]
+    assert rows[0]["request_hash"]
+    assert rows[0]["request_hash"] == rows[1]["request_hash"]
 
 
 def test_non_success_response_forwards_compact_error_summary() -> None:
@@ -315,6 +346,7 @@ async def test_model_traffic_writes_compact_log_and_inference_stats(tmp_path: Pa
         assert traffic["session_id"]
         assert traffic["adapter_request_id"]
         assert traffic["model_traffic_request_id"] == f"{traffic['session_id']}:{traffic['adapter_request_id']}"
+        assert traffic["request_hash"]
         assert traffic["service"] == "solver"
         assert traffic["status_code"] == 200
         assert traffic["path"] == "/chat/completions"
