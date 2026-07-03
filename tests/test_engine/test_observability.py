@@ -12,7 +12,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pytest
+
 from nemo_evaluator.observability.collector import ArtifactCollector
+from nemo_evaluator.observability.failure_classification import classify_model_failure
 from nemo_evaluator.observability.types import ModelResponse, StepRecord
 
 
@@ -47,17 +50,95 @@ class TestStepRecord:
 
 
 class TestArtifactCollector:
+    @pytest.mark.parametrize(
+        ("error_msg", "expected_category"),
+        [
+            ("Request timed out after 120s", "model_timeout"),
+            ("429 Too Many Requests", "rate_limit"),
+            ("503 Service Unavailable", "server_error"),
+            ("Error code: 400 - Malformed native tool-call JSON", "model_error"),
+            ("APIStatusError: status_code=418", "model_error"),
+            ("Turn budget exhausted: 20/20 turns used", "turn_budget_exhausted"),
+            (
+                "litellm.RateLimitError: Turn budget exhausted: 215/200 turns used. session 6a83baf1-cc335504",
+                "turn_budget_exhausted",
+            ),
+            ("litellm.ContextWindowExceededError: maximum context length is 262144 tokens", "context_window_exceeded"),
+            (
+                "litellm.BudgetExceededError: Budget has been exceeded! Current cost: 2, Max budget: 1",
+                "budget_exceeded",
+            ),
+            ("litellm.RateLimitError: Too many requests", "rate_limit"),
+            ("litellm.RouterRateLimitError: router cooldown active", "rate_limit"),
+            ("litellm.APITimeoutError: Request timed out", "model_timeout"),
+            ("litellm.BadGatewayError: MidStreamFallbackError: APIConnectionError", "server_error"),
+            ("litellm.MidStreamFallbackError: No fallback model group found", "server_error"),
+            ("litellm.APIConnectionError: connection reset by peer", "server_error"),
+            ("litellm.APIError: provider returned an unexpected server response", "server_error"),
+            ("litellm.ServiceUnavailableError: service unavailable", "server_error"),
+            ("litellm.InternalServerError: internal server error", "server_error"),
+            ("litellm.APIResponseValidationError: response was missing choices", "model_error"),
+            ("litellm.JSONSchemaValidationError: returned an invalid response", "model_error"),
+            ("litellm.AuthenticationError: invalid API key", "model_error"),
+            ("litellm.PermissionDeniedError: permission denied", "model_error"),
+            ("litellm.NotFoundError: model not found", "model_error"),
+            ("litellm.UnprocessableEntityError: invalid payload", "model_error"),
+            ("litellm.UnsupportedParamsError: unsupported response_format", "model_error"),
+            ("litellm.ContentPolicyViolationError: blocked by content policy", "model_error"),
+            ("litellm.ImageFetchError: could not fetch input image", "model_error"),
+            ("litellm.InvalidRequestError: bad request", "model_error"),
+            ("litellm.RejectedRequestError: request rejected", "model_error"),
+            ("litellm.BlockedPiiEntityError: blocked PII entity", "model_error"),
+            ("litellm.GuardrailInterventionNormalStringError: guardrail intervention", "model_error"),
+            ("litellm.ErrorEventError: stream emitted error event", "model_error"),
+            ("litellm.OpenAIError: untyped model client failure", "model_error"),
+        ],
+    )
+    def test_classify_model_failure(self, error_msg, expected_category):
+        assert classify_model_failure(error_msg) == expected_category
+
+    def test_status_codes_are_not_matched_inside_identifiers(self):
+        error = "Agent crashed: ConversationRunError: conversation 6a83baf1-cc335504 had no status code"
+
+        assert classify_model_failure(error) is None
+
+    @pytest.mark.parametrize(
+        "status_code",
+        [200, 201, 204, 302],
+    )
+    def test_success_statuses_are_not_model_failures(self, status_code):
+        assert classify_model_failure(status_code=status_code) is None
+        assert classify_model_failure(f"HTTP {status_code}") is None
+
     def test_failure_classification(self):
         c = ArtifactCollector()
         cases = [
-            ("Request timed out after 120s", "timeout"),
+            ("Request timed out after 120s", "model_timeout"),
             ("429 Too Many Requests", "rate_limit"),
             ("503 Service Unavailable", "server_error"),
+            ("Error code: 400 - Malformed native tool-call JSON", "model_error"),
+            ("Turn budget exhausted: 20/20 turns used", "turn_budget_exhausted"),
         ]
         for error_msg, expected_category in cases:
             step = StepRecord(model_error=error_msg)
             c.record(step)
             assert step.failure_category == expected_category, f"Expected {expected_category} for: {error_msg}"
+
+    @pytest.mark.parametrize(
+        ("scoring_details", "expected_category"),
+        [
+            (
+                {"error": "Error code: 400 - Malformed native tool-call JSON", "error_category": "graceful"},
+                "model_error",
+            ),
+            ({"error": "504 Gateway Timeout", "error_category": "model_timeout"}, "model_timeout"),
+        ],
+    )
+    def test_scoring_error_preempts_empty_response(self, scoring_details, expected_category):
+        c = ArtifactCollector()
+        step = StepRecord(model_response=ModelResponse(content="  "), scoring_details=scoring_details)
+        c.record(step)
+        assert step.failure_category == expected_category
 
     def test_empty_response_detected(self):
         c = ArtifactCollector()

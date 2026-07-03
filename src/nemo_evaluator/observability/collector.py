@@ -21,6 +21,7 @@ from pathlib import Path
 
 import numpy as np
 
+from nemo_evaluator.observability.failure_classification import MODEL_FAILURE_CATEGORIES, classify_model_failure
 from nemo_evaluator.observability.types import (
     FailureRecord,
     FailureReport,
@@ -63,16 +64,13 @@ class ArtifactCollector:
         if isinstance(sd, dict) and sd.get("error_category") == "solve_timeout":
             step.failure_category = "solve_timeout"
             return
-        if step.model_error:
-            err = step.model_error
-            if any(code in err for code in ("408", "timeout", "Timeout", "timed out")):
-                step.failure_category = "timeout"
-            elif any(code in err for code in ("429", "Too Many Requests")):
-                step.failure_category = "rate_limit"
-            elif any(code in err for code in ("500", "502", "503", "504")):
-                step.failure_category = "server_error"
-            else:
-                step.failure_category = "model_error"
+        if isinstance(sd, dict) and sd.get("error_category") in MODEL_FAILURE_CATEGORIES:
+            step.failure_category = sd["error_category"]
+            return
+
+        scoring_error = str(sd.get("error") or "") if isinstance(sd, dict) else ""
+        if step.model_error or scoring_error:
+            step.failure_category = classify_model_failure(step.model_error or scoring_error) or "model_error"
         elif step.model_response:
             content = step.model_response.content
             if not content.strip():

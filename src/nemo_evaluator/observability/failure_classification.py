@@ -1,0 +1,137 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
+
+import re
+from typing import Any
+
+MODEL_FAILURE_CATEGORIES = frozenset(
+    {
+        "turn_budget_exhausted",
+        "context_window_exceeded",
+        "budget_exceeded",
+        "model_timeout",
+        "rate_limit",
+        "server_error",
+        "model_error",
+    }
+)
+
+_STATUS_RE = re.compile(
+    r"(?:status[_ -]?code\s*[=:]\s*|status code\s*[=:]?\s*|error code:\s*|http\s+|status\s+)"
+    r"(?P<code>[1-5][0-9]{2})\b",
+    re.IGNORECASE,
+)
+_LEADING_STATUS_RE = re.compile(r"^\s*(?P<code>[1-5][0-9]{2})\b")
+
+
+def _status_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _status_from_text(text: str) -> int | None:
+    match = _STATUS_RE.search(text) or _LEADING_STATUS_RE.search(text)
+    return _status_int(match.group("code")) if match else None
+
+
+def _has_any(text: str, *markers: str) -> bool:
+    return any(marker in text for marker in markers)
+
+
+def classify_model_failure(error: str = "", *, status_code: Any = None) -> str | None:
+    text = str(error or "").lower()
+    status = _status_int(status_code)
+    if status is None:
+        status = _status_from_text(text)
+    if not text and status is None:
+        return None
+
+    if _has_any(text, "turn budget exhausted", "turn budget exceeded"):
+        return "turn_budget_exhausted"
+    if _has_any(
+        text,
+        "contextwindowexceedederror",
+        "context window exceeded",
+        "context length exceeded",
+        "context length is exceeded",
+        "maximum context length",
+        "maximum context",
+        "too many tokens",
+    ):
+        return "context_window_exceeded"
+    if _has_any(
+        text,
+        "budgetexceedederror",
+        "token budget",
+        "budget exceeded",
+        "budget exhausted",
+        "budget has been exceeded",
+    ):
+        return "budget_exceeded"
+    if status == 429 or _has_any(text, "ratelimiterror", "routerratelimiterror", "rate_limit", "too many requests"):
+        return "rate_limit"
+    if status in {408, 504} or _has_any(
+        text,
+        "apitimeouterror",
+        "apiconnectiontimeouterror",
+        "timeout:",
+        "timeouterror",
+        "timeout error",
+        "request timeout",
+        "request timed out",
+        "upstream timeout",
+        "upstream timed out",
+        "read timeout",
+    ):
+        return "model_timeout"
+    if (status is not None and 500 <= status < 600) or _has_any(
+        text,
+        "badgatewayerror",
+        "apiconnectionerror",
+        "serviceunavailableerror",
+        "internalservererror",
+        "midstreamfallbackerror",
+        "apiservererror",
+        "api server error",
+        "service unavailable",
+        "bad gateway",
+        "gateway timeout",
+        "httpx.connecterror",
+        "httpx.remoteprotocolerror",
+        "apierror",
+        "no fallback model group found",
+    ):
+        return "server_error"
+    if status == 400 or _has_any(
+        text,
+        "apiresponsevalidationerror",
+        "jsonschemavalidationerror",
+        "badrequesterror",
+        "apistatuserror",
+        "authenticationerror",
+        "openaierror",
+        "permissiondeniederror",
+        "notfounderror",
+        "unprocessableentityerror",
+        "contentpolicyviolationerror",
+        "unsupportedparamserror",
+        "imagefetcherror",
+        "bad request",
+        "invalid_request",
+        "invalid request",
+        "invalidrequesterror",
+        "rejectedrequesterror",
+        "blockedpiientityerror",
+        "guardrailinterventionnormalstringerror",
+        "erroreventerror",
+        "malformed",
+        "tool-call json",
+        "tool call",
+    ):
+        return "model_error"
+    if status is not None and not 200 <= status < 400:
+        return "model_error"
+    return None

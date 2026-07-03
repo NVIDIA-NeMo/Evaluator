@@ -113,6 +113,17 @@ def _extract_response(context: Any) -> str:
     return ""
 
 
+def _host_agent_model_url(url: str) -> str:
+    """Return the model URL used by agents whose LLM client runs on the host.
+
+    Docker sandboxes rewrite host-local proxy URLs to ``host.docker.internal`` for
+    code running inside the container. Some Harbor agents, including terminus-2,
+    call the LLM from the host process while only commands run in the sandbox.
+    Those host-side clients need the host-reachable loopback URL instead.
+    """
+    return url.replace("host.docker.internal", "127.0.0.1")
+
+
 # ---------------------------------------------------------------------------
 # API key resolution
 # ---------------------------------------------------------------------------
@@ -376,6 +387,54 @@ else:
             "LLM timeout patch problem (rc=%d): %s",
             r_timeout.return_code,
             stdout_timeout or (r_timeout.stderr or "")[:300],
+        )
+
+    _retry_error_patch_script = """\
+import glob
+fs = glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/llm/utils/retry_mixin.py')
+p = fs[0] if fs else ''
+assert p, 'retry_mixin.py not found'
+c = open(p).read()
+old = (
+    '        logger.error(\\n'
+    '            "%s. Attempt #%d | You can customize retry values in the configuration.",\\n'
+    '            exc,\\n'
+    '            retry_state.attempt_number,\\n'
+    '        )'
+)
+new = (
+    '        try:\\n'
+    '            import json as _json, os as _os\\n'
+    '            _p = "/logs/agent/last_llm_error.json"\\n'
+    '            _os.makedirs(_os.path.dirname(_p), exist_ok=True)\\n'
+    '            _tmp = _p + ".tmp"\\n'
+    '            with open(_tmp, "w") as _f:\\n'
+    '                _f.write(_json.dumps({"etype": type(exc).__name__, "emsg": str(exc)}))\\n'
+    '            _os.replace(_tmp, _p)\\n'
+    '        except Exception:\\n'
+    '            pass\\n\\n'
+    + old
+)
+if 'last_llm_error.json' in c:
+    print('retry_error_capture=already')
+elif old in c:
+    open(p, 'w').write(c.replace(old, new, 1))
+    print('retry_error_capture=patched')
+else:
+    print('retry_error_capture=pattern not found')
+"""
+    encoded_retry = base64.b64encode(_retry_error_patch_script.encode()).decode()
+    r_retry = await sandbox.exec(
+        f"echo {encoded_retry} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout_retry = (r_retry.stdout or "").strip()
+    logger.info("Retry error-capture patch: %s", stdout_retry)
+    if r_retry.return_code != 0 or "pattern not found" in stdout_retry:
+        logger.warning(
+            "Retry error-capture patch problem (rc=%d): %s",
+            r_retry.return_code,
+            stdout_retry or (r_retry.stderr or "")[:300],
         )
 
     # -- Patch 1: don't FINISHED on text-only responses ------------------
@@ -1009,6 +1068,31 @@ def _error_from_crash_marker(agent_logs_dir: Path) -> str | None:
     except Exception:
         logger.warning("HarborSolver: failed to read crash marker", exc_info=True)
         return None
+
+
+def _format_llm_error(etype: Any, emsg: Any) -> str:
+    etype_s = str(etype or "ModelError").strip() or "ModelError"
+    emsg_s = str(emsg or "").strip()
+    return f"{etype_s}: {emsg_s}" if emsg_s else etype_s
+
+
+def _last_llm_error_from_marker(agent_logs_dir: Path) -> str | None:
+    marker = agent_logs_dir / "last_llm_error.json"
+    if not marker.is_file():
+        return None
+    try:
+        payload = json.loads(marker.read_text())
+    except Exception:
+        logger.warning("HarborSolver: failed to read last LLM error marker", exc_info=True)
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return _format_llm_error(payload.get("etype"), payload.get("emsg"))
+
+
+def _is_turn_budget_exhausted_error(error: str) -> bool:
+    text = error.lower()
+    return "turn budget exhausted" in text or "turn budget exceeded" in text
 
 
 def _parse_atif(raw: Any) -> dict[str, Any] | None:
@@ -2041,7 +2125,7 @@ class HarborSolver:
                 override_env=override,
             )
 
-            agent = self._create_agent(agent_logs_dir, model_url=resolved_url)
+            agent = self._create_agent(agent_logs_dir, model_url=_host_agent_model_url(resolved_url))
             await sandbox.exec(
                 "mkdir -p /logs/agent /logs/verifier /logs/artifacts",
                 timeout_sec=10,
@@ -2185,9 +2269,10 @@ class HarborSolver:
             completion_tokens = context.n_output_tokens or recovered["completion_tokens"]
 
             latency_ms = (time.monotonic() - t0) * 1000
+            last_llm_error = _last_llm_error_from_marker(agent_logs_dir) if agent_timed_out else None
 
             # Timeout with zero progress → model is likely dead.
-            if agent_timed_out and not workspace_diff and prompt_tokens + completion_tokens == 0:
+            if agent_timed_out and not workspace_diff and prompt_tokens + completion_tokens == 0 and not last_llm_error:
                 raise InfraError(
                     f"Agent made no progress before run_timeout ({self._run_timeout:.0f}s). Model may be unreachable."
                 )
@@ -2201,14 +2286,33 @@ class HarborSolver:
 
             error = None
             error_kind = ErrorKind.NONE
+            scoring_details: dict[str, Any] = {}
             if agent_error is not None:
                 etype = type(agent_error).__name__
                 if etype in _INFRA_ERROR_NAMES:
                     raise InfraError(f"Agent infrastructure failure: {etype}: {agent_error}") from agent_error
-                error = f"Agent crashed: {etype}: {agent_error}"
-                logger.warning("HarborSolver: %s", error)
+                crash_error = f"Agent crashed: {etype}: {agent_error}"
+                if workspace_diff and _is_turn_budget_exhausted_error(crash_error):
+                    logger.info(
+                        "HarborSolver: agent hit turn budget with workspace changes — submitting for verification"
+                    )
+                    error_kind = ErrorKind.SOLVE_TIMEOUT
+                    scoring_details = {"error": crash_error, "error_category": "turn_budget_exhausted"}
+                else:
+                    error = crash_error
+                    logger.warning("HarborSolver: %s", error)
             elif crash_error := _error_from_crash_marker(agent_logs_dir):
-                error = crash_error
+                if workspace_diff and _is_turn_budget_exhausted_error(crash_error):
+                    logger.info(
+                        "HarborSolver: agent hit turn budget with workspace changes — submitting for verification"
+                    )
+                    error_kind = ErrorKind.SOLVE_TIMEOUT
+                    scoring_details = {"error": crash_error, "error_category": "turn_budget_exhausted"}
+                else:
+                    error = crash_error
+                    logger.warning("HarborSolver: %s", error)
+            elif agent_timed_out and not response and last_llm_error:
+                error = f"Agent timed out after model API error: {last_llm_error}"
                 logger.warning("HarborSolver: %s", error)
             elif agent_timed_out and workspace_diff and _confirmed_zero_tokens:
                 error = (
@@ -2260,6 +2364,7 @@ class HarborSolver:
                 trajectory=trajectory,
                 error=error,
                 error_kind=error_kind,
+                scoring_details=scoring_details,
             )
 
         except InfraError as exc:
@@ -2290,6 +2395,18 @@ class HarborSolver:
             response = recovered["response"]
             if not response or _is_prompt_echo(response, ""):
                 response = "[workspace modified]" if workspace_diff else ""
+
+            error = str(exc)
+            error_kind = ErrorKind.NONE
+            if workspace_diff and _is_turn_budget_exhausted_error(error):
+                logger.info(
+                    "HarborSolver: graceful turn-budget exit with workspace changes — submitting for verification"
+                )
+                scoring_details = {"error": error, "error_category": "turn_budget_exhausted"}
+                error = None
+                error_kind = ErrorKind.SOLVE_TIMEOUT
+            else:
+                scoring_details = {}
 
             return SolveResult(
                 response=response,
@@ -2344,7 +2461,9 @@ class HarborSolver:
                     latency_ms=round(latency_ms, 2),
                 ),
                 trajectory=trajectory,
-                error=str(exc),
+                error=error,
+                error_kind=error_kind,
+                scoring_details=scoring_details,
             )
 
         except Exception:

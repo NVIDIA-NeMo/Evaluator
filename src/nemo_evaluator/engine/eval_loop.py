@@ -40,6 +40,7 @@ from nemo_evaluator.metrics.aggregation import category_breakdown, scoring_detai
 from nemo_evaluator.metrics.confidence import bootstrap_ci
 from nemo_evaluator.metrics.headline import headline_score_metrics
 from nemo_evaluator.observability.collector import ArtifactCollector
+from nemo_evaluator.observability.failure_classification import classify_model_failure
 from nemo_evaluator.observability.model_traffic import (
     ModelTrafficStore,
     aggregate_model_traffic_stats,
@@ -65,6 +66,14 @@ def _get_error_category(entry: dict) -> str | None:
     if not isinstance(sd, dict):
         return None
     return sd.get("error_category")
+
+
+def _solve_failed_error_category(error: str, *, is_infra: bool, is_solve_timeout: bool = False) -> str:
+    if is_infra:
+        return "infra_error"
+    if category := classify_model_failure(error):
+        return category
+    return "solve_timeout" if is_solve_timeout else "graceful"
 
 
 async def run_evaluation(
@@ -445,7 +454,11 @@ async def run_evaluation(
                     # ── Verify ───────────────────────────────────────
                     _solve_failed = step.model_error is not None
                     if _solve_failed:
-                        error_cat = "infra_error" if _is_infra else "graceful"
+                        error_cat = _solve_failed_error_category(
+                            step.model_error or "",
+                            is_infra=_is_infra,
+                            is_solve_timeout=_is_solve_timeout,
+                        )
                         vr = VerifyResult(
                             reward=0.0,
                             scoring_details={
@@ -585,8 +598,11 @@ async def run_evaluation(
                 step.reward = vr.reward
                 step.extracted_answer = vr.extracted_answer
                 step.scoring_details = vr.scoring_details
+                if solve_result and solve_result.scoring_details:
+                    for detail_key, detail_value in solve_result.scoring_details.items():
+                        step.scoring_details.setdefault(detail_key, detail_value)
                 step.scoring_method = vr.scoring_details.get("method", "")
-                if _is_solve_timeout:
+                if _is_solve_timeout and not step.scoring_details.get("error_category"):
                     step.scoring_details["error_category"] = "solve_timeout"
 
                 extra_scorers = (config or {}).get("scorers", [])

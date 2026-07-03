@@ -22,12 +22,16 @@ import pytest
 import nemo_evaluator.solvers.harbor as harbor_mod
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.errors import InfraError
+from nemo_evaluator.solvers.base import ErrorKind
 from nemo_evaluator.solvers.harbor import (
     _count_zero_token_agent_turns,
     _ensure_claude_host_env,
     _ensure_host_env,
     _error_from_crash_marker,
     _extract_response,
+    _host_agent_model_url,
+    _is_turn_budget_exhausted_error,
+    _last_llm_error_from_marker,
     _model_id_for_openai,
     _resolve_agent_timeout,
     _resolve_api_key,
@@ -69,6 +73,17 @@ class TestExtractResponse:
         ctx.metadata = {}
         ctx.rollout_details = [detail]
         assert _extract_response(ctx) == "obj content"
+
+
+class TestHostAgentModelUrl:
+    def test_docker_internal_host_is_mapped_back_to_loopback_for_host_agents(self):
+        assert (
+            _host_agent_model_url("http://host.docker.internal:4000/s/session/chat/completions")
+            == "http://127.0.0.1:4000/s/session/chat/completions"
+        )
+
+    def test_non_docker_url_is_unchanged(self):
+        assert _host_agent_model_url("http://172.17.0.1:4000/s/session") == "http://172.17.0.1:4000/s/session"
 
 
 class TestResolveApiKey:
@@ -207,6 +222,28 @@ class TestCrashMarker:
             _error_from_crash_marker(tmp_path)
 
 
+class TestLastLlmErrorMarker:
+    def test_missing_marker_returns_none(self, tmp_path):
+        assert _last_llm_error_from_marker(tmp_path) is None
+
+    def test_marker_returns_type_and_message(self, tmp_path):
+        (tmp_path / "last_llm_error.json").write_text(
+            json.dumps({"etype": "BadRequestError", "emsg": "Error code: 400 - Malformed native tool-call JSON"})
+        )
+
+        assert _last_llm_error_from_marker(tmp_path) == (
+            "BadRequestError: Error code: 400 - Malformed native tool-call JSON"
+        )
+
+
+class TestTurnBudgetError:
+    def test_turn_budget_error_detected(self):
+        assert _is_turn_budget_exhausted_error("ConversationRunError: Turn budget exhausted: 215/200 turns used")
+
+    def test_unrelated_budget_error_not_detected(self):
+        assert not _is_turn_budget_exhausted_error("Token budget exhausted before request")
+
+
 # ── Patch functions ──────────────────────────────────────────────────────
 
 
@@ -293,6 +330,48 @@ class TestPatchOpenhandsSDK:
         assert "import os as _llm_timeout_os" in patched
         assert '_llm_timeout_os.environ.get("LLM_TIMEOUT")' in patched
         assert 'llm_kwargs["timeout"] = int(timeout_raw)' in patched
+
+    async def test_retry_mixin_patch_records_last_llm_error(self, tmp_path):
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        retry_mixin = tmp_path / "retry_mixin.py"
+        retry_mixin.write_text(
+            """\
+class RetryMixin:
+    def log_retry_attempt(self, retry_state):
+        exc = retry_state.outcome.exception()
+        logger.error(
+            "%s. Attempt #%d | You can customize retry values in the configuration.",
+            exc,
+            retry_state.attempt_number,
+        )
+"""
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        retry_patch = next(s for s in decoded_scripts if "retry_error_capture" in s)
+        retry_patch = retry_patch.replace(
+            "fs = glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/llm/utils/retry_mixin.py')",
+            f"fs = [{str(retry_mixin)!r}]",
+        )
+        exec(compile(retry_patch, "retry_error_patch.py", "exec"), {})  # noqa: S102
+
+        patched = retry_mixin.read_text()
+        assert '"/logs/agent/last_llm_error.json"' in patched
+        assert '"etype": type(exc).__name__' in patched
+        assert '"emsg": str(exc)' in patched
 
     async def test_runner_timeout_patch_does_not_shadow_os(self, tmp_path):
         import base64
@@ -1233,6 +1312,100 @@ class TestSolveTimeoutPlumbing:
         assert wait_args["effective_timeout"] == 10920.0
         assert adapter_kwargs["default_timeout"] == _sandbox_agent_exec_timeout(10920.0)
         assert adapter_kwargs["default_timeout"] == 10950.0
+
+    @pytest.mark.asyncio
+    async def test_solve_verifies_turn_budget_crash_when_workspace_changed(self, monkeypatch):
+        import nemo_evaluator.solvers.harbor as harbor_mod
+        from nemo_evaluator.solvers.harbor import HarborSolver
+
+        class FakeContext:
+            def __init__(self) -> None:
+                self.metadata = {}
+                self.rollout_details = []
+                self.n_input_tokens = 12
+                self.n_output_tokens = 5
+
+            def is_empty(self) -> bool:
+                return False
+
+        class FakeAdapter:
+            is_mounted = True
+
+            def __init__(self, *args, **kwargs) -> None:
+                pass
+
+        class FakeAgent:
+            async def setup(self, adapter) -> None:
+                pass
+
+            async def run(self, prompt, adapter, context) -> None:
+                raise RuntimeError("ConversationRunError: Turn budget exhausted: 215/200 turns used")
+
+        class FakeSandbox:
+            is_running = True
+
+            def resolved_endpoint_url(self, name):
+                return None
+
+            def resolve_outside_endpoint(self, url):
+                return url
+
+            async def exec(self, command: str, timeout_sec: float | None = None):
+                return MagicMock(stdout="", stderr="", return_code=0)
+
+        import harbor.models.agent.context as context_mod
+
+        import nemo_evaluator.solvers.harbor_adapter as harbor_adapter_mod
+
+        monkeypatch.setattr(context_mod, "AgentContext", FakeContext)
+        monkeypatch.setattr(harbor_adapter_mod, "SandboxEnvironmentAdapter", FakeAdapter)
+        monkeypatch.setattr(harbor_mod, "_capture_workspace_diff", AsyncMock(return_value="diff --git a/file b/file"))
+        monkeypatch.setattr(
+            harbor_mod,
+            "_recover_from_logs",
+            lambda logs_dir: {
+                "trajectory": [{"final_metrics": {}}],
+                "prompt_tokens": 12,
+                "completion_tokens": 5,
+                "response": "",
+            },
+        )
+        monkeypatch.setattr(harbor_mod.random, "uniform", lambda low, high: 0.0)
+
+        solver = HarborSolver.__new__(HarborSolver)
+        solver._model_url = "http://model"
+        solver._model_id = "model"
+        solver._timeout = 60.0
+        solver._run_timeout = 60.0
+        solver._timeout_strategy = "override"
+        solver._max_agent_timeout = None
+        solver._harbor_agent = "openhands-sdk"
+        solver._cmd_timeout = None
+        solver._container_env = {}
+        solver._skill = None
+        solver._skill_dir = None
+        solver._create_agent = lambda logs_dir, model_url="": FakeAgent()
+
+        async def fake_wait_for_agent(agent_task, sandbox, agent_started_at, effective_timeout, jitter):
+            try:
+                await agent_task
+            except Exception as exc:
+                return False, exc
+            return False, None
+
+        solver._wait_for_agent = fake_wait_for_agent
+
+        result = await solver.solve(
+            SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "task-1"}),
+            sandbox=FakeSandbox(),
+        )
+
+        assert result.response == "[workspace modified]"
+        assert result.error is None
+        assert result.error_kind == ErrorKind.SOLVE_TIMEOUT
+        assert result.scoring_details["error_category"] == "turn_budget_exhausted"
+        assert "Turn budget exhausted" in result.scoring_details["error"]
+        assert result.trajectory[0]["final_metrics"]["workspace_diff_preview"].startswith("diff --git")
 
 
 class TestInjectSkill:
