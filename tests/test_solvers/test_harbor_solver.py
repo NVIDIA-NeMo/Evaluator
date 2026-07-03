@@ -595,6 +595,148 @@ def build_trajectory(events, llm_metrics, model_name):
         assert by_call["call_a"]["extra"]["started_at"] == "2026-06-05T12:00:00.000Z"
         assert by_call["call_a"]["extra"]["completed_at"] == "2026-06-05T12:00:01.000Z"
 
+    async def test_runner_patch_merges_parallel_tool_calls_by_response_id(self, tmp_path):
+        """Tool calls from one LLM response collapse into a single agent step.
+
+        Every ActionEvent that carries the same ``llm_response_id`` is folded
+        into the first step of that turn, so ``tool_calls`` and
+        ``observation.results`` each list all N calls the model requested.
+        """
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            """\
+import os
+
+
+def build_trajectory(events, llm_metrics, model_name):
+    steps = []
+    step_id = 1
+
+    for event in events:
+        event_type = event.get("type", "")
+
+        if event_type == "assistant_message":
+            step = {
+                "step_id": step_id,
+                "timestamp": event.get("timestamp"),
+                "source": "agent",
+                "message": event.get("content", ""),
+                "model_name": model_name,
+            }
+            tool_calls = event.get("tool_calls", [])
+            if tool_calls:
+                step["tool_calls"] = [
+                    {
+                        "tool_call_id": tc.get("id", ""),
+                        "function_name": tc.get("name", ""),
+                        "arguments": tc.get("arguments", {}),
+                    }
+                    for tc in tool_calls
+                ]
+            steps.append(step)
+            step_id += 1
+
+        elif event_type == "tool_result":
+            # Find the previous step and add observation
+            if steps and steps[-1].get("source") == "agent":
+                steps[-1]["observation"] = {
+                    "results": [
+                        {
+                            "source_call_id": event.get("tool_call_id"),
+                            "content": event.get("content", ""),
+                        }
+                    ]
+                }
+
+    trajectory = {
+        "schema_version": "ATIF-v1.5",
+        "session_id": os.environ.get("SESSION_ID", "harbor-session"),
+        "agent": {"name": "openhands-sdk", "version": "unknown"},
+        "steps": steps,
+        "final_metrics": {},
+    }
+    return trajectory
+"""
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        trajectory_patch = next(s for s in decoded_scripts if "reasoning+metrics" in s)
+        trajectory_patch = trajectory_patch.replace(
+            "p = '/installed-agent/run_agent.py'",
+            f"p = {str(runner)!r}",
+        )
+        exec(compile(trajectory_patch, "trajectory_patch.py", "exec"), {})
+
+        namespace = {}
+        exec(compile(runner.read_text(), str(runner), "exec"), namespace)
+        trajectory = namespace["build_trajectory"](
+            [
+                {
+                    "type": "assistant_message",
+                    "timestamp": "2026-06-05T12:00:00.000Z",
+                    "llm_response_id": "resp_1",
+                    "tool_calls": [{"id": "call_a", "name": "terminal", "arguments": {}}],
+                },
+                {
+                    "type": "assistant_message",
+                    "timestamp": "2026-06-05T12:00:00.001Z",
+                    "llm_response_id": "resp_1",
+                    "tool_calls": [{"id": "call_b", "name": "terminal", "arguments": {}}],
+                },
+                {
+                    "type": "assistant_message",
+                    "timestamp": "2026-06-05T12:00:00.002Z",
+                    "llm_response_id": "resp_1",
+                    "tool_calls": [{"id": "call_c", "name": "terminal", "arguments": {}}],
+                },
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_a",
+                    "content": "out_a",
+                    "timestamp": "2026-06-05T12:00:01.000Z",
+                },
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_c",
+                    "content": "out_c",
+                    "timestamp": "2026-06-05T12:00:01.100Z",
+                },
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_b",
+                    "content": "out_b",
+                    "timestamp": "2026-06-05T12:00:01.200Z",
+                },
+            ],
+            {},
+            "model",
+        )
+
+        steps = trajectory["steps"]
+        assert len(steps) == 1
+        merged = steps[0]
+        assert [tc["tool_call_id"] for tc in merged["tool_calls"]] == ["call_a", "call_b", "call_c"]
+        by_call = {r["source_call_id"]: r for r in merged["observation"]["results"]}
+        assert set(by_call) == {"call_a", "call_b", "call_c"}
+        assert by_call["call_b"]["content"] == "out_b"
+        # Every result anchors started_at to the merged step's own timestamp.
+        assert by_call["call_c"]["extra"]["started_at"] == "2026-06-05T12:00:00.000Z"
+        assert by_call["call_c"]["extra"]["completed_at"] == "2026-06-05T12:00:01.100Z"
+
     _EVENTS_MSG_AND_ACTION = (
         'MessageEvent("agent", "partial reasoning", 1.0), ActionEvent(2.0, "call-1", "bash", \'{"command": "ls"}\')'
     )

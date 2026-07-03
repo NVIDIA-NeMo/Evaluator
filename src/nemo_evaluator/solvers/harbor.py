@@ -274,7 +274,11 @@ async def _patch_openhands_sdk(sandbox: Sandbox, *, cmd_timeout: float | None = 
        ``tool_result`` handler is also fixed to match each observation to
        the step whose ``tool_call_id`` matches (instead of blindly using
        ``steps[-1]``), so parallel/multi-tool turns keep an observation on
-       every tool-call step rather than only the last one.
+       every tool-call step rather than only the last one.  Consecutive
+       ``ActionEvent`` steps that share one ``llm_response_id`` are merged
+       into a single agent step whose ``tool_calls`` and
+       ``observation.results`` list every tool the model requested in that
+       turn.
 
     3. **Enforce 300 s hard timeout on terminal commands** — the SDK
        only applies a hard timeout when the model passes an explicit
@@ -519,6 +523,7 @@ new_b = (
     '                entry["reasoning_content"] = _rc\\n'
     '            _lm_resp_id = getattr(event, "llm_response_id", None)\\n'
     '            if _lm_resp_id:\\n'
+    '                entry["llm_response_id"] = _lm_resp_id\\n'
     '                try:\\n'
     '                    _nel_seen_resp_ids\\n'
     '                except NameError:\\n'
@@ -547,8 +552,15 @@ new_c = (
     '            _u = event.get("usage")\\n'
     '            if isinstance(_u, dict):\\n'
     '                step["metrics"] = {"prompt_tokens": int(_u.get("prompt_tokens", 0) or 0), "completion_tokens": int(_u.get("completion_tokens", 0) or 0)}\\n'
-    '            steps.append(step)\\n'
-    '            step_id += 1\\n'
+    '            _lrid = event.get("llm_response_id")\\n'
+    '            _prev = steps[-1] if steps else None\\n'
+    '            if _lrid is not None and isinstance(_prev, dict) and _prev.get("source") == "agent" and _prev.get("llm_response_id") == _lrid and _prev.get("tool_calls") and step.get("tool_calls"):\\n'
+    '                _prev["tool_calls"].extend(step["tool_calls"])\\n'
+    '            else:\\n'
+    '                if _lrid is not None:\\n'
+    '                    step["llm_response_id"] = _lrid\\n'
+    '                steps.append(step)\\n'
+    '                step_id += 1\\n'
     '\\n'
     '        elif event_type == "tool_result":'
 )
@@ -689,6 +701,9 @@ new_cond_final = (
     '    if llm_metrics.get("condensations"):\\n'
     '        trajectory["final_metrics"]["condensations"] = llm_metrics["condensations"]\\n'
     '        trajectory["final_metrics"]["condensation_details"] = llm_metrics.get("condensation_details", [])\\n'
+    '\\n'
+    '    for _s in trajectory.get("steps", []):\\n'
+    '        _s.pop("llm_response_id", None)\\n'
     '\\n'
     '    return trajectory'
 )
@@ -876,7 +891,7 @@ if ok:
         ind + '                    _entry = {"type": _entry_type, "content": _trajectory_text_from_event(_event), "timestamp": _event.timestamp}\\n' +
         ind + '                    _events_list.append(_entry)\\n' +
         ind + '            elif isinstance(_event, ActionEvent):\\n' +
-        ind + '                _events_list.append({"type": "assistant_message", "content": "", "timestamp": _event.timestamp, "tool_calls": [{"id": _event.tool_call_id, "name": _event.tool_name, "arguments": _trajectory_tool_args(_event)}]})\\n' +
+        ind + '                _events_list.append({"type": "assistant_message", "content": "", "timestamp": _event.timestamp, "llm_response_id": getattr(_event, "llm_response_id", None), "tool_calls": [{"id": _event.tool_call_id, "name": _event.tool_name, "arguments": _trajectory_tool_args(_event)}]})\\n' +
         ind + '        _trajectory = build_trajectory(_events_list, _metrics, model)\\n' +
         ind + '        _trajectory.setdefault("extra", {})["partial_trajectory"] = {"reason": _reason, "events": len(_events_list)}\\n' +
         ind + '        _path = Path(args.trajectory_path)\\n' +
