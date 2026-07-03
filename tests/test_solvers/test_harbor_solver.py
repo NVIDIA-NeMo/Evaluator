@@ -30,6 +30,7 @@ from nemo_evaluator.solvers.harbor import (
     _model_id_for_openai,
     _resolve_agent_timeout,
     _resolve_api_key,
+    _sandbox_agent_exec_timeout,
 )
 
 # ── Pure helpers ─────────────────────────────────────────────────────────
@@ -903,6 +904,9 @@ class TestResolveAgentTimeout:
     def test_effective_timeout(self, strategy, config, task, cap, expected):
         assert _resolve_agent_timeout(strategy, config, task, cap) == expected
 
+    def test_sandbox_agent_exec_timeout_adds_flush_grace(self):
+        assert _sandbox_agent_exec_timeout(10800.0) > 10800.0
+
 
 class TestHarborSolverLlmTimeout:
     def test_llm_kwargs_timeout_maps_to_container_env(self):
@@ -1020,6 +1024,30 @@ class TestWaitForAgentTimeout:
         assert agent_task.cancelled()
         assert any("/installed-agent/run_agent.py" in command for command, _ in sandbox.exec_calls)
 
+    @pytest.mark.asyncio
+    async def test_inner_command_timeout_finishes_first_and_skips_nel_sigterm(self):
+        solver = self._solver()
+        sandbox = _TimeoutFlushSandbox()
+
+        async def agent_run():
+            await asyncio.sleep(0.001)
+            raise RuntimeError("Command failed (exit 124): stderr: timed out after 10800s")
+
+        agent_task = asyncio.create_task(agent_run())
+
+        timed_out, agent_error = await solver._wait_for_agent(
+            agent_task,
+            sandbox,
+            time.monotonic(),
+            effective_timeout=0.05,
+            jitter=0.0,
+        )
+
+        assert timed_out is False
+        assert agent_error is not None
+        assert "timed out after 10800s" in str(agent_error)
+        assert not any("/installed-agent/run_agent.py" in command for command, _ in sandbox.exec_calls)
+
 
 class TestSolveTimeoutPlumbing:
     @pytest.mark.asyncio
@@ -1037,11 +1065,13 @@ class TestSolveTimeoutPlumbing:
             def is_empty(self) -> bool:
                 return False
 
+        adapter_kwargs: dict[str, object] = {}
+
         class FakeAdapter:
             is_mounted = True
 
             def __init__(self, *args, **kwargs) -> None:
-                pass
+                adapter_kwargs.update(kwargs)
 
         class FakeAgent:
             async def setup(self, adapter) -> None:
@@ -1112,6 +1142,96 @@ class TestSolveTimeoutPlumbing:
         assert wait_args["agent_started_at"] > 0
         assert wait_args["effective_timeout"] == 60.0
         assert wait_args["jitter"] == 0.0
+        assert adapter_kwargs["default_timeout"] == _sandbox_agent_exec_timeout(60.0)
+
+    @pytest.mark.asyncio
+    async def test_solve_sets_command_timeout_after_10800s_effective_timeout_with_jitter(self, monkeypatch):
+        import nemo_evaluator.solvers.harbor as harbor_mod
+        from nemo_evaluator.solvers.harbor import HarborSolver
+
+        class FakeContext:
+            def __init__(self) -> None:
+                self.metadata = {"response": "agent answer"}
+                self.rollout_details = []
+                self.n_input_tokens = 3
+                self.n_output_tokens = 4
+
+            def is_empty(self) -> bool:
+                return False
+
+        adapter_kwargs: dict[str, object] = {}
+
+        class FakeAdapter:
+            is_mounted = True
+
+            def __init__(self, *args, **kwargs) -> None:
+                adapter_kwargs.update(kwargs)
+
+        class FakeAgent:
+            async def setup(self, adapter) -> None:
+                pass
+
+            async def run(self, prompt, adapter, context) -> None:
+                pass
+
+        class FakeSandbox:
+            is_running = True
+
+            def resolved_endpoint_url(self, name):
+                return None
+
+            def resolve_outside_endpoint(self, url):
+                return url
+
+            async def exec(self, command: str, timeout_sec: float | None = None):
+                return MagicMock(stdout="", stderr="", return_code=0)
+
+        import harbor.models.agent.context as context_mod
+
+        import nemo_evaluator.solvers.harbor_adapter as harbor_adapter_mod
+
+        monkeypatch.setattr(context_mod, "AgentContext", FakeContext)
+        monkeypatch.setattr(harbor_adapter_mod, "SandboxEnvironmentAdapter", FakeAdapter)
+        monkeypatch.setattr(harbor_mod, "_capture_workspace_diff", AsyncMock(return_value=""))
+        monkeypatch.setattr(
+            harbor_mod,
+            "_recover_from_logs",
+            lambda logs_dir: {"trajectory": [], "prompt_tokens": 0, "completion_tokens": 0, "response": ""},
+        )
+        monkeypatch.setattr(harbor_mod.random, "uniform", lambda low, high: high)
+
+        solver = HarborSolver.__new__(HarborSolver)
+        solver._model_url = "http://model"
+        solver._model_id = "model"
+        solver._timeout = 10800.0
+        solver._run_timeout = 10800.0
+        solver._timeout_strategy = "override"
+        solver._max_agent_timeout = None
+        solver._harbor_agent = "terminus-2"
+        solver._container_env = {}
+        solver._skill = None
+        solver._skill_dir = None
+        solver._create_agent = lambda logs_dir, model_url="": FakeAgent()
+
+        wait_args: dict[str, float] = {}
+
+        async def fake_wait_for_agent(agent_task, sandbox, agent_started_at, effective_timeout, jitter):
+            wait_args["effective_timeout"] = effective_timeout
+            wait_args["jitter"] = jitter
+            await agent_task
+            return False, None
+
+        solver._wait_for_agent = fake_wait_for_agent
+
+        await solver.solve(
+            SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "task-1"}),
+            sandbox=FakeSandbox(),
+        )
+
+        assert wait_args["jitter"] == 120.0
+        assert wait_args["effective_timeout"] == 10920.0
+        assert adapter_kwargs["default_timeout"] == _sandbox_agent_exec_timeout(10920.0)
+        assert adapter_kwargs["default_timeout"] == 10950.0
 
 
 class TestInjectSkill:

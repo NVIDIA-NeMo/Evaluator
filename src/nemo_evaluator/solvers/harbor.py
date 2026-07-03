@@ -40,6 +40,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_SANDBOX_AGENT_TIMEOUT_GRACE_SECONDS = 30.0
+
 _INFRA_ERROR_NAMES = frozenset(
     {
         "ServiceUnavailableError",
@@ -86,6 +88,17 @@ def _resolve_agent_timeout(
     if max_cap is not None:
         result = min(result, max_cap)
     return result
+
+
+def _sandbox_agent_exec_timeout(agent_timeout: float) -> float:
+    """Return sandbox command timeout for the Harbor agent process.
+
+    The sandbox-level command timeout must exceed NEL's agent timeout so
+    ``_wait_for_agent`` can send SIGTERM and let OpenHands flush its partial
+    trajectory before any inner ``timeout(1)`` wrapper kills the process.
+    """
+
+    return agent_timeout + _SANDBOX_AGENT_TIMEOUT_GRACE_SECONDS
 
 
 def _extract_response(context: Any) -> str:
@@ -1794,11 +1807,39 @@ class HarborSolver:
             if resolved_url:
                 override["LLM_BASE_URL"] = resolved_url
 
+            task_timeout = task.metadata.get("agent_timeout_sec")
+            if task_timeout is not None and not isinstance(task_timeout, (int, float)):
+                logger.warning("agent_timeout_sec in metadata is not numeric: %r, ignoring", task_timeout)
+                task_timeout = None
+            run_timeout = _resolve_agent_timeout(
+                self._timeout_strategy,
+                self._run_timeout,
+                task_timeout,
+                self._max_agent_timeout,
+            )
+            logger.info(
+                "HarborSolver: timeout resolved: strategy=%s nel=%.0fs task=%s cap=%s → effective=%.0fs",
+                self._timeout_strategy,
+                self._run_timeout,
+                f"{task_timeout:.0f}s" if task_timeout is not None else "n/a",
+                f"{self._max_agent_timeout:.0f}s" if self._max_agent_timeout is not None else "n/a",
+                run_timeout,
+            )
+            jitter = random.uniform(0, min(120.0, run_timeout * 0.02))
+            effective_timeout = run_timeout + jitter
+            agent_exec_timeout = max(self._timeout, _sandbox_agent_exec_timeout(effective_timeout))
+            logger.info(
+                "HarborSolver: sandbox agent command timeout %.0fs (effective %.0fs + %.0fs jitter)",
+                agent_exec_timeout,
+                run_timeout,
+                jitter,
+            )
+
             adapter = SandboxEnvironmentAdapter(
                 sandbox,
                 session_id=task.metadata["task_id"],
                 logs_dir=logs_dir,
-                default_timeout=self._timeout,
+                default_timeout=agent_exec_timeout,
                 persistent_env=self._container_env,
                 override_env=override,
             )
@@ -1862,26 +1903,6 @@ class HarborSolver:
 
             agent_error: Exception | None = None
             agent_timed_out = False
-            task_timeout = task.metadata.get("agent_timeout_sec")
-            if task_timeout is not None and not isinstance(task_timeout, (int, float)):
-                logger.warning("agent_timeout_sec in metadata is not numeric: %r, ignoring", task_timeout)
-                task_timeout = None
-            run_timeout = _resolve_agent_timeout(
-                self._timeout_strategy,
-                self._run_timeout,
-                task_timeout,
-                self._max_agent_timeout,
-            )
-            logger.info(
-                "HarborSolver: timeout resolved: strategy=%s nel=%.0fs task=%s cap=%s → effective=%.0fs",
-                self._timeout_strategy,
-                self._run_timeout,
-                f"{task_timeout:.0f}s" if task_timeout is not None else "n/a",
-                f"{self._max_agent_timeout:.0f}s" if self._max_agent_timeout is not None else "n/a",
-                run_timeout,
-            )
-            jitter = random.uniform(0, min(120.0, run_timeout * 0.02))
-            effective_timeout = run_timeout + jitter
 
             prompt = await self._inject_skill(sandbox, task.prompt)
             agent_task = asyncio.create_task(agent.run(prompt, adapter, context))
