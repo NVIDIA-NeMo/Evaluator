@@ -184,6 +184,7 @@ def test_format_log_record_response_capture_fields(capture_kwargs: dict, expect_
     assert len(rows) == 1
     row = rows[0]
     assert row["tool_calls"] == {"count": 1, "names": {"w": 1}}
+    assert row["request_hash"]
     if expect_response_fields:
         assert row["tool_calls_full"] == [{"id": "c1", "name": "w", "arguments": "{}"}]
         assert row["reasoning_content"] == "let me think"
@@ -232,6 +233,7 @@ def test_non_success_response_forwards_compact_error_summary() -> None:
     assert row["error_message"] == "OpenAIException - Expecting ',' delimiter: line 1 column 237 (char 236)"
     assert row["error_type"] == "invalid_request_error"
     assert row["error_code"] == "bad_tool_json"
+    assert row["request_hash"]
     assert "bad_tool_json" in row["error_body"]
 
 
@@ -315,6 +317,7 @@ async def test_model_traffic_writes_compact_log_and_inference_stats(tmp_path: Pa
         assert traffic["session_id"]
         assert traffic["adapter_request_id"]
         assert traffic["model_traffic_request_id"] == f"{traffic['session_id']}:{traffic['adapter_request_id']}"
+        assert traffic["request_hash"]
         assert traffic["service"] == "solver"
         assert traffic["status_code"] == 200
         assert traffic["path"] == "/chat/completions"
