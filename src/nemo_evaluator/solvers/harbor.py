@@ -41,6 +41,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _SANDBOX_AGENT_TIMEOUT_GRACE_SECONDS = 30.0
+_AGENT_TIMEOUT_RESPONSE_GRACE_SECONDS = 15.0
+_AGENT_TIMEOUT_RESPONSE_GRACE_FRACTION = 0.05
 
 _INFRA_ERROR_NAMES = frozenset(
     {
@@ -99,6 +101,15 @@ def _sandbox_agent_exec_timeout(agent_timeout: float) -> float:
     """
 
     return agent_timeout + _SANDBOX_AGENT_TIMEOUT_GRACE_SECONDS
+
+
+def _agent_timeout_response_grace(agent_timeout: float) -> float:
+    """Small soft-timeout window for an in-flight response to be persisted."""
+
+    return min(
+        _AGENT_TIMEOUT_RESPONSE_GRACE_SECONDS,
+        max(0.0, agent_timeout * _AGENT_TIMEOUT_RESPONSE_GRACE_FRACTION),
+    )
 
 
 def _extract_response(context: Any) -> str:
@@ -1959,7 +1970,16 @@ class HarborSolver:
                 jitter,
                 self._timeout_strategy,
             )
-            if sandbox.is_running:
+            response_grace = _agent_timeout_response_grace(effective_timeout - jitter)
+            if response_grace > 0:
+                logger.info(
+                    "HarborSolver: allowing %.1fs for in-flight model response persistence before SIGTERM",
+                    response_grace,
+                )
+                done_after_response_grace, _ = await asyncio.wait({agent_task}, timeout=response_grace)
+                if agent_task in done_after_response_grace:
+                    logger.info("HarborSolver: timed-out agent completed during response persistence grace")
+            if not agent_task.done() and sandbox.is_running:
                 try:
                     await sandbox.exec(
                         "python3 - <<'PY'\n"

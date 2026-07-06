@@ -1107,6 +1107,32 @@ class TestWaitForAgentTimeout:
         assert any("/installed-agent/run_agent.py" in command for command, _ in sandbox.exec_calls)
 
     @pytest.mark.asyncio
+    async def test_timeout_allows_response_persistence_grace_before_sigterm(self, monkeypatch):
+        monkeypatch.setattr(harbor_mod, "_AGENT_TIMEOUT_RESPONSE_GRACE_SECONDS", 0.3)
+        monkeypatch.setattr(harbor_mod, "_AGENT_TIMEOUT_RESPONSE_GRACE_FRACTION", 3.0)
+        solver = self._solver()
+        sandbox = _TimeoutFlushSandbox()
+
+        async def agent_run():
+            await asyncio.sleep(0.2)
+
+        agent_task = asyncio.create_task(agent_run())
+
+        timed_out, agent_error = await solver._wait_for_agent(
+            agent_task,
+            sandbox,
+            time.monotonic(),
+            effective_timeout=0.1,
+            jitter=0.0,
+        )
+
+        assert timed_out is True
+        assert agent_error is None
+        assert agent_task.done()
+        assert not agent_task.cancelled()
+        assert not any("/installed-agent/run_agent.py" in command for command, _ in sandbox.exec_calls)
+
+    @pytest.mark.asyncio
     async def test_inner_command_timeout_finishes_first_and_skips_nel_sigterm(self):
         solver = self._solver()
         sandbox = _TimeoutFlushSandbox()
