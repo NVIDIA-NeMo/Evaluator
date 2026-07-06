@@ -111,6 +111,7 @@ class TestSolveFailedErrorCategory:
             ("litellm.RateLimitType: requests per minute", False, "rate_limit"),
             ("litellm.Timeout: request timed out", False, "model_timeout"),
             ("litellm.BadGatewayError: MidStreamFallbackError: APIConnectionError", False, "server_error"),
+            ("ServerDisconnectedError: upstream closed", False, "server_error"),
             ("litellm.APIResponseValidationError: response was missing choices", False, "model_error"),
             ("litellm.GuardrailRaisedException: guardrail raised", False, "model_error"),
             ("litellm.LiteLLMUnknownProvider: unknown model provider", False, "model_error"),

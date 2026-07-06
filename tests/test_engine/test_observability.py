@@ -82,6 +82,7 @@ class TestArtifactCollector:
             ("litellm.APIError: provider returned an unexpected server response", "server_error"),
             ("litellm.ServiceUnavailableError: service unavailable", "server_error"),
             ("litellm.InternalServerError: internal server error", "server_error"),
+            ("ServerDisconnectedError: upstream closed", "server_error"),
             ("litellm.APIResponseValidationError: response was missing choices", "model_error"),
             ("litellm.JSONSchemaValidationError: returned an invalid response", "model_error"),
             ("litellm.AuthenticationError: invalid API key", "model_error"),

@@ -110,6 +110,13 @@ def classify_model_failure(error: str = "", *, status_code: Any = None) -> str |
         "gateway timeout",
         "httpx.connecterror",
         "httpx.remoteprotocolerror",
+        "serverdisconnectederror",
+        "clientconnectorerror",
+        "clientconnectionerror",
+        "connectionreseterror",
+        "server disconnected",
+        "remote disconnected",
+        "connection reset",
         "apierror",
         "no fallback model group found",
     ):
