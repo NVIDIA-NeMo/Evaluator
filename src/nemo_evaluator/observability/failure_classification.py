@@ -71,12 +71,20 @@ def classify_model_failure(error: str = "", *, status_code: Any = None) -> str |
         "budget has been exceeded",
     ):
         return "budget_exceeded"
-    if status == 429 or _has_any(text, "ratelimiterror", "routerratelimiterror", "rate_limit", "too many requests"):
+    if status == 429 or _has_any(
+        text,
+        "ratelimiterror",
+        "routerratelimiterror",
+        "routerratelimiterrorbasic",
+        "rate_limit",
+        "too many requests",
+    ):
         return "rate_limit"
     if status in {408, 504} or _has_any(
         text,
         "apitimeouterror",
         "apiconnectiontimeouterror",
+        "litellm.timeout",
         "timeout:",
         "timeouterror",
         "timeout error",
@@ -119,6 +127,8 @@ def classify_model_failure(error: str = "", *, status_code: Any = None) -> str |
         "contentpolicyviolationerror",
         "unsupportedparamserror",
         "imagefetcherror",
+        "litellmunknownprovider",
+        "mockexception",
         "bad request",
         "invalid_request",
         "invalid request",
@@ -126,6 +136,7 @@ def classify_model_failure(error: str = "", *, status_code: Any = None) -> str |
         "rejectedrequesterror",
         "blockedpiientityerror",
         "guardrailinterventionnormalstringerror",
+        "guardrailraisedexception",
         "erroreventerror",
         "malformed",
         "tool-call json",
