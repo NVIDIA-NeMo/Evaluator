@@ -12,6 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
+
 import pytest
 
 from nemo_evaluator.observability.collector import ArtifactCollector
@@ -101,6 +103,21 @@ class TestArtifactCollector:
     )
     def test_classify_model_failure(self, error_msg, expected_category):
         assert classify_model_failure(error_msg) == expected_category
+
+    def test_all_installed_litellm_exception_names_classify(self):
+        import litellm.exceptions as litellm_exceptions
+
+        exception_names = sorted(
+            name
+            for name, obj in vars(litellm_exceptions).items()
+            if inspect.isclass(obj) and obj.__module__ == litellm_exceptions.__name__
+        )
+
+        assert exception_names
+        missing = [
+            name for name in exception_names if classify_model_failure(f"litellm.{name}: synthetic failure") is None
+        ]
+        assert missing == []
 
     def test_status_codes_are_not_matched_inside_identifiers(self):
         error = "Agent crashed: ConversationRunError: conversation 6a83baf1-cc335504 had no status code"
