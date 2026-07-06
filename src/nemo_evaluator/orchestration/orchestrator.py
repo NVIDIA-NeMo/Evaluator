@@ -799,6 +799,18 @@ def _start_proxy(
         if overrides:
             interceptor_specs.append({"name": "payload_modifier", "config": {"params_to_add": overrides}})
 
+    # Always-on safety net (opt out via proxy.finish_reason_fixup=false):
+    # relabel cap-truncated `stop` responses to `length` and warn on empty
+    # generations. Forced last so its request phase observes any token cap
+    # injected by payload_modifier above — even a preconfigured finish_reason
+    # entry is moved to the end to preserve that ordering guarantee.
+    finish_reason_fixup = getattr(proxy_cfg, "finish_reason_fixup", True) if proxy_cfg is not None else True
+    if finish_reason_fixup:
+        existing = next((spec for spec in interceptor_specs if spec["name"] == "finish_reason"), None)
+        if existing is not None:
+            interceptor_specs.remove(existing)
+        interceptor_specs.append(existing or {"name": "finish_reason", "config": {}})
+
     if interceptor_specs:
         proxy_kwargs["interceptor_specs"] = interceptor_specs
 
