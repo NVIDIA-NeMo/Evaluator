@@ -906,6 +906,21 @@ def _enrich_bench(bench_dir: Path) -> dict[str, int]:
         "rows_written": 0,
     }
 
+    def derive_missing_step_total_tokens(steps: list[dict[str, Any]]) -> None:
+        for step in steps:
+            metrics = step.get("metrics")
+            if not isinstance(metrics, dict) or metrics.get("total_tokens") not in (None, 0):
+                continue
+            prompt_tokens = metrics.get("prompt_tokens") or 0
+            completion_tokens = metrics.get("completion_tokens") or 0
+            if not prompt_tokens and not completion_tokens:
+                continue
+            try:
+                metrics["total_tokens"] = int(prompt_tokens) + int(completion_tokens)
+            except (TypeError, ValueError):
+                continue
+            counts["steps_backfilled_total_tokens"] += 1
+
     with enriched_path.open("w", encoding="utf-8") as fh:
         for r in traj_rows:
             steps = _agent_steps(r)
@@ -972,6 +987,7 @@ def _enrich_bench(bench_dir: Path) -> dict[str, int]:
                 traj = (r.get("trajectory") or [{}])[0]
                 traj.setdefault("extra", {})["captured_model_calls"] = wire
                 counts["trials_stashed_unmatched"] += 1
+            derive_missing_step_total_tokens(steps)
             fh.write(json.dumps(r) + "\n")
             counts["rows_written"] += 1
     return counts

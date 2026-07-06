@@ -439,6 +439,29 @@ def test_enrich_backfills_step_metadata_from_wire(tmp_path: Path) -> None:
     assert step["metrics"]["extra"]["reasoning_tokens"] == 12
 
 
+def test_enrich_derives_step_total_tokens_from_prompt_completion_without_wire_splice(tmp_path: Path) -> None:
+    """Missing step total_tokens is derived from step prompt+completion without copying wire totals."""
+    bench = tmp_path / "pb"
+    steps = [
+        {"step_id": 1, "source": "agent", "metrics": {"prompt_tokens": 5, "completion_tokens": 2}},
+        {"step_id": 2, "source": "agent", "metrics": {"prompt_tokens": 11, "completion_tokens": 3}},
+    ]
+    _write_jsonl(
+        bench / "trajectories.jsonl",
+        [_trial(0, 0, reward=1.0, steps=steps)],
+    )
+    _write_jsonl(bench / "model_traffic.jsonl", [])
+
+    out = generate_trajectories_report(tmp_path, enrich=True)
+
+    counts = json.loads(out.read_text())["benchmarks"][0]["enrichment"]["steps_backfilled"]
+    assert counts["total_tokens"] == 2
+    enriched_steps = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])["trajectory"][0][
+        "steps"
+    ]
+    assert [step["metrics"]["total_tokens"] for step in enriched_steps] == [7, 14]
+
+
 def test_enrichment_section_absent_when_enrich_false(bundle: Path) -> None:
     report = json.loads(generate_trajectories_report(bundle, enrich=False).read_text())["benchmarks"][0]
     assert "enrichment" not in report

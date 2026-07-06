@@ -506,6 +506,7 @@ def build_trajectory(events, llm_metrics, model_name):
                 {
                     "type": "assistant_message",
                     "timestamp": "2026-06-05T12:00:00.000Z",
+                    "usage": {"prompt_tokens": 5, "completion_tokens": 2},
                     "tool_calls": [{"id": "call_1", "name": "terminal", "arguments": {"command": "pwd"}}],
                 },
                 {
@@ -520,6 +521,7 @@ def build_trajectory(events, llm_metrics, model_name):
         )
 
         assert trajectory["schema_version"] == "ATIF-v1.7"
+        assert trajectory["steps"][0]["metrics"] == {"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7}
         result = trajectory["steps"][0]["observation"]["results"][0]
         assert result["source_call_id"] == "call_1"
         assert result["content"] == "/testbed"
