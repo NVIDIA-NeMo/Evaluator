@@ -76,6 +76,7 @@ def classify_model_failure(error: str = "", *, status_code: Any = None) -> str |
         "ratelimiterror",
         "routerratelimiterror",
         "routerratelimiterrorbasic",
+        "ratelimittype",
         "rate_limit",
         "too many requests",
     ):
@@ -138,6 +139,8 @@ def classify_model_failure(error: str = "", *, status_code: Any = None) -> str |
         "guardrailinterventionnormalstringerror",
         "guardrailraisedexception",
         "erroreventerror",
+        "modifyresponseexception",
+        "sensitivedatarouteexception",
         "malformed",
         "tool-call json",
         "tool call",

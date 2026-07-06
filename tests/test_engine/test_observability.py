@@ -73,6 +73,7 @@ class TestArtifactCollector:
             ("litellm.RateLimitError: Too many requests", "rate_limit"),
             ("litellm.RouterRateLimitError: router cooldown active", "rate_limit"),
             ("litellm.RouterRateLimitErrorBasic: router cooldown active", "rate_limit"),
+            ("litellm.RateLimitType: requests per minute", "rate_limit"),
             ("litellm.APITimeoutError: Request timed out", "model_timeout"),
             ("litellm.Timeout: request timed out", "model_timeout"),
             ("litellm.BadGatewayError: MidStreamFallbackError: APIConnectionError", "server_error"),
@@ -98,6 +99,8 @@ class TestArtifactCollector:
             ("litellm.GuardrailInterventionNormalStringError: guardrail intervention", "model_error"),
             ("litellm.GuardrailRaisedException: guardrail raised", "model_error"),
             ("litellm.ErrorEventError: stream emitted error event", "model_error"),
+            ("litellm.ModifyResponseException: response modifier failed", "model_error"),
+            ("litellm.SensitiveDataRouteException: sensitive data route rejected", "model_error"),
             ("litellm.OpenAIError: untyped model client failure", "model_error"),
         ],
     )
