@@ -40,6 +40,16 @@ DEFAULT_REFUSAL_PATTERNS = [
 ]
 
 
+def _completed_verification_without_error(scoring_details: object) -> bool:
+    if not isinstance(scoring_details, dict):
+        return False
+    if scoring_details.get("error") or scoring_details.get("error_category"):
+        return False
+    if scoring_details.get("method") != "harbor":
+        return False
+    return "test_exit_code" in scoring_details or "test_summary" in scoring_details
+
+
 class ArtifactCollector:
     def __init__(self, refusal_patterns: list[str] | None = None) -> None:
         self.steps: list[StepRecord] = []
@@ -74,6 +84,8 @@ class ArtifactCollector:
         elif step.model_response:
             content = step.model_response.content
             if not content.strip():
+                if _completed_verification_without_error(sd):
+                    return
                 step.failure_category = "empty_response"
             elif self._refusal_re.search(content):
                 step.failure_category = "refusal"

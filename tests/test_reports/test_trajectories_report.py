@@ -733,6 +733,28 @@ def test_prior_504_then_final_200_does_not_reclassify_as_timeout(tmp_path: Path)
     assert report["enrichment"]["rows_reclassified_from_wire_failure"] == 0
 
 
+def test_harbor_verification_failure_clears_false_empty_response(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    row = _trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="", pt=7, ct=3)])
+    row["failure_category"] = "empty_response"
+    row["scoring_details"] = {"method": "harbor", "test_exit_code": 1, "test_summary": "FAILED"}
+    _write_jsonl(bench / "trajectories.jsonl", [row])
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [{**_wire(7, 2, prompt=7, completion=3, status_code=200), "model_traffic_request_id": "sess:req-ok"}],
+    )
+
+    report = json.loads(generate_trajectories_report(tmp_path, enrich=True).read_text())["benchmarks"][0]
+
+    assert report["trajectories"]["failures_by_category"] == {}
+    assert report["trajectories"]["failure_examples"] == []
+    assert report["enrichment"]["rows_reclassified_from_wire_failure"] == 0
+    assert report["enrichment"]["rows_cleared_empty_response_after_verification"] == 1
+
+    enriched = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])
+    assert "failure_category" not in enriched
+
+
 def test_timeout_no_step_examples_keep_wire_counts(tmp_path: Path) -> None:
     bench = tmp_path / "pb"
     row = _trial(3, 1, reward=0.0, steps=[])

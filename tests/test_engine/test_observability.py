@@ -171,6 +171,16 @@ class TestArtifactCollector:
         c.record(step)
         assert step.failure_category == "empty_response"
 
+    def test_harbor_verification_failure_with_empty_final_content_is_not_empty_response(self):
+        c = ArtifactCollector()
+        step = StepRecord(
+            model_response=ModelResponse(content="  "),
+            reward=0.0,
+            scoring_details={"method": "harbor", "test_exit_code": 1, "test_summary": "FAILED"},
+        )
+        c.record(step)
+        assert step.failure_category is None
+
     def test_refusal_detected(self):
         c = ArtifactCollector()
         step = StepRecord(model_response=ModelResponse(content="I cannot help with that"))

@@ -163,6 +163,19 @@ def _failure_error(row: dict[str, Any]) -> str:
     return _truncate_text(scoring_details.get("error") or row.get("model_error") or row.get("error") or "")
 
 
+def _completed_harbor_verification_without_error(row: dict[str, Any]) -> bool:
+    scoring_details = row.get("scoring_details")
+    if not isinstance(scoring_details, dict):
+        return False
+    if scoring_details.get("error") or scoring_details.get("error_category"):
+        return False
+    if row.get("model_error") or row.get("error"):
+        return False
+    if scoring_details.get("method") != "harbor":
+        return False
+    return "test_exit_code" in scoring_details or "test_summary" in scoring_details
+
+
 def _wire_failure_text(record: dict[str, Any]) -> str:
     parts = [
         f"HTTP {record.get('status_code')}" if record.get("status_code") is not None else "",
@@ -195,6 +208,8 @@ def _trial_failure_category(row: dict[str, Any], all_wire_rows: list[dict[str, A
     wire_category, _ = _trial_wire_failure(row, all_wire_rows)
     if wire_category and category in {"", "empty_response", "model_error"}:
         return wire_category
+    if category == "empty_response" and _completed_harbor_verification_without_error(row):
+        return ""
     return category
 
 
@@ -903,6 +918,7 @@ def _enrich_bench(bench_dir: Path) -> dict[str, int]:
         "steps_backfilled_message": 0,
         "steps_backfilled_tool_calls": 0,
         "rows_reclassified_from_wire_failure": 0,
+        "rows_cleared_empty_response_after_verification": 0,
         "rows_written": 0,
     }
 
@@ -927,9 +943,14 @@ def _enrich_bench(bench_dir: Path) -> dict[str, int]:
             wire = by_trial.get(_trial_key(r), [])
             all_wire = by_trial_all.get(_trial_key(r), [])
             category = _trial_failure_category(r, all_wire)
-            if category and category != _failure_category(r):
-                r["failure_category"] = category
-                counts["rows_reclassified_from_wire_failure"] += 1
+            original_category = _failure_category(r)
+            if category != original_category:
+                if category:
+                    r["failure_category"] = category
+                    counts["rows_reclassified_from_wire_failure"] += 1
+                elif original_category == "empty_response" and _completed_harbor_verification_without_error(r):
+                    r.pop("failure_category", None)
+                    counts["rows_cleared_empty_response_after_verification"] += 1
             if not wire:
                 counts["trials_no_wire_data"] += 1
             elif len(steps) == len(wire):
@@ -1042,6 +1063,9 @@ def generate_trajectories_report(
                     "tool_calls": counts["steps_backfilled_tool_calls"],
                 },
                 "rows_reclassified_from_wire_failure": counts["rows_reclassified_from_wire_failure"],
+                "rows_cleared_empty_response_after_verification": counts[
+                    "rows_cleared_empty_response_after_verification"
+                ],
                 "quality": _piotr_quality_aggregate(enriched_rows),
                 "per_step_sum_after_enrichment": sum(_step_tokens(s) for s in enriched_steps),
                 "step_field_coverage_after_enrichment_missing": _missing_fields(
