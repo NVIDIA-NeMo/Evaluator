@@ -635,6 +635,81 @@ def test_non_success_wire_examples_include_invalid_response_details(tmp_path: Pa
     assert failure["last_wire_error_body"] == '{"error":{"code":"bad_tool_json"}}'
 
 
+@pytest.mark.parametrize(
+    ("status_code", "error_type", "error_message", "expected_category"),
+    [
+        (400, "invalid_request_error", "Malformed native tool-call JSON", "model_error"),
+        (504, "timeout", "Upstream timed out after 5s", "model_timeout"),
+    ],
+)
+def test_last_wire_non_200_reclassifies_empty_response(
+    tmp_path: Path,
+    status_code: int,
+    error_type: str,
+    error_message: str,
+    expected_category: str,
+) -> None:
+    bench = tmp_path / "pb"
+    row = _trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="", pt=0, ct=0)])
+    row["failure_category"] = "empty_response"
+    _write_jsonl(bench / "trajectories.jsonl", [row])
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [
+            {**_wire(7, 2, prompt=7, completion=3, status_code=200), "model_traffic_request_id": "sess:req-ok"},
+            {
+                **_wire(7, 2, prompt=0, completion=0, status_code=status_code),
+                "model_traffic_request_id": "sess:req-bad",
+                "error_type": error_type,
+                "error_message": error_message,
+            },
+        ],
+    )
+
+    report = json.loads(generate_trajectories_report(tmp_path, enrich=True).read_text())["benchmarks"][0]
+
+    assert report["trajectories"]["failures_by_category"] == {expected_category: 1}
+    failure = report["trajectories"]["failure_examples"][0]
+    assert failure["failure_category"] == expected_category
+    assert failure["last_wire_status_code"] == status_code
+    assert failure["last_wire_failure_category"] == expected_category
+    assert error_message in failure["error"]
+    assert report["enrichment"]["rows_reclassified_from_wire_failure"] == 1
+
+    enriched = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])
+    assert enriched["failure_category"] == expected_category
+
+
+def test_prior_504_then_final_200_does_not_reclassify_as_timeout(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    row = _trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="", pt=0, ct=0)])
+    row["failure_category"] = "empty_response"
+    _write_jsonl(bench / "trajectories.jsonl", [row])
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [
+            {
+                **_wire(7, 2, prompt=0, completion=0, status_code=504),
+                "model_traffic_request_id": "sess:req-timeout",
+                "error_type": "timeout",
+                "error_message": "Upstream timed out after 5s",
+            },
+            {**_wire(7, 2, prompt=7, completion=3, status_code=200), "model_traffic_request_id": "sess:req-ok"},
+        ],
+    )
+
+    report = json.loads(generate_trajectories_report(tmp_path, enrich=True).read_text())["benchmarks"][0]
+
+    assert report["trajectories"]["failures_by_category"] == {"empty_response": 1}
+    failure = report["trajectories"]["failure_examples"][0]
+    assert failure["failure_category"] == "empty_response"
+    assert failure["last_wire_status_code"] == 200
+    assert failure["last_wire_failure_category"] == ""
+    assert report["wire_calls"]["non_200_by_status"] == {"504": 1}
+    assert report["wire_calls"]["problems_with_last_wire_non_200"] == 0
+    assert report["enrichment"]["rows_reclassified_from_wire_failure"] == 0
+
+
 def test_timeout_no_step_examples_keep_wire_counts(tmp_path: Path) -> None:
     bench = tmp_path / "pb"
     row = _trial(3, 1, reward=0.0, steps=[])
