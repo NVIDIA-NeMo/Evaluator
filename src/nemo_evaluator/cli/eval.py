@@ -116,6 +116,10 @@ def eval_run(
         config = _load_config(config_file, overrides=override)
         if output_dir is not None:
             config.output.dir = output_dir
+
+            from nemo_evaluator.config.snapshot import record_output_dir_override
+
+            record_output_dir_override(config, output_dir)
     elif bench:
         config = _build_quick_config(
             bench,
@@ -152,14 +156,27 @@ def eval_run(
 
 
 def _load_config(config_file: str, overrides: tuple[str, ...] = ()):
+    import copy
+    from pathlib import Path
+
     from nemo_evaluator.config import parse_eval_config
     from nemo_evaluator.config.compose import _prune_nulls, compose_config
+    from nemo_evaluator.config.snapshot import build_provenance
 
     raw = compose_config(config_file)
     for ov in overrides:
         _apply_override(raw, ov)
     _prune_nulls(raw)
-    return parse_eval_config(raw)
+    config = parse_eval_config(raw)
+    # Reproducibility snapshot inputs: keep the composed dict
+    # with ${ENV_VAR} refs unexpanded so executors can persist it without
+    # writing secrets to disk.
+    config._composed_raw = copy.deepcopy(raw)
+    config._snapshot_provenance = build_provenance(
+        source_config=str(Path(config_file).resolve()),
+        overrides=overrides,
+    )
+    return config
 
 
 def _apply_override(data: dict, override: str) -> None:

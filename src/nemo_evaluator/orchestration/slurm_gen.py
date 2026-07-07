@@ -2005,18 +2005,29 @@ def _extract_bench_config(config: EvalConfig, bench_idx: int, svc_url_var: str, 
     if svc:
         proto = getattr(svc, "protocol", "chat_completions")
         url_suffix = _PROTO_SUFFIX.get(proto, "/chat/completions")
+        # Inline the model id when it is known at generation time so the
+        # sidecar records which model ran. The value written
+        # here must mirror what the sbatch exports into the env var; when
+        # in doubt (e.g. NAT services) keep the env-var reference.
+        literal_model: str | None = None
+        if getattr(svc, "type", "") == "api":
+            literal_model = getattr(svc, "model", None)
+        elif getattr(svc, "is_model_server", False):
+            literal_model = getattr(svc, "served_model_name", None)
         svc_dict: dict = {
             "type": "api",
             "url": f"${{{svc_url_var}}}{url_suffix}",
             "protocol": proto,
-            "model": f"${{{svc_model_var}}}",
+            "model": literal_model or f"${{{svc_model_var}}}",
         }
         api_key = getattr(svc, "api_key", None)
         if api_key:
             svc_dict["api_key"] = api_key
         proxy = getattr(svc, "proxy", None)
         if proxy is not None:
-            svc_dict["proxy"] = proxy.model_dump(exclude_none=True, exclude_defaults=True)
+            # exclude_none only: keep default-valued fields (timeouts,
+            # retries, ...) so the sidecar records the effective settings.
+            svc_dict["proxy"] = proxy.model_dump(exclude_none=True)
         if hasattr(svc, "generation"):
             gen = svc.generation.model_dump(exclude_none=True)
             if gen:
@@ -2805,6 +2816,15 @@ def _write_export_config(out: Path, export_config: dict) -> Path | None:
     return path
 
 
+_SIDECAR_HEADER = (
+    "# Machine-generated per-benchmark execution config (executed inside the\n"
+    "# sbatch job). NOT the full run config: the model URL may be an env-var\n"
+    "# placeholder filled at runtime, and cluster is forced to 'local'.\n"
+    "# The complete composed run config is saved as full_config.yaml in\n"
+    "# the run root directory (the parent directory for sharded runs).\n"
+)
+
+
 def _write_single_script(
     out: Path,
     script: str,
@@ -2847,7 +2867,10 @@ def _write_single_script(
 
     for safe_name, cfg_dict in sidecar_configs.items():
         cfg_path = out / f"config_{safe_name}.yaml"
-        cfg_path.write_text(yaml.dump(cfg_dict, default_flow_style=False, sort_keys=False), encoding="utf-8")
+        cfg_path.write_text(
+            _SIDECAR_HEADER + yaml.dump(cfg_dict, default_flow_style=False, sort_keys=False),
+            encoding="utf-8",
+        )
         if _sidecar_contains_secret(cfg_dict):
             cfg_path.chmod(0o600)
         else:

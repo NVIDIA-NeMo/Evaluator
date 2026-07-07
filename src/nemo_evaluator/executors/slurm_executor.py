@@ -390,11 +390,23 @@ class SlurmExecutor(Executor):
         else:
             script_paths, extra_paths = write_sbatch(config, dry_run=dry_run)
 
+        # Reproducibility snapshot: the full composed config at
+        # the run root — the per-shard config_*.yaml files are transformed
+        # execution slices and cannot serve as the run record.
+        from nemo_evaluator.config.snapshot import write_config_snapshot
+
+        if stamped_run_id and isinstance(getattr(config, "_snapshot_provenance", None), dict):
+            config._snapshot_provenance.setdefault("run_id", stamped_run_id)
+        staging_root = local_staging if is_remote else Path(config.output.dir)
+        snapshot_path = write_config_snapshot(config, staging_root, force=not resume)
+
         is_sharded = len(script_paths) > 1 or (
             len(script_paths) == 1 and script_paths[0].parent.name.startswith("shard_")
         )
         for sp in script_paths:
             click.echo(f"Generated: {sp}")
+        if snapshot_path is not None:
+            click.echo(f"  snapshot: {snapshot_path}")
         for sp in extra_paths:
             if sp.name == ".secrets.env":
                 click.echo(f"  secrets: {sp}  (chmod 600)")
@@ -408,6 +420,8 @@ class SlurmExecutor(Executor):
                 click.echo(f"Remote target:   {target}:{resolved_dir}")
                 click.echo("\nTo submit manually:")
                 all_files = [str(p) for p in script_paths] + [str(p) for p in extra_paths]
+                if snapshot_path is not None:
+                    all_files.append(str(snapshot_path))
                 click.echo(f"  scp -r {' '.join(all_files)} {target}:{resolved_dir}/")
                 for sp in script_paths:
                     shard_dir = sp.parent.name if is_sharded else ""
@@ -423,11 +437,24 @@ class SlurmExecutor(Executor):
             return
 
         if is_remote:
-            from nemo_evaluator.executors.ssh import submit_eval
+            from nemo_evaluator.executors.ssh import copy_to_remote, submit_eval
 
             job_ids: list[str] = []
             submission_error: Exception | None = None
             try:
+                if snapshot_path is not None:
+                    # Best-effort: the snapshot is a reproducibility record;
+                    # its upload must never block the actual submission.
+                    try:
+                        copy_to_remote(
+                            config.cluster.hostname,
+                            [snapshot_path],
+                            resolved_dir,
+                            config.cluster.username,
+                            local_base=staging_root,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        click.echo(f"Warning: could not upload config snapshot: {exc}")
                 for script_path in script_paths:
                     # Include all extras under the script's staging dir, not
                     # just direct siblings — legacy container:// benchmarks

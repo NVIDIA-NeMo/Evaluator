@@ -21,7 +21,7 @@ import re
 import warnings
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
 from .benchmarks import BenchmarkConfig
 from .clusters import ClusterConfig, LocalCluster, SlurmCluster, _parse_walltime
@@ -64,6 +64,12 @@ class EvalConfig(BaseModel):
     benchmarks: list[BenchmarkConfig] = Field(min_length=1)
     cluster: ClusterConfig = Field(default_factory=LocalCluster)
     output: OutputConfig = Field(default_factory=OutputConfig)
+
+    # Reproducibility snapshot inputs, attached by the CLI
+    # loader and persisted by executors via config.snapshot: the composed
+    # raw dict (env refs unexpanded) and its provenance metadata.
+    _composed_raw: dict[str, Any] | None = PrivateAttr(default=None)
+    _snapshot_provenance: dict[str, str] = PrivateAttr(default_factory=dict)
 
     @field_validator("services")
     @classmethod
