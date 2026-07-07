@@ -131,7 +131,7 @@ class TestWriteConfigSnapshot:
         assert "nvapi-" not in text
         assert "<redacted>" in text
 
-    def test_never_raises(self, tmp_path):
+    def test_never_raises(self):
         """A broken config must not raise (snapshot is best-effort)."""
 
         class _Broken:
