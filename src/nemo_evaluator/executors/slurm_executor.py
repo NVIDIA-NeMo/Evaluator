@@ -487,13 +487,17 @@ class SlurmExecutor(Executor):
                 submission_error = exc
             finally:
                 if local_staging:
-                    if snapshot_upload_failed:
-                        # The staging dir holds the only copy of the
-                        # reproducibility record — keep it for manual upload.
-                        click.echo("Config snapshot kept locally. To retry the upload:")
-                        click.echo(f"  scp {snapshot_path} {config.cluster.hostname}:{resolved_dir}/")
-                    else:
-                        shutil.rmtree(local_staging, ignore_errors=True)
+                    if snapshot_upload_failed and snapshot_path is not None:
+                        # Preserve only the (secret-free) snapshot for manual
+                        # upload; the staging dir also holds .secrets.env and
+                        # must not outlive the submission.
+                        try:
+                            kept = shutil.move(str(snapshot_path), tempfile.mkdtemp(prefix="nel-snapshot-"))
+                            click.echo("Config snapshot kept locally. To retry the upload:")
+                            click.echo(f"  scp {kept} {config.cluster.hostname}:{resolved_dir}/")
+                        except OSError as exc:
+                            click.echo(f"Warning: could not preserve config snapshot: {exc}")
+                    shutil.rmtree(local_staging, ignore_errors=True)
 
             from nemo_evaluator.run_store import (
                 RunMeta,
