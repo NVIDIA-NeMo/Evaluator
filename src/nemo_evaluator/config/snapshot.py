@@ -48,8 +48,10 @@ SNAPSHOT_FILENAME = "full_config.yaml"
 _MASK = "<redacted>"
 
 # Field names whose literal (non-``${...}``) values are always masked.
+# Plural forms are matched too, except 'tokens': benign *_tokens params
+# (max_new_tokens, tokens_to_generate) must not be masked.
 _SECRET_KEY_RE = re.compile(
-    r"(api[_-]?key|token|secret|password|passwd|credential|authorization)(?![A-Za-z])", re.IGNORECASE
+    r"(api[_-]?keys?|token|secrets?|passwords?|passwd|credentials?|authorization)(?![A-Za-z])", re.IGNORECASE
 )
 
 # Backstop for secret-looking literals hardcoded anywhere (including
@@ -76,13 +78,13 @@ def package_version() -> str:
 
 # ``key=value`` tokens (CLI overrides, argv) whose key looks secret.
 _SECRET_KV_RE = re.compile(
-    r"(?P<key>[A-Za-z0-9_.\-]*(?:api[_-]?key|token|secret|password|passwd|credential|authorization)(?![A-Za-z])[A-Za-z0-9_.\-]*\s*=\s*)(?P<value>[^\s'\"]+)",
+    r"(?P<key>[A-Za-z0-9_.\-]*(?:api[_-]?keys?|token|secrets?|passwords?|passwd|credentials?|authorization)(?![A-Za-z])[A-Za-z0-9_.\-]*\s*=\s*)(?P<value>[^\s'\"]+)",
     re.IGNORECASE,
 )
 
 # Space-separated secret flags, e.g. quick mode's ``--api-key <value>``.
 _SECRET_FLAG_RE = re.compile(
-    r"(?P<key>--?[A-Za-z0-9\-]*(?:api[_-]?key|token|secret|password|passwd|credential|authorization)(?![A-Za-z])[A-Za-z0-9\-]*\s+)(?P<value>[^\s'\"-][^\s'\"]*)",
+    r"(?P<key>--?[A-Za-z0-9\-]*(?:api[_-]?keys?|token|secrets?|passwords?|passwd|credentials?|authorization)(?![A-Za-z])[A-Za-z0-9\-]*\s+)(?P<value>[^\s'\"-][^\s'\"]*)",
     re.IGNORECASE,
 )
 

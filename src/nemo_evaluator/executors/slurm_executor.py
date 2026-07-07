@@ -441,6 +441,7 @@ class SlurmExecutor(Executor):
 
             job_ids: list[str] = []
             submission_error: Exception | None = None
+            snapshot_upload_failed = False
             try:
                 if snapshot_path is not None:
                     # Best-effort: the snapshot is a reproducibility record;
@@ -454,6 +455,7 @@ class SlurmExecutor(Executor):
                             local_base=staging_root,
                         )
                     except Exception as exc:  # noqa: BLE001
+                        snapshot_upload_failed = True
                         click.echo(f"Warning: could not upload config snapshot: {exc}")
                 for script_path in script_paths:
                     # Include all extras under the script's staging dir, not
@@ -485,7 +487,12 @@ class SlurmExecutor(Executor):
                 submission_error = exc
             finally:
                 if local_staging:
-                    shutil.rmtree(local_staging, ignore_errors=True)
+                    if snapshot_upload_failed:
+                        # The staging dir holds the only copy of the
+                        # reproducibility record — keep it for manual upload.
+                        click.echo(f"Config snapshot kept locally: {snapshot_path}")
+                    else:
+                        shutil.rmtree(local_staging, ignore_errors=True)
 
             from nemo_evaluator.run_store import (
                 RunMeta,

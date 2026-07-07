@@ -91,6 +91,10 @@ class TestMaskSecrets:
         }
         assert mask_secrets(raw) == raw
 
+    def test_plural_secret_keys_masked(self):
+        raw = {"credentials": "some-literal-cred", "secrets": "another-literal"}
+        assert mask_secrets(raw) == {"credentials": "<redacted>", "secrets": "<redacted>"}
+
 
 class TestSnapshotText:
     def test_header_and_reparseable_body(self):
@@ -146,6 +150,11 @@ class TestMaskCliText:
     def test_override_env_ref_kept(self):
         out = _mask_cli_text("-O services.m.api_key=${NVIDIA_API_KEY}")
         assert "${NVIDIA_API_KEY}" in out
+
+    def test_tokens_param_not_masked(self):
+        """'tokens' plural is deliberately excluded: *_tokens params are benign."""
+        out = _mask_cli_text("-O benchmarks.0.params.max_new_tokens=2048")
+        assert "max_new_tokens=2048" in out
 
 
 class TestForceOverwrite:
