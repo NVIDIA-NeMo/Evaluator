@@ -90,14 +90,15 @@ _SECRET_FLAG_RE = re.compile(
 
 
 # Values that are references, not secrets: ${VAR} (anywhere), bare $VAR,
-# an env-var NAME (all-caps identifier — the EF convention for "read this
-# env var", e.g. ``api_key: JUDGE_API_KEY``), or a v1 ``host:VAR`` mapping.
-# Trade-off: an actual secret shaped exactly like an all-caps identifier
-# would be kept, but real keys (nvapi-.., mixed case, dashes) never are —
-# and the value-pattern backstop still applies.
+# an env-var NAME (all-caps with at least one underscore — the EF
+# convention for "read this env var", e.g. ``api_key: JUDGE_API_KEY``),
+# or a v1 ``host:VAR`` mapping. Requiring the underscore keeps bare
+# uppercase blobs (plausible secrets) maskable. Deliberately NOT checked
+# against os.environ: runtime-only vars are unset on the submitting
+# machine, and the snapshot must not depend on the local environment.
 _REFERENCE_VALUE_RES = [
     re.compile(r"^\$[A-Za-z_][A-Za-z0-9_]*$"),
-    re.compile(r"^(host:)?[A-Z][A-Z0-9_]*$"),
+    re.compile(r"^(host:)?[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$"),
 ]
 
 

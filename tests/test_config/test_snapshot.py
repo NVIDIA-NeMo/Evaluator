@@ -95,6 +95,11 @@ class TestMaskSecrets:
         raw = {"credentials": "some-literal-cred", "secrets": "another-literal"}
         assert mask_secrets(raw) == {"credentials": "<redacted>", "secrets": "<redacted>"}
 
+    def test_all_caps_blob_masked(self):
+        """Uppercase alnum without underscores is not an env-var name."""
+        raw = {"m": {"api_key": "ABCDEF123456XYZ"}}
+        assert mask_secrets(raw)["m"]["api_key"] == "<redacted>"
+
 
 class TestSnapshotText:
     def test_header_and_reparseable_body(self):
