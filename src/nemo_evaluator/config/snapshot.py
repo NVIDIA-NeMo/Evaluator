@@ -230,13 +230,13 @@ def write_config_snapshot(config: Any, output_dir: str | Path | None = None, *, 
 
         raw = getattr(config, "_composed_raw", None)
         provenance = dict(getattr(config, "_snapshot_provenance", None) or {})
+        if not provenance:
+            provenance = build_provenance()
         if raw is None:
             # Quick mode / programmatic configs: reconstruct from the
             # validated model. Defaults are inlined; secrets are masked.
             raw = config.model_dump(mode="json", exclude_none=True)
             provenance.setdefault("note", "reconstructed from validated config (no source YAML)")
-        if not provenance:
-            provenance = build_provenance()
 
         out_dir.mkdir(parents=True, exist_ok=True)
         path.write_text(build_snapshot_text(raw, provenance), encoding="utf-8")
