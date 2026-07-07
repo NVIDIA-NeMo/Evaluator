@@ -490,7 +490,8 @@ class SlurmExecutor(Executor):
                     if snapshot_upload_failed:
                         # The staging dir holds the only copy of the
                         # reproducibility record — keep it for manual upload.
-                        click.echo(f"Config snapshot kept locally: {snapshot_path}")
+                        click.echo("Config snapshot kept locally. To retry the upload:")
+                        click.echo(f"  scp {snapshot_path} {config.cluster.hostname}:{resolved_dir}/")
                     else:
                         shutil.rmtree(local_staging, ignore_errors=True)
 
