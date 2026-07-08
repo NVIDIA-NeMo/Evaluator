@@ -19,9 +19,7 @@ The per-shard ``config_*.yaml`` files are transformed for execution
 (model URL runtime-assigned, cluster forced to ``local``) and cannot
 serve as the run record. This module persists the composed config
 instead, with ``${ENV_VAR}`` references NOT expanded — so secrets never
-reach disk by construction — plus a provenance header. Configs without a
-pre-expansion source (quick mode, programmatic) get no snapshot: the
-validated config holds resolved secrets and must not be persisted.
+reach disk by construction — plus a provenance header.
 """
 
 from __future__ import annotations
@@ -105,8 +103,7 @@ def write_config_snapshot(config: Any, output_dir: str | Path | None = None, *, 
     try:
         raw = getattr(config, "_composed_raw", None)
         if raw is None:
-            # No pre-expansion source (quick mode / programmatic): the
-            # validated config holds resolved secrets, so write nothing.
+            # Quick mode / programmatic: no pre-expansion source, write nothing.
             return None
         out_dir = Path(output_dir or config.output.dir)
         path = out_dir / SNAPSHOT_FILENAME
