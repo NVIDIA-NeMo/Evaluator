@@ -168,9 +168,7 @@ def _load_config(config_file: str, overrides: tuple[str, ...] = ()):
         _apply_override(raw, ov)
     _prune_nulls(raw)
     config = parse_eval_config(raw)
-    # Reproducibility snapshot inputs: keep the composed dict
-    # with ${ENV_VAR} refs unexpanded so executors can persist it without
-    # writing secrets to disk.
+    # Snapshot inputs: the composed dict, env refs unexpanded (no secrets on disk).
     config._composed_raw = copy.deepcopy(raw)
     config._snapshot_provenance = build_provenance(
         source_config=str(Path(config_file).resolve()),

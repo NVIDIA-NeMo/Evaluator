@@ -65,9 +65,8 @@ class EvalConfig(BaseModel):
     cluster: ClusterConfig = Field(default_factory=LocalCluster)
     output: OutputConfig = Field(default_factory=OutputConfig)
 
-    # Reproducibility snapshot inputs, attached by the CLI
-    # loader and persisted by executors via config.snapshot: the composed
-    # raw dict (env refs unexpanded) and its provenance metadata.
+    # Snapshot inputs set by the CLI loader: composed raw dict (env refs
+    # unexpanded) + provenance. Persisted by executors via config.snapshot.
     _composed_raw: dict[str, Any] | None = PrivateAttr(default=None)
     _snapshot_provenance: dict[str, str] = PrivateAttr(default_factory=dict)
 

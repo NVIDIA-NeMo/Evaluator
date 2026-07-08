@@ -2005,10 +2005,8 @@ def _extract_bench_config(config: EvalConfig, bench_idx: int, svc_url_var: str, 
     if svc:
         proto = getattr(svc, "protocol", "chat_completions")
         url_suffix = _PROTO_SUFFIX.get(proto, "/chat/completions")
-        # Inline the model id when it is known at generation time so the
-        # sidecar records which model ran. The value written
-        # here must mirror what the sbatch exports into the env var; when
-        # in doubt (e.g. NAT services) keep the env-var reference.
+        # Inline the model id when known at generation time; when in doubt
+        # (e.g. NAT services) keep the env-var reference the sbatch exports.
         literal_model: str | None = None
         if getattr(svc, "type", "") == "api":
             literal_model = getattr(svc, "model", None)
@@ -2025,8 +2023,7 @@ def _extract_bench_config(config: EvalConfig, bench_idx: int, svc_url_var: str, 
             svc_dict["api_key"] = api_key
         proxy = getattr(svc, "proxy", None)
         if proxy is not None:
-            # exclude_none only: keep default-valued fields (timeouts,
-            # retries, ...) so the sidecar records the effective settings.
+            # exclude_none only: keep defaults so the sidecar records effective settings.
             svc_dict["proxy"] = proxy.model_dump(exclude_none=True)
         if hasattr(svc, "generation"):
             gen = svc.generation.model_dump(exclude_none=True)
@@ -2817,11 +2814,8 @@ def _write_export_config(out: Path, export_config: dict) -> Path | None:
 
 
 _SIDECAR_HEADER = (
-    "# Machine-generated per-benchmark execution config (executed inside the\n"
-    "# sbatch job). NOT the full run config: the model URL may be an env-var\n"
-    "# placeholder filled at runtime, and cluster is forced to 'local'.\n"
-    "# The complete composed run config is saved as full_config.yaml in\n"
-    "# the run root directory (the parent directory for sharded runs).\n"
+    "# Machine-generated per-benchmark execution slice — not the full run config.\n"
+    "# The composed, re-runnable config is full_config.yaml at the run root.\n"
 )
 
 

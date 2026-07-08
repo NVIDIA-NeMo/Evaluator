@@ -390,9 +390,6 @@ class SlurmExecutor(Executor):
         else:
             script_paths, extra_paths = write_sbatch(config, dry_run=dry_run)
 
-        # Reproducibility snapshot: the full composed config at
-        # the run root — the per-shard config_*.yaml files are transformed
-        # execution slices and cannot serve as the run record.
         from nemo_evaluator.config.snapshot import write_config_snapshot
 
         if stamped_run_id and isinstance(getattr(config, "_snapshot_provenance", None), dict):
@@ -444,8 +441,7 @@ class SlurmExecutor(Executor):
             snapshot_upload_failed = False
             try:
                 if snapshot_path is not None:
-                    # Best-effort: the snapshot is a reproducibility record;
-                    # its upload must never block the actual submission.
+                    # Best-effort: never block submission on the snapshot upload.
                     try:
                         copy_to_remote(
                             config.cluster.hostname,
@@ -488,9 +484,7 @@ class SlurmExecutor(Executor):
             finally:
                 if local_staging:
                     if snapshot_upload_failed and snapshot_path is not None:
-                        # Preserve only the (secret-free) snapshot for manual
-                        # upload; the staging dir also holds .secrets.env and
-                        # must not outlive the submission.
+                        # Keep only the secret-free snapshot; staging also holds .secrets.env.
                         try:
                             kept = shutil.move(str(snapshot_path), tempfile.mkdtemp(prefix="nel-snapshot-"))
                             click.echo("Config snapshot kept locally. To retry the upload:")
