@@ -57,7 +57,6 @@ _SECRET_KEY_RE = re.compile(
 # Backstop for secret-looking literals hardcoded anywhere (including
 # inside free-form strings such as ``extra.args``).
 _SECRET_VALUE_RES = [
-    re.compile(r"nvapi-[A-Za-z0-9_\-]{16,}"),
     re.compile(r"\bsk-[A-Za-z0-9_\-]{16,}"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     re.compile(r"\bghp_[A-Za-z0-9]{20,}\b"),

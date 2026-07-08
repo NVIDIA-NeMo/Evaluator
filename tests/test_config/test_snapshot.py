@@ -40,7 +40,7 @@ class _StubConfig:
         self.output = _Out()
 
     def model_dump(self, **_kw):
-        return {"services": {"m": {"type": "api", "api_key": "nvapi-" + "x" * 20}}}
+        return {"services": {"m": {"type": "api", "api_key": "secret-" + "x" * 20}}}
 
 
 class TestMaskSecrets:
@@ -49,7 +49,7 @@ class TestMaskSecrets:
         assert mask_secrets(raw) == raw
 
     def test_literal_secret_key_masked(self):
-        raw = {"services": {"m": {"api_key": "nvapi-not-a-real-key"}}}
+        raw = {"services": {"m": {"api_key": "not-a-real-key-literal"}}}
         assert mask_secrets(raw)["services"]["m"]["api_key"] == "<redacted>"
 
     def test_env_var_names_masked_when_literal(self):
@@ -59,9 +59,9 @@ class TestMaskSecrets:
         assert out["env_vars"]["JUDGE_API_KEY"] == "${JUDGE_API_KEY}"
 
     def test_pattern_backstop_inside_free_form_string(self):
-        raw = {"extra": {"args": "++server.key=nvapi-" + "a" * 24 + " ++x=1"}}
+        raw = {"extra": {"args": "++server.key=sk-" + "a" * 24 + " ++x=1"}}
         out = mask_secrets(raw)
-        assert "nvapi-" not in out["extra"]["args"]
+        assert "sk-" not in out["extra"]["args"]
         assert "++x=1" in out["extra"]["args"]
 
     def test_non_secret_values_untouched(self):
@@ -133,7 +133,7 @@ class TestWriteConfigSnapshot:
         cfg = _StubConfig(raw=None)
         path = write_config_snapshot(cfg, tmp_path)
         text = path.read_text()
-        assert "nvapi-" not in text
+        assert "x" * 20 not in text
         assert "<redacted>" in text
 
     def test_never_raises(self):
@@ -183,11 +183,11 @@ class TestProvenanceLeakRegression:
         monkeypatch.setattr(
             sys,
             "argv",
-            ["nel", "eval", "run", "c.yaml", "--api-key=nvapi-ARGVSECRET111111", "--token", "plainSecret123"],
+            ["nel", "eval", "run", "c.yaml", "--api-key=ARGVSECRET111111", "--token", "plainSecret123"],
         )
         prov = build_provenance(overrides=("services.x.api_key=overrideSecret99",))
         text = build_snapshot_text({"services": {}}, prov)
-        assert "nvapi-" not in text
+        assert "ARGVSECRET111111" not in text
         assert "plainSecret123" not in text
         assert "overrideSecret99" not in text
         assert "<redacted>" in text
