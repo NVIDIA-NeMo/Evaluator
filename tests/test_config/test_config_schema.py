@@ -754,6 +754,40 @@ class TestStatefulSandboxFlag:
             )
         assert any("stateful" in str(w.message).lower() and issubclass(w.category, UserWarning) for w in caught)
 
+    def test_scrub_git_history_field_accepted_and_defaults_false(self):
+        """scrub_git_history parses and defaults off."""
+        from nemo_evaluator.config import EcsFargateSandbox
+
+        sb = EcsFargateSandbox(
+            type="ecs_fargate",
+            region="us-east-1",
+            ecr_repository="123.dkr.ecr.us-east-1.amazonaws.com/repo",
+        )
+        assert sb.scrub_git_history is False
+        sb2 = EcsFargateSandbox(
+            type="ecs_fargate",
+            region="us-east-1",
+            ecr_repository="123.dkr.ecr.us-east-1.amazonaws.com/repo",
+            scrub_git_history=True,
+        )
+        assert sb2.scrub_git_history is True
+
+    def test_stateful_with_scrub_git_history_warns(self):
+        """stateful=True alongside scrub_git_history emits a UserWarning — the
+        scrub is silently ignored in stateful mode."""
+        from nemo_evaluator.config import EcsFargateSandbox
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            EcsFargateSandbox(
+                type="ecs_fargate",
+                region="us-east-1",
+                ecr_repository="123.dkr.ecr.us-east-1.amazonaws.com/repo",
+                stateful=True,
+                scrub_git_history=True,
+            )
+        assert any("scrub_git_history" in str(w.message) and issubclass(w.category, UserWarning) for w in caught)
+
 
 class TestTerminalBenchPlaybook:
     def test_terminal_bench_playbook_loads(self):

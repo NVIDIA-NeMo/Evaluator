@@ -47,6 +47,10 @@ class _SandboxBase(BaseModel):
     capture_cmd: str | None = None
     verify_timeout: float = 600.0
     stateful: bool = False
+    scrub_git_history: bool = False
+    """Run the git future-history scrub in the agent sandbox before the agent
+    starts (anti-cheat for SWE-style tasks whose gold fix / hidden tests live in
+    the repo's future commits). Only applies to StatelessSandbox tasks."""
 
     @model_validator(mode="after")
     def _warn_stateful_with_capture_cmd(self) -> "_SandboxBase":
@@ -54,6 +58,18 @@ class _SandboxBase(BaseModel):
             warnings.warn(
                 "sandbox.stateful=True ignores capture_cmd — the capture/transfer "
                 "workflow is skipped when stateful mode is enabled.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _warn_stateful_with_scrub_git_history(self) -> "_SandboxBase":
+        if self.stateful and self.scrub_git_history:
+            warnings.warn(
+                "sandbox.stateful=True ignores scrub_git_history — the git-history "
+                "scrub only runs for StatelessSandbox tasks (solve and verify share "
+                "one container in stateful mode, so scrubbing could corrupt scoring).",
                 UserWarning,
                 stacklevel=2,
             )
