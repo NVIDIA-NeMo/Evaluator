@@ -1295,6 +1295,7 @@ def _patch_terminus_unwind_min_pairs() -> None:
 
 _TERMINUS_API_ANCHOR_PATCHED = False
 _CHAT_TOKEN_ANCHOR_PATCHED = False
+_HARBOR_LITELLM_CTXLIM_PATCHED = False
 
 
 def _terminus2_count_total_tokens(self, chat) -> int:
@@ -1372,6 +1373,75 @@ def _patch_terminus_api_token_anchor() -> None:
     terminus2_mod.Terminus2._count_total_tokens = _terminus2_count_total_tokens
     _TERMINUS_API_ANCHOR_PATCHED = True
     logger.info("Patched Terminus2._count_total_tokens: anchor on API usage + litellm token remainder")
+
+
+# Matches the vLLM ``VLLMValidationError`` phrasing raised by self-hosted vLLM
+# deployments when a request exceeds the configured context length. The raw 400
+# body reads:
+#
+#   "You passed N input tokens and requested 0 output tokens. However, the
+#    model's context length is only M tokens..."
+#
+# Harbor 0.3.x's ``LiteLLM._is_context_length_error`` phrases tuple lists
+# ``"maximum context length"`` but NOT ``"model's context length"``, so this
+# text falls through to a plain ``LiteLLMBadRequestError``, Terminus-2's
+# ``except ContextLengthExceededError`` block never fires, and the agent
+# crashes instead of running its reactive-summarization fallback.
+#
+# Harbor v0.18.0 added exactly this substring upstream (see
+# ``harbor/llms/lite_llm.py`` with the comment ``# vllm 0.16.0 error
+# message``), so this patch becomes redundant the moment the ``harbor`` pin
+# in ``pyproject.toml`` is bumped to a release containing it.
+_VLLM_CTXLIM_PHRASES: tuple[str, ...] = (
+    "model's context length",  # vLLM VLLMValidationError; harbor >=0.18 catches this natively
+)
+
+# vLLM's ``VLLMValidationError`` is raised with ``parameter="input_tokens"`` as
+# a structured kwarg. On stringification, that appears verbatim in the wire
+# error body as ``parameter=input_tokens``. Grep of vLLM shows this kwarg is
+# emitted by a single call site — the context-overflow validator — so its
+# presence in an unclassified ``BadRequestError`` is a strong signal that the
+# free-text phrase list above has drifted behind a vLLM release. We do NOT
+# reclassify on this marker (a bad free-text detector should be fixed, not
+# silently papered over); instead we log loudly so the drift is visible.
+_VLLM_CTXLIM_DRIFT_MARKER = "parameter=input_tokens"
+
+
+def _patch_harbor_lite_llm_context_length_matcher() -> None:
+    global _HARBOR_LITELLM_CTXLIM_PATCHED
+    if _HARBOR_LITELLM_CTXLIM_PATCHED:
+        return
+
+    from harbor.llms import lite_llm as harbor_litellm
+
+    original = harbor_litellm.LiteLLM._is_context_length_error
+
+    def _patched(self: Any, error: Any) -> bool:
+        if original(self, error):
+            return True
+        parts = [
+            str(error),
+            str(getattr(error, "body", "") or ""),
+            str(getattr(error, "message", "") or ""),
+            str(getattr(error, "error", "") or ""),
+        ]
+        combined = " ".join(p for p in parts if p).lower()
+        if any(phrase in combined for phrase in _VLLM_CTXLIM_PHRASES):
+            return True
+        if _VLLM_CTXLIM_DRIFT_MARKER in combined:
+            logger.warning(
+                "BadRequestError body contains vLLM's stable ctx-overflow marker "
+                "'%s' but did not match any classifier phrase in "
+                "_VLLM_CTXLIM_PHRASES. vLLM's error phrasing has likely drifted "
+                "and _VLLM_CTXLIM_PHRASES needs an update. Body preview: %s",
+                _VLLM_CTXLIM_DRIFT_MARKER,
+                combined[:500],
+            )
+        return False
+
+    harbor_litellm.LiteLLM._is_context_length_error = _patched
+    _HARBOR_LITELLM_CTXLIM_PATCHED = True
+    logger.info('Patched Harbor LiteLLM._is_context_length_error to recognize vLLM "model\'s context length" phrasing')
 
 
 _TOKENIZER_REGISTRY: dict[str, dict] = {}
@@ -1544,6 +1614,7 @@ class HarborSolver:
             _patch_terminus_cle_reset()
             _patch_terminus_unwind_min_pairs()
             _patch_terminus_api_token_anchor()
+            _patch_harbor_lite_llm_context_length_matcher()
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
         _configure_terminus_tokenizer(
