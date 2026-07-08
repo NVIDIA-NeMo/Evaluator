@@ -14,6 +14,7 @@
 # limitations under the License.
 """Tests for the composed-config reproducibility snapshot."""
 
+import pytest
 import yaml
 
 from nemo_evaluator.config.snapshot import (
@@ -44,8 +45,38 @@ class _StubConfig:
 
 
 class TestMaskSecrets:
-    def test_env_refs_preserved(self):
-        raw = {"services": {"m": {"api_key": "${NVIDIA_API_KEY}"}}}
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            pytest.param({"services": {"m": {"api_key": "${NVIDIA_API_KEY}"}}}, id="env_ref"),
+            pytest.param({"model": "nvidia/nemotron", "temperature": 1.0, "flags": [1, "a"]}, id="non_secret_values"),
+            pytest.param(
+                {"extra": {"tokenizer": "zai-org/GLM-4.7", "tokenizer_backend": "huggingface"}},
+                id="tokenizer_not_token",
+            ),
+            pytest.param(
+                {
+                    "adapter_config": {
+                        "start_reasoning_token": "<|channel>thought\n",
+                        "end_reasoning_token": "<channel|>",
+                    },
+                    "model": {"api_key": ""},
+                    "env": {"TIKTOKEN_ENCODINGS_DIR": "/cache/vllm/tiktoken_encodings"},
+                    "sandbox": {"tunnel_secret_arn": "arn:aws:secretsmanager:us-west-2:123:secret:x"},
+                },
+                id="template_markers_empty_path_arn",
+            ),
+            pytest.param(
+                {
+                    "judge": {"api_key": "JUDGE_API_KEY"},
+                    "env_vars": {"HF_TOKEN": "$HF_TOKEN", "NGC_API_KEY": "host:NGC_API_KEY"},
+                },
+                id="reference_shaped_values",
+            ),
+        ],
+    )
+    def test_untouched(self, raw):
+        """References, template markers, paths and non-secrets pass through as-is."""
         assert mask_secrets(raw) == raw
 
     def test_literal_secret_key_masked(self):
@@ -63,33 +94,6 @@ class TestMaskSecrets:
         out = mask_secrets(raw)
         assert "sk-" not in out["extra"]["args"]
         assert "++x=1" in out["extra"]["args"]
-
-    def test_non_secret_values_untouched(self):
-        raw = {"model": "nvidia/nemotron", "temperature": 1.0, "flags": [1, "a"]}
-        assert mask_secrets(raw) == raw
-
-    def test_tokenizer_fields_untouched(self):
-        """'token' must not substring-match tokenizer/tokenizer_backend."""
-        raw = {"extra": {"tokenizer": "zai-org/GLM-4.7", "tokenizer_backend": "huggingface"}}
-        assert mask_secrets(raw) == raw
-
-    def test_template_markers_and_empty_untouched(self):
-        """Reasoning-token markers and empty strings under secret-named keys stay."""
-        raw = {
-            "adapter_config": {"start_reasoning_token": "<|channel>thought\n", "end_reasoning_token": "<channel|>"},
-            "model": {"api_key": ""},
-            "env": {"TIKTOKEN_ENCODINGS_DIR": "/cache/vllm/tiktoken_encodings"},
-            "sandbox": {"tunnel_secret_arn": "arn:aws:secretsmanager:us-west-2:123:secret:x"},
-        }
-        assert mask_secrets(raw) == raw
-
-    def test_reference_shaped_values_untouched(self):
-        """Env-var names, bare $VAR and host: mappings are references, not secrets."""
-        raw = {
-            "judge": {"api_key": "JUDGE_API_KEY"},
-            "env_vars": {"HF_TOKEN": "$HF_TOKEN", "NGC_API_KEY": "host:NGC_API_KEY"},
-        }
-        assert mask_secrets(raw) == raw
 
     def test_plural_secret_keys_masked(self):
         raw = {"credentials": "some-literal-cred", "secrets": "another-literal"}
