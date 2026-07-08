@@ -26,16 +26,11 @@ from nemo_evaluator.config.snapshot import (
 
 
 class _StubConfig:
-    """Minimal stand-in for EvalConfig: private attrs + output.dir."""
+    """Minimal stand-in for EvalConfig: just the snapshot private attrs."""
 
-    def __init__(self, raw=None, provenance=None, output_dir="unused"):
+    def __init__(self, raw=None, provenance=None):
         self._composed_raw = raw
         self._snapshot_provenance = provenance or {}
-
-        class _Out:
-            dir = output_dir
-
-        self.output = _Out()
 
 
 class TestSnapshotText:
