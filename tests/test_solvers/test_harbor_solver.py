@@ -218,6 +218,20 @@ class TestPatchOpenhandsSDK:
         await _patch_openhands_sdk(sandbox)
         assert sandbox.exec.call_count >= 4
 
+    async def test_tool_concurrency_patch_failure_is_logged(self, caplog):
+        import logging
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(
+            stdout="tool_concurrency_limit: pattern not found", stderr="", return_code=0
+        )
+        with caplog.at_level(logging.WARNING):
+            await _patch_openhands_sdk(sandbox)
+
+        assert "Tool concurrency patch problem" in caplog.text
+
     async def test_runner_patch_disables_visualizer(self):
         """Patch 0 must inject both stuck_detection=False AND visualizer=None.
 
