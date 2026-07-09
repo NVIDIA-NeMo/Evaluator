@@ -23,6 +23,7 @@ import nemo_evaluator.solvers.harbor as harbor_mod
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.errors import InfraError
 from nemo_evaluator.solvers.harbor import (
+    _count_zero_token_agent_turns,
     _ensure_claude_host_env,
     _ensure_host_env,
     _error_from_crash_marker,
@@ -1198,3 +1199,281 @@ class TestInjectSkill:
         assert "does not exist" in caplog.text
         assert "/skills/caveman/SKILL.md" in result
         sandbox.upload.assert_not_called()
+
+
+# ── Zero-token agent-turn accounting ─────────────────────────────────────
+
+
+class TestCountZeroTokenAgentTurns:
+    def test_empty_list(self):
+        assert _count_zero_token_agent_turns([]) == 0
+
+    def test_single_doc_not_wrapped_in_list(self):
+        doc = {"steps": [{"source": "agent", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}}]}
+        assert _count_zero_token_agent_turns(doc) == 1
+
+    def test_counts_only_zero_token_agent_steps(self):
+        doc = {
+            "steps": [
+                {"source": "agent", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}},
+                {"source": "agent", "metrics": {"prompt_tokens": 10, "completion_tokens": 5}},
+                {"source": "agent", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}},
+            ]
+        }
+        assert _count_zero_token_agent_turns([doc]) == 2
+
+    def test_non_agent_zero_token_step_ignored(self):
+        doc = {
+            "steps": [
+                {"source": "environment", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}},
+                {"source": "user", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}},
+            ]
+        }
+        assert _count_zero_token_agent_turns([doc]) == 0
+
+    def test_agent_step_without_metrics_ignored(self):
+        doc = {"steps": [{"source": "agent"}, {"source": "agent", "metrics": None}]}
+        assert _count_zero_token_agent_turns([doc]) == 0
+
+    def test_partial_zero_not_counted(self):
+        # Only prompt_tokens == 0 (completion nonzero) must not count.
+        doc = {"steps": [{"source": "agent", "metrics": {"prompt_tokens": 0, "completion_tokens": 3}}]}
+        assert _count_zero_token_agent_turns([doc]) == 0
+
+    def test_non_dict_docs_and_steps_skipped(self):
+        assert _count_zero_token_agent_turns(["not-a-dict", 42, None]) == 0
+        assert _count_zero_token_agent_turns([{"steps": ["not-a-dict", None]}]) == 0
+
+    def test_missing_or_none_steps(self):
+        assert _count_zero_token_agent_turns([{}]) == 0
+        assert _count_zero_token_agent_turns([{"steps": None}]) == 0
+
+    def test_aggregates_across_multiple_docs(self):
+        docs = [
+            {"steps": [{"source": "agent", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}}]},
+            {"steps": [{"source": "agent", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}}]},
+        ]
+        assert _count_zero_token_agent_turns(docs) == 2
+
+
+# ── OpenHands condenser config plumbing ──────────────────────────────────
+
+
+class TestHarborSolverCondenser:
+    def _make(self, agent="openhands-sdk", agent_kwargs=None, container_env=None):
+        from unittest.mock import patch
+
+        with patch("nemo_evaluator.solvers.harbor._check_harbor_installed"):
+            from nemo_evaluator.solvers.harbor import HarborSolver
+
+            return HarborSolver(
+                harbor_agent=agent,
+                model_url="http://localhost:8000",
+                model_id="test-model",
+                api_key="test-key",
+                harbor_agent_kwargs=agent_kwargs,
+                container_env=container_env,
+            )
+
+    def test_condenser_max_size_maps_to_env(self):
+        solver = self._make(agent_kwargs={"condenser_max_size": 80})
+        assert solver._container_env["OH_CONDENSER_MAX_SIZE"] == "80"
+        assert "OH_CONDENSER_MAX_TOKENS" not in solver._container_env
+
+    def test_condenser_max_tokens_maps_to_env(self):
+        solver = self._make(agent_kwargs={"condenser_max_size": 80, "condenser_max_tokens": 4096})
+        assert solver._container_env["OH_CONDENSER_MAX_SIZE"] == "80"
+        assert solver._container_env["OH_CONDENSER_MAX_TOKENS"] == "4096"
+
+    def test_float_values_coerced_to_int_string(self):
+        solver = self._make(agent_kwargs={"condenser_max_size": 80.0, "condenser_max_tokens": 4096.7})
+        assert solver._container_env["OH_CONDENSER_MAX_SIZE"] == "80"
+        assert solver._container_env["OH_CONDENSER_MAX_TOKENS"] == "4096"
+
+    def test_explicit_container_env_overrides(self):
+        solver = self._make(
+            agent_kwargs={"condenser_max_size": 80},
+            container_env={"OH_CONDENSER_MAX_SIZE": "12"},
+        )
+        assert solver._container_env["OH_CONDENSER_MAX_SIZE"] == "12"
+
+    def test_no_condenser_env_without_kwargs(self):
+        solver = self._make(agent_kwargs={})
+        assert "OH_CONDENSER_MAX_SIZE" not in solver._container_env
+        assert "OH_CONDENSER_MAX_TOKENS" not in solver._container_env
+
+    def test_non_openhands_agent_ignores_condenser_kwargs(self):
+        solver = self._make(
+            agent="terminus-2",
+            agent_kwargs={"condenser_max_size": 80, "condenser_max_tokens": 4096},
+        )
+        assert "OH_CONDENSER_MAX_SIZE" not in solver._container_env
+        assert "OH_CONDENSER_MAX_TOKENS" not in solver._container_env
+
+
+class TestCreateAgentDropsCondenserKwargs:
+    def test_condenser_kwargs_not_forwarded_to_factory(self, monkeypatch, tmp_path):
+        from nemo_evaluator.solvers.harbor import HarborSolver
+
+        solver = HarborSolver.__new__(HarborSolver)
+        solver._harbor_agent = "openhands-sdk"
+        solver._harbor_agent_kwargs = {
+            "condenser_max_size": 80,
+            "condenser_max_tokens": 4096,
+            "model_name": "test-model",
+        }
+        solver._model_url = "http://model"
+        solver._model_id = "test-model"
+        solver._api_key = "test-key"
+        solver._tokenizer = None
+        solver._max_input_tokens = None
+        solver._max_output_tokens = None
+
+        monkeypatch.setattr(harbor_mod, "_patch_terminus_tmux_send_keys", lambda: None)
+        monkeypatch.setattr(harbor_mod, "_configure_terminus_tokenizer", lambda **kw: None)
+
+        import harbor.agents.factory as factory_mod
+
+        captured: dict = {}
+
+        def fake_create(name, logs_dir=None, **kwargs):
+            captured["name"] = name
+            captured["kwargs"] = kwargs
+            return MagicMock()
+
+        monkeypatch.setattr(factory_mod.AgentFactory, "create_agent_from_name", fake_create)
+
+        solver._create_agent(tmp_path)
+
+        assert captured["name"] == "openhands-sdk"
+        assert "condenser_max_size" not in captured["kwargs"]
+        assert "condenser_max_tokens" not in captured["kwargs"]
+
+
+# ── solve(): zero-token turn flagging ────────────────────────────────────
+
+
+class _FakeZeroTokenContext:
+    def __init__(self) -> None:
+        self.metadata = {"response": "agent answer"}
+        self.rollout_details = []
+        self.n_input_tokens = 3
+        self.n_output_tokens = 4
+
+    def is_empty(self) -> bool:
+        return False
+
+
+class _FakeZeroTokenAgent:
+    async def setup(self, adapter) -> None:
+        pass
+
+    async def run(self, prompt, adapter, context) -> None:
+        pass
+
+
+class _FakeZeroTokenSandbox:
+    is_running = True
+
+    def resolved_endpoint_url(self, name):
+        return None
+
+    def resolve_outside_endpoint(self, url):
+        return url
+
+    async def exec(self, command: str, timeout_sec: float | None = None):
+        return MagicMock(stdout="", stderr="", return_code=0)
+
+
+class TestSolveZeroTokenFlag:
+    def _build_solver(self, monkeypatch, trajectory):
+        class FakeAdapter:
+            is_mounted = True
+
+            def __init__(self, *args, **kwargs) -> None:
+                pass
+
+        import harbor.models.agent.context as context_mod
+
+        import nemo_evaluator.solvers.harbor_adapter as harbor_adapter_mod
+
+        monkeypatch.setattr(context_mod, "AgentContext", _FakeZeroTokenContext)
+        monkeypatch.setattr(harbor_adapter_mod, "SandboxEnvironmentAdapter", FakeAdapter)
+        monkeypatch.setattr(harbor_mod, "_patch_openhands_sdk", AsyncMock(return_value=None))
+        monkeypatch.setattr(harbor_mod, "_capture_workspace_diff", AsyncMock(return_value=""))
+        monkeypatch.setattr(
+            harbor_mod,
+            "_recover_from_logs",
+            lambda logs_dir: {
+                "trajectory": trajectory,
+                "prompt_tokens": 3,
+                "completion_tokens": 4,
+                "response": "agent answer",
+            },
+        )
+        monkeypatch.setattr(harbor_mod.random, "uniform", lambda low, high: 0.0)
+
+        from nemo_evaluator.solvers.harbor import HarborSolver
+
+        solver = HarborSolver.__new__(HarborSolver)
+        solver._model_url = "http://model"
+        solver._model_id = "model"
+        solver._timeout = 60.0
+        solver._run_timeout = 60.0
+        solver._cmd_timeout = None
+        solver._timeout_strategy = "override"
+        solver._max_agent_timeout = None
+        solver._harbor_agent = "openhands-sdk"
+        solver._container_env = {}
+        solver._skill = None
+        solver._skill_dir = None
+        solver._create_agent = lambda logs_dir, model_url="": _FakeZeroTokenAgent()
+
+        async def fake_wait_for_agent(agent_task, sandbox, agent_started_at, effective_timeout, jitter):
+            await agent_task
+            return False, None
+
+        solver._wait_for_agent = fake_wait_for_agent
+        return solver
+
+    @pytest.mark.asyncio
+    async def test_zero_token_turns_flagged_in_trajectory(self, monkeypatch, caplog):
+        import logging
+
+        trajectory = [
+            {
+                "steps": [
+                    {"source": "agent", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}},
+                    {"source": "agent", "metrics": {"prompt_tokens": 12, "completion_tokens": 3}},
+                    {"source": "agent", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}},
+                ]
+            }
+        ]
+        solver = self._build_solver(monkeypatch, trajectory)
+
+        with caplog.at_level(logging.WARNING):
+            result = await solver.solve(
+                SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "task-1"}),
+                sandbox=_FakeZeroTokenSandbox(),
+            )
+
+        assert result.trajectory[0]["final_metrics"]["zero_token_turns"] == 2
+        assert "zero-token agent turn" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_no_flag_when_all_turns_have_tokens(self, monkeypatch):
+        trajectory = [
+            {
+                "steps": [
+                    {"source": "agent", "metrics": {"prompt_tokens": 12, "completion_tokens": 3}},
+                ]
+            }
+        ]
+        solver = self._build_solver(monkeypatch, trajectory)
+
+        result = await solver.solve(
+            SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "task-1"}),
+            sandbox=_FakeZeroTokenSandbox(),
+        )
+
+        assert "final_metrics" not in result.trajectory[0]
