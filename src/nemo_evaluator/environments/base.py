@@ -36,6 +36,7 @@ class SeedResult:
     verify_sandbox_spec: SandboxSpec | None = None
     capture_cmd: str | None = None
     apply_cmd: str | None = None
+    pre_agent_cmd: str | None = None
 
 
 @dataclass

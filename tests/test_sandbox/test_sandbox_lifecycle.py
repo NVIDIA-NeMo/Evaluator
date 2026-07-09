@@ -118,7 +118,7 @@ class TestStatefulSandbox:
 
 
 class TestStatelessSandbox:
-    def _make_ctx(self, mgr=None, capture_cmd=None, apply_cmd=None):
+    def _make_ctx(self, mgr=None, capture_cmd=None, apply_cmd=None, pre_agent_cmd=None):
         mgr = mgr or MockSandboxManager()
         return LifecycleContext(
             sandbox_mgr=mgr,
@@ -126,6 +126,7 @@ class TestStatelessSandbox:
             verify_spec=SandboxSpec(image="verify:latest"),
             capture_cmd=capture_cmd,
             apply_cmd=apply_cmd,
+            pre_agent_cmd=pre_agent_cmd,
         ), mgr
 
     @pytest.mark.asyncio
@@ -170,6 +171,48 @@ class TestStatelessSandbox:
         verify_sb = await lc.get_verify_sandbox()
 
         assert any("git apply" in cmd for cmd in verify_sb._exec_log)
+        await lc.teardown()
+
+    @pytest.mark.asyncio
+    async def test_pre_agent_cmd_executed_after_acquire(self):
+        """pre_agent_cmd runs in the agent container before the agent starts."""
+        ctx, mgr = self._make_ctx(pre_agent_cmd="NEL_SCRUB_MARKER cleanup")
+        transfer = HostVolumeTransfer()
+        lc = StatelessSandbox(ctx, transfer)
+
+        await lc.setup()
+        agent_sb = await lc.get_agent_sandbox()
+
+        assert any("NEL_SCRUB_MARKER" in cmd for cmd in agent_sb._exec_log)
+        await lc.teardown()
+
+    @pytest.mark.asyncio
+    async def test_no_pre_agent_cmd_runs_nothing_extra(self):
+        """Without pre_agent_cmd, no scrub-like command is executed."""
+        ctx, mgr = self._make_ctx(pre_agent_cmd=None)
+        transfer = HostVolumeTransfer()
+        lc = StatelessSandbox(ctx, transfer)
+
+        await lc.setup()
+        agent_sb = await lc.get_agent_sandbox()
+
+        assert not any("NEL_GIT_CLEANUP" in cmd for cmd in agent_sb._exec_log)
+        await lc.teardown()
+
+    @pytest.mark.asyncio
+    async def test_pre_agent_cmd_failure_does_not_abort_rollout(self):
+        """A non-zero pre_agent_cmd is logged but must not raise."""
+        from tests.conftest import MockExecResult
+
+        mgr = MockSandboxManager(exec_results={"NEL_GIT_CLEANUP": MockExecResult(return_code=3)})
+        ctx, mgr = self._make_ctx(mgr=mgr, pre_agent_cmd="echo NEL_GIT_CLEANUP; exit 3")
+        transfer = HostVolumeTransfer()
+        lc = StatelessSandbox(ctx, transfer)
+
+        await lc.setup()
+        agent_sb = await lc.get_agent_sandbox()  # must not raise
+
+        assert agent_sb is not None
         await lc.teardown()
 
     @pytest.mark.asyncio
@@ -254,3 +297,38 @@ class TestPickLifecycle:
         mgr = MockSandboxManager()
         lc = pick_lifecycle(seed, sandbox_mgr=mgr, force_stateful=False)
         assert isinstance(lc, StatelessSandbox)
+
+    def test_scrub_git_history_injects_pre_agent_cmd(self):
+        """scrub_git_history=True builds the git-scrub command against the
+        resolved agent workdir and attaches it as the context pre_agent_cmd."""
+        seed = _make_seed(
+            sandbox_spec=SandboxSpec(image="agent:latest", workdir="/testbed"),
+            verify_sandbox_spec=SandboxSpec(image="verify:latest", workdir="/testbed"),
+        )
+        mgr = MockSandboxManager()
+        lc = pick_lifecycle(seed, sandbox_mgr=mgr, scrub_git_history=True)
+        assert isinstance(lc, StatelessSandbox)
+        assert "NEL_GIT_CLEANUP" in lc._ctx.pre_agent_cmd
+        assert "/testbed" in lc._ctx.pre_agent_cmd
+
+    def test_scrub_git_history_default_off(self):
+        """Without the flag, no pre_agent_cmd is injected (seed default wins)."""
+        seed = _make_seed(
+            sandbox_spec=SandboxSpec(image="agent:latest", workdir="/testbed"),
+            verify_sandbox_spec=SandboxSpec(image="verify:latest", workdir="/testbed"),
+        )
+        mgr = MockSandboxManager()
+        lc = pick_lifecycle(seed, sandbox_mgr=mgr)
+        assert isinstance(lc, StatelessSandbox)
+        assert lc._ctx.pre_agent_cmd is None
+
+    def test_seed_pre_agent_cmd_used_when_flag_off(self):
+        """An environment-supplied seed.pre_agent_cmd is honoured verbatim."""
+        seed = _make_seed(
+            sandbox_spec=SandboxSpec(image="agent:latest", workdir="/testbed"),
+            verify_sandbox_spec=SandboxSpec(image="verify:latest", workdir="/testbed"),
+            pre_agent_cmd="echo custom-setup",
+        )
+        mgr = MockSandboxManager()
+        lc = pick_lifecycle(seed, sandbox_mgr=mgr)
+        assert lc._ctx.pre_agent_cmd == "echo custom-setup"
