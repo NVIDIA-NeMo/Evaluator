@@ -14,6 +14,11 @@
 # limitations under the License.
 """Golden tests: verify benchmark scorers produce correct results on known data."""
 
+import importlib
+import sys
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
+
 from nemo_evaluator.scoring import (
     ScorerInput,
     answer_line,
@@ -143,3 +148,41 @@ class TestBenchmarkScorerImport:
 
         s = ScorerInput(response="The result is 15", target="15")
         assert mgsm_scorer(s)["correct"] is True
+
+
+def test_healthbench_fallback_uses_available_evaluation_file(monkeypatch):
+    benchmark_package = ModuleType("nemo_evaluator.benchmarks")
+    benchmark_package.__path__ = [str(Path(__file__).parents[2] / "src" / "nemo_evaluator" / "benchmarks")]
+    monkeypatch.setitem(sys.modules, "nemo_evaluator.benchmarks", benchmark_package)
+    monkeypatch.delitem(sys.modules, "nemo_evaluator.benchmarks.healthbench", raising=False)
+    healthbench = importlib.import_module("nemo_evaluator.benchmarks.healthbench")
+
+    def fail_dataset_load(*args, **kwargs):
+        raise FileNotFoundError("test split unavailable")
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def read(self):
+            return b'{"prompt": [{"role": "user", "content": "Question"}]}\n'
+
+    requested = {}
+
+    def fake_urlopen(url, timeout):
+        requested.update(url=url, timeout=timeout)
+        return Response()
+
+    monkeypatch.setitem(sys.modules, "datasets", SimpleNamespace(load_dataset=fail_dataset_load))
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    rows = healthbench._load_healthbench()
+
+    assert requested == {
+        "url": ("https://huggingface.co/datasets/openai/HealthBench/resolve/main/2025-05-07-06-14-12_oss_eval.jsonl"),
+        "timeout": 60,
+    }
+    assert rows == [{"prompt": [{"role": "user", "content": "Question"}]}]
