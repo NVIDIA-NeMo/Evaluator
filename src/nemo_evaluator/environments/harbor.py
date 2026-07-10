@@ -1044,10 +1044,19 @@ class HarborEnvironment(EvalEnvironment):
         verifier_timeout = float(metadata.get("verifier_timeout_sec", DEFAULT_HARBOR_VERIFIER_TIMEOUT))
         setup_script = metadata.get("verifier_setup_script")
         setup_prefix = f"bash {shlex.quote(setup_script)} && " if setup_script else ""
+        # Prepend common language-toolchain bin dirs, but APPEND $PATH-relative
+        # ones so the image's own PATH still wins for `python`, `node`, etc.
+        # ${JAVA_HOME:+...} guards the unset case: a bare "$JAVA_HOME/bin"
+        # expands to "/bin", which would be inserted AHEAD of the image PATH and
+        # shadow /usr/local/bin/python (the one with pytest) by /bin/python
+        # (system python, no pytest) — silently making every required test
+        # "never run" and deflating the swebenchpro gold-patch oracle from
+        # ~97% to ~88%. Toolchain dirs go AFTER $PATH for the same reason.
         result = await sandbox.exec(
-            'export PATH="/root/.local/bin:/root/.cargo/bin:/usr/local/go/bin'
-            ":/usr/local/cargo/bin:$HOME/.local/bin:$HOME/.cargo/bin"
-            ':$HOME/go/bin:$JAVA_HOME/bin:$PATH" && '
+            'export PATH="$PATH:/root/.local/bin:/root/.cargo/bin'
+            ':/usr/local/go/bin:/usr/local/cargo/bin'
+            ':$HOME/.local/bin:$HOME/.cargo/bin:$HOME/go/bin'
+            '${JAVA_HOME:+:$JAVA_HOME/bin}" && '
             f"{setup_prefix}bash /tests/test.sh",
             timeout_sec=verifier_timeout,
         )

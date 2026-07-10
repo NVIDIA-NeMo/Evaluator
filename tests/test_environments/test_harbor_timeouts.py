@@ -92,3 +92,40 @@ async def test_verify_uses_1800_when_task_declares_it(tmp_path):
     seed = await env.seed(0)
     await env.verify(response="", expected="", sandbox=sb, **seed.metadata)
     assert sb.captured_timeouts == [1800.0]
+
+
+class _CmdCapturingSandbox(MockSandbox):
+    """Records the full command string of the ``bash /tests/test.sh`` exec."""
+
+    def __init__(self, exec_results=None):
+        super().__init__(exec_results=exec_results)
+        self.test_cmds: list[str] = []
+
+    async def exec(self, command, timeout_sec=180, *, cwd=None, env=None, user=None):
+        if "bash /tests/test.sh" in command:
+            self.test_cmds.append(command)
+        return await super().exec(command, timeout_sec, cwd=cwd, env=env, user=user)
+
+
+@pytest.mark.asyncio
+async def test_verify_path_does_not_shadow_image_python(tmp_path):
+    """Regression: unset $JAVA_HOME must not inject a bare /bin ahead of the
+    image PATH (that shadowed /usr/local/bin/python-with-pytest by
+    /bin/python-without-pytest, silently zeroing swebenchpro required tests)."""
+    dataset = tmp_path / "ds"
+    task_dir = _make_task_dir(dataset, "t1", "")
+    env = HarborEnvironment(dataset_path=str(dataset))
+
+    sb = _CmdCapturingSandbox()
+    await sb.start()
+    await env.verify(response="", expected="", sandbox=sb, task_dir=str(task_dir))
+
+    assert sb.test_cmds, "verify never ran bash /tests/test.sh"
+    cmd = sb.test_cmds[0]
+    # JAVA_HOME must be guarded so an unset value cannot become a bare /bin
+    assert ":$JAVA_HOME/bin:$PATH" not in cmd  # the old unguarded form
+    assert "${JAVA_HOME:+:$JAVA_HOME/bin}" in cmd
+    # image PATH ($PATH) must precede the prepended toolchain dirs so the
+    # image's python/node/etc. win
+    export = cmd.split("&&")[0]
+    assert export.index("$PATH") < export.index("/root/.local/bin")
