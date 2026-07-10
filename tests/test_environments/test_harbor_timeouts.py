@@ -129,3 +129,7 @@ async def test_verify_path_does_not_shadow_image_python(tmp_path):
     # image's python/node/etc. win
     export = cmd.split("&&")[0]
     assert export.index("$PATH") < export.index("/root/.local/bin")
+    # the assembled command must be valid shell (balanced quotes)
+    import subprocess as _sp
+
+    assert _sp.run(["bash", "-n", "-c", cmd], capture_output=True).returncode == 0
