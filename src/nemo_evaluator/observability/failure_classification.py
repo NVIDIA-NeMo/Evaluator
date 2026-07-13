@@ -108,8 +108,6 @@ def classify_model_failure(error: str = "", *, status_code: Any = None) -> str |
         "timeout error",
         "request timeout",
         "request timed out",
-        "upstream timeout",
-        "upstream timed out",
         "read timeout",
     ):
         return "model_timeout"
@@ -125,6 +123,8 @@ def classify_model_failure(error: str = "", *, status_code: Any = None) -> str |
         "service unavailable",
         "bad gateway",
         "gateway timeout",
+        "upstream timeout",
+        "upstream timed out",
         "httpx.connecterror",
         "httpx.remoteprotocolerror",
         "serverdisconnectederror",
