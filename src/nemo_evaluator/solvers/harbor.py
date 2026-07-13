@@ -415,12 +415,18 @@ old = (
 )
 new = (
     '        try:\\n'
-    '            import json as _json, os as _os\\n'
+    '            import json as _json, os as _os, time as _time\\n'
     '            _p = "/logs/agent/last_llm_error.json"\\n'
     '            _os.makedirs(_os.path.dirname(_p), exist_ok=True)\\n'
     '            _tmp = _p + ".tmp"\\n'
+    '            _request_timeout = getattr(self, "timeout", None)\\n'
+    '            if not isinstance(_request_timeout, (int, float)):\\n'
+    '                _request_timeout = None\\n'
+    '            _retry_after = getattr(getattr(retry_state, "next_action", None), "sleep", 0) or 0\\n'
+    '            _usage = getattr(getattr(self, "metrics", None), "accumulated_token_usage", None)\\n'
+    '            _successful_tokens = int(getattr(_usage, "prompt_tokens", 0) or 0) + int(getattr(_usage, "completion_tokens", 0) or 0)\\n'
     '            with open(_tmp, "w") as _f:\\n'
-    '                _f.write(_json.dumps({"etype": type(exc).__name__, "emsg": str(exc)}))\\n'
+    '                _f.write(_json.dumps({"etype": type(exc).__name__, "emsg": str(exc), "written_at": _time.time(), "request_timeout_seconds": _request_timeout, "retry_after_seconds": _retry_after, "successful_tokens": _successful_tokens}))\\n'
     '            _os.replace(_tmp, _p)\\n'
     '        except Exception:\\n'
     '            pass\\n\\n'
@@ -1099,24 +1105,11 @@ def _format_llm_error(etype: Any, emsg: Any) -> str:
 def _last_llm_error_from_marker(
     agent_logs_dir: Path,
     *,
-    max_age_seconds: float | None = None,
+    successful_tokens: int | None = None,
 ) -> str | None:
     marker = agent_logs_dir / "last_llm_error.json"
     if not marker.is_file():
         return None
-    if max_age_seconds is not None:
-        try:
-            marker_age = max(0.0, time.time() - marker.stat().st_mtime)
-        except OSError:
-            logger.warning("HarborSolver: failed to stat last LLM error marker", exc_info=True)
-            return None
-        if marker_age > max_age_seconds:
-            logger.info(
-                "HarborSolver: ignoring last LLM error marker older than the model timeout (age=%.0fs timeout=%.0fs)",
-                marker_age,
-                max_age_seconds,
-            )
-            return None
     try:
         payload = json.loads(marker.read_text())
     except Exception:
@@ -1124,6 +1117,40 @@ def _last_llm_error_from_marker(
         return None
     if not isinstance(payload, dict):
         return None
+
+    marker_at = payload.get("written_at")
+    if not isinstance(marker_at, (int, float)) or isinstance(marker_at, bool):
+        try:
+            marker_at = marker.stat().st_mtime
+        except OSError:
+            logger.warning("HarborSolver: failed to stat last LLM error marker", exc_info=True)
+            return None
+
+    marker_tokens = payload.get("successful_tokens")
+    if (
+        successful_tokens is not None
+        and isinstance(marker_tokens, (int, float))
+        and not isinstance(marker_tokens, bool)
+        and successful_tokens > marker_tokens
+    ):
+        logger.info("HarborSolver: ignoring LLM error marker superseded by later successful model activity")
+        return None
+
+    request_timeout = payload.get("request_timeout_seconds")
+    retry_after = payload.get("retry_after_seconds", 0)
+    if isinstance(request_timeout, (int, float)) and not isinstance(request_timeout, bool):
+        if not isinstance(retry_after, (int, float)) or isinstance(retry_after, bool):
+            retry_after = 0
+        evidence_window = max(0.0, float(request_timeout)) + max(0.0, float(retry_after))
+        marker_age = max(0.0, time.time() - marker_at)
+        if marker_age > evidence_window + _AGENT_TIMEOUT_RESPONSE_GRACE_SECONDS:
+            logger.info(
+                "HarborSolver: ignoring LLM error marker older than its request retry window (age=%.0fs window=%.0fs)",
+                marker_age,
+                evidence_window,
+            )
+            return None
+
     return _format_llm_error(payload.get("etype"), payload.get("emsg"))
 
 
@@ -2348,7 +2375,12 @@ class HarborSolver:
 
             latency_ms = (time.monotonic() - t0) * 1000
             last_llm_error = (
-                _last_llm_error_from_marker(agent_logs_dir, max_age_seconds=self._timeout) if agent_timed_out else None
+                _last_llm_error_from_marker(
+                    agent_logs_dir,
+                    successful_tokens=prompt_tokens + completion_tokens,
+                )
+                if agent_timed_out
+                else None
             )
 
             # Timeout with zero progress → model is likely dead.
