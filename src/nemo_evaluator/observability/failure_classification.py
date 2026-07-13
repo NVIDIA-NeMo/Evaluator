@@ -54,6 +54,37 @@ def _has_any(text: str, *markers: str) -> bool:
     return any(marker in text for marker in markers)
 
 
+def completed_harbor_verification_with_workspace_change(
+    scoring_details: object,
+    *,
+    error: object = None,
+    response: object = None,
+    trajectory: object = None,
+) -> bool:
+    if not isinstance(scoring_details, dict):
+        return False
+    if error or scoring_details.get("error") or scoring_details.get("error_category"):
+        return False
+    if scoring_details.get("method") != "harbor":
+        return False
+    if "test_exit_code" not in scoring_details and "test_summary" not in scoring_details:
+        return False
+
+    report = scoring_details.get("report")
+    if isinstance(report, dict) and report.get("patch_exists") is True:
+        return True
+    if str(response or "").strip() == "[workspace modified]":
+        return True
+    if not isinstance(trajectory, list):
+        return False
+    return any(
+        isinstance(document, dict)
+        and isinstance(document.get("final_metrics"), dict)
+        and bool(document["final_metrics"].get("workspace_diff_preview"))
+        for document in trajectory
+    )
+
+
 def classify_model_failure(error: str = "", *, status_code: Any = None) -> str | None:
     text = str(error or "").lower()
     status = _status_int(status_code)

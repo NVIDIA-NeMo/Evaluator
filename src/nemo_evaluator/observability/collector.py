@@ -21,7 +21,11 @@ from pathlib import Path
 
 import numpy as np
 
-from nemo_evaluator.observability.failure_classification import MODEL_FAILURE_CATEGORIES, classify_model_failure
+from nemo_evaluator.observability.failure_classification import (
+    MODEL_FAILURE_CATEGORIES,
+    classify_model_failure,
+    completed_harbor_verification_with_workspace_change,
+)
 from nemo_evaluator.observability.types import (
     FailureRecord,
     FailureReport,
@@ -38,16 +42,6 @@ DEFAULT_REFUSAL_PATTERNS = [
     r"I don't have the ability",
     r"I apologize",
 ]
-
-
-def _completed_verification_without_error(scoring_details: object) -> bool:
-    if not isinstance(scoring_details, dict):
-        return False
-    if scoring_details.get("error") or scoring_details.get("error_category"):
-        return False
-    if scoring_details.get("method") != "harbor":
-        return False
-    return "test_exit_code" in scoring_details or "test_summary" in scoring_details
 
 
 class ArtifactCollector:
@@ -84,7 +78,12 @@ class ArtifactCollector:
         elif step.model_response:
             content = step.model_response.content
             if not content.strip():
-                if _completed_verification_without_error(sd):
+                if completed_harbor_verification_with_workspace_change(
+                    sd,
+                    error=step.model_error,
+                    response=content,
+                    trajectory=step.trajectory,
+                ):
                     return
                 step.failure_category = "empty_response"
             elif self._refusal_re.search(content):

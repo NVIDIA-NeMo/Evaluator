@@ -47,7 +47,10 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from nemo_evaluator.observability.failure_classification import classify_model_failure
+from nemo_evaluator.observability.failure_classification import (
+    classify_model_failure,
+    completed_harbor_verification_with_workspace_change,
+)
 from nemo_evaluator.reports.schemas import AgentStep, TrajectoryRow, fields_as_coverage_paths
 
 logger = logging.getLogger(__name__)
@@ -163,17 +166,18 @@ def _failure_error(row: dict[str, Any]) -> str:
     return _truncate_text(scoring_details.get("error") or row.get("model_error") or row.get("error") or "")
 
 
-def _completed_harbor_verification_without_error(row: dict[str, Any]) -> bool:
+def _harbor_verification_suppresses_empty_response(row: dict[str, Any]) -> bool:
     scoring_details = row.get("scoring_details")
-    if not isinstance(scoring_details, dict):
-        return False
-    if scoring_details.get("error") or scoring_details.get("error_category"):
-        return False
-    if row.get("model_error") or row.get("error"):
-        return False
-    if scoring_details.get("method") != "harbor":
-        return False
-    return "test_exit_code" in scoring_details or "test_summary" in scoring_details
+    model = row.get("model")
+    response = row.get("model_response")
+    if response is None and isinstance(model, dict):
+        response = model.get("content")
+    return completed_harbor_verification_with_workspace_change(
+        scoring_details,
+        error=row.get("model_error") or row.get("error"),
+        response=response,
+        trajectory=row.get("trajectory"),
+    )
 
 
 def _wire_failure_text(record: dict[str, Any]) -> str:
@@ -205,13 +209,13 @@ def _trial_wire_failure(row: dict[str, Any], all_wire_rows: list[dict[str, Any]]
 
 def _trial_failure_category(row: dict[str, Any], all_wire_rows: list[dict[str, Any]]) -> str:
     category = _failure_category(row)
-    completed_harbor_verification = _completed_harbor_verification_without_error(row)
+    suppresses_empty_response = _harbor_verification_suppresses_empty_response(row)
     reward = row.get("reward")
-    successful_verified_outcome = completed_harbor_verification and isinstance(reward, (int, float)) and reward > 0
+    successful_verified_outcome = isinstance(reward, (int, float)) and reward > 0
     wire_category, _ = _trial_wire_failure(row, all_wire_rows)
     if wire_category and not successful_verified_outcome and category in {"", "empty_response", "model_error"}:
         return wire_category
-    if category == "empty_response" and completed_harbor_verification:
+    if category == "empty_response" and suppresses_empty_response:
         return ""
     return category
 
@@ -951,7 +955,7 @@ def _enrich_bench(bench_dir: Path) -> dict[str, int]:
                 if category:
                     r["failure_category"] = category
                     counts["rows_reclassified_from_wire_failure"] += 1
-                elif original_category == "empty_response" and _completed_harbor_verification_without_error(r):
+                elif original_category == "empty_response" and _harbor_verification_suppresses_empty_response(r):
                     r.pop("failure_category", None)
                     counts["rows_cleared_empty_response_after_verification"] += 1
             if not wire:
