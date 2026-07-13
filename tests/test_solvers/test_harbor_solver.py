@@ -1190,16 +1190,25 @@ def _setup_failing_solver(failure: Exception):
     return solver, agent
 
 
+async def _run_setup_failure(failure: Exception, *, task_id: str, workspace_diff: str = ""):
+    solver, agent = _setup_failing_solver(failure)
+
+    async with MockSandbox(exec_results={"git diff HEAD": MockExecResult(stdout=workspace_diff)}) as sandbox:
+        result = await solver.solve(
+            SeedResult(prompt="do task", expected_answer="", metadata={"task_id": task_id}),
+            sandbox=sandbox,
+        )
+
+    return result, agent
+
+
 class TestSolveFailureRecovery:
     @pytest.mark.asyncio
     async def test_graceful_setup_failure_returns_solve_result(self):
-        solver, agent = _setup_failing_solver(GracefulError("controlled graceful setup failure"))
-
-        async with MockSandbox() as sandbox:
-            result = await solver.solve(
-                SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "graceful-case"}),
-                sandbox=sandbox,
-            )
+        result, agent = await _run_setup_failure(
+            GracefulError("controlled graceful setup failure"),
+            task_id="graceful-case",
+        )
 
         assert agent.setup_calls == 1
         assert result.error == "controlled graceful setup failure"
@@ -1208,13 +1217,11 @@ class TestSolveFailureRecovery:
 
     @pytest.mark.asyncio
     async def test_turn_budget_infra_failure_with_workspace_diff_is_submitted_for_verification(self):
-        solver, agent = _setup_failing_solver(InfraError(_TURN_BUDGET_ERROR))
-
-        async with MockSandbox(exec_results={"git diff HEAD": MockExecResult(stdout=_WORKSPACE_DIFF)}) as sandbox:
-            result = await solver.solve(
-                SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "infra-case"}),
-                sandbox=sandbox,
-            )
+        result, agent = await _run_setup_failure(
+            InfraError(_TURN_BUDGET_ERROR),
+            task_id="infra-case",
+            workspace_diff=_WORKSPACE_DIFF,
+        )
 
         assert agent.setup_calls == 1
         assert result.response == "[workspace modified]"
@@ -1229,13 +1236,11 @@ class TestSolveFailureRecovery:
     @pytest.mark.asyncio
     async def test_graceful_agent_crash_with_workspace_diff_is_submitted_for_verification(self):
         error = "Agent crashed: ContextWindowExceededError: maximum context length exceeded"
-        solver, agent = _setup_failing_solver(GracefulError(error))
-
-        async with MockSandbox(exec_results={"git diff HEAD": MockExecResult(stdout=_WORKSPACE_DIFF)}) as sandbox:
-            result = await solver.solve(
-                SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "graceful-crash-case"}),
-                sandbox=sandbox,
-            )
+        result, agent = await _run_setup_failure(
+            GracefulError(error),
+            task_id="graceful-crash-case",
+            workspace_diff=_WORKSPACE_DIFF,
+        )
 
         assert agent.setup_calls == 1
         assert result.response == "[workspace modified]"

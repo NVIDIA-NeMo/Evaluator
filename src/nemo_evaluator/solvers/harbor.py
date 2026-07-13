@@ -1115,11 +1115,17 @@ def _is_turn_budget_exhausted_error(error: str) -> bool:
     return "turn budget exhausted" in text or "turn budget exceeded" in text
 
 
+def _is_agent_crash_error(error: str) -> bool:
+    """Return whether *error* uses Harbor's canonical agent-crash envelope."""
+    return error.startswith("Agent crashed:")
+
+
 def _classify_workspace_failure(
     error: str,
     workspace_diff: str,
     *,
     default_error_kind: ErrorKind,
+    is_agent_crash: bool = False,
 ) -> tuple[str | None, ErrorKind, dict[str, Any]]:
     """Return solve metadata while preserving recoverable workspace changes."""
     if not workspace_diff:
@@ -1133,7 +1139,7 @@ def _classify_workspace_failure(
             {"error": error, "error_category": "turn_budget_exhausted"},
         )
 
-    if error.startswith("Agent crashed:"):
+    if is_agent_crash:
         logger.info("HarborSolver: agent crashed with workspace changes — submitting for verification")
         return None, default_error_kind, {"error": error}
 
@@ -2355,6 +2361,7 @@ class HarborSolver:
                     crash_error,
                     workspace_diff,
                     default_error_kind=ErrorKind.NONE,
+                    is_agent_crash=True,
                 )
                 if error:
                     logger.warning("HarborSolver: %s", error)
@@ -2497,6 +2504,7 @@ class HarborSolver:
                 str(exc),
                 workspace_diff,
                 default_error_kind=ErrorKind.NONE,
+                is_agent_crash=_is_agent_crash_error(str(exc)),
             )
 
             return SolveResult(
