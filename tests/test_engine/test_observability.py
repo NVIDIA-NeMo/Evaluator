@@ -17,7 +17,7 @@ import inspect
 import pytest
 
 from nemo_evaluator.observability.collector import ArtifactCollector
-from nemo_evaluator.observability.failure_classification import classify_model_failure
+from nemo_evaluator.observability.failure_classification import MODEL_FAILURE_CATEGORIES, classify_model_failure
 from nemo_evaluator.observability.types import ModelResponse, StepRecord
 
 
@@ -200,6 +200,46 @@ class TestArtifactCollector:
             step = StepRecord(model_error=error_msg)
             c.record(step)
             assert step.failure_category == expected_category, f"Expected {expected_category} for: {error_msg}"
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            "500 Server Error for http+docker://localhost/v1.41/containers/create",
+            "container exited with status 137",
+            "Verifier worker stopped unexpectedly",
+        ],
+        ids=["docker-daemon-500", "container-exit-137", "unclassified-verifier"],
+    )
+    def test_system_errors_remain_non_model_failures(self, error):
+        collector = ArtifactCollector()
+        step = StepRecord(
+            scoring_details={
+                "error": error,
+                "error_category": "system",
+                "method": "system_error",
+                "retries_exhausted": 2,
+            }
+        )
+
+        collector.record(step)
+        report = collector.build(elapsed=1.0).failures
+
+        assert step.failure_category == "system"
+        assert step.failure_category not in MODEL_FAILURE_CATEGORIES
+        assert set(report.categories) == {"system"}
+
+    def test_graceful_turn_budget_error_remains_model_classified(self):
+        collector = ArtifactCollector()
+        step = StepRecord(
+            scoring_details={
+                "error": "Turn budget exhausted: 20/20 turns used",
+                "error_category": "graceful",
+            }
+        )
+
+        collector.record(step)
+
+        assert step.failure_category == "turn_budget_exhausted"
 
     @pytest.mark.parametrize(
         ("scoring_details", "expected_category"),
