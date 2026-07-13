@@ -98,6 +98,8 @@ def classify_model_failure(error: str = "", *, status_code: Any = None) -> str |
         "too many requests",
     ):
         return "rate_limit"
+    if _has_any(text, "upstream timeout:", "gateway timeout:"):
+        return "server_error"
     if status == 408 or _has_any(
         text,
         "apitimeouterror",
