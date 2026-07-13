@@ -190,15 +190,15 @@ class SkillsEnvironment(EvalEnvironment):
         return self._score_exact(response, expected)
 
     def _score_math(self, response: str, expected: str, meta: dict[str, Any] = None) -> tuple[float, dict]:
-        from nemo_skills.evaluation.evaluator.math_grader import extract_answer, math_equal
+        from nemo_skills.evaluation.math_grader import extract_answer, math_equal
 
         extracted = extract_answer(response)
-        correct = math_equal(extracted, expected)
+        correct = math_equal(expected, extracted)
         return (1.0 if correct else 0.0, {"method": "skills_math_equal", "extracted": extracted, "match": correct})
 
     def _score_multichoice(self, response: str, expected: str, meta: dict[str, Any]) -> tuple[float, dict]:
         try:
-            from nemo_skills.evaluation.evaluator.math_grader import extract_answer
+            from nemo_skills.evaluation.math_grader import extract_answer
 
             extracted = extract_answer(response)
         except ImportError:
