@@ -40,9 +40,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_SANDBOX_AGENT_TIMEOUT_GRACE_SECONDS = 30.0
 _AGENT_TIMEOUT_RESPONSE_GRACE_SECONDS = 15.0
 _AGENT_TIMEOUT_RESPONSE_GRACE_FRACTION = 0.05
+_AGENT_TIMEOUT_SIGTERM_EXEC_SECONDS = 10.0
+_AGENT_TIMEOUT_TRAJECTORY_FLUSH_SECONDS = 30.0
+_SANDBOX_AGENT_TIMEOUT_MARGIN_SECONDS = 1.0
 
 _INFRA_ERROR_NAMES = frozenset(
     {
@@ -95,12 +97,18 @@ def _resolve_agent_timeout(
 def _sandbox_agent_exec_timeout(agent_timeout: float) -> float:
     """Return sandbox command timeout for the Harbor agent process.
 
-    The sandbox-level command timeout must exceed NEL's agent timeout so
-    ``_wait_for_agent`` can send SIGTERM and let OpenHands flush its partial
-    trajectory before any inner ``timeout(1)`` wrapper kills the process.
+    The sandbox-level command timeout must cover every timeout phase so
+    ``_wait_for_agent`` can persist an in-flight response, send SIGTERM, and
+    let OpenHands flush its partial trajectory before the command is killed.
     """
 
-    return agent_timeout + _SANDBOX_AGENT_TIMEOUT_GRACE_SECONDS
+    return (
+        agent_timeout
+        + _agent_timeout_response_grace(agent_timeout)
+        + _AGENT_TIMEOUT_SIGTERM_EXEC_SECONDS
+        + _AGENT_TIMEOUT_TRAJECTORY_FLUSH_SECONDS
+        + _SANDBOX_AGENT_TIMEOUT_MARGIN_SECONDS
+    )
 
 
 def _agent_timeout_response_grace(agent_timeout: float) -> float:
@@ -2076,9 +2084,11 @@ class HarborSolver:
                         "    if pid != me and 'python' in comm and '/installed-agent/run_agent.py' in args:\n"
                         "        os.kill(pid, signal.SIGTERM)\n"
                         "PY",
-                        timeout_sec=10,
+                        timeout_sec=_AGENT_TIMEOUT_SIGTERM_EXEC_SECONDS,
                     )
-                    done_after_signal, _ = await asyncio.wait({agent_task}, timeout=30.0)
+                    done_after_signal, _ = await asyncio.wait(
+                        {agent_task}, timeout=_AGENT_TIMEOUT_TRAJECTORY_FLUSH_SECONDS
+                    )
                     if agent_task in done_after_signal:
                         logger.info("HarborSolver: timed-out agent flushed after SIGTERM")
                 except Exception:
