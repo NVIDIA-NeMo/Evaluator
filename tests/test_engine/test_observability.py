@@ -143,8 +143,18 @@ class TestArtifactCollector:
     @pytest.mark.parametrize(
         "error",
         [
-            "429 model calls completed successfully",
-            "500 samples evaluated successfully",
+            pytest.param("upstream timeout", id="upstream-timeout"),
+            pytest.param("upstream timed out", id="upstream-timed-out"),
+        ],
+    )
+    def test_upstream_timeouts_are_server_errors(self, error):
+        assert classify_model_failure(error) == "server_error"
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            pytest.param("429 model calls completed successfully", id="model-call-count"),
+            pytest.param("500 samples evaluated successfully", id="sample-count"),
         ],
     )
     def test_leading_counts_are_not_status_codes(self, error):
