@@ -21,7 +21,7 @@ import pytest
 
 import nemo_evaluator.solvers.harbor as harbor_mod
 from nemo_evaluator.environments.base import SeedResult
-from nemo_evaluator.errors import InfraError
+from nemo_evaluator.errors import GracefulError, InfraError
 from nemo_evaluator.solvers.base import ErrorKind
 from nemo_evaluator.solvers.harbor import (
     _count_zero_token_agent_turns,
@@ -37,6 +37,7 @@ from nemo_evaluator.solvers.harbor import (
     _resolve_api_key,
     _sandbox_agent_exec_timeout,
 )
+from tests.conftest import MockExecResult, MockSandbox
 
 # ── Pure helpers ─────────────────────────────────────────────────────────
 
@@ -1155,6 +1156,91 @@ class TestWaitForAgentTimeout:
         assert agent_error is not None
         assert "timed out after 10800s" in str(agent_error)
         assert not any("/installed-agent/run_agent.py" in command for command, _ in sandbox.exec_calls)
+
+
+_TURN_BUDGET_ERROR = "ConversationRunError: Turn budget exhausted: 215/200 turns used"
+_WORKSPACE_DIFF = "diff --git a/file.py b/file.py\n+fixed = True"
+
+
+class _SetupFailingAgent:
+    def __init__(self, failure: Exception) -> None:
+        self.failure = failure
+        self.setup_calls = 0
+
+    async def setup(self, adapter) -> None:
+        self.setup_calls += 1
+        raise self.failure
+
+    async def run(self, prompt, adapter, context) -> None:
+        raise AssertionError("setup failure must prevent agent.run")
+
+
+def _setup_failing_solver(failure: Exception):
+    from nemo_evaluator.solvers.harbor import HarborSolver
+
+    solver = HarborSolver(
+        harbor_agent="terminus-2",
+        model_id="controlled-model",
+        api_key="controlled-key",
+        timeout=60,
+        run_timeout=60,
+    )
+    agent = _SetupFailingAgent(failure)
+    solver._create_agent = lambda logs_dir, model_url="": agent
+    return solver, agent
+
+
+class TestSolveFailureRecovery:
+    @pytest.mark.asyncio
+    async def test_graceful_setup_failure_returns_solve_result(self):
+        solver, agent = _setup_failing_solver(GracefulError("controlled graceful setup failure"))
+
+        async with MockSandbox() as sandbox:
+            result = await solver.solve(
+                SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "graceful-case"}),
+                sandbox=sandbox,
+            )
+
+        assert agent.setup_calls == 1
+        assert result.error == "controlled graceful setup failure"
+        assert result.error_kind is ErrorKind.NONE
+        assert result.scoring_details == {}
+
+    @pytest.mark.asyncio
+    async def test_turn_budget_infra_failure_with_workspace_diff_is_submitted_for_verification(self):
+        solver, agent = _setup_failing_solver(InfraError(_TURN_BUDGET_ERROR))
+
+        async with MockSandbox(exec_results={"git diff HEAD": MockExecResult(stdout=_WORKSPACE_DIFF)}) as sandbox:
+            result = await solver.solve(
+                SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "infra-case"}),
+                sandbox=sandbox,
+            )
+
+        assert agent.setup_calls == 1
+        assert result.response == "[workspace modified]"
+        assert result.trajectory[0]["final_metrics"]["workspace_diff_preview"] == _WORKSPACE_DIFF
+        assert result.error is None
+        assert result.error_kind is ErrorKind.SOLVE_TIMEOUT
+        assert result.scoring_details == {
+            "error": _TURN_BUDGET_ERROR,
+            "error_category": "turn_budget_exhausted",
+        }
+
+    @pytest.mark.asyncio
+    async def test_graceful_agent_crash_with_workspace_diff_is_submitted_for_verification(self):
+        error = "Agent crashed: ContextWindowExceededError: maximum context length exceeded"
+        solver, agent = _setup_failing_solver(GracefulError(error))
+
+        async with MockSandbox(exec_results={"git diff HEAD": MockExecResult(stdout=_WORKSPACE_DIFF)}) as sandbox:
+            result = await solver.solve(
+                SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "graceful-crash-case"}),
+                sandbox=sandbox,
+            )
+
+        assert agent.setup_calls == 1
+        assert result.response == "[workspace modified]"
+        assert result.trajectory[0]["final_metrics"]["workspace_diff_preview"] == _WORKSPACE_DIFF
+        assert result.error is None
 
 
 class TestSolveTimeoutPlumbing:
