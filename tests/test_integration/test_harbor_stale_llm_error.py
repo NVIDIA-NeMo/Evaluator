@@ -41,7 +41,8 @@ class _AgentOutcome:
     completion_tokens: int
     state_verified: bool
     response: str = ""
-    stale_marker: bool = False
+    marker_age_seconds: float | None = None
+    marker_successful_tokens: int = 0
 
 
 class _StateSandbox(MockSandbox):
@@ -81,13 +82,25 @@ class _ControlledAgent:
         self.outcome = outcome
         self.logs_dir = logs_dir
         self.ready = asyncio.Event()
+        self.marker_timestamp: float | None = None
 
     async def setup(self, adapter: _MountedAdapter) -> None:
-        if self.outcome.stale_marker:
+        if self.outcome.marker_age_seconds is not None:
             marker = self.logs_dir / "last_llm_error.json"
-            marker.write_text(json.dumps({"etype": "RateLimitError", "emsg": "HTTP 429 from an earlier retry"}))
-            stale = time.time() - 4 * 60 * 60
-            os.utime(marker, (stale, stale))
+            self.marker_timestamp = time.time() - self.outcome.marker_age_seconds
+            marker.write_text(
+                json.dumps(
+                    {
+                        "etype": "RateLimitError",
+                        "emsg": "HTTP 429 from an earlier retry",
+                        "written_at": self.marker_timestamp,
+                        "request_timeout_seconds": 60,
+                        "retry_after_seconds": 0,
+                        "successful_tokens": self.outcome.marker_successful_tokens,
+                    }
+                )
+            )
+            os.utime(marker, (self.marker_timestamp, self.marker_timestamp))
 
     async def run(self, prompt: str, adapter: _MountedAdapter, context: _AgentContext) -> None:
         context.n_input_tokens = self.outcome.prompt_tokens
@@ -149,7 +162,7 @@ def _solver_for(scenario: _AgentScenario) -> HarborSolver:
         model_url="http://model.invalid/v1",
         model_id="test-model",
         api_key="test-only",
-        timeout=60,
+        timeout=1800,
         run_timeout=60,
     )
     solver._create_agent = scenario.make_agent
@@ -202,7 +215,7 @@ async def test_stale_retry_marker_does_not_skip_state_verification(monkeypatch):
                 prompt_tokens=23,
                 completion_tokens=7,
                 state_verified=True,
-                stale_marker=True,
+                marker_age_seconds=2 * 60,
             )
         ],
     )
@@ -211,6 +224,50 @@ async def test_stale_retry_marker_does_not_skip_state_verification(monkeypatch):
     assert environment.verify_calls == 1
     assert result["reward"] == 1.0
     assert result["scoring_details"]["method"] == "state-verifier"
+
+
+@pytest.mark.asyncio
+async def test_recent_retry_marker_superseded_by_success_does_not_skip_state_verification(monkeypatch):
+    scenario, environment, result = await _run_scenario(
+        monkeypatch,
+        [
+            _AgentOutcome(
+                timed_out=True,
+                prompt_tokens=23,
+                completion_tokens=7,
+                state_verified=True,
+                marker_age_seconds=0,
+            )
+        ],
+    )
+
+    assert scenario.attempts == 1
+    assert environment.verify_calls == 1
+    assert result["reward"] == 1.0
+    assert result["scoring_details"]["method"] == "state-verifier"
+
+
+@pytest.mark.asyncio
+async def test_recent_retry_marker_without_later_success_remains_current(monkeypatch):
+    scenario, environment, result = await _run_scenario(
+        monkeypatch,
+        [
+            _AgentOutcome(
+                timed_out=True,
+                prompt_tokens=23,
+                completion_tokens=7,
+                state_verified=True,
+                marker_age_seconds=0,
+                marker_successful_tokens=30,
+            )
+        ],
+    )
+
+    assert scenario.attempts == 1
+    assert environment.verify_calls == 0
+    assert result["reward"] == 0.0
+    assert result["scoring_details"]["method"] == "solve_failed"
+    assert result["scoring_details"]["error_category"] == "rate_limit"
 
 
 @pytest.mark.asyncio
@@ -223,7 +280,7 @@ async def test_stale_retry_marker_does_not_block_zero_progress_infra_retry(monke
                 prompt_tokens=0,
                 completion_tokens=0,
                 state_verified=False,
-                stale_marker=True,
+                marker_age_seconds=2 * 60,
             ),
             _AgentOutcome(
                 timed_out=False,

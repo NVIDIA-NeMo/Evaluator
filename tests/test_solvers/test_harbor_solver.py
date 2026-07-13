@@ -374,6 +374,10 @@ class RetryMixin:
         assert '"/logs/agent/last_llm_error.json"' in patched
         assert '"etype": type(exc).__name__' in patched
         assert '"emsg": str(exc)' in patched
+        assert '"written_at": _time.time()' in patched
+        assert '"request_timeout_seconds": _request_timeout' in patched
+        assert '"retry_after_seconds": _retry_after' in patched
+        assert '"successful_tokens": _successful_tokens' in patched
 
     async def test_runner_timeout_patch_does_not_shadow_os(self, tmp_path):
         import base64
