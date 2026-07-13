@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import tarfile
 import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -1160,6 +1161,11 @@ class TestWaitForAgentTimeout:
 
 _TURN_BUDGET_ERROR = "ConversationRunError: Turn budget exhausted: 215/200 turns used"
 _WORKSPACE_DIFF = "diff --git a/file.py b/file.py\n+fixed = True"
+_CONTEXT_WINDOW_CRASH = "Agent crashed: ContextWindowExceededError: maximum context length exceeded"
+
+
+class ContextWindowExceededError(RuntimeError):
+    pass
 
 
 class _SetupFailingAgent:
@@ -1175,7 +1181,20 @@ class _SetupFailingAgent:
         raise AssertionError("setup failure must prevent agent.run")
 
 
-def _setup_failing_solver(failure: Exception):
+class _RunAgent:
+    def __init__(self, failure: Exception | None = None) -> None:
+        self.failure = failure
+
+    async def setup(self, adapter) -> None:
+        pass
+
+    async def run(self, prompt, adapter, context) -> None:
+        context.metadata = {"progress": "partial"}
+        if self.failure:
+            raise self.failure
+
+
+def _solver_with_agent(agent):
     from nemo_evaluator.solvers.harbor import HarborSolver
 
     solver = HarborSolver(
@@ -1185,9 +1204,13 @@ def _setup_failing_solver(failure: Exception):
         timeout=60,
         run_timeout=60,
     )
-    agent = _SetupFailingAgent(failure)
     solver._create_agent = lambda logs_dir, model_url="": agent
-    return solver, agent
+    return solver
+
+
+def _setup_failing_solver(failure: Exception):
+    agent = _SetupFailingAgent(failure)
+    return _solver_with_agent(agent), agent
 
 
 async def _run_setup_failure(failure: Exception, *, task_id: str, workspace_diff: str = ""):
@@ -1208,9 +1231,12 @@ class TestSolveFailureRecovery:
         result, agent = await _run_setup_failure(
             GracefulError("controlled graceful setup failure"),
             task_id="graceful-case",
+            workspace_diff=_WORKSPACE_DIFF,
         )
 
         assert agent.setup_calls == 1
+        assert result.response == "[workspace modified]"
+        assert result.trajectory[0]["final_metrics"]["workspace_diff_preview"] == _WORKSPACE_DIFF
         assert result.error == "controlled graceful setup failure"
         assert result.error_kind is ErrorKind.NONE
         assert result.scoring_details == {}
@@ -1235,9 +1261,8 @@ class TestSolveFailureRecovery:
 
     @pytest.mark.asyncio
     async def test_graceful_agent_crash_with_workspace_diff_is_submitted_for_verification(self):
-        error = "Agent crashed: ContextWindowExceededError: maximum context length exceeded"
         result, agent = await _run_setup_failure(
-            GracefulError(error),
+            GracefulError(_CONTEXT_WINDOW_CRASH),
             task_id="graceful-crash-case",
             workspace_diff=_WORKSPACE_DIFF,
         )
@@ -1246,6 +1271,51 @@ class TestSolveFailureRecovery:
         assert result.response == "[workspace modified]"
         assert result.trajectory[0]["final_metrics"]["workspace_diff_preview"] == _WORKSPACE_DIFF
         assert result.error is None
+
+    @pytest.mark.asyncio
+    async def test_run_crash_with_workspace_diff_is_submitted_for_verification(self):
+        agent = _RunAgent(ContextWindowExceededError("maximum context length exceeded"))
+        solver = _solver_with_agent(agent)
+
+        async with MockSandbox(exec_results={"git diff HEAD": MockExecResult(stdout=_WORKSPACE_DIFF)}) as sandbox:
+            result = await solver.solve(
+                SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "run-crash-case"}),
+                sandbox=sandbox,
+            )
+
+        assert result.response == "[workspace modified]"
+        assert result.trajectory[0]["final_metrics"]["workspace_diff_preview"] == _WORKSPACE_DIFF
+        assert result.error is None
+        assert result.error_kind is ErrorKind.NONE
+        assert result.scoring_details == {"error": _CONTEXT_WINDOW_CRASH}
+
+    @pytest.mark.asyncio
+    async def test_downloaded_crash_marker_with_workspace_diff_is_submitted_for_verification(self, tmp_path):
+        marker = tmp_path / "agent_error.json"
+        marker.write_text(
+            json.dumps({"etype": "ContextWindowExceededError", "emsg": "maximum context length exceeded"})
+        )
+        archive = tmp_path / "agent-logs.tar.gz"
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.add(marker, arcname="agent_error.json")
+
+        solver = _solver_with_agent(_RunAgent())
+        exec_results = {
+            "git diff HEAD": MockExecResult(stdout=_WORKSPACE_DIFF),
+            "find /logs/agent": MockExecResult(stdout="/logs/agent/agent_error.json\n"),
+        }
+        async with MockSandbox(exec_results=exec_results) as sandbox:
+            await sandbox.upload(archive, "/tmp/_eval_agent_logs.tar.gz")
+            result = await solver.solve(
+                SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "crash-marker-case"}),
+                sandbox=sandbox,
+            )
+
+        assert result.response == "[workspace modified]"
+        assert result.trajectory[0]["final_metrics"]["workspace_diff_preview"] == _WORKSPACE_DIFF
+        assert result.error is None
+        assert result.error_kind is ErrorKind.NONE
+        assert result.scoring_details == {"error": _CONTEXT_WINDOW_CRASH}
 
 
 class TestSolveTimeoutPlumbing:
