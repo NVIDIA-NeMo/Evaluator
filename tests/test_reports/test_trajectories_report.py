@@ -662,7 +662,7 @@ def test_non_success_wire_examples_include_invalid_response_details(tmp_path: Pa
     ("status_code", "error_type", "error_message", "expected_category"),
     [
         (400, "invalid_request_error", "Malformed native tool-call JSON", "model_error"),
-        (504, "timeout", "Upstream timed out after 5s", "model_timeout"),
+        (504, "timeout", "Upstream timed out after 5s", "server_error"),
     ],
 )
 def test_last_wire_non_200_reclassifies_empty_response(
