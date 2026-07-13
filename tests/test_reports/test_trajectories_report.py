@@ -772,6 +772,58 @@ def test_verified_harbor_trial_ignores_failed_duplicate_wire_twin(
     assert report["enrichment"]["rows_reclassified_from_wire_failure"] == 0
 
 
+def test_verified_harbor_trial_ignores_distinct_trailing_wire_failure(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    row = _trial(7, 2, reward=1.0, steps=[_agent_step(0, msg="verified", pt=7, ct=3)])
+    row["scoring_details"] = {"method": "harbor", "test_exit_code": 0, "test_summary": "PASSED"}
+    _write_jsonl(bench / "trajectories.jsonl", [row])
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [
+            {**_wire(7, 2, prompt=7, completion=3), "request_hash": "completed-request"},
+            {
+                **_wire(7, 2, prompt=0, completion=0, status_code=429),
+                "request_hash": "auxiliary-request",
+                "error_type": "rate_limit_error",
+                "error_message": "Too many requests",
+            },
+        ],
+    )
+
+    report = json.loads(generate_trajectories_report(tmp_path, enrich=True).read_text())["benchmarks"][0]
+    enriched = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])
+
+    assert report["trajectories"]["failures_by_category"] == {}
+    assert "failure_category" not in enriched
+    assert report["enrichment"]["rows_reclassified_from_wire_failure"] == 0
+
+
+def test_failed_duplicate_wire_twin_reclassifies_unsuccessful_trial(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    row = _trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="", pt=0, ct=0)])
+    row["failure_category"] = "empty_response"
+    _write_jsonl(bench / "trajectories.jsonl", [row])
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [
+            {**_wire(7, 2, prompt=7, completion=3), "request_hash": "duplicate-request"},
+            {
+                **_wire(7, 2, prompt=0, completion=0, status_code=429),
+                "request_hash": "duplicate-request",
+                "error_type": "rate_limit_error",
+                "error_message": "Too many requests",
+            },
+        ],
+    )
+
+    report = json.loads(generate_trajectories_report(tmp_path, enrich=True).read_text())["benchmarks"][0]
+    enriched = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])
+
+    assert report["trajectories"]["failures_by_category"] == {"rate_limit": 1}
+    assert enriched["failure_category"] == "rate_limit"
+    assert report["enrichment"]["rows_reclassified_from_wire_failure"] == 1
+
+
 def test_harbor_verification_failure_clears_false_empty_response(tmp_path: Path) -> None:
     bench = tmp_path / "pb"
     row = _trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="", pt=7, ct=3)])
