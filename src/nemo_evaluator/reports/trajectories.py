@@ -200,21 +200,18 @@ def _trial_wire_failure(row: dict[str, Any], all_wire_rows: list[dict[str, Any]]
     category = _wire_failure_category(last_wire)
     if not category:
         return "", ""
-    last_wire_key = _wire_dedup_key(last_wire, len(all_wire_rows) - 1)
-    if any(
-        _is_successful_wire(wire) and _wire_dedup_key(wire, index) == last_wire_key
-        for index, wire in enumerate(all_wire_rows)
-    ):
-        return "", ""
     return category, _truncate_text(_wire_failure_text(last_wire))
 
 
 def _trial_failure_category(row: dict[str, Any], all_wire_rows: list[dict[str, Any]]) -> str:
     category = _failure_category(row)
+    completed_harbor_verification = _completed_harbor_verification_without_error(row)
+    reward = row.get("reward")
+    successful_verified_outcome = completed_harbor_verification and isinstance(reward, (int, float)) and reward > 0
     wire_category, _ = _trial_wire_failure(row, all_wire_rows)
-    if wire_category and category in {"", "empty_response", "model_error"}:
+    if wire_category and not successful_verified_outcome and category in {"", "empty_response", "model_error"}:
         return wire_category
-    if category == "empty_response" and _completed_harbor_verification_without_error(row):
+    if category == "empty_response" and completed_harbor_verification:
         return ""
     return category
 
