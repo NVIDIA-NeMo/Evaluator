@@ -98,7 +98,7 @@ def classify_model_failure(error: str = "", *, status_code: Any = None) -> str |
         "too many requests",
     ):
         return "rate_limit"
-    if _has_any(text, "upstream timeout:", "gateway timeout:"):
+    if _has_any(text, "gateway timeout", "upstream timeout", "upstream timed out"):
         return "server_error"
     if status == 408 or _has_any(
         text,
@@ -124,9 +124,6 @@ def classify_model_failure(error: str = "", *, status_code: Any = None) -> str |
         "api server error",
         "service unavailable",
         "bad gateway",
-        "gateway timeout",
-        "upstream timeout",
-        "upstream timed out",
         "httpx.connecterror",
         "httpx.remoteprotocolerror",
         "serverdisconnectederror",
