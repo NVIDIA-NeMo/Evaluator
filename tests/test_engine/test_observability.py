@@ -147,6 +147,8 @@ class TestArtifactCollector:
             pytest.param("upstream timed out", id="upstream-timed-out"),
             pytest.param("upstream timeout: provider stalled", id="upstream-timeout-prefix"),
             pytest.param("gateway timeout: upstream stalled", id="gateway-timeout-prefix"),
+            pytest.param("gateway timeout error", id="gateway-timeout-error"),
+            pytest.param("upstream timeout error", id="upstream-timeout-error"),
         ],
     )
     def test_server_timeout_phrases_are_server_errors(self, error):
