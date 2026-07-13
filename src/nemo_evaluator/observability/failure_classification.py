@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from http import HTTPStatus
 from typing import Any
 
 MODEL_FAILURE_CATEGORIES = frozenset(
@@ -18,11 +19,12 @@ MODEL_FAILURE_CATEGORIES = frozenset(
 )
 
 _STATUS_RE = re.compile(
-    r"(?:status[_ -]?code\s*[=:]\s*|status code\s*[=:]?\s*|error code:\s*|http\s+|status\s+)"
+    r"(?:status[_ -]?code\s*[=:]\s*|status code\s*[=:]?\s*|error code:\s*|"
+    r"http(?:/\d+(?:\.\d+)?)?\s+|status\s+)"
     r"(?P<code>[1-5][0-9]{2})\b",
     re.IGNORECASE,
 )
-_LEADING_STATUS_RE = re.compile(r"^\s*(?P<code>[1-5][0-9]{2})\b")
+_LEADING_STATUS_RE = re.compile(r"^\s*(?P<code>[1-5][0-9]{2})\s+(?P<reason>[^\r\n]+)")
 
 
 def _status_int(value: Any) -> int | None:
@@ -33,8 +35,19 @@ def _status_int(value: Any) -> int | None:
 
 
 def _status_from_text(text: str) -> int | None:
-    match = _STATUS_RE.search(text) or _LEADING_STATUS_RE.search(text)
-    return _status_int(match.group("code")) if match else None
+    if match := _STATUS_RE.search(text):
+        return _status_int(match.group("code"))
+
+    if not (match := _LEADING_STATUS_RE.search(text)):
+        return None
+    status = _status_int(match.group("code"))
+    try:
+        expected_reason = HTTPStatus(status).phrase
+    except ValueError:
+        return None
+    reason = re.sub(r"[^a-z0-9]+", "", match.group("reason").lower())
+    expected_reason = re.sub(r"[^a-z0-9]+", "", expected_reason.lower())
+    return status if reason.startswith(expected_reason) else None
 
 
 def _has_any(text: str, *markers: str) -> bool:
@@ -48,6 +61,8 @@ def classify_model_failure(error: str = "", *, status_code: Any = None) -> str |
         status = _status_from_text(text)
     if not text and status is None:
         return None
+    if status == 504:
+        return "server_error"
 
     if _has_any(text, "turn budget exhausted", "turn budget exceeded"):
         return "turn_budget_exhausted"
@@ -57,6 +72,7 @@ def classify_model_failure(error: str = "", *, status_code: Any = None) -> str |
         "context window exceeded",
         "context length exceeded",
         "context length is exceeded",
+        "model's context length",
         "maximum context length",
         "maximum context",
         "too many tokens",
@@ -78,10 +94,11 @@ def classify_model_failure(error: str = "", *, status_code: Any = None) -> str |
         "routerratelimiterrorbasic",
         "ratelimittype",
         "rate_limit",
+        "rate limit",
         "too many requests",
     ):
         return "rate_limit"
-    if status in {408, 504} or _has_any(
+    if status == 408 or _has_any(
         text,
         "apitimeouterror",
         "apiconnectiontimeouterror",
