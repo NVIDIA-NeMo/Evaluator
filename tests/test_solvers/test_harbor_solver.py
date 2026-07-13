@@ -1323,6 +1323,24 @@ class TestSolveFailureRecovery:
 
 
 class TestSolveTimeoutPlumbing:
+    @staticmethod
+    def _assert_command_deadline_covers_timeout_lifecycle(
+        actual_timeout: float,
+        *,
+        effective_timeout: float,
+        response_persistence_grace: float,
+    ) -> None:
+        sigterm_exec_budget = 10.0
+        trajectory_flush_budget = 30.0
+        minimum_safety_margin = 1.0
+        assert actual_timeout >= (
+            effective_timeout
+            + response_persistence_grace
+            + sigterm_exec_budget
+            + trajectory_flush_budget
+            + minimum_safety_margin
+        )
+
     @pytest.mark.asyncio
     async def test_solve_composes_command_deadline_after_agent_timeout(self, monkeypatch):
         import nemo_evaluator.solvers.harbor as harbor_mod
@@ -1415,16 +1433,10 @@ class TestSolveTimeoutPlumbing:
         assert wait_args["agent_started_at"] > 0
         assert wait_args["effective_timeout"] == 60.0
         assert wait_args["jitter"] == 0.0
-        response_persistence_grace = 3.0
-        sigterm_exec_budget = 10.0
-        trajectory_flush_budget = 30.0
-        minimum_safety_margin = 1.0
-        assert adapter_kwargs["default_timeout"] >= (
-            60.0
-            + response_persistence_grace
-            + sigterm_exec_budget
-            + trajectory_flush_budget
-            + minimum_safety_margin
+        self._assert_command_deadline_covers_timeout_lifecycle(
+            float(adapter_kwargs["default_timeout"]),
+            effective_timeout=60.0,
+            response_persistence_grace=3.0,
         )
 
     @pytest.mark.asyncio
@@ -1513,16 +1525,10 @@ class TestSolveTimeoutPlumbing:
 
         assert wait_args["jitter"] == 120.0
         assert wait_args["effective_timeout"] == 10920.0
-        response_persistence_grace = 15.0
-        sigterm_exec_budget = 10.0
-        trajectory_flush_budget = 30.0
-        minimum_safety_margin = 1.0
-        assert adapter_kwargs["default_timeout"] >= (
-            10920.0
-            + response_persistence_grace
-            + sigterm_exec_budget
-            + trajectory_flush_budget
-            + minimum_safety_margin
+        self._assert_command_deadline_covers_timeout_lifecycle(
+            float(adapter_kwargs["default_timeout"]),
+            effective_timeout=10920.0,
+            response_persistence_grace=15.0,
         )
 
     @pytest.mark.asyncio
