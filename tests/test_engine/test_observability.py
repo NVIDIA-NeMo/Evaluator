@@ -129,6 +129,43 @@ class TestArtifactCollector:
         assert classify_model_failure(error) is None
 
     @pytest.mark.parametrize(
+        ("error", "status_code"),
+        [
+            pytest.param("Gateway Timeout", 504, id="explicit-status"),
+            pytest.param("HTTP 504 Gateway Timeout", None, id="http"),
+            pytest.param("504 Gateway Time-out", None, id="leading-status"),
+            pytest.param("HTTP/1.1 504 Gateway Time-out", None, id="http-version"),
+        ],
+    )
+    def test_gateway_timeout_is_a_server_error(self, error, status_code):
+        assert classify_model_failure(error, status_code=status_code) == "server_error"
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            "429 model calls completed successfully",
+            "500 samples evaluated successfully",
+        ],
+    )
+    def test_leading_counts_are_not_status_codes(self, error):
+        assert classify_model_failure(error) is None
+
+    @pytest.mark.parametrize(
+        ("error", "expected_category"),
+        [
+            pytest.param("rate limit exceeded", "rate_limit", id="spaced-rate-limit"),
+            pytest.param(
+                "litellm.BadRequestError: You passed 171337 input tokens and requested 0 output tokens. "
+                "However, the model's context length is only 163840 tokens. ...",
+                "context_window_exceeded",
+                id="vllm-context-length",
+            ),
+        ],
+    )
+    def test_provider_failure_phrases_are_classified(self, error, expected_category):
+        assert classify_model_failure(error) == expected_category
+
+    @pytest.mark.parametrize(
         "status_code",
         [200, 201, 204, 302],
     )
