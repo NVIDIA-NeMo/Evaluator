@@ -733,6 +733,45 @@ def test_prior_504_then_final_200_does_not_reclassify_as_timeout(tmp_path: Path)
     assert report["enrichment"]["rows_reclassified_from_wire_failure"] == 0
 
 
+@pytest.mark.parametrize(
+    "wire_status_codes",
+    [(200, 429), (429, 200)],
+    ids=["failed-twin-last", "successful-twin-last"],
+)
+def test_verified_harbor_trial_ignores_failed_duplicate_wire_twin(
+    tmp_path: Path, wire_status_codes: tuple[int, int]
+) -> None:
+    bench = tmp_path / "pb"
+    row = _trial(7, 2, reward=1.0, steps=[_agent_step(0, msg="verified", pt=7, ct=3)])
+    row["scoring_details"] = {"method": "harbor", "test_exit_code": 0, "test_summary": "PASSED"}
+    _write_jsonl(bench / "trajectories.jsonl", [row])
+
+    wire_rows = []
+    for index, status_code in enumerate(wire_status_codes):
+        wire = {
+            **_wire(
+                7,
+                2,
+                prompt=7,
+                completion=3,
+                status_code=status_code,
+                timestamp=f"2026-07-13T12:00:00.{index + 1:03d}Z",
+            ),
+            "request_hash": "duplicate-request-hash",
+        }
+        if status_code == 429:
+            wire.update(error_type="rate_limit_error", error_message="Too many requests")
+        wire_rows.append(wire)
+    _write_jsonl(bench / "model_traffic.jsonl", wire_rows)
+
+    report = json.loads(generate_trajectories_report(tmp_path, enrich=True).read_text())["benchmarks"][0]
+    enriched = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])
+
+    assert report["trajectories"]["failures_by_category"] == {}
+    assert "failure_category" not in enriched
+    assert report["enrichment"]["rows_reclassified_from_wire_failure"] == 0
+
+
 def test_harbor_verification_failure_clears_false_empty_response(tmp_path: Path) -> None:
     bench = tmp_path / "pb"
     row = _trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="", pt=7, ct=3)])
