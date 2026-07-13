@@ -414,6 +414,7 @@ fs = glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/
 p = fs[0] if fs else ''
 assert p, 'retry_mixin.py not found'
 c = open(p).read()
+protocol_marker = '"schema_version": 2'
 old = (
     '        logger.error(\\n'
     '            "%s. Attempt #%d | You can customize retry values in the configuration.",\\n'
@@ -434,13 +435,13 @@ new = (
     '            _usage = getattr(getattr(self, "metrics", None), "accumulated_token_usage", None)\\n'
     '            _successful_tokens = int(getattr(_usage, "prompt_tokens", 0) or 0) + int(getattr(_usage, "completion_tokens", 0) or 0)\\n'
     '            with open(_tmp, "w") as _f:\\n'
-    '                _f.write(_json.dumps({"etype": type(exc).__name__, "emsg": str(exc), "written_at": _time.time(), "request_timeout_seconds": _request_timeout, "retry_after_seconds": _retry_after, "successful_tokens": _successful_tokens}))\\n'
+    '                _f.write(_json.dumps({"schema_version": 2, "etype": type(exc).__name__, "emsg": str(exc), "written_at": _time.time(), "request_timeout_seconds": _request_timeout, "retry_after_seconds": _retry_after, "successful_tokens": _successful_tokens}))\\n'
     '            _os.replace(_tmp, _p)\\n'
     '        except Exception:\\n'
     '            pass\\n\\n'
     + old
 )
-if 'last_llm_error.json' in c:
+if protocol_marker in c:
     print('retry_error_capture=already')
 elif old in c:
     open(p, 'w').write(c.replace(old, new, 1))
@@ -1124,6 +1125,11 @@ def _last_llm_error_from_marker(
         logger.warning("HarborSolver: failed to read last LLM error marker", exc_info=True)
         return None
     if not isinstance(payload, dict):
+        return None
+
+    currentness_fields = ("written_at", "request_timeout_seconds", "successful_tokens")
+    if not all(field in payload for field in currentness_fields):
+        logger.info("HarborSolver: ignoring legacy LLM error marker without currentness evidence")
         return None
 
     marker_at = payload.get("written_at")
@@ -2242,7 +2248,7 @@ class HarborSolver:
 
             agent = self._create_agent(agent_logs_dir, model_url=_host_agent_model_url(resolved_url))
             await sandbox.exec(
-                "mkdir -p /logs/agent /logs/verifier /logs/artifacts",
+                "mkdir -p /logs/agent /logs/verifier /logs/artifacts && rm -f /logs/agent/last_llm_error.json",
                 timeout_sec=10,
             )
 
