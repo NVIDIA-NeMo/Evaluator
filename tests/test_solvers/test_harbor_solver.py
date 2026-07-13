@@ -1324,7 +1324,7 @@ class TestSolveFailureRecovery:
 
 class TestSolveTimeoutPlumbing:
     @pytest.mark.asyncio
-    async def test_solve_starts_timeout_clock_at_agent_run(self, monkeypatch):
+    async def test_solve_composes_command_deadline_after_agent_timeout(self, monkeypatch):
         import nemo_evaluator.solvers.harbor as harbor_mod
         from nemo_evaluator.solvers.harbor import HarborSolver
 
@@ -1415,7 +1415,17 @@ class TestSolveTimeoutPlumbing:
         assert wait_args["agent_started_at"] > 0
         assert wait_args["effective_timeout"] == 60.0
         assert wait_args["jitter"] == 0.0
-        assert adapter_kwargs["default_timeout"] == _sandbox_agent_exec_timeout(60.0)
+        response_persistence_grace = 3.0
+        sigterm_exec_budget = 10.0
+        trajectory_flush_budget = 30.0
+        minimum_safety_margin = 1.0
+        assert adapter_kwargs["default_timeout"] >= (
+            60.0
+            + response_persistence_grace
+            + sigterm_exec_budget
+            + trajectory_flush_budget
+            + minimum_safety_margin
+        )
 
     @pytest.mark.asyncio
     async def test_solve_sets_command_timeout_after_10800s_effective_timeout_with_jitter(self, monkeypatch):
@@ -1503,8 +1513,17 @@ class TestSolveTimeoutPlumbing:
 
         assert wait_args["jitter"] == 120.0
         assert wait_args["effective_timeout"] == 10920.0
-        assert adapter_kwargs["default_timeout"] == _sandbox_agent_exec_timeout(10920.0)
-        assert adapter_kwargs["default_timeout"] == 10950.0
+        response_persistence_grace = 15.0
+        sigterm_exec_budget = 10.0
+        trajectory_flush_budget = 30.0
+        minimum_safety_margin = 1.0
+        assert adapter_kwargs["default_timeout"] >= (
+            10920.0
+            + response_persistence_grace
+            + sigterm_exec_budget
+            + trajectory_flush_budget
+            + minimum_safety_margin
+        )
 
     @pytest.mark.asyncio
     async def test_solve_verifies_turn_budget_crash_when_workspace_changed(self, monkeypatch):
