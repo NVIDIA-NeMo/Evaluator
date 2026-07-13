@@ -223,15 +223,42 @@ class TestArtifactCollector:
         c.record(step)
         assert step.failure_category == "empty_response"
 
-    def test_harbor_verification_failure_with_empty_final_content_is_not_empty_response(self):
+    def test_harbor_verification_failure_with_patch_is_not_empty_response(self):
         c = ArtifactCollector()
         step = StepRecord(
             model_response=ModelResponse(content="  "),
             reward=0.0,
-            scoring_details={"method": "harbor", "test_exit_code": 1, "test_summary": "FAILED"},
+            scoring_details={
+                "method": "harbor",
+                "test_exit_code": 1,
+                "test_summary": "FAILED",
+                "report": {"patch_exists": True},
+            },
         )
         c.record(step)
         assert step.failure_category is None
+
+    def test_harbor_verification_without_patch_keeps_empty_response(self):
+        c = ArtifactCollector()
+        step = StepRecord(
+            model_response=ModelResponse(content="  "),
+            reward=0.0,
+            scoring_details={
+                "method": "harbor",
+                "test_exit_code": 1,
+                "test_summary": "FAILED",
+                "report": {"patch_exists": False},
+            },
+        )
+
+        c.record(step)
+        artifacts = c.build(elapsed=1.0)
+
+        assert (
+            step.failure_category,
+            artifacts.failures.total_failures,
+            set(artifacts.failures.categories),
+        ) == ("empty_response", 1, {"empty_response"})
 
     def test_refusal_detected(self):
         c = ArtifactCollector()
