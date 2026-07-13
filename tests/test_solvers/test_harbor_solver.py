@@ -228,14 +228,30 @@ class TestLastLlmErrorMarker:
     def test_missing_marker_returns_none(self, tmp_path):
         assert _last_llm_error_from_marker(tmp_path) is None
 
-    def test_marker_returns_type_and_message(self, tmp_path):
+    def test_current_marker_returns_type_and_message(self, tmp_path):
         (tmp_path / "last_llm_error.json").write_text(
-            json.dumps({"etype": "BadRequestError", "emsg": "Error code: 400 - Malformed native tool-call JSON"})
+            json.dumps(
+                {
+                    "etype": "BadRequestError",
+                    "emsg": "Error code: 400 - Malformed native tool-call JSON",
+                    "written_at": time.time(),
+                    "request_timeout_seconds": 300,
+                    "retry_after_seconds": 0,
+                    "successful_tokens": 0,
+                }
+            )
         )
 
         assert _last_llm_error_from_marker(tmp_path) == (
             "BadRequestError: Error code: 400 - Malformed native tool-call JSON"
         )
+
+    def test_legacy_marker_without_currentness_evidence_is_ignored(self, tmp_path):
+        (tmp_path / "last_llm_error.json").write_text(
+            json.dumps({"etype": "RateLimitError", "emsg": "HTTP 429 from a previous solve attempt"})
+        )
+
+        assert _last_llm_error_from_marker(tmp_path) is None
 
 
 class TestTurnBudgetError:
@@ -247,6 +263,24 @@ class TestTurnBudgetError:
 
 
 # ── Patch functions ──────────────────────────────────────────────────────
+
+
+def _apply_retry_capture_patch(sandbox, retry_mixin) -> None:
+    import base64
+
+    decoded_scripts = []
+    for call in sandbox.exec.call_args_list:
+        cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+        if "base64 -d" in cmd:
+            encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+            decoded_scripts.append(base64.b64decode(encoded).decode())
+
+    retry_patch = next(s for s in decoded_scripts if "retry_error_capture" in s)
+    retry_patch = retry_patch.replace(
+        "fs = glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/llm/utils/retry_mixin.py')",
+        f"fs = [{str(retry_mixin)!r}]",
+    )
+    exec(compile(retry_patch, "retry_error_patch.py", "exec"), {})  # noqa: S102
 
 
 class TestPatchOpenhandsSDK:
@@ -334,8 +368,6 @@ class TestPatchOpenhandsSDK:
         assert 'llm_kwargs["timeout"] = int(timeout_raw)' in patched
 
     async def test_retry_mixin_patch_records_last_llm_error(self, tmp_path):
-        import base64
-
         from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
 
         retry_mixin = tmp_path / "retry_mixin.py"
@@ -355,20 +387,7 @@ class RetryMixin:
         sandbox = AsyncMock()
         sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
         await _patch_openhands_sdk(sandbox)
-
-        decoded_scripts = []
-        for call in sandbox.exec.call_args_list:
-            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
-            if "base64 -d" in cmd:
-                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
-                decoded_scripts.append(base64.b64decode(encoded).decode())
-
-        retry_patch = next(s for s in decoded_scripts if "retry_error_capture" in s)
-        retry_patch = retry_patch.replace(
-            "fs = glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/llm/utils/retry_mixin.py')",
-            f"fs = [{str(retry_mixin)!r}]",
-        )
-        exec(compile(retry_patch, "retry_error_patch.py", "exec"), {})  # noqa: S102
+        _apply_retry_capture_patch(sandbox, retry_mixin)
 
         patched = retry_mixin.read_text()
         assert '"/logs/agent/last_llm_error.json"' in patched
@@ -378,6 +397,46 @@ class RetryMixin:
         assert '"request_timeout_seconds": _request_timeout' in patched
         assert '"retry_after_seconds": _retry_after' in patched
         assert '"successful_tokens": _successful_tokens' in patched
+
+    async def test_retry_mixin_patch_upgrades_legacy_capture_protocol(self, tmp_path):
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        retry_mixin = tmp_path / "retry_mixin.py"
+        retry_mixin.write_text(
+            """\
+class RetryMixin:
+    def log_retry_attempt(self, retry_state):
+        exc = retry_state.outcome.exception()
+        try:
+            import json as _json, os as _os
+            _p = "/logs/agent/last_llm_error.json"
+            _os.makedirs(_os.path.dirname(_p), exist_ok=True)
+            _tmp = _p + ".tmp"
+            with open(_tmp, "w") as _f:
+                _f.write(_json.dumps({"etype": type(exc).__name__, "emsg": str(exc)}))
+            _os.replace(_tmp, _p)
+        except Exception:
+            pass
+
+        logger.error(
+            "%s. Attempt #%d | You can customize retry values in the configuration.",
+            exc,
+            retry_state.attempt_number,
+        )
+"""
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+        _apply_retry_capture_patch(sandbox, retry_mixin)
+        _apply_retry_capture_patch(sandbox, retry_mixin)
+
+        patched = retry_mixin.read_text()
+        assert '"schema_version": 2' in patched
+        assert '"request_timeout_seconds": _request_timeout' in patched
+        assert '"successful_tokens": _successful_tokens' in patched
+        assert patched.count('"schema_version": 2') == 1
 
     async def test_runner_timeout_patch_does_not_shadow_os(self, tmp_path):
         import base64
@@ -1230,6 +1289,19 @@ async def _run_setup_failure(failure: Exception, *, task_id: str, workspace_diff
 
 
 class TestSolveFailureRecovery:
+    @pytest.mark.asyncio
+    async def test_solve_clears_persisted_llm_error_marker_before_agent_setup(self):
+        solver, _ = _setup_failing_solver(GracefulError("stop after setup"))
+
+        async with MockSandbox() as sandbox:
+            await solver.solve(
+                SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "marker-cleanup-case"}),
+                sandbox=sandbox,
+            )
+
+        setup_command = next(command for command in sandbox._exec_log if "mkdir -p /logs/agent" in command)
+        assert "rm -f /logs/agent/last_llm_error.json" in setup_command
+
     @pytest.mark.asyncio
     async def test_graceful_setup_failure_returns_solve_result(self):
         result, agent = await _run_setup_failure(
