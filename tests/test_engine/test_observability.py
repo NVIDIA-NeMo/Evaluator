@@ -145,9 +145,11 @@ class TestArtifactCollector:
         [
             pytest.param("upstream timeout", id="upstream-timeout"),
             pytest.param("upstream timed out", id="upstream-timed-out"),
+            pytest.param("upstream timeout: provider stalled", id="upstream-timeout-prefix"),
+            pytest.param("gateway timeout: upstream stalled", id="gateway-timeout-prefix"),
         ],
     )
-    def test_upstream_timeouts_are_server_errors(self, error):
+    def test_server_timeout_phrases_are_server_errors(self, error):
         assert classify_model_failure(error) == "server_error"
 
     @pytest.mark.parametrize(
