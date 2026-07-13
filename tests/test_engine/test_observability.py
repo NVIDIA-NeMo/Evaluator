@@ -201,6 +201,12 @@ class TestArtifactCollector:
             c.record(step)
             assert step.failure_category == expected_category, f"Expected {expected_category} for: {error_msg}"
 
+    def test_unclassified_model_error_falls_back_to_model_error(self):
+        c = ArtifactCollector()
+        c.record(StepRecord(model_error="Agent crashed: ValueError"))
+
+        assert c.build(elapsed=0.0).steps[0].failure_category == "model_error"
+
     @pytest.mark.parametrize(
         "error",
         [
