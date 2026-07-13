@@ -92,7 +92,7 @@ class TestSolveFailedErrorCategory:
         ("error", "is_solve_timeout", "expected"),
         [
             ("litellm.BadRequestError: Error code: 400 - Malformed native tool-call JSON", False, "model_error"),
-            ("504 Gateway Timeout: upstream timed out", False, "model_timeout"),
+            ("504 Gateway Timeout: upstream timed out", False, "server_error"),
             ("429 Too Many Requests: rate_limit", False, "rate_limit"),
             ("503 Service Unavailable", False, "server_error"),
             ("Turn budget exhausted: 20/20 turns used", True, "turn_budget_exhausted"),
@@ -203,7 +203,7 @@ class TestTerminalBenchErrorClassification:
         ("error", "error_kind", "expected"),
         [
             ("Error code: 400 - Malformed native tool-call JSON", ErrorKind.NONE, "model_error"),
-            ("504 Gateway Timeout: upstream timed out", ErrorKind.SOLVE_TIMEOUT, "model_timeout"),
+            ("504 Gateway Timeout: upstream timed out", ErrorKind.SOLVE_TIMEOUT, "server_error"),
             ("Turn budget exhausted: 20/20 turns used", ErrorKind.SOLVE_TIMEOUT, "turn_budget_exhausted"),
         ],
     )
