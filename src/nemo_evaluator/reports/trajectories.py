@@ -200,6 +200,12 @@ def _trial_wire_failure(row: dict[str, Any], all_wire_rows: list[dict[str, Any]]
     category = _wire_failure_category(last_wire)
     if not category:
         return "", ""
+    last_wire_key = _wire_dedup_key(last_wire, len(all_wire_rows) - 1)
+    if any(
+        _is_successful_wire(wire) and _wire_dedup_key(wire, index) == last_wire_key
+        for index, wire in enumerate(all_wire_rows)
+    ):
+        return "", ""
     return category, _truncate_text(_wire_failure_text(last_wire))
 
 
