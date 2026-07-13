@@ -1096,10 +1096,27 @@ def _format_llm_error(etype: Any, emsg: Any) -> str:
     return f"{etype_s}: {emsg_s}" if emsg_s else etype_s
 
 
-def _last_llm_error_from_marker(agent_logs_dir: Path) -> str | None:
+def _last_llm_error_from_marker(
+    agent_logs_dir: Path,
+    *,
+    max_age_seconds: float | None = None,
+) -> str | None:
     marker = agent_logs_dir / "last_llm_error.json"
     if not marker.is_file():
         return None
+    if max_age_seconds is not None:
+        try:
+            marker_age = max(0.0, time.time() - marker.stat().st_mtime)
+        except OSError:
+            logger.warning("HarborSolver: failed to stat last LLM error marker", exc_info=True)
+            return None
+        if marker_age > max_age_seconds:
+            logger.info(
+                "HarborSolver: ignoring last LLM error marker older than the model timeout (age=%.0fs timeout=%.0fs)",
+                marker_age,
+                max_age_seconds,
+            )
+            return None
     try:
         payload = json.loads(marker.read_text())
     except Exception:
@@ -2138,6 +2155,7 @@ class HarborSolver:
         logs_dir = Path(tempfile.mkdtemp(prefix="eval_harbor_"))
         agent_logs_dir = logs_dir / "agent"
         agent_logs_dir.mkdir(parents=True, exist_ok=True)
+        retry_zero_progress = False
 
         try:
             resolved_url = sandbox.resolved_endpoint_url("MODEL_BASE_URL") or (
@@ -2329,10 +2347,13 @@ class HarborSolver:
             completion_tokens = context.n_output_tokens or recovered["completion_tokens"]
 
             latency_ms = (time.monotonic() - t0) * 1000
-            last_llm_error = _last_llm_error_from_marker(agent_logs_dir) if agent_timed_out else None
+            last_llm_error = (
+                _last_llm_error_from_marker(agent_logs_dir, max_age_seconds=self._timeout) if agent_timed_out else None
+            )
 
             # Timeout with zero progress → model is likely dead.
             if agent_timed_out and not workspace_diff and prompt_tokens + completion_tokens == 0 and not last_llm_error:
+                retry_zero_progress = True
                 raise InfraError(
                     f"Agent made no progress before run_timeout ({self._run_timeout:.0f}s). Model may be unreachable."
                 )
@@ -2432,6 +2453,9 @@ class HarborSolver:
                     await _download_agent_logs(sandbox, agent_logs_dir)
             except Exception:
                 logger.debug("Post-failure recovery failed", exc_info=True)
+
+            if retry_zero_progress and not workspace_diff:
+                raise
 
             recovered = _recover_from_logs(agent_logs_dir)
             trajectory = recovered["trajectory"] or build_atif_trajectory(
