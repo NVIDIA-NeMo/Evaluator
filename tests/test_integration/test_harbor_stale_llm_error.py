@@ -185,6 +185,7 @@ def _solver_for(scenario: _AgentScenario) -> HarborSolver:
 
 async def _run_scenario(monkeypatch: pytest.MonkeyPatch, outcomes: list[_AgentOutcome]):
     import harbor.models.agent.context as context_mod
+
     import nemo_evaluator.solvers.harbor as harbor_mod
     import nemo_evaluator.solvers.harbor_adapter as adapter_mod
 
