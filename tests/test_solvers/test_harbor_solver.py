@@ -398,12 +398,17 @@ class RetryMixin:
         assert '"retry_after_seconds": _retry_after' in patched
         assert '"successful_tokens": _successful_tokens' in patched
 
-    async def test_retry_mixin_patch_upgrades_legacy_capture_protocol(self, tmp_path):
+    async def test_retry_mixin_patch_upgrades_persisted_legacy_marker_producer(self, tmp_path):
         from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
 
         retry_mixin = tmp_path / "retry_mixin.py"
         retry_mixin.write_text(
             """\
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 class RetryMixin:
     def log_retry_attempt(self, retry_state):
         exc = retry_state.outcome.exception()
@@ -433,10 +438,27 @@ class RetryMixin:
         _apply_retry_capture_patch(sandbox, retry_mixin)
 
         patched = retry_mixin.read_text()
-        assert '"schema_version": 2' in patched
+        assert patched.count('"schema_version": 2') == 1
         assert '"request_timeout_seconds": _request_timeout' in patched
         assert '"successful_tokens": _successful_tokens' in patched
-        assert patched.count('"schema_version": 2') == 1
+
+        logs_dir = tmp_path / "agent"
+        runtime_source = patched.replace("/logs/agent", str(logs_dir))
+        namespace: dict[str, object] = {}
+        exec(compile(runtime_source, str(retry_mixin), "exec"), namespace)  # noqa: S102
+
+        retry_state = MagicMock()
+        retry_state.outcome.exception.return_value = RuntimeError("model retry failed")
+        retry_state.attempt_number = 1
+        retry_state.next_action.sleep = 0
+        mixin = namespace["RetryMixin"]()
+        mixin.timeout = 60
+        mixin.metrics = MagicMock()
+        mixin.metrics.accumulated_token_usage.prompt_tokens = 0
+        mixin.metrics.accumulated_token_usage.completion_tokens = 0
+        mixin.log_retry_attempt(retry_state)
+
+        assert _last_llm_error_from_marker(logs_dir, successful_tokens=7) is None
 
     async def test_runner_timeout_patch_does_not_shadow_os(self, tmp_path):
         import base64
