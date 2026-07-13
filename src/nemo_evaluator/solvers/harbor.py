@@ -1115,6 +1115,31 @@ def _is_turn_budget_exhausted_error(error: str) -> bool:
     return "turn budget exhausted" in text or "turn budget exceeded" in text
 
 
+def _classify_workspace_failure(
+    error: str,
+    workspace_diff: str,
+    *,
+    default_error_kind: ErrorKind,
+) -> tuple[str | None, ErrorKind, dict[str, Any]]:
+    """Return solve metadata while preserving recoverable workspace changes."""
+    if not workspace_diff:
+        return error, default_error_kind, {}
+
+    if _is_turn_budget_exhausted_error(error):
+        logger.info("HarborSolver: agent hit turn budget with workspace changes — submitting for verification")
+        return (
+            None,
+            ErrorKind.SOLVE_TIMEOUT,
+            {"error": error, "error_category": "turn_budget_exhausted"},
+        )
+
+    if error.startswith("Agent crashed:"):
+        logger.info("HarborSolver: agent crashed with workspace changes — submitting for verification")
+        return None, default_error_kind, {"error": error}
+
+    return error, default_error_kind, {}
+
+
 def _parse_atif(raw: Any) -> dict[str, Any] | None:
     """Return parsed ATIF document or ``None`` if *raw* is not ATIF."""
     if not isinstance(raw, dict):
@@ -2316,29 +2341,22 @@ class HarborSolver:
             error = None
             error_kind = ErrorKind.NONE
             scoring_details: dict[str, Any] = {}
+            crash_error = None
             if agent_error is not None:
                 etype = type(agent_error).__name__
                 if etype in _INFRA_ERROR_NAMES:
                     raise InfraError(f"Agent infrastructure failure: {etype}: {agent_error}") from agent_error
                 crash_error = f"Agent crashed: {etype}: {agent_error}"
-                if workspace_diff and _is_turn_budget_exhausted_error(crash_error):
-                    logger.info(
-                        "HarborSolver: agent hit turn budget with workspace changes — submitting for verification"
-                    )
-                    error_kind = ErrorKind.SOLVE_TIMEOUT
-                    scoring_details = {"error": crash_error, "error_category": "turn_budget_exhausted"}
-                else:
-                    error = crash_error
-                    logger.warning("HarborSolver: %s", error)
-            elif crash_error := _error_from_crash_marker(agent_logs_dir):
-                if workspace_diff and _is_turn_budget_exhausted_error(crash_error):
-                    logger.info(
-                        "HarborSolver: agent hit turn budget with workspace changes — submitting for verification"
-                    )
-                    error_kind = ErrorKind.SOLVE_TIMEOUT
-                    scoring_details = {"error": crash_error, "error_category": "turn_budget_exhausted"}
-                else:
-                    error = crash_error
+            else:
+                crash_error = _error_from_crash_marker(agent_logs_dir)
+
+            if crash_error:
+                error, error_kind, scoring_details = _classify_workspace_failure(
+                    crash_error,
+                    workspace_diff,
+                    default_error_kind=ErrorKind.NONE,
+                )
+                if error:
                     logger.warning("HarborSolver: %s", error)
             elif agent_timed_out and not response and last_llm_error:
                 error = f"Agent timed out after model API error: {last_llm_error}"
@@ -2425,17 +2443,11 @@ class HarborSolver:
             if not response or _is_prompt_echo(response, ""):
                 response = "[workspace modified]" if workspace_diff else ""
 
-            error = str(exc)
-            error_kind = ErrorKind.NONE
-            if workspace_diff and _is_turn_budget_exhausted_error(error):
-                logger.info(
-                    "HarborSolver: graceful turn-budget exit with workspace changes — submitting for verification"
-                )
-                scoring_details = {"error": error, "error_category": "turn_budget_exhausted"}
-                error = None
-                error_kind = ErrorKind.SOLVE_TIMEOUT
-            else:
-                scoring_details = {}
+            error, error_kind, scoring_details = _classify_workspace_failure(
+                str(exc),
+                workspace_diff,
+                default_error_kind=ErrorKind.INFRA,
+            )
 
             return SolveResult(
                 response=response,
@@ -2447,8 +2459,9 @@ class HarborSolver:
                     latency_ms=round(latency_ms, 2),
                 ),
                 trajectory=trajectory,
-                error=str(exc),
-                error_kind=ErrorKind.INFRA,
+                error=error,
+                error_kind=error_kind,
+                scoring_details=scoring_details,
             )
 
         except GracefulError as exc:
@@ -2479,6 +2492,12 @@ class HarborSolver:
             response = recovered["response"]
             if not response or _is_prompt_echo(response, ""):
                 response = "[workspace modified]" if workspace_diff else ""
+
+            error, error_kind, scoring_details = _classify_workspace_failure(
+                str(exc),
+                workspace_diff,
+                default_error_kind=ErrorKind.NONE,
+            )
 
             return SolveResult(
                 response=response,
