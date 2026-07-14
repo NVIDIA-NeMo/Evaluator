@@ -162,6 +162,10 @@ class DockerExecutor(Executor):
             encoding="utf-8",
         )
 
+        from nemo_evaluator.config.snapshot import write_config_snapshot
+
+        write_config_snapshot(config, output_dir, force=not resume)
+
         shm = getattr(config.cluster, "shm_size", None)
         if not shm:
             if any(s.type == "gym" for s in config.services.values()):
