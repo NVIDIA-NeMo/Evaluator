@@ -63,8 +63,10 @@ _FLAGS = (
 _NEL_METHODS = (
     "_nel_ensure_compaction_state",
     "_nel_stash_compaction_token_snapshots",
+    "_nel_subagent_metrics_snapshot",
+    "_nel_summary_generation_from_subagent_delta",
+    "_nel_summary_generation_from_usage",
     "_nel_token_snapshot",
-    "_nel_steps_compacted",
     "_nel_compaction_mechanism",
     "_nel_make_compaction_event",
     "_nel_record_failed_compaction_attempt",
@@ -723,8 +725,8 @@ class TestPatchCompactionLogging:
         assert step.source == "system"
         assert step.extra is not None
         assert step.extra["context_management"]["type"] == "compaction"
+        assert step.extra["compaction"]["llm_call_count"] == 3
         assert agent._pending_handoff_prompt is None
-        assert agent._nel_compaction_step_overlays[1]["llm_call_count"] == 3
 
     def test_idempotent_when_marker_present(self, patch_sandbox):
         terminus = patch_sandbox.terminus

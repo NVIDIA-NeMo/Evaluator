@@ -41,7 +41,6 @@ from nemo_evaluator.solvers.compaction_logging import (
     CompactionTokens,
     CompactionTokensIntermediate,
     CompactionTrigger,
-    StepsCompacted,
 )
 from nemo_evaluator.solvers.trajectory_util import build_atif_trajectory
 
@@ -972,12 +971,12 @@ new = (
     '    _ctx_lim_raw = os.environ.get("CONTEXT_LIMIT") or os.environ.get("MAX_INPUT_TOKENS") or "128000"\\n'
     '    _ctx_lim = int(_ctx_lim_raw)\\n'
     '    _oh_cfg = {}\\n'
-    '    if os.environ.get("OPENHANDS_CONDENSER_MAX_SIZE"):\\n'
-    '        _oh_cfg["max_size"] = int(os.environ["OPENHANDS_CONDENSER_MAX_SIZE"])\\n'
-    '    if os.environ.get("OPENHANDS_CONDENSER_MAX_TOKENS"):\\n'
-    '        _oh_cfg["max_tokens"] = int(os.environ["OPENHANDS_CONDENSER_MAX_TOKENS"])\\n'
-    '    if os.environ.get("OPENHANDS_CONDENSER_KEEP_FIRST"):\\n'
-    '        _oh_cfg["keep_first"] = int(os.environ["OPENHANDS_CONDENSER_KEEP_FIRST"])\\n'
+    '    if os.environ.get("OH_CONDENSER_MAX_SIZE"):\\n'
+    '        _oh_cfg["max_size"] = int(os.environ["OH_CONDENSER_MAX_SIZE"])\\n'
+    '    if os.environ.get("OH_CONDENSER_MAX_TOKENS"):\\n'
+    '        _oh_cfg["max_tokens"] = int(os.environ["OH_CONDENSER_MAX_TOKENS"])\\n'
+    '    if os.environ.get("OH_CONDENSER_KEEP_FIRST"):\\n'
+    '        _oh_cfg["keep_first"] = int(os.environ["OH_CONDENSER_KEEP_FIRST"])\\n'
     '    trajectory = enrich_trajectory_with_compaction(\\n'
     '        trajectory, conversation.state.events, llm, _ctx_lim, condenser_config=_oh_cfg or None,\\n'
     '    )\\n'
@@ -1804,8 +1803,6 @@ _PROACTIVE_CHECK_REPLACEMENT = (
 def _terminus2_nel_ensure_compaction_state(self) -> None:
     if not hasattr(self, "_nel_pending_compaction"):
         self._nel_pending_compaction = None
-    if not hasattr(self, "_nel_compaction_step_overlays"):
-        self._nel_compaction_step_overlays: dict[int, dict[str, Any]] = {}
     if not hasattr(self, "_nel_last_unwind_pairs"):
         self._nel_last_unwind_pairs = 0
     if not hasattr(self, "_nel_last_unwind_target"):
@@ -1841,22 +1838,6 @@ def _terminus2_nel_token_snapshot(self, chat) -> CompactionTokens:
         prompt_tokens_approx=current_tokens,
         context_limit=context_limit,
         free_tokens=context_limit - current_tokens,
-    )
-
-
-def _terminus2_nel_steps_compacted(self) -> StepsCompacted | None:
-    from nemo_evaluator.solvers.compaction_logging import StepsCompacted
-
-    if not self._trajectory_steps:
-        return None
-    first_step_id = 2 if len(self._trajectory_steps) > 1 else 1
-    last_step_id = len(self._trajectory_steps)
-    if last_step_id < first_step_id:
-        return None
-    return StepsCompacted(
-        first_step_id=first_step_id,
-        last_step_id=last_step_id,
-        step_count=last_step_id - first_step_id + 1,
     )
 
 
@@ -1902,7 +1883,6 @@ def _terminus2_nel_make_compaction_event(
         tokens_after=tokens_after,
         tokens_intermediate=tokens_intermediate,
         llm_call_count=llm_call_count_for_strategy(strategy),
-        steps_compacted=self._nel_steps_compacted(),
         mechanism=self._nel_compaction_mechanism(),
         subagent_trajectory_ref=subagent_trajectory_refs_to_dicts(subagent_refs),
         attempts=attempts or None,
@@ -1995,9 +1975,8 @@ def _terminus2_nel_flush_pending_compaction(self, chat) -> None:
         return
 
     step_id = len(self._trajectory_steps) + 1
-    step, llm_call_count = compaction_event_to_harbor_step(event, step_id)
+    step = compaction_event_to_harbor_step(event, step_id)
     self._trajectory_steps.append(step)
-    self._nel_compaction_step_overlays[step_id] = {"llm_call_count": llm_call_count}
 
     handoff_prompt = event.replacement_content
     self._nel_pending_compaction = None
@@ -2061,11 +2040,6 @@ def _terminus2_nel_dump_trajectory_with_continuation_index(self, continuation_in
         trajectory_path = self.logs_dir / "trajectory.json"
 
     trajectory_dict = trajectory.to_json_dict()
-    overlays = getattr(self, "_nel_compaction_step_overlays", None) or {}
-    for step in trajectory_dict.get("steps", []):
-        step_id = step.get("step_id")
-        if step_id in overlays:
-            step.update(overlays[step_id])
 
     try:
         with open(trajectory_path, "w") as f:
@@ -2101,7 +2075,6 @@ def _patch_terminus_compaction_logging() -> None:
     terminus2_mod.Terminus2._nel_ensure_compaction_state = _terminus2_nel_ensure_compaction_state
     terminus2_mod.Terminus2._nel_stash_compaction_token_snapshots = _terminus2_nel_stash_compaction_token_snapshots
     terminus2_mod.Terminus2._nel_token_snapshot = _terminus2_nel_token_snapshot
-    terminus2_mod.Terminus2._nel_steps_compacted = _terminus2_nel_steps_compacted
     terminus2_mod.Terminus2._nel_compaction_mechanism = _terminus2_nel_compaction_mechanism
     terminus2_mod.Terminus2._nel_make_compaction_event = _terminus2_nel_make_compaction_event
     terminus2_mod.Terminus2._nel_record_failed_compaction_attempt = _terminus2_nel_record_failed_compaction_attempt

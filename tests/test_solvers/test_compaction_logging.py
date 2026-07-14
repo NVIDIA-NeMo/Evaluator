@@ -9,7 +9,6 @@ from nemo_evaluator.solvers.compaction_logging import (
     CompactionObservationExtra,
     CompactionTokens,
     CompactionTokensIntermediate,
-    StepsCompacted,
     build_compaction_step,
     compaction_event_to_harbor_step,
     llm_call_count_for_strategy,
@@ -33,7 +32,6 @@ def _minimal_event(**overrides) -> CompactionEvent:
             free_tokens=192_000,
         ),
         llm_call_count=3,
-        steps_compacted=StepsCompacted(first_step_id=2, last_step_id=10, step_count=9),
         mechanism=CompactionMechanism(
             unwind_applied=False,
             chat_reset_applied=False,
@@ -41,7 +39,6 @@ def _minimal_event(**overrides) -> CompactionEvent:
         ),
         subagent_trajectory_ref=[
             {
-                "trajectory_path": "trajectory.summarization-1-summary.json",
                 "session_id": "sess-summarization-1-summary",
                 "extra": {"phase": "summary"},
             }
@@ -56,7 +53,7 @@ def _minimal_event(**overrides) -> CompactionEvent:
 def test_build_compaction_step_full_three_phase() -> None:
     step = build_compaction_step(_minimal_event(), step_id=11)
     assert step["source"] == "system"
-    assert step["llm_call_count"] == 3
+    assert step["extra"]["compaction"]["llm_call_count"] == 3
     assert step["extra"]["context_management"] == {"type": "compaction", "boundary": "replace"}
     assert step["extra"]["compaction"]["strategy"] == "terminus_three_phase_subagent"
     assert step["extra"]["compaction"]["tokens_before"]["prompt_tokens_approx"] == 190_000
@@ -120,9 +117,9 @@ def test_build_compaction_step_with_failed_attempts() -> None:
     assert len(attempts) == 1
     assert attempts[0]["strategy"] == "terminus_three_phase_subagent"
     assert attempts[0]["outcome"] == "failed"
-    mechanism = step["extra"]["compaction"]["mechanism"]
-    assert mechanism["unwind_applied"] is True
-    assert mechanism["messages_unwound_pairs"] == 10
+    strategy_details = step["extra"]["compaction"]["strategy_details"]
+    assert strategy_details["unwind_applied"] is True
+    assert strategy_details["messages_unwound_pairs"] == 10
     obs_extra = step["observation"]["results"][0]["extra"]
     assert obs_extra["compaction_prompt_tokens"] == 4200
 
@@ -150,19 +147,18 @@ def test_build_compaction_step_openhands_extra() -> None:
         ),
     )
     step = build_compaction_step(event, step_id=4)
-    openhands = step["extra"]["compaction"]["openhands"]
-    assert openhands["reason"] == "events"
-    assert openhands["forgotten_event_count"] == 12
-    assert openhands["max_size"] == 80
-    assert "mechanism" not in step["extra"]["compaction"]
+    strategy_details = step["extra"]["compaction"]["strategy_details"]
+    assert strategy_details["reason"] == "events"
+    assert strategy_details["forgotten_event_count"] == 12
+    assert strategy_details["max_size"] == 80
 
 
 def test_compaction_event_to_harbor_step() -> None:
-    step, llm_call_count = compaction_event_to_harbor_step(_minimal_event(), step_id=3)
-    assert llm_call_count == 3
+    step = compaction_event_to_harbor_step(_minimal_event(), step_id=3)
+    assert step.extra is not None
+    assert step.extra["compaction"]["llm_call_count"] == 3
     assert step.step_id == 3
     assert step.source == "system"
-    assert step.extra is not None
     assert step.extra["context_management"]["type"] == "compaction"
     assert step.observation is not None
     assert step.observation.results[0].content == "handoff text"

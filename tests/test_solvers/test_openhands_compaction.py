@@ -21,7 +21,6 @@ from openhands.sdk.llm import LLM, Message, TextContent
 
 from nemo_evaluator.solvers.openhands_compaction import (
     build_compaction_events_from_run,
-    build_event_to_step_map,
     enrich_trajectory_with_compaction,
     infer_openhands_trigger,
     is_hard_reset,
@@ -110,6 +109,7 @@ def test_build_compaction_events_proactive_events(mock_count: MagicMock, mock_ll
     assert compaction_event.replacement_content == "condensed summary"
     assert compaction_event.openhands_extra is not None
     assert compaction_event.openhands_extra.reason == "events"
+    assert compaction_event.openhands_extra.requirement == "soft"
     assert compaction_event.tokens_before.prompt_tokens_approx == 120
     assert compaction_event.tokens_after.prompt_tokens_approx == 40
 
@@ -131,6 +131,7 @@ def test_build_compaction_events_token_trigger(mock_count: MagicMock, mock_llm: 
     assert compaction_event.trigger == "openhands_condensation_tokens"
     assert compaction_event.openhands_extra is not None
     assert compaction_event.openhands_extra.reason == "tokens"
+    assert compaction_event.openhands_extra.requirement == "hard"
 
 
 @patch("nemo_evaluator.solvers.openhands_compaction.get_total_token_count", side_effect=[50, 10, 50, 10])
@@ -145,14 +146,7 @@ def test_build_compaction_events_hard_reset(mock_count: MagicMock, mock_llm: LLM
     assert compaction_event.openhands_extra is not None
     assert compaction_event.openhands_extra.hard_reset is True
     assert compaction_event.openhands_extra.reason == "hard_reset"
-
-
-def test_build_event_to_step_map() -> None:
-    user = _user_message("u")
-    agent = _agent_message("a")
-    mapping = build_event_to_step_map([user, agent])
-    assert mapping[user.id] == 1
-    assert mapping[agent.id] == 2
+    assert compaction_event.openhands_extra.requirement == "hard"
 
 
 @patch("nemo_evaluator.solvers.openhands_compaction.get_total_token_count", side_effect=[100, 20])
@@ -178,7 +172,8 @@ def test_splice_compaction_steps_into_trajectory(mock_count: MagicMock, mock_llm
     assert compaction_step["source"] == "system"
     assert compaction_step["extra"]["context_management"]["type"] == "compaction"
     assert compaction_step["extra"]["compaction"]["trigger"] == "openhands_condensation_request"
-    assert compaction_step["extra"]["compaction"]["openhands"]["reason"] == "request"
+    assert compaction_step["extra"]["compaction"]["strategy_details"]["reason"] == "request"
+    assert compaction_step["extra"]["compaction"]["strategy_details"]["requirement"] == "hard"
     assert compaction_step["observation"]["results"][0]["content"] == "condensed summary"
 
 

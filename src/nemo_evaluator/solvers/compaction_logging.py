@@ -49,13 +49,6 @@ class CompactionTokensIntermediate:
 
 
 @dataclass
-class StepsCompacted:
-    first_step_id: int
-    last_step_id: int
-    step_count: int
-
-
-@dataclass
 class CompactionMechanism:
     unwind_applied: bool = False
     chat_reset_applied: bool = False
@@ -130,7 +123,6 @@ class CompactionEvent:
     llm_call_count: int
     tokens_intermediate: CompactionTokensIntermediate | None = None
     boundary: CompactionBoundary = "replace"
-    steps_compacted: StepsCompacted | None = None
     mechanism: CompactionMechanism | None = None
     subagent_trajectory_ref: list[dict[str, Any]] | None = None
     attempts: list[CompactionAttempt] | None = None
@@ -147,8 +139,6 @@ def _subagent_ref_to_dict(ref: dict[str, Any]) -> dict[str, Any]:
         session_id = ref.get("trajectory_id")
     if session_id is not None:
         out["session_id"] = session_id
-    if ref.get("trajectory_path") is not None:
-        out["trajectory_path"] = ref["trajectory_path"]
     extra = ref.get("extra")
     if extra:
         out["extra"] = extra
@@ -216,14 +206,13 @@ def subagent_trajectory_refs_to_dicts(refs: Any) -> list[dict[str, Any]] | None:
     return out
 
 
-def compaction_event_to_harbor_step(event: CompactionEvent, step_id: int) -> tuple[Any, int]:
+def compaction_event_to_harbor_step(event: CompactionEvent, step_id: int) -> Any:
     from harbor.models.trajectories.observation import Observation
     from harbor.models.trajectories.observation_result import ObservationResult
     from harbor.models.trajectories.step import Step
     from harbor.models.trajectories.subagent_trajectory_ref import SubagentTrajectoryRef
 
     raw = build_compaction_step(event, step_id)
-    llm_call_count = int(raw["llm_call_count"])
     observation_raw = raw["observation"]["results"][0]
     refs = None
     subagent_refs = observation_raw.get("subagent_trajectory_ref")
@@ -245,7 +234,7 @@ def compaction_event_to_harbor_step(event: CompactionEvent, step_id: int) -> tup
         observation=observation,
         extra=raw["extra"],
     )
-    return step, llm_call_count
+    return step
 
 
 def build_compaction_step(event: CompactionEvent, step_id: int) -> dict[str, Any]:
@@ -267,6 +256,7 @@ def build_compaction_step(event: CompactionEvent, step_id: int) -> dict[str, Any
         "compaction_index": event.compaction_index,
         "trigger": event.trigger,
         "strategy": event.strategy,
+        "llm_call_count": event.llm_call_count,
         "tokens_before": _tokens_to_dict(event.tokens_before),
         "tokens_after": _tokens_to_dict(event.tokens_after),
     }
@@ -274,27 +264,23 @@ def build_compaction_step(event: CompactionEvent, step_id: int) -> dict[str, Any
         intermediate = _intermediate_tokens_to_dict(event.tokens_intermediate)
         if intermediate:
             compaction_extra["tokens_intermediate"] = intermediate
-    if event.steps_compacted is not None:
-        compaction_extra["steps_compacted"] = {
-            "first_step_id": event.steps_compacted.first_step_id,
-            "last_step_id": event.steps_compacted.last_step_id,
-            "step_count": event.steps_compacted.step_count,
-        }
+    strategy_details: dict[str, Any] | None = None
     if event.mechanism is not None:
-        compaction_extra["mechanism"] = _mechanism_to_dict(event.mechanism)
-    if event.attempts:
-        compaction_extra["attempts"] = [_attempt_to_dict(a) for a in event.attempts]
-    if event.openhands_extra is not None:
+        strategy_details = _mechanism_to_dict(event.mechanism)
+    elif event.openhands_extra is not None:
         oh_extra = event.openhands_extra.to_dict()
         if oh_extra:
-            compaction_extra["openhands"] = oh_extra
+            strategy_details = oh_extra
+    if strategy_details is not None:
+        compaction_extra["strategy_details"] = strategy_details
+    if event.attempts:
+        compaction_extra["attempts"] = [_attempt_to_dict(a) for a in event.attempts]
 
     return {
         "step_id": step_id,
         "timestamp": timestamp,
         "source": "system",
         "message": event.message,
-        "llm_call_count": event.llm_call_count,
         "observation": {
             "results": [observation_result],
         },

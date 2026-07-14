@@ -7,7 +7,6 @@ from typing import Any
 
 from openhands.sdk.context.condenser.utils import get_total_token_count
 from openhands.sdk.context.view import View
-from openhands.sdk.event import ActionEvent, MessageEvent, ObservationEvent
 from openhands.sdk.event.base import Event
 from openhands.sdk.event.condenser import Condensation, CondensationRequest
 from openhands.sdk.llm import LLM
@@ -18,7 +17,6 @@ from nemo_evaluator.solvers.compaction_logging import (
     CompactionTokens,
     CompactionTrigger,
     OpenHandsCompactionExtra,
-    StepsCompacted,
     build_compaction_step,
     llm_call_count_for_strategy,
 )
@@ -150,46 +148,6 @@ def _observation_extra_for_response(llm: LLM, response_id: str | None) -> Compac
     return None
 
 
-def build_event_to_step_map(events: list[Event]) -> dict[str, int]:
-    event_to_step: dict[str, int] = {}
-    step_id = 1
-    for event in events:
-        if isinstance(event, MessageEvent):
-            if event.source == "user":
-                event_to_step[event.id] = step_id
-                step_id += 1
-            elif event.source == "agent":
-                event_to_step[event.id] = step_id
-                step_id += 1
-        elif isinstance(event, ActionEvent):
-            event_to_step[event.id] = step_id
-            step_id += 1
-        elif isinstance(event, ObservationEvent):
-            pass
-        elif isinstance(event, Condensation):
-            pass
-    return event_to_step
-
-
-def map_forgotten_to_steps(
-    forgotten_event_ids: set[str],
-    event_to_step: dict[str, int],
-) -> StepsCompacted | None:
-    step_ids: list[int] = []
-    for event_id in forgotten_event_ids:
-        mapped = event_to_step.get(event_id)
-        if mapped is not None:
-            step_ids.append(mapped)
-    if not step_ids:
-        return None
-    step_ids = sorted(set(step_ids))
-    return StepsCompacted(
-        first_step_id=step_ids[0],
-        last_step_id=step_ids[-1],
-        step_count=len(step_ids),
-    )
-
-
 def _resolve_condenser_config(condenser_config: dict[str, Any] | None) -> dict[str, int | None]:
     cfg = condenser_config or {}
     max_size = cfg.get("max_size")
@@ -210,7 +168,6 @@ def build_compaction_events_from_run(
     condenser_config: dict[str, Any] | None = None,
 ) -> list[tuple[str, CompactionEvent]]:
     cfg = _resolve_condenser_config(condenser_config)
-    event_to_step = build_event_to_step_map(events)
     out: list[tuple[str, CompactionEvent]] = []
     compaction_index = 0
     idx = 0
@@ -243,9 +200,14 @@ def build_compaction_events_from_run(
             reason = "request"
         elif trigger == "openhands_condensation_hard_reset":
             reason = "hard_reset"
+        hard_requirement_triggers = (
+            "openhands_condensation_tokens",
+            "openhands_condensation_request",
+            "openhands_condensation_hard_reset",
+        )
         openhands_extra = OpenHandsCompactionExtra(
             reason=reason,
-            requirement="hard" if hard_reset or trigger == "openhands_condensation_request" else "soft",
+            requirement="hard" if trigger in hard_requirement_triggers else "soft",
             hard_reset=hard_reset,
             forgotten_event_count=len(event.forgotten_event_ids),
             max_size=int(cfg["max_size"]),
@@ -260,7 +222,6 @@ def build_compaction_events_from_run(
             tokens_before=tokens_before,
             tokens_after=tokens_after,
             llm_call_count=llm_call_count_for_strategy("openhands_condensation"),
-            steps_compacted=map_forgotten_to_steps(event.forgotten_event_ids, event_to_step),
             observation_extra=_observation_extra_for_response(llm, event.llm_response_id),
             openhands_extra=openhands_extra,
             timestamp=event.timestamp,

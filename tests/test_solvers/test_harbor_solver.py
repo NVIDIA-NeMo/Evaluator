@@ -511,7 +511,7 @@ def main():
 
         patched = runner.read_text()
         assert "enrich_trajectory_with_compaction" in patched
-        assert "OPENHANDS_CONDENSER_MAX_SIZE" in patched
+        assert "OH_CONDENSER_MAX_SIZE" in patched
         assert 'sys.path.insert(0, "/installed-agent/nel")' in patched
 
     _EVENTS_MSG_AND_ACTION = (
