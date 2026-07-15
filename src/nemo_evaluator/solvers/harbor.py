@@ -270,7 +270,15 @@ async def _patch_openhands_sdk(sandbox: Sandbox, *, cmd_timeout: float | None = 
     2. **Capture reasoning, metrics, and tool timing in ATIF trajectory** —
        the runner's event serialization drops reasoning, per-turn token
        usage, and observation timestamps.  The event conversion and
-       ``build_trajectory`` stages are patched to preserve them.
+       ``build_trajectory`` stages are patched to preserve them.  The
+       ``tool_result`` handler is also fixed to match each observation to
+       the step whose ``tool_call_id`` matches (instead of blindly using
+       ``steps[-1]``), so parallel/multi-tool turns keep an observation on
+       every tool-call step rather than only the last one.  Consecutive
+       ``ActionEvent`` steps that share one ``llm_response_id`` are merged
+       into a single agent step whose ``tool_calls`` and
+       ``observation.results`` list every tool the model requested in that
+       turn.
 
     3. **Enforce 300 s hard timeout on terminal commands** — the SDK
        only applies a hard timeout when the model passes an explicit
@@ -293,6 +301,13 @@ async def _patch_openhands_sdk(sandbox: Sandbox, *, cmd_timeout: float | None = 
        Inject the env lookup so ``solver.agent_kwargs.llm_kwargs.timeout``
        (mapped to ``container_env.LLM_TIMEOUT``) reaches OpenHands
        ``LLM(timeout=...)`` and LiteLLM per-request timeouts.
+
+    6. **Honor ``TOOL_CONCURRENCY_LIMIT`` in the Harbor runner** — Harbor's
+       ``OpenHandsSDK`` adapter does not forward ``tool_concurrency_limit``
+       to ``run_agent.py``.  Inject the env lookup so
+       ``solver.agent_kwargs.tool_concurrency_limit`` (mapped to
+       ``container_env.TOOL_CONCURRENCY_LIMIT``) reaches OpenHands
+       ``Agent(tool_concurrency_limit=...)``.
     """
     # -- Patch 0: disable stuck detection + default visualizer -----------
     # stuck_detection=False: the SDK's heuristic mis-flags reasoning-model
@@ -365,6 +380,39 @@ else:
             stdout_timeout or (r_timeout.stderr or "")[:300],
         )
 
+    _tool_concurrency_patch_script = """\
+p = '/installed-agent/run_agent.py'
+c = open(p).read()
+if 'TOOL_CONCURRENCY_LIMIT' in c:
+    print('tool_concurrency_limit: already present')
+else:
+    old = '    agent = Agent(**agent_kwargs)'
+    new = (
+        '    _tcl_raw = os.environ.get("TOOL_CONCURRENCY_LIMIT")\\n'
+        '    if _tcl_raw:\\n'
+        '        agent_kwargs["tool_concurrency_limit"] = int(_tcl_raw)\\n'
+        '    agent = Agent(**agent_kwargs)'
+    )
+    if old in c:
+        open(p, 'w').write(c.replace(old, new, 1))
+        print('tool_concurrency_limit: patched')
+    else:
+        print('tool_concurrency_limit: pattern not found')
+"""
+    encoded_tool_concurrency = base64.b64encode(_tool_concurrency_patch_script.encode()).decode()
+    r_tool_concurrency = await sandbox.exec(
+        f"echo {encoded_tool_concurrency} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout_tool_concurrency = (r_tool_concurrency.stdout or "").strip()
+    logger.info("Tool concurrency patch: %s", stdout_tool_concurrency)
+    if r_tool_concurrency.return_code != 0 or "pattern not found" in stdout_tool_concurrency:
+        logger.warning(
+            "Tool concurrency patch problem (rc=%d): %s",
+            r_tool_concurrency.return_code,
+            stdout_tool_concurrency or (r_tool_concurrency.stderr or "")[:300],
+        )
+
     # -- Patch 1: don't FINISHED on text-only responses ------------------
     # In agent.py, when the LLM produces text without a tool call the SDK
     # sets execution_status=FINISHED and returns — killing the agent.
@@ -423,7 +471,8 @@ print(f'agent.py FINISHED={ok1} nudge={ok2} at {p}')
     #
     # Event-collection (A, B): extract reasoning_content and LLM usage from
     # the SDK event object and store in the intermediate dict.
-    # build_trajectory (C, D): propagate step fields and observation timing.
+    # build_trajectory (C, D): propagate step fields; match each observation
+    # to the correct tool-call step by tool_call_id and record its timing.
 
     _reasoning_script = """\
 import sys
@@ -474,6 +523,7 @@ new_b = (
     '                entry["reasoning_content"] = _rc\\n'
     '            _lm_resp_id = getattr(event, "llm_response_id", None)\\n'
     '            if _lm_resp_id:\\n'
+    '                entry["llm_response_id"] = _lm_resp_id\\n'
     '                try:\\n'
     '                    _nel_seen_resp_ids\\n'
     '                except NameError:\\n'
@@ -502,13 +552,25 @@ new_c = (
     '            _u = event.get("usage")\\n'
     '            if isinstance(_u, dict):\\n'
     '                step["metrics"] = {"prompt_tokens": int(_u.get("prompt_tokens", 0) or 0), "completion_tokens": int(_u.get("completion_tokens", 0) or 0)}\\n'
-    '            steps.append(step)\\n'
-    '            step_id += 1\\n'
+    '            _lrid = event.get("llm_response_id")\\n'
+    '            _prev = steps[-1] if steps else None\\n'
+    '            if _lrid is not None and isinstance(_prev, dict) and _prev.get("source") == "agent" and _prev.get("llm_response_id") == _lrid and _prev.get("tool_calls") and step.get("tool_calls"):\\n'
+    '                _prev["tool_calls"].extend(step["tool_calls"])\\n'
+    '            else:\\n'
+    '                if _lrid is not None:\\n'
+    '                    step["llm_response_id"] = _lrid\\n'
+    '                steps.append(step)\\n'
+    '                step_id += 1\\n'
     '\\n'
     '        elif event_type == "tool_result":'
 )
 
-# D: build_trajectory - preserve observation timing
+# D: build_trajectory - match observation to the correct tool call + timing.
+#    The base runner attaches every tool_result to steps[-1] and overwrites,
+#    so in a parallel/multi-tool turn (N ActionEvents -> N consecutive agent
+#    steps) only the LAST step keeps an observation and the earlier calls lose
+#    theirs. Match each tool_result to the step whose tool_call_id equals the
+#    event's tool_call_id, and append (not overwrite) its result.
 old_d = (
     '        elif event_type == "tool_result":\\n'
     '            # Find the previous step and add observation\\n'
@@ -524,8 +586,18 @@ old_d = (
 )
 new_d = (
     '        elif event_type == "tool_result":\\n'
-    '            if steps and steps[-1].get("source") == "agent":\\n'
-    '                _started_at = steps[-1].get("timestamp")\\n'
+    '            _tcid = event.get("tool_call_id")\\n'
+    '            _target = None\\n'
+    '            for _s in reversed(steps):\\n'
+    '                if _s.get("source") != "agent":\\n'
+    '                    continue\\n'
+    '                if any(_tc.get("tool_call_id") == _tcid for _tc in (_s.get("tool_calls") or [])):\\n'
+    '                    _target = _s\\n'
+    '                    break\\n'
+    '            if _target is None and steps and steps[-1].get("source") == "agent":\\n'
+    '                _target = steps[-1]\\n'
+    '            if _target is not None:\\n'
+    '                _started_at = _target.get("timestamp")\\n'
     '                _completed_at = event.get("timestamp")\\n'
     '                _timing = {\\n'
     '                    key: value\\n'
@@ -541,12 +613,13 @@ new_d = (
     '                    except (TypeError, ValueError):\\n'
     '                        pass\\n'
     '                _result = {\\n'
-    '                    "source_call_id": event.get("tool_call_id"),\\n'
+    '                    "source_call_id": _tcid,\\n'
     '                    "content": event.get("content", ""),\\n'
     '                }\\n'
     '                if _timing:\\n'
     '                    _result["extra"] = _timing\\n'
-    '                steps[-1]["observation"] = {"results": [_result]}'
+    '                _obs = _target.setdefault("observation", {"results": []})\\n'
+    '                _obs.setdefault("results", []).append(_result)'
 )
 
 old_schema = '"schema_version": "ATIF-v1.5",'
@@ -629,6 +702,9 @@ new_cond_final = (
     '        trajectory["final_metrics"]["condensations"] = llm_metrics["condensations"]\\n'
     '        trajectory["final_metrics"]["condensation_details"] = llm_metrics.get("condensation_details", [])\\n'
     '\\n'
+    '    for _s in trajectory.get("steps", []):\\n'
+    '        _s.pop("llm_response_id", None)\\n'
+    '\\n'
     '    return trajectory'
 )
 
@@ -653,7 +729,7 @@ c = c.replace(old_cond_branch, new_cond_branch, 1) if ok_cond_branch else c
 ok_cond_final = old_cond_final in c
 c = c.replace(old_cond_final, new_cond_final, 1) if ok_cond_final else c
 open(p, 'w').write(c)
-print(f'reasoning+metrics+timing: msg={ok_a} action={ok_b} traj={ok_c} timing={ok_d} schema={ok_schema}')
+print(f'reasoning+metrics+timing: msg={ok_a} action={ok_b} traj={ok_c} obs_match={ok_d} schema={ok_schema}')
 print(f'condenser: build={ok_cond_build} import={ok_cond_import} init={ok_cond_init} branch={ok_cond_branch} final={ok_cond_final}')
 """
     encoded = base64.b64encode(_reasoning_script.encode()).decode()
@@ -815,7 +891,7 @@ if ok:
         ind + '                    _entry = {"type": _entry_type, "content": _trajectory_text_from_event(_event), "timestamp": _event.timestamp}\\n' +
         ind + '                    _events_list.append(_entry)\\n' +
         ind + '            elif isinstance(_event, ActionEvent):\\n' +
-        ind + '                _events_list.append({"type": "assistant_message", "content": "", "timestamp": _event.timestamp, "tool_calls": [{"id": _event.tool_call_id, "name": _event.tool_name, "arguments": _trajectory_tool_args(_event)}]})\\n' +
+        ind + '                _events_list.append({"type": "assistant_message", "content": "", "timestamp": _event.timestamp, "llm_response_id": getattr(_event, "llm_response_id", None), "tool_calls": [{"id": _event.tool_call_id, "name": _event.tool_name, "arguments": _trajectory_tool_args(_event)}]})\\n' +
         ind + '        _trajectory = build_trajectory(_events_list, _metrics, model)\\n' +
         ind + '        _trajectory.setdefault("extra", {})["partial_trajectory"] = {"reason": _reason, "events": len(_events_list)}\\n' +
         ind + '        _path = Path(args.trajectory_path)\\n' +
@@ -1701,6 +1777,9 @@ class HarborSolver:
             cmt = self._harbor_agent_kwargs.get("condenser_max_tokens")
             if cmt is not None:
                 self._container_env.setdefault("OH_CONDENSER_MAX_TOKENS", str(int(cmt)))
+            tool_concurrency = self._harbor_agent_kwargs.get("tool_concurrency_limit")
+            if tool_concurrency is not None:
+                self._container_env.setdefault("TOOL_CONCURRENCY_LIMIT", str(int(tool_concurrency)))
         self._max_input_tokens = max_input_tokens
         self._max_output_tokens = max_output_tokens
         self._tokenizer = tokenizer
