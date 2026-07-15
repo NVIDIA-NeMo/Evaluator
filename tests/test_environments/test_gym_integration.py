@@ -26,10 +26,12 @@ Tests are grouped by component.
 
 from __future__ import annotations
 
+import itertools
 import json
+import signal
 from contextlib import asynccontextmanager
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -130,6 +132,42 @@ class TestGymProtocol:
         )
         assert len(msgs) == 2
         assert msgs[0] == {"role": "user", "content": "q"}
+
+    def test_messages_from_rcp_translates_typed_tool_items(self):
+        """function_call / function_call_output items become a proper tool turn."""
+        from nemo_evaluator.environments.gym_protocol import messages_from_rcp
+
+        msgs = messages_from_rcp(
+            {
+                "input": [
+                    {"role": "user", "content": "fetch and translate"},
+                    {"type": "function_call", "call_id": "c0", "name": "get_page", "arguments": '{"url": "x"}'},
+                    {"type": "function_call_output", "call_id": "c0", "output": "página en español"},
+                ]
+            }
+        )
+        assert [m["role"] for m in msgs] == ["user", "assistant", "tool"]
+        assert msgs[1]["tool_calls"] == [
+            {"id": "c0", "type": "function", "function": {"name": "get_page", "arguments": '{"url": "x"}'}}
+        ]
+        # The tool output — which rode in `output`, not `content` — is preserved.
+        assert msgs[2] == {"role": "tool", "tool_call_id": "c0", "content": "página en español"}
+
+    def test_messages_from_rcp_preserves_chat_tool_fields(self):
+        """Role-based messages keep their tool_calls / tool_call_id / name fields."""
+        from nemo_evaluator.environments.gym_protocol import messages_from_rcp
+
+        tool_calls = [{"id": "c1", "type": "function", "function": {"name": "f", "arguments": "{}"}}]
+        msgs = messages_from_rcp(
+            {
+                "input": [
+                    {"role": "assistant", "content": "", "tool_calls": tool_calls},
+                    {"role": "tool", "tool_call_id": "c1", "name": "f", "content": "result"},
+                ]
+            }
+        )
+        assert msgs[0]["tool_calls"] == tool_calls
+        assert msgs[1] == {"role": "tool", "content": "result", "tool_call_id": "c1", "name": "f"}
 
     def test_extract_assistant_text_plain_string(self):
         from nemo_evaluator.environments.gym_protocol import extract_assistant_text
@@ -420,6 +458,75 @@ class TestManagedGymEnvironment:
         with patch("nemo_evaluator.environments.gym._find_free_port", return_value=12345):
             env = ManagedGymEnvironment(nel_benchmark="test")
         assert env._port == 12345
+
+    def test_stop_noop_when_not_started(self):
+        from nemo_evaluator.environments.gym import ManagedGymEnvironment
+
+        env = ManagedGymEnvironment(server_cmd="x", port=9999)
+        env.stop()  # no process → must not raise
+        assert env._process is None
+
+    def _make_env_with_fake_process(self):
+        from nemo_evaluator.environments.gym import ManagedGymEnvironment
+
+        env = ManagedGymEnvironment(server_cmd="x", port=9999)
+        proc = MagicMock()
+        proc.pid = 4242
+        proc.wait.return_value = 0
+        env._process = proc
+        return env
+
+    def test_stop_kills_whole_group_gracefully(self):
+        """When the group exits after SIGTERM, no SIGKILL is needed."""
+        from nemo_evaluator.environments import gym as gym_mod
+
+        env = self._make_env_with_fake_process()
+        sent: list[int] = []
+
+        def fake_killpg(pgid, sig):
+            sent.append(sig)
+            if sig == 0:  # liveness probe: group already gone
+                raise ProcessLookupError
+
+        with (
+            patch.object(gym_mod.os, "getpgid", return_value=4242),
+            patch.object(gym_mod.os, "killpg", side_effect=fake_killpg),
+            patch.object(gym_mod.time, "sleep"),
+            patch.object(gym_mod.time, "monotonic", side_effect=itertools.count(0, 1)),
+        ):
+            env.stop()
+
+        assert signal.SIGTERM in sent
+        assert signal.SIGKILL not in sent
+        assert env._process is None
+
+    def test_stop_escalates_to_sigkill_when_group_survives_sigterm(self):
+        """The direct child may exit while the app.py servers it spawned linger;
+        stop() must SIGKILL the whole group so nothing is orphaned."""
+        from nemo_evaluator.environments import gym as gym_mod
+
+        env = self._make_env_with_fake_process()
+        sent: list[int] = []
+        alive = {"v": True}
+
+        def fake_killpg(pgid, sig):
+            sent.append(sig)
+            if sig == signal.SIGKILL:
+                alive["v"] = False
+            elif sig == 0 and not alive["v"]:
+                raise ProcessLookupError
+
+        with (
+            patch.object(gym_mod.os, "getpgid", return_value=4242),
+            patch.object(gym_mod.os, "killpg", side_effect=fake_killpg),
+            patch.object(gym_mod.time, "sleep"),
+            patch.object(gym_mod.time, "monotonic", side_effect=itertools.count(0, 1)),
+        ):
+            env.stop()
+
+        assert signal.SIGTERM in sent
+        assert signal.SIGKILL in sent
+        assert env._process is None
 
 
 # ---------------------------------------------------------------------------

@@ -63,6 +63,9 @@ def wrap_text_as_gym_response(text: str) -> dict[str, Any]:
         "created_at": 0,
         "status": "completed",
         "model": "evaluator",
+        "parallel_tool_calls": True,
+        "tool_choice": "auto",
+        "tools": [],
         "output": [
             {
                 "id": "msg-eval-synthetic",
@@ -106,16 +109,54 @@ def extract_prompt_from_rcp(rcp: dict[str, Any]) -> str:
     return ""
 
 
-def messages_from_rcp(rcp: dict[str, Any]) -> list[dict[str, str]]:
-    """Build a messages list from responses_create_params.input."""
+def _as_text(content: Any) -> str:
+    """Coerce a Responses/chat ``content`` value to a plain string."""
+    return content if isinstance(content, str) else str(content) if content is not None else ""
+
+
+def messages_from_rcp(rcp: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build a chat-completions messages list from responses_create_params.input.
+
+    Tool-call structure is preserved so tool-use trajectories survive:
+
+    * role-based messages keep any ``tool_calls`` / ``tool_call_id`` / ``name``
+      fields (an assistant tool-call turn or a ``role: "tool"`` result stays
+      intact instead of collapsing to an empty ``content``);
+    * Responses-API typed items are translated to the equivalent messages —
+      ``function_call`` -> an assistant message with ``tool_calls``,
+      ``function_call_output`` -> a ``role: "tool"`` message whose ``content``
+      carries the tool output (which otherwise rode in ``output``, not
+      ``content``, and was silently dropped).
+    """
     inp = rcp.get("input", [])
     if not isinstance(inp, list):
         return []
-    return [
-        {
-            "role": m.get("role", "user"),
-            "content": m.get("content", "") if isinstance(m.get("content"), str) else str(m.get("content", "")),
-        }
-        for m in inp
-        if isinstance(m, dict)
-    ]
+    messages: list[dict[str, Any]] = []
+    for m in inp:
+        if not isinstance(m, dict):
+            continue
+        item_type = m.get("type")
+        if item_type == "function_call":
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": m.get("call_id", ""),
+                            "type": "function",
+                            "function": {"name": m.get("name", ""), "arguments": _as_text(m.get("arguments", ""))},
+                        }
+                    ],
+                }
+            )
+            continue
+        if item_type == "function_call_output":
+            messages.append({"role": "tool", "tool_call_id": m.get("call_id", ""), "content": _as_text(m.get("output"))})
+            continue
+        msg: dict[str, Any] = {"role": m.get("role", "user"), "content": _as_text(m.get("content", ""))}
+        for key in ("tool_calls", "tool_call_id", "name"):
+            if m.get(key) is not None:
+                msg[key] = m[key]
+        messages.append(msg)
+    return messages

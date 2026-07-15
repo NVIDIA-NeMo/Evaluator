@@ -122,6 +122,25 @@ class TestModelClient:
         await c.close()
 
     @pytest.mark.asyncio
+    async def test_chat_payload_includes_tools_when_provided(self):
+        c = ModelClient(base_url="https://api.example.com/v1", model="test")
+        tools = [{"type": "function", "function": {"name": "get_page"}}]
+        with patch.object(c, "_post_with_retry", new_callable=AsyncMock, return_value=MOCK_CHAT_RESPONSE) as mock_post:
+            await c.chat(messages=[{"role": "user", "content": "hi"}], tools=tools)
+            payload = mock_post.call_args[0][1]
+            assert payload["tools"] == tools
+        await c.close()
+
+    @pytest.mark.asyncio
+    async def test_chat_payload_omits_tools_when_absent(self):
+        c = ModelClient(base_url="https://api.example.com/v1", model="test")
+        with patch.object(c, "_post_with_retry", new_callable=AsyncMock, return_value=MOCK_CHAT_RESPONSE) as mock_post:
+            await c.chat(prompt="hello")
+            payload = mock_post.call_args[0][1]
+            assert "tools" not in payload
+        await c.close()
+
+    @pytest.mark.asyncio
     async def test_chat_payload_omits_none_fields(self):
         c = ModelClient(base_url="https://api.example.com/v1", model="test")
         with patch.object(c, "_post_with_retry", new_callable=AsyncMock, return_value=MOCK_CHAT_RESPONSE) as mock_post:

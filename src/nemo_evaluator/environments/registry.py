@@ -99,8 +99,9 @@ def _make_gym(rest: str, **kwargs: Any) -> "EvalEnvironment":
     protocol = kwargs.get("protocol", "evaluator")
     data_path = kwargs.get("data")
     dataset = GymDataset(data_path) if data_path else None
+    label: str | None = None
 
-    # Parse inline query params: gym://host:port?protocol=native&data=/foo.jsonl
+    # Parse inline query params: gym://host:port?protocol=native&data=/foo.jsonl&label=rolemrc
     if "?" in rest:
         rest_base, qs = rest.split("?", 1)
         for kv in qs.split("&"):
@@ -111,15 +112,17 @@ def _make_gym(rest: str, **kwargs: Any) -> "EvalEnvironment":
                 protocol = v
             elif k == "data":
                 dataset = GymDataset(v)
+            elif k == "label":
+                label = v
         rest = rest_base
 
     if _HOST_PORT_RE.match(rest):
-        return GymEnvironment(f"http://{rest}", protocol=protocol, dataset=dataset)
+        return GymEnvironment(f"http://{rest}", protocol=protocol, dataset=dataset, label=label)
     if rest.startswith("cmd:"):
-        return ManagedGymEnvironment(server_cmd=rest[4:], protocol=protocol, dataset=dataset)
+        return ManagedGymEnvironment(server_cmd=rest[4:], protocol=protocol, dataset=dataset, label=label)
     if rest.startswith("module:"):
-        return ManagedGymEnvironment(server_module=rest[7:], protocol=protocol, dataset=dataset)
-    return ManagedGymEnvironment(nel_benchmark=rest, protocol=protocol, dataset=dataset)
+        return ManagedGymEnvironment(server_module=rest[7:], protocol=protocol, dataset=dataset, label=label)
+    return ManagedGymEnvironment(nel_benchmark=rest, protocol=protocol, dataset=dataset, label=label)
 
 
 def _make_skills(rest: str, **kwargs: Any) -> "EvalEnvironment":

@@ -147,7 +147,11 @@ class ModelClient:
         return params
 
     async def chat(
-        self, prompt: str | None = None, system: str | None = None, messages: list[dict[str, str]] | None = None
+        self,
+        prompt: str | None = None,
+        system: str | None = None,
+        messages: list[dict[str, Any]] | None = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> ModelResponse:
         if messages is not None:
             msgs = list(messages)
@@ -160,7 +164,9 @@ class ModelClient:
         cache_prompt = prompt or (msgs[-1]["content"] if msgs else "")
         cache_msgs = messages if messages is not None else None
 
-        if self._cache:
+        # ``tools`` is not part of the cache key, so skip the cache when present
+        # to avoid serving a tool-unaware response for a tool-aware request.
+        if self._cache and not tools:
             cached = self._cache.get(
                 self.model,
                 cache_prompt,
@@ -182,13 +188,15 @@ class ModelClient:
             "messages": msgs,
             **self._build_generation_payload(),
         }
+        if tools:
+            payload["tools"] = tools
 
         url = f"{self.base_url}/chat/completions"
         t0 = time.monotonic()
         data = await self._post_with_retry(url, payload)
         latency = (time.monotonic() - t0) * 1000
 
-        if self._cache:
+        if self._cache and not tools:
             self._cache.put(
                 self.model,
                 cache_prompt,
@@ -393,7 +401,7 @@ class ModelClient:
         return delay
 
     def _parse_response(self, data: dict, latency: float, prompt: str, system: str | None) -> ModelResponse:
-        choices = data.get("choices", [])
+        choices = data.get("choices", []) if data else []
         if not choices:
             raise InfraError("Model returned HTTP 200 but empty choices. Possible KV-cache exhaustion or model crash.")
 
