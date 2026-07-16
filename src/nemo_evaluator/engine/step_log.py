@@ -25,10 +25,12 @@ pairs can be skipped or need only partial re-execution.
 from __future__ import annotations
 
 import asyncio
+import gzip
 import hashlib
 import json
 import logging
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +41,8 @@ MODEL_TRAFFIC_LOG = "model_traffic.jsonl"
 VERIFIED_LOG = "verified_log.jsonl"
 META_TYPE = "meta"
 MAX_TRAJECTORY_BYTES = 5 * 1024 * 1024
+TRAJECTORY_OVERFLOW_DIR = "trajectory_overflow"
+CAPTURE_MARKER_DIR = "capture_markers"
 
 
 def config_hash(config: dict[str, Any]) -> str:
@@ -58,6 +62,44 @@ def config_hash(config: dict[str, Any]) -> str:
     return f"sha256:{hashlib.sha256(raw.encode()).hexdigest()}"
 
 
+def _env_trajectory_cap() -> int:
+    raw = os.environ.get("NEL_MAX_TRAJECTORY_BYTES")
+    if not raw:
+        return MAX_TRAJECTORY_BYTES
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("step_log: invalid NEL_MAX_TRAJECTORY_BYTES=%r, using default %d", raw, MAX_TRAJECTORY_BYTES)
+        return MAX_TRAJECTORY_BYTES
+
+
+def _capture_marker_path(step_log_dir: Path, problem_idx: int, repeat: int) -> Path:
+    return Path(step_log_dir) / CAPTURE_MARKER_DIR / f"p{problem_idx}_r{repeat}.captured"
+
+
+def write_capture_marker(step_log_dir: Path, problem_idx: int, repeat: int) -> None:
+    """Record that the agent workspace was captured for verification.
+
+    Best-effort: a marker write failure must never abort the rollout.
+    """
+    try:
+        marker = _capture_marker_path(step_log_dir, problem_idx, repeat)
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.touch()
+    except OSError:
+        logger.debug("step_log: failed to write capture marker p%d r%d", problem_idx, repeat, exc_info=True)
+
+
+def has_capture_marker(step_log_dir: Path, problem_idx: int, repeat: int) -> bool:
+    return _capture_marker_path(step_log_dir, problem_idx, repeat).exists()
+
+
+def reset_checkpoint_sidecars(step_log_dir: Path) -> None:
+    """Remove overflow trajectories and capture markers when the checkpoint is truncated."""
+    for subdir in (TRAJECTORY_OVERFLOW_DIR, CAPTURE_MARKER_DIR):
+        shutil.rmtree(Path(step_log_dir) / subdir, ignore_errors=True)
+
+
 class StepLog:
     """Async-safe append-only JSONL log with fsync-on-write.
 
@@ -69,9 +111,10 @@ class StepLog:
     throughput on local disks.
     """
 
-    def __init__(self, path: Path, *, fsync_interval: int = 1) -> None:
+    def __init__(self, path: Path, *, fsync_interval: int = 1, max_trajectory_bytes: int | None = None) -> None:
         self._path = path
         self._fsync_interval = fsync_interval
+        self._max_trajectory_bytes = max_trajectory_bytes if max_trajectory_bytes is not None else _env_trajectory_cap()
         self._lock = asyncio.Lock()
         self._fd: Any = None
         self._append_count = 0
@@ -150,8 +193,8 @@ class StepLog:
 
             if "trajectory" in record and record["trajectory"]:
                 traj_str = json.dumps(record["trajectory"], default=str)
-                if len(traj_str) > MAX_TRAJECTORY_BYTES:
-                    record = {**record, "trajectory": None, "_truncated": True}
+                if len(traj_str) > self._max_trajectory_bytes:
+                    record = self._spill_trajectory(record, traj_str)
 
             self._fd.write(json.dumps(record, default=str) + "\n")
             self._fd.flush()
@@ -159,6 +202,67 @@ class StepLog:
 
             if self._fsync_interval > 0 and self._append_count % self._fsync_interval == 0:
                 os.fsync(self._fd.fileno())
+
+    def _spill_trajectory(self, record: dict[str, Any], traj_str: str) -> dict[str, Any]:
+        """Move an oversized trajectory to a gzip sidecar so resume can still recover it."""
+        idx = record.get("problem_idx", -1)
+        rep = record.get("repeat", -1)
+        ref = f"{TRAJECTORY_OVERFLOW_DIR}/p{idx}_r{rep}.json.gz"
+        target = self._path.parent / ref
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            tmp = target.with_name(target.name + ".tmp")
+            with open(tmp, "wb") as f:
+                with gzip.GzipFile(fileobj=f, mode="wb") as gz:
+                    gz.write(traj_str.encode("utf-8"))
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, target)
+        except Exception:
+            logger.error(
+                "step_log: failed to spill oversized trajectory (%d bytes) for p%s r%s; dropping it",
+                len(traj_str),
+                idx,
+                rep,
+                exc_info=True,
+            )
+            return {**record, "trajectory": None, "_truncated": True}
+        logger.warning(
+            "step_log: trajectory for p%s r%s exceeds %d bytes (%d); spilled to %s",
+            idx,
+            rep,
+            self._max_trajectory_bytes,
+            len(traj_str),
+            ref,
+        )
+        return {**record, "trajectory": None, "trajectory_ref": ref, "trajectory_bytes": len(traj_str)}
+
+    def resolve_trajectory(self, record: dict[str, Any]) -> Any | None:
+        """Return the record's trajectory, dereferencing an overflow sidecar if needed."""
+        if record.get("trajectory"):
+            return record["trajectory"]
+        ref = record.get("trajectory_ref")
+        if ref:
+            path = self._path.parent / ref
+            try:
+                with gzip.open(path, "rt", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                logger.warning(
+                    "step_log: failed to read trajectory sidecar %s for p%s r%s",
+                    path,
+                    record.get("problem_idx"),
+                    record.get("repeat"),
+                    exc_info=True,
+                )
+                return None
+        if record.get("_truncated"):
+            logger.warning(
+                "step_log: trajectory for p%s r%s was dropped by the legacy size cap and cannot be restored",
+                record.get("problem_idx"),
+                record.get("repeat"),
+            )
+        return None
 
     def write_meta(self, meta: dict[str, Any]) -> None:
         """Write the metadata header as the first line. Call before any appends."""

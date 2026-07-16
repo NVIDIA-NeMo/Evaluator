@@ -15,11 +15,15 @@
 """Integration tests: run_evaluation end-to-end with mock solver."""
 
 import asyncio
+import logging
 
 from nemo_evaluator.engine.eval_loop import run_evaluation
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.observability.types import ModelResponse
 from nemo_evaluator.solvers import SolveResult
+from nemo_evaluator.solvers.base import ErrorKind
+
+EVAL_LOOP_LOGGER = "nemo_evaluator.engine.eval_loop"
 
 
 class _MockEnv(EvalEnvironment):
@@ -439,3 +443,294 @@ class TestJudgeFnSerialization:
         judge = result["scoring_details"]["judge"]
         assert judge["total"] is None
         assert "judge exploded" in judge["error"]
+
+
+BIG_TRAJECTORY = [{"step": 1, "action": "think", "output": "x" * 4096}]
+
+
+class _BigTrajectorySolver:
+    """Trajectory JSON far exceeds the tiny NEL_MAX_TRAJECTORY_BYTES cap set in tests."""
+
+    def __init__(self):
+        self.calls = 0
+
+    async def solve(self, task):
+        self.calls += 1
+        return SolveResult(response=task.expected_answer, trajectory=BIG_TRAJECTORY)
+
+    async def close(self):
+        pass
+
+
+class TestResumeOversizedTrajectory:
+    """FEP-1295: trajectories over the checkpoint cap used to be rewritten as
+    ``{"trajectory": None, "_truncated": True}``, so after a walltime kill the
+    resumed run produced zero-step trajectories. They now spill to a gzip
+    sidecar and are dereferenced on resume."""
+
+    def _first_run(self, tmp_path, monkeypatch, solver):
+        monkeypatch.setenv("NEL_MAX_TRAJECTORY_BYTES", "100")
+        env = _MockEnv()
+        log_dir = tmp_path / "logs"
+        asyncio.run(run_evaluation(env, solver, n_repeats=1, step_log_dir=log_dir))
+        assert "trajectory_ref" in (log_dir / "inference_log.jsonl").read_text()
+        return env, log_dir
+
+    def test_survives_fully_cached_resume(self, tmp_path, monkeypatch):
+        solver = _BigTrajectorySolver()
+        env, log_dir = self._first_run(tmp_path, monkeypatch, solver)
+
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1, step_log_dir=log_dir, resume=True))
+
+        assert solver.calls == 3
+        steps = bundle["_artifacts"].steps
+        assert len(steps) == 3
+        for step in steps:
+            assert step.trajectory == BIG_TRAJECTORY, f"lost trajectory p{step.problem_idx} r{step.repeat}"
+
+    def test_survives_verify_only_resume(self, tmp_path, monkeypatch):
+        solver = _BigTrajectorySolver()
+        env, log_dir = self._first_run(tmp_path, monkeypatch, solver)
+        (log_dir / "verified_log.jsonl").unlink()
+
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1, step_log_dir=log_dir, resume=True))
+
+        assert solver.calls == 3
+        steps = bundle["_artifacts"].steps
+        assert len(steps) == 3
+        for step in steps:
+            assert step.trajectory == BIG_TRAJECTORY, f"lost trajectory p{step.problem_idx} r{step.repeat}"
+
+
+class _CountingEnv(_MockEnv):
+    def __init__(self):
+        super().__init__()
+        self.verify_calls = 0
+
+    async def verify(self, response, expected, **meta):
+        self.verify_calls += 1
+        return await super().verify(response, expected, **meta)
+
+
+class _TimeoutShapedSolver:
+    """Harbor timeout with workspace diff: error=None, error_kind=SOLVE_TIMEOUT."""
+
+    def __init__(self):
+        self.calls = 0
+
+    async def solve(self, task):
+        self.calls += 1
+        return SolveResult(response="partial work", error_kind=ErrorKind.SOLVE_TIMEOUT)
+
+    async def close(self):
+        pass
+
+
+class _CrashedSolver:
+    """Graceful solve failure whose message classifies as turn_budget_exhausted."""
+
+    def __init__(self):
+        self.calls = 0
+
+    async def solve(self, task):
+        self.calls += 1
+        return SolveResult(response="", error="Turn budget exhausted after 50 turns")
+
+    async def close(self):
+        pass
+
+
+class _TurnBudgetDetailsSolver:
+    """Succeeds but flags a failure label via scoring_details (Harbor workspace classification)."""
+
+    async def solve(self, task):
+        return SolveResult(
+            response=task.expected_answer,
+            scoring_details={"error": "turn budget exhausted", "error_category": "turn_budget_exhausted"},
+        )
+
+    async def close(self):
+        pass
+
+
+class _FlakyInfraSolver:
+    """First call fails with an infra-kind error; subsequent calls succeed."""
+
+    def __init__(self):
+        self.calls = 0
+
+    async def solve(self, task):
+        self.calls += 1
+        if self.calls == 1:
+            return SolveResult(response="", error="connection refused", error_kind=ErrorKind.INFRA)
+        return SolveResult(response=task.expected_answer)
+
+    async def close(self):
+        pass
+
+
+class TestResumeFailureLabels:
+    """FEP-1295: the inference checkpoint stored no error/error_kind/solver
+    scoring_details, so verify-only resume re-verified solve failures and lost
+    failure labels like solve_timeout and turn_budget_exhausted."""
+
+    def test_solve_timeout_label_survives_verify_only_resume(self, tmp_path):
+        env = _CountingEnv()
+        solver = _TimeoutShapedSolver()
+        log_dir = tmp_path / "logs"
+        asyncio.run(run_evaluation(env, solver, n_repeats=1, max_problems=1, step_log_dir=log_dir))
+        (log_dir / "verified_log.jsonl").unlink()
+
+        bundle = asyncio.run(
+            run_evaluation(env, solver, n_repeats=1, max_problems=1, step_log_dir=log_dir, resume=True)
+        )
+
+        assert solver.calls == 1, "verify-only resume must not re-solve"
+        (result,) = bundle["_results"]
+        assert result["scoring_details"]["error_category"] == "solve_timeout"
+
+    def test_solve_failure_replayed_without_reverify(self, tmp_path, caplog):
+        env = _CountingEnv()
+        solver = _CrashedSolver()
+        log_dir = tmp_path / "logs"
+        asyncio.run(run_evaluation(env, solver, n_repeats=1, max_problems=1, step_log_dir=log_dir))
+        assert env.verify_calls == 0
+        (log_dir / "verified_log.jsonl").unlink()
+
+        with caplog.at_level(logging.WARNING, logger=EVAL_LOOP_LOGGER):
+            bundle = asyncio.run(
+                run_evaluation(env, solver, n_repeats=1, max_problems=1, step_log_dir=log_dir, resume=True)
+            )
+
+        assert solver.calls == 1
+        assert env.verify_calls == 0, "cached solve failure must be replayed, not re-verified"
+        (result,) = bundle["_results"]
+        assert result["reward"] == 0.0
+        assert result["scoring_details"]["error_category"] == "turn_budget_exhausted"
+        assert result["scoring_details"]["method"] == "solve_failed"
+        assert any("replaying cached solve failure" in rec.message for rec in caplog.records)
+
+    def test_solver_scoring_details_survive_verify_only_resume(self, tmp_path):
+        env = _CountingEnv()
+        solver = _TurnBudgetDetailsSolver()
+        log_dir = tmp_path / "logs"
+        asyncio.run(run_evaluation(env, solver, n_repeats=1, max_problems=1, step_log_dir=log_dir))
+        (log_dir / "verified_log.jsonl").unlink()
+
+        bundle = asyncio.run(
+            run_evaluation(env, solver, n_repeats=1, max_problems=1, step_log_dir=log_dir, resume=True)
+        )
+
+        assert env.verify_calls == 2
+        (result,) = bundle["_results"]
+        assert result["scoring_details"]["error_category"] == "turn_budget_exhausted"
+        assert result["reward"] == 1.0
+
+    def test_unverified_infra_inference_is_retried(self, tmp_path):
+        env = _CountingEnv()
+        solver = _FlakyInfraSolver()
+        log_dir = tmp_path / "logs"
+        asyncio.run(run_evaluation(env, solver, n_repeats=1, max_problems=1, step_log_dir=log_dir))
+        (log_dir / "verified_log.jsonl").unlink()
+
+        bundle = asyncio.run(
+            run_evaluation(env, solver, n_repeats=1, max_problems=1, step_log_dir=log_dir, resume=True)
+        )
+
+        assert solver.calls == 2, "infra-kind unverified inference must be re-solved on resume"
+        (result,) = bundle["_results"]
+        assert result["reward"] == 1.0
+
+
+class _DummySandboxLifecycle:
+    """Stub lifecycle handing out a bare object as the agent sandbox."""
+
+    async def setup(self):
+        pass
+
+    async def get_agent_sandbox(self):
+        return object()
+
+    async def transition_to_verify(self, response_text, solver_modified):
+        pass
+
+    async def get_verify_sandbox(self):
+        return None
+
+    async def teardown(self):
+        pass
+
+
+class _SandboxAcceptingSolver:
+    async def solve(self, task, sandbox=None):
+        return SolveResult(response=task.expected_answer)
+
+    async def close(self):
+        pass
+
+
+class TestResumeCaptureMarkers:
+    """FEP-1295: a kill landing before/during workspace capture leaves verify-only
+    resume scoring an unmodified workspace with no trace. Markers written after
+    transition_to_verify() make that observable via scoring_details."""
+
+    def _patch_lifecycle(self, monkeypatch):
+        monkeypatch.setattr(
+            "nemo_evaluator.engine.eval_loop.pick_lifecycle",
+            lambda *args, **kwargs: _DummySandboxLifecycle(),
+        )
+
+    def test_first_run_writes_markers(self, tmp_path, monkeypatch):
+        self._patch_lifecycle(monkeypatch)
+        log_dir = tmp_path / "logs"
+        asyncio.run(run_evaluation(_MockEnv(), _SandboxAcceptingSolver(), n_repeats=1, step_log_dir=log_dir))
+
+        for idx in range(3):
+            assert (log_dir / "capture_markers" / f"p{idx}_r0.captured").is_file()
+
+    def test_resume_with_marker_not_flagged(self, tmp_path, monkeypatch):
+        self._patch_lifecycle(monkeypatch)
+        log_dir = tmp_path / "logs"
+        asyncio.run(
+            run_evaluation(_MockEnv(), _SandboxAcceptingSolver(), n_repeats=1, max_problems=1, step_log_dir=log_dir)
+        )
+        (log_dir / "verified_log.jsonl").unlink()
+
+        bundle = asyncio.run(
+            run_evaluation(
+                _MockEnv(),
+                _SandboxAcceptingSolver(),
+                n_repeats=1,
+                max_problems=1,
+                step_log_dir=log_dir,
+                resume=True,
+            )
+        )
+
+        (result,) = bundle["_results"]
+        assert "resume_workspace_capture" not in result["scoring_details"]
+
+    def test_resume_without_marker_flagged(self, tmp_path, monkeypatch, caplog):
+        self._patch_lifecycle(monkeypatch)
+        log_dir = tmp_path / "logs"
+        asyncio.run(
+            run_evaluation(_MockEnv(), _SandboxAcceptingSolver(), n_repeats=1, max_problems=1, step_log_dir=log_dir)
+        )
+        (log_dir / "verified_log.jsonl").unlink()
+        (log_dir / "capture_markers" / "p0_r0.captured").unlink()
+
+        with caplog.at_level(logging.WARNING, logger=EVAL_LOOP_LOGGER):
+            bundle = asyncio.run(
+                run_evaluation(
+                    _MockEnv(),
+                    _SandboxAcceptingSolver(),
+                    n_repeats=1,
+                    max_problems=1,
+                    step_log_dir=log_dir,
+                    resume=True,
+                )
+            )
+
+        (result,) = bundle["_results"]
+        assert result["scoring_details"]["resume_workspace_capture"] == "missing"
+        assert any("capture marker" in rec.message for rec in caplog.records)
