@@ -78,7 +78,7 @@ def _capture_marker_path(step_log_dir: Path, problem_idx: int, repeat: int) -> P
 
 
 def write_capture_marker(step_log_dir: Path, problem_idx: int, repeat: int) -> None:
-    """Record that the agent workspace was captured for verification.
+    """Record that transition_to_verify completed for a workspace-capturing lifecycle.
 
     Best-effort: a marker write failure must never abort the rollout.
     """
@@ -88,6 +88,14 @@ def write_capture_marker(step_log_dir: Path, problem_idx: int, repeat: int) -> N
         marker.touch()
     except OSError:
         logger.debug("step_log: failed to write capture marker p%d r%d", problem_idx, repeat, exc_info=True)
+
+
+def clear_capture_marker(step_log_dir: Path, problem_idx: int, repeat: int) -> None:
+    """Invalidate a marker from an earlier attempt so it cannot outlive a newer inference record."""
+    try:
+        _capture_marker_path(step_log_dir, problem_idx, repeat).unlink(missing_ok=True)
+    except OSError:
+        logger.debug("step_log: failed to clear capture marker p%d r%d", problem_idx, repeat, exc_info=True)
 
 
 def has_capture_marker(step_log_dir: Path, problem_idx: int, repeat: int) -> bool:
@@ -209,19 +217,20 @@ class StepLog:
         rep = record.get("repeat", -1)
         ref = f"{TRAJECTORY_OVERFLOW_DIR}/p{idx}_r{rep}.json.gz"
         target = self._path.parent / ref
+        data = traj_str.encode("utf-8")
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
             tmp = target.with_name(target.name + ".tmp")
             with open(tmp, "wb") as f:
-                with gzip.GzipFile(fileobj=f, mode="wb") as gz:
-                    gz.write(traj_str.encode("utf-8"))
+                with gzip.GzipFile(fileobj=f, mode="wb", compresslevel=1) as gz:
+                    gz.write(data)
                 f.flush()
                 os.fsync(f.fileno())
             os.replace(tmp, target)
         except Exception:
             logger.error(
                 "step_log: failed to spill oversized trajectory (%d bytes) for p%s r%s; dropping it",
-                len(traj_str),
+                len(data),
                 idx,
                 rep,
                 exc_info=True,
@@ -232,10 +241,10 @@ class StepLog:
             idx,
             rep,
             self._max_trajectory_bytes,
-            len(traj_str),
+            len(data),
             ref,
         )
-        return {**record, "trajectory": None, "trajectory_ref": ref, "trajectory_bytes": len(traj_str)}
+        return {**record, "trajectory": None, "trajectory_ref": ref, "trajectory_bytes": len(data)}
 
     def resolve_trajectory(self, record: dict[str, Any]) -> Any | None:
         """Return the record's trajectory, dereferencing an overflow sidecar if needed."""

@@ -32,6 +32,7 @@ from nemo_evaluator.engine.step_log import (
     MODEL_TRAFFIC_LOG,
     VERIFIED_LOG,
     StepLog,
+    clear_capture_marker,
     config_hash,
     has_capture_marker,
     reset_checkpoint_sidecars,
@@ -486,6 +487,8 @@ async def run_evaluation(
                                 inf_record["solve_scoring_details"] = solve_result.scoring_details
                             if model_stats is not None:
                                 inf_record["model_stats"] = model_stats
+                            if step_log_dir is not None:
+                                clear_capture_marker(step_log_dir, idx, rep)
                             await inference_log.append(inf_record)
 
                     # ── Verify ───────────────────────────────────────
@@ -528,7 +531,11 @@ async def run_evaluation(
                             response_text,
                             solver_modified=(sandbox is not None),
                         )
-                        if step_log_dir is not None and sandbox is not None:
+                        if (
+                            step_log_dir is not None
+                            and sandbox is not None
+                            and getattr(lifecycle, "captures_workspace", False)
+                        ):
                             write_capture_marker(step_log_dir, idx, rep)
                         pg.on_phase(slot, rep, n_problems, n_repeats, "verifying")
                     tv = time.monotonic()

@@ -26,6 +26,7 @@ from nemo_evaluator.engine.step_log import (
     INFERENCE_LOG,
     TRAJECTORY_OVERFLOW_DIR,
     StepLog,
+    clear_capture_marker,
     has_capture_marker,
     reset_checkpoint_sidecars,
     write_capture_marker,
@@ -135,6 +136,17 @@ class TestTrajectoryOverflow:
         assert rec["trajectory_ref"] == f"{TRAJECTORY_OVERFLOW_DIR}/p0_r0.json.gz"
         assert log.resolve_trajectory(rec) == BIG_TRAJECTORY
 
+    async def test_reappend_overwrites_sidecar(self, tmp_path):
+        log = _open_log(tmp_path, max_trajectory_bytes=100)
+        await log.append(_record(trajectory=BIG_TRAJECTORY))
+        new_trajectory = [{"step": 2, "action": "revise", "output": "y" * 4096}]
+        await log.append(_record(trajectory=new_trajectory))
+        log.close()
+
+        rec = log.load()[(0, 0)]
+        assert log.resolve_trajectory(rec) == new_trajectory
+        assert len(list((tmp_path / TRAJECTORY_OVERFLOW_DIR).iterdir())) == 1
+
 
 class TestCaptureMarkers:
     def test_write_and_has(self, tmp_path):
@@ -148,6 +160,14 @@ class TestCaptureMarkers:
         (tmp_path / CAPTURE_MARKER_DIR).write_text("not a directory")
         write_capture_marker(tmp_path, 0, 0)
         assert not has_capture_marker(tmp_path, 0, 0)
+
+    def test_clear_removes_marker(self, tmp_path):
+        write_capture_marker(tmp_path, 3, 1)
+        clear_capture_marker(tmp_path, 3, 1)
+        assert not has_capture_marker(tmp_path, 3, 1)
+
+    def test_clear_noop_when_absent(self, tmp_path):
+        clear_capture_marker(tmp_path, 0, 0)
 
     def test_reset_checkpoint_sidecars(self, tmp_path):
         write_capture_marker(tmp_path, 0, 0)

@@ -645,6 +645,8 @@ class TestResumeFailureLabels:
 class _DummySandboxLifecycle:
     """Stub lifecycle handing out a bare object as the agent sandbox."""
 
+    captures_workspace = True
+
     async def setup(self):
         pass
 
@@ -734,3 +736,104 @@ class TestResumeCaptureMarkers:
         (result,) = bundle["_results"]
         assert result["scoring_details"]["resume_workspace_capture"] == "missing"
         assert any("capture marker" in rec.message for rec in caplog.records)
+
+    def test_stale_marker_invalidated_by_retry_inference(self, tmp_path, monkeypatch):
+        """A verify retry re-solves and re-appends; a kill before the retry's capture
+        must not be masked by the marker left over from the first attempt."""
+
+        transitions = {"count": 0}
+
+        class _KilledOnRetryLifecycle(_DummySandboxLifecycle):
+            async def transition_to_verify(self, response_text, solver_modified):
+                transitions["count"] += 1
+                if transitions["count"] == 2:
+                    raise RuntimeError("killed before workspace capture")
+
+        monkeypatch.setattr(
+            "nemo_evaluator.engine.eval_loop.pick_lifecycle",
+            lambda *args, **kwargs: _KilledOnRetryLifecycle(),
+        )
+
+        class _FlakyVerifyEnv(_MockEnv):
+            def __init__(self):
+                super().__init__()
+                self.verify_calls = 0
+
+            async def verify(self, response, expected, **meta):
+                self.verify_calls += 1
+                if self.verify_calls == 1:
+                    raise RuntimeError("verify hiccup, triggers system retry")
+                return await super().verify(response, expected, **meta)
+
+        env = _FlakyVerifyEnv()
+        log_dir = tmp_path / "logs"
+        asyncio.run(
+            run_evaluation(
+                env,
+                _SandboxAcceptingSolver(),
+                n_repeats=1,
+                max_problems=1,
+                step_log_dir=log_dir,
+                max_system_retries=2,
+                skip_failed=True,
+            )
+        )
+
+        assert transitions["count"] == 2
+        assert not (log_dir / "capture_markers" / "p0_r0.captured").exists(), (
+            "marker from attempt 1 must be invalidated by attempt 2's inference append"
+        )
+
+        (log_dir / "verified_log.jsonl").unlink()
+        self._patch_lifecycle(monkeypatch)
+        bundle = asyncio.run(
+            run_evaluation(
+                env,
+                _SandboxAcceptingSolver(),
+                n_repeats=1,
+                max_problems=1,
+                step_log_dir=log_dir,
+                resume=True,
+            )
+        )
+
+        (result,) = bundle["_results"]
+        assert result["scoring_details"]["resume_workspace_capture"] == "missing"
+
+
+class TestSidecarReset:
+    def _plant_leftover_sidecars(self, log_dir):
+        (log_dir / "trajectory_overflow").mkdir(parents=True, exist_ok=True)
+        (log_dir / "trajectory_overflow" / "p0_r0.json.gz").write_bytes(b"junk")
+        (log_dir / "capture_markers").mkdir(exist_ok=True)
+        (log_dir / "capture_markers" / "p0_r0.captured").touch()
+
+    def test_fresh_run_clears_leftover_sidecars(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        self._plant_leftover_sidecars(log_dir)
+
+        asyncio.run(run_evaluation(_MockEnv(), _MockSolver(), n_repeats=1, step_log_dir=log_dir))
+
+        assert not (log_dir / "trajectory_overflow").exists()
+        assert not (log_dir / "capture_markers").exists()
+
+    def test_config_changed_resume_clears_leftover_sidecars(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        asyncio.run(
+            run_evaluation(_MockEnv(), _MockSolver(), n_repeats=1, step_log_dir=log_dir, config={"temperature": 0.1})
+        )
+        self._plant_leftover_sidecars(log_dir)
+
+        asyncio.run(
+            run_evaluation(
+                _MockEnv(),
+                _MockSolver(),
+                n_repeats=1,
+                step_log_dir=log_dir,
+                resume=True,
+                config={"temperature": 0.9},
+            )
+        )
+
+        assert not (log_dir / "trajectory_overflow").exists()
+        assert not (log_dir / "capture_markers").exists()
