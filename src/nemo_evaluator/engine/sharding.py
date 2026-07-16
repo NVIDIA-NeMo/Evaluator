@@ -86,17 +86,24 @@ def merge_results(shard_dirs: list[str | Path], output_dir: str | Path, n_repeat
         logger.warning("No results found in %d shard dirs", len(shard_dirs))
         return {}
 
+    # Samples the judge could not score carry a placeholder reward; exclude them
+    # from reward aggregation so a judge glitch is not counted as a real 0. Mirrors
+    # the single-shard path in ``run_evaluation``.
+    from nemo_evaluator.engine.eval_loop import is_unscored_result
+
+    scored_results = [r for r in all_results if not is_unscored_result(r)]
+
     # Group rewards by problem_idx, using ACTUAL per-problem repeat counts
     # (partial shards may produce fewer rows for some problems than
     # ``n_repeats``). ``headline_score_metrics`` handles both the binary
     # ``pass@k`` and fractional ``mean_reward`` cases.
     per_problem_rewards: dict[int, list[float]] = {}
-    for r in all_results:
+    for r in scored_results:
         per_problem_rewards.setdefault(r["problem_idx"], []).append(float(r.get("reward", 0.0)))
 
     metrics: dict[str, Any] = dict(headline_score_metrics(per_problem_rewards, n_repeats))
 
-    all_rewards = [r.get("reward", 0) for r in all_results]
+    all_rewards = [r.get("reward", 0) for r in scored_results]
     metrics["summary"] = summary_stats(all_rewards)
 
     if all_runtime_stats:
@@ -127,8 +134,8 @@ def merge_results(shard_dirs: list[str | Path], output_dir: str | Path, n_repeat
         metrics["runtime"] = merged_rt
 
     cats = None
-    if all_results and "category" in all_results[0].get("metadata", {}):
-        cr = category_breakdown(all_results, "category")
+    if scored_results and "category" in scored_results[0].get("metadata", {}):
+        cr = category_breakdown(scored_results, "category")
         cats = [{"category": c.category, "n_samples": c.n_samples, "mean_reward": round(c.mean_reward, 4)} for c in cr]
 
     from nemo_evaluator.engine.artifacts import build_artifact_bundle

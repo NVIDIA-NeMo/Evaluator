@@ -14,7 +14,7 @@
 # limitations under the License.
 """Tests for LLM-as-judge scoring primitives."""
 
-from nemo_evaluator.scoring.judge import build_judge_prompt, parse_judge_response
+from nemo_evaluator.scoring.judge import build_judge_prompt, is_parse_error, parse_judge_response
 
 
 class TestParseJudgeResponse:
@@ -43,6 +43,14 @@ class TestParseJudgeResponse:
         result = parse_judge_response('{"score": 10, "reasoning": "perfect"}', max_score=5)
         assert result["score"] == 5
         assert result["normalized"] == 1.0
+
+
+class TestIsParseError:
+    def test_true_for_unparseable(self):
+        assert is_parse_error(parse_judge_response("This is great!")) is True
+
+    def test_false_for_valid(self):
+        assert is_parse_error(parse_judge_response('{"score": 4, "reasoning": "ok"}')) is False
 
 
 class TestBuildJudgePrompt:
