@@ -195,6 +195,103 @@ def test_format_log_record_response_capture_fields(capture_kwargs: dict, expect_
         assert "message_content" not in row
 
 
+@pytest.mark.parametrize(
+    "capture_kwargs,expect_request_fields",
+    [
+        pytest.param({}, False, id="request-body-default-off"),
+        pytest.param({"capture_request_body": True}, True, id="request-body-enabled"),
+    ],
+)
+def test_format_log_record_request_body_capture_fields(
+    capture_kwargs: dict,
+    expect_request_fields: bool,
+) -> None:
+    ctx = InterceptorContext()
+    ctx.extra["session_id"] = "req-body-session"
+    request_body = {
+        "model": "m",
+        "messages": [{"role": "user", "content": "solve with a tool"}],
+    }
+    ctx.extra["upstream_request_body"] = request_body
+    store = ModelTrafficStore(service_name="solver", **capture_kwargs)
+    store.start_request(
+        AdapterRequest(method="POST", path="/chat/completions", headers={}, body={"model": "m"}, ctx=ctx)
+    )
+    store.finish_response(
+        AdapterResponse(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            latency_ms=10.0,
+            ctx=ctx,
+            body=_capture_response_body(),
+        )
+    )
+    rows = format_model_traffic_log_records(
+        store.drain_session("req-body-session"),
+        benchmark="b",
+        problem_idx=0,
+        repeat=0,
+    )
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["request_hash"]
+    if expect_request_fields:
+        assert row["request_body"] == request_body
+    else:
+        assert "request_body" not in row
+
+
+def test_format_log_record_request_body_truncation() -> None:
+    ctx = InterceptorContext()
+    ctx.extra["session_id"] = "req-body-trunc-session"
+    request_body = {"model": "m", "messages": [{"role": "user", "content": "x" * 200}]}
+    ctx.extra["upstream_request_body"] = request_body
+    store = ModelTrafficStore(service_name="solver", capture_request_body=True, max_content_chars=50)
+    store.start_request(
+        AdapterRequest(method="POST", path="/chat/completions", headers={}, body={"model": "m"}, ctx=ctx)
+    )
+    store.finish_response(
+        AdapterResponse(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            latency_ms=10.0,
+            ctx=ctx,
+            body=_capture_response_body(),
+        )
+    )
+    rows = format_model_traffic_log_records(
+        store.drain_session("req-body-trunc-session"),
+        benchmark="b",
+        problem_idx=0,
+        repeat=0,
+    )
+    assert len(rows) == 1
+    row = rows[0]
+    assert isinstance(row["request_body"], str)
+    assert "...[truncated," in row["request_body"]
+
+
+def test_format_log_record_request_body_on_error() -> None:
+    ctx = InterceptorContext()
+    ctx.extra["session_id"] = "req-body-error-session"
+    request_body = {"model": "m", "messages": [{"role": "user", "content": "hello"}]}
+    ctx.extra["upstream_request_body"] = request_body
+    store = ModelTrafficStore(service_name="solver", capture_request_body=True)
+    req = AdapterRequest(method="POST", path="/chat/completions", headers={}, body={"model": "m"}, ctx=ctx)
+    store.start_request(req)
+    store.finish_error(req=req, latency_ms=1.0, error_type="timeout")
+
+    rows = format_model_traffic_log_records(
+        store.drain_session("req-body-error-session"),
+        benchmark="b",
+        problem_idx=0,
+        repeat=0,
+    )
+    assert len(rows) == 1
+    assert rows[0]["request_body"] == request_body
+    assert rows[0]["error_type"] == "timeout"
+
+
 def test_non_success_response_forwards_compact_error_summary() -> None:
     ctx = InterceptorContext()
     ctx.extra["session_id"] = "bad-request-session"
@@ -333,6 +430,7 @@ async def test_model_traffic_writes_compact_log_and_inference_stats(tmp_path: Pa
         assert traffic["reasoning_content"] == "I need to inspect the workspace."
         assert traffic["tool_calls_full"] == [{"id": "call_1", "name": "bash", "arguments": '{"command":"ls"}'}]
         assert traffic["token_provenance"] == "provider_reported"
+        assert "request_body" not in traffic
         assert "request" not in traffic
         assert "response" not in traffic
 

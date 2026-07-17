@@ -133,6 +133,18 @@ def _truncate(value: Any, limit: int) -> Any:
     return value
 
 
+def _capture_request_body_value(body: Any, max_content_chars: int) -> Any | None:
+    if not isinstance(body, dict):
+        return None
+    try:
+        serialized = json.dumps(body, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        return None
+    if max_content_chars > 0 and len(serialized) > max_content_chars:
+        return _truncate(serialized, max_content_chars)
+    return body
+
+
 def _first_str(data: dict[str, Any], *keys: str) -> str:
     for key in keys:
         value = data.get(key)
@@ -143,7 +155,7 @@ def _first_str(data: dict[str, Any], *keys: str) -> str:
 
 def _error_summary(body: Any, max_content_chars: int) -> dict[str, Any]:
     """Return a compact, non-request error summary for non-success responses."""
-    limit = min(max_content_chars, _ERROR_SUMMARY_CHARS)
+    limit = _ERROR_SUMMARY_CHARS if max_content_chars <= 0 else min(max_content_chars, _ERROR_SUMMARY_CHARS)
     out: dict[str, Any] = {}
 
     if isinstance(body, dict):
@@ -374,14 +386,15 @@ class ModelTrafficStore:
         capture_tool_calls: bool = True,
         capture_reasoning: bool = True,
         capture_messages: bool = True,
-        max_content_chars: int = 100_000,
+        capture_request_body: bool = False,
+        max_content_chars: int = 0,
     ) -> None:
         self.store_id = uuid.uuid4().hex
         self.service_name = service_name
         self._lock = threading.Lock()
         self._pending: dict[str, dict[str, Any]] = {}
         self._records_by_session: dict[str, list[dict[str, Any]]] = {}
-        # Capture options for extra response fields persisted to model_traffic.jsonl.
+        self._capture_request_body = capture_request_body
         self._capture_opts = {
             "capture_tool_calls": capture_tool_calls,
             "capture_reasoning": capture_reasoning,
@@ -407,6 +420,10 @@ class ModelTrafficStore:
             # exactly, instead of fingerprinting on response stats.
             "request_hash": _request_hash(body),
         }
+        if self._capture_request_body:
+            captured = _capture_request_body_value(body, self._capture_opts["max_content_chars"])
+            if captured is not None:
+                record["request_body"] = captured
         with self._lock:
             self._pending[req.ctx.request_id] = record
 
