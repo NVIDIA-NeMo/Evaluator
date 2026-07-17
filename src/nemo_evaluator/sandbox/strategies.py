@@ -107,6 +107,8 @@ class SandboxLifecycle(Protocol):
 class NoSandbox:
     """No container needed (text-only benchmarks)."""
 
+    captures_workspace = False
+
     async def setup(self) -> None:
         pass
 
@@ -135,6 +137,8 @@ class StatefulSandbox:
     ``get_verify_sandbox``, so external solvers that skip the agent phase
     still get a sandbox for verification (e.g. HumanEval + ChatSolver).
     """
+
+    captures_workspace = False
 
     def __init__(
         self,
@@ -195,6 +199,8 @@ class StatelessSandbox:
        calls ``transfer.pre_restore()``, runs ``apply_cmd``, and returns
        the sandbox to the scorer.
     """
+
+    captures_workspace = True
 
     def __init__(self, ctx: LifecycleContext, transfer: WorkspaceTransfer) -> None:
         self._ctx = ctx

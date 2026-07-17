@@ -86,7 +86,6 @@ Before committing, always:
 1. **Lint**: Run linter checks on all modified files. Fix any errors you introduced. Do not fix pre-existing lints unless they are in code you modified.
 2. **Test**: Run `python -m pytest tests/ -v --tb=short -m "not network" -x`. All tests must pass. If a test fails because of your change, fix it. If a test fails for an unrelated reason, note it but do not silently skip it.
 3. **Verify imports**: If you moved or renamed a module, grep for the old import path across the entire repo. Update all references.
-4. **CHANGELOG**: For user-visible changes, add an entry under the current version in `CHANGELOG.md`.
 
 Only after all checks pass, create the commit.
 

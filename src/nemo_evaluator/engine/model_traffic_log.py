@@ -98,6 +98,8 @@ def format_model_traffic_log_records(
         for key in ("error_type", "error_message", "error_body", "error_code"):
             if record.get(key):
                 row[key] = record[key]
+        if record.get("request_hash"):
+            row["request_hash"] = record["request_hash"]
         # Opt-in capture fields from ModelTrafficStore.finish_response: only
         # forwarded when present in the in-memory record (controlled by the
         # service's proxy.model_traffic.capture_{tool_calls,reasoning,messages}).

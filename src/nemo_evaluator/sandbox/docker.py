@@ -71,6 +71,9 @@ class DockerSandbox:
             f"-w={self._spec.workdir}",
         ]
 
+        if self._network != "host" and outside_endpoints:
+            cmd.append("--add-host=host.docker.internal:host-gateway")
+
         for vol in self._spec.volumes:
             if vol.is_efs:
                 continue

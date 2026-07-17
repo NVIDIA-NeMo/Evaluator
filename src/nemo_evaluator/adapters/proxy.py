@@ -178,11 +178,11 @@ def _build_app(pipeline: AdapterPipeline, model_id: str) -> _ProxyApp:
     return _ProxyApp(pipeline, model_id)
 
 
-def _find_free_port(preferred: int) -> int:
+def _find_free_port(preferred: int, host: str = "127.0.0.1") -> int:
     for port in [preferred, 0]:
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(("127.0.0.1", port))
+                s.bind((host, port))
                 return s.getsockname()[1]
         except OSError:
             if port != 0:
@@ -237,6 +237,7 @@ def start_adapter_proxy(
     retry_on_status: list[int] | None = None,
     max_concurrent_upstream: int = 64,
     model_traffic_store_id: str | None = None,
+    listen_host: str = "127.0.0.1",
     verbose: bool = False,
 ) -> ProxyHandle:
     from nemo_evaluator.adapters.types import Stage
@@ -267,13 +268,13 @@ def start_adapter_proxy(
     chain_specs = request_side + [endpoint_spec] + response_side
     pipeline = AdapterPipeline.from_config(chain_specs)
 
-    actual_port = _find_free_port(port)
+    actual_port = _find_free_port(port, listen_host)
     app = _build_app(pipeline, model_id)
 
     log_level = "info" if verbose else "warning"
     config = uvicorn.Config(
         app,
-        host="127.0.0.1",
+        host=listen_host,
         port=actual_port,
         log_level=log_level,
         access_log=verbose,

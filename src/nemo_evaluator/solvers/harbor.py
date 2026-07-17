@@ -40,6 +40,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_AGENT_TIMEOUT_RESPONSE_GRACE_SECONDS = 15.0
+_AGENT_TIMEOUT_RESPONSE_GRACE_FRACTION = 0.05
+_AGENT_TIMEOUT_SIGTERM_EXEC_SECONDS = 10.0
+_AGENT_TIMEOUT_TRAJECTORY_FLUSH_SECONDS = 30.0
+_SANDBOX_AGENT_TIMEOUT_MARGIN_SECONDS = 1.0
+
 _INFRA_ERROR_NAMES = frozenset(
     {
         "ServiceUnavailableError",
@@ -88,6 +94,32 @@ def _resolve_agent_timeout(
     return result
 
 
+def _sandbox_agent_exec_timeout(agent_timeout: float) -> float:
+    """Return sandbox command timeout for the Harbor agent process.
+
+    The sandbox-level command timeout must cover every timeout phase so
+    ``_wait_for_agent`` can persist an in-flight response, send SIGTERM, and
+    let OpenHands flush its partial trajectory before the command is killed.
+    """
+
+    return (
+        agent_timeout
+        + _agent_timeout_response_grace(agent_timeout)
+        + _AGENT_TIMEOUT_SIGTERM_EXEC_SECONDS
+        + _AGENT_TIMEOUT_TRAJECTORY_FLUSH_SECONDS
+        + _SANDBOX_AGENT_TIMEOUT_MARGIN_SECONDS
+    )
+
+
+def _agent_timeout_response_grace(agent_timeout: float) -> float:
+    """Small soft-timeout window for an in-flight response to be persisted."""
+
+    return min(
+        _AGENT_TIMEOUT_RESPONSE_GRACE_SECONDS,
+        max(0.0, agent_timeout * _AGENT_TIMEOUT_RESPONSE_GRACE_FRACTION),
+    )
+
+
 def _extract_response(context: Any) -> str:
     """Extract text response from AgentContext (metadata > last rollout)."""
     if context.metadata and isinstance(context.metadata.get("response"), str):
@@ -98,6 +130,17 @@ def _extract_response(context: Any) -> str:
         if isinstance(c, str):
             return c
     return ""
+
+
+def _host_agent_model_url(url: str) -> str:
+    """Return the model URL used by agents whose LLM client runs on the host.
+
+    Docker sandboxes rewrite host-local proxy URLs to ``host.docker.internal`` for
+    code running inside the container. Some Harbor agents, including terminus-2,
+    call the LLM from the host process while only commands run in the sandbox.
+    Those host-side clients need the host-reachable loopback URL instead.
+    """
+    return url.replace("host.docker.internal", "127.0.0.1")
 
 
 # ---------------------------------------------------------------------------
@@ -380,6 +423,61 @@ else:
             stdout_timeout or (r_timeout.stderr or "")[:300],
         )
 
+    _retry_error_patch_script = """\
+import glob
+fs = glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/llm/utils/retry_mixin.py')
+p = fs[0] if fs else ''
+assert p, 'retry_mixin.py not found'
+c = open(p).read()
+protocol_marker = '"schema_version": 2'
+old = (
+    '        logger.error(\\n'
+    '            "%s. Attempt #%d | You can customize retry values in the configuration.",\\n'
+    '            exc,\\n'
+    '            retry_state.attempt_number,\\n'
+    '        )'
+)
+new = (
+    '        try:\\n'
+    '            import json as _json, os as _os, time as _time\\n'
+    '            _p = "/logs/agent/last_llm_error.json"\\n'
+    '            _os.makedirs(_os.path.dirname(_p), exist_ok=True)\\n'
+    '            _tmp = _p + ".tmp"\\n'
+    '            _request_timeout = getattr(self, "timeout", None)\\n'
+    '            if not isinstance(_request_timeout, (int, float)):\\n'
+    '                _request_timeout = None\\n'
+    '            _retry_after = getattr(getattr(retry_state, "next_action", None), "sleep", 0) or 0\\n'
+    '            _usage = getattr(getattr(self, "metrics", None), "accumulated_token_usage", None)\\n'
+    '            _successful_tokens = int(getattr(_usage, "prompt_tokens", 0) or 0) + int(getattr(_usage, "completion_tokens", 0) or 0)\\n'
+    '            with open(_tmp, "w") as _f:\\n'
+    '                _f.write(_json.dumps({"schema_version": 2, "etype": type(exc).__name__, "emsg": str(exc), "written_at": _time.time(), "request_timeout_seconds": _request_timeout, "retry_after_seconds": _retry_after, "successful_tokens": _successful_tokens}))\\n'
+    '            _os.replace(_tmp, _p)\\n'
+    '        except Exception:\\n'
+    '            pass\\n\\n'
+    + old
+)
+if protocol_marker in c:
+    print('retry_error_capture=already')
+elif old in c:
+    open(p, 'w').write(c.replace(old, new, 1))
+    print('retry_error_capture=patched')
+else:
+    print('retry_error_capture=pattern not found')
+"""
+    encoded_retry = base64.b64encode(_retry_error_patch_script.encode()).decode()
+    r_retry = await sandbox.exec(
+        f"echo {encoded_retry} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout_retry = (r_retry.stdout or "").strip()
+    logger.info("Retry error-capture patch: %s", stdout_retry)
+    if r_retry.return_code != 0 or "pattern not found" in stdout_retry:
+        logger.warning(
+            "Retry error-capture patch problem (rc=%d): %s",
+            r_retry.return_code,
+            stdout_retry or (r_retry.stderr or "")[:300],
+        )
+
     _tool_concurrency_patch_script = """\
 p = '/installed-agent/run_agent.py'
 c = open(p).read()
@@ -500,7 +598,9 @@ new_a = (
     '                    if _lm_resp_id not in _nel_seen_resp_ids:\\n'
     '                        _tu = next((u for u in getattr(getattr(llm, "metrics", None), "token_usages", []) if getattr(u, "response_id", None) == _lm_resp_id), None)\\n'
     '                        if _tu:\\n'
-    '                            entry["usage"] = {"prompt_tokens": int(getattr(_tu, "prompt_tokens", 0)), "completion_tokens": int(getattr(_tu, "completion_tokens", 0))}\\n'
+    '                            _pt = int(getattr(_tu, "prompt_tokens", 0) or 0)\\n'
+    '                            _ct = int(getattr(_tu, "completion_tokens", 0) or 0)\\n'
+    '                            entry["usage"] = {"prompt_tokens": _pt, "completion_tokens": _ct, "total_tokens": _pt + _ct}\\n'
     '                            _nel_seen_resp_ids.add(_lm_resp_id)\\n'
     '                events_list.append(entry)\\n'
     '                last_agent_timestamp = event.timestamp\\n'
@@ -531,7 +631,9 @@ new_b = (
     '                if _lm_resp_id not in _nel_seen_resp_ids:\\n'
     '                    _tu = next((u for u in getattr(getattr(llm, "metrics", None), "token_usages", []) if getattr(u, "response_id", None) == _lm_resp_id), None)\\n'
     '                    if _tu:\\n'
-    '                        entry["usage"] = {"prompt_tokens": int(getattr(_tu, "prompt_tokens", 0)), "completion_tokens": int(getattr(_tu, "completion_tokens", 0))}\\n'
+    '                        _pt = int(getattr(_tu, "prompt_tokens", 0) or 0)\\n'
+    '                        _ct = int(getattr(_tu, "completion_tokens", 0) or 0)\\n'
+    '                        entry["usage"] = {"prompt_tokens": _pt, "completion_tokens": _ct, "total_tokens": _pt + _ct}\\n'
     '                        _nel_seen_resp_ids.add(_lm_resp_id)\\n'
     '            events_list.append(entry)\\n'
     '            last_agent_timestamp = event.timestamp\\n'
@@ -551,7 +653,12 @@ new_c = (
     '                step["reasoning_content"] = _rc\\n'
     '            _u = event.get("usage")\\n'
     '            if isinstance(_u, dict):\\n'
-    '                step["metrics"] = {"prompt_tokens": int(_u.get("prompt_tokens", 0) or 0), "completion_tokens": int(_u.get("completion_tokens", 0) or 0)}\\n'
+    '                _pt = int(_u.get("prompt_tokens", 0) or 0)\\n'
+    '                _ct = int(_u.get("completion_tokens", 0) or 0)\\n'
+    '                _tt = int(_u.get("total_tokens", 0) or 0)\\n'
+    '                if not _tt and (_pt or _ct):\\n'
+    '                    _tt = _pt + _ct\\n'
+    '                step["metrics"] = {"prompt_tokens": _pt, "completion_tokens": _ct, "total_tokens": _tt}\\n'
     '            _lrid = event.get("llm_response_id")\\n'
     '            _prev = steps[-1] if steps else None\\n'
     '            if _lrid is not None and isinstance(_prev, dict) and _prev.get("source") == "agent" and _prev.get("llm_response_id") == _lrid and _prev.get("tool_calls") and step.get("tool_calls"):\\n'
@@ -1072,6 +1179,105 @@ def _error_from_crash_marker(agent_logs_dir: Path) -> str | None:
     except Exception:
         logger.warning("HarborSolver: failed to read crash marker", exc_info=True)
         return None
+
+
+def _format_llm_error(etype: Any, emsg: Any) -> str:
+    etype_s = str(etype or "ModelError").strip() or "ModelError"
+    emsg_s = str(emsg or "").strip()
+    return f"{etype_s}: {emsg_s}" if emsg_s else etype_s
+
+
+def _last_llm_error_from_marker(
+    agent_logs_dir: Path,
+    *,
+    successful_tokens: int | None = None,
+) -> str | None:
+    marker = agent_logs_dir / "last_llm_error.json"
+    if not marker.is_file():
+        return None
+    try:
+        payload = json.loads(marker.read_text())
+    except Exception:
+        logger.warning("HarborSolver: failed to read last LLM error marker", exc_info=True)
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    currentness_fields = ("written_at", "request_timeout_seconds", "successful_tokens")
+    if not all(field in payload for field in currentness_fields):
+        logger.info("HarborSolver: ignoring legacy LLM error marker without currentness evidence")
+        return None
+
+    marker_at = payload.get("written_at")
+    if not isinstance(marker_at, (int, float)) or isinstance(marker_at, bool):
+        try:
+            marker_at = marker.stat().st_mtime
+        except OSError:
+            logger.warning("HarborSolver: failed to stat last LLM error marker", exc_info=True)
+            return None
+
+    marker_tokens = payload.get("successful_tokens")
+    if (
+        successful_tokens is not None
+        and isinstance(marker_tokens, (int, float))
+        and not isinstance(marker_tokens, bool)
+        and successful_tokens > marker_tokens
+    ):
+        logger.info("HarborSolver: ignoring LLM error marker superseded by later successful model activity")
+        return None
+
+    request_timeout = payload.get("request_timeout_seconds")
+    retry_after = payload.get("retry_after_seconds", 0)
+    if isinstance(request_timeout, (int, float)) and not isinstance(request_timeout, bool):
+        if not isinstance(retry_after, (int, float)) or isinstance(retry_after, bool):
+            retry_after = 0
+        evidence_window = max(0.0, float(request_timeout)) + max(0.0, float(retry_after))
+        marker_age = max(0.0, time.time() - marker_at)
+        if marker_age > evidence_window + _AGENT_TIMEOUT_RESPONSE_GRACE_SECONDS:
+            logger.info(
+                "HarborSolver: ignoring LLM error marker older than its request retry window (age=%.0fs window=%.0fs)",
+                marker_age,
+                evidence_window,
+            )
+            return None
+
+    return _format_llm_error(payload.get("etype"), payload.get("emsg"))
+
+
+def _is_turn_budget_exhausted_error(error: str) -> bool:
+    text = error.lower()
+    return "turn budget exhausted" in text or "turn budget exceeded" in text
+
+
+def _is_agent_crash_error(error: str) -> bool:
+    """Return whether *error* uses Harbor's canonical agent-crash envelope."""
+    return error.startswith("Agent crashed:")
+
+
+def _classify_workspace_failure(
+    error: str,
+    workspace_diff: str,
+    *,
+    default_error_kind: ErrorKind,
+    is_agent_crash: bool = False,
+) -> tuple[str | None, ErrorKind, dict[str, Any]]:
+    """Return solve metadata while preserving recoverable workspace changes."""
+    if not workspace_diff:
+        return error, default_error_kind, {}
+
+    if _is_turn_budget_exhausted_error(error):
+        logger.info("HarborSolver: agent hit turn budget with workspace changes — submitting for verification")
+        return (
+            None,
+            ErrorKind.SOLVE_TIMEOUT,
+            {"error": error, "error_category": "turn_budget_exhausted"},
+        )
+
+    if is_agent_crash:
+        logger.info("HarborSolver: agent crashed with workspace changes — submitting for verification")
+        return None, default_error_kind, {"error": error}
+
+    return error, default_error_kind, {}
 
 
 def _parse_atif(raw: Any) -> dict[str, Any] | None:
@@ -1932,7 +2138,16 @@ class HarborSolver:
                 jitter,
                 self._timeout_strategy,
             )
-            if sandbox.is_running:
+            response_grace = _agent_timeout_response_grace(effective_timeout - jitter)
+            if response_grace > 0:
+                logger.info(
+                    "HarborSolver: allowing %.1fs for in-flight model response persistence before SIGTERM",
+                    response_grace,
+                )
+                done_after_response_grace, _ = await asyncio.wait({agent_task}, timeout=response_grace)
+                if agent_task in done_after_response_grace:
+                    logger.info("HarborSolver: timed-out agent completed during response persistence grace")
+            if not agent_task.done() and sandbox.is_running:
                 try:
                     await sandbox.exec(
                         "python3 - <<'PY'\n"
@@ -1954,9 +2169,11 @@ class HarborSolver:
                         "    if pid != me and 'python' in comm and '/installed-agent/run_agent.py' in args:\n"
                         "        os.kill(pid, signal.SIGTERM)\n"
                         "PY",
-                        timeout_sec=10,
+                        timeout_sec=_AGENT_TIMEOUT_SIGTERM_EXEC_SECONDS,
                     )
-                    done_after_signal, _ = await asyncio.wait({agent_task}, timeout=30.0)
+                    done_after_signal, _ = await asyncio.wait(
+                        {agent_task}, timeout=_AGENT_TIMEOUT_TRAJECTORY_FLUSH_SECONDS
+                    )
                     if agent_task in done_after_signal:
                         logger.info("HarborSolver: timed-out agent flushed after SIGTERM")
                 except Exception:
@@ -2060,6 +2277,7 @@ class HarborSolver:
         logs_dir = Path(tempfile.mkdtemp(prefix="eval_harbor_"))
         agent_logs_dir = logs_dir / "agent"
         agent_logs_dir.mkdir(parents=True, exist_ok=True)
+        retry_zero_progress = False
 
         try:
             resolved_url = sandbox.resolved_endpoint_url("MODEL_BASE_URL") or (
@@ -2070,18 +2288,46 @@ class HarborSolver:
             if resolved_url:
                 override["LLM_BASE_URL"] = resolved_url
 
+            task_timeout = task.metadata.get("agent_timeout_sec")
+            if task_timeout is not None and not isinstance(task_timeout, (int, float)):
+                logger.warning("agent_timeout_sec in metadata is not numeric: %r, ignoring", task_timeout)
+                task_timeout = None
+            run_timeout = _resolve_agent_timeout(
+                self._timeout_strategy,
+                self._run_timeout,
+                task_timeout,
+                self._max_agent_timeout,
+            )
+            logger.info(
+                "HarborSolver: timeout resolved: strategy=%s nel=%.0fs task=%s cap=%s → effective=%.0fs",
+                self._timeout_strategy,
+                self._run_timeout,
+                f"{task_timeout:.0f}s" if task_timeout is not None else "n/a",
+                f"{self._max_agent_timeout:.0f}s" if self._max_agent_timeout is not None else "n/a",
+                run_timeout,
+            )
+            jitter = random.uniform(0, min(120.0, run_timeout * 0.02))
+            effective_timeout = run_timeout + jitter
+            agent_exec_timeout = max(self._timeout, _sandbox_agent_exec_timeout(effective_timeout))
+            logger.info(
+                "HarborSolver: sandbox agent command timeout %.0fs (effective %.0fs + %.0fs jitter)",
+                agent_exec_timeout,
+                run_timeout,
+                jitter,
+            )
+
             adapter = SandboxEnvironmentAdapter(
                 sandbox,
                 session_id=task.metadata["task_id"],
                 logs_dir=logs_dir,
-                default_timeout=self._timeout,
+                default_timeout=agent_exec_timeout,
                 persistent_env=self._container_env,
                 override_env=override,
             )
 
-            agent = self._create_agent(agent_logs_dir, model_url=resolved_url)
+            agent = self._create_agent(agent_logs_dir, model_url=_host_agent_model_url(resolved_url))
             await sandbox.exec(
-                "mkdir -p /logs/agent /logs/verifier /logs/artifacts",
+                "mkdir -p /logs/agent /logs/verifier /logs/artifacts && rm -f /logs/agent/last_llm_error.json",
                 timeout_sec=10,
             )
 
@@ -2138,26 +2384,6 @@ class HarborSolver:
 
             agent_error: Exception | None = None
             agent_timed_out = False
-            task_timeout = task.metadata.get("agent_timeout_sec")
-            if task_timeout is not None and not isinstance(task_timeout, (int, float)):
-                logger.warning("agent_timeout_sec in metadata is not numeric: %r, ignoring", task_timeout)
-                task_timeout = None
-            run_timeout = _resolve_agent_timeout(
-                self._timeout_strategy,
-                self._run_timeout,
-                task_timeout,
-                self._max_agent_timeout,
-            )
-            logger.info(
-                "HarborSolver: timeout resolved: strategy=%s nel=%.0fs task=%s cap=%s → effective=%.0fs",
-                self._timeout_strategy,
-                self._run_timeout,
-                f"{task_timeout:.0f}s" if task_timeout is not None else "n/a",
-                f"{self._max_agent_timeout:.0f}s" if self._max_agent_timeout is not None else "n/a",
-                run_timeout,
-            )
-            jitter = random.uniform(0, min(120.0, run_timeout * 0.02))
-            effective_timeout = run_timeout + jitter
 
             prompt = await self._inject_skill(sandbox, task.prompt)
             agent_task = asyncio.create_task(agent.run(prompt, adapter, context))
@@ -2243,9 +2469,18 @@ class HarborSolver:
             completion_tokens = context.n_output_tokens or recovered["completion_tokens"]
 
             latency_ms = (time.monotonic() - t0) * 1000
+            last_llm_error = (
+                _last_llm_error_from_marker(
+                    agent_logs_dir,
+                    successful_tokens=prompt_tokens + completion_tokens,
+                )
+                if agent_timed_out
+                else None
+            )
 
             # Timeout with zero progress → model is likely dead.
-            if agent_timed_out and not workspace_diff and prompt_tokens + completion_tokens == 0:
+            if agent_timed_out and not workspace_diff and prompt_tokens + completion_tokens == 0 and not last_llm_error:
+                retry_zero_progress = True
                 raise InfraError(
                     f"Agent made no progress before run_timeout ({self._run_timeout:.0f}s). Model may be unreachable."
                 )
@@ -2259,14 +2494,27 @@ class HarborSolver:
 
             error = None
             error_kind = ErrorKind.NONE
+            scoring_details: dict[str, Any] = {}
+            crash_error = None
             if agent_error is not None:
                 etype = type(agent_error).__name__
                 if etype in _INFRA_ERROR_NAMES:
                     raise InfraError(f"Agent infrastructure failure: {etype}: {agent_error}") from agent_error
-                error = f"Agent crashed: {etype}: {agent_error}"
-                logger.warning("HarborSolver: %s", error)
-            elif crash_error := _error_from_crash_marker(agent_logs_dir):
-                error = crash_error
+                crash_error = f"Agent crashed: {etype}: {agent_error}"
+            else:
+                crash_error = _error_from_crash_marker(agent_logs_dir)
+
+            if crash_error:
+                error, error_kind, scoring_details = _classify_workspace_failure(
+                    crash_error,
+                    workspace_diff,
+                    default_error_kind=ErrorKind.NONE,
+                    is_agent_crash=True,
+                )
+                if error:
+                    logger.warning("HarborSolver: %s", error)
+            elif agent_timed_out and not response and last_llm_error:
+                error = f"Agent timed out after model API error: {last_llm_error}"
                 logger.warning("HarborSolver: %s", error)
             elif agent_timed_out and workspace_diff and _confirmed_zero_tokens:
                 error = (
@@ -2318,6 +2566,7 @@ class HarborSolver:
                 trajectory=trajectory,
                 error=error,
                 error_kind=error_kind,
+                scoring_details=scoring_details,
             )
 
         except InfraError as exc:
@@ -2331,6 +2580,9 @@ class HarborSolver:
                     await _download_agent_logs(sandbox, agent_logs_dir)
             except Exception:
                 logger.debug("Post-failure recovery failed", exc_info=True)
+
+            if retry_zero_progress and not workspace_diff:
+                raise
 
             recovered = _recover_from_logs(agent_logs_dir)
             trajectory = recovered["trajectory"] or build_atif_trajectory(
@@ -2349,6 +2601,12 @@ class HarborSolver:
             if not response or _is_prompt_echo(response, ""):
                 response = "[workspace modified]" if workspace_diff else ""
 
+            error, error_kind, scoring_details = _classify_workspace_failure(
+                str(exc),
+                workspace_diff,
+                default_error_kind=ErrorKind.INFRA,
+            )
+
             return SolveResult(
                 response=response,
                 model_response=ModelResponse(
@@ -2359,8 +2617,9 @@ class HarborSolver:
                     latency_ms=round(latency_ms, 2),
                 ),
                 trajectory=trajectory,
-                error=str(exc),
-                error_kind=ErrorKind.INFRA,
+                error=error,
+                error_kind=error_kind,
+                scoring_details=scoring_details,
             )
 
         except GracefulError as exc:
@@ -2392,6 +2651,13 @@ class HarborSolver:
             if not response or _is_prompt_echo(response, ""):
                 response = "[workspace modified]" if workspace_diff else ""
 
+            error, error_kind, scoring_details = _classify_workspace_failure(
+                str(exc),
+                workspace_diff,
+                default_error_kind=ErrorKind.NONE,
+                is_agent_crash=_is_agent_crash_error(str(exc)),
+            )
+
             return SolveResult(
                 response=response,
                 model_response=ModelResponse(
@@ -2402,7 +2668,9 @@ class HarborSolver:
                     latency_ms=round(latency_ms, 2),
                 ),
                 trajectory=trajectory,
-                error=str(exc),
+                error=error,
+                error_kind=error_kind,
+                scoring_details=scoring_details,
             )
 
         except Exception:

@@ -352,6 +352,21 @@ class TestIntegration:
         finally:
             handle.stop()
 
+    def test_listen_host_can_bind_for_docker_sandboxes(self, echo_upstream):
+        handle = start_adapter_proxy(
+            upstream_url=echo_upstream,
+            model_id="m",
+            port=0,
+            listen_host="0.0.0.0",
+        )
+        try:
+            assert handle.url.startswith("http://127.0.0.1:")
+            status, body = _http_post(f"{handle.url}/v1/chat/completions", {"messages": []})
+            assert status == 200
+            assert body["echo_path"] == "/v1/chat/completions"
+        finally:
+            handle.stop()
+
     def test_stop_closes_port(self, echo_upstream):
         handle = start_adapter_proxy(upstream_url=echo_upstream, model_id="m", port=0)
         url = handle.url

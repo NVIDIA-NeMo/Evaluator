@@ -57,6 +57,23 @@ class TestDockerSandbox:
         assert "run" in first_call.args
 
     @patch("nemo_evaluator.sandbox.docker.asyncio.create_subprocess_exec")
+    async def test_start_maps_host_docker_internal_for_outside_endpoints(self, mock_exec):
+        proc = AsyncMock()
+        proc.communicate.return_value = (b"abc123\n", b"")
+        proc.returncode = 0
+        inspect_proc = AsyncMock()
+        inspect_proc.communicate.return_value = (b"172.17.0.5", b"")
+        mock_exec.side_effect = [proc, inspect_proc]
+
+        sb = self._make()
+        await sb.start(outside_endpoints=[OutsideEndpoint(url="http://127.0.0.1:4000/v1", env_var="MODEL_BASE_URL")])
+
+        cmd_args = mock_exec.call_args_list[0].args
+        assert "--add-host=host.docker.internal:host-gateway" in cmd_args
+        assert "-e" in cmd_args
+        assert "MODEL_BASE_URL=http://host.docker.internal:4000/v1" in cmd_args
+
+    @patch("nemo_evaluator.sandbox.docker.asyncio.create_subprocess_exec")
     async def test_start_failure_raises(self, mock_exec):
         proc = AsyncMock()
         proc.communicate.return_value = (b"", b"error: no image")
