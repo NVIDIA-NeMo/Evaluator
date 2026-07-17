@@ -140,9 +140,7 @@ def _capture_request_body_value(body: Any, max_content_chars: int) -> Any | None
         serialized = json.dumps(body, sort_keys=True, default=str)
     except (TypeError, ValueError):
         return None
-    if max_content_chars > 0 and len(serialized) > max_content_chars:
-        return _truncate(serialized, max_content_chars)
-    return body
+    return _truncate(serialized, max_content_chars)
 
 
 def _first_str(data: dict[str, Any], *keys: str) -> str:

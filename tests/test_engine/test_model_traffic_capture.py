@@ -236,7 +236,7 @@ def test_format_log_record_request_body_capture_fields(
     row = rows[0]
     assert row["request_hash"]
     if expect_request_fields:
-        assert row["request_body"] == request_body
+        assert row["request_body"] == json.dumps(request_body, sort_keys=True, default=str)
     else:
         assert "request_body" not in row
 
@@ -288,7 +288,7 @@ def test_format_log_record_request_body_on_error() -> None:
         repeat=0,
     )
     assert len(rows) == 1
-    assert rows[0]["request_body"] == request_body
+    assert rows[0]["request_body"] == json.dumps(request_body, sort_keys=True, default=str)
     assert rows[0]["error_type"] == "timeout"
 
 
