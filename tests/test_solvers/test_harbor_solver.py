@@ -292,6 +292,20 @@ class TestPatchOpenhandsSDK:
         await _patch_openhands_sdk(sandbox)
         assert sandbox.exec.call_count >= 4
 
+    async def test_tool_concurrency_patch_failure_is_logged(self, caplog):
+        import logging
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(
+            stdout="tool_concurrency_limit: pattern not found", stderr="", return_code=0
+        )
+        with caplog.at_level(logging.WARNING):
+            await _patch_openhands_sdk(sandbox)
+
+        assert "Tool concurrency patch problem" in caplog.text
+
     async def test_runner_patch_disables_visualizer(self):
         """Patch 0 must inject both stuck_detection=False AND visualizer=None.
 
@@ -617,6 +631,294 @@ def build_trajectory(events, llm_metrics, model_name):
             "completed_at": "2026-06-05T12:00:01.250Z",
             "duration_ms": 1250.0,
         }
+
+    async def test_runner_patch_matches_observations_per_tool_call(self, tmp_path):
+        """Parallel/multi-tool turn: each tool-call step keeps its OWN result.
+
+        A single LLM response with N tool calls becomes N consecutive agent
+        steps (one ActionEvent per call). Results arrive as a batch, out of
+        step order. The base runner attaches every result to steps[-1] and
+        overwrites, so only the last step got an observation. The patch must
+        match each result to the step whose tool_call_id equals it.
+        """
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            """\
+import os
+
+
+def build_trajectory(events, llm_metrics, model_name):
+    steps = []
+    step_id = 1
+
+    for event in events:
+        event_type = event.get("type", "")
+
+        if event_type == "assistant_message":
+            step = {
+                "step_id": step_id,
+                "timestamp": event.get("timestamp"),
+                "source": "agent",
+                "message": event.get("content", ""),
+                "model_name": model_name,
+            }
+            tool_calls = event.get("tool_calls", [])
+            if tool_calls:
+                step["tool_calls"] = [
+                    {
+                        "tool_call_id": tc.get("id", ""),
+                        "function_name": tc.get("name", ""),
+                        "arguments": tc.get("arguments", {}),
+                    }
+                    for tc in tool_calls
+                ]
+            steps.append(step)
+            step_id += 1
+
+        elif event_type == "tool_result":
+            # Find the previous step and add observation
+            if steps and steps[-1].get("source") == "agent":
+                steps[-1]["observation"] = {
+                    "results": [
+                        {
+                            "source_call_id": event.get("tool_call_id"),
+                            "content": event.get("content", ""),
+                        }
+                    ]
+                }
+
+    trajectory = {
+        "schema_version": "ATIF-v1.5",
+        "session_id": os.environ.get("SESSION_ID", "harbor-session"),
+        "agent": {"name": "openhands-sdk", "version": "unknown"},
+        "steps": steps,
+        "final_metrics": {},
+    }
+    return trajectory
+"""
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        trajectory_patch = next(s for s in decoded_scripts if "reasoning+metrics" in s)
+        trajectory_patch = trajectory_patch.replace(
+            "p = '/installed-agent/run_agent.py'",
+            f"p = {str(runner)!r}",
+        )
+        exec(compile(trajectory_patch, "trajectory_patch.py", "exec"), {})
+
+        namespace = {}
+        exec(compile(runner.read_text(), str(runner), "exec"), namespace)
+        trajectory = namespace["build_trajectory"](
+            [
+                {
+                    "type": "assistant_message",
+                    "timestamp": "2026-06-05T12:00:00.000Z",
+                    "tool_calls": [{"id": "call_a", "name": "terminal", "arguments": {}}],
+                },
+                {
+                    "type": "assistant_message",
+                    "timestamp": "2026-06-05T12:00:00.100Z",
+                    "tool_calls": [{"id": "call_b", "name": "terminal", "arguments": {}}],
+                },
+                {
+                    "type": "assistant_message",
+                    "timestamp": "2026-06-05T12:00:00.200Z",
+                    "tool_calls": [{"id": "call_c", "name": "terminal", "arguments": {}}],
+                },
+                # Results arrive as a batch, out of step order.
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_a",
+                    "content": "out_a",
+                    "timestamp": "2026-06-05T12:00:01.000Z",
+                },
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_c",
+                    "content": "out_c",
+                    "timestamp": "2026-06-05T12:00:01.100Z",
+                },
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_b",
+                    "content": "out_b",
+                    "timestamp": "2026-06-05T12:00:01.200Z",
+                },
+            ],
+            {},
+            "model",
+        )
+
+        steps = trajectory["steps"]
+        assert len(steps) == 3
+        # Every tool-call step must carry its OWN observation, matched by id.
+        by_call = {s["tool_calls"][0]["tool_call_id"]: s["observation"]["results"][0] for s in steps}
+        assert set(by_call) == {"call_a", "call_b", "call_c"}
+        assert by_call["call_a"]["source_call_id"] == "call_a"
+        assert by_call["call_a"]["content"] == "out_a"
+        assert by_call["call_b"]["source_call_id"] == "call_b"
+        assert by_call["call_b"]["content"] == "out_b"
+        assert by_call["call_c"]["source_call_id"] == "call_c"
+        assert by_call["call_c"]["content"] == "out_c"
+        # started_at is the matched step's own timestamp, not steps[-1].
+        assert by_call["call_a"]["extra"]["started_at"] == "2026-06-05T12:00:00.000Z"
+        assert by_call["call_a"]["extra"]["completed_at"] == "2026-06-05T12:00:01.000Z"
+
+    async def test_runner_patch_merges_parallel_tool_calls_by_response_id(self, tmp_path):
+        """Tool calls from one LLM response collapse into a single agent step.
+
+        Every ActionEvent that carries the same ``llm_response_id`` is folded
+        into the first step of that turn, so ``tool_calls`` and
+        ``observation.results`` each list all N calls the model requested.
+        """
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            """\
+import os
+
+
+def build_trajectory(events, llm_metrics, model_name):
+    steps = []
+    step_id = 1
+
+    for event in events:
+        event_type = event.get("type", "")
+
+        if event_type == "assistant_message":
+            step = {
+                "step_id": step_id,
+                "timestamp": event.get("timestamp"),
+                "source": "agent",
+                "message": event.get("content", ""),
+                "model_name": model_name,
+            }
+            tool_calls = event.get("tool_calls", [])
+            if tool_calls:
+                step["tool_calls"] = [
+                    {
+                        "tool_call_id": tc.get("id", ""),
+                        "function_name": tc.get("name", ""),
+                        "arguments": tc.get("arguments", {}),
+                    }
+                    for tc in tool_calls
+                ]
+            steps.append(step)
+            step_id += 1
+
+        elif event_type == "tool_result":
+            # Find the previous step and add observation
+            if steps and steps[-1].get("source") == "agent":
+                steps[-1]["observation"] = {
+                    "results": [
+                        {
+                            "source_call_id": event.get("tool_call_id"),
+                            "content": event.get("content", ""),
+                        }
+                    ]
+                }
+
+    trajectory = {
+        "schema_version": "ATIF-v1.5",
+        "session_id": os.environ.get("SESSION_ID", "harbor-session"),
+        "agent": {"name": "openhands-sdk", "version": "unknown"},
+        "steps": steps,
+        "final_metrics": {},
+    }
+    return trajectory
+"""
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        trajectory_patch = next(s for s in decoded_scripts if "reasoning+metrics" in s)
+        trajectory_patch = trajectory_patch.replace(
+            "p = '/installed-agent/run_agent.py'",
+            f"p = {str(runner)!r}",
+        )
+        exec(compile(trajectory_patch, "trajectory_patch.py", "exec"), {})
+
+        namespace = {}
+        exec(compile(runner.read_text(), str(runner), "exec"), namespace)
+        trajectory = namespace["build_trajectory"](
+            [
+                {
+                    "type": "assistant_message",
+                    "timestamp": "2026-06-05T12:00:00.000Z",
+                    "llm_response_id": "resp_1",
+                    "tool_calls": [{"id": "call_a", "name": "terminal", "arguments": {}}],
+                },
+                {
+                    "type": "assistant_message",
+                    "timestamp": "2026-06-05T12:00:00.001Z",
+                    "llm_response_id": "resp_1",
+                    "tool_calls": [{"id": "call_b", "name": "terminal", "arguments": {}}],
+                },
+                {
+                    "type": "assistant_message",
+                    "timestamp": "2026-06-05T12:00:00.002Z",
+                    "llm_response_id": "resp_1",
+                    "tool_calls": [{"id": "call_c", "name": "terminal", "arguments": {}}],
+                },
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_a",
+                    "content": "out_a",
+                    "timestamp": "2026-06-05T12:00:01.000Z",
+                },
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_c",
+                    "content": "out_c",
+                    "timestamp": "2026-06-05T12:00:01.100Z",
+                },
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_b",
+                    "content": "out_b",
+                    "timestamp": "2026-06-05T12:00:01.200Z",
+                },
+            ],
+            {},
+            "model",
+        )
+
+        steps = trajectory["steps"]
+        assert len(steps) == 1
+        merged = steps[0]
+        assert [tc["tool_call_id"] for tc in merged["tool_calls"]] == ["call_a", "call_b", "call_c"]
+        by_call = {r["source_call_id"]: r for r in merged["observation"]["results"]}
+        assert set(by_call) == {"call_a", "call_b", "call_c"}
+        assert by_call["call_b"]["content"] == "out_b"
+        # Every result anchors started_at to the merged step's own timestamp.
+        assert by_call["call_c"]["extra"]["started_at"] == "2026-06-05T12:00:00.000Z"
+        assert by_call["call_c"]["extra"]["completed_at"] == "2026-06-05T12:00:01.100Z"
 
     _EVENTS_MSG_AND_ACTION = (
         'MessageEvent("agent", "partial reasoning", 1.0), ActionEvent(2.0, "call-1", "bash", \'{"command": "ls"}\')'
@@ -1108,6 +1410,78 @@ class TestHarborSolverLlmTimeout:
                 container_env={"LLM_TIMEOUT": "7200"},
             )
             assert solver._container_env["LLM_TIMEOUT"] == "7200"
+
+
+class TestHarborSolverToolConcurrency:
+    def test_tool_concurrency_limit_maps_to_container_env(self):
+        from unittest.mock import patch
+
+        with patch("nemo_evaluator.solvers.harbor._check_harbor_installed"):
+            from nemo_evaluator.solvers.harbor import HarborSolver
+
+            solver = HarborSolver(
+                harbor_agent="openhands-sdk",
+                model_url="http://localhost:8000",
+                model_id="test-model",
+                api_key="test-key",
+                harbor_agent_kwargs={"tool_concurrency_limit": 4},
+            )
+            assert solver._container_env["TOOL_CONCURRENCY_LIMIT"] == "4"
+
+    def test_explicit_container_env_overrides_tool_concurrency_limit(self):
+        from unittest.mock import patch
+
+        with patch("nemo_evaluator.solvers.harbor._check_harbor_installed"):
+            from nemo_evaluator.solvers.harbor import HarborSolver
+
+            solver = HarborSolver(
+                harbor_agent="openhands-sdk",
+                model_url="http://localhost:8000",
+                model_id="test-model",
+                api_key="test-key",
+                harbor_agent_kwargs={"tool_concurrency_limit": 4},
+                container_env={"TOOL_CONCURRENCY_LIMIT": "8"},
+            )
+            assert solver._container_env["TOOL_CONCURRENCY_LIMIT"] == "8"
+
+    async def test_runner_patch_injects_tool_concurrency_limit(self, tmp_path):
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            "import os\n"
+            "agent_kwargs = {'llm': None, 'tools': [], 'agent_context': None}\n"
+            "    agent = Agent(**agent_kwargs)\n"
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        tool_concurrency_patch = next(
+            (s for s in decoded_scripts if "tool_concurrency_limit" in s and "TOOL_CONCURRENCY_LIMIT" in s),
+            None,
+        )
+        assert tool_concurrency_patch is not None, "tool concurrency patch script not emitted"
+
+        tool_concurrency_patch = tool_concurrency_patch.replace(
+            "p = '/installed-agent/run_agent.py'",
+            f"p = {str(runner)!r}",
+        )
+        exec(compile(tool_concurrency_patch, "tool_concurrency_patch.py", "exec"), {})  # noqa: S102
+
+        patched = runner.read_text()
+        assert 'os.environ.get("TOOL_CONCURRENCY_LIMIT")' in patched
+        assert 'agent_kwargs["tool_concurrency_limit"] = int(_tcl_raw)' in patched
 
 
 class _TimeoutFlushSandbox:
