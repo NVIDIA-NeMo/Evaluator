@@ -257,54 +257,30 @@ class TestArtifactCollector:
             ({"error": "504 Gateway Timeout", "error_category": "model_timeout"}, "model_timeout"),
         ],
     )
-    def test_scoring_error_preempts_empty_response(self, scoring_details, expected_category):
+    def test_scoring_error_classified_even_when_content_empty(self, scoring_details, expected_category):
         c = ArtifactCollector()
         step = StepRecord(model_response=ModelResponse(content="  "), scoring_details=scoring_details)
         c.record(step)
         assert step.failure_category == expected_category
 
-    def test_empty_response_detected(self):
+    def test_empty_content_yields_no_failure_category(self):
         c = ArtifactCollector()
         step = StepRecord(model_response=ModelResponse(content="  "))
-        c.record(step)
-        assert step.failure_category == "empty_response"
-
-    def test_harbor_verification_failure_with_patch_is_not_empty_response(self):
-        c = ArtifactCollector()
-        step = StepRecord(
-            model_response=ModelResponse(content="  "),
-            reward=0.0,
-            scoring_details={
-                "method": "harbor",
-                "test_exit_code": 1,
-                "test_summary": "FAILED",
-                "report": {"patch_exists": True},
-            },
-        )
-        c.record(step)
-        assert step.failure_category is None
-
-    def test_harbor_verification_without_patch_keeps_empty_response(self):
-        c = ArtifactCollector()
-        step = StepRecord(
-            model_response=ModelResponse(content="  "),
-            reward=0.0,
-            scoring_details={
-                "method": "harbor",
-                "test_exit_code": 1,
-                "test_summary": "FAILED",
-                "report": {"patch_exists": False},
-            },
-        )
 
         c.record(step)
         artifacts = c.build(elapsed=1.0)
 
-        assert (
-            step.failure_category,
-            artifacts.failures.total_failures,
-            set(artifacts.failures.categories),
-        ) == ("empty_response", 1, {"empty_response"})
+        assert step.failure_category is None
+        assert artifacts.failures.total_failures == 0
+
+    def test_empty_content_with_zero_reward_is_not_format_error(self):
+        # Regression guard (FEP-1132): empty content must terminate
+        # classification, not fall through to the reward==0 +
+        # extracted_answer-is-None format_error check.
+        c = ArtifactCollector()
+        step = StepRecord(model_response=ModelResponse(content="  "), reward=0.0)
+        c.record(step)
+        assert step.failure_category is None
 
     def test_refusal_detected(self):
         c = ArtifactCollector()

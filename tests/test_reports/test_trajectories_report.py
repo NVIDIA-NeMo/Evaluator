@@ -665,16 +665,30 @@ def test_non_success_wire_examples_include_invalid_response_details(tmp_path: Pa
         (504, "timeout", "Upstream timed out after 5s", "server_error"),
     ],
 )
-def test_last_wire_non_200_reclassifies_empty_response(
+@pytest.mark.parametrize(
+    "persisted_category",
+    [None, "empty_response"],
+    ids=["uncategorized-post-fep-1132", "legacy-empty-response-label"],
+)
+def test_last_wire_non_200_reclassifies_uncategorized_and_legacy_rows(
     tmp_path: Path,
+    persisted_category: str | None,
     status_code: int,
     error_type: str,
     error_message: str,
     expected_category: str,
 ) -> None:
+    """Empty-final rows yield to the wire-derived category.
+
+    Covers both persisted shapes: no category at all (the collector persists
+    none for empty finals since FEP-1132) and the legacy ``empty_response``
+    label written by older runs.
+    """
     bench = tmp_path / "pb"
     row = _trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="", pt=0, ct=0)])
-    row["failure_category"] = "empty_response"
+    row["model"]["content"] = ""
+    if persisted_category is not None:
+        row["failure_category"] = persisted_category
     _write_jsonl(bench / "trajectories.jsonl", [row])
     _write_jsonl(
         bench / "model_traffic.jsonl",
@@ -706,6 +720,7 @@ def test_last_wire_non_200_reclassifies_empty_response(
 def test_prior_504_then_final_200_does_not_reclassify_as_timeout(tmp_path: Path) -> None:
     bench = tmp_path / "pb"
     row = _trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="", pt=0, ct=0)])
+    # Legacy persisted category from a pre-FEP-1132 run; passes through untouched.
     row["failure_category"] = "empty_response"
     _write_jsonl(bench / "trajectories.jsonl", [row])
     _write_jsonl(
@@ -824,53 +839,54 @@ def test_failed_duplicate_wire_twin_reclassifies_unsuccessful_trial(tmp_path: Pa
     assert report["enrichment"]["rows_reclassified_from_wire_failure"] == 1
 
 
-def test_harbor_verification_failure_clears_false_empty_response(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "set_empty_content",
+    [lambda row: row["model"].__setitem__("content", "   "), lambda row: row.__setitem__("model_response", "")],
+    ids=["model-content", "model_response"],
+)
+def test_empty_final_response_is_observational_flag_not_failure(tmp_path: Path, set_empty_content) -> None:
+    """FEP-1132: emptiness surfaces as a per-trial flag + aggregate, never a category."""
+    bench = tmp_path / "pb"
+    empty_row = _trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="", pt=7, ct=3)])
+    set_empty_content(empty_row)
+    nonempty_row = _trial(8, 2, reward=0.0, steps=[_agent_step(0, msg="answer", pt=7, ct=3)])
+    nonempty_row["model"]["content"] = "answer"
+    nonempty_row["scoring_details"] = {"error": "scoring exploded"}
+    _write_jsonl(bench / "trajectories.jsonl", [empty_row, nonempty_row])
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [
+            {**_wire(7, 2, prompt=7, completion=3, status_code=200), "model_traffic_request_id": "sess:req-ok"},
+            {**_wire(8, 2, prompt=7, completion=3, status_code=200), "model_traffic_request_id": "sess:req-ok2"},
+        ],
+    )
+
+    report = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]
+    traj = report["trajectories"]
+
+    assert traj["failures_by_category"] == {}
+    assert traj["problems_with_empty_final_response"] == 1
+    examples = {example["problem_idx"]: example for example in traj["failure_examples"]}
+    assert examples[7]["failure_category"] == ""
+    assert examples[7]["empty_final_response"] is True
+    assert examples[8]["empty_final_response"] is False
+
+
+def test_uncaptured_final_content_is_not_flagged_empty(tmp_path: Path) -> None:
     bench = tmp_path / "pb"
     row = _trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="", pt=7, ct=3)])
-    row["failure_category"] = "empty_response"
-    row["scoring_details"] = {"method": "harbor", "test_exit_code": 1, "test_summary": "FAILED"}
-    row["trajectory"][0]["final_metrics"]["workspace_diff_preview"] = "diff --git a/file.py b/file.py"
+    row["scoring_details"] = {"error": "scoring exploded"}
     _write_jsonl(bench / "trajectories.jsonl", [row])
     _write_jsonl(
         bench / "model_traffic.jsonl",
         [{**_wire(7, 2, prompt=7, completion=3, status_code=200), "model_traffic_request_id": "sess:req-ok"}],
     )
 
-    report = json.loads(generate_trajectories_report(tmp_path, enrich=True).read_text())["benchmarks"][0]
+    report = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]
+    traj = report["trajectories"]
 
-    assert report["trajectories"]["failures_by_category"] == {}
-    assert report["trajectories"]["failure_examples"] == []
-    assert report["enrichment"]["rows_reclassified_from_wire_failure"] == 0
-    assert report["enrichment"]["rows_cleared_empty_response_after_verification"] == 1
-
-    enriched = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])
-    assert "failure_category" not in enriched
-
-
-def test_harbor_verification_without_patch_keeps_empty_response(tmp_path: Path) -> None:
-    bench = tmp_path / "pb"
-    row = _trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="", pt=7, ct=3)])
-    row["failure_category"] = "empty_response"
-    row["scoring_details"] = {
-        "method": "harbor",
-        "test_exit_code": 1,
-        "test_summary": "FAILED",
-        "report": {"patch_exists": False},
-    }
-    _write_jsonl(bench / "trajectories.jsonl", [row])
-    _write_jsonl(
-        bench / "model_traffic.jsonl",
-        [{**_wire(7, 2, prompt=7, completion=3, status_code=200), "model_traffic_request_id": "sess:req-ok"}],
-    )
-
-    report = json.loads(generate_trajectories_report(tmp_path, enrich=True).read_text())["benchmarks"][0]
-    enriched = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])
-
-    assert (
-        report["trajectories"]["failures_by_category"],
-        report["enrichment"]["rows_cleared_empty_response_after_verification"],
-        enriched.get("failure_category"),
-    ) == ({"empty_response": 1}, 0, "empty_response")
+    assert traj["problems_with_empty_final_response"] == 0
+    assert traj["failure_examples"][0]["empty_final_response"] is False
 
 
 def test_timeout_no_step_examples_keep_wire_counts(tmp_path: Path) -> None:

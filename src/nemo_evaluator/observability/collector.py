@@ -24,7 +24,6 @@ import numpy as np
 from nemo_evaluator.observability.failure_classification import (
     MODEL_FAILURE_CATEGORIES,
     classify_model_failure,
-    completed_harbor_verification_with_workspace_change,
 )
 from nemo_evaluator.observability.types import (
     FailureRecord,
@@ -81,15 +80,12 @@ class ArtifactCollector:
         elif step.model_response:
             content = step.model_response.content
             if not content.strip():
-                if completed_harbor_verification_with_workspace_change(
-                    sd,
-                    error=step.model_error,
-                    response=content,
-                    trajectory=step.trajectory,
-                ):
-                    return
-                step.failure_category = "empty_response"
-            elif self._refusal_re.search(content):
+                # Empty final content is an output-shape observation (surfaced
+                # as `empty_final_response` in the trajectories report), not a
+                # failure attribution (FEP-1132). Terminate here so it cannot
+                # fall through and mislabel as refusal or format_error.
+                return
+            if self._refusal_re.search(content):
                 step.failure_category = "refusal"
             elif step.reward == 0 and step.extracted_answer is None:
                 step.failure_category = "format_error"
