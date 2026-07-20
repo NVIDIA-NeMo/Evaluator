@@ -796,7 +796,8 @@ def _start_proxy(
         capture_tool_calls=getattr(capture_cfg, "capture_tool_calls", True),
         capture_reasoning=getattr(capture_cfg, "capture_reasoning", True),
         capture_messages=getattr(capture_cfg, "capture_messages", True),
-        max_content_chars=getattr(capture_cfg, "max_content_chars", 100_000),
+        capture_request_body=getattr(capture_cfg, "capture_request_body", False),
+        max_content_chars=getattr(capture_cfg, "max_content_chars", 0),
     )
     register_store(traffic_store)
     proxy_kwargs["model_traffic_store_id"] = traffic_store.store_id
