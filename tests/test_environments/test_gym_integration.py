@@ -26,10 +26,12 @@ Tests are grouped by component.
 
 from __future__ import annotations
 
+import itertools
 import json
+import signal
 from contextlib import asynccontextmanager
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -88,6 +90,9 @@ class TestGymProtocol:
 
         assert result["output_text"] == "SELECT * FROM users;"
         assert result["status"] == "completed"
+        assert result["parallel_tool_calls"] is True
+        assert result["tool_choice"] == "auto"
+        assert result["tools"] == []
         msg = result["output"][0]
         assert msg["type"] == "message"
         assert msg["role"] == "assistant"
@@ -130,6 +135,66 @@ class TestGymProtocol:
         )
         assert len(msgs) == 2
         assert msgs[0] == {"role": "user", "content": "q"}
+
+    def test_messages_from_rcp_translates_typed_tool_items(self):
+        """function_call / function_call_output items become a proper tool turn."""
+        from nemo_evaluator.environments.gym_protocol import messages_from_rcp
+
+        msgs = messages_from_rcp(
+            {
+                "input": [
+                    {"role": "user", "content": "fetch and translate"},
+                    {"type": "function_call", "call_id": "c0", "name": "get_page", "arguments": '{"url": "x"}'},
+                    {"type": "function_call_output", "call_id": "c0", "output": "página en español"},
+                ]
+            }
+        )
+        assert [m["role"] for m in msgs] == ["user", "assistant", "tool"]
+        assert msgs[1]["tool_calls"] == [
+            {"id": "c0", "type": "function", "function": {"name": "get_page", "arguments": '{"url": "x"}'}}
+        ]
+        # The tool output — which rode in `output`, not `content` — is preserved.
+        assert msgs[2] == {"role": "tool", "tool_call_id": "c0", "content": "página en español"}
+
+    def test_messages_from_rcp_groups_parallel_function_calls(self):
+        """Consecutive function_call items collapse into one assistant message."""
+        from nemo_evaluator.environments.gym_protocol import messages_from_rcp
+
+        msgs = messages_from_rcp(
+            {
+                "input": [
+                    {"role": "user", "content": "do both"},
+                    {"type": "function_call", "call_id": "c0", "name": "get_page", "arguments": '{"url": "x"}'},
+                    {"type": "function_call", "call_id": "c1", "name": "get_page", "arguments": '{"url": "y"}'},
+                    {"type": "function_call_output", "call_id": "c0", "output": "first"},
+                    {"type": "function_call_output", "call_id": "c1", "output": "second"},
+                ]
+            }
+        )
+        assert [m["role"] for m in msgs] == ["user", "assistant", "tool", "tool"]
+        # Both parallel calls live in a single assistant message.
+        assert msgs[1]["tool_calls"] == [
+            {"id": "c0", "type": "function", "function": {"name": "get_page", "arguments": '{"url": "x"}'}},
+            {"id": "c1", "type": "function", "function": {"name": "get_page", "arguments": '{"url": "y"}'}},
+        ]
+        assert msgs[2] == {"role": "tool", "tool_call_id": "c0", "content": "first"}
+        assert msgs[3] == {"role": "tool", "tool_call_id": "c1", "content": "second"}
+
+    def test_messages_from_rcp_preserves_chat_tool_fields(self):
+        """Role-based messages keep their tool_calls / tool_call_id / name fields."""
+        from nemo_evaluator.environments.gym_protocol import messages_from_rcp
+
+        tool_calls = [{"id": "c1", "type": "function", "function": {"name": "f", "arguments": "{}"}}]
+        msgs = messages_from_rcp(
+            {
+                "input": [
+                    {"role": "assistant", "content": "", "tool_calls": tool_calls},
+                    {"role": "tool", "tool_call_id": "c1", "name": "f", "content": "result"},
+                ]
+            }
+        )
+        assert msgs[0]["tool_calls"] == tool_calls
+        assert msgs[1] == {"role": "tool", "content": "result", "tool_call_id": "c1", "name": "f"}
 
     def test_extract_assistant_text_plain_string(self):
         from nemo_evaluator.environments.gym_protocol import extract_assistant_text
@@ -421,6 +486,123 @@ class TestManagedGymEnvironment:
             env = ManagedGymEnvironment(nel_benchmark="test")
         assert env._port == 12345
 
+    def test_stop_noop_when_not_started(self):
+        from nemo_evaluator.environments.gym import ManagedGymEnvironment
+
+        env = ManagedGymEnvironment(server_cmd="x", port=9999)
+        env.stop()  # no process → must not raise
+        assert env._process is None
+
+    def test_wait_for_health_caps_probe_timeout_to_deadline(self):
+        """A startup_timeout shorter than the probe/sleep intervals must not
+        let a single urlopen call overrun the deadline."""
+        from nemo_evaluator.environments import gym as gym_mod
+        from nemo_evaluator.environments.gym import ManagedGymEnvironment
+
+        env = ManagedGymEnvironment(server_cmd="x", port=9999, startup_timeout=0.3)
+        proc = MagicMock()
+        proc.poll.return_value = None  # still running
+        env._process = proc
+
+        timeouts: list[float] = []
+
+        def fake_urlopen(url, timeout):
+            timeouts.append(timeout)
+            raise gym_mod.urllib.error.URLError("refused")
+
+        with (
+            patch.object(gym_mod.urllib.request, "urlopen", side_effect=fake_urlopen),
+            patch.object(gym_mod.time, "sleep"),
+            patch.object(gym_mod.time, "monotonic", side_effect=itertools.count(0.0, 0.1)),
+            patch.object(env, "stop"),
+            pytest.raises(TimeoutError),
+        ):
+            env._wait_for_health()
+
+        assert timeouts, "expected at least one probe"
+        # Probe timeout is capped by the remaining deadline (0.3s), never the 2.0s default.
+        assert max(timeouts) <= 0.3
+        env._process = None  # prevent __del__ -> stop() from signalling a real process group
+
+    def _make_env_with_fake_process(self):
+        from nemo_evaluator.environments.gym import ManagedGymEnvironment
+
+        env = ManagedGymEnvironment(server_cmd="x", port=9999)
+        proc = MagicMock()
+        proc.pid = 4242
+        proc.wait.return_value = 0
+        env._process = proc
+        return env
+
+    def test_stop_keeps_handle_when_group_survives_sigkill(self):
+        """If the group outlives SIGKILL, stop() must not drop the process handle."""
+        from nemo_evaluator.environments import gym as gym_mod
+
+        env = self._make_env_with_fake_process()
+
+        with (
+            patch.object(gym_mod.os, "getpgid", return_value=4242),
+            patch.object(gym_mod.os, "killpg"),  # never raises → group always "alive"
+            patch.object(gym_mod.time, "sleep"),
+            patch.object(gym_mod.time, "monotonic", side_effect=itertools.count(0, 1)),
+        ):
+            env.stop()
+
+        assert env._process is not None
+        env._process = None  # prevent __del__ -> stop() from signalling a real process group
+
+    def test_stop_kills_whole_group_gracefully(self):
+        """When the group exits after SIGTERM, no SIGKILL is needed."""
+        from nemo_evaluator.environments import gym as gym_mod
+
+        env = self._make_env_with_fake_process()
+        sent: list[int] = []
+
+        def fake_killpg(pgid, sig):
+            sent.append(sig)
+            if sig == 0:  # liveness probe: group already gone
+                raise ProcessLookupError
+
+        with (
+            patch.object(gym_mod.os, "getpgid", return_value=4242),
+            patch.object(gym_mod.os, "killpg", side_effect=fake_killpg),
+            patch.object(gym_mod.time, "sleep"),
+            patch.object(gym_mod.time, "monotonic", side_effect=itertools.count(0, 1)),
+        ):
+            env.stop()
+
+        assert signal.SIGTERM in sent
+        assert signal.SIGKILL not in sent
+        assert env._process is None
+
+    def test_stop_escalates_to_sigkill_when_group_survives_sigterm(self):
+        """The direct child may exit while the app.py servers it spawned linger;
+        stop() must SIGKILL the whole group so nothing is orphaned."""
+        from nemo_evaluator.environments import gym as gym_mod
+
+        env = self._make_env_with_fake_process()
+        sent: list[int] = []
+        alive = {"v": True}
+
+        def fake_killpg(pgid, sig):
+            sent.append(sig)
+            if sig == signal.SIGKILL:
+                alive["v"] = False
+            elif sig == 0 and not alive["v"]:
+                raise ProcessLookupError
+
+        with (
+            patch.object(gym_mod.os, "getpgid", return_value=4242),
+            patch.object(gym_mod.os, "killpg", side_effect=fake_killpg),
+            patch.object(gym_mod.time, "sleep"),
+            patch.object(gym_mod.time, "monotonic", side_effect=itertools.count(0, 1)),
+        ):
+            env.stop()
+
+        assert signal.SIGTERM in sent
+        assert signal.SIGKILL in sent
+        assert env._process is None
+
 
 # ---------------------------------------------------------------------------
 # Registry: gym:// URI resolution
@@ -488,6 +670,29 @@ class TestGymUriResolution:
 
         env = _make_gym("localhost:8080", protocol="native")
         assert env.protocol == "native"
+
+    def test_label_query_param_host_port(self, _mock_port):
+        from nemo_evaluator.environments.gym import GymEnvironment
+        from nemo_evaluator.environments.registry import _make_gym
+
+        env = _make_gym("localhost:8080?label=rolemrc")
+        assert isinstance(env, GymEnvironment)
+        assert env.name == "rolemrc"
+
+    def test_timeout_query_param_host_port(self, _mock_port):
+        from nemo_evaluator.environments.gym import GymEnvironment
+        from nemo_evaluator.environments.registry import _make_gym
+
+        env = _make_gym("localhost:8080?timeout=600")
+        assert isinstance(env, GymEnvironment)
+        assert env.timeout == 600.0
+
+    def test_label_and_timeout_query_params_managed(self, _mock_port):
+        from nemo_evaluator.environments.registry import _make_gym
+
+        env = _make_gym("spider2_lite?label=spider&timeout=300")
+        assert env._label == "spider"
+        assert env._request_timeout == 300.0
 
 
 # ---------------------------------------------------------------------------

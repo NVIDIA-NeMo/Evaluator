@@ -2316,7 +2316,28 @@ def generate_sbatch(
     if has_secrets:
         parts.append(_SECRETS_SOURCE)
 
-    if _any_multinode_service(config):
+    if is_shard_script:
+        parts.append(_SHARD_ENV.format(shard_idx=shard_idx, total_shards=total_shards))
+
+    _any_service_has_image = any(getattr(s, "image", None) for s in config.services.values())
+    use_containers = (
+        cluster.container_mounts
+        or cluster.container_env
+        or _any_service_has_image
+        or any(getattr(s, "container_mounts", []) for s in config.services.values())
+        or getattr(cluster, "eval_image", None)
+    )
+
+    # Emit MASTER_IP discovery whenever it will be referenced in srun flags.
+    # Two cases:
+    # 1. A service requests multiple nodes (existing multi-node case).
+    # 2. Single-pool container jobs: _pin=True causes gym sruns to get
+    #    -w $MASTER_IP even on single-node allocations. Without this block,
+    #    set -u aborts the script with "MASTER_IP: unbound variable".
+    #    For single-node jobs SLURM_JOB_NODELIST contains exactly one
+    #    hostname, so scontrol returns it and -w $MASTER_IP is a no-op.
+    _needs_master_ip = _has_multinode_service or (not use_het and bool(use_containers))
+    if _needs_master_ip:
         nodelist_var = "SLURM_JOB_NODELIST"
         if use_het:
             for svc in config.services.values():
@@ -2335,18 +2356,6 @@ def generate_sbatch(
                     nodelist_var = f"SLURM_JOB_NODELIST_HET_GROUP_{pool_to_het[prefill_pool]}"
                     break
         parts.append(_MULTINODE_IP_DISCOVERY.format(nodelist_var=nodelist_var))
-
-    if is_shard_script:
-        parts.append(_SHARD_ENV.format(shard_idx=shard_idx, total_shards=total_shards))
-
-    _any_service_has_image = any(getattr(s, "image", None) for s in config.services.values())
-    use_containers = (
-        cluster.container_mounts
-        or cluster.container_env
-        or _any_service_has_image
-        or any(getattr(s, "container_mounts", []) for s in config.services.values())
-        or getattr(cluster, "eval_image", None)
-    )
 
     if use_containers:
         parts.append(_preflight_image_checks(config, cluster))

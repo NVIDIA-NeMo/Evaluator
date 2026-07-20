@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -97,6 +97,28 @@ class TestModelClient:
             c._parse_response({"choices": []}, 100.0, "test", None)
 
     @pytest.mark.asyncio
+    async def test_post_with_retry_rejects_non_object_json(self):
+        from nemo_evaluator.errors import InfraError
+
+        c = ModelClient(base_url="https://api.example.com/v1", model="test")
+
+        resp = MagicMock()
+        resp.status = 200
+        resp.raise_for_status = MagicMock()
+        resp.json = AsyncMock(return_value=None)
+
+        post_cm = MagicMock()
+        post_cm.__aenter__ = AsyncMock(return_value=resp)
+        post_cm.__aexit__ = AsyncMock(return_value=False)
+        fake_client = MagicMock()
+        fake_client.post = MagicMock(return_value=post_cm)
+
+        with patch.object(c, "_get_client", return_value=fake_client):
+            with pytest.raises(InfraError, match="non-object JSON"):
+                await c.chat(prompt="hello")
+        await c.close()
+
+    @pytest.mark.asyncio
     async def test_chat_payload_includes_all_generation_fields(self):
         c = ModelClient(
             base_url="https://api.example.com/v1",
@@ -119,6 +141,38 @@ class TestModelClient:
             assert payload["stop"] == ["END"]
             assert payload["frequency_penalty"] == 0.5
             assert payload["presence_penalty"] == -0.5
+        await c.close()
+
+    @pytest.mark.asyncio
+    async def test_chat_payload_includes_tools_when_provided(self):
+        c = ModelClient(base_url="https://api.example.com/v1", model="test")
+        tools = [{"type": "function", "function": {"name": "get_page"}}]
+        with patch.object(c, "_post_with_retry", new_callable=AsyncMock, return_value=MOCK_CHAT_RESPONSE) as mock_post:
+            await c.chat(messages=[{"role": "user", "content": "hi"}], tools=tools)
+            payload = mock_post.call_args[0][1]
+            assert payload["tools"] == tools
+        await c.close()
+
+    @pytest.mark.asyncio
+    async def test_chat_with_tools_skips_cache(self):
+        c = ModelClient(base_url="https://api.example.com/v1", model="test")
+        c._cache = MagicMock()
+        tools = [{"type": "function", "function": {"name": "get_page"}}]
+        with patch.object(c, "_post_with_retry", new_callable=AsyncMock, return_value=MOCK_TOOL_RESPONSE) as mock_post:
+            await c.chat(messages=[{"role": "user", "content": "hi"}], tools=tools)
+            payload = mock_post.call_args[0][1]
+            assert payload["tools"] == tools
+        c._cache.get.assert_not_called()
+        c._cache.put.assert_not_called()
+        await c.close()
+
+    @pytest.mark.asyncio
+    async def test_chat_payload_omits_tools_when_absent(self):
+        c = ModelClient(base_url="https://api.example.com/v1", model="test")
+        with patch.object(c, "_post_with_retry", new_callable=AsyncMock, return_value=MOCK_CHAT_RESPONSE) as mock_post:
+            await c.chat(prompt="hello")
+            payload = mock_post.call_args[0][1]
+            assert "tools" not in payload
         await c.close()
 
     @pytest.mark.asyncio

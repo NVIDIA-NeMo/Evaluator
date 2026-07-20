@@ -31,6 +31,7 @@ One helper:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -130,6 +131,7 @@ class GymEnvironment(EvalEnvironment):
         protocol: Literal["evaluator", "native"] = "evaluator",
         dataset: GymDataset | None = None,
         timeout: float = 60.0,
+        label: str | None = None,
     ) -> None:
         super().__init__()
         self.endpoint = endpoint.rstrip("/")
@@ -138,8 +140,11 @@ class GymEnvironment(EvalEnvironment):
         self.timeout = timeout
         self._client: aiohttp.ClientSession | None = None
 
-        ds_label = dataset.name if dataset else self.endpoint
-        self.name = f"gym@{ds_label}" if protocol == "evaluator" else f"gym-native@{ds_label}"
+        if label:
+            self.name = label
+        else:
+            ds_label = dataset.name if dataset else self.endpoint
+            self.name = f"gym@{ds_label}" if protocol == "evaluator" else f"gym-native@{ds_label}"
 
     async def _get_client(self) -> aiohttp.ClientSession:
         if self._client is None or self._client.closed:
@@ -255,11 +260,14 @@ class GymEnvironment(EvalEnvironment):
                 continue
             body[k] = v
 
-        # When no dataset row provided verifier_metadata, synthesize it
-        # from the eval-loop metadata so gym servers can read their fields.
+        # When no dataset row provided verifier_metadata, use it directly from meta
+        # if the seed populated it, or synthesize from other eval-loop metadata fields.
         if "verifier_metadata" not in body:
-            _INTERNAL = {"source", "benchmark", "problem_idx", "prompt", "verifier_metadata"}
-            body["verifier_metadata"] = {k: v for k, v in meta.items() if k not in _INTERNAL}
+            if "verifier_metadata" in meta:
+                body["verifier_metadata"] = meta["verifier_metadata"]
+            else:
+                _INTERNAL = {"source", "benchmark", "problem_idx", "prompt", "verifier_metadata"}
+                body["verifier_metadata"] = {k: v for k, v in meta.items() if k not in _INTERNAL}
 
         # Also forward any metadata the eval loop passed that isn't already set
         for k, v in meta.items():
@@ -325,6 +333,7 @@ class ManagedGymEnvironment(EvalEnvironment):
         request_timeout: float = 120.0,
         protocol: Literal["evaluator", "native"] = "evaluator",
         dataset: GymDataset | None = None,
+        label: str | None = None,
     ) -> None:
         super().__init__()
         self._server_cmd = server_cmd
@@ -336,9 +345,10 @@ class ManagedGymEnvironment(EvalEnvironment):
         self._request_timeout = request_timeout
         self._protocol = protocol
         self._dataset_obj = dataset
+        self._label = label
         self._process: subprocess.Popen | None = None
         self._inner: GymEnvironment | None = None
-        self.name = f"managed-gym@{host}:{self._port}"
+        self.name = label or f"managed-gym@{host}:{self._port}"
 
     @property
     def endpoint(self) -> str:
@@ -356,6 +366,7 @@ class ManagedGymEnvironment(EvalEnvironment):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=env,
+            start_new_session=True,
         )
         self._wait_for_health()
         self._inner = GymEnvironment(
@@ -363,6 +374,7 @@ class ManagedGymEnvironment(EvalEnvironment):
             protocol=self._protocol,
             dataset=self._dataset_obj,
             timeout=self._request_timeout,
+            label=self._label,
         )
         logger.info("Managed Gym server ready at %s (pid=%d)", self.endpoint, self._process.pid)
 
@@ -396,14 +408,12 @@ class ManagedGymEnvironment(EvalEnvironment):
         raise ValueError("ManagedGymEnvironment requires one of: server_cmd, server_module, or nel_benchmark")
 
     def _wait_for_health(self) -> None:
-        """Wait for the server to become responsive.
-
-        Tries ``/health`` first (evaluator servers).  Falls back to
-        ``/openapi.json`` which every FastAPI app serves by default
-        (native Gym resource servers don't expose ``/health``).
-        """
+        """Wait for the server to become responsive."""
         deadline = time.monotonic() + self._startup_timeout
-        while time.monotonic() < deadline:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
             if self._process.poll() is not None:
                 output = ""
                 if self._process.stdout:
@@ -411,40 +421,69 @@ class ManagedGymEnvironment(EvalEnvironment):
                 raise RuntimeError(
                     f"Server exited with code {self._process.returncode} during startup.\nOutput:\n{output}"
                 )
-            try:
-                with urllib.request.urlopen(
-                    f"{self.endpoint}/health",
-                    timeout=2.0,
-                ) as r:
-                    if r.status == 200:
-                        return
-            except (urllib.error.URLError, OSError):
-                pass
-            else:
+            probe_timeout = min(2.0, remaining)
+            for probe in ("/health", "/openapi.json"):
                 try:
-                    with urllib.request.urlopen(
-                        f"{self.endpoint}/openapi.json",
-                        timeout=2.0,
-                    ) as r2:
-                        if r2.status == 200:
+                    with urllib.request.urlopen(f"{self.endpoint}{probe}", timeout=probe_timeout) as r:
+                        if r.status == 200:
                             return
                 except (urllib.error.URLError, OSError):
                     pass
-            time.sleep(0.5)
+            time.sleep(min(0.5, max(0.0, deadline - time.monotonic())))
         self.stop()
         raise TimeoutError(f"Server at {self.endpoint} not healthy within {self._startup_timeout}s")
 
     def stop(self) -> None:
         if self._process is None:
             return
-        logger.info("Stopping managed Gym server (pid=%d)", self._process.pid)
+        pid = self._process.pid
+        logger.info("Stopping managed Gym server (pid=%d)", pid)
+        # os.setsid made the child the leader of a new process group, so its
+        # pgid equals its pid. Cache it: once the leader exits, os.getpgid(pid)
+        # fails, but the group (and its still-running members) lives on.
         try:
-            self._process.send_signal(signal.SIGTERM)
-            self._process.wait(timeout=10)
-        except (subprocess.TimeoutExpired, OSError):
-            self._process.kill()
+            pgid = os.getpgid(pid)
+        except (ProcessLookupError, OSError):
+            pgid = pid
+
+        self._signal_group(pgid, signal.SIGTERM)
+        # Wait on the whole process group, not just the direct child. The shell
+        # that launched `ng_run` exits as soon as ng_run dies, but the gym
+        # app.py servers it spawned may still be handling SIGTERM. If we return
+        # when only the shell is gone, those servers are orphaned with no one
+        # left to reap them.
+        if not self._wait_for_group_exit(pgid, timeout=15.0):
+            logger.warning("Gym process group %d survived SIGTERM; sending SIGKILL", pgid)
+            self._signal_group(pgid, signal.SIGKILL)
+            if not self._wait_for_group_exit(pgid, timeout=5.0):
+                logger.error("Gym process group %d survived SIGKILL; leaving handle for retry", pgid)
+                return
+
+        with contextlib.suppress(subprocess.TimeoutExpired):
             self._process.wait(timeout=5)
         self._process = None
+
+    @staticmethod
+    def _signal_group(pgid: int, sig: int) -> None:
+        with contextlib.suppress(ProcessLookupError, OSError):
+            os.killpg(pgid, sig)
+
+    @staticmethod
+    def _wait_for_group_exit(pgid: int, timeout: float) -> bool:
+        """Poll until no process remains in ``pgid``. Returns True if the group
+        is fully gone within ``timeout``, False otherwise."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                os.killpg(pgid, 0)  # signal 0: liveness probe, kills nothing
+            except (ProcessLookupError, OSError):
+                return True
+            time.sleep(0.2)
+        try:
+            os.killpg(pgid, 0)
+        except (ProcessLookupError, OSError):
+            return True
+        return False
 
     async def seed(self, idx: int) -> SeedResult:
         if self._inner is None:

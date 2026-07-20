@@ -99,8 +99,10 @@ def _make_gym(rest: str, **kwargs: Any) -> "EvalEnvironment":
     protocol = kwargs.get("protocol", "evaluator")
     data_path = kwargs.get("data")
     dataset = GymDataset(data_path) if data_path else None
+    label: str | None = None
+    timeout: float | None = None
 
-    # Parse inline query params: gym://host:port?protocol=native&data=/foo.jsonl
+    # Parse inline query params: gym://host:port?protocol=native&data=/foo.jsonl&label=rolemrc&timeout=600
     if "?" in rest:
         rest_base, qs = rest.split("?", 1)
         for kv in qs.split("&"):
@@ -111,15 +113,26 @@ def _make_gym(rest: str, **kwargs: Any) -> "EvalEnvironment":
                 protocol = v
             elif k == "data":
                 dataset = GymDataset(v)
+            elif k == "label":
+                label = v
+            elif k == "timeout":
+                # /verify (and /seed) HTTP total timeout in seconds. Raise it for
+                # judge-based verifiers whose slowest rows exceed the 60s default.
+                timeout = float(v)
         rest = rest_base
 
+    gym_kw: dict[str, Any] = {} if timeout is None else {"timeout": timeout}
+    managed_kw: dict[str, Any] = {} if timeout is None else {"request_timeout": timeout}
+
     if _HOST_PORT_RE.match(rest):
-        return GymEnvironment(f"http://{rest}", protocol=protocol, dataset=dataset)
+        return GymEnvironment(f"http://{rest}", protocol=protocol, dataset=dataset, label=label, **gym_kw)
     if rest.startswith("cmd:"):
-        return ManagedGymEnvironment(server_cmd=rest[4:], protocol=protocol, dataset=dataset)
+        return ManagedGymEnvironment(server_cmd=rest[4:], protocol=protocol, dataset=dataset, label=label, **managed_kw)
     if rest.startswith("module:"):
-        return ManagedGymEnvironment(server_module=rest[7:], protocol=protocol, dataset=dataset)
-    return ManagedGymEnvironment(nel_benchmark=rest, protocol=protocol, dataset=dataset)
+        return ManagedGymEnvironment(
+            server_module=rest[7:], protocol=protocol, dataset=dataset, label=label, **managed_kw
+        )
+    return ManagedGymEnvironment(nel_benchmark=rest, protocol=protocol, dataset=dataset, label=label, **managed_kw)
 
 
 def _make_skills(rest: str, **kwargs: Any) -> "EvalEnvironment":
