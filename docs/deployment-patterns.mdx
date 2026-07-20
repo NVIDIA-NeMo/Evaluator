@@ -330,7 +330,7 @@ Every evaluation run (all patterns) produces:
 | `results.jsonl` | Per-sample: problem_idx, repeat, reward, extracted answer, tokens, latency |
 | `trajectories.jsonl` | Per-step: full prompt, model response, token breakdown (prompt/completion/reasoning), latency breakdown (seed/model/verify ms), scoring method + details, SHA256 request hash, failure category |
 | `runtime_stats.json` | Latency percentiles (p50/p90/p99), token throughput, finish reason distribution, error count |
-| `failure_analysis.json` | Categorized failures (refusal, format_error, timeout, rate_limit, empty_response) with counts, percentages, exemplars |
+| `failure_analysis.json` | Categorized failures (refusal, format_error, timeout, rate_limit) with counts, percentages, exemplars |
 | `regression.json` | Score deltas, CI overlap, per-category and runtime deltas (when comparing two runs) |
 
 ---

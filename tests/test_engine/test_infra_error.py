@@ -16,11 +16,14 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
-from nemo_evaluator.engine.eval_loop import _get_error_category
+from nemo_evaluator.engine.eval_loop import _get_error_category, _solve_failed_error_category, run_evaluation
+from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.errors import GracefulError, InfraError
-from nemo_evaluator.observability.types import StepRecord
+from nemo_evaluator.observability.types import ModelResponse, StepRecord
 from nemo_evaluator.solvers.base import ErrorKind, SolveResult
 
 # ── Exception hierarchy ──────────────────────────────────────────────
@@ -82,6 +85,175 @@ class TestGetErrorCategory:
 
     def test_missing_error_category_key(self):
         assert _get_error_category({"scoring_details": {"method": "solve_failed"}}) is None
+
+
+class TestSolveFailedErrorCategory:
+    @pytest.mark.parametrize(
+        ("error", "is_solve_timeout", "expected"),
+        [
+            ("litellm.BadRequestError: Error code: 400 - Malformed native tool-call JSON", False, "model_error"),
+            ("504 Gateway Timeout: upstream timed out", False, "server_error"),
+            ("429 Too Many Requests: rate_limit", False, "rate_limit"),
+            ("503 Service Unavailable", False, "server_error"),
+            ("Turn budget exhausted: 20/20 turns used", True, "turn_budget_exhausted"),
+            (
+                "litellm.ContextWindowExceededError: maximum context length is 262144 tokens",
+                False,
+                "context_window_exceeded",
+            ),
+            (
+                "litellm.BudgetExceededError: Budget has been exceeded! Current cost: 2, Max budget: 1",
+                False,
+                "budget_exceeded",
+            ),
+            ("litellm.RouterRateLimitError: router cooldown active", False, "rate_limit"),
+            ("litellm.RouterRateLimitErrorBasic: router cooldown active", False, "rate_limit"),
+            ("litellm.RateLimitType: requests per minute", False, "rate_limit"),
+            ("litellm.Timeout: request timed out", False, "model_timeout"),
+            ("litellm.BadGatewayError: MidStreamFallbackError: APIConnectionError", False, "server_error"),
+            ("ServerDisconnectedError: upstream closed", False, "server_error"),
+            ("litellm.APIResponseValidationError: response was missing choices", False, "model_error"),
+            ("litellm.GuardrailRaisedException: guardrail raised", False, "model_error"),
+            ("litellm.LiteLLMUnknownProvider: unknown model provider", False, "model_error"),
+            ("litellm.ModifyResponseException: response modifier failed", False, "model_error"),
+            ("litellm.SensitiveDataRouteException: sensitive data route rejected", False, "model_error"),
+            ("litellm.MockException: synthetic model client failure", False, "model_error"),
+            ("litellm.OpenAIError: untyped model client failure", False, "model_error"),
+            ("plain timeout", True, "solve_timeout"),
+            ("Agent crashed: ValueError", False, "graceful"),
+        ],
+    )
+    def test_model_and_timeout_categories(self, error, is_solve_timeout, expected):
+        assert _solve_failed_error_category(error, is_infra=False, is_solve_timeout=is_solve_timeout) == expected
+
+    def test_infra_is_preserved(self):
+        assert _solve_failed_error_category("Error code: 400", is_infra=True) == "infra_error"
+
+
+class _TerminalBenchErrorEnv(EvalEnvironment):
+    name = "harbor://terminal-bench@2.0"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.dataset = [{"task_id": "regex-chess"}]
+        self.verify_called = False
+
+    async def seed(self, idx: int) -> SeedResult:
+        task = self.dataset[idx]
+        return SeedResult(
+            prompt="Solve the terminal task",
+            expected_answer="done",
+            metadata={"task_id": task["task_id"]},
+        )
+
+    async def verify(self, response, expected, **metadata):
+        self.verify_called = True
+        return VerifyResult(
+            reward=1.0 if response == expected else 0.0,
+            scoring_details={"method": "terminal-bench"},
+        )
+
+
+class _TerminalBenchErrorSolver:
+    def __init__(self, error: str, error_kind: ErrorKind = ErrorKind.NONE) -> None:
+        self.error = error
+        self.error_kind = error_kind
+
+    async def solve(self, task: SeedResult) -> SolveResult:
+        return SolveResult(response="", error=self.error, error_kind=self.error_kind)
+
+
+class _TerminalBenchHealthySolver:
+    async def solve(self, task: SeedResult) -> SolveResult:
+        return SolveResult(
+            response=task.expected_answer,
+            model_response=ModelResponse(
+                content=task.expected_answer,
+                model="fake-terminal-model",
+                finish_reason="stop",
+                prompt_tokens=11,
+                completion_tokens=3,
+                total_tokens=14,
+            ),
+        )
+
+
+class _TerminalBenchVerifiedTurnBudgetSolver:
+    async def solve(self, task: SeedResult) -> SolveResult:
+        return SolveResult(
+            response=task.expected_answer,
+            model_response=ModelResponse(
+                content="[workspace modified]",
+                model="fake-terminal-model",
+                finish_reason="",
+                prompt_tokens=30,
+                completion_tokens=8,
+                total_tokens=38,
+            ),
+            error_kind=ErrorKind.SOLVE_TIMEOUT,
+            scoring_details={
+                "error": "Agent crashed: ConversationRunError: Turn budget exhausted: 215/200 turns used",
+                "error_category": "turn_budget_exhausted",
+            },
+        )
+
+
+class TestTerminalBenchErrorClassification:
+    @pytest.mark.parametrize(
+        ("error", "error_kind", "expected"),
+        [
+            ("Error code: 400 - Malformed native tool-call JSON", ErrorKind.NONE, "model_error"),
+            ("504 Gateway Timeout: upstream timed out", ErrorKind.SOLVE_TIMEOUT, "server_error"),
+            ("Turn budget exhausted: 20/20 turns used", ErrorKind.SOLVE_TIMEOUT, "turn_budget_exhausted"),
+        ],
+    )
+    def test_terminal_bench_solve_errors_keep_specific_categories(self, error, error_kind, expected):
+        env = _TerminalBenchErrorEnv()
+        solver = _TerminalBenchErrorSolver(error, error_kind)
+
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1, max_concurrent=1))
+
+        result = bundle["_results"][0]
+        assert not env.verify_called
+        assert result["scoring_details"]["error_category"] == expected
+
+        step = bundle["_artifacts"].steps[0]
+        assert step.failure_category == expected
+
+        failures = bundle["benchmark"]["scores"]["failures"]
+        assert failures["categories"][expected]["count"] == 1
+
+    def test_terminal_bench_successful_200_style_response_has_no_failure_category(self):
+        env = _TerminalBenchErrorEnv()
+        solver = _TerminalBenchHealthySolver()
+
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1, max_concurrent=1))
+
+        result = bundle["_results"][0]
+        assert env.verify_called
+        assert result["reward"] == 1.0
+        assert "error_category" not in result["scoring_details"]
+
+        step = bundle["_artifacts"].steps[0]
+        assert step.model_response.total_tokens == 14
+        assert step.failure_category is None
+        assert bundle["benchmark"]["scores"]["failures"]["total_failures"] == 0
+
+    def test_turn_budget_with_workspace_diff_is_verified_and_keeps_category(self):
+        env = _TerminalBenchErrorEnv()
+        solver = _TerminalBenchVerifiedTurnBudgetSolver()
+
+        bundle = asyncio.run(run_evaluation(env, solver, n_repeats=1, max_concurrent=1))
+
+        result = bundle["_results"][0]
+        assert env.verify_called
+        assert result["reward"] == 1.0
+        assert result["scoring_details"]["error_category"] == "turn_budget_exhausted"
+        assert result["scoring_details"]["error"].startswith("Agent crashed: ConversationRunError")
+
+        step = bundle["_artifacts"].steps[0]
+        assert step.model_error is None
+        assert step.failure_category == "turn_budget_exhausted"
 
 
 # ── Collector classification ─────────────────────────────────────────

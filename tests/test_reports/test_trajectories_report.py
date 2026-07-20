@@ -439,6 +439,29 @@ def test_enrich_backfills_step_metadata_from_wire(tmp_path: Path) -> None:
     assert step["metrics"]["extra"]["reasoning_tokens"] == 12
 
 
+def test_enrich_derives_step_total_tokens_from_prompt_completion_without_wire_splice(tmp_path: Path) -> None:
+    """Missing step total_tokens is derived from step prompt+completion without copying wire totals."""
+    bench = tmp_path / "pb"
+    steps = [
+        {"step_id": 1, "source": "agent", "metrics": {"prompt_tokens": 5, "completion_tokens": 2}},
+        {"step_id": 2, "source": "agent", "metrics": {"prompt_tokens": 11, "completion_tokens": 3}},
+    ]
+    _write_jsonl(
+        bench / "trajectories.jsonl",
+        [_trial(0, 0, reward=1.0, steps=steps)],
+    )
+    _write_jsonl(bench / "model_traffic.jsonl", [])
+
+    out = generate_trajectories_report(tmp_path, enrich=True)
+
+    counts = json.loads(out.read_text())["benchmarks"][0]["enrichment"]["steps_backfilled"]
+    assert counts["total_tokens"] == 2
+    enriched_steps = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])["trajectory"][0][
+        "steps"
+    ]
+    assert [step["metrics"]["total_tokens"] for step in enriched_steps] == [7, 14]
+
+
 def test_enrichment_section_absent_when_enrich_false(bundle: Path) -> None:
     report = json.loads(generate_trajectories_report(bundle, enrich=False).read_text())["benchmarks"][0]
     assert "enrichment" not in report
@@ -633,6 +656,237 @@ def test_non_success_wire_examples_include_invalid_response_details(tmp_path: Pa
     assert failure["last_wire_status_code"] == 400
     assert failure["last_wire_error_message"].startswith("OpenAIException")
     assert failure["last_wire_error_body"] == '{"error":{"code":"bad_tool_json"}}'
+
+
+@pytest.mark.parametrize(
+    ("status_code", "error_type", "error_message", "expected_category"),
+    [
+        (400, "invalid_request_error", "Malformed native tool-call JSON", "model_error"),
+        (504, "timeout", "Upstream timed out after 5s", "server_error"),
+    ],
+)
+@pytest.mark.parametrize(
+    "persisted_category",
+    [None, "empty_response"],
+    ids=["uncategorized-post-fep-1132", "legacy-empty-response-label"],
+)
+def test_last_wire_non_200_reclassifies_uncategorized_and_legacy_rows(
+    tmp_path: Path,
+    persisted_category: str | None,
+    status_code: int,
+    error_type: str,
+    error_message: str,
+    expected_category: str,
+) -> None:
+    """Empty-final rows yield to the wire-derived category.
+
+    Covers both persisted shapes: no category at all (the collector persists
+    none for empty finals since FEP-1132) and the legacy ``empty_response``
+    label written by older runs.
+    """
+    bench = tmp_path / "pb"
+    row = _trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="", pt=0, ct=0)])
+    row["model"]["content"] = ""
+    if persisted_category is not None:
+        row["failure_category"] = persisted_category
+    _write_jsonl(bench / "trajectories.jsonl", [row])
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [
+            {**_wire(7, 2, prompt=7, completion=3, status_code=200), "model_traffic_request_id": "sess:req-ok"},
+            {
+                **_wire(7, 2, prompt=0, completion=0, status_code=status_code),
+                "model_traffic_request_id": "sess:req-bad",
+                "error_type": error_type,
+                "error_message": error_message,
+            },
+        ],
+    )
+
+    report = json.loads(generate_trajectories_report(tmp_path, enrich=True).read_text())["benchmarks"][0]
+
+    assert report["trajectories"]["failures_by_category"] == {expected_category: 1}
+    failure = report["trajectories"]["failure_examples"][0]
+    assert failure["failure_category"] == expected_category
+    assert failure["last_wire_status_code"] == status_code
+    assert failure["last_wire_failure_category"] == expected_category
+    assert error_message in failure["error"]
+    assert report["enrichment"]["rows_reclassified_from_wire_failure"] == 1
+
+    enriched = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])
+    assert enriched["failure_category"] == expected_category
+
+
+def test_prior_504_then_final_200_does_not_reclassify_as_timeout(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    row = _trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="", pt=0, ct=0)])
+    # Legacy persisted category from a pre-FEP-1132 run; passes through untouched.
+    row["failure_category"] = "empty_response"
+    _write_jsonl(bench / "trajectories.jsonl", [row])
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [
+            {
+                **_wire(7, 2, prompt=0, completion=0, status_code=504),
+                "model_traffic_request_id": "sess:req-timeout",
+                "error_type": "timeout",
+                "error_message": "Upstream timed out after 5s",
+            },
+            {**_wire(7, 2, prompt=7, completion=3, status_code=200), "model_traffic_request_id": "sess:req-ok"},
+        ],
+    )
+
+    report = json.loads(generate_trajectories_report(tmp_path, enrich=True).read_text())["benchmarks"][0]
+
+    assert report["trajectories"]["failures_by_category"] == {"empty_response": 1}
+    failure = report["trajectories"]["failure_examples"][0]
+    assert failure["failure_category"] == "empty_response"
+    assert failure["last_wire_status_code"] == 200
+    assert failure["last_wire_failure_category"] == ""
+    assert report["wire_calls"]["non_200_by_status"] == {"504": 1}
+    assert report["wire_calls"]["problems_with_last_wire_non_200"] == 0
+    assert report["enrichment"]["rows_reclassified_from_wire_failure"] == 0
+
+
+@pytest.mark.parametrize(
+    "wire_status_codes",
+    [(200, 429), (429, 200)],
+    ids=["failed-twin-last", "successful-twin-last"],
+)
+def test_verified_harbor_trial_ignores_failed_duplicate_wire_twin(
+    tmp_path: Path, wire_status_codes: tuple[int, int]
+) -> None:
+    bench = tmp_path / "pb"
+    row = _trial(7, 2, reward=1.0, steps=[_agent_step(0, msg="verified", pt=7, ct=3)])
+    row["scoring_details"] = {"method": "harbor", "test_exit_code": 0, "test_summary": "PASSED"}
+    _write_jsonl(bench / "trajectories.jsonl", [row])
+
+    wire_rows = []
+    for index, status_code in enumerate(wire_status_codes):
+        wire = {
+            **_wire(
+                7,
+                2,
+                prompt=7,
+                completion=3,
+                status_code=status_code,
+                timestamp=f"2026-07-13T12:00:00.{index + 1:03d}Z",
+            ),
+            "request_hash": "duplicate-request-hash",
+        }
+        if status_code == 429:
+            wire.update(error_type="rate_limit_error", error_message="Too many requests")
+        wire_rows.append(wire)
+    _write_jsonl(bench / "model_traffic.jsonl", wire_rows)
+
+    report = json.loads(generate_trajectories_report(tmp_path, enrich=True).read_text())["benchmarks"][0]
+    enriched = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])
+
+    assert report["trajectories"]["failures_by_category"] == {}
+    assert "failure_category" not in enriched
+    assert report["enrichment"]["rows_reclassified_from_wire_failure"] == 0
+
+
+def test_verified_harbor_trial_ignores_distinct_trailing_wire_failure(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    row = _trial(7, 2, reward=1.0, steps=[_agent_step(0, msg="verified", pt=7, ct=3)])
+    row["scoring_details"] = {"method": "harbor", "test_exit_code": 0, "test_summary": "PASSED"}
+    _write_jsonl(bench / "trajectories.jsonl", [row])
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [
+            {**_wire(7, 2, prompt=7, completion=3), "request_hash": "completed-request"},
+            {
+                **_wire(7, 2, prompt=0, completion=0, status_code=429),
+                "request_hash": "auxiliary-request",
+                "error_type": "rate_limit_error",
+                "error_message": "Too many requests",
+            },
+        ],
+    )
+
+    report = json.loads(generate_trajectories_report(tmp_path, enrich=True).read_text())["benchmarks"][0]
+    enriched = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])
+
+    assert report["trajectories"]["failures_by_category"] == {}
+    assert "failure_category" not in enriched
+    assert report["enrichment"]["rows_reclassified_from_wire_failure"] == 0
+
+
+def test_failed_duplicate_wire_twin_reclassifies_unsuccessful_trial(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    row = _trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="", pt=0, ct=0)])
+    row["failure_category"] = "empty_response"
+    _write_jsonl(bench / "trajectories.jsonl", [row])
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [
+            {**_wire(7, 2, prompt=7, completion=3), "request_hash": "duplicate-request"},
+            {
+                **_wire(7, 2, prompt=0, completion=0, status_code=429),
+                "request_hash": "duplicate-request",
+                "error_type": "rate_limit_error",
+                "error_message": "Too many requests",
+            },
+        ],
+    )
+
+    report = json.loads(generate_trajectories_report(tmp_path, enrich=True).read_text())["benchmarks"][0]
+    enriched = json.loads((bench / "trajectories_enriched.jsonl").read_text().splitlines()[0])
+
+    assert report["trajectories"]["failures_by_category"] == {"rate_limit": 1}
+    assert enriched["failure_category"] == "rate_limit"
+    assert report["enrichment"]["rows_reclassified_from_wire_failure"] == 1
+
+
+@pytest.mark.parametrize(
+    "set_empty_content",
+    [lambda row: row["model"].__setitem__("content", "   "), lambda row: row.__setitem__("model_response", "")],
+    ids=["model-content", "model_response"],
+)
+def test_empty_final_response_is_observational_flag_not_failure(tmp_path: Path, set_empty_content) -> None:
+    """FEP-1132: emptiness surfaces as a per-trial flag + aggregate, never a category."""
+    bench = tmp_path / "pb"
+    empty_row = _trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="", pt=7, ct=3)])
+    set_empty_content(empty_row)
+    nonempty_row = _trial(8, 2, reward=0.0, steps=[_agent_step(0, msg="answer", pt=7, ct=3)])
+    nonempty_row["model"]["content"] = "answer"
+    nonempty_row["scoring_details"] = {"error": "scoring exploded"}
+    _write_jsonl(bench / "trajectories.jsonl", [empty_row, nonempty_row])
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [
+            {**_wire(7, 2, prompt=7, completion=3, status_code=200), "model_traffic_request_id": "sess:req-ok"},
+            {**_wire(8, 2, prompt=7, completion=3, status_code=200), "model_traffic_request_id": "sess:req-ok2"},
+        ],
+    )
+
+    report = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]
+    traj = report["trajectories"]
+
+    assert traj["failures_by_category"] == {}
+    assert traj["problems_with_empty_final_response"] == 1
+    examples = {example["problem_idx"]: example for example in traj["failure_examples"]}
+    assert examples[7]["failure_category"] == ""
+    assert examples[7]["empty_final_response"] is True
+    assert examples[8]["empty_final_response"] is False
+
+
+def test_uncaptured_final_content_is_not_flagged_empty(tmp_path: Path) -> None:
+    bench = tmp_path / "pb"
+    row = _trial(7, 2, reward=0.0, steps=[_agent_step(0, msg="", pt=7, ct=3)])
+    row["scoring_details"] = {"error": "scoring exploded"}
+    _write_jsonl(bench / "trajectories.jsonl", [row])
+    _write_jsonl(
+        bench / "model_traffic.jsonl",
+        [{**_wire(7, 2, prompt=7, completion=3, status_code=200), "model_traffic_request_id": "sess:req-ok"}],
+    )
+
+    report = json.loads(generate_trajectories_report(tmp_path).read_text())["benchmarks"][0]
+    traj = report["trajectories"]
+
+    assert traj["problems_with_empty_final_response"] == 0
+    assert traj["failure_examples"][0]["empty_final_response"] is False
 
 
 def test_timeout_no_step_examples_keep_wire_counts(tmp_path: Path) -> None:
