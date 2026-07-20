@@ -31,6 +31,7 @@ One helper:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -365,7 +366,7 @@ class ManagedGymEnvironment(EvalEnvironment):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=env,
-            preexec_fn=os.setsid,  # new session → new process group so killpg reaches all descendants
+            start_new_session=True,  # new session → new process group so killpg reaches all descendants
         )
         self._wait_for_health()
         self._inner = GymEnvironment(
@@ -460,18 +461,14 @@ class ManagedGymEnvironment(EvalEnvironment):
             self._signal_group(pgid, signal.SIGKILL)
             self._wait_for_group_exit(pgid, timeout=5.0)
 
-        try:
+        with contextlib.suppress(subprocess.TimeoutExpired):
             self._process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            pass
         self._process = None
 
     @staticmethod
     def _signal_group(pgid: int, sig: int) -> None:
-        try:
+        with contextlib.suppress(ProcessLookupError, OSError):
             os.killpg(pgid, sig)
-        except (ProcessLookupError, OSError):
-            pass
 
     @staticmethod
     def _wait_for_group_exit(pgid: int, timeout: float) -> bool:

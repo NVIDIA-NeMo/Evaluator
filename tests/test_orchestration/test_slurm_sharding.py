@@ -56,6 +56,37 @@ def _mode(path):
     return path.stat().st_mode & 0o777
 
 
+def _make_single_node_container_config():
+    """Single node pool (use_het disabled) with a containerized eval (use_containers)."""
+    return EvalConfig.model_validate(
+        {
+            "services": {
+                "model": {"type": "api", "url": "http://x/v1/chat/completions", "protocol": "chat_completions"},
+            },
+            "benchmarks": [
+                {"name": "gsm8k", "repeats": 1, "solver": {"type": "simple", "service": "model"}},
+            ],
+            "cluster": {
+                "type": "slurm",
+                "walltime": "02:00:00",
+                "eval_image": "nvcr.io/nvidia/eval:latest",
+                "node_pools": {
+                    "compute": {"partition": "batch", "nodes": 1, "gres": "gpu:4"},
+                },
+            },
+        }
+    )
+
+
+class TestSbatchMasterIp:
+    def test_single_node_container_emits_master_ip(self):
+        """Single-pool containerized jobs still need MASTER_IP for pinned gym sruns."""
+        cfg = _make_single_node_container_config()
+        script, _, _ = generate_sbatch(cfg)
+        assert 'MASTER_IP=$(scontrol show hostname "$SLURM_JOB_NODELIST"' in script
+        assert "export MASTER_IP" in script
+
+
 class TestSbatchShardGeneration:
     def test_no_shards_no_shard_env(self):
         cfg = _make_slurm_config(shards=None)

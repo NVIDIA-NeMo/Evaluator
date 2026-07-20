@@ -362,8 +362,16 @@ class ModelClient:
                             continue
 
                         resp.raise_for_status()
-                        return await resp.json()
+                        data = await resp.json()
+                        if not isinstance(data, dict):
+                            raise InfraError(
+                                f"Model returned non-object JSON response ({type(data).__name__}); "
+                                "expected a JSON object."
+                            )
+                        return data
 
+                except InfraError:
+                    raise
                 except asyncio.TimeoutError as e:
                     last_exc = e
                     if attempt < self.retry.max_retries:

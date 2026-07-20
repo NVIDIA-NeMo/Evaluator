@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -129,6 +129,19 @@ class TestModelClient:
             await c.chat(messages=[{"role": "user", "content": "hi"}], tools=tools)
             payload = mock_post.call_args[0][1]
             assert payload["tools"] == tools
+        await c.close()
+
+    @pytest.mark.asyncio
+    async def test_chat_with_tools_skips_cache(self):
+        c = ModelClient(base_url="https://api.example.com/v1", model="test")
+        c._cache = MagicMock()
+        tools = [{"type": "function", "function": {"name": "get_page"}}]
+        with patch.object(c, "_post_with_retry", new_callable=AsyncMock, return_value=MOCK_TOOL_RESPONSE) as mock_post:
+            await c.chat(messages=[{"role": "user", "content": "hi"}], tools=tools)
+            payload = mock_post.call_args[0][1]
+            assert payload["tools"] == tools
+        c._cache.get.assert_not_called()
+        c._cache.put.assert_not_called()
         await c.close()
 
     @pytest.mark.asyncio

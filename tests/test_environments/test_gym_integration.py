@@ -90,6 +90,9 @@ class TestGymProtocol:
 
         assert result["output_text"] == "SELECT * FROM users;"
         assert result["status"] == "completed"
+        assert result["parallel_tool_calls"] is True
+        assert result["tool_choice"] == "auto"
+        assert result["tools"] == []
         msg = result["output"][0]
         assert msg["type"] == "message"
         assert msg["role"] == "assistant"
@@ -152,6 +155,30 @@ class TestGymProtocol:
         ]
         # The tool output — which rode in `output`, not `content` — is preserved.
         assert msgs[2] == {"role": "tool", "tool_call_id": "c0", "content": "página en español"}
+
+    def test_messages_from_rcp_groups_parallel_function_calls(self):
+        """Consecutive function_call items collapse into one assistant message."""
+        from nemo_evaluator.environments.gym_protocol import messages_from_rcp
+
+        msgs = messages_from_rcp(
+            {
+                "input": [
+                    {"role": "user", "content": "do both"},
+                    {"type": "function_call", "call_id": "c0", "name": "get_page", "arguments": '{"url": "x"}'},
+                    {"type": "function_call", "call_id": "c1", "name": "get_page", "arguments": '{"url": "y"}'},
+                    {"type": "function_call_output", "call_id": "c0", "output": "first"},
+                    {"type": "function_call_output", "call_id": "c1", "output": "second"},
+                ]
+            }
+        )
+        assert [m["role"] for m in msgs] == ["user", "assistant", "tool", "tool"]
+        # Both parallel calls live in a single assistant message.
+        assert msgs[1]["tool_calls"] == [
+            {"id": "c0", "type": "function", "function": {"name": "get_page", "arguments": '{"url": "x"}'}},
+            {"id": "c1", "type": "function", "function": {"name": "get_page", "arguments": '{"url": "y"}'}},
+        ]
+        assert msgs[2] == {"role": "tool", "tool_call_id": "c0", "content": "first"}
+        assert msgs[3] == {"role": "tool", "tool_call_id": "c1", "content": "second"}
 
     def test_messages_from_rcp_preserves_chat_tool_fields(self):
         """Role-based messages keep their tool_calls / tool_call_id / name fields."""
@@ -595,6 +622,29 @@ class TestGymUriResolution:
 
         env = _make_gym("localhost:8080", protocol="native")
         assert env.protocol == "native"
+
+    def test_label_query_param_host_port(self, _mock_port):
+        from nemo_evaluator.environments.gym import GymEnvironment
+        from nemo_evaluator.environments.registry import _make_gym
+
+        env = _make_gym("localhost:8080?label=rolemrc")
+        assert isinstance(env, GymEnvironment)
+        assert env.name == "rolemrc"
+
+    def test_timeout_query_param_host_port(self, _mock_port):
+        from nemo_evaluator.environments.gym import GymEnvironment
+        from nemo_evaluator.environments.registry import _make_gym
+
+        env = _make_gym("localhost:8080?timeout=600")
+        assert isinstance(env, GymEnvironment)
+        assert env.timeout == 600.0
+
+    def test_label_and_timeout_query_params_managed(self, _mock_port):
+        from nemo_evaluator.environments.registry import _make_gym
+
+        env = _make_gym("spider2_lite?label=spider&timeout=300")
+        assert env._label == "spider"
+        assert env._request_timeout == 300.0
 
 
 # ---------------------------------------------------------------------------

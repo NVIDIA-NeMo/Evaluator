@@ -109,7 +109,7 @@ def extract_prompt_from_rcp(rcp: dict[str, Any]) -> str:
     return ""
 
 
-def _as_text(content: Any) -> str:
+def _as_text(content: object) -> str:
     """Coerce a Responses/chat ``content`` value to a plain string."""
     return content if isinstance(content, str) else str(content) if content is not None else ""
 
@@ -132,25 +132,28 @@ def messages_from_rcp(rcp: dict[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(inp, list):
         return []
     messages: list[dict[str, Any]] = []
+    pending_tool_calls: list[dict[str, Any]] = []
+
+    def flush_tool_calls() -> None:
+        if pending_tool_calls:
+            messages.append({"role": "assistant", "content": "", "tool_calls": list(pending_tool_calls)})
+            pending_tool_calls.clear()
+
     for m in inp:
         if not isinstance(m, dict):
             continue
         item_type = m.get("type")
         if item_type == "function_call":
-            messages.append(
+            # Consecutive function_call items form one assistant turn (parallel calls).
+            pending_tool_calls.append(
                 {
-                    "role": "assistant",
-                    "content": "",
-                    "tool_calls": [
-                        {
-                            "id": m.get("call_id", ""),
-                            "type": "function",
-                            "function": {"name": m.get("name", ""), "arguments": _as_text(m.get("arguments", ""))},
-                        }
-                    ],
+                    "id": m.get("call_id", ""),
+                    "type": "function",
+                    "function": {"name": m.get("name", ""), "arguments": _as_text(m.get("arguments", ""))},
                 }
             )
             continue
+        flush_tool_calls()
         if item_type == "function_call_output":
             messages.append({"role": "tool", "tool_call_id": m.get("call_id", ""), "content": _as_text(m.get("output"))})
             continue
@@ -159,4 +162,5 @@ def messages_from_rcp(rcp: dict[str, Any]) -> list[dict[str, Any]]:
             if m.get(key) is not None:
                 msg[key] = m[key]
         messages.append(msg)
+    flush_tool_calls()
     return messages
