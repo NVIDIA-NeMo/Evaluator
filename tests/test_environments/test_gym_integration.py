@@ -493,6 +493,37 @@ class TestManagedGymEnvironment:
         env.stop()  # no process → must not raise
         assert env._process is None
 
+    def test_wait_for_health_caps_probe_timeout_to_deadline(self):
+        """A startup_timeout shorter than the probe/sleep intervals must not
+        let a single urlopen call overrun the deadline."""
+        from nemo_evaluator.environments import gym as gym_mod
+        from nemo_evaluator.environments.gym import ManagedGymEnvironment
+
+        env = ManagedGymEnvironment(server_cmd="x", port=9999, startup_timeout=0.3)
+        proc = MagicMock()
+        proc.poll.return_value = None  # still running
+        env._process = proc
+
+        timeouts: list[float] = []
+
+        def fake_urlopen(url, timeout):
+            timeouts.append(timeout)
+            raise gym_mod.urllib.error.URLError("refused")
+
+        with (
+            patch.object(gym_mod.urllib.request, "urlopen", side_effect=fake_urlopen),
+            patch.object(gym_mod.time, "sleep"),
+            patch.object(gym_mod.time, "monotonic", side_effect=itertools.count(0.0, 0.1)),
+            patch.object(env, "stop"),
+            pytest.raises(TimeoutError),
+        ):
+            env._wait_for_health()
+
+        assert timeouts, "expected at least one probe"
+        # Probe timeout is capped by the remaining deadline (0.3s), never the 2.0s default.
+        assert max(timeouts) <= 0.3
+        env._process = None  # prevent __del__ -> stop() from signalling a real process group
+
     def _make_env_with_fake_process(self):
         from nemo_evaluator.environments.gym import ManagedGymEnvironment
 
@@ -502,6 +533,23 @@ class TestManagedGymEnvironment:
         proc.wait.return_value = 0
         env._process = proc
         return env
+
+    def test_stop_keeps_handle_when_group_survives_sigkill(self):
+        """If the group outlives SIGKILL, stop() must not drop the process handle."""
+        from nemo_evaluator.environments import gym as gym_mod
+
+        env = self._make_env_with_fake_process()
+
+        with (
+            patch.object(gym_mod.os, "getpgid", return_value=4242),
+            patch.object(gym_mod.os, "killpg"),  # never raises → group always "alive"
+            patch.object(gym_mod.time, "sleep"),
+            patch.object(gym_mod.time, "monotonic", side_effect=itertools.count(0, 1)),
+        ):
+            env.stop()
+
+        assert env._process is not None
+        env._process = None  # prevent __del__ -> stop() from signalling a real process group
 
     def test_stop_kills_whole_group_gracefully(self):
         """When the group exits after SIGTERM, no SIGKILL is needed."""

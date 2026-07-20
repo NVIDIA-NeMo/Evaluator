@@ -97,6 +97,28 @@ class TestModelClient:
             c._parse_response({"choices": []}, 100.0, "test", None)
 
     @pytest.mark.asyncio
+    async def test_post_with_retry_rejects_non_object_json(self):
+        from nemo_evaluator.errors import InfraError
+
+        c = ModelClient(base_url="https://api.example.com/v1", model="test")
+
+        resp = MagicMock()
+        resp.status = 200
+        resp.raise_for_status = MagicMock()
+        resp.json = AsyncMock(return_value=None)
+
+        post_cm = MagicMock()
+        post_cm.__aenter__ = AsyncMock(return_value=resp)
+        post_cm.__aexit__ = AsyncMock(return_value=False)
+        fake_client = MagicMock()
+        fake_client.post = MagicMock(return_value=post_cm)
+
+        with patch.object(c, "_get_client", return_value=fake_client):
+            with pytest.raises(InfraError, match="non-object JSON"):
+                await c.chat(prompt="hello")
+        await c.close()
+
+    @pytest.mark.asyncio
     async def test_chat_payload_includes_all_generation_fields(self):
         c = ModelClient(
             base_url="https://api.example.com/v1",

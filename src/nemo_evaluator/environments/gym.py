@@ -366,7 +366,7 @@ class ManagedGymEnvironment(EvalEnvironment):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=env,
-            start_new_session=True,  # new session → new process group so killpg reaches all descendants
+            start_new_session=True,
         )
         self._wait_for_health()
         self._inner = GymEnvironment(
@@ -408,17 +408,12 @@ class ManagedGymEnvironment(EvalEnvironment):
         raise ValueError("ManagedGymEnvironment requires one of: server_cmd, server_module, or nel_benchmark")
 
     def _wait_for_health(self) -> None:
-        """Wait for the server to become responsive.
-
-        A 200 from ``/health`` (evaluator servers) or ``/openapi.json``
-        (native Gym servers, which lack ``/health`` but always serve the
-        FastAPI schema) means ready.  Every other outcome -- connection
-        refused, timeout, or any non-200 status -- means "not ready yet",
-        so we keep polling until the deadline.  ``HTTPError`` is a subclass
-        of ``URLError``, so a single handler covers all of them.
-        """
+        """Wait for the server to become responsive."""
         deadline = time.monotonic() + self._startup_timeout
-        while time.monotonic() < deadline:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
             if self._process.poll() is not None:
                 output = ""
                 if self._process.stdout:
@@ -426,14 +421,15 @@ class ManagedGymEnvironment(EvalEnvironment):
                 raise RuntimeError(
                     f"Server exited with code {self._process.returncode} during startup.\nOutput:\n{output}"
                 )
+            probe_timeout = min(2.0, remaining)
             for probe in ("/health", "/openapi.json"):
                 try:
-                    with urllib.request.urlopen(f"{self.endpoint}{probe}", timeout=2.0) as r:
+                    with urllib.request.urlopen(f"{self.endpoint}{probe}", timeout=probe_timeout) as r:
                         if r.status == 200:
                             return
                 except (urllib.error.URLError, OSError):
                     pass
-            time.sleep(0.5)
+            time.sleep(min(0.5, max(0.0, deadline - time.monotonic())))
         self.stop()
         raise TimeoutError(f"Server at {self.endpoint} not healthy within {self._startup_timeout}s")
 
@@ -459,7 +455,9 @@ class ManagedGymEnvironment(EvalEnvironment):
         if not self._wait_for_group_exit(pgid, timeout=15.0):
             logger.warning("Gym process group %d survived SIGTERM; sending SIGKILL", pgid)
             self._signal_group(pgid, signal.SIGKILL)
-            self._wait_for_group_exit(pgid, timeout=5.0)
+            if not self._wait_for_group_exit(pgid, timeout=5.0):
+                logger.error("Gym process group %d survived SIGKILL; leaving handle for retry", pgid)
+                return
 
         with contextlib.suppress(subprocess.TimeoutExpired):
             self._process.wait(timeout=5)
