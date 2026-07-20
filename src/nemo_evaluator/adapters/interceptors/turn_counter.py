@@ -33,9 +33,11 @@ _GC_INTERVAL_SEC = 300.0
 
 
 class InjectionPosition(str, Enum):
+    # ``tool_message`` is only supported with ``trigger=periodic``.
     SYSTEM_MESSAGE = "system_message"
     USER_MESSAGE = "user_message"
     NEW_USER_MESSAGE = "new_user_message"
+    TOOL_MESSAGE = "tool_message"
 
 
 class InjectionTrigger(str, Enum):
@@ -80,12 +82,14 @@ class Interceptor(RequestInterceptor):
     * ``position`` — where the reminder lands in the request payload
       (``system_message`` appends a new system message; ``user_message``
       appends to the last user message's content; ``new_user_message``
-      appends a new user message).
+      appends a new user message; ``tool_message`` appends to the trailing
+      tool message and is only valid with ``trigger=periodic``).
     * ``trigger`` — when the reminder fires
       (``threshold`` at 80% / 95% of ``max_turns``; ``periodic`` every
       ``interval`` turns).
 
-    All position/trigger combinations are valid. Defaults reproduce the prior
+    All position/trigger combinations are valid except ``tool_message``, which
+    is only supported with ``trigger=periodic``. Defaults reproduce the prior
     threshold-based system-message behavior.
 
     Additional threshold-only option:
@@ -121,6 +125,11 @@ class Interceptor(RequestInterceptor):
         self._sessions: dict[str, _Session] = {}
         self._lock = asyncio.Lock()
         self._last_gc = time.monotonic()
+
+        if self._position is InjectionPosition.TOOL_MESSAGE and self._trigger is not InjectionTrigger.PERIODIC:
+            # Threshold reminders are WARN/URGENT escalation messages; keep
+            # tool-message placement limited to flat periodic reminders.
+            raise ValueError("position=tool_message is only supported with trigger=periodic")
 
         if self._trigger is InjectionTrigger.PERIODIC and self._pre_threshold_tool_reminder_interval is not None:
             logger.warning(
@@ -217,6 +226,8 @@ class Interceptor(RequestInterceptor):
             messages.append({"role": "system", "content": notice})
         elif self._position is InjectionPosition.NEW_USER_MESSAGE:
             messages.append({"role": "user", "content": notice})
+        elif self._position is InjectionPosition.TOOL_MESSAGE:
+            self._append_to_trailing_tool_message(messages, notice, key, n)
         else:
             self._append_to_last_user_message(messages, notice)
         return req

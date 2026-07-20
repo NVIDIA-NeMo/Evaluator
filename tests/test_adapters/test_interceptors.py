@@ -457,6 +457,56 @@ async def test_turn_counter_periodic_new_user_appends_trailing_user_message():
             assert result.body["messages"] == original_messages
 
 
+async def test_turn_counter_periodic_tool_appends_to_trailing_tool_message():
+    """periodic+tool_message appends the flat reminder to the trailing tool result."""
+    ic = InterceptorRegistry.create(
+        "turn_counter",
+        {"max_turns": 10, "position": "tool_message", "trigger": "periodic", "interval": 2},
+    )
+    original_messages = [
+        {"role": "user", "content": "initial task"},
+        {"role": "assistant", "content": "working"},
+        {"role": "tool", "tool_call_id": "call_1", "content": "tool result"},
+    ]
+
+    for turn in range(1, 5):
+        body = {"model": "test", "messages": [msg.copy() for msg in original_messages]}
+        r = _req(body)
+        r.ctx.extra["session_id"] = "periodic-tool"
+        result = await ic.intercept_request(r)
+        if turn % 2 == 0:
+            assert result.body["messages"][:-1] == original_messages[:-1]
+            assert result.body["messages"][-1] == {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": (
+                    "tool result\n\n"
+                    f"ENVIRONMENT REMINDER: You have {10 - turn} turns left to complete the task."
+                ),
+            }
+        else:
+            assert result.body["messages"] == original_messages
+
+
+async def test_turn_counter_periodic_tool_skips_when_last_message_is_not_tool():
+    ic = InterceptorRegistry.create(
+        "turn_counter",
+        {"max_turns": 10, "position": "tool_message", "trigger": "periodic", "interval": 2},
+    )
+    messages = [
+        {"role": "user", "content": "initial task"},
+        {"role": "assistant", "content": "not a tool result"},
+    ]
+
+    for _ in range(2):
+        body = {"model": "test", "messages": [msg.copy() for msg in messages]}
+        r = _req(body)
+        r.ctx.extra["session_id"] = "periodic-tool-skip"
+        result = await ic.intercept_request(r)
+
+    assert result.body["messages"] == messages
+
+
 async def test_turn_counter_threshold_user_uses_threshold_body_without_system_prefix():
     """threshold+user_message reuses the threshold WARN/URGENT body (without [SYSTEM] prefix)."""
     ic = InterceptorRegistry.create(
@@ -618,6 +668,14 @@ async def test_turn_counter_invalid_interval_raises():
         InterceptorRegistry.create(
             "turn_counter",
             {"max_turns": 10, "position": "user_message", "trigger": "periodic", "interval": 0},
+        )
+
+
+async def test_turn_counter_threshold_tool_message_position_raises():
+    with pytest.raises(ValueError, match="position=tool_message"):
+        InterceptorRegistry.create(
+            "turn_counter",
+            {"max_turns": 10, "position": "tool_message", "trigger": "threshold"},
         )
 
 
