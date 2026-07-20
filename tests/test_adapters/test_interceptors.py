@@ -506,6 +506,27 @@ async def test_turn_counter_periodic_tool_skips_when_last_message_is_not_tool():
     assert result.body["messages"] == messages
 
 
+async def test_turn_counter_periodic_defaults_to_tool_message_every_turn():
+    ic = InterceptorRegistry.create("turn_counter", {"max_turns": 10, "trigger": "periodic"})
+    messages = [
+        {"role": "user", "content": "initial task"},
+        {"role": "assistant", "content": "working"},
+        {"role": "tool", "tool_call_id": "call_1", "content": "tool result"},
+    ]
+
+    body = {"model": "test", "messages": [msg.copy() for msg in messages]}
+    r = _req(body)
+    r.ctx.extra["session_id"] = "periodic-default-tool"
+    result = await ic.intercept_request(r)
+
+    assert result.body["messages"][:-1] == messages[:-1]
+    assert result.body["messages"][-1] == {
+        "role": "tool",
+        "tool_call_id": "call_1",
+        "content": "tool result\n\nENVIRONMENT REMINDER: You have 9 turns left to complete the task.",
+    }
+
+
 async def test_turn_counter_threshold_user_uses_threshold_body_without_system_prefix():
     """threshold+user_message reuses the threshold WARN/URGENT body (without [SYSTEM] prefix)."""
     ic = InterceptorRegistry.create(

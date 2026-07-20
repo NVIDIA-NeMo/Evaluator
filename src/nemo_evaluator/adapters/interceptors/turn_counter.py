@@ -90,7 +90,8 @@ class Interceptor(RequestInterceptor):
 
     All position/trigger combinations are valid except ``tool_message``, which
     is only supported with ``trigger=periodic``. Defaults reproduce the prior
-    threshold-based system-message behavior.
+    threshold-based system-message behavior; periodic mode defaults to
+    ``tool_message`` with ``interval=1``.
 
     Additional threshold-only option:
 
@@ -105,7 +106,7 @@ class Interceptor(RequestInterceptor):
         *,
         every: int = 1,
         max_turns: int | None = None,
-        position: str | InjectionPosition = InjectionPosition.SYSTEM_MESSAGE,
+        position: str | InjectionPosition | None = None,
         trigger: str | InjectionTrigger = InjectionTrigger.THRESHOLD,
         interval: int = 1,
         pre_threshold_tool_reminder_interval: int | None = None,
@@ -118,8 +119,15 @@ class Interceptor(RequestInterceptor):
             )
         self._every = max(every, 1)
         self._max = max_turns
-        self._position = InjectionPosition(position)
         self._trigger = InjectionTrigger(trigger)
+        if position is None:
+            self._position = (
+                InjectionPosition.TOOL_MESSAGE
+                if self._trigger is InjectionTrigger.PERIODIC
+                else InjectionPosition.SYSTEM_MESSAGE
+            )
+        else:
+            self._position = InjectionPosition(position)
         self._interval = interval
         self._pre_threshold_tool_reminder_interval = pre_threshold_tool_reminder_interval or None
         self._sessions: dict[str, _Session] = {}
