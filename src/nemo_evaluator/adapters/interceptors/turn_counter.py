@@ -77,7 +77,7 @@ class _Session:
 class Interceptor(RequestInterceptor):
     """Turn counter with configurable reminder injection.
 
-    Two orthogonal axes:
+    Two configuration axes:
 
     * ``position`` — where the reminder lands in the request payload
       (``system_message`` appends a new system message; ``user_message``

@@ -480,8 +480,7 @@ async def test_turn_counter_periodic_tool_appends_to_trailing_tool_message():
                 "role": "tool",
                 "tool_call_id": "call_1",
                 "content": (
-                    "tool result\n\n"
-                    f"ENVIRONMENT REMINDER: You have {10 - turn} turns left to complete the task."
+                    f"tool result\n\nENVIRONMENT REMINDER: You have {10 - turn} turns left to complete the task."
                 ),
             }
         else:
