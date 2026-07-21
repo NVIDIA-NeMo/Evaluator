@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import http.server
 import json
+import stat
 import threading
 from pathlib import Path
 
@@ -25,11 +26,12 @@ from nemo_evaluator.adapters.proxy import start_adapter_proxy
 from nemo_evaluator.adapters.types import AdapterRequest, AdapterResponse, InterceptorContext
 from nemo_evaluator.engine.eval_loop import run_evaluation
 from nemo_evaluator.engine.model_client import ModelClient
-from nemo_evaluator.engine.model_traffic_log import format_model_traffic_log_records
-from nemo_evaluator.engine.step_log import INFERENCE_LOG, MODEL_TRAFFIC_LOG
+from nemo_evaluator.engine.model_traffic_log import append_model_traffic_records, format_model_traffic_log_records
+from nemo_evaluator.engine.step_log import INFERENCE_LOG, MODEL_TRAFFIC_LOG, StepLog
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.observability.model_traffic import (
     ModelTrafficStore,
+    aggregate_model_traffic_stats,
     register_store,
 )
 from nemo_evaluator.solvers.base import SolveResult
@@ -129,6 +131,26 @@ def _jsonl(path: Path):
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
+def _format_drained(
+    store: ModelTrafficStore,
+    session_id: str,
+    *,
+    benchmark: str = "b",
+    problem_idx: int = 0,
+    repeat: int = 0,
+) -> dict:
+    rows = list(
+        format_model_traffic_log_records(
+            store.drain_session(session_id),
+            benchmark=benchmark,
+            problem_idx=problem_idx,
+            repeat=repeat,
+        )
+    )
+    assert len(rows) == 1
+    return rows[0]
+
+
 def _capture_response_body(
     *,
     content: str = "the answer is 42",
@@ -150,6 +172,76 @@ def _capture_response_body(
             }
         ],
         "usage": {"prompt_tokens": 3, "completion_tokens": 4, "total_tokens": 7},
+    }
+
+
+async def test_model_traffic_spools_and_flushes_session(tmp_path: Path) -> None:
+    session_id = "flush-session"
+    spool_dir = tmp_path / "spool"
+    store = ModelTrafficStore(service_name="solver", capture_request_body=True, spool_dir=spool_dir)
+    log = StepLog(tmp_path / MODEL_TRAFFIC_LOG)
+    log.open(truncate=True)
+    try:
+        for index, status_code in enumerate((200, 400)):
+            request_body = {"model": "m", "messages": [{"role": "user", "content": f"turn {index}"}]}
+            ctx = InterceptorContext()
+            ctx.extra["session_id"] = session_id
+            ctx.extra["upstream_request_body"] = request_body
+            store.start_request(
+                AdapterRequest(
+                    method="POST",
+                    path="/chat/completions",
+                    headers={},
+                    body=request_body,
+                    ctx=ctx,
+                )
+            )
+            store.finish_response(
+                AdapterResponse(
+                    status_code=status_code,
+                    headers={"content-type": "application/json"},
+                    latency_ms=10.0,
+                    ctx=ctx,
+                    body=_capture_response_body()
+                    if status_code == 200
+                    else {"error": {"message": "bad request", "type": "invalid_request_error"}},
+                )
+            )
+
+        assert store._pending == {}
+        assert not hasattr(store, "_records_by_session")
+        assert stat.S_IMODE(store._spool_dir.stat().st_mode) == 0o700
+        spool_files = list(spool_dir.rglob("*.jsonl"))
+        assert len(spool_files) == 1
+        assert stat.S_IMODE(spool_files[0].stat().st_mode) == 0o600
+        model_traffic = store.drain_session(session_id)
+        await append_model_traffic_records(
+            log,
+            model_traffic,
+            benchmark="b",
+            problem_idx=12,
+            repeat=3,
+        )
+        stats = aggregate_model_traffic_stats(model_traffic)
+    finally:
+        log.close()
+        store.close()
+
+    rows = _jsonl(tmp_path / MODEL_TRAFFIC_LOG)
+    assert len(rows) == 2
+    assert [(row["status_code"], row["problem_idx"], row["repeat"]) for row in rows] == [(200, 12, 3), (400, 12, 3)]
+    assert all(row["request_body"] for row in rows)
+    assert rows[1]["usage"] == {}
+    assert not list(spool_dir.rglob("*.jsonl"))
+    assert stats == {
+        "usage": {
+            "prompt_tokens": 3,
+            "completion_tokens": 4,
+            "total_tokens": 7,
+            "token_provenance": "provider_reported",
+        },
+        "tool_calls": {"count": 1, "names": {"w": 1}},
+        "model_calls": 2,
     }
 
 
@@ -180,9 +272,7 @@ def test_format_log_record_response_capture_fields(capture_kwargs: dict, expect_
             body=_capture_response_body(),
         )
     )
-    rows = format_model_traffic_log_records(store.drain_session("cap-session"), benchmark="b", problem_idx=0, repeat=0)
-    assert len(rows) == 1
-    row = rows[0]
+    row = _format_drained(store, "cap-session")
     assert row["tool_calls"] == {"count": 1, "names": {"w": 1}}
     assert row["request_hash"]
     if expect_response_fields:
@@ -226,14 +316,7 @@ def test_format_log_record_request_body_capture_fields(
             body=_capture_response_body(),
         )
     )
-    rows = format_model_traffic_log_records(
-        store.drain_session("req-body-session"),
-        benchmark="b",
-        problem_idx=0,
-        repeat=0,
-    )
-    assert len(rows) == 1
-    row = rows[0]
+    row = _format_drained(store, "req-body-session")
     assert row["request_hash"]
     if expect_request_fields:
         assert row["request_body"] == json.dumps(request_body, sort_keys=True, default=str)
@@ -259,14 +342,7 @@ def test_format_log_record_request_body_truncation() -> None:
             body=_capture_response_body(),
         )
     )
-    rows = format_model_traffic_log_records(
-        store.drain_session("req-body-trunc-session"),
-        benchmark="b",
-        problem_idx=0,
-        repeat=0,
-    )
-    assert len(rows) == 1
-    row = rows[0]
+    row = _format_drained(store, "req-body-trunc-session")
     assert isinstance(row["request_body"], str)
     assert "...[truncated," in row["request_body"]
 
@@ -281,15 +357,9 @@ def test_format_log_record_request_body_on_error() -> None:
     store.start_request(req)
     store.finish_error(req=req, latency_ms=1.0, error_type="timeout")
 
-    rows = format_model_traffic_log_records(
-        store.drain_session("req-body-error-session"),
-        benchmark="b",
-        problem_idx=0,
-        repeat=0,
-    )
-    assert len(rows) == 1
-    assert rows[0]["request_body"] == json.dumps(request_body, sort_keys=True, default=str)
-    assert rows[0]["error_type"] == "timeout"
+    row = _format_drained(store, "req-body-error-session")
+    assert row["request_body"] == json.dumps(request_body, sort_keys=True, default=str)
+    assert row["error_type"] == "timeout"
 
 
 def test_non_success_response_forwards_compact_error_summary() -> None:
@@ -315,15 +385,7 @@ def test_non_success_response_forwards_compact_error_summary() -> None:
         )
     )
 
-    rows = format_model_traffic_log_records(
-        store.drain_session("bad-request-session"),
-        benchmark="b",
-        problem_idx=0,
-        repeat=0,
-    )
-
-    assert len(rows) == 1
-    row = rows[0]
+    row = _format_drained(store, "bad-request-session")
     assert row["status_code"] == 400
     assert row["usage"] == {}
     assert "token_provenance" not in row
@@ -370,24 +432,24 @@ data: [DONE]
         )
     )
 
-    rows = format_model_traffic_log_records(
-        store.drain_session("stream-session"),
+    row = _format_drained(
+        store,
+        "stream-session",
         benchmark="model_traffic_env",
         problem_idx=0,
         repeat=0,
     )
 
-    assert len(rows) == 1
-    assert rows[0]["model"] == "stream-model"
-    assert rows[0]["finish_reason"] == "tool_calls"
-    assert rows[0]["usage"] == {
+    assert row["model"] == "stream-model"
+    assert row["finish_reason"] == "tool_calls"
+    assert row["usage"] == {
         "prompt_tokens": 7,
         "completion_tokens": 5,
         "total_tokens": 12,
         "reasoning_tokens": 3,
     }
-    assert rows[0]["tool_calls"] == {"count": 2, "names": {"bash": 1, "python": 1}}
-    assert rows[0]["token_provenance"] == "provider_reported"
+    assert row["tool_calls"] == {"count": 2, "names": {"bash": 1, "python": 1}}
+    assert row["token_provenance"] == "provider_reported"
 
 
 async def test_model_traffic_writes_compact_log_and_inference_stats(tmp_path: Path) -> None:
