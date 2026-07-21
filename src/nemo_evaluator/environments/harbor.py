@@ -62,6 +62,7 @@ import fcntl
 import json
 import logging
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -503,8 +504,12 @@ def warn_unapplied_task_overlays(name: str, dataset_path: Path) -> None:
     overlay_root = _locate_task_overlay_dir()
     if overlay_root is None or not overlay_root.is_dir():
         return
-    key_prefix = name.split("@", 1)[0].replace("/", "__")
-    matches = [d.name for d in overlay_root.iterdir() if d.is_dir() and d.name.split("@", 1)[0] == key_prefix]
+    if "@" in name:
+        requested = name.replace("/", "__")
+        matches = [d.name for d in overlay_root.iterdir() if d.is_dir() and d.name == requested]
+    else:
+        key_prefix = name.replace("/", "__")
+        matches = [d.name for d in overlay_root.iterdir() if d.is_dir() and d.name.split("@", 1)[0] == key_prefix]
     if matches:
         logger.warning(
             "Harbor dataset %r resolved from pre-staged dir %s, not the registry; "
@@ -1038,7 +1043,7 @@ class HarborEnvironment(EvalEnvironment):
         await sandbox.exec("chmod -R +x /tests/", timeout_sec=10)
         verifier_timeout = float(metadata.get("verifier_timeout_sec", DEFAULT_HARBOR_VERIFIER_TIMEOUT))
         setup_script = metadata.get("verifier_setup_script")
-        setup_prefix = f"bash {setup_script} && " if setup_script else ""
+        setup_prefix = f"bash {shlex.quote(setup_script)} && " if setup_script else ""
         result = await sandbox.exec(
             'export PATH="/root/.local/bin:/root/.cargo/bin:/usr/local/go/bin'
             ":/usr/local/cargo/bin:$HOME/.local/bin:$HOME/.cargo/bin"

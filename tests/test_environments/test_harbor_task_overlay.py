@@ -9,9 +9,16 @@ with the evaluator instead of forking the upstream dataset repo.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
-from nemo_evaluator.environments.harbor import DatasetSpec, download_harbor_tasks
+import pytest
+
+from nemo_evaluator.environments.harbor import (
+    DatasetSpec,
+    download_harbor_tasks,
+    warn_unapplied_task_overlays,
+)
 
 
 def _make_dataset(name: str = "swebench-verified", version: str = "1.0") -> DatasetSpec:
@@ -35,7 +42,7 @@ def _make_overlay(root: Path, dataset_key: str, task: str) -> Path:
     return overlay
 
 
-def test_overlay_files_copied_over_cached_dataset(tmp_path, monkeypatch):
+def test_overlay_files_copied_over_cached_dataset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     output_dir = tmp_path / "ds" / "swebench-verified@1.0"
     task_dir = _make_cached_task(output_dir, "t1")
     _make_overlay(tmp_path / "overlays", "swebench-verified@1.0", "t1")
@@ -48,7 +55,7 @@ def test_overlay_files_copied_over_cached_dataset(tmp_path, monkeypatch):
     assert (task_dir / "instruction.md").read_text() == "instruction"
 
 
-def test_overlay_for_absent_task_is_skipped(tmp_path, monkeypatch):
+def test_overlay_for_absent_task_is_skipped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     output_dir = tmp_path / "ds" / "swebench-verified@1.0"
     _make_cached_task(output_dir, "t1")
     _make_overlay(tmp_path / "overlays", "swebench-verified@1.0", "t-not-downloaded")
@@ -59,7 +66,7 @@ def test_overlay_for_absent_task_is_skipped(tmp_path, monkeypatch):
     assert not (output_dir / "t-not-downloaded").exists()
 
 
-def test_no_overlay_dir_is_noop(tmp_path, monkeypatch):
+def test_no_overlay_dir_is_noop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     output_dir = tmp_path / "ds" / "swebench-verified@1.0"
     task_dir = _make_cached_task(output_dir, "t1")
     monkeypatch.setenv("HARBOR_TASK_OVERLAY_DIR", str(tmp_path / "does-not-exist"))
@@ -69,7 +76,7 @@ def test_no_overlay_dir_is_noop(tmp_path, monkeypatch):
     assert (task_dir / "environment" / "Dockerfile").read_text() == "FROM upstream\n"
 
 
-def test_overlay_key_sanitizes_dataset_name(tmp_path, monkeypatch):
+def test_overlay_key_sanitizes_dataset_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     output_dir = tmp_path / "ds" / "some-dir-name"
     task_dir = _make_cached_task(output_dir, "t1")
     _make_overlay(tmp_path / "overlays", "org__bench@2.0", "t1")
@@ -80,7 +87,7 @@ def test_overlay_key_sanitizes_dataset_name(tmp_path, monkeypatch):
     assert (task_dir / "environment" / "Dockerfile").read_text() == "FROM patched\n"
 
 
-def test_overlay_is_idempotent(tmp_path, monkeypatch):
+def test_overlay_is_idempotent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     output_dir = tmp_path / "ds" / "swebench-verified@1.0"
     task_dir = _make_cached_task(output_dir, "t1")
     _make_overlay(tmp_path / "overlays", "swebench-verified@1.0", "t1")
@@ -91,3 +98,29 @@ def test_overlay_is_idempotent(tmp_path, monkeypatch):
     download_harbor_tasks(_make_dataset(), output_dir)
 
     assert (task_dir / "environment" / "Dockerfile").read_bytes() == first
+
+
+@pytest.mark.parametrize(
+    ("requested_name", "overlay_key", "expect_warning"),
+    [
+        ("swebench-verified@1.0", "swebench-verified@2.0", False),
+        ("swebench-verified@2.0", "swebench-verified@2.0", True),
+        ("swebench-verified", "swebench-verified@2.0", True),
+    ],
+    ids=["other-version-silent", "exact-version-warns", "unversioned-matches-any"],
+)
+def test_prestaged_warning_respects_requested_version(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    requested_name: str,
+    overlay_key: str,
+    expect_warning: bool,
+) -> None:
+    _make_overlay(tmp_path / "overlays", overlay_key, "t1")
+    monkeypatch.setenv("HARBOR_TASK_OVERLAY_DIR", str(tmp_path / "overlays"))
+
+    with caplog.at_level(logging.WARNING, logger="nemo_evaluator.environments.harbor"):
+        warn_unapplied_task_overlays(requested_name, tmp_path / "prestaged")
+
+    assert ("NOT applied" in caplog.text) is expect_warning
