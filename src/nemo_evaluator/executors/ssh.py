@@ -246,7 +246,7 @@ def check_job_status(
     try:
         output = run_on_slurm_host(
             hostname,
-            f"squeue --job {shlex.quote(job_id)} --noheader --format=%i|%j|%T|%M|%N",
+            f"squeue --job {shlex.quote(job_id)} --noheader --format='%i|%j|%T|%M|%N'",
             username=username,
             timeout=15.0,
         )
@@ -305,7 +305,7 @@ def batch_check_job_status(
     try:
         output = run_on_slurm_host(
             hostname,
-            f"squeue --jobs {ids_str} --noheader --format=%i|%j|%T|%M|%N",
+            f"squeue --jobs {ids_str} --noheader --format='%i|%j|%T|%M|%N'",
             username=username,
             timeout=15.0,
         )
