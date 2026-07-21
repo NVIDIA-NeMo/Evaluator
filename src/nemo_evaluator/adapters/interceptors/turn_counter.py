@@ -218,10 +218,10 @@ class Interceptor(RequestInterceptor):
                 return req
             body = self._threshold_message_body(n, remaining, severity)
             # ``new_user_message`` uses role="user" for chat APIs that reject
-            # mid-conversation system messages (Qwen/OpenAI strict). Keep the
-            # [SYSTEM] prefix so the reminder still reads as a framework directive.
+            # mid-conversation system messages (Qwen/OpenAI strict). Use an
+            # environment-reminder prefix so the content label is role-neutral.
             notice = (
-                f"[SYSTEM] {body}"
+                f"ENVIRONMENT REMINDER: {body}"
                 if self._position in (InjectionPosition.SYSTEM_MESSAGE, InjectionPosition.NEW_USER_MESSAGE)
                 else body
             )

@@ -528,7 +528,7 @@ async def test_turn_counter_periodic_defaults_to_tool_message_every_turn():
 
 
 async def test_turn_counter_threshold_user_uses_threshold_body_without_system_prefix():
-    """threshold+user_message reuses the threshold WARN/URGENT body (without [SYSTEM] prefix)."""
+    """threshold+user_message reuses the threshold WARN/URGENT body without a reminder prefix."""
     ic = InterceptorRegistry.create(
         "turn_counter",
         {"max_turns": 10, "position": "user_message", "trigger": "threshold"},
@@ -542,7 +542,9 @@ async def test_turn_counter_threshold_user_uses_threshold_body_without_system_pr
         if turn < 8:
             assert last_content == "hi", f"turn {turn} (ratio {turn / 10}) should be untouched"
         else:
-            assert "[SYSTEM]" not in last_content, f"turn {turn}: user-position must omit [SYSTEM] prefix"
+            assert "ENVIRONMENT REMINDER" not in last_content, (
+                f"turn {turn}: user-position must omit environment-reminder prefix"
+            )
             if turn >= 10:  # ratio >= URGENT_THRESHOLD (0.95)
                 assert "URGENT" in last_content
                 assert "MUST provide your final answer NOW" in last_content
@@ -579,7 +581,7 @@ async def test_turn_counter_threshold_new_user_appends_trailing_user_message():
 
     assert result.body["messages"][:-1] == original_messages
     assert result.body["messages"][-1]["role"] == "user"
-    assert result.body["messages"][-1]["content"].startswith("[SYSTEM] Turn 8/10")
+    assert result.body["messages"][-1]["content"].startswith("ENVIRONMENT REMINDER: Turn 8/10")
     assert "Begin wrapping up" in result.body["messages"][-1]["content"]
 
 
@@ -645,7 +647,7 @@ async def test_turn_counter_pre_threshold_tool_reminder_appends_to_trailing_tool
     result = await ic.intercept_request(r)
     assert result.body["messages"][:-1] == base_messages
     assert result.body["messages"][-1]["role"] == "system"
-    assert result.body["messages"][-1]["content"].startswith("[SYSTEM] Turn 8/10")
+    assert result.body["messages"][-1]["content"].startswith("ENVIRONMENT REMINDER: Turn 8/10")
 
 
 async def test_turn_counter_pre_threshold_tool_reminder_skips_when_last_message_is_not_tool():
