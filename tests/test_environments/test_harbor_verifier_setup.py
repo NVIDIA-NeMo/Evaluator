@@ -58,7 +58,10 @@ async def test_verify_prepends_setup_script(tmp_path: Path) -> None:
 
     test_cmds = [c for c in sandbox._exec_log if "bash /tests/test.sh" in c]
     assert len(test_cmds) == 1
-    assert "bash /opt/local-httpbin/pre-verify.sh && bash /tests/test.sh" in test_cmds[0]
+    prefix, separator, tail = test_cmds[0].partition(" && ")
+    assert separator
+    assert prefix.startswith("export PATH=")
+    assert tail == "bash /opt/local-httpbin/pre-verify.sh && bash /tests/test.sh"
 
 
 @pytest.mark.asyncio
