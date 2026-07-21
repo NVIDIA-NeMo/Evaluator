@@ -18,6 +18,8 @@ import json
 import os
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from nemo_evaluator.config import EvalConfig
 from nemo_evaluator.orchestration.slurm_gen import generate_sbatch, write_sbatch
 
@@ -2392,7 +2394,7 @@ class TestShardedResume:
             "11": {"job_id": "11", "state": "FAILED"},
             "12": {"job_id": "12", "state": "TIMEOUT"},
         }
-        mock_ssh.return_value = "Submitted batch job 200"
+        mock_ssh.return_value = "200"
 
         rm = self._make_run_meta(job_ids)
         with patch.object(rm, "update_details"):
@@ -2411,7 +2413,7 @@ class TestShardedResume:
 
         job_ids = ["10", "11"]
         mock_latest.return_value = job_ids
-        mock_ssh.return_value = "Submitted batch job 300"
+        mock_ssh.return_value = "300"
 
         rm = self._make_run_meta(job_ids)
         with patch.object(rm, "update_details"):
@@ -2710,7 +2712,7 @@ class TestResumePartialFailure:
                 call_count[0] += 1
                 if "shard_1" in cmd:
                     raise Exception("Connection reset")
-                return f"Submitted batch job {200 + call_count[0]}"
+                return str(200 + call_count[0])
             return ""
 
         mock_ssh.side_effect = ssh_side_effect
@@ -2843,7 +2845,7 @@ class TestNonShardedResume:
         from nemo_evaluator.executors.slurm_executor import SlurmExecutor
         from nemo_evaluator.run_store import RunMeta
 
-        mock_ssh.return_value = "Submitted batch job 500"
+        mock_ssh.return_value = "500"
 
         rm = RunMeta(
             run_id="test-run",
@@ -2869,6 +2871,306 @@ class TestNonShardedResume:
         call_kwargs = mock_update.call_args[1]
         assert call_kwargs["job_id"] == "500"
         assert call_kwargs["job_ids"] == ["500"]
+
+
+class TestLocalSlurmLifecycle:
+    def test_status_uses_local_slurm_host(self):
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+
+        meta = {"job_id": "100", "hostname": "", "username": "", "remote_dir": "/run"}
+        with (
+            patch("nemo_evaluator.executors.slurm_executor._read_meta", return_value=meta),
+            patch("nemo_evaluator.executors.slurm_executor._resolve_latest_job_id", return_value="200"),
+            patch("nemo_evaluator.executors.slurm_executor._fetch_eval_progress", return_value={}),
+            patch(
+                "nemo_evaluator.executors.ssh.check_job_status",
+                return_value={"job_id": "200", "state": "RUNNING"},
+            ) as check_status,
+        ):
+            state = SlurmExecutor().status("/run")
+
+        assert state.running is True
+        check_status.assert_called_once_with(hostname=None, job_id="200", username=None)
+
+    def test_stop_uses_local_slurm_host(self):
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+
+        meta = {"job_id": "100", "hostname": "", "username": "", "remote_dir": "/run"}
+        with (
+            patch("nemo_evaluator.executors.slurm_executor._read_meta", return_value=meta),
+            patch("nemo_evaluator.executors.slurm_executor._resolve_latest_job_id", return_value="100"),
+            patch("nemo_evaluator.executors.slurm_executor._collect_successor_ids", return_value=set()),
+            patch("nemo_evaluator.executors.slurm_executor.time.sleep"),
+            patch("nemo_evaluator.executors.ssh.run_on_slurm_host", return_value="") as run_on_host,
+            patch("nemo_evaluator.executors.ssh.ssh_run") as ssh_run,
+        ):
+            assert SlurmExecutor().stop("/run") is True
+
+        run_on_host.assert_called_once_with(None, "scancel 100", username=None, timeout=15.0)
+        ssh_run.assert_not_called()
+
+    def test_logs_use_local_slurm_host(self):
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+
+        meta = {"job_id": "100", "hostname": "", "username": "", "remote_dir": "/run"}
+        with (
+            patch("nemo_evaluator.executors.slurm_executor._read_meta", return_value=meta),
+            patch("nemo_evaluator.executors.slurm_executor._resolve_latest_job_id", return_value="100"),
+            patch("nemo_evaluator.executors.ssh.run_on_slurm_host", return_value="local log") as run_on_host,
+            patch("nemo_evaluator.executors.ssh.ssh_run") as ssh_run,
+        ):
+            content = SlurmExecutor().logs("/run", tail=25)
+
+        assert content == "local log"
+        run_on_host.assert_called_once_with(None, "tail -n 25 /run/logs/slurm-100.log", username=None, timeout=30.0)
+        ssh_run.assert_not_called()
+
+    def test_resume_updates_local_output_and_central_metadata(self, tmp_path, monkeypatch):
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+        from nemo_evaluator.run_store import RunMeta
+
+        output_dir = tmp_path / "run"
+        output_dir.mkdir()
+        monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
+        run_meta = RunMeta(
+            run_id="local-run",
+            executor="slurm",
+            output_dir=str(output_dir),
+            started_at="2026-01-01",
+            details={
+                "job_id": "100",
+                "job_ids": ["100"],
+                "hostname": "",
+                "remote_dir": str(output_dir),
+                "username": "",
+            },
+        )
+
+        with (
+            patch("nemo_evaluator.executors.ssh.run_on_slurm_host", return_value="") as run_on_host,
+            patch("nemo_evaluator.executors.ssh.submit_sbatch", return_value="500") as submit,
+            patch("nemo_evaluator.executors.ssh.ssh_run") as ssh_run,
+        ):
+            SlurmExecutor().resume_run(run_meta)
+
+        run_on_host.assert_called_once()
+        assert run_on_host.call_args.args[0] is None
+        submit.assert_called_once_with(None, f"{output_dir}/nel_eval.sbatch", None)
+        ssh_run.assert_not_called()
+        assert run_meta.details["job_id"] == "500"
+        assert run_meta.details["job_ids"] == ["500"]
+
+        output_meta = json.loads((output_dir / "slurm_job.json").read_text())
+        stored_meta = json.loads((tmp_path / "xdg" / "nel" / "jobs" / "500" / "slurm_job.json").read_text())
+        assert output_meta == stored_meta
+        assert output_meta["job_id"] == "500"
+
+    def test_sharded_resume_updates_local_metadata_and_preserves_anchor_job_id(self, tmp_path, monkeypatch):
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+        from nemo_evaluator.run_store import RunMeta
+
+        output_dir = tmp_path / "run"
+        shard_dir = output_dir / "shard_0"
+        shard_dir.mkdir(parents=True)
+        monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
+        aggregate = {
+            "job_id": "100",
+            "job_ids": ["100", "101"],
+            "hostname": "",
+            "remote_dir": str(output_dir),
+            "is_sharded": True,
+        }
+        (output_dir / "slurm_job.json").write_text(json.dumps(aggregate))
+        run_meta = RunMeta(
+            run_id="local-sharded-run",
+            executor="slurm",
+            output_dir=str(output_dir),
+            started_at="2026-01-01",
+            details=dict(aggregate),
+        )
+
+        with (
+            patch(
+                "nemo_evaluator.executors.slurm_executor._resolve_shard_latest_ids",
+                return_value=["100", "101"],
+            ),
+            patch("nemo_evaluator.executors.ssh.run_on_slurm_host", return_value=""),
+            patch("nemo_evaluator.executors.ssh.submit_sbatch", return_value="500"),
+        ):
+            SlurmExecutor().resume_run(run_meta, shard_idx=0)
+
+        assert run_meta.details["job_id"] == "100"
+        assert run_meta.details["job_ids"] == ["500", "101"]
+        shard_meta = json.loads((shard_dir / "slurm_job.json").read_text())
+        assert shard_meta["job_id"] == "500"
+        parent_meta = json.loads((output_dir / "slurm_job.json").read_text())
+        assert parent_meta["job_id"] == "100"
+        assert parent_meta["job_ids"] == ["500", "101"]
+
+    def test_sharded_resume_marks_per_shard_metadata_non_sharded(self, tmp_path, monkeypatch):
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+        from nemo_evaluator.run_store import RunMeta
+
+        output_dir = tmp_path / "run"
+        shard_dir = output_dir / "shard_0"
+        shard_dir.mkdir(parents=True)
+        monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
+        details = {
+            "job_id": "100",
+            "job_ids": ["100", "101"],
+            "hostname": "",
+            "remote_dir": str(output_dir),
+            "is_sharded": True,
+        }
+        run_meta = RunMeta(
+            run_id="local-sharded-run",
+            executor="slurm",
+            output_dir=str(output_dir),
+            started_at="2026-01-01",
+            details=details,
+        )
+
+        with (
+            patch(
+                "nemo_evaluator.executors.slurm_executor._resolve_shard_latest_ids",
+                return_value=["100", "101"],
+            ),
+            patch("nemo_evaluator.executors.ssh.run_on_slurm_host", return_value=""),
+            patch("nemo_evaluator.executors.ssh.submit_sbatch", return_value="500"),
+        ):
+            SlurmExecutor().resume_run(run_meta, shard_idx=0)
+
+        shard_meta = json.loads((shard_dir / "slurm_job.json").read_text())
+        stored_meta = json.loads((tmp_path / "xdg" / "nel" / "jobs" / "500" / "slurm_job.json").read_text())
+        assert shard_meta["is_sharded"] is False
+        assert stored_meta["is_sharded"] is False
+
+    def test_stop_specific_shard_cancels_its_auto_resume_successor(self):
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+
+        meta = {
+            "job_id": "100",
+            "job_ids": ["100", "101", "102"],
+            "hostname": "",
+            "remote_dir": "/run",
+            "username": "",
+            "is_sharded": True,
+        }
+
+        def fake_run(_hostname, command, **_kwargs):
+            if command.startswith("squeue "):
+                return "400 PENDING /run/shard_2/nel_eval.sbatch\n"
+            return ""
+
+        with (
+            patch("nemo_evaluator.executors.slurm_executor._read_meta", return_value=meta),
+            patch("nemo_evaluator.executors.slurm_executor._resolve_latest_job_id", return_value="102"),
+            patch("nemo_evaluator.executors.slurm_executor.time.sleep"),
+            patch("nemo_evaluator.executors.ssh.run_on_slurm_host", side_effect=fake_run) as run_on_host,
+        ):
+            assert SlurmExecutor().stop("/run", shard_idx=2) is True
+
+        scancel_commands = [call.args[1] for call in run_on_host.call_args_list if call.args[1].startswith("scancel ")]
+        assert scancel_commands == ["scancel 102 400"]
+
+    def test_local_logs_quote_path_with_spaces(self):
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+
+        meta = {
+            "job_id": "100",
+            "hostname": "",
+            "username": "",
+            "remote_dir": "/shared/run with spaces",
+        }
+        with (
+            patch("nemo_evaluator.executors.slurm_executor._read_meta", return_value=meta),
+            patch("nemo_evaluator.executors.slurm_executor._resolve_latest_job_id", return_value="100"),
+            patch("nemo_evaluator.executors.ssh.run_on_slurm_host", return_value="local log") as run_on_host,
+        ):
+            assert SlurmExecutor().logs("/shared/run with spaces") == "local log"
+
+        run_on_host.assert_called_once_with(
+            None,
+            "cat '/shared/run with spaces/logs/slurm-100.log'",
+            username=None,
+            timeout=60.0,
+        )
+
+    def test_non_sharded_resume_metadata_failure_keeps_new_job_visible(self, tmp_path, capsys):
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+        from nemo_evaluator.run_store import RunMeta
+
+        output_dir = tmp_path / "run"
+        output_dir.mkdir()
+        blocked_store = tmp_path / "blocked-store"
+        blocked_store.write_text("not a directory")
+        run_meta = RunMeta(
+            run_id="local-run",
+            executor="slurm",
+            output_dir=str(output_dir),
+            started_at="2026-01-01",
+            details={
+                "job_id": "100",
+                "job_ids": ["100"],
+                "hostname": "",
+                "remote_dir": str(output_dir),
+            },
+        )
+
+        with (
+            patch("nemo_evaluator.executors.slurm_executor._jobs_store", return_value=blocked_store),
+            patch("nemo_evaluator.executors.ssh.run_on_slurm_host", return_value="") as run_on_host,
+            patch("nemo_evaluator.executors.ssh.submit_sbatch", return_value="500"),
+            patch("nemo_evaluator.executors.ssh.cancel_job") as cancel_job,
+            pytest.raises(OSError),
+        ):
+            SlurmExecutor().resume_run(run_meta)
+
+        cancel_job.assert_not_called()
+        assert "Resubmitted: 500" in capsys.readouterr().out
+        assert run_meta.details["job_id"] == "100"
+        assert run_meta.details["job_ids"] == ["100"]
+        assert not (output_dir / "slurm_job.json").exists()
+        assert all(not call.args[1].startswith("scancel ") for call in run_on_host.call_args_list)
+
+    def test_sharded_resume_metadata_failure_keeps_new_job_visible(self, tmp_path, capsys):
+        from nemo_evaluator.executors.slurm_executor import SlurmExecutor
+        from nemo_evaluator.run_store import RunMeta
+
+        output_dir = tmp_path / "run"
+        (output_dir / "shard_0").mkdir(parents=True)
+        blocked_store = tmp_path / "blocked-store"
+        blocked_store.write_text("not a directory")
+        run_meta = RunMeta(
+            run_id="local-sharded-run",
+            executor="slurm",
+            output_dir=str(output_dir),
+            started_at="2026-01-01",
+            details={
+                "job_id": "100",
+                "job_ids": ["100"],
+                "hostname": "",
+                "remote_dir": str(output_dir),
+                "is_sharded": True,
+            },
+        )
+
+        with (
+            patch("nemo_evaluator.executors.slurm_executor._jobs_store", return_value=blocked_store),
+            patch("nemo_evaluator.executors.slurm_executor._resolve_shard_latest_ids", return_value=["100"]),
+            patch("nemo_evaluator.executors.ssh.run_on_slurm_host", return_value="") as run_on_host,
+            patch("nemo_evaluator.executors.ssh.submit_sbatch", return_value="500"),
+            patch("nemo_evaluator.executors.ssh.cancel_job") as cancel_job,
+            pytest.raises(OSError),
+        ):
+            SlurmExecutor().resume_run(run_meta, shard_idx=0)
+
+        cancel_job.assert_not_called()
+        assert "shard_0: 500" in capsys.readouterr().out
+        assert run_meta.details["job_id"] == "100"
+        assert run_meta.details["job_ids"] == ["100"]
+        assert not (output_dir / "shard_0" / "slurm_job.json").exists()
+        assert all(not call.args[1].startswith("scancel ") for call in run_on_host.call_args_list)
 
 
 # ---------------------------------------------------------------------------
