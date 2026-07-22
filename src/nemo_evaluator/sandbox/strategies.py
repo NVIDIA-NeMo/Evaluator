@@ -307,8 +307,11 @@ class StatelessSandbox:
         self._verify_sandbox = await self._ctx.sandbox_mgr.acquire(spec)
         await self._verify_sandbox.exec("mkdir -p /output /input", timeout_sec=10)
         await self._transfer.pre_restore(self._verify_sandbox)
+        # `test -s` dereferences the symlink and requires a non-empty target, so a dangling
+        # link (a workspace that never transferred) exits non-zero. The trailing stat only
+        # enriches the log.
         check = await self._verify_sandbox.exec(
-            "ls -lh /input/workspace.tar 2>&1",
+            "test -s /input/workspace.tar && stat -L -c '%s bytes' /input/workspace.tar 2>&1",
             timeout_sec=10,
         )
         ws_present = check.return_code == 0

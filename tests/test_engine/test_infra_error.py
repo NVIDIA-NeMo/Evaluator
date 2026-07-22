@@ -20,7 +20,12 @@ import asyncio
 
 import pytest
 
-from nemo_evaluator.engine.eval_loop import _get_error_category, _solve_failed_error_category, run_evaluation
+from nemo_evaluator.engine.eval_loop import (
+    _get_error_category,
+    _solve_failed_error_category,
+    _verify_only_workspace_keys,
+    run_evaluation,
+)
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.errors import GracefulError, InfraError
 from nemo_evaluator.observability.types import ModelResponse, StepRecord
@@ -405,3 +410,39 @@ class TestResumeFiltering:
         assert (0, 0) not in i_filtered
         assert (1, 0) in v_filtered
         assert (1, 0) in i_filtered
+
+
+class TestVerifyOnlyWorkspaceKeys:
+    """FEP-888: verify-only sandbox rollouts can't reattach their workspace after resume.
+    `_verify_only_workspace_keys` identifies the candidates to re-solve (excluding genuine
+    failures, which grade 0 without a workspace, and non-sandbox rollouts)."""
+
+    def test_only_unverified_workspace_solves_are_selected(self):
+        verified_cache = {
+            (0, 0): {"reward": 1.0, "scoring_details": {}},
+        }
+        inferred_cache = {
+            # already verified — replayed from verified_cache, never re-solved
+            (0, 0): {"response": "ok", "sandbox_used": True, "error": None},
+            # verify-only successful workspace solve — THE victim, must re-solve
+            (1, 0): {"response": "patch", "sandbox_used": True, "error": None},
+            # diff-carrying timeout: error nulled by the solver, still workspace-bound → re-solve
+            (2, 0): {"response": "patch", "sandbox_used": True, "error": None, "error_kind": "solve_timeout"},
+            # genuine model failure: grades 0 without a workspace → keep cached, no second attempt
+            (3, 0): {"response": "", "sandbox_used": True, "error": "litellm.BadRequestError: 400"},
+            # non-sandbox verify-only: nothing to lose on resume → keep cached (cheap re-verify)
+            (4, 0): {"response": "answer", "sandbox_used": False, "error": None},
+        }
+
+        assert _verify_only_workspace_keys(inferred_cache, verified_cache) == {(1, 0), (2, 0)}
+
+    def test_no_selection_when_nothing_pending(self):
+        verified_cache = {(0, 0): {"reward": 1.0, "scoring_details": {}}}
+        inferred_cache = {(0, 0): {"response": "ok", "sandbox_used": True, "error": None}}
+        assert _verify_only_workspace_keys(inferred_cache, verified_cache) == set()
+
+    def test_records_without_sandbox_used_are_excluded(self):
+        # A record without a sandbox_used field is treated as non-workspace and kept.
+        verified_cache = {}
+        inferred_cache = {(0, 0): {"response": "ok", "error": None}}
+        assert _verify_only_workspace_keys(inferred_cache, verified_cache) == set()
