@@ -100,10 +100,7 @@ def format_model_traffic_log_records(
                 row[key] = record[key]
         if record.get("request_hash"):
             row["request_hash"] = record["request_hash"]
-        # Opt-in capture fields from ModelTrafficStore.finish_response: only
-        # forwarded when present in the in-memory record (controlled by the
-        # service's proxy.model_traffic.capture_{tool_calls,reasoning,messages}).
-        for key in ("tool_calls_full", "reasoning_content", "message_content"):
+        for key in ("request_body", "tool_calls_full", "reasoning_content", "message_content"):
             if key in record:
                 row[key] = record[key]
         rows.append(row)
