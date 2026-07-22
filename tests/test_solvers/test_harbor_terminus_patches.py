@@ -38,7 +38,8 @@ from nemo_evaluator.solvers.harbor import (
 
 def _query_llm_with_marker(self, *args, **kwargs):
     full_summarize_failed_with_cle = False
-    return full_summarize_failed_with_cle
+    marker = "EVALUATOR_LLM_ERROR_TRAJECTORY_STEP"
+    return full_summarize_failed_with_cle, marker
 
 
 def _unwind_with_marker(self, chat, target_free_tokens=4000):
@@ -63,16 +64,23 @@ def patch_sandbox():
     """Snapshot terminus-2/Chat patch targets and guard flags; restore after."""
     from harbor.agents.terminus_2 import terminus_2 as t2
     from harbor.llms.chat import Chat
+    from harbor.llms.lite_llm import LiteLLM
 
     terminus = t2.Terminus2
     saved_methods = {
         "_query_llm": terminus._query_llm,
+        "_run_agent_loop": terminus._run_agent_loop,
         "_unwind": terminus._unwind_messages_to_free_tokens,
         "_count": terminus._count_total_tokens,
         "chat_chat": Chat.chat,
+        "litellm_call": LiteLLM.call,
     }
     had_fallback = "_build_local_fallback_llm_content" in terminus.__dict__
     fallback_val = terminus.__dict__.get("_build_local_fallback_llm_content")
+    had_failed_llm_saver = "_save_failed_llm_response" in terminus.__dict__
+    failed_llm_saver_val = terminus.__dict__.get("_save_failed_llm_response")
+    had_failed_llm_appender = "_append_pending_failed_llm_response_steps" in terminus.__dict__
+    failed_llm_appender_val = terminus.__dict__.get("_append_pending_failed_llm_response_steps")
     had_records = "_records_api_token_anchor" in Chat.__dict__
     records_val = Chat.__dict__.get("_records_api_token_anchor")
     saved_flags = {name: getattr(harbor, name) for name in _FLAGS}
@@ -83,13 +91,23 @@ def patch_sandbox():
     yield SimpleNamespace(harbor=harbor, t2=t2, terminus=terminus, Chat=Chat)
 
     terminus._query_llm = saved_methods["_query_llm"]
+    terminus._run_agent_loop = saved_methods["_run_agent_loop"]
     terminus._unwind_messages_to_free_tokens = saved_methods["_unwind"]
     terminus._count_total_tokens = saved_methods["_count"]
     Chat.chat = saved_methods["chat_chat"]
+    LiteLLM.call = saved_methods["litellm_call"]
     if had_fallback:
         terminus._build_local_fallback_llm_content = fallback_val
     elif "_build_local_fallback_llm_content" in terminus.__dict__:
         delattr(terminus, "_build_local_fallback_llm_content")
+    if had_failed_llm_saver:
+        terminus._save_failed_llm_response = failed_llm_saver_val
+    elif "_save_failed_llm_response" in terminus.__dict__:
+        delattr(terminus, "_save_failed_llm_response")
+    if had_failed_llm_appender:
+        terminus._append_pending_failed_llm_response_steps = failed_llm_appender_val
+    elif "_append_pending_failed_llm_response_steps" in terminus.__dict__:
+        delattr(terminus, "_append_pending_failed_llm_response_steps")
     if had_records:
         Chat._records_api_token_anchor = records_val
     elif "_records_api_token_anchor" in Chat.__dict__:
@@ -235,6 +253,8 @@ class TestPatchCleReset:
         assert harbor._TERMINUS_CLE_RESET_PATCHED is True
         assert terminus._query_llm is not original
         assert hasattr(terminus, "_build_local_fallback_llm_content")
+        assert hasattr(terminus, "_save_failed_llm_response")
+        assert hasattr(terminus, "_append_pending_failed_llm_response_steps")
 
     def test_idempotent_when_flag_set(self, patch_sandbox):
         terminus = patch_sandbox.terminus
@@ -409,6 +429,129 @@ class TestPatchApiTokenAnchor:
         patch_sandbox.terminus._count_total_tokens = _diverged_method
         with pytest.raises(RuntimeError, match="diverged"):
             _patch_terminus_api_token_anchor()
+
+
+# ── failed LLM response accounting ───────────────────────────────────────
+
+
+class _FakeLiteLLMChoice(dict):
+    def __init__(self, data, token_ids):
+        super().__init__(data)
+        self.provider_specific_fields = {"token_ids": token_ids}
+
+
+class _FakeLiteLLMResponse(dict):
+    def __init__(self, *, content, finish_reason, prompt_tokens, completion_tokens, model, reasoning):
+        choice = _FakeLiteLLMChoice(
+            {
+                "message": {"content": content, "reasoning": reasoning},
+                "finish_reason": finish_reason,
+                "logprobs": {"content": [{"logprob": -0.1}] * completion_tokens},
+            },
+            list(range(completion_tokens)),
+        )
+        super().__init__({"model": model, "choices": [choice]})
+        self.prompt_token_ids = list(range(prompt_tokens))
+        self.usage = SimpleNamespace(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            prompt_tokens_details=SimpleNamespace(cached_tokens=0),
+        )
+        self._hidden_params = {"response_cost": 0.0}
+
+
+class TestPatchFailedLLMResponseAccounting:
+    async def test_length_response_becomes_ordered_atif_step_without_double_count(
+        self, patch_sandbox, monkeypatch, tmp_path
+    ):
+        import litellm
+        from harbor.agents.terminus_2 import terminus_2
+        from harbor.llms.chat import Chat
+        from harbor.models.trajectories import Step
+
+        _patch_terminus_cle_reset()
+
+        wire_totals = []
+
+        async def fake_acompletion(**_kwargs):
+            if not wire_totals:
+                wire_totals.append(11)
+                return _FakeLiteLLMResponse(
+                    content="TRUNCATED_OUTPUT",
+                    finish_reason="length",
+                    prompt_tokens=7,
+                    completion_tokens=4,
+                    model="wire-model",
+                    reasoning="raw-reasoning-field",
+                )
+            wire_totals.append(8)
+            return _FakeLiteLLMResponse(
+                content=json.dumps(
+                    {
+                        "analysis": "retry analysis",
+                        "plan": "retry plan",
+                        "commands": [],
+                        "task_complete": False,
+                    }
+                ),
+                finish_reason="stop",
+                prompt_tokens=6,
+                completion_tokens=2,
+                model="retry-model",
+                reasoning="retry-reasoning",
+            )
+
+        monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+
+        agent = terminus_2.Terminus2(
+            tmp_path,
+            model_name="openai/nano-v3.5",
+            parser_name="json",
+            max_turns=1,
+            api_base="http://model.test",
+            collect_rollout_details=True,
+            enable_summarize=False,
+            record_terminal_session=False,
+            suppress_max_turns_warning=True,
+            llm_call_kwargs={"max_tokens": 4},
+        )
+        agent._context = SimpleNamespace(n_input_tokens=None, n_output_tokens=None, n_cache_tokens=None, cost_usd=None)
+        agent._session = SimpleNamespace(is_session_alive=lambda: _return_async(True))
+        agent._trajectory_steps = [Step(step_id=1, source="user", message="initial prompt")]
+        agent._llm.get_model_output_limit = lambda: 4
+        dumped_step_counts = []
+        agent._dump_trajectory = lambda: dumped_step_counts.append(len(agent._trajectory_steps))
+        agent._record_asciinema_marker = lambda *_args, **_kwargs: None
+
+        async def execute_commands(_commands, _session):
+            return False, "observation"
+
+        agent._execute_commands = execute_commands
+        await agent._run_agent_loop("initial prompt", Chat(agent._llm))
+
+        assert dumped_step_counts == [3]
+        assert [step.source for step in agent._trajectory_steps] == ["user", "agent", "agent"]
+        assert [step.message for step in agent._trajectory_steps] == [
+            "initial prompt",
+            "TRUNCATED_OUTPUT",
+            "Analysis: retry analysis\nPlan: retry plan",
+        ]
+        failed_step, retry_step = agent._trajectory_steps[1:]
+        assert failed_step.reasoning_content == "raw-reasoning-field"
+        assert failed_step.metrics.prompt_tokens + failed_step.metrics.completion_tokens == 11
+        assert retry_step.metrics.prompt_tokens + retry_step.metrics.completion_tokens == 8
+        assert sum(wire_totals) == sum(
+            step.metrics.prompt_tokens + step.metrics.completion_tokens for step in agent._trajectory_steps[1:]
+        )
+
+    def test_terminus_run_loop_diverged_source_raises(self, patch_sandbox):
+        patch_sandbox.terminus._run_agent_loop = _diverged_method
+        with pytest.raises(RuntimeError, match="diverged"):
+            _patch_terminus_cle_reset()
+
+
+async def _return_async(value):
+    return value
 
 
 # ── HarborSolver._create_agent gating ────────────────────────────────────

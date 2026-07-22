@@ -1555,6 +1555,68 @@ def _terminus2_build_local_fallback_llm_content(self) -> str:
     )
 
 
+def _terminus2_save_failed_llm_response(self, chat: Any, error_msg: str, content: str, error: Any) -> None:
+    usage = getattr(error, "llm_usage", None)
+    metrics = None
+    if usage is not None:
+        chat._cumulative_input_tokens += usage.prompt_tokens
+        chat._cumulative_output_tokens += usage.completion_tokens
+        chat._cumulative_cache_tokens += usage.cache_tokens
+        chat._cumulative_cost += usage.cost_usd
+        totals = (chat.total_input_tokens, chat.total_output_tokens, chat.total_cache_tokens, chat.total_cost)
+        chat._api_token_anchor = (len(chat.messages), totals[0] + totals[1])
+        self._failed_llm_step_metric_anchor = totals
+        metrics = {
+            "prompt_tokens": usage.prompt_tokens,
+            "completion_tokens": usage.completion_tokens,
+            "cached_tokens": usage.cache_tokens or None,
+            "cost_usd": usage.cost_usd or None,
+        }
+
+    pending = getattr(self, "_pending_failed_llm_response_steps", [])
+    pending.append(
+        {
+            "source": "agent",
+            "model_name": getattr(error, "llm_model_name", None) or self._model_name,
+            "message": content,
+            "reasoning_content": getattr(error, "llm_reasoning_content", None),
+            "observation": {"results": [{"content": error_msg}]},
+            "metrics": metrics,
+        }
+    )
+    self._pending_failed_llm_response_steps = pending
+
+
+def _terminus2_append_pending_failed_llm_response_steps(
+    self,
+    tokens_before_input: int,
+    tokens_before_output: int,
+    tokens_before_cache: int,
+    cost_before: float,
+) -> tuple[int, int, int, float]:
+    pending = getattr(self, "_pending_failed_llm_response_steps", None)
+    if pending and getattr(self, "_trajectory_steps", None) is not None:
+        from datetime import datetime, timezone
+
+        from harbor.models.trajectories import Step
+
+        for step in pending:
+            self._trajectory_steps.append(
+                Step(
+                    step_id=len(self._trajectory_steps) + 1,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    **step,
+                )
+            )
+        self._pending_failed_llm_response_steps = []
+
+    anchor = getattr(self, "_failed_llm_step_metric_anchor", None)
+    if anchor is None:
+        return tokens_before_input, tokens_before_output, tokens_before_cache, cost_before
+    self._failed_llm_step_metric_anchor = None
+    return anchor
+
+
 def _patch_terminus_cle_reset() -> None:
     global _TERMINUS_CLE_RESET_PATCHED
     if _TERMINUS_CLE_RESET_PATCHED:
@@ -1564,33 +1626,74 @@ def _patch_terminus_cle_reset() -> None:
     import textwrap
 
     from harbor.agents.terminus_2 import terminus_2 as terminus2_mod
+    from harbor.llms import lite_llm as harbor_litellm
 
-    original = terminus2_mod.Terminus2._query_llm
-    src = inspect.getsource(inspect.unwrap(original))
-
-    if "full_summarize_failed_with_cle" in src:
-        _TERMINUS_CLE_RESET_PATCHED = True
-        logger.info("Terminus2._query_llm already contains the CLE chat-reset logic; skipping patch")
-        return
-
-    for anchor, replacement in _TERMINUS_CLE_RESET_REPLACEMENTS:
-        occurrences = src.count(anchor)
-        if occurrences != 1:
-            raise RuntimeError(
-                "Cannot patch Terminus2._query_llm for CLE chat reset: expected exactly "
-                f"one match for an anchor but found {occurrences}. Harbor's terminus_2.py "
-                "has diverged from the expected source."
-            )
-        src = src.replace(anchor, replacement, 1)
+    litellm_src = inspect.getsource(inspect.unwrap(harbor_litellm.LiteLLM.call))
+    if "_EVALUATOR_LENGTH_ERROR_DETAILS" not in litellm_src:
+        anchor = "                truncated_response=content,\n            )\n            raise exc\n"
+        replacement = anchor.replace(
+            "            raise exc\n",
+            "            # _EVALUATOR_LENGTH_ERROR_DETAILS\n"
+            "            exc.llm_usage = usage_info\n"
+            '            exc.llm_model_name = response.get("model")\n'
+            '            exc.llm_reasoning_content = reasoning_content or message.get("reasoning")\n'
+            "            raise exc\n",
+        )
+        if litellm_src.count(anchor) != 1:
+            raise RuntimeError("Cannot patch Harbor LiteLLM.call length-error details; lite_llm.py has diverged.")
+        namespace: dict[str, Any] = {}
+        exec(textwrap.dedent(litellm_src.replace(anchor, replacement, 1)), harbor_litellm.__dict__, namespace)
+        harbor_litellm.LiteLLM.call = namespace["call"]
 
     if not hasattr(terminus2_mod.Terminus2, "_build_local_fallback_llm_content"):
         terminus2_mod.Terminus2._build_local_fallback_llm_content = _terminus2_build_local_fallback_llm_content
+    if not hasattr(terminus2_mod.Terminus2, "_save_failed_llm_response"):
+        terminus2_mod.Terminus2._save_failed_llm_response = _terminus2_save_failed_llm_response
+    if not hasattr(terminus2_mod.Terminus2, "_append_pending_failed_llm_response_steps"):
+        terminus2_mod.Terminus2._append_pending_failed_llm_response_steps = (
+            _terminus2_append_pending_failed_llm_response_steps
+        )
+
+    def apply_replacements(src: str, replacements: list[tuple[str, str]], target: str) -> str:
+        for anchor, replacement in replacements:
+            occurrences = src.count(anchor)
+            if occurrences != 1:
+                raise RuntimeError(
+                    f"Cannot patch {target}: expected exactly one match for an anchor "
+                    f"but found {occurrences}. Harbor's terminus_2.py has diverged from the expected source."
+                )
+            src = src.replace(anchor, replacement, 1)
+        return src
+
+    query_src = inspect.getsource(inspect.unwrap(terminus2_mod.Terminus2._query_llm))
+    query_replacements = []
+    if "full_summarize_failed_with_cle" not in query_src:
+        query_replacements.extend(_TERMINUS_CLE_RESET_REPLACEMENTS)
+    if "EVALUATOR_LLM_ERROR_TRAJECTORY_STEP" not in query_src:
+        query_replacements.append((_TERMINUS_LLM_ERROR_STEP_QUERY_ANCHOR, _TERMINUS_LLM_ERROR_STEP_QUERY_REPLACEMENT))
+
+    run_loop_src = inspect.getsource(inspect.unwrap(terminus2_mod.Terminus2._run_agent_loop))
+    run_loop_patched = "self._append_pending_failed_llm_response_steps(" not in run_loop_src
+    if run_loop_patched:
+        run_loop_src = apply_replacements(
+            run_loop_src,
+            [(_TERMINUS_LLM_ERROR_STEP_APPEND_ANCHOR, _TERMINUS_LLM_ERROR_STEP_APPEND_REPLACEMENT)],
+            "Terminus2._run_agent_loop",
+        )
 
     namespace: dict[str, Any] = {}
-    exec(textwrap.dedent(src), terminus2_mod.__dict__, namespace)
-    terminus2_mod.Terminus2._query_llm = namespace["_query_llm"]
+    if query_replacements:
+        query_src = apply_replacements(query_src, query_replacements, "Terminus2._query_llm")
+        exec(textwrap.dedent(query_src), terminus2_mod.__dict__, namespace)
+        terminus2_mod.Terminus2._query_llm = namespace["_query_llm"]
+    if run_loop_patched:
+        exec(textwrap.dedent(run_loop_src), terminus2_mod.__dict__, namespace)
+        terminus2_mod.Terminus2._run_agent_loop = namespace["_run_agent_loop"]
     _TERMINUS_CLE_RESET_PATCHED = True
-    logger.info("Patched Terminus2._query_llm: reset chat on full-summary CLE + parseable local fallback")
+    logger.info(
+        "Patched Terminus2._query_llm: reset chat on full-summary CLE, "
+        "parseable local fallback, and failed-LLM response ATIF accounting"
+    )
 
 
 _TERMINUS_UNWIND_MIN_PAIRS = 10
@@ -1744,6 +1847,35 @@ def _patch_terminus_api_token_anchor() -> None:
     terminus2_mod.Terminus2._count_total_tokens = _terminus2_count_total_tokens
     _TERMINUS_API_ANCHOR_PATCHED = True
     logger.info("Patched Terminus2._count_total_tokens: anchor on API usage + litellm token remainder")
+
+
+_TERMINUS_LLM_ERROR_STEP_QUERY_ANCHOR = (
+    '            chat.messages.append({"role": "user", "content": prompt})\n'
+    '            chat.messages.append({"role": "assistant", "content": truncated_response})\n'
+    "            chat.reset_response_chain()\n"
+)
+
+_TERMINUS_LLM_ERROR_STEP_QUERY_REPLACEMENT = (
+    _TERMINUS_LLM_ERROR_STEP_QUERY_ANCHOR + "\n"
+    "            # EVALUATOR_LLM_ERROR_TRAJECTORY_STEP\n"
+    "            self._save_failed_llm_response(chat, error_msg, truncated_response, e)\n"
+)
+
+_TERMINUS_LLM_ERROR_STEP_APPEND_ANCHOR = (
+    "                self._pending_handoff_prompt = None\n"
+    "\n"
+    "            # Create message content from analysis and plan, or use raw response if raw_content is enabled\n"
+)
+
+_TERMINUS_LLM_ERROR_STEP_APPEND_REPLACEMENT = (
+    "                self._pending_handoff_prompt = None\n"
+    "\n"
+    "            tokens_before_input, tokens_before_output, tokens_before_cache, cost_before = "
+    "self._append_pending_failed_llm_response_steps("
+    "tokens_before_input, tokens_before_output, tokens_before_cache, cost_before)\n"
+    "\n"
+    "            # Create message content from analysis and plan, or use raw response if raw_content is enabled\n"
+)
 
 
 # Matches the vLLM ``VLLMValidationError`` phrasing raised by self-hosted vLLM
