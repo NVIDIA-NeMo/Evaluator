@@ -514,6 +514,58 @@ def main():
         assert "OH_CONDENSER_MAX_SIZE" in patched
         assert 'sys.path.insert(0, "/installed-agent/nel")' in patched
 
+    async def test_runner_patch_marks_condenser_llm_calls(self):
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        condenser_patch = next(
+            (s for s in decoded_scripts if "x-nel-call-kind" in s and "LLMSummarizingCondenser" in s),
+            None,
+        )
+        assert condenser_patch is not None
+        assert "model_copy" in condenser_patch
+        assert '_hdrs["x-nel-call-kind"] = "compaction"' in condenser_patch
+
+    async def test_runner_patch_skips_max_iteration_for_condensation(self):
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        max_iter_patch = next(
+            (
+                s
+                for s in decoded_scripts
+                if "local_conversation.py" in s and "_nel_last" in s and "isinstance(_nel_last, Condensation)" in s
+            ),
+            None,
+        )
+        assert max_iter_patch is not None
+        assert "iteration += 1" in max_iter_patch
+        assert "isinstance(_nel_last, (Condensation, CondensationRequest))" not in max_iter_patch
+
     _EVENTS_MSG_AND_ACTION = (
         'MessageEvent("agent", "partial reasoning", 1.0), ActionEvent(2.0, "call-1", "bash", \'{"command": "ls"}\')'
     )

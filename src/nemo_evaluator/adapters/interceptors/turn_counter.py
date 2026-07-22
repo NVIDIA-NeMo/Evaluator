@@ -22,6 +22,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from nemo_evaluator.adapters.call_kind import (
+    is_compaction_call_kind,
+    strip_call_kind_header,
+)
 from nemo_evaluator.adapters.types import AdapterRequest, RequestInterceptor
 
 logger = logging.getLogger(__name__)
@@ -115,6 +119,12 @@ class Interceptor(RequestInterceptor):
             )
 
     async def intercept_request(self, req: AdapterRequest) -> AdapterRequest:
+        kind = strip_call_kind_header(req.headers)
+        if is_compaction_call_kind(kind):
+            key = req.ctx.extra.get("session_id") or "?"
+            logger.debug("task %s skipping turn budget for compaction call", key)
+            return req
+
         key = req.ctx.extra.get("session_id")
         if not key:
             key = _session_key_from_body(req.body)

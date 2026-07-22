@@ -22,6 +22,7 @@ from openhands.sdk.llm import LLM, Message, TextContent
 from nemo_evaluator.solvers.openhands_compaction import (
     build_compaction_events_from_run,
     enrich_trajectory_with_compaction,
+    event_counts_toward_max_iterations,
     infer_openhands_trigger,
     is_hard_reset,
     splice_compaction_steps_into_trajectory,
@@ -175,6 +176,18 @@ def test_splice_compaction_steps_into_trajectory(mock_count: MagicMock, mock_llm
     assert compaction_step["extra"]["compaction"]["strategy_details"]["reason"] == "request"
     assert compaction_step["extra"]["compaction"]["strategy_details"]["requirement"] == "hard"
     assert compaction_step["observation"]["results"][0]["content"] == "condensed summary"
+
+
+def test_event_counts_toward_max_iterations() -> None:
+    user = _user_message("task")
+    agent = _agent_message("work")
+    condensation = _condensation({user.id})
+    request = CondensationRequest()
+    assert event_counts_toward_max_iterations(None) is True
+    assert event_counts_toward_max_iterations(user) is True
+    assert event_counts_toward_max_iterations(agent) is True
+    assert event_counts_toward_max_iterations(request) is True
+    assert event_counts_toward_max_iterations(condensation) is False
 
 
 @patch("nemo_evaluator.solvers.openhands_compaction.get_total_token_count", side_effect=[100, 20])

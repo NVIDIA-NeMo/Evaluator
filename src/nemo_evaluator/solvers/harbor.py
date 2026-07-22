@@ -321,6 +321,11 @@ async def _patch_openhands_sdk(sandbox: Sandbox, *, cmd_timeout: float | None = 
     6. **Log OpenHands condensation in ATIF trajectories** — upload NEL
        compaction helpers and splice system compaction steps after
        ``build_trajectory()`` when ``Condensation`` events are present.
+
+    7. **Exclude condensation-only steps from ``max_iteration_per_run``** —
+       when ``agent.step`` returns after emitting ``Condensation``, do not
+       increment the conversation iteration counter so compaction does not
+       consume the agent step budget.
     """
     # -- Patch 0: disable stuck detection + default visualizer -----------
     # stuck_detection=False: the SDK's heuristic mis-flags reasoning-model
@@ -443,6 +448,81 @@ print(f'agent.py FINISHED={ok1} nudge={ok2} at {p}')
             "Agent.py patch problem (rc=%d): %s",
             r2.return_code,
             stdout2 or (r2.stderr or "")[:300],
+        )
+
+    _max_iter_patch_script = """\
+import glob
+fs = glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/conversation/impl/local_conversation.py')
+p = fs[0] if fs else ''
+assert p, 'local_conversation.py not found'
+c = open(p).read()
+if '_nel_last = self._state.events[-1]' in c:
+    print(f'local_conversation.py max_iter condensation skip: already patched at {p}')
+else:
+    old_imp = (
+        'from openhands.sdk.event import (\\n'
+        '    ActionEvent,\\n'
+        '    AgentErrorEvent,\\n'
+        '    CondensationRequest,\\n'
+    )
+    new_imp = (
+        'from openhands.sdk.event import (\\n'
+        '    ActionEvent,\\n'
+        '    AgentErrorEvent,\\n'
+        '    Condensation,\\n'
+        '    CondensationRequest,\\n'
+    )
+    ok_imp = old_imp in c
+    if ok_imp:
+        c = c.replace(old_imp, new_imp, 1)
+    old_inc = (
+        '                    finally:\\n'
+        '                        self._step_holds_state_lock = False\\n'
+        '                    iteration += 1\\n'
+    )
+    new_inc = (
+        '                    finally:\\n'
+        '                        self._step_holds_state_lock = False\\n'
+        '                    _nel_last = self._state.events[-1] if self._state.events else None\\n'
+        '                    if not isinstance(_nel_last, Condensation):\\n'
+        '                        iteration += 1\\n'
+    )
+    n_inc = c.count(old_inc)
+    if n_inc:
+        c = c.replace(old_inc, new_inc)
+    old_inc_async = (
+        '                        finally:\\n'
+        '                            self._step_holds_state_lock = False\\n'
+        '                        iteration += 1\\n'
+    )
+    new_inc_async = (
+        '                        finally:\\n'
+        '                            self._step_holds_state_lock = False\\n'
+        '                        _nel_last = self._state.events[-1] if self._state.events else None\\n'
+        '                        if not isinstance(_nel_last, Condensation):\\n'
+        '                            iteration += 1\\n'
+    )
+    n_inc_async = c.count(old_inc_async)
+    if n_inc_async:
+        c = c.replace(old_inc_async, new_inc_async)
+    if ok_imp or n_inc or n_inc_async:
+        open(p, 'w').write(c)
+    print(f'local_conversation.py max_iter condensation skip: import={ok_imp} sync={n_inc} async={n_inc_async} at {p}')
+"""
+    encoded_max_iter = base64.b64encode(_max_iter_patch_script.encode()).decode()
+    r_max_iter = await sandbox.exec(
+        f"echo {encoded_max_iter} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout_max_iter = (r_max_iter.stdout or "").strip()
+    logger.info("Max-iteration condensation skip patch: %s", stdout_max_iter)
+    if r_max_iter.return_code != 0 or (
+        "already patched" not in stdout_max_iter and "sync=0" in stdout_max_iter and "async=0" in stdout_max_iter
+    ):
+        logger.warning(
+            "Max-iteration condensation skip patch problem (rc=%d): %s",
+            r_max_iter.return_code,
+            stdout_max_iter or (r_max_iter.stderr or "")[:300],
         )
 
     # -- Patch 2: capture reasoning, metrics, and tool timing in ATIF --------
@@ -586,7 +666,10 @@ new_cond_build = (
     '    _cms = os.environ.get("OH_CONDENSER_MAX_SIZE")\\n'
     '    if _cms:\\n'
     '        from openhands.sdk.context.condenser import LLMSummarizingCondenser\\n'
-    '        _ck = {"llm": llm, "max_size": int(_cms), "keep_first": 4}\\n'
+    '        _hdrs = dict(llm.extra_headers or {})\\n'
+    '        _hdrs["x-nel-call-kind"] = "compaction"\\n'
+    '        _cond_llm = llm.model_copy(update={"extra_headers": _hdrs})\\n'
+    '        _ck = {"llm": _cond_llm, "max_size": int(_cms), "keep_first": 4}\\n'
     '        _cmt = os.environ.get("OH_CONDENSER_MAX_TOKENS")\\n'
     '        if _cmt:\\n'
     '            _ck["max_tokens"] = int(_cmt)\\n'
@@ -2062,6 +2145,65 @@ def _apply_source_replacements(src: str, replacements: list[tuple[str, str]], *,
     return src
 
 
+def _strip_def_indent(src: str) -> str:
+    lines = src.splitlines(True)
+    if not lines:
+        return src
+    first = lines[0]
+    indent = len(first) - len(first.lstrip(" "))
+    if indent == 0:
+        return src
+    prefix = " " * indent
+    return "".join(line[indent:] if line.startswith(prefix) else line for line in lines)
+
+
+_SHORT_SUMMARY_LLM_CALL_ANCHOR = (
+    "                    short_llm_response: LLMResponse = await self._llm.call(\n"
+    "                        prompt=short_prompt,\n"
+    "                        **self._llm_call_kwargs,\n"
+    "                    )\n"
+)
+_SHORT_SUMMARY_LLM_CALL_REPLACEMENT = (
+    "                    short_llm_response: LLMResponse = await self._llm.call(\n"
+    "                        prompt=short_prompt,\n"
+    "                        **self._nel_compaction_llm_call_kwargs(),\n"
+    "                    )\n"
+)
+
+_RUN_SUBAGENT_KWARGS_ANCHOR = (
+    "        response: LLMResponse = await self._llm.call(\n"
+    "            prompt=prompt,\n"
+    "            message_history=message_history,\n"
+    "            **self._llm_call_kwargs,\n"
+    "        )\n"
+)
+_RUN_SUBAGENT_KWARGS_REPLACEMENT = (
+    "        response: LLMResponse = await self._llm.call(\n"
+    "            prompt=prompt,\n"
+    "            message_history=message_history,\n"
+    "            **(llm_call_kwargs if llm_call_kwargs is not None else self._llm_call_kwargs),\n"
+    "        )\n"
+)
+
+_RUN_SUBAGENT_SIGNATURE_ANCHOR = (
+    "        summary_text: str,\n"
+    '        subagent_name_for_logging: str = "subagent",\n'
+    "    ) -> tuple[LLMResponse, SubagentTrajectoryRef]:\n"
+)
+_RUN_SUBAGENT_SIGNATURE_REPLACEMENT = (
+    "        summary_text: str,\n"
+    '        subagent_name_for_logging: str = "subagent",\n'
+    "        llm_call_kwargs: dict | None = None,\n"
+    "    ) -> tuple[LLMResponse, SubagentTrajectoryRef]:\n"
+)
+
+
+def _terminus2_nel_compaction_llm_call_kwargs(self) -> dict[str, Any]:
+    from nemo_evaluator.adapters.call_kind import merge_compaction_extra_headers
+
+    return merge_compaction_extra_headers(self._llm_call_kwargs)
+
+
 def _patch_terminus_compaction_logging() -> None:
     global _TERMINUS_COMPACTION_PATCHED, _TERMINUS_QUERY_LLM_SRC
     if _TERMINUS_COMPACTION_PATCHED:
@@ -2081,56 +2223,58 @@ def _patch_terminus_compaction_logging() -> None:
     terminus2_mod.Terminus2._nel_set_proactive_pending_compaction = _terminus2_nel_set_proactive_pending_compaction
     terminus2_mod.Terminus2._nel_set_cle_pending_compaction = _terminus2_nel_set_cle_pending_compaction
     terminus2_mod.Terminus2._nel_flush_pending_compaction = _terminus2_nel_flush_pending_compaction
+    terminus2_mod.Terminus2._nel_compaction_llm_call_kwargs = _terminus2_nel_compaction_llm_call_kwargs
     terminus2_mod.Terminus2._dump_trajectory_with_continuation_index = (
         _terminus2_nel_dump_trajectory_with_continuation_index
     )
 
     run_loop_src = inspect.getsource(inspect.unwrap(terminus2_mod.Terminus2._run_agent_loop))
     if "_nel_flush_pending_compaction" in run_loop_src:
-        _TERMINUS_COMPACTION_PATCHED = True
-        logger.info("Terminus2._run_agent_loop already contains compaction logging; skipping patch")
-        return
+        logger.info("Terminus2._run_agent_loop already contains compaction logging; skipping run-loop patch")
+    else:
+        run_loop_src = _apply_source_replacements(
+            run_loop_src,
+            [
+                (_PROACTIVE_COMPACTION_ANCHOR, _PROACTIVE_COMPACTION_REPLACEMENT),
+                (_RUN_AGENT_LOOP_COMPACTION_ANCHOR, _RUN_AGENT_LOOP_COMPACTION_REPLACEMENT),
+            ],
+            label="Terminus2._run_agent_loop for compaction logging",
+        )
+        run_loop_namespace: dict[str, Any] = {}
+        exec(textwrap.dedent(run_loop_src), terminus2_mod.__dict__, run_loop_namespace)
+        terminus2_mod.Terminus2._run_agent_loop = run_loop_namespace["_run_agent_loop"]
 
-    run_loop_src = _apply_source_replacements(
-        run_loop_src,
-        [
-            (_PROACTIVE_COMPACTION_ANCHOR, _PROACTIVE_COMPACTION_REPLACEMENT),
-            (_RUN_AGENT_LOOP_COMPACTION_ANCHOR, _RUN_AGENT_LOOP_COMPACTION_REPLACEMENT),
-        ],
-        label="Terminus2._run_agent_loop for compaction logging",
-    )
-    run_loop_namespace: dict[str, Any] = {}
-    exec(textwrap.dedent(run_loop_src), terminus2_mod.__dict__, run_loop_namespace)
-    terminus2_mod.Terminus2._run_agent_loop = run_loop_namespace["_run_agent_loop"]
-
-    proactive_method = inspect.unwrap(terminus2_mod.Terminus2._check_proactive_summarization)
-    try:
-        proactive_src = inspect.getsource(proactive_method)
-    except OSError:
-        proactive_src = ""
-    if "_nel_stash_compaction_token_snapshots" not in proactive_src:
-        if not proactive_src:
-            if "_nel_stash_compaction_token_snapshots" not in proactive_method.__code__.co_names:
-                raise RuntimeError(
-                    "Cannot patch Terminus2._check_proactive_summarization for compaction logging: "
-                    "source is unavailable and the method is not already patched."
+        proactive_method = inspect.unwrap(terminus2_mod.Terminus2._check_proactive_summarization)
+        try:
+            proactive_src = inspect.getsource(proactive_method)
+        except OSError:
+            proactive_src = ""
+        if "_nel_stash_compaction_token_snapshots" not in proactive_src:
+            if not proactive_src:
+                if "_nel_stash_compaction_token_snapshots" not in proactive_method.__code__.co_names:
+                    raise RuntimeError(
+                        "Cannot patch Terminus2._check_proactive_summarization for compaction logging: "
+                        "source is unavailable and the method is not already patched."
+                    )
+            else:
+                proactive_src = _apply_source_replacements(
+                    proactive_src,
+                    [(_PROACTIVE_CHECK_ANCHOR, _PROACTIVE_CHECK_REPLACEMENT)],
+                    label="Terminus2._check_proactive_summarization for compaction logging",
                 )
-        else:
-            proactive_src = _apply_source_replacements(
-                proactive_src,
-                [(_PROACTIVE_CHECK_ANCHOR, _PROACTIVE_CHECK_REPLACEMENT)],
-                label="Terminus2._check_proactive_summarization for compaction logging",
-            )
-            proactive_namespace: dict[str, Any] = {}
-            exec(textwrap.dedent(proactive_src), terminus2_mod.__dict__, proactive_namespace)
-            terminus2_mod.Terminus2._check_proactive_summarization = proactive_namespace[
-                "_check_proactive_summarization"
-            ]
+                proactive_namespace: dict[str, Any] = {}
+                exec(textwrap.dedent(proactive_src), terminus2_mod.__dict__, proactive_namespace)
+                terminus2_mod.Terminus2._check_proactive_summarization = proactive_namespace[
+                    "_check_proactive_summarization"
+                ]
 
     if _TERMINUS_QUERY_LLM_SRC is None:
-        _TERMINUS_QUERY_LLM_SRC = inspect.getsource(inspect.unwrap(terminus2_mod.Terminus2._query_llm))
+        try:
+            _TERMINUS_QUERY_LLM_SRC = inspect.getsource(inspect.unwrap(terminus2_mod.Terminus2._query_llm))
+        except OSError:
+            _TERMINUS_QUERY_LLM_SRC = ""
     query_src = _TERMINUS_QUERY_LLM_SRC
-    if "_nel_set_cle_pending_compaction" not in query_src:
+    if query_src and "_nel_set_cle_pending_compaction" not in query_src:
         query_replacements = [
             (
                 "            self._unwind_messages_to_free_tokens(chat, target_free_tokens=4000)\n"
@@ -2171,6 +2315,10 @@ def _patch_terminus_compaction_logging() -> None:
                 "                    self._nel_record_failed_compaction_attempt(\n"
                 '                        nel_cle_attempts, "terminus_short_fallback", str(e)\n'
                 "                    )\n",
+            ),
+            (
+                _SHORT_SUMMARY_LLM_CALL_ANCHOR,
+                _SHORT_SUMMARY_LLM_CALL_REPLACEMENT,
             ),
         ]
         if "full_summarize_failed_with_cle" in query_src:
@@ -2240,9 +2388,91 @@ def _patch_terminus_compaction_logging() -> None:
         exec(textwrap.dedent(query_src), terminus2_mod.__dict__, query_namespace)
         terminus2_mod.Terminus2._query_llm = query_namespace["_query_llm"]
         _TERMINUS_QUERY_LLM_SRC = query_src
+    elif query_src and "_nel_compaction_llm_call_kwargs()" not in query_src:
+        if _SHORT_SUMMARY_LLM_CALL_ANCHOR not in query_src:
+            raise RuntimeError(
+                "Cannot patch Terminus2._query_llm short-summary call for compaction turn marker: "
+                "expected source anchor not found."
+            )
+        query_src = _apply_source_replacements(
+            query_src,
+            [(_SHORT_SUMMARY_LLM_CALL_ANCHOR, _SHORT_SUMMARY_LLM_CALL_REPLACEMENT)],
+            label="Terminus2._query_llm short-summary compaction turn marker",
+        )
+        query_namespace = {}
+        exec(textwrap.dedent(query_src), terminus2_mod.__dict__, query_namespace)
+        terminus2_mod.Terminus2._query_llm = query_namespace["_query_llm"]
+        _TERMINUS_QUERY_LLM_SRC = query_src
 
     _TERMINUS_COMPACTION_PATCHED = True
     logger.info("Patched Terminus2 for ATIF context compaction logging")
+
+
+_TERMINUS_COMPACTION_TURN_MARKER_PATCHED = False
+
+
+def _patch_terminus_compaction_turn_marker() -> None:
+    global _TERMINUS_COMPACTION_TURN_MARKER_PATCHED
+    if _TERMINUS_COMPACTION_TURN_MARKER_PATCHED:
+        return
+
+    import inspect
+
+    from harbor.agents.terminus_2 import terminus_2 as terminus2_mod
+
+    terminus2_mod.Terminus2._nel_compaction_llm_call_kwargs = _terminus2_nel_compaction_llm_call_kwargs
+
+    run_subagent_src = inspect.getsource(inspect.unwrap(terminus2_mod.Terminus2._run_subagent))
+    if "llm_call_kwargs if llm_call_kwargs is not None" not in run_subagent_src:
+        run_subagent_src = _apply_source_replacements(
+            run_subagent_src,
+            [
+                (_RUN_SUBAGENT_SIGNATURE_ANCHOR, _RUN_SUBAGENT_SIGNATURE_REPLACEMENT),
+                (_RUN_SUBAGENT_KWARGS_ANCHOR, _RUN_SUBAGENT_KWARGS_REPLACEMENT),
+            ],
+            label="Terminus2._run_subagent for optional llm_call_kwargs",
+        )
+        run_subagent_namespace: dict[str, Any] = {}
+        exec(_strip_def_indent(run_subagent_src), terminus2_mod.__dict__, run_subagent_namespace)
+        terminus2_mod.Terminus2._run_subagent = run_subagent_namespace["_run_subagent"]
+
+    summarize_method = inspect.unwrap(terminus2_mod.Terminus2._summarize)
+    try:
+        summarize_src = inspect.getsource(summarize_method)
+    except OSError:
+        summarize_src = ""
+    if summarize_src and "_nel_compaction_llm_call_kwargs()" not in summarize_src:
+        summarize_replacements = [
+            (
+                '            subagent_name_for_logging="summary generation LLM call",\n        )\n',
+                '            subagent_name_for_logging="summary generation LLM call",\n'
+                "            llm_call_kwargs=self._nel_compaction_llm_call_kwargs(),\n"
+                "        )\n",
+            ),
+            (
+                '            subagent_name_for_logging="questions subagent",\n        )\n',
+                '            subagent_name_for_logging="questions subagent",\n'
+                "            llm_call_kwargs=self._nel_compaction_llm_call_kwargs(),\n"
+                "        )\n",
+            ),
+            (
+                '            subagent_name_for_logging="answers subagent",\n        )\n',
+                '            subagent_name_for_logging="answers subagent",\n'
+                "            llm_call_kwargs=self._nel_compaction_llm_call_kwargs(),\n"
+                "        )\n",
+            ),
+        ]
+        summarize_src = _apply_source_replacements(
+            summarize_src,
+            summarize_replacements,
+            label="Terminus2._summarize compaction llm_call_kwargs",
+        )
+        summarize_namespace: dict[str, Any] = {}
+        exec(_strip_def_indent(summarize_src), terminus2_mod.__dict__, summarize_namespace)
+        terminus2_mod.Terminus2._summarize = summarize_namespace["_summarize"]
+
+    _TERMINUS_COMPACTION_TURN_MARKER_PATCHED = True
+    logger.info("Patched Terminus2 to mark compaction LLM calls for turn_counter")
 
 
 _TOKENIZER_REGISTRY: dict[str, dict] = {}
@@ -2454,6 +2684,7 @@ class HarborSolver:
             _patch_terminus_api_token_anchor()
             _patch_harbor_lite_llm_context_length_matcher()
             _patch_terminus_compaction_logging()
+            _patch_terminus_compaction_turn_marker()
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
         _configure_terminus_tokenizer(

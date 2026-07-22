@@ -28,6 +28,7 @@ from nemo_evaluator.solvers.harbor import (
     _patch_terminus_api_token_anchor,
     _patch_terminus_cle_reset,
     _patch_terminus_compaction_logging,
+    _patch_terminus_compaction_turn_marker,
     _patch_terminus_unwind_min_pairs,
     _terminus2_build_local_fallback_llm_content,
     _terminus2_count_total_tokens,
@@ -58,14 +59,12 @@ _FLAGS = (
     "_TERMINUS_API_ANCHOR_PATCHED",
     "_CHAT_TOKEN_ANCHOR_PATCHED",
     "_TERMINUS_COMPACTION_PATCHED",
+    "_TERMINUS_COMPACTION_TURN_MARKER_PATCHED",
 )
 
 _NEL_METHODS = (
     "_nel_ensure_compaction_state",
     "_nel_stash_compaction_token_snapshots",
-    "_nel_subagent_metrics_snapshot",
-    "_nel_summary_generation_from_subagent_delta",
-    "_nel_summary_generation_from_usage",
     "_nel_token_snapshot",
     "_nel_compaction_mechanism",
     "_nel_make_compaction_event",
@@ -73,6 +72,7 @@ _NEL_METHODS = (
     "_nel_set_proactive_pending_compaction",
     "_nel_set_cle_pending_compaction",
     "_nel_flush_pending_compaction",
+    "_nel_compaction_llm_call_kwargs",
 )
 
 
@@ -90,6 +90,8 @@ def patch_sandbox():
         "_run_agent_loop": terminus._run_agent_loop,
         "_check_proactive": terminus._check_proactive_summarization,
         "_dump": terminus._dump_trajectory_with_continuation_index,
+        "_run_subagent": terminus._run_subagent,
+        "_summarize": terminus._summarize,
         "chat_chat": Chat.chat,
     }
     saved_nel = {name: terminus.__dict__.get(name) for name in _NEL_METHODS}
@@ -111,6 +113,8 @@ def patch_sandbox():
     terminus._run_agent_loop = saved_methods["_run_agent_loop"]
     terminus._check_proactive_summarization = saved_methods["_check_proactive"]
     terminus._dump_trajectory_with_continuation_index = saved_methods["_dump"]
+    terminus._run_subagent = saved_methods["_run_subagent"]
+    terminus._summarize = saved_methods["_summarize"]
     Chat.chat = saved_methods["chat_chat"]
     for name, value in saved_nel.items():
         if value is not None:
@@ -465,7 +469,8 @@ class TestCreateAgentGating:
         from unittest.mock import MagicMock, patch
 
         solver = self._solver("terminus-2")
-        cle, unwind, anchor, ctxlim, compaction = (
+        cle, unwind, anchor, ctxlim, compaction, turn_marker = (
+            MagicMock(),
             MagicMock(),
             MagicMock(),
             MagicMock(),
@@ -480,6 +485,10 @@ class TestCreateAgentGating:
             ctxlim,
         )
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_compaction_logging", compaction)
+        monkeypatch.setattr(
+            "nemo_evaluator.solvers.harbor._patch_terminus_compaction_turn_marker",
+            turn_marker,
+        )
 
         sentinel = object()
         with patch("harbor.agents.factory.AgentFactory.create_agent_from_name", return_value=sentinel):
@@ -491,12 +500,14 @@ class TestCreateAgentGating:
         anchor.assert_called_once()
         ctxlim.assert_called_once()
         compaction.assert_called_once()
+        turn_marker.assert_called_once()
 
     def test_non_terminus_agent_skips_patches(self, tmp_path, monkeypatch):
         from unittest.mock import MagicMock, patch
 
         solver = self._solver("openhands")
-        cle, unwind, anchor, ctxlim, compaction = (
+        cle, unwind, anchor, ctxlim, compaction, turn_marker = (
+            MagicMock(),
             MagicMock(),
             MagicMock(),
             MagicMock(),
@@ -511,6 +522,10 @@ class TestCreateAgentGating:
             ctxlim,
         )
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_compaction_logging", compaction)
+        monkeypatch.setattr(
+            "nemo_evaluator.solvers.harbor._patch_terminus_compaction_turn_marker",
+            turn_marker,
+        )
 
         with patch("harbor.agents.factory.AgentFactory.create_agent_from_name", return_value=object()):
             solver._create_agent(tmp_path)
@@ -520,6 +535,7 @@ class TestCreateAgentGating:
         anchor.assert_not_called()
         ctxlim.assert_not_called()
         compaction.assert_not_called()
+        turn_marker.assert_not_called()
 
 
 # ── _patch_harbor_lite_llm_context_length_matcher ────────────────────────
@@ -739,3 +755,47 @@ class TestPatchCompactionLogging:
         _patch_terminus_compaction_logging()
         assert harbor._TERMINUS_COMPACTION_PATCHED is True
         assert terminus._run_agent_loop is original
+
+
+class TestPatchTerminusCompactionTurnMarker:
+    def test_marks_summarize_subagent_calls_not_generic_subagent(self, patch_sandbox):
+        terminus = patch_sandbox.terminus
+        _patch_terminus_compaction_logging()
+        _patch_terminus_compaction_turn_marker()
+        assert harbor._TERMINUS_COMPACTION_TURN_MARKER_PATCHED is True
+        assert hasattr(terminus, "_nel_compaction_llm_call_kwargs")
+        assert harbor._TERMINUS_QUERY_LLM_SRC is not None
+        assert "_nel_compaction_llm_call_kwargs()" in harbor._TERMINUS_QUERY_LLM_SRC
+        summarize_src = terminus._summarize.__code__.co_consts
+        assert (
+            any(isinstance(c, str) and "_nel_compaction_llm_call_kwargs" in c for c in summarize_src)
+            or "_nel_compaction_llm_call_kwargs" in terminus._summarize.__code__.co_names
+        )
+        assert "llm_call_kwargs" in terminus._run_subagent.__code__.co_varnames
+
+    def test_idempotent(self, patch_sandbox):
+        terminus = patch_sandbox.terminus
+        _patch_terminus_compaction_logging()
+        _patch_terminus_compaction_turn_marker()
+        first_subagent = terminus._run_subagent
+        first_summarize = terminus._summarize
+        _patch_terminus_compaction_turn_marker()
+        assert terminus._run_subagent is first_subagent
+        assert terminus._summarize is first_summarize
+
+    def test_compaction_kwargs_carry_header_default_subagent_does_not(self, patch_sandbox, tmp_path):
+        from nemo_evaluator.adapters.call_kind import NEL_CALL_KIND_COMPACTION, NEL_CALL_KIND_HEADER
+
+        terminus = patch_sandbox.terminus
+        _patch_terminus_compaction_logging()
+        _patch_terminus_compaction_turn_marker()
+        agent = terminus(
+            logs_dir=tmp_path,
+            model_name="test-model",
+            model_info={"max_input_tokens": 1000, "max_output_tokens": 1000},
+        )
+        agent._llm_call_kwargs = {"temperature": 0.2}
+        marked = agent._nel_compaction_llm_call_kwargs()
+        assert marked["extra_headers"][NEL_CALL_KIND_HEADER] == NEL_CALL_KIND_COMPACTION
+        assert agent._llm_call_kwargs == {"temperature": 0.2}
+        assert "extra_headers" not in agent._llm_call_kwargs

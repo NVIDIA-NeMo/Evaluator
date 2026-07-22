@@ -25,6 +25,12 @@ DEFAULT_OPENHANDS_MAX_SIZE = 80
 DEFAULT_OPENHANDS_KEEP_FIRST = 4
 
 
+def event_counts_toward_max_iterations(event: Event | None) -> bool:
+    if event is None:
+        return True
+    return not isinstance(event, Condensation)
+
+
 def _parse_timestamp(value: str | None) -> datetime | None:
     if not value:
         return None
