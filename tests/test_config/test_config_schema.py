@@ -114,7 +114,7 @@ class TestParseEvalConfig:
             pytest.param(
                 {"proxy": {}},
                 {},
-                {"messages": True, "reasoning": True, "tool_calls": True},
+                {"messages": True, "reasoning": True, "tool_calls": True, "request_body": False},
                 True,
                 id="model-traffic-defaults",
             ),
@@ -129,14 +129,27 @@ class TestParseEvalConfig:
                     }
                 },
                 {},
-                {"messages": False, "reasoning": False, "tool_calls": False},
+                {"messages": False, "reasoning": False, "tool_calls": False, "request_body": False},
                 True,
                 id="model-traffic-disabled",
             ),
             pytest.param(
+                {
+                    "proxy": {
+                        "model_traffic": {
+                            "capture_request_body": True,
+                        }
+                    }
+                },
+                {},
+                {"messages": True, "reasoning": True, "tool_calls": True, "request_body": True},
+                True,
+                id="model-traffic-request-body-enabled",
+            ),
+            pytest.param(
                 {"proxy": {}},
                 {"trajectories": {"enrich": False}},
-                {"messages": True, "reasoning": True, "tool_calls": True},
+                {"messages": True, "reasoning": True, "tool_calls": True, "request_body": False},
                 False,
                 id="trajectory-enrichment-disabled",
             ),
@@ -173,7 +186,8 @@ class TestParseEvalConfig:
         assert capture.capture_messages is expected_capture["messages"]
         assert capture.capture_reasoning is expected_capture["reasoning"]
         assert capture.capture_tool_calls is expected_capture["tool_calls"]
-        assert capture.max_content_chars == 100_000
+        assert capture.capture_request_body is expected_capture["request_body"]
+        assert capture.max_content_chars == 0
         assert cfg.output.trajectories.enrich is expected_enrich
 
     def test_vllm_service(self):
