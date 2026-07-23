@@ -1813,6 +1813,8 @@ def _terminus2_nel_ensure_compaction_state(self) -> None:
         self._nel_stashed_tokens_after = None
     if not hasattr(self, "_nel_stashed_tokens_intermediate"):
         self._nel_stashed_tokens_intermediate = None
+    if not hasattr(self, "_nel_compaction_count"):
+        self._nel_compaction_count = 0
 
 
 def _terminus2_nel_stash_compaction_token_snapshots(
@@ -1870,9 +1872,9 @@ def _terminus2_nel_make_compaction_event(
         subagent_trajectory_refs_to_dicts,
     )
 
-    if strategy != "terminus_three_phase_subagent":
-        self._summarization_count += 1
-    compaction_index = self._summarization_count
+    self._nel_ensure_compaction_state()
+    self._nel_compaction_count += 1
+    compaction_index = self._nel_compaction_count
     return CompactionEvent(
         compaction_index=compaction_index,
         trigger=trigger,

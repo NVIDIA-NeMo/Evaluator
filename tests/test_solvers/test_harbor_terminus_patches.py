@@ -759,6 +759,48 @@ class TestPatchCompactionLogging:
         ]
         assert agent._pending_handoff_prompt is None
 
+    def test_cle_fallback_does_not_mutate_summarization_count(self, patch_sandbox, tmp_path):
+        """Regression: NEL owns its own compaction counter and must not touch
+        Terminus's ``_summarization_count`` (which drives linear_history
+        continuation file naming). ``_summarize`` bumps that counter before it
+        can fail, so on the CLE short/ultimate fallback NEL previously
+        double-incremented it and corrupted the continuation chain."""
+        from nemo_evaluator.solvers.compaction_logging import CompactionTokens
+        from nemo_evaluator.solvers.harbor import _terminus2_nel_set_cle_pending_compaction
+
+        _patch_terminus_compaction_logging()
+        terminus = patch_sandbox.terminus
+        agent = terminus(
+            logs_dir=tmp_path,
+            model_name="test-model",
+            model_info={"max_input_tokens": 1000, "max_output_tokens": 1000},
+        )
+        agent._trajectory_steps = []
+        agent._linear_history = False
+        chat = SimpleNamespace(messages=[{"role": "system", "content": "s"}])
+
+        def _snap():
+            return CompactionTokens(prompt_tokens_approx=8_000, context_limit=200_000, free_tokens=192_000)
+
+        agent._summarization_count = 5
+
+        for expected_index in (1, 2):
+            _terminus2_nel_set_cle_pending_compaction(
+                agent,
+                chat,
+                "handoff",
+                "terminus_short_fallback",
+                [],
+                None,
+                _snap(),
+                _snap(),
+                None,
+                None,
+            )
+            assert agent._nel_pending_compaction.compaction_index == expected_index
+
+        assert agent._summarization_count == 5
+
     def test_idempotent_when_marker_present(self, patch_sandbox):
         terminus = patch_sandbox.terminus
 
