@@ -1797,91 +1797,6 @@ def _patch_harbor_lite_llm_context_length_matcher() -> None:
 
 _TERMINUS_COMPACTION_PATCHED = False
 
-_RUN_AGENT_LOOP_COMPACTION_ANCHOR = (
-    "            # If we have pending subagent refs, add a system step to record the delegation\n"
-    "            # This must happen before we build the agent step\n"
-    "            # We use len(self._trajectory_steps) + 1 as the step_id to ensure it's sequential\n"
-    "            if self._pending_subagent_refs:\n"
-    "                self._trajectory_steps.append(\n"
-    "                    Step(\n"
-    "                        step_id=len(self._trajectory_steps) + 1,\n"
-    "                        timestamp=datetime.now(timezone.utc).isoformat(),\n"
-    '                        source="system",\n'
-    '                        message="Performed context summarization and handoff to continue task.",\n'
-    "                        observation=Observation(\n"
-    "                            results=[\n"
-    "                                ObservationResult(\n"
-    "                                    subagent_trajectory_ref=self._pending_subagent_refs\n"
-    "                                )\n"
-    "                            ]\n"
-    "                        ),\n"
-    "                    )\n"
-    "                )\n"
-    "                self._pending_subagent_refs = None\n"
-    "\n"
-    "            # Handle handoff prompt based on linear_history mode\n"
-    "            if self._pending_handoff_prompt:\n"
-    "                # If linear_history mode is enabled, split trajectory immediately WITHOUT adding handoff step\n"
-    "                # The handoff step will be added to the continuation trajectory during the split\n"
-    "                if self._linear_history:\n"
-    "                    self._split_trajectory_on_summarization(\n"
-    "                        self._pending_handoff_prompt\n"
-    "                    )\n"
-    "                else:\n"
-    "                    # For non-linear mode, add the handoff prompt as a user step\n"
-    "                    self._trajectory_steps.append(\n"
-    "                        Step(\n"
-    "                            step_id=len(self._trajectory_steps) + 1,\n"
-    "                            timestamp=datetime.now(timezone.utc).isoformat(),\n"
-    '                            source="user",\n'
-    "                            message=self._pending_handoff_prompt,\n"
-    "                        )\n"
-    "                    )\n"
-    "                self._pending_handoff_prompt = None\n"
-)
-
-_RUN_AGENT_LOOP_COMPACTION_REPLACEMENT = "            self._nel_flush_pending_compaction(chat)\n"
-
-_PROACTIVE_COMPACTION_ANCHOR = (
-    "                if proactive_summary_result:\n"
-    "                    prompt, subagent_refs = proactive_summary_result\n"
-    "                    # Store subagent_refs to add a system step later\n"
-    "                    self._pending_subagent_refs = subagent_refs\n"
-    "                    # Also store the handoff prompt to add as a user step\n"
-    "                    self._pending_handoff_prompt = prompt\n"
-)
-
-_PROACTIVE_COMPACTION_REPLACEMENT = (
-    "                if proactive_summary_result:\n"
-    "                    prompt, subagent_refs = proactive_summary_result\n"
-    "                    self._pending_subagent_refs = subagent_refs\n"
-    "                    self._pending_handoff_prompt = prompt\n"
-    "                    self._nel_set_proactive_pending_compaction(chat, prompt, subagent_refs)\n"
-)
-
-_PROACTIVE_CHECK_ANCHOR = (
-    "            try:\n"
-    "                summary_prompt, subagent_trajectory_refs = await self._summarize(\n"
-    "                    chat, original_instruction, session\n"
-    "                )\n"
-    "                return (summary_prompt, subagent_trajectory_refs)\n"
-)
-
-_PROACTIVE_CHECK_REPLACEMENT = (
-    "            try:\n"
-    "                nel_proactive_tokens_before = self._nel_token_snapshot(chat)\n"
-    "                summary_prompt, subagent_trajectory_refs = await self._summarize(\n"
-    "                    chat, original_instruction, session\n"
-    "                )\n"
-    "                nel_proactive_tokens_after = self._nel_token_snapshot(chat)\n"
-    "                self._nel_stash_compaction_token_snapshots(\n"
-    "                    nel_proactive_tokens_before,\n"
-    "                    nel_proactive_tokens_after,\n"
-    "                    None,\n"
-    "                )\n"
-    "                return (summary_prompt, subagent_trajectory_refs)\n"
-)
-
 
 def _terminus2_nel_ensure_compaction_state(self) -> None:
     if not hasattr(self, "_nel_pending_compaction"):
@@ -2157,44 +2072,194 @@ def _strip_def_indent(src: str) -> str:
     return "".join(line[indent:] if line.startswith(prefix) else line for line in lines)
 
 
-_SHORT_SUMMARY_LLM_CALL_ANCHOR = (
-    "                    short_llm_response: LLMResponse = await self._llm.call(\n"
-    "                        prompt=short_prompt,\n"
-    "                        **self._llm_call_kwargs,\n"
-    "                    )\n"
-)
-_SHORT_SUMMARY_LLM_CALL_REPLACEMENT = (
-    "                    short_llm_response: LLMResponse = await self._llm.call(\n"
-    "                        prompt=short_prompt,\n"
-    "                        **self._nel_compaction_llm_call_kwargs(),\n"
-    "                    )\n"
+_TERMINUS_COMPACTION_RUN_LOOP_REPLACEMENTS = [
+    (
+        "                if proactive_summary_result:\n"
+        "                    prompt, subagent_refs = proactive_summary_result\n"
+        "                    # Store subagent_refs to add a system step later\n"
+        "                    self._pending_subagent_refs = subagent_refs\n"
+        "                    # Also store the handoff prompt to add as a user step\n"
+        "                    self._pending_handoff_prompt = prompt\n",
+        "                if proactive_summary_result:\n"
+        "                    prompt, subagent_refs = proactive_summary_result\n"
+        "                    self._pending_subagent_refs = subagent_refs\n"
+        "                    self._pending_handoff_prompt = prompt\n"
+        "                    self._nel_set_proactive_pending_compaction(chat, prompt, subagent_refs)\n",
+    ),
+    (
+        "            # If we have pending subagent refs, add a system step to record the delegation\n"
+        "            # This must happen before we build the agent step\n"
+        "            # We use len(self._trajectory_steps) + 1 as the step_id to ensure it's sequential\n"
+        "            if self._pending_subagent_refs:\n"
+        "                self._trajectory_steps.append(\n"
+        "                    Step(\n"
+        "                        step_id=len(self._trajectory_steps) + 1,\n"
+        "                        timestamp=datetime.now(timezone.utc).isoformat(),\n"
+        '                        source="system",\n'
+        '                        message="Performed context summarization and handoff to continue task.",\n'
+        "                        observation=Observation(\n"
+        "                            results=[\n"
+        "                                ObservationResult(\n"
+        "                                    subagent_trajectory_ref=self._pending_subagent_refs\n"
+        "                                )\n"
+        "                            ]\n"
+        "                        ),\n"
+        "                    )\n"
+        "                )\n"
+        "                self._pending_subagent_refs = None\n"
+        "\n"
+        "            # Handle handoff prompt based on linear_history mode\n"
+        "            if self._pending_handoff_prompt:\n"
+        "                # If linear_history mode is enabled, split trajectory immediately WITHOUT adding handoff step\n"
+        "                # The handoff step will be added to the continuation trajectory during the split\n"
+        "                if self._linear_history:\n"
+        "                    self._split_trajectory_on_summarization(\n"
+        "                        self._pending_handoff_prompt\n"
+        "                    )\n"
+        "                else:\n"
+        "                    # For non-linear mode, add the handoff prompt as a user step\n"
+        "                    self._trajectory_steps.append(\n"
+        "                        Step(\n"
+        "                            step_id=len(self._trajectory_steps) + 1,\n"
+        "                            timestamp=datetime.now(timezone.utc).isoformat(),\n"
+        '                            source="user",\n'
+        "                            message=self._pending_handoff_prompt,\n"
+        "                        )\n"
+        "                    )\n"
+        "                self._pending_handoff_prompt = None\n",
+        "            self._nel_flush_pending_compaction(chat)\n",
+    ),
+]
+
+_TERMINUS_COMPACTION_PROACTIVE_CHECK_REPLACEMENTS = [
+    (
+        "            try:\n"
+        "                summary_prompt, subagent_trajectory_refs = await self._summarize(\n"
+        "                    chat, original_instruction, session\n"
+        "                )\n"
+        "                return (summary_prompt, subagent_trajectory_refs)\n",
+        "            try:\n"
+        "                nel_proactive_tokens_before = self._nel_token_snapshot(chat)\n"
+        "                summary_prompt, subagent_trajectory_refs = await self._summarize(\n"
+        "                    chat, original_instruction, session\n"
+        "                )\n"
+        "                nel_proactive_tokens_after = self._nel_token_snapshot(chat)\n"
+        "                self._nel_stash_compaction_token_snapshots(\n"
+        "                    nel_proactive_tokens_before,\n"
+        "                    nel_proactive_tokens_after,\n"
+        "                    None,\n"
+        "                )\n"
+        "                return (summary_prompt, subagent_trajectory_refs)\n",
+    ),
+]
+
+_TERMINUS_COMPACTION_SHORT_SUMMARY_REPLACEMENTS = [
+    (
+        "                    short_llm_response: LLMResponse = await self._llm.call(\n"
+        "                        prompt=short_prompt,\n"
+        "                        **self._llm_call_kwargs,\n"
+        "                    )\n",
+        "                    short_llm_response: LLMResponse = await self._llm.call(\n"
+        "                        prompt=short_prompt,\n"
+        "                        **self._nel_compaction_llm_call_kwargs(),\n"
+        "                    )\n",
+    ),
+]
+
+_TERMINUS_COMPACTION_QUERY_LLM_REPLACEMENTS = [
+    (
+        "            self._unwind_messages_to_free_tokens(chat, target_free_tokens=4000)\n"
+        "\n"
+        "            summary_prompt = None\n",
+        "            nel_cle_tokens_before = self._nel_token_snapshot(chat)\n"
+        "            nel_cle_tokens_after_unwind = None\n"
+        "            nel_cle_tokens_after_chat_reset = None\n"
+        "            self._unwind_messages_to_free_tokens(chat, target_free_tokens=4000)\n"
+        "            nel_cle_tokens_after_unwind = self._nel_token_snapshot(chat)\n"
+        "            nel_cle_attempts = []\n"
+        '            nel_cle_strategy = "terminus_ultimate_fallback"\n'
+        "            nel_cle_subagent_refs = None\n"
+        "\n"
+        "            summary_prompt = None\n",
+    ),
+    (
+        '                self.logger.debug("SUMMARIZATION: Full summary succeeded")\n',
+        '                self.logger.debug("SUMMARIZATION: Full summary succeeded")\n'
+        '                nel_cle_strategy = "terminus_three_phase_subagent"\n'
+        "                nel_cle_subagent_refs = subagent_trajectory_refs\n",
+    ),
+    (
+        '                self.logger.debug(f"SUMMARIZATION: Full summary failed: {e}")\n',
+        '                self.logger.debug(f"SUMMARIZATION: Full summary failed: {e}")\n'
+        "                self._nel_record_failed_compaction_attempt(\n"
+        '                    nel_cle_attempts, "terminus_three_phase_subagent", str(e)\n'
+        "                )\n",
+    ),
+    (
+        '                    self.logger.debug("SUMMARIZATION: Short summary succeeded")\n',
+        '                    self.logger.debug("SUMMARIZATION: Short summary succeeded")\n'
+        '                    nel_cle_strategy = "terminus_short_fallback"\n',
+    ),
+    (
+        '                    self.logger.error(f"SUMMARIZATION: Short summary failed: {e}")\n',
+        '                    self.logger.error(f"SUMMARIZATION: Short summary failed: {e}")\n'
+        "                    self._nel_record_failed_compaction_attempt(\n"
+        '                        nel_cle_attempts, "terminus_short_fallback", str(e)\n'
+        "                    )\n",
+    ),
+    *_TERMINUS_COMPACTION_SHORT_SUMMARY_REPLACEMENTS,
+]
+
+_TERMINUS_COMPACTION_QUERY_LLM_CLE_CHAT_RESET_REPLACEMENT = (
+    "            if full_summarize_failed_with_cle:\n"
+    "                chat._messages = [chat.messages[0]]\n"
+    "                chat.reset_response_chain()\n",
+    "            if full_summarize_failed_with_cle:\n"
+    "                chat._messages = [chat.messages[0]]\n"
+    "                chat.reset_response_chain()\n"
+    "                self._nel_cle_chat_reset_applied = True\n"
+    "                nel_cle_tokens_after_chat_reset = self._nel_token_snapshot(chat)\n",
 )
 
-_RUN_SUBAGENT_KWARGS_ANCHOR = (
-    "        response: LLMResponse = await self._llm.call(\n"
-    "            prompt=prompt,\n"
-    "            message_history=message_history,\n"
-    "            **self._llm_call_kwargs,\n"
-    "        )\n"
-)
-_RUN_SUBAGENT_KWARGS_REPLACEMENT = (
-    "        response: LLMResponse = await self._llm.call(\n"
-    "            prompt=prompt,\n"
-    "            message_history=message_history,\n"
-    "            **(llm_call_kwargs if llm_call_kwargs is not None else self._llm_call_kwargs),\n"
-    "        )\n"
+_TERMINUS_COMPACTION_QUERY_LLM_NO_CLE_CHAT_RESET_REPLACEMENT = (
+    "            if prompt_path is not None:\n"
+    "                prompt_path.write_text(summary_prompt)\n"
+    "\n"
+    "            try:\n"
+    "                start_time = time.time()\n"
+    "                llm_response = await chat.chat(\n",
+    "            if prompt_path is not None:\n"
+    "                prompt_path.write_text(summary_prompt)\n"
+    "\n"
+    "            self._nel_cle_chat_reset_applied = False\n"
+    "\n"
+    "            try:\n"
+    "                start_time = time.time()\n"
+    "                llm_response = await chat.chat(\n",
 )
 
-_RUN_SUBAGENT_SIGNATURE_ANCHOR = (
-    "        summary_text: str,\n"
-    '        subagent_name_for_logging: str = "subagent",\n'
-    "    ) -> tuple[LLMResponse, SubagentTrajectoryRef]:\n"
-)
-_RUN_SUBAGENT_SIGNATURE_REPLACEMENT = (
-    "        summary_text: str,\n"
-    '        subagent_name_for_logging: str = "subagent",\n'
-    "        llm_call_kwargs: dict | None = None,\n"
-    "    ) -> tuple[LLMResponse, SubagentTrajectoryRef]:\n"
+_TERMINUS_COMPACTION_QUERY_LLM_PENDING_FLUSH_REPLACEMENT = (
+    "            if response_path is not None:\n"
+    "                response_path.write_text(llm_response.content)\n"
+    "            return llm_response\n"
+    "\n"
+    "        except OutputLengthExceededError as e:\n",
+    "            if response_path is not None:\n"
+    "                response_path.write_text(llm_response.content)\n"
+    "            nel_cle_tokens_after = self._nel_token_snapshot(chat)\n"
+    "            self._nel_set_cle_pending_compaction(\n"
+    "                summary_prompt,\n"
+    "                nel_cle_strategy,\n"
+    "                nel_cle_attempts,\n"
+    "                nel_cle_subagent_refs,\n"
+    "                nel_cle_tokens_before,\n"
+    "                nel_cle_tokens_after,\n"
+    "                nel_cle_tokens_after_unwind,\n"
+    "                nel_cle_tokens_after_chat_reset,\n"
+    "            )\n"
+    "            return llm_response\n"
+    "\n"
+    "        except OutputLengthExceededError as e:\n",
 )
 
 
@@ -2234,10 +2299,7 @@ def _patch_terminus_compaction_logging() -> None:
     else:
         run_loop_src = _apply_source_replacements(
             run_loop_src,
-            [
-                (_PROACTIVE_COMPACTION_ANCHOR, _PROACTIVE_COMPACTION_REPLACEMENT),
-                (_RUN_AGENT_LOOP_COMPACTION_ANCHOR, _RUN_AGENT_LOOP_COMPACTION_REPLACEMENT),
-            ],
+            _TERMINUS_COMPACTION_RUN_LOOP_REPLACEMENTS,
             label="Terminus2._run_agent_loop for compaction logging",
         )
         run_loop_namespace: dict[str, Any] = {}
@@ -2259,7 +2321,7 @@ def _patch_terminus_compaction_logging() -> None:
             else:
                 proactive_src = _apply_source_replacements(
                     proactive_src,
-                    [(_PROACTIVE_CHECK_ANCHOR, _PROACTIVE_CHECK_REPLACEMENT)],
+                    _TERMINUS_COMPACTION_PROACTIVE_CHECK_REPLACEMENTS,
                     label="Terminus2._check_proactive_summarization for compaction logging",
                 )
                 proactive_namespace: dict[str, Any] = {}
@@ -2275,110 +2337,12 @@ def _patch_terminus_compaction_logging() -> None:
             _TERMINUS_QUERY_LLM_SRC = ""
     query_src = _TERMINUS_QUERY_LLM_SRC
     if query_src and "_nel_set_cle_pending_compaction" not in query_src:
-        query_replacements = [
-            (
-                "            self._unwind_messages_to_free_tokens(chat, target_free_tokens=4000)\n"
-                "\n"
-                "            summary_prompt = None\n",
-                "            nel_cle_tokens_before = self._nel_token_snapshot(chat)\n"
-                "            nel_cle_tokens_after_unwind = None\n"
-                "            nel_cle_tokens_after_chat_reset = None\n"
-                "            self._unwind_messages_to_free_tokens(chat, target_free_tokens=4000)\n"
-                "            nel_cle_tokens_after_unwind = self._nel_token_snapshot(chat)\n"
-                "            nel_cle_attempts = []\n"
-                '            nel_cle_strategy = "terminus_ultimate_fallback"\n'
-                "            nel_cle_subagent_refs = None\n"
-                "\n"
-                "            summary_prompt = None\n",
-            ),
-            (
-                '                self.logger.debug("SUMMARIZATION: Full summary succeeded")\n',
-                '                self.logger.debug("SUMMARIZATION: Full summary succeeded")\n'
-                '                nel_cle_strategy = "terminus_three_phase_subagent"\n'
-                "                nel_cle_subagent_refs = subagent_trajectory_refs\n",
-            ),
-            (
-                '                self.logger.debug(f"SUMMARIZATION: Full summary failed: {e}")\n',
-                '                self.logger.debug(f"SUMMARIZATION: Full summary failed: {e}")\n'
-                "                self._nel_record_failed_compaction_attempt(\n"
-                '                    nel_cle_attempts, "terminus_three_phase_subagent", str(e)\n'
-                "                )\n",
-            ),
-            (
-                '                    self.logger.debug("SUMMARIZATION: Short summary succeeded")\n',
-                '                    self.logger.debug("SUMMARIZATION: Short summary succeeded")\n'
-                '                    nel_cle_strategy = "terminus_short_fallback"\n',
-            ),
-            (
-                '                    self.logger.error(f"SUMMARIZATION: Short summary failed: {e}")\n',
-                '                    self.logger.error(f"SUMMARIZATION: Short summary failed: {e}")\n'
-                "                    self._nel_record_failed_compaction_attempt(\n"
-                '                        nel_cle_attempts, "terminus_short_fallback", str(e)\n'
-                "                    )\n",
-            ),
-            (
-                _SHORT_SUMMARY_LLM_CALL_ANCHOR,
-                _SHORT_SUMMARY_LLM_CALL_REPLACEMENT,
-            ),
-        ]
+        query_replacements = list(_TERMINUS_COMPACTION_QUERY_LLM_REPLACEMENTS)
         if "full_summarize_failed_with_cle" in query_src:
-            query_replacements.append(
-                (
-                    "            if full_summarize_failed_with_cle:\n"
-                    "                chat._messages = [chat.messages[0]]\n"
-                    "                chat.reset_response_chain()\n",
-                    "            if full_summarize_failed_with_cle:\n"
-                    "                chat._messages = [chat.messages[0]]\n"
-                    "                chat.reset_response_chain()\n"
-                    "                self._nel_cle_chat_reset_applied = True\n"
-                    "                nel_cle_tokens_after_chat_reset = self._nel_token_snapshot(chat)\n",
-                )
-            )
+            query_replacements.append(_TERMINUS_COMPACTION_QUERY_LLM_CLE_CHAT_RESET_REPLACEMENT)
         else:
-            query_replacements.append(
-                (
-                    "            if prompt_path is not None:\n"
-                    "                prompt_path.write_text(summary_prompt)\n"
-                    "\n"
-                    "            try:\n"
-                    "                start_time = time.time()\n"
-                    "                llm_response = await chat.chat(\n",
-                    "            if prompt_path is not None:\n"
-                    "                prompt_path.write_text(summary_prompt)\n"
-                    "\n"
-                    "            self._nel_cle_chat_reset_applied = False\n"
-                    "\n"
-                    "            try:\n"
-                    "                start_time = time.time()\n"
-                    "                llm_response = await chat.chat(\n",
-                )
-            )
-
-        query_replacements.append(
-            (
-                "            if response_path is not None:\n"
-                "                response_path.write_text(llm_response.content)\n"
-                "            return llm_response\n"
-                "\n"
-                "        except OutputLengthExceededError as e:\n",
-                "            if response_path is not None:\n"
-                "                response_path.write_text(llm_response.content)\n"
-                "            nel_cle_tokens_after = self._nel_token_snapshot(chat)\n"
-                "            self._nel_set_cle_pending_compaction(\n"
-                "                summary_prompt,\n"
-                "                nel_cle_strategy,\n"
-                "                nel_cle_attempts,\n"
-                "                nel_cle_subagent_refs,\n"
-                "                nel_cle_tokens_before,\n"
-                "                nel_cle_tokens_after,\n"
-                "                nel_cle_tokens_after_unwind,\n"
-                "                nel_cle_tokens_after_chat_reset,\n"
-                "            )\n"
-                "            return llm_response\n"
-                "\n"
-                "        except OutputLengthExceededError as e:\n",
-            )
-        )
+            query_replacements.append(_TERMINUS_COMPACTION_QUERY_LLM_NO_CLE_CHAT_RESET_REPLACEMENT)
+        query_replacements.append(_TERMINUS_COMPACTION_QUERY_LLM_PENDING_FLUSH_REPLACEMENT)
         query_src = _apply_source_replacements(
             query_src,
             query_replacements,
@@ -2389,14 +2353,15 @@ def _patch_terminus_compaction_logging() -> None:
         terminus2_mod.Terminus2._query_llm = query_namespace["_query_llm"]
         _TERMINUS_QUERY_LLM_SRC = query_src
     elif query_src and "_nel_compaction_llm_call_kwargs()" not in query_src:
-        if _SHORT_SUMMARY_LLM_CALL_ANCHOR not in query_src:
+        short_summary_anchor = _TERMINUS_COMPACTION_SHORT_SUMMARY_REPLACEMENTS[0][0]
+        if short_summary_anchor not in query_src:
             raise RuntimeError(
                 "Cannot patch Terminus2._query_llm short-summary call for compaction turn marker: "
                 "expected source anchor not found."
             )
         query_src = _apply_source_replacements(
             query_src,
-            [(_SHORT_SUMMARY_LLM_CALL_ANCHOR, _SHORT_SUMMARY_LLM_CALL_REPLACEMENT)],
+            _TERMINUS_COMPACTION_SHORT_SUMMARY_REPLACEMENTS,
             label="Terminus2._query_llm short-summary compaction turn marker",
         )
         query_namespace = {}
@@ -2409,6 +2374,51 @@ def _patch_terminus_compaction_logging() -> None:
 
 
 _TERMINUS_COMPACTION_TURN_MARKER_PATCHED = False
+
+_TERMINUS_COMPACTION_RUN_SUBAGENT_REPLACEMENTS = [
+    (
+        "        summary_text: str,\n"
+        '        subagent_name_for_logging: str = "subagent",\n'
+        "    ) -> tuple[LLMResponse, SubagentTrajectoryRef]:\n",
+        "        summary_text: str,\n"
+        '        subagent_name_for_logging: str = "subagent",\n'
+        "        llm_call_kwargs: dict | None = None,\n"
+        "    ) -> tuple[LLMResponse, SubagentTrajectoryRef]:\n",
+    ),
+    (
+        "        response: LLMResponse = await self._llm.call(\n"
+        "            prompt=prompt,\n"
+        "            message_history=message_history,\n"
+        "            **self._llm_call_kwargs,\n"
+        "        )\n",
+        "        response: LLMResponse = await self._llm.call(\n"
+        "            prompt=prompt,\n"
+        "            message_history=message_history,\n"
+        "            **(llm_call_kwargs if llm_call_kwargs is not None else self._llm_call_kwargs),\n"
+        "        )\n",
+    ),
+]
+
+_TERMINUS_COMPACTION_SUMMARIZE_REPLACEMENTS = [
+    (
+        '            subagent_name_for_logging="summary generation LLM call",\n        )\n',
+        '            subagent_name_for_logging="summary generation LLM call",\n'
+        "            llm_call_kwargs=self._nel_compaction_llm_call_kwargs(),\n"
+        "        )\n",
+    ),
+    (
+        '            subagent_name_for_logging="questions subagent",\n        )\n',
+        '            subagent_name_for_logging="questions subagent",\n'
+        "            llm_call_kwargs=self._nel_compaction_llm_call_kwargs(),\n"
+        "        )\n",
+    ),
+    (
+        '            subagent_name_for_logging="answers subagent",\n        )\n',
+        '            subagent_name_for_logging="answers subagent",\n'
+        "            llm_call_kwargs=self._nel_compaction_llm_call_kwargs(),\n"
+        "        )\n",
+    ),
+]
 
 
 def _patch_terminus_compaction_turn_marker() -> None:
@@ -2426,10 +2436,7 @@ def _patch_terminus_compaction_turn_marker() -> None:
     if "llm_call_kwargs if llm_call_kwargs is not None" not in run_subagent_src:
         run_subagent_src = _apply_source_replacements(
             run_subagent_src,
-            [
-                (_RUN_SUBAGENT_SIGNATURE_ANCHOR, _RUN_SUBAGENT_SIGNATURE_REPLACEMENT),
-                (_RUN_SUBAGENT_KWARGS_ANCHOR, _RUN_SUBAGENT_KWARGS_REPLACEMENT),
-            ],
+            _TERMINUS_COMPACTION_RUN_SUBAGENT_REPLACEMENTS,
             label="Terminus2._run_subagent for optional llm_call_kwargs",
         )
         run_subagent_namespace: dict[str, Any] = {}
@@ -2442,29 +2449,9 @@ def _patch_terminus_compaction_turn_marker() -> None:
     except OSError:
         summarize_src = ""
     if summarize_src and "_nel_compaction_llm_call_kwargs()" not in summarize_src:
-        summarize_replacements = [
-            (
-                '            subagent_name_for_logging="summary generation LLM call",\n        )\n',
-                '            subagent_name_for_logging="summary generation LLM call",\n'
-                "            llm_call_kwargs=self._nel_compaction_llm_call_kwargs(),\n"
-                "        )\n",
-            ),
-            (
-                '            subagent_name_for_logging="questions subagent",\n        )\n',
-                '            subagent_name_for_logging="questions subagent",\n'
-                "            llm_call_kwargs=self._nel_compaction_llm_call_kwargs(),\n"
-                "        )\n",
-            ),
-            (
-                '            subagent_name_for_logging="answers subagent",\n        )\n',
-                '            subagent_name_for_logging="answers subagent",\n'
-                "            llm_call_kwargs=self._nel_compaction_llm_call_kwargs(),\n"
-                "        )\n",
-            ),
-        ]
         summarize_src = _apply_source_replacements(
             summarize_src,
-            summarize_replacements,
+            _TERMINUS_COMPACTION_SUMMARIZE_REPLACEMENTS,
             label="Terminus2._summarize compaction llm_call_kwargs",
         )
         summarize_namespace: dict[str, Any] = {}
