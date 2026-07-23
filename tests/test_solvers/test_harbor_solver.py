@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import tarfile
 import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -21,16 +22,23 @@ import pytest
 
 import nemo_evaluator.solvers.harbor as harbor_mod
 from nemo_evaluator.environments.base import SeedResult
-from nemo_evaluator.errors import InfraError
+from nemo_evaluator.errors import GracefulError, InfraError
+from nemo_evaluator.solvers.base import ErrorKind
 from nemo_evaluator.solvers.harbor import (
+    _count_zero_token_agent_turns,
     _ensure_claude_host_env,
     _ensure_host_env,
     _error_from_crash_marker,
     _extract_response,
+    _host_agent_model_url,
+    _is_turn_budget_exhausted_error,
+    _last_llm_error_from_marker,
     _model_id_for_openai,
     _resolve_agent_timeout,
     _resolve_api_key,
+    _sandbox_agent_exec_timeout,
 )
+from tests.conftest import MockExecResult, MockSandbox
 
 # ── Pure helpers ─────────────────────────────────────────────────────────
 
@@ -67,6 +75,17 @@ class TestExtractResponse:
         ctx.metadata = {}
         ctx.rollout_details = [detail]
         assert _extract_response(ctx) == "obj content"
+
+
+class TestHostAgentModelUrl:
+    def test_docker_internal_host_is_mapped_back_to_loopback_for_host_agents(self):
+        assert (
+            _host_agent_model_url("http://host.docker.internal:4000/s/session/chat/completions")
+            == "http://127.0.0.1:4000/s/session/chat/completions"
+        )
+
+    def test_non_docker_url_is_unchanged(self):
+        assert _host_agent_model_url("http://172.17.0.1:4000/s/session") == "http://172.17.0.1:4000/s/session"
 
 
 class TestResolveApiKey:
@@ -205,7 +224,63 @@ class TestCrashMarker:
             _error_from_crash_marker(tmp_path)
 
 
+class TestLastLlmErrorMarker:
+    def test_missing_marker_returns_none(self, tmp_path):
+        assert _last_llm_error_from_marker(tmp_path) is None
+
+    def test_current_marker_returns_type_and_message(self, tmp_path):
+        (tmp_path / "last_llm_error.json").write_text(
+            json.dumps(
+                {
+                    "etype": "BadRequestError",
+                    "emsg": "Error code: 400 - Malformed native tool-call JSON",
+                    "written_at": time.time(),
+                    "request_timeout_seconds": 300,
+                    "retry_after_seconds": 0,
+                    "successful_tokens": 0,
+                }
+            )
+        )
+
+        assert _last_llm_error_from_marker(tmp_path) == (
+            "BadRequestError: Error code: 400 - Malformed native tool-call JSON"
+        )
+
+    def test_legacy_marker_without_currentness_evidence_is_ignored(self, tmp_path):
+        (tmp_path / "last_llm_error.json").write_text(
+            json.dumps({"etype": "RateLimitError", "emsg": "HTTP 429 from a previous solve attempt"})
+        )
+
+        assert _last_llm_error_from_marker(tmp_path) is None
+
+
+class TestTurnBudgetError:
+    def test_turn_budget_error_detected(self):
+        assert _is_turn_budget_exhausted_error("ConversationRunError: Turn budget exhausted: 215/200 turns used")
+
+    def test_unrelated_budget_error_not_detected(self):
+        assert not _is_turn_budget_exhausted_error("Token budget exhausted before request")
+
+
 # ── Patch functions ──────────────────────────────────────────────────────
+
+
+def _apply_retry_capture_patch(sandbox, retry_mixin) -> None:
+    import base64
+
+    decoded_scripts = []
+    for call in sandbox.exec.call_args_list:
+        cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+        if "base64 -d" in cmd:
+            encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+            decoded_scripts.append(base64.b64decode(encoded).decode())
+
+    retry_patch = next(s for s in decoded_scripts if "retry_error_capture" in s)
+    retry_patch = retry_patch.replace(
+        "fs = glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/llm/utils/retry_mixin.py')",
+        f"fs = [{str(retry_mixin)!r}]",
+    )
+    exec(compile(retry_patch, "retry_error_patch.py", "exec"), {})  # noqa: S102
 
 
 class TestPatchOpenhandsSDK:
@@ -216,6 +291,20 @@ class TestPatchOpenhandsSDK:
         sandbox.exec.return_value = MagicMock(stdout="stuck_detection disabled", stderr="", return_code=0)
         await _patch_openhands_sdk(sandbox)
         assert sandbox.exec.call_count >= 4
+
+    async def test_tool_concurrency_patch_failure_is_logged(self, caplog):
+        import logging
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(
+            stdout="tool_concurrency_limit: pattern not found", stderr="", return_code=0
+        )
+        with caplog.at_level(logging.WARNING):
+            await _patch_openhands_sdk(sandbox)
+
+        assert "Tool concurrency patch problem" in caplog.text
 
     async def test_runner_patch_disables_visualizer(self):
         """Patch 0 must inject both stuck_detection=False AND visualizer=None.
@@ -291,6 +380,99 @@ class TestPatchOpenhandsSDK:
         assert "import os as _llm_timeout_os" in patched
         assert '_llm_timeout_os.environ.get("LLM_TIMEOUT")' in patched
         assert 'llm_kwargs["timeout"] = int(timeout_raw)' in patched
+
+    async def test_retry_mixin_patch_records_last_llm_error(self, tmp_path):
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        retry_mixin = tmp_path / "retry_mixin.py"
+        retry_mixin.write_text(
+            """\
+class RetryMixin:
+    def log_retry_attempt(self, retry_state):
+        exc = retry_state.outcome.exception()
+        logger.error(
+            "%s. Attempt #%d | You can customize retry values in the configuration.",
+            exc,
+            retry_state.attempt_number,
+        )
+"""
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+        _apply_retry_capture_patch(sandbox, retry_mixin)
+
+        patched = retry_mixin.read_text()
+        assert '"/logs/agent/last_llm_error.json"' in patched
+        assert '"etype": type(exc).__name__' in patched
+        assert '"emsg": str(exc)' in patched
+        assert '"written_at": _time.time()' in patched
+        assert '"request_timeout_seconds": _request_timeout' in patched
+        assert '"retry_after_seconds": _retry_after' in patched
+        assert '"successful_tokens": _successful_tokens' in patched
+
+    async def test_retry_mixin_patch_upgrades_persisted_legacy_marker_producer(self, tmp_path):
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        retry_mixin = tmp_path / "retry_mixin.py"
+        retry_mixin.write_text(
+            """\
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class RetryMixin:
+    def log_retry_attempt(self, retry_state):
+        exc = retry_state.outcome.exception()
+        try:
+            import json as _json, os as _os
+            _p = "/logs/agent/last_llm_error.json"
+            _os.makedirs(_os.path.dirname(_p), exist_ok=True)
+            _tmp = _p + ".tmp"
+            with open(_tmp, "w") as _f:
+                _f.write(_json.dumps({"etype": type(exc).__name__, "emsg": str(exc)}))
+            _os.replace(_tmp, _p)
+        except Exception:
+            pass
+
+        logger.error(
+            "%s. Attempt #%d | You can customize retry values in the configuration.",
+            exc,
+            retry_state.attempt_number,
+        )
+"""
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+        _apply_retry_capture_patch(sandbox, retry_mixin)
+        _apply_retry_capture_patch(sandbox, retry_mixin)
+
+        patched = retry_mixin.read_text()
+        assert patched.count('"schema_version": 2') == 1
+        assert '"request_timeout_seconds": _request_timeout' in patched
+        assert '"successful_tokens": _successful_tokens' in patched
+
+        logs_dir = tmp_path / "agent"
+        runtime_source = patched.replace("/logs/agent", str(logs_dir))
+        namespace: dict[str, object] = {}
+        exec(compile(runtime_source, str(retry_mixin), "exec"), namespace)  # noqa: S102
+
+        retry_state = MagicMock()
+        retry_state.outcome.exception.return_value = RuntimeError("model retry failed")
+        retry_state.attempt_number = 1
+        retry_state.next_action.sleep = 0
+        mixin = namespace["RetryMixin"]()
+        mixin.timeout = 60
+        mixin.metrics = MagicMock()
+        mixin.metrics.accumulated_token_usage.prompt_tokens = 0
+        mixin.metrics.accumulated_token_usage.completion_tokens = 0
+        mixin.log_retry_attempt(retry_state)
+
+        assert _last_llm_error_from_marker(logs_dir, successful_tokens=7) is None
 
     async def test_runner_timeout_patch_does_not_shadow_os(self, tmp_path):
         import base64
@@ -425,6 +607,7 @@ def build_trajectory(events, llm_metrics, model_name):
                 {
                     "type": "assistant_message",
                     "timestamp": "2026-06-05T12:00:00.000Z",
+                    "usage": {"prompt_tokens": 5, "completion_tokens": 2},
                     "tool_calls": [{"id": "call_1", "name": "terminal", "arguments": {"command": "pwd"}}],
                 },
                 {
@@ -439,6 +622,7 @@ def build_trajectory(events, llm_metrics, model_name):
         )
 
         assert trajectory["schema_version"] == "ATIF-v1.7"
+        assert trajectory["steps"][0]["metrics"] == {"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7}
         result = trajectory["steps"][0]["observation"]["results"][0]
         assert result["source_call_id"] == "call_1"
         assert result["content"] == "/testbed"
@@ -447,6 +631,294 @@ def build_trajectory(events, llm_metrics, model_name):
             "completed_at": "2026-06-05T12:00:01.250Z",
             "duration_ms": 1250.0,
         }
+
+    async def test_runner_patch_matches_observations_per_tool_call(self, tmp_path):
+        """Parallel/multi-tool turn: each tool-call step keeps its OWN result.
+
+        A single LLM response with N tool calls becomes N consecutive agent
+        steps (one ActionEvent per call). Results arrive as a batch, out of
+        step order. The base runner attaches every result to steps[-1] and
+        overwrites, so only the last step got an observation. The patch must
+        match each result to the step whose tool_call_id equals it.
+        """
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            """\
+import os
+
+
+def build_trajectory(events, llm_metrics, model_name):
+    steps = []
+    step_id = 1
+
+    for event in events:
+        event_type = event.get("type", "")
+
+        if event_type == "assistant_message":
+            step = {
+                "step_id": step_id,
+                "timestamp": event.get("timestamp"),
+                "source": "agent",
+                "message": event.get("content", ""),
+                "model_name": model_name,
+            }
+            tool_calls = event.get("tool_calls", [])
+            if tool_calls:
+                step["tool_calls"] = [
+                    {
+                        "tool_call_id": tc.get("id", ""),
+                        "function_name": tc.get("name", ""),
+                        "arguments": tc.get("arguments", {}),
+                    }
+                    for tc in tool_calls
+                ]
+            steps.append(step)
+            step_id += 1
+
+        elif event_type == "tool_result":
+            # Find the previous step and add observation
+            if steps and steps[-1].get("source") == "agent":
+                steps[-1]["observation"] = {
+                    "results": [
+                        {
+                            "source_call_id": event.get("tool_call_id"),
+                            "content": event.get("content", ""),
+                        }
+                    ]
+                }
+
+    trajectory = {
+        "schema_version": "ATIF-v1.5",
+        "session_id": os.environ.get("SESSION_ID", "harbor-session"),
+        "agent": {"name": "openhands-sdk", "version": "unknown"},
+        "steps": steps,
+        "final_metrics": {},
+    }
+    return trajectory
+"""
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        trajectory_patch = next(s for s in decoded_scripts if "reasoning+metrics" in s)
+        trajectory_patch = trajectory_patch.replace(
+            "p = '/installed-agent/run_agent.py'",
+            f"p = {str(runner)!r}",
+        )
+        exec(compile(trajectory_patch, "trajectory_patch.py", "exec"), {})
+
+        namespace = {}
+        exec(compile(runner.read_text(), str(runner), "exec"), namespace)
+        trajectory = namespace["build_trajectory"](
+            [
+                {
+                    "type": "assistant_message",
+                    "timestamp": "2026-06-05T12:00:00.000Z",
+                    "tool_calls": [{"id": "call_a", "name": "terminal", "arguments": {}}],
+                },
+                {
+                    "type": "assistant_message",
+                    "timestamp": "2026-06-05T12:00:00.100Z",
+                    "tool_calls": [{"id": "call_b", "name": "terminal", "arguments": {}}],
+                },
+                {
+                    "type": "assistant_message",
+                    "timestamp": "2026-06-05T12:00:00.200Z",
+                    "tool_calls": [{"id": "call_c", "name": "terminal", "arguments": {}}],
+                },
+                # Results arrive as a batch, out of step order.
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_a",
+                    "content": "out_a",
+                    "timestamp": "2026-06-05T12:00:01.000Z",
+                },
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_c",
+                    "content": "out_c",
+                    "timestamp": "2026-06-05T12:00:01.100Z",
+                },
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_b",
+                    "content": "out_b",
+                    "timestamp": "2026-06-05T12:00:01.200Z",
+                },
+            ],
+            {},
+            "model",
+        )
+
+        steps = trajectory["steps"]
+        assert len(steps) == 3
+        # Every tool-call step must carry its OWN observation, matched by id.
+        by_call = {s["tool_calls"][0]["tool_call_id"]: s["observation"]["results"][0] for s in steps}
+        assert set(by_call) == {"call_a", "call_b", "call_c"}
+        assert by_call["call_a"]["source_call_id"] == "call_a"
+        assert by_call["call_a"]["content"] == "out_a"
+        assert by_call["call_b"]["source_call_id"] == "call_b"
+        assert by_call["call_b"]["content"] == "out_b"
+        assert by_call["call_c"]["source_call_id"] == "call_c"
+        assert by_call["call_c"]["content"] == "out_c"
+        # started_at is the matched step's own timestamp, not steps[-1].
+        assert by_call["call_a"]["extra"]["started_at"] == "2026-06-05T12:00:00.000Z"
+        assert by_call["call_a"]["extra"]["completed_at"] == "2026-06-05T12:00:01.000Z"
+
+    async def test_runner_patch_merges_parallel_tool_calls_by_response_id(self, tmp_path):
+        """Tool calls from one LLM response collapse into a single agent step.
+
+        Every ActionEvent that carries the same ``llm_response_id`` is folded
+        into the first step of that turn, so ``tool_calls`` and
+        ``observation.results`` each list all N calls the model requested.
+        """
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            """\
+import os
+
+
+def build_trajectory(events, llm_metrics, model_name):
+    steps = []
+    step_id = 1
+
+    for event in events:
+        event_type = event.get("type", "")
+
+        if event_type == "assistant_message":
+            step = {
+                "step_id": step_id,
+                "timestamp": event.get("timestamp"),
+                "source": "agent",
+                "message": event.get("content", ""),
+                "model_name": model_name,
+            }
+            tool_calls = event.get("tool_calls", [])
+            if tool_calls:
+                step["tool_calls"] = [
+                    {
+                        "tool_call_id": tc.get("id", ""),
+                        "function_name": tc.get("name", ""),
+                        "arguments": tc.get("arguments", {}),
+                    }
+                    for tc in tool_calls
+                ]
+            steps.append(step)
+            step_id += 1
+
+        elif event_type == "tool_result":
+            # Find the previous step and add observation
+            if steps and steps[-1].get("source") == "agent":
+                steps[-1]["observation"] = {
+                    "results": [
+                        {
+                            "source_call_id": event.get("tool_call_id"),
+                            "content": event.get("content", ""),
+                        }
+                    ]
+                }
+
+    trajectory = {
+        "schema_version": "ATIF-v1.5",
+        "session_id": os.environ.get("SESSION_ID", "harbor-session"),
+        "agent": {"name": "openhands-sdk", "version": "unknown"},
+        "steps": steps,
+        "final_metrics": {},
+    }
+    return trajectory
+"""
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        trajectory_patch = next(s for s in decoded_scripts if "reasoning+metrics" in s)
+        trajectory_patch = trajectory_patch.replace(
+            "p = '/installed-agent/run_agent.py'",
+            f"p = {str(runner)!r}",
+        )
+        exec(compile(trajectory_patch, "trajectory_patch.py", "exec"), {})
+
+        namespace = {}
+        exec(compile(runner.read_text(), str(runner), "exec"), namespace)
+        trajectory = namespace["build_trajectory"](
+            [
+                {
+                    "type": "assistant_message",
+                    "timestamp": "2026-06-05T12:00:00.000Z",
+                    "llm_response_id": "resp_1",
+                    "tool_calls": [{"id": "call_a", "name": "terminal", "arguments": {}}],
+                },
+                {
+                    "type": "assistant_message",
+                    "timestamp": "2026-06-05T12:00:00.001Z",
+                    "llm_response_id": "resp_1",
+                    "tool_calls": [{"id": "call_b", "name": "terminal", "arguments": {}}],
+                },
+                {
+                    "type": "assistant_message",
+                    "timestamp": "2026-06-05T12:00:00.002Z",
+                    "llm_response_id": "resp_1",
+                    "tool_calls": [{"id": "call_c", "name": "terminal", "arguments": {}}],
+                },
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_a",
+                    "content": "out_a",
+                    "timestamp": "2026-06-05T12:00:01.000Z",
+                },
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_c",
+                    "content": "out_c",
+                    "timestamp": "2026-06-05T12:00:01.100Z",
+                },
+                {
+                    "type": "tool_result",
+                    "tool_call_id": "call_b",
+                    "content": "out_b",
+                    "timestamp": "2026-06-05T12:00:01.200Z",
+                },
+            ],
+            {},
+            "model",
+        )
+
+        steps = trajectory["steps"]
+        assert len(steps) == 1
+        merged = steps[0]
+        assert [tc["tool_call_id"] for tc in merged["tool_calls"]] == ["call_a", "call_b", "call_c"]
+        by_call = {r["source_call_id"]: r for r in merged["observation"]["results"]}
+        assert set(by_call) == {"call_a", "call_b", "call_c"}
+        assert by_call["call_b"]["content"] == "out_b"
+        # Every result anchors started_at to the merged step's own timestamp.
+        assert by_call["call_c"]["extra"]["started_at"] == "2026-06-05T12:00:00.000Z"
+        assert by_call["call_c"]["extra"]["completed_at"] == "2026-06-05T12:00:01.100Z"
 
     _EVENTS_MSG_AND_ACTION = (
         'MessageEvent("agent", "partial reasoning", 1.0), ActionEvent(2.0, "call-1", "bash", \'{"command": "ls"}\')'
@@ -903,6 +1375,9 @@ class TestResolveAgentTimeout:
     def test_effective_timeout(self, strategy, config, task, cap, expected):
         assert _resolve_agent_timeout(strategy, config, task, cap) == expected
 
+    def test_sandbox_agent_exec_timeout_adds_flush_grace(self):
+        assert _sandbox_agent_exec_timeout(10800.0) > 10800.0
+
 
 class TestHarborSolverLlmTimeout:
     def test_llm_kwargs_timeout_maps_to_container_env(self):
@@ -935,6 +1410,78 @@ class TestHarborSolverLlmTimeout:
                 container_env={"LLM_TIMEOUT": "7200"},
             )
             assert solver._container_env["LLM_TIMEOUT"] == "7200"
+
+
+class TestHarborSolverToolConcurrency:
+    def test_tool_concurrency_limit_maps_to_container_env(self):
+        from unittest.mock import patch
+
+        with patch("nemo_evaluator.solvers.harbor._check_harbor_installed"):
+            from nemo_evaluator.solvers.harbor import HarborSolver
+
+            solver = HarborSolver(
+                harbor_agent="openhands-sdk",
+                model_url="http://localhost:8000",
+                model_id="test-model",
+                api_key="test-key",
+                harbor_agent_kwargs={"tool_concurrency_limit": 4},
+            )
+            assert solver._container_env["TOOL_CONCURRENCY_LIMIT"] == "4"
+
+    def test_explicit_container_env_overrides_tool_concurrency_limit(self):
+        from unittest.mock import patch
+
+        with patch("nemo_evaluator.solvers.harbor._check_harbor_installed"):
+            from nemo_evaluator.solvers.harbor import HarborSolver
+
+            solver = HarborSolver(
+                harbor_agent="openhands-sdk",
+                model_url="http://localhost:8000",
+                model_id="test-model",
+                api_key="test-key",
+                harbor_agent_kwargs={"tool_concurrency_limit": 4},
+                container_env={"TOOL_CONCURRENCY_LIMIT": "8"},
+            )
+            assert solver._container_env["TOOL_CONCURRENCY_LIMIT"] == "8"
+
+    async def test_runner_patch_injects_tool_concurrency_limit(self, tmp_path):
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            "import os\n"
+            "agent_kwargs = {'llm': None, 'tools': [], 'agent_context': None}\n"
+            "    agent = Agent(**agent_kwargs)\n"
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        tool_concurrency_patch = next(
+            (s for s in decoded_scripts if "tool_concurrency_limit" in s and "TOOL_CONCURRENCY_LIMIT" in s),
+            None,
+        )
+        assert tool_concurrency_patch is not None, "tool concurrency patch script not emitted"
+
+        tool_concurrency_patch = tool_concurrency_patch.replace(
+            "p = '/installed-agent/run_agent.py'",
+            f"p = {str(runner)!r}",
+        )
+        exec(compile(tool_concurrency_patch, "tool_concurrency_patch.py", "exec"), {})  # noqa: S102
+
+        patched = runner.read_text()
+        assert 'os.environ.get("TOOL_CONCURRENCY_LIMIT")' in patched
+        assert 'agent_kwargs["tool_concurrency_limit"] = int(_tcl_raw)' in patched
 
 
 class _TimeoutFlushSandbox:
@@ -1020,10 +1567,250 @@ class TestWaitForAgentTimeout:
         assert agent_task.cancelled()
         assert any("/installed-agent/run_agent.py" in command for command, _ in sandbox.exec_calls)
 
+    @pytest.mark.asyncio
+    async def test_timeout_allows_response_persistence_grace_before_sigterm(self, monkeypatch):
+        monkeypatch.setattr(harbor_mod, "_AGENT_TIMEOUT_RESPONSE_GRACE_SECONDS", 0.3)
+        monkeypatch.setattr(harbor_mod, "_AGENT_TIMEOUT_RESPONSE_GRACE_FRACTION", 3.0)
+        solver = self._solver()
+        sandbox = _TimeoutFlushSandbox()
+
+        async def agent_run():
+            await asyncio.sleep(0.2)
+
+        agent_task = asyncio.create_task(agent_run())
+
+        timed_out, agent_error = await solver._wait_for_agent(
+            agent_task,
+            sandbox,
+            time.monotonic(),
+            effective_timeout=0.1,
+            jitter=0.0,
+        )
+
+        assert timed_out is True
+        assert agent_error is None
+        assert agent_task.done()
+        assert not agent_task.cancelled()
+        assert not any("/installed-agent/run_agent.py" in command for command, _ in sandbox.exec_calls)
+
+    @pytest.mark.asyncio
+    async def test_inner_command_timeout_finishes_first_and_skips_nel_sigterm(self):
+        solver = self._solver()
+        sandbox = _TimeoutFlushSandbox()
+
+        async def agent_run():
+            await asyncio.sleep(0.001)
+            raise RuntimeError("Command failed (exit 124): stderr: timed out after 10800s")
+
+        agent_task = asyncio.create_task(agent_run())
+
+        timed_out, agent_error = await solver._wait_for_agent(
+            agent_task,
+            sandbox,
+            time.monotonic(),
+            effective_timeout=0.05,
+            jitter=0.0,
+        )
+
+        assert timed_out is False
+        assert agent_error is not None
+        assert "timed out after 10800s" in str(agent_error)
+        assert not any("/installed-agent/run_agent.py" in command for command, _ in sandbox.exec_calls)
+
+
+_TURN_BUDGET_ERROR = "ConversationRunError: Turn budget exhausted: 215/200 turns used"
+_WORKSPACE_DIFF = "diff --git a/file.py b/file.py\n+fixed = True"
+_CONTEXT_WINDOW_CRASH = "Agent crashed: ContextWindowExceededError: maximum context length exceeded"
+
+
+class ContextWindowExceededError(RuntimeError):
+    pass
+
+
+class _SetupFailingAgent:
+    def __init__(self, failure: Exception) -> None:
+        self.failure = failure
+        self.setup_calls = 0
+
+    async def setup(self, adapter) -> None:
+        self.setup_calls += 1
+        raise self.failure
+
+    async def run(self, prompt, adapter, context) -> None:
+        raise AssertionError("setup failure must prevent agent.run")
+
+
+class _RunAgent:
+    def __init__(self, failure: Exception | None = None) -> None:
+        self.failure = failure
+
+    async def setup(self, adapter) -> None:
+        pass
+
+    async def run(self, prompt, adapter, context) -> None:
+        context.metadata = {"progress": "partial"}
+        if self.failure:
+            raise self.failure
+
+
+def _solver_with_agent(agent):
+    from nemo_evaluator.solvers.harbor import HarborSolver
+
+    solver = HarborSolver(
+        harbor_agent="terminus-2",
+        model_id="controlled-model",
+        api_key="controlled-key",
+        timeout=60,
+        run_timeout=60,
+    )
+    solver._create_agent = lambda logs_dir, model_url="": agent
+    return solver
+
+
+def _setup_failing_solver(failure: Exception):
+    agent = _SetupFailingAgent(failure)
+    return _solver_with_agent(agent), agent
+
+
+async def _run_setup_failure(failure: Exception, *, task_id: str, workspace_diff: str = ""):
+    solver, agent = _setup_failing_solver(failure)
+
+    async with MockSandbox(exec_results={"git diff HEAD": MockExecResult(stdout=workspace_diff)}) as sandbox:
+        result = await solver.solve(
+            SeedResult(prompt="do task", expected_answer="", metadata={"task_id": task_id}),
+            sandbox=sandbox,
+        )
+
+    return result, agent
+
+
+class TestSolveFailureRecovery:
+    @pytest.mark.asyncio
+    async def test_solve_clears_persisted_llm_error_marker_before_agent_setup(self):
+        solver, _ = _setup_failing_solver(GracefulError("stop after setup"))
+
+        async with MockSandbox() as sandbox:
+            await solver.solve(
+                SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "marker-cleanup-case"}),
+                sandbox=sandbox,
+            )
+
+        setup_command = next(command for command in sandbox._exec_log if "mkdir -p /logs/agent" in command)
+        assert "rm -f /logs/agent/last_llm_error.json" in setup_command
+
+    @pytest.mark.asyncio
+    async def test_graceful_setup_failure_returns_solve_result(self):
+        result, agent = await _run_setup_failure(
+            GracefulError("controlled graceful setup failure"),
+            task_id="graceful-case",
+            workspace_diff=_WORKSPACE_DIFF,
+        )
+
+        assert agent.setup_calls == 1
+        assert result.response == "[workspace modified]"
+        assert result.trajectory[0]["final_metrics"]["workspace_diff_preview"] == _WORKSPACE_DIFF
+        assert result.error == "controlled graceful setup failure"
+        assert result.error_kind is ErrorKind.NONE
+        assert result.scoring_details == {}
+
+    @pytest.mark.asyncio
+    async def test_turn_budget_infra_failure_with_workspace_diff_is_submitted_for_verification(self):
+        result, agent = await _run_setup_failure(
+            InfraError(_TURN_BUDGET_ERROR),
+            task_id="infra-case",
+            workspace_diff=_WORKSPACE_DIFF,
+        )
+
+        assert agent.setup_calls == 1
+        assert result.response == "[workspace modified]"
+        assert result.trajectory[0]["final_metrics"]["workspace_diff_preview"] == _WORKSPACE_DIFF
+        assert result.error is None
+        assert result.error_kind is ErrorKind.SOLVE_TIMEOUT
+        assert result.scoring_details == {
+            "error": _TURN_BUDGET_ERROR,
+            "error_category": "turn_budget_exhausted",
+        }
+
+    @pytest.mark.asyncio
+    async def test_graceful_agent_crash_with_workspace_diff_is_submitted_for_verification(self):
+        result, agent = await _run_setup_failure(
+            GracefulError(_CONTEXT_WINDOW_CRASH),
+            task_id="graceful-crash-case",
+            workspace_diff=_WORKSPACE_DIFF,
+        )
+
+        assert agent.setup_calls == 1
+        assert result.response == "[workspace modified]"
+        assert result.trajectory[0]["final_metrics"]["workspace_diff_preview"] == _WORKSPACE_DIFF
+        assert result.error is None
+
+    @pytest.mark.asyncio
+    async def test_run_crash_with_workspace_diff_is_submitted_for_verification(self):
+        agent = _RunAgent(ContextWindowExceededError("maximum context length exceeded"))
+        solver = _solver_with_agent(agent)
+
+        async with MockSandbox(exec_results={"git diff HEAD": MockExecResult(stdout=_WORKSPACE_DIFF)}) as sandbox:
+            result = await solver.solve(
+                SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "run-crash-case"}),
+                sandbox=sandbox,
+            )
+
+        assert result.response == "[workspace modified]"
+        assert result.trajectory[0]["final_metrics"]["workspace_diff_preview"] == _WORKSPACE_DIFF
+        assert result.error is None
+        assert result.error_kind is ErrorKind.NONE
+        assert result.scoring_details == {"error": _CONTEXT_WINDOW_CRASH}
+
+    @pytest.mark.asyncio
+    async def test_downloaded_crash_marker_with_workspace_diff_is_submitted_for_verification(self, tmp_path):
+        marker = tmp_path / "agent_error.json"
+        marker.write_text(
+            json.dumps({"etype": "ContextWindowExceededError", "emsg": "maximum context length exceeded"})
+        )
+        archive = tmp_path / "agent-logs.tar.gz"
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.add(marker, arcname="agent_error.json")
+
+        solver = _solver_with_agent(_RunAgent())
+        exec_results = {
+            "git diff HEAD": MockExecResult(stdout=_WORKSPACE_DIFF),
+            "find /logs/agent": MockExecResult(stdout="/logs/agent/agent_error.json\n"),
+        }
+        async with MockSandbox(exec_results=exec_results) as sandbox:
+            await sandbox.upload(archive, "/tmp/_eval_agent_logs.tar.gz")
+            result = await solver.solve(
+                SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "crash-marker-case"}),
+                sandbox=sandbox,
+            )
+
+        assert result.response == "[workspace modified]"
+        assert result.trajectory[0]["final_metrics"]["workspace_diff_preview"] == _WORKSPACE_DIFF
+        assert result.error is None
+        assert result.error_kind is ErrorKind.NONE
+        assert result.scoring_details == {"error": _CONTEXT_WINDOW_CRASH}
+
 
 class TestSolveTimeoutPlumbing:
+    @staticmethod
+    def _assert_command_deadline_covers_timeout_lifecycle(
+        actual_timeout: float,
+        *,
+        effective_timeout: float,
+        response_persistence_grace: float,
+    ) -> None:
+        sigterm_exec_budget = 10.0
+        trajectory_flush_budget = 30.0
+        minimum_safety_margin = 1.0
+        assert actual_timeout >= (
+            effective_timeout
+            + response_persistence_grace
+            + sigterm_exec_budget
+            + trajectory_flush_budget
+            + minimum_safety_margin
+        )
+
     @pytest.mark.asyncio
-    async def test_solve_starts_timeout_clock_at_agent_run(self, monkeypatch):
+    async def test_solve_composes_command_deadline_after_agent_timeout(self, monkeypatch):
         import nemo_evaluator.solvers.harbor as harbor_mod
         from nemo_evaluator.solvers.harbor import HarborSolver
 
@@ -1037,11 +1824,13 @@ class TestSolveTimeoutPlumbing:
             def is_empty(self) -> bool:
                 return False
 
+        adapter_kwargs: dict[str, object] = {}
+
         class FakeAdapter:
             is_mounted = True
 
             def __init__(self, *args, **kwargs) -> None:
-                pass
+                adapter_kwargs.update(kwargs)
 
         class FakeAgent:
             async def setup(self, adapter) -> None:
@@ -1112,6 +1901,197 @@ class TestSolveTimeoutPlumbing:
         assert wait_args["agent_started_at"] > 0
         assert wait_args["effective_timeout"] == 60.0
         assert wait_args["jitter"] == 0.0
+        self._assert_command_deadline_covers_timeout_lifecycle(
+            float(adapter_kwargs["default_timeout"]),
+            effective_timeout=60.0,
+            response_persistence_grace=3.0,
+        )
+
+    @pytest.mark.asyncio
+    async def test_solve_sets_command_timeout_after_10800s_effective_timeout_with_jitter(self, monkeypatch):
+        import nemo_evaluator.solvers.harbor as harbor_mod
+        from nemo_evaluator.solvers.harbor import HarborSolver
+
+        class FakeContext:
+            def __init__(self) -> None:
+                self.metadata = {"response": "agent answer"}
+                self.rollout_details = []
+                self.n_input_tokens = 3
+                self.n_output_tokens = 4
+
+            def is_empty(self) -> bool:
+                return False
+
+        adapter_kwargs: dict[str, object] = {}
+
+        class FakeAdapter:
+            is_mounted = True
+
+            def __init__(self, *args, **kwargs) -> None:
+                adapter_kwargs.update(kwargs)
+
+        class FakeAgent:
+            async def setup(self, adapter) -> None:
+                pass
+
+            async def run(self, prompt, adapter, context) -> None:
+                pass
+
+        class FakeSandbox:
+            is_running = True
+
+            def resolved_endpoint_url(self, name):
+                return None
+
+            def resolve_outside_endpoint(self, url):
+                return url
+
+            async def exec(self, command: str, timeout_sec: float | None = None):
+                return MagicMock(stdout="", stderr="", return_code=0)
+
+        import harbor.models.agent.context as context_mod
+
+        import nemo_evaluator.solvers.harbor_adapter as harbor_adapter_mod
+
+        monkeypatch.setattr(context_mod, "AgentContext", FakeContext)
+        monkeypatch.setattr(harbor_adapter_mod, "SandboxEnvironmentAdapter", FakeAdapter)
+        monkeypatch.setattr(harbor_mod, "_capture_workspace_diff", AsyncMock(return_value=""))
+        monkeypatch.setattr(
+            harbor_mod,
+            "_recover_from_logs",
+            lambda logs_dir: {"trajectory": [], "prompt_tokens": 0, "completion_tokens": 0, "response": ""},
+        )
+        monkeypatch.setattr(harbor_mod.random, "uniform", lambda low, high: high)
+
+        solver = HarborSolver.__new__(HarborSolver)
+        solver._model_url = "http://model"
+        solver._model_id = "model"
+        solver._timeout = 10800.0
+        solver._run_timeout = 10800.0
+        solver._timeout_strategy = "override"
+        solver._max_agent_timeout = None
+        solver._harbor_agent = "terminus-2"
+        solver._container_env = {}
+        solver._skill = None
+        solver._skill_dir = None
+        solver._create_agent = lambda logs_dir, model_url="": FakeAgent()
+
+        wait_args: dict[str, float] = {}
+
+        async def fake_wait_for_agent(agent_task, sandbox, agent_started_at, effective_timeout, jitter):
+            wait_args["effective_timeout"] = effective_timeout
+            wait_args["jitter"] = jitter
+            await agent_task
+            return False, None
+
+        solver._wait_for_agent = fake_wait_for_agent
+
+        await solver.solve(
+            SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "task-1"}),
+            sandbox=FakeSandbox(),
+        )
+
+        assert wait_args["jitter"] == 120.0
+        assert wait_args["effective_timeout"] == 10920.0
+        self._assert_command_deadline_covers_timeout_lifecycle(
+            float(adapter_kwargs["default_timeout"]),
+            effective_timeout=10920.0,
+            response_persistence_grace=15.0,
+        )
+
+    @pytest.mark.asyncio
+    async def test_solve_verifies_turn_budget_crash_when_workspace_changed(self, monkeypatch):
+        import nemo_evaluator.solvers.harbor as harbor_mod
+        from nemo_evaluator.solvers.harbor import HarborSolver
+
+        class FakeContext:
+            def __init__(self) -> None:
+                self.metadata = {}
+                self.rollout_details = []
+                self.n_input_tokens = 12
+                self.n_output_tokens = 5
+
+            def is_empty(self) -> bool:
+                return False
+
+        class FakeAdapter:
+            is_mounted = True
+
+            def __init__(self, *args, **kwargs) -> None:
+                pass
+
+        class FakeAgent:
+            async def setup(self, adapter) -> None:
+                pass
+
+            async def run(self, prompt, adapter, context) -> None:
+                raise RuntimeError("ConversationRunError: Turn budget exhausted: 215/200 turns used")
+
+        class FakeSandbox:
+            is_running = True
+
+            def resolved_endpoint_url(self, name):
+                return None
+
+            def resolve_outside_endpoint(self, url):
+                return url
+
+            async def exec(self, command: str, timeout_sec: float | None = None):
+                return MagicMock(stdout="", stderr="", return_code=0)
+
+        import harbor.models.agent.context as context_mod
+
+        import nemo_evaluator.solvers.harbor_adapter as harbor_adapter_mod
+
+        monkeypatch.setattr(context_mod, "AgentContext", FakeContext)
+        monkeypatch.setattr(harbor_adapter_mod, "SandboxEnvironmentAdapter", FakeAdapter)
+        monkeypatch.setattr(harbor_mod, "_capture_workspace_diff", AsyncMock(return_value="diff --git a/file b/file"))
+        monkeypatch.setattr(
+            harbor_mod,
+            "_recover_from_logs",
+            lambda logs_dir: {
+                "trajectory": [{"final_metrics": {}}],
+                "prompt_tokens": 12,
+                "completion_tokens": 5,
+                "response": "",
+            },
+        )
+        monkeypatch.setattr(harbor_mod.random, "uniform", lambda low, high: 0.0)
+
+        solver = HarborSolver.__new__(HarborSolver)
+        solver._model_url = "http://model"
+        solver._model_id = "model"
+        solver._timeout = 60.0
+        solver._run_timeout = 60.0
+        solver._timeout_strategy = "override"
+        solver._max_agent_timeout = None
+        solver._harbor_agent = "openhands-sdk"
+        solver._cmd_timeout = None
+        solver._container_env = {}
+        solver._skill = None
+        solver._skill_dir = None
+        solver._create_agent = lambda logs_dir, model_url="": FakeAgent()
+
+        async def fake_wait_for_agent(agent_task, sandbox, agent_started_at, effective_timeout, jitter):
+            try:
+                await agent_task
+            except Exception as exc:
+                return False, exc
+            return False, None
+
+        solver._wait_for_agent = fake_wait_for_agent
+
+        result = await solver.solve(
+            SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "task-1"}),
+            sandbox=FakeSandbox(),
+        )
+
+        assert result.response == "[workspace modified]"
+        assert result.error is None
+        assert result.error_kind == ErrorKind.SOLVE_TIMEOUT
+        assert result.scoring_details["error_category"] == "turn_budget_exhausted"
+        assert "Turn budget exhausted" in result.scoring_details["error"]
+        assert result.trajectory[0]["final_metrics"]["workspace_diff_preview"].startswith("diff --git")
 
 
 class TestInjectSkill:
@@ -1198,3 +2178,281 @@ class TestInjectSkill:
         assert "does not exist" in caplog.text
         assert "/skills/caveman/SKILL.md" in result
         sandbox.upload.assert_not_called()
+
+
+# ── Zero-token agent-turn accounting ─────────────────────────────────────
+
+
+class TestCountZeroTokenAgentTurns:
+    def test_empty_list(self):
+        assert _count_zero_token_agent_turns([]) == 0
+
+    def test_single_doc_not_wrapped_in_list(self):
+        doc = {"steps": [{"source": "agent", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}}]}
+        assert _count_zero_token_agent_turns(doc) == 1
+
+    def test_counts_only_zero_token_agent_steps(self):
+        doc = {
+            "steps": [
+                {"source": "agent", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}},
+                {"source": "agent", "metrics": {"prompt_tokens": 10, "completion_tokens": 5}},
+                {"source": "agent", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}},
+            ]
+        }
+        assert _count_zero_token_agent_turns([doc]) == 2
+
+    def test_non_agent_zero_token_step_ignored(self):
+        doc = {
+            "steps": [
+                {"source": "environment", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}},
+                {"source": "user", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}},
+            ]
+        }
+        assert _count_zero_token_agent_turns([doc]) == 0
+
+    def test_agent_step_without_metrics_ignored(self):
+        doc = {"steps": [{"source": "agent"}, {"source": "agent", "metrics": None}]}
+        assert _count_zero_token_agent_turns([doc]) == 0
+
+    def test_partial_zero_not_counted(self):
+        # Only prompt_tokens == 0 (completion nonzero) must not count.
+        doc = {"steps": [{"source": "agent", "metrics": {"prompt_tokens": 0, "completion_tokens": 3}}]}
+        assert _count_zero_token_agent_turns([doc]) == 0
+
+    def test_non_dict_docs_and_steps_skipped(self):
+        assert _count_zero_token_agent_turns(["not-a-dict", 42, None]) == 0
+        assert _count_zero_token_agent_turns([{"steps": ["not-a-dict", None]}]) == 0
+
+    def test_missing_or_none_steps(self):
+        assert _count_zero_token_agent_turns([{}]) == 0
+        assert _count_zero_token_agent_turns([{"steps": None}]) == 0
+
+    def test_aggregates_across_multiple_docs(self):
+        docs = [
+            {"steps": [{"source": "agent", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}}]},
+            {"steps": [{"source": "agent", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}}]},
+        ]
+        assert _count_zero_token_agent_turns(docs) == 2
+
+
+# ── OpenHands condenser config plumbing ──────────────────────────────────
+
+
+class TestHarborSolverCondenser:
+    def _make(self, agent="openhands-sdk", agent_kwargs=None, container_env=None):
+        from unittest.mock import patch
+
+        with patch("nemo_evaluator.solvers.harbor._check_harbor_installed"):
+            from nemo_evaluator.solvers.harbor import HarborSolver
+
+            return HarborSolver(
+                harbor_agent=agent,
+                model_url="http://localhost:8000",
+                model_id="test-model",
+                api_key="test-key",
+                harbor_agent_kwargs=agent_kwargs,
+                container_env=container_env,
+            )
+
+    def test_condenser_max_size_maps_to_env(self):
+        solver = self._make(agent_kwargs={"condenser_max_size": 80})
+        assert solver._container_env["OH_CONDENSER_MAX_SIZE"] == "80"
+        assert "OH_CONDENSER_MAX_TOKENS" not in solver._container_env
+
+    def test_condenser_max_tokens_maps_to_env(self):
+        solver = self._make(agent_kwargs={"condenser_max_size": 80, "condenser_max_tokens": 4096})
+        assert solver._container_env["OH_CONDENSER_MAX_SIZE"] == "80"
+        assert solver._container_env["OH_CONDENSER_MAX_TOKENS"] == "4096"
+
+    def test_float_values_coerced_to_int_string(self):
+        solver = self._make(agent_kwargs={"condenser_max_size": 80.0, "condenser_max_tokens": 4096.7})
+        assert solver._container_env["OH_CONDENSER_MAX_SIZE"] == "80"
+        assert solver._container_env["OH_CONDENSER_MAX_TOKENS"] == "4096"
+
+    def test_explicit_container_env_overrides(self):
+        solver = self._make(
+            agent_kwargs={"condenser_max_size": 80},
+            container_env={"OH_CONDENSER_MAX_SIZE": "12"},
+        )
+        assert solver._container_env["OH_CONDENSER_MAX_SIZE"] == "12"
+
+    def test_no_condenser_env_without_kwargs(self):
+        solver = self._make(agent_kwargs={})
+        assert "OH_CONDENSER_MAX_SIZE" not in solver._container_env
+        assert "OH_CONDENSER_MAX_TOKENS" not in solver._container_env
+
+    def test_non_openhands_agent_ignores_condenser_kwargs(self):
+        solver = self._make(
+            agent="terminus-2",
+            agent_kwargs={"condenser_max_size": 80, "condenser_max_tokens": 4096},
+        )
+        assert "OH_CONDENSER_MAX_SIZE" not in solver._container_env
+        assert "OH_CONDENSER_MAX_TOKENS" not in solver._container_env
+
+
+class TestCreateAgentDropsCondenserKwargs:
+    def test_condenser_kwargs_not_forwarded_to_factory(self, monkeypatch, tmp_path):
+        from nemo_evaluator.solvers.harbor import HarborSolver
+
+        solver = HarborSolver.__new__(HarborSolver)
+        solver._harbor_agent = "openhands-sdk"
+        solver._harbor_agent_kwargs = {
+            "condenser_max_size": 80,
+            "condenser_max_tokens": 4096,
+            "model_name": "test-model",
+        }
+        solver._model_url = "http://model"
+        solver._model_id = "test-model"
+        solver._api_key = "test-key"
+        solver._tokenizer = None
+        solver._max_input_tokens = None
+        solver._max_output_tokens = None
+
+        monkeypatch.setattr(harbor_mod, "_patch_terminus_tmux_send_keys", lambda: None)
+        monkeypatch.setattr(harbor_mod, "_configure_terminus_tokenizer", lambda **kw: None)
+
+        import harbor.agents.factory as factory_mod
+
+        captured: dict = {}
+
+        def fake_create(name, logs_dir=None, **kwargs):
+            captured["name"] = name
+            captured["kwargs"] = kwargs
+            return MagicMock()
+
+        monkeypatch.setattr(factory_mod.AgentFactory, "create_agent_from_name", fake_create)
+
+        solver._create_agent(tmp_path)
+
+        assert captured["name"] == "openhands-sdk"
+        assert "condenser_max_size" not in captured["kwargs"]
+        assert "condenser_max_tokens" not in captured["kwargs"]
+
+
+# ── solve(): zero-token turn flagging ────────────────────────────────────
+
+
+class _FakeZeroTokenContext:
+    def __init__(self) -> None:
+        self.metadata = {"response": "agent answer"}
+        self.rollout_details = []
+        self.n_input_tokens = 3
+        self.n_output_tokens = 4
+
+    def is_empty(self) -> bool:
+        return False
+
+
+class _FakeZeroTokenAgent:
+    async def setup(self, adapter) -> None:
+        pass
+
+    async def run(self, prompt, adapter, context) -> None:
+        pass
+
+
+class _FakeZeroTokenSandbox:
+    is_running = True
+
+    def resolved_endpoint_url(self, name):
+        return None
+
+    def resolve_outside_endpoint(self, url):
+        return url
+
+    async def exec(self, command: str, timeout_sec: float | None = None):
+        return MagicMock(stdout="", stderr="", return_code=0)
+
+
+class TestSolveZeroTokenFlag:
+    def _build_solver(self, monkeypatch, trajectory):
+        class FakeAdapter:
+            is_mounted = True
+
+            def __init__(self, *args, **kwargs) -> None:
+                pass
+
+        import harbor.models.agent.context as context_mod
+
+        import nemo_evaluator.solvers.harbor_adapter as harbor_adapter_mod
+
+        monkeypatch.setattr(context_mod, "AgentContext", _FakeZeroTokenContext)
+        monkeypatch.setattr(harbor_adapter_mod, "SandboxEnvironmentAdapter", FakeAdapter)
+        monkeypatch.setattr(harbor_mod, "_patch_openhands_sdk", AsyncMock(return_value=None))
+        monkeypatch.setattr(harbor_mod, "_capture_workspace_diff", AsyncMock(return_value=""))
+        monkeypatch.setattr(
+            harbor_mod,
+            "_recover_from_logs",
+            lambda logs_dir: {
+                "trajectory": trajectory,
+                "prompt_tokens": 3,
+                "completion_tokens": 4,
+                "response": "agent answer",
+            },
+        )
+        monkeypatch.setattr(harbor_mod.random, "uniform", lambda low, high: 0.0)
+
+        from nemo_evaluator.solvers.harbor import HarborSolver
+
+        solver = HarborSolver.__new__(HarborSolver)
+        solver._model_url = "http://model"
+        solver._model_id = "model"
+        solver._timeout = 60.0
+        solver._run_timeout = 60.0
+        solver._cmd_timeout = None
+        solver._timeout_strategy = "override"
+        solver._max_agent_timeout = None
+        solver._harbor_agent = "openhands-sdk"
+        solver._container_env = {}
+        solver._skill = None
+        solver._skill_dir = None
+        solver._create_agent = lambda logs_dir, model_url="": _FakeZeroTokenAgent()
+
+        async def fake_wait_for_agent(agent_task, sandbox, agent_started_at, effective_timeout, jitter):
+            await agent_task
+            return False, None
+
+        solver._wait_for_agent = fake_wait_for_agent
+        return solver
+
+    @pytest.mark.asyncio
+    async def test_zero_token_turns_flagged_in_trajectory(self, monkeypatch, caplog):
+        import logging
+
+        trajectory = [
+            {
+                "steps": [
+                    {"source": "agent", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}},
+                    {"source": "agent", "metrics": {"prompt_tokens": 12, "completion_tokens": 3}},
+                    {"source": "agent", "metrics": {"prompt_tokens": 0, "completion_tokens": 0}},
+                ]
+            }
+        ]
+        solver = self._build_solver(monkeypatch, trajectory)
+
+        with caplog.at_level(logging.WARNING):
+            result = await solver.solve(
+                SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "task-1"}),
+                sandbox=_FakeZeroTokenSandbox(),
+            )
+
+        assert result.trajectory[0]["final_metrics"]["zero_token_turns"] == 2
+        assert "zero-token agent turn" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_no_flag_when_all_turns_have_tokens(self, monkeypatch):
+        trajectory = [
+            {
+                "steps": [
+                    {"source": "agent", "metrics": {"prompt_tokens": 12, "completion_tokens": 3}},
+                ]
+            }
+        ]
+        solver = self._build_solver(monkeypatch, trajectory)
+
+        result = await solver.solve(
+            SeedResult(prompt="do task", expected_answer="", metadata={"task_id": "task-1"}),
+            sandbox=_FakeZeroTokenSandbox(),
+        )
+
+        assert "final_metrics" not in result.trajectory[0]

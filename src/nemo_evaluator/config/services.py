@@ -74,7 +74,8 @@ class ModelTrafficCaptureConfig(BaseModel):
     capture_tool_calls: bool = True  # full {id, name, arguments} per call
     capture_reasoning: bool = True  # message.reasoning_content (or SSE delta)
     capture_messages: bool = True  # message.content
-    max_content_chars: int = 100_000  # truncation guard for the three above
+    capture_request_body: bool = False  # effective upstream HTTP request body
+    max_content_chars: int = 0  # truncation guard for captured bodies/content; 0 = no limit
 
 
 class ProxyConfig(BaseModel):
@@ -88,6 +89,9 @@ class ProxyConfig(BaseModel):
     ``max_retries`` and ``retry_on_status`` control retry behavior.
     ``max_concurrent_upstream`` limits concurrent requests to the upstream.
     ``model_traffic`` controls what model_traffic.jsonl captures per call.
+    ``finish_reason_fixup`` auto-injects the ``finish_reason`` interceptor
+    (relabel cap-truncated ``stop`` -> ``length``, warn on empty generations);
+    set it to ``false`` to opt out of that always-on safety net.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -101,6 +105,7 @@ class ProxyConfig(BaseModel):
     retry_on_status: list[int] = Field(default_factory=lambda: [429, 502, 503, 504])
     max_concurrent_upstream: int = 64
     model_traffic: ModelTrafficCaptureConfig = Field(default_factory=ModelTrafficCaptureConfig)
+    finish_reason_fixup: bool = True
 
     @property
     def needs_proxy(self) -> bool:

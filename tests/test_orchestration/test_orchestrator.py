@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -198,6 +199,114 @@ class TestInterceptorSpecs:
         from nemo_evaluator.orchestration.orchestrator import _interceptor_specs
 
         assert _interceptor_specs([]) == []
+
+
+class TestStartProxyFinishReason:
+    def _run(self, svc: object, config: object | None = None) -> dict[str, Any]:
+        import nemo_evaluator.adapters.proxy as proxy_mod
+        from nemo_evaluator.orchestration.orchestrator import _start_proxy
+
+        captured: dict[str, Any] = {}
+
+        class _Handle:
+            url = "http://127.0.0.1:0"
+
+        def _fake_start(**kwargs: Any) -> _Handle:
+            captured.update(kwargs)
+            return _Handle()
+
+        with patch.object(proxy_mod, "start_adapter_proxy", _fake_start):
+            _url, _handle, store = _start_proxy("http://upstream:8000", "m", None, svc, "svc", config)
+        if store is not None:
+            store.close()
+        return captured
+
+    def _names(self, svc: object, config: object | None = None) -> list[str]:
+        return [s["name"] for s in (self._run(svc, config).get("interceptor_specs") or [])]
+
+    def test_injected_by_default_and_last(self):
+        svc = MagicMock()
+        svc.proxy = None
+        svc.generation = None
+        names = self._names(svc)
+        assert names[-1] == "finish_reason"
+
+    def test_injected_after_payload_modifier(self):
+        svc = MagicMock()
+        svc.proxy = None
+        gen = MagicMock()
+        gen.model_dump.return_value = {"temperature": 0.0}
+        svc.generation = gen
+        names = self._names(svc)
+        assert names == ["payload_modifier", "finish_reason"]
+
+    def test_docker_sandbox_proxy_listens_on_all_interfaces(self):
+        svc = MagicMock()
+        svc.proxy = None
+        svc.generation = None
+        config = SimpleNamespace(benchmarks=[SimpleNamespace(sandbox=SimpleNamespace(type="docker"))])
+
+        captured = self._run(svc, config)
+
+        assert captured["listen_host"] == "0.0.0.0"
+
+    def test_non_docker_proxy_stays_loopback_only(self):
+        svc = MagicMock()
+        svc.proxy = None
+        svc.generation = None
+        config = SimpleNamespace(benchmarks=[SimpleNamespace(sandbox=SimpleNamespace(type="none"))])
+
+        captured = self._run(svc, config)
+
+        assert captured["listen_host"] == "127.0.0.1"
+
+    def test_not_duplicated_when_configured(self):
+        from nemo_evaluator.config.services import InterceptorConfig, ProxyConfig
+
+        svc = MagicMock()
+        svc.generation = None
+        svc.proxy = ProxyConfig(interceptors=[InterceptorConfig(name="finish_reason")])
+        names = self._names(svc)
+        assert names.count("finish_reason") == 1
+
+    def test_preconfigured_finish_reason_moved_to_end(self):
+        from nemo_evaluator.config.services import InterceptorConfig, ProxyConfig
+
+        svc = MagicMock()
+        gen = MagicMock()
+        gen.model_dump.return_value = {"max_tokens": 16}
+        svc.generation = gen
+        svc.proxy = ProxyConfig(
+            interceptors=[
+                InterceptorConfig(name="finish_reason"),
+                InterceptorConfig(name="turn_counter"),
+            ]
+        )
+        names = self._names(svc)
+        assert names.count("finish_reason") == 1
+        assert names[-1] == "finish_reason"
+        assert names.index("finish_reason") > names.index("payload_modifier")
+
+    def test_opt_out_via_proxy_flag(self):
+        from nemo_evaluator.config.services import ProxyConfig
+
+        svc = MagicMock()
+        svc.generation = None
+        svc.proxy = ProxyConfig(finish_reason_fixup=False)
+        names = self._names(svc)
+        assert "finish_reason" not in names
+
+    def test_opt_out_still_keeps_other_interceptors(self):
+        from nemo_evaluator.config.services import InterceptorConfig, ProxyConfig
+
+        svc = MagicMock()
+        svc.generation = None
+        svc.proxy = ProxyConfig(
+            interceptors=[InterceptorConfig(name="turn_counter")],
+            finish_reason_fixup=False,
+        )
+        names = self._names(svc)
+        assert names == ["turn_counter"]
 
 
 class TestGenerateReports:

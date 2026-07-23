@@ -40,8 +40,11 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src/ src/
 COPY harbor_datasets/registry_overrides/ harbor_datasets/registry_overrides/
+COPY harbor_datasets/task_overlays/ harbor_datasets/task_overlays/
 
-RUN pip install --no-cache-dir ".[scoring,stats]"
+# export ships the exporter runtimes (mlflow, wandb): every component image
+# builds FROM this base, so configured in-run exports work in shipped images.
+RUN pip install --no-cache-dir ".[scoring,stats,export]"
 
 ENV PYTHONUNBUFFERED=1
 

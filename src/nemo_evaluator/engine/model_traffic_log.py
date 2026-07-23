@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Iterable, Iterator
 
 from nemo_evaluator.engine.step_log import StepLog
 from nemo_evaluator.observability.model_traffic import ModelTrafficStore
@@ -37,7 +37,7 @@ def _timestamp(value: Any) -> str:
 def drain_model_traffic_session(
     model_traffic_store: ModelTrafficStore | None,
     session_id: str | None,
-) -> list[dict[str, Any]]:
+) -> Iterable[dict[str, Any]]:
     """Return and clear traffic records for one Adapter Session."""
     if model_traffic_store is None or not session_id:
         return []
@@ -46,7 +46,7 @@ def drain_model_traffic_session(
 
 async def append_model_traffic_records(
     model_traffic_log: StepLog | None,
-    records: list[dict[str, Any]],
+    records: Iterable[dict[str, Any]],
     *,
     benchmark: str,
     problem_idx: int,
@@ -55,7 +55,7 @@ async def append_model_traffic_records(
     """Append captured model traffic as attempt-scoped step-log rows."""
     if model_traffic_log is None or not records:
         return
-    for traffic_record in format_model_traffic_log_records(
+    for traffic_record in _iter_model_traffic_log_records(
         records,
         benchmark=benchmark,
         problem_idx=problem_idx,
@@ -64,15 +64,14 @@ async def append_model_traffic_records(
         await model_traffic_log.append(traffic_record)
 
 
-def format_model_traffic_log_records(
-    records: list[dict[str, Any]],
+def _iter_model_traffic_log_records(
+    records: Iterable[dict[str, Any]],
     *,
     benchmark: str,
     problem_idx: int,
     repeat: int,
-) -> list[dict[str, Any]]:
+) -> Iterator[dict[str, Any]]:
     """Convert drained traffic records into model_traffic.jsonl rows."""
-    rows: list[dict[str, Any]] = []
     for record in records:
         usage = record.get("usage") or {}
         row = {
@@ -98,11 +97,27 @@ def format_model_traffic_log_records(
         for key in ("error_type", "error_message", "error_body", "error_code"):
             if record.get(key):
                 row[key] = record[key]
-        # Opt-in capture fields from ModelTrafficStore.finish_response: only
-        # forwarded when present in the in-memory record (controlled by the
-        # service's proxy.model_traffic.capture_{tool_calls,reasoning,messages}).
-        for key in ("tool_calls_full", "reasoning_content", "message_content"):
+        if record.get("request_hash"):
+            row["request_hash"] = record["request_hash"]
+        for key in ("request_body", "tool_calls_full", "reasoning_content", "message_content"):
             if key in record:
                 row[key] = record[key]
-        rows.append(row)
-    return rows
+        yield row
+
+
+def format_model_traffic_log_records(
+    records: Iterable[dict[str, Any]],
+    *,
+    benchmark: str,
+    problem_idx: int,
+    repeat: int,
+) -> list[dict[str, Any]]:
+    """Convert drained traffic records into model_traffic.jsonl rows."""
+    return list(
+        _iter_model_traffic_log_records(
+            records,
+            benchmark=benchmark,
+            problem_idx=problem_idx,
+            repeat=repeat,
+        )
+    )

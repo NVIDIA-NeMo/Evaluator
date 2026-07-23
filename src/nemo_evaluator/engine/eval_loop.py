@@ -32,7 +32,11 @@ from nemo_evaluator.engine.step_log import (
     MODEL_TRAFFIC_LOG,
     VERIFIED_LOG,
     StepLog,
+    clear_capture_marker,
     config_hash,
+    has_capture_marker,
+    reset_checkpoint_sidecars,
+    write_capture_marker,
 )
 from nemo_evaluator.environments.base import EvalEnvironment, VerifyResult
 from nemo_evaluator.errors import GracefulError, InfraError
@@ -40,6 +44,7 @@ from nemo_evaluator.metrics.aggregation import category_breakdown, scoring_detai
 from nemo_evaluator.metrics.confidence import bootstrap_ci
 from nemo_evaluator.metrics.headline import headline_score_metrics
 from nemo_evaluator.observability.collector import ArtifactCollector
+from nemo_evaluator.observability.failure_classification import classify_model_failure
 from nemo_evaluator.observability.model_traffic import (
     ModelTrafficStore,
     aggregate_model_traffic_stats,
@@ -65,6 +70,32 @@ def _get_error_category(entry: dict) -> str | None:
     if not isinstance(sd, dict):
         return None
     return sd.get("error_category")
+
+
+def _solve_failed_error_category(error: str, *, is_infra: bool, is_solve_timeout: bool = False) -> str:
+    if is_infra:
+        return "infra_error"
+    if category := classify_model_failure(error):
+        return category
+    return "solve_timeout" if is_solve_timeout else "graceful"
+
+
+def _verify_only_workspace_keys(
+    inferred_cache: dict[tuple[int, int], dict[str, Any]],
+    verified_cache: dict[tuple[int, int], dict[str, Any]],
+) -> set[tuple[int, int]]:
+    """Candidate verify-only rollouts whose verification depends on a captured workspace.
+
+    A rollout that used a sandbox and solved without error is verified against a workspace
+    captured in the previous lifecycle's session, which a fresh resume lifecycle cannot
+    reattach. ``error`` is None only for these workspace-bound rollouts; genuine solve
+    failures keep it set and grade 0 without a workspace, so they are excluded. The caller
+    re-solves the returned rollouts that have a capture marker and leaves the rest to the
+    capture-missing path.
+    """
+    return {
+        k for k, v in inferred_cache.items() if k not in verified_cache and v.get("sandbox_used") and not v.get("error")
+    }
 
 
 async def run_evaluation(
@@ -181,6 +212,7 @@ async def run_evaluation(
                 if verified_cache:
                     verified_log.compact(verified_cache)
                 verified_log.open()
+                reset_checkpoint_sidecars(step_log_dir)
                 inference_log.open(truncate=True)
                 model_traffic_log.open(truncate=True)
                 inference_log.write_meta({"config_hash": cfg_hash})
@@ -192,6 +224,31 @@ async def run_evaluation(
                 inferred_cache = {k: v for k, v in inferred_cache_raw.items() if k not in infra_keys}
                 if infra_keys:
                     logger.info("resume: %d infra-error entries will be retried", len(infra_keys))
+                infra_inferred = {
+                    k
+                    for k, v in inferred_cache.items()
+                    if k not in verified_cache and v.get("error_kind") == ErrorKind.INFRA.value
+                }
+                inferred_cache = {k: v for k, v in inferred_cache.items() if k not in infra_inferred}
+                if infra_inferred:
+                    logger.info(
+                        "resume: %d unverified infra-error inference entries will be re-solved", len(infra_inferred)
+                    )
+                # Re-solve verify-only rollouts whose workspace was captured (marker present)
+                # but can't be reattached in a fresh resume lifecycle. Rollouts with no capture
+                # marker fall through to the capture-missing flag path in the loop below.
+                verify_only_workspace = {
+                    k
+                    for k in _verify_only_workspace_keys(inferred_cache, verified_cache)
+                    if has_capture_marker(step_log_dir, *k)
+                }
+                inferred_cache = {k: v for k, v in inferred_cache.items() if k not in verify_only_workspace}
+                if verify_only_workspace:
+                    logger.info(
+                        "resume: %d verify-only workspace rollouts will be re-solved "
+                        "(captured workspace cannot be reattached across resume)",
+                        len(verify_only_workspace),
+                    )
                 if inferred_cache:
                     meta = old_meta or {"config_hash": cfg_hash}
                     inference_log.compact(inferred_cache, meta=meta)
@@ -206,6 +263,7 @@ async def run_evaluation(
             if n_from_cache or n_verify_only:
                 logger.info("resume: %d fully cached, %d verify-only, rest from scratch", n_from_cache, n_verify_only)
         else:
+            reset_checkpoint_sidecars(step_log_dir)
             inference_log.open(truncate=True)
             inference_log.write_meta({"config_hash": cfg_hash})
             verified_log.open(truncate=True)
@@ -283,8 +341,9 @@ async def run_evaluation(
                 )
                 cached_inf = inferred_cache.get(key)
                 if cached_inf:
-                    if cached_inf.get("trajectory"):
-                        cached_step.trajectory = cached_inf["trajectory"]
+                    cached_traj = inference_log.resolve_trajectory(cached_inf)
+                    if cached_traj:
+                        cached_step.trajectory = cached_traj
                     cached_step.model_response = ModelResponse(
                         content=cached_inf.get("response", ""),
                         model=cached_inf.get("model", ""),
@@ -331,6 +390,9 @@ async def run_evaluation(
                 step.model_error = None
                 vr = None
                 _is_solve_timeout = False
+                _is_infra = False
+                _resume_capture_missing = False
+                _cached_solve_scoring_details: dict[str, Any] = {}
 
                 outside_eps: list[OutsideEndpoint] = []
                 step_session_id = uuid4().hex[:16] if model_url else None
@@ -347,6 +409,7 @@ async def run_evaluation(
                     config_capture_cmd=sandbox_cfg.capture_cmd if sandbox_cfg else None,
                     verify_timeout=sandbox_cfg.verify_timeout if sandbox_cfg else 600.0,
                     force_stateful=sandbox_cfg.stateful if sandbox_cfg else False,
+                    scrub_git_history=sandbox_cfg.scrub_git_history if sandbox_cfg else False,
                 )
 
                 try:
@@ -358,12 +421,21 @@ async def run_evaluation(
                         response_text = cached_inferred.get("response", "")
                         tokens = cached_inferred.get("tokens", 0)
                         latency_ms = cached_inferred.get("latency_ms", 0)
-                        if cached_inferred.get("trajectory"):
-                            step.trajectory = cached_inferred["trajectory"]
+                        cached_traj = inference_log.resolve_trajectory(cached_inferred)
+                        if cached_traj:
+                            step.trajectory = cached_traj
+                        step.model_error = cached_inferred.get("error") or None
+                        cached_error_kind = cached_inferred.get("error_kind")
+                        _is_solve_timeout = cached_error_kind == ErrorKind.SOLVE_TIMEOUT.value
+                        _is_infra = cached_error_kind == ErrorKind.INFRA.value
+                        _cached_solve_scoring_details = cached_inferred.get("solve_scoring_details") or {}
+                        if step.model_error:
+                            logger.warning(
+                                "resume p%d r%d: replaying cached solve failure: %s", idx, rep, step.model_error
+                            )
                         logger.debug("resume p%d r%d: using cached inference", idx, rep)
                     else:
                         pg.on_phase(slot, rep, n_problems, n_repeats, "solving")
-                        _is_infra = False
                         try:
                             if _solver_accepts_sandbox(solver):
                                 sandbox = await lifecycle.get_agent_sandbox()
@@ -421,6 +493,10 @@ async def run_evaluation(
 
                         if inference_log is not None:
                             mr = solve_result.model_response if solve_result else None
+                            if solve_result:
+                                error_kind = solve_result.error_kind.value
+                            else:
+                                error_kind = ErrorKind.GRACEFUL.value if step.model_error else ErrorKind.NONE.value
                             inf_record = {
                                 "problem_idx": idx,
                                 "repeat": rep,
@@ -436,15 +512,40 @@ async def run_evaluation(
                                 "expected_answer": seed_result.expected_answer,
                                 "seed_metadata": seed_result.metadata,
                                 "trajectory": solve_result.trajectory if solve_result else None,
+                                "error": step.model_error,
+                                "error_kind": error_kind,
+                                "sandbox_used": sandbox is not None,
                             }
+                            if solve_result and solve_result.scoring_details:
+                                inf_record["solve_scoring_details"] = solve_result.scoring_details
                             if model_stats is not None:
                                 inf_record["model_stats"] = model_stats
+                            if step_log_dir is not None:
+                                clear_capture_marker(step_log_dir, idx, rep)
                             await inference_log.append(inf_record)
 
                     # ── Verify ───────────────────────────────────────
                     _solve_failed = step.model_error is not None
+                    if (
+                        cached_inferred is not None
+                        and not _solve_failed
+                        and cached_inferred.get("sandbox_used")
+                        and step_log_dir is not None
+                        and not has_capture_marker(step_log_dir, idx, rep)
+                    ):
+                        logger.warning(
+                            "resume p%d r%d: no workspace capture marker — the previous run may have died "
+                            "before capturing the agent workspace; verify may see an unmodified workspace",
+                            idx,
+                            rep,
+                        )
+                        _resume_capture_missing = True
                     if _solve_failed:
-                        error_cat = "infra_error" if _is_infra else "graceful"
+                        error_cat = _solve_failed_error_category(
+                            step.model_error or "",
+                            is_infra=_is_infra,
+                            is_solve_timeout=_is_solve_timeout,
+                        )
                         vr = VerifyResult(
                             reward=0.0,
                             scoring_details={
@@ -463,6 +564,12 @@ async def run_evaluation(
                             response_text,
                             solver_modified=(sandbox is not None),
                         )
+                        if (
+                            step_log_dir is not None
+                            and sandbox is not None
+                            and getattr(lifecycle, "captures_workspace", False)
+                        ):
+                            write_capture_marker(step_log_dir, idx, rep)
                         pg.on_phase(slot, rep, n_problems, n_repeats, "verifying")
                     tv = time.monotonic()
                     if not _solve_failed and solve_result and solve_result.reward is not None:
@@ -584,9 +691,15 @@ async def run_evaluation(
                 step.reward = vr.reward
                 step.extracted_answer = vr.extracted_answer
                 step.scoring_details = vr.scoring_details
+                solve_sd = solve_result.scoring_details if solve_result else _cached_solve_scoring_details
+                if solve_sd:
+                    for detail_key, detail_value in solve_sd.items():
+                        step.scoring_details.setdefault(detail_key, detail_value)
                 step.scoring_method = vr.scoring_details.get("method", "")
-                if _is_solve_timeout:
+                if _is_solve_timeout and not step.scoring_details.get("error_category"):
                     step.scoring_details["error_category"] = "solve_timeout"
+                if _resume_capture_missing:
+                    step.scoring_details["resume_workspace_capture"] = "missing"
 
                 extra_scorers = (config or {}).get("scorers", [])
                 if extra_scorers:

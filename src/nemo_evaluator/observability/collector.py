@@ -21,6 +21,10 @@ from pathlib import Path
 
 import numpy as np
 
+from nemo_evaluator.observability.failure_classification import (
+    MODEL_FAILURE_CATEGORIES,
+    classify_model_failure,
+)
 from nemo_evaluator.observability.types import (
     FailureRecord,
     FailureReport,
@@ -57,27 +61,31 @@ class ArtifactCollector:
 
     def _classify_failure(self, step: StepRecord) -> None:
         sd = step.scoring_details
+        if isinstance(sd, dict) and sd.get("error_category") == "system":
+            step.failure_category = "system"
+            return
         if isinstance(sd, dict) and sd.get("error_category") == "infra_error":
             step.failure_category = "infra_error"
             return
         if isinstance(sd, dict) and sd.get("error_category") == "solve_timeout":
             step.failure_category = "solve_timeout"
             return
-        if step.model_error:
-            err = step.model_error
-            if any(code in err for code in ("408", "timeout", "Timeout", "timed out")):
-                step.failure_category = "timeout"
-            elif any(code in err for code in ("429", "Too Many Requests")):
-                step.failure_category = "rate_limit"
-            elif any(code in err for code in ("500", "502", "503", "504")):
-                step.failure_category = "server_error"
-            else:
-                step.failure_category = "model_error"
+        if isinstance(sd, dict) and sd.get("error_category") in MODEL_FAILURE_CATEGORIES:
+            step.failure_category = sd["error_category"]
+            return
+
+        scoring_error = str(sd.get("error") or "") if isinstance(sd, dict) else ""
+        if step.model_error or scoring_error:
+            step.failure_category = classify_model_failure(step.model_error or scoring_error) or "model_error"
         elif step.model_response:
             content = step.model_response.content
             if not content.strip():
-                step.failure_category = "empty_response"
-            elif self._refusal_re.search(content):
+                # Empty final content is an output-shape observation (surfaced
+                # as `empty_final_response` in the trajectories report), not a
+                # failure attribution (FEP-1132). Terminate here so it cannot
+                # fall through and mislabel as refusal or format_error.
+                return
+            if self._refusal_re.search(content):
                 step.failure_category = "refusal"
             elif step.reward == 0 and step.extracted_answer is None:
                 step.failure_category = "format_error"

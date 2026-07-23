@@ -326,10 +326,11 @@ Every evaluation run (all patterns) produces:
 | File | Contents |
 |------|----------|
 | `eval-{id}.json` | Config, pass@k with CIs, per-category scores, runtime stats, failure report |
+| `full_config.yaml` | Write-once snapshot at the run root: the full composed run config (fragments merged, CLI overrides applied, `${ENV_VAR}` refs unexpanded) with a provenance header (version, command, overrides, run_id). Re-runnable via `nel eval run` |
 | `results.jsonl` | Per-sample: problem_idx, repeat, reward, extracted answer, tokens, latency |
 | `trajectories.jsonl` | Per-step: full prompt, model response, token breakdown (prompt/completion/reasoning), latency breakdown (seed/model/verify ms), scoring method + details, SHA256 request hash, failure category |
 | `runtime_stats.json` | Latency percentiles (p50/p90/p99), token throughput, finish reason distribution, error count |
-| `failure_analysis.json` | Categorized failures (refusal, format_error, timeout, rate_limit, empty_response) with counts, percentages, exemplars |
+| `failure_analysis.json` | Categorized failures (refusal, format_error, timeout, rate_limit) with counts, percentages, exemplars |
 | `regression.json` | Score deltas, CI overlap, per-category and runtime deltas (when comparing two runs) |
 
 ---

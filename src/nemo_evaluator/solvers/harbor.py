@@ -40,6 +40,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_AGENT_TIMEOUT_RESPONSE_GRACE_SECONDS = 15.0
+_AGENT_TIMEOUT_RESPONSE_GRACE_FRACTION = 0.05
+_AGENT_TIMEOUT_SIGTERM_EXEC_SECONDS = 10.0
+_AGENT_TIMEOUT_TRAJECTORY_FLUSH_SECONDS = 30.0
+_SANDBOX_AGENT_TIMEOUT_MARGIN_SECONDS = 1.0
+
 _INFRA_ERROR_NAMES = frozenset(
     {
         "ServiceUnavailableError",
@@ -88,6 +94,32 @@ def _resolve_agent_timeout(
     return result
 
 
+def _sandbox_agent_exec_timeout(agent_timeout: float) -> float:
+    """Return sandbox command timeout for the Harbor agent process.
+
+    The sandbox-level command timeout must cover every timeout phase so
+    ``_wait_for_agent`` can persist an in-flight response, send SIGTERM, and
+    let OpenHands flush its partial trajectory before the command is killed.
+    """
+
+    return (
+        agent_timeout
+        + _agent_timeout_response_grace(agent_timeout)
+        + _AGENT_TIMEOUT_SIGTERM_EXEC_SECONDS
+        + _AGENT_TIMEOUT_TRAJECTORY_FLUSH_SECONDS
+        + _SANDBOX_AGENT_TIMEOUT_MARGIN_SECONDS
+    )
+
+
+def _agent_timeout_response_grace(agent_timeout: float) -> float:
+    """Small soft-timeout window for an in-flight response to be persisted."""
+
+    return min(
+        _AGENT_TIMEOUT_RESPONSE_GRACE_SECONDS,
+        max(0.0, agent_timeout * _AGENT_TIMEOUT_RESPONSE_GRACE_FRACTION),
+    )
+
+
 def _extract_response(context: Any) -> str:
     """Extract text response from AgentContext (metadata > last rollout)."""
     if context.metadata and isinstance(context.metadata.get("response"), str):
@@ -98,6 +130,17 @@ def _extract_response(context: Any) -> str:
         if isinstance(c, str):
             return c
     return ""
+
+
+def _host_agent_model_url(url: str) -> str:
+    """Return the model URL used by agents whose LLM client runs on the host.
+
+    Docker sandboxes rewrite host-local proxy URLs to ``host.docker.internal`` for
+    code running inside the container. Some Harbor agents, including terminus-2,
+    call the LLM from the host process while only commands run in the sandbox.
+    Those host-side clients need the host-reachable loopback URL instead.
+    """
+    return url.replace("host.docker.internal", "127.0.0.1")
 
 
 # ---------------------------------------------------------------------------
@@ -270,7 +313,15 @@ async def _patch_openhands_sdk(sandbox: Sandbox, *, cmd_timeout: float | None = 
     2. **Capture reasoning, metrics, and tool timing in ATIF trajectory** —
        the runner's event serialization drops reasoning, per-turn token
        usage, and observation timestamps.  The event conversion and
-       ``build_trajectory`` stages are patched to preserve them.
+       ``build_trajectory`` stages are patched to preserve them.  The
+       ``tool_result`` handler is also fixed to match each observation to
+       the step whose ``tool_call_id`` matches (instead of blindly using
+       ``steps[-1]``), so parallel/multi-tool turns keep an observation on
+       every tool-call step rather than only the last one.  Consecutive
+       ``ActionEvent`` steps that share one ``llm_response_id`` are merged
+       into a single agent step whose ``tool_calls`` and
+       ``observation.results`` list every tool the model requested in that
+       turn.
 
     3. **Enforce 300 s hard timeout on terminal commands** — the SDK
        only applies a hard timeout when the model passes an explicit
@@ -293,6 +344,13 @@ async def _patch_openhands_sdk(sandbox: Sandbox, *, cmd_timeout: float | None = 
        Inject the env lookup so ``solver.agent_kwargs.llm_kwargs.timeout``
        (mapped to ``container_env.LLM_TIMEOUT``) reaches OpenHands
        ``LLM(timeout=...)`` and LiteLLM per-request timeouts.
+
+    6. **Honor ``TOOL_CONCURRENCY_LIMIT`` in the Harbor runner** — Harbor's
+       ``OpenHandsSDK`` adapter does not forward ``tool_concurrency_limit``
+       to ``run_agent.py``.  Inject the env lookup so
+       ``solver.agent_kwargs.tool_concurrency_limit`` (mapped to
+       ``container_env.TOOL_CONCURRENCY_LIMIT``) reaches OpenHands
+       ``Agent(tool_concurrency_limit=...)``.
     """
     # -- Patch 0: disable stuck detection + default visualizer -----------
     # stuck_detection=False: the SDK's heuristic mis-flags reasoning-model
@@ -365,6 +423,94 @@ else:
             stdout_timeout or (r_timeout.stderr or "")[:300],
         )
 
+    _retry_error_patch_script = """\
+import glob
+fs = glob.glob('/opt/openhands-sdk-venv/lib/python*/site-packages/openhands/sdk/llm/utils/retry_mixin.py')
+p = fs[0] if fs else ''
+assert p, 'retry_mixin.py not found'
+c = open(p).read()
+protocol_marker = '"schema_version": 2'
+old = (
+    '        logger.error(\\n'
+    '            "%s. Attempt #%d | You can customize retry values in the configuration.",\\n'
+    '            exc,\\n'
+    '            retry_state.attempt_number,\\n'
+    '        )'
+)
+new = (
+    '        try:\\n'
+    '            import json as _json, os as _os, time as _time\\n'
+    '            _p = "/logs/agent/last_llm_error.json"\\n'
+    '            _os.makedirs(_os.path.dirname(_p), exist_ok=True)\\n'
+    '            _tmp = _p + ".tmp"\\n'
+    '            _request_timeout = getattr(self, "timeout", None)\\n'
+    '            if not isinstance(_request_timeout, (int, float)):\\n'
+    '                _request_timeout = None\\n'
+    '            _retry_after = getattr(getattr(retry_state, "next_action", None), "sleep", 0) or 0\\n'
+    '            _usage = getattr(getattr(self, "metrics", None), "accumulated_token_usage", None)\\n'
+    '            _successful_tokens = int(getattr(_usage, "prompt_tokens", 0) or 0) + int(getattr(_usage, "completion_tokens", 0) or 0)\\n'
+    '            with open(_tmp, "w") as _f:\\n'
+    '                _f.write(_json.dumps({"schema_version": 2, "etype": type(exc).__name__, "emsg": str(exc), "written_at": _time.time(), "request_timeout_seconds": _request_timeout, "retry_after_seconds": _retry_after, "successful_tokens": _successful_tokens}))\\n'
+    '            _os.replace(_tmp, _p)\\n'
+    '        except Exception:\\n'
+    '            pass\\n\\n'
+    + old
+)
+if protocol_marker in c:
+    print('retry_error_capture=already')
+elif old in c:
+    open(p, 'w').write(c.replace(old, new, 1))
+    print('retry_error_capture=patched')
+else:
+    print('retry_error_capture=pattern not found')
+"""
+    encoded_retry = base64.b64encode(_retry_error_patch_script.encode()).decode()
+    r_retry = await sandbox.exec(
+        f"echo {encoded_retry} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout_retry = (r_retry.stdout or "").strip()
+    logger.info("Retry error-capture patch: %s", stdout_retry)
+    if r_retry.return_code != 0 or "pattern not found" in stdout_retry:
+        logger.warning(
+            "Retry error-capture patch problem (rc=%d): %s",
+            r_retry.return_code,
+            stdout_retry or (r_retry.stderr or "")[:300],
+        )
+
+    _tool_concurrency_patch_script = """\
+p = '/installed-agent/run_agent.py'
+c = open(p).read()
+if 'TOOL_CONCURRENCY_LIMIT' in c:
+    print('tool_concurrency_limit: already present')
+else:
+    old = '    agent = Agent(**agent_kwargs)'
+    new = (
+        '    _tcl_raw = os.environ.get("TOOL_CONCURRENCY_LIMIT")\\n'
+        '    if _tcl_raw:\\n'
+        '        agent_kwargs["tool_concurrency_limit"] = int(_tcl_raw)\\n'
+        '    agent = Agent(**agent_kwargs)'
+    )
+    if old in c:
+        open(p, 'w').write(c.replace(old, new, 1))
+        print('tool_concurrency_limit: patched')
+    else:
+        print('tool_concurrency_limit: pattern not found')
+"""
+    encoded_tool_concurrency = base64.b64encode(_tool_concurrency_patch_script.encode()).decode()
+    r_tool_concurrency = await sandbox.exec(
+        f"echo {encoded_tool_concurrency} | base64 -d | python3",
+        timeout_sec=10,
+    )
+    stdout_tool_concurrency = (r_tool_concurrency.stdout or "").strip()
+    logger.info("Tool concurrency patch: %s", stdout_tool_concurrency)
+    if r_tool_concurrency.return_code != 0 or "pattern not found" in stdout_tool_concurrency:
+        logger.warning(
+            "Tool concurrency patch problem (rc=%d): %s",
+            r_tool_concurrency.return_code,
+            stdout_tool_concurrency or (r_tool_concurrency.stderr or "")[:300],
+        )
+
     # -- Patch 1: don't FINISHED on text-only responses ------------------
     # In agent.py, when the LLM produces text without a tool call the SDK
     # sets execution_status=FINISHED and returns — killing the agent.
@@ -423,7 +569,8 @@ print(f'agent.py FINISHED={ok1} nudge={ok2} at {p}')
     #
     # Event-collection (A, B): extract reasoning_content and LLM usage from
     # the SDK event object and store in the intermediate dict.
-    # build_trajectory (C, D): propagate step fields and observation timing.
+    # build_trajectory (C, D): propagate step fields; match each observation
+    # to the correct tool-call step by tool_call_id and record its timing.
 
     _reasoning_script = """\
 import sys
@@ -451,7 +598,9 @@ new_a = (
     '                    if _lm_resp_id not in _nel_seen_resp_ids:\\n'
     '                        _tu = next((u for u in getattr(getattr(llm, "metrics", None), "token_usages", []) if getattr(u, "response_id", None) == _lm_resp_id), None)\\n'
     '                        if _tu:\\n'
-    '                            entry["usage"] = {"prompt_tokens": int(getattr(_tu, "prompt_tokens", 0)), "completion_tokens": int(getattr(_tu, "completion_tokens", 0))}\\n'
+    '                            _pt = int(getattr(_tu, "prompt_tokens", 0) or 0)\\n'
+    '                            _ct = int(getattr(_tu, "completion_tokens", 0) or 0)\\n'
+    '                            entry["usage"] = {"prompt_tokens": _pt, "completion_tokens": _ct, "total_tokens": _pt + _ct}\\n'
     '                            _nel_seen_resp_ids.add(_lm_resp_id)\\n'
     '                events_list.append(entry)\\n'
     '                last_agent_timestamp = event.timestamp\\n'
@@ -474,6 +623,7 @@ new_b = (
     '                entry["reasoning_content"] = _rc\\n'
     '            _lm_resp_id = getattr(event, "llm_response_id", None)\\n'
     '            if _lm_resp_id:\\n'
+    '                entry["llm_response_id"] = _lm_resp_id\\n'
     '                try:\\n'
     '                    _nel_seen_resp_ids\\n'
     '                except NameError:\\n'
@@ -481,7 +631,9 @@ new_b = (
     '                if _lm_resp_id not in _nel_seen_resp_ids:\\n'
     '                    _tu = next((u for u in getattr(getattr(llm, "metrics", None), "token_usages", []) if getattr(u, "response_id", None) == _lm_resp_id), None)\\n'
     '                    if _tu:\\n'
-    '                        entry["usage"] = {"prompt_tokens": int(getattr(_tu, "prompt_tokens", 0)), "completion_tokens": int(getattr(_tu, "completion_tokens", 0))}\\n'
+    '                        _pt = int(getattr(_tu, "prompt_tokens", 0) or 0)\\n'
+    '                        _ct = int(getattr(_tu, "completion_tokens", 0) or 0)\\n'
+    '                        entry["usage"] = {"prompt_tokens": _pt, "completion_tokens": _ct, "total_tokens": _pt + _ct}\\n'
     '                        _nel_seen_resp_ids.add(_lm_resp_id)\\n'
     '            events_list.append(entry)\\n'
     '            last_agent_timestamp = event.timestamp\\n'
@@ -499,18 +651,33 @@ new_c = (
     '            _rc = event.get("reasoning_content", "")\\n'
     '            if _rc:\\n'
     '                step["reasoning_content"] = _rc\\n'
-    '            _u = event.get("usage") or {}\\n'
-    '            _pt = int(_u.get("prompt_tokens", 0) or 0) if isinstance(_u, dict) else 0\\n'
-    '            _ct = int(_u.get("completion_tokens", 0) or 0) if isinstance(_u, dict) else 0\\n'
-    '            if _pt or _ct:\\n'
-    '                step["metrics"] = {"prompt_tokens": _pt, "completion_tokens": _ct}\\n'
-    '            steps.append(step)\\n'
-    '            step_id += 1\\n'
+    '            _u = event.get("usage")\\n'
+    '            if isinstance(_u, dict):\\n'
+    '                _pt = int(_u.get("prompt_tokens", 0) or 0)\\n'
+    '                _ct = int(_u.get("completion_tokens", 0) or 0)\\n'
+    '                _tt = int(_u.get("total_tokens", 0) or 0)\\n'
+    '                if not _tt and (_pt or _ct):\\n'
+    '                    _tt = _pt + _ct\\n'
+    '                step["metrics"] = {"prompt_tokens": _pt, "completion_tokens": _ct, "total_tokens": _tt}\\n'
+    '            _lrid = event.get("llm_response_id")\\n'
+    '            _prev = steps[-1] if steps else None\\n'
+    '            if _lrid is not None and isinstance(_prev, dict) and _prev.get("source") == "agent" and _prev.get("llm_response_id") == _lrid and _prev.get("tool_calls") and step.get("tool_calls"):\\n'
+    '                _prev["tool_calls"].extend(step["tool_calls"])\\n'
+    '            else:\\n'
+    '                if _lrid is not None:\\n'
+    '                    step["llm_response_id"] = _lrid\\n'
+    '                steps.append(step)\\n'
+    '                step_id += 1\\n'
     '\\n'
     '        elif event_type == "tool_result":'
 )
 
-# D: build_trajectory - preserve observation timing
+# D: build_trajectory - match observation to the correct tool call + timing.
+#    The base runner attaches every tool_result to steps[-1] and overwrites,
+#    so in a parallel/multi-tool turn (N ActionEvents -> N consecutive agent
+#    steps) only the LAST step keeps an observation and the earlier calls lose
+#    theirs. Match each tool_result to the step whose tool_call_id equals the
+#    event's tool_call_id, and append (not overwrite) its result.
 old_d = (
     '        elif event_type == "tool_result":\\n'
     '            # Find the previous step and add observation\\n'
@@ -526,8 +693,18 @@ old_d = (
 )
 new_d = (
     '        elif event_type == "tool_result":\\n'
-    '            if steps and steps[-1].get("source") == "agent":\\n'
-    '                _started_at = steps[-1].get("timestamp")\\n'
+    '            _tcid = event.get("tool_call_id")\\n'
+    '            _target = None\\n'
+    '            for _s in reversed(steps):\\n'
+    '                if _s.get("source") != "agent":\\n'
+    '                    continue\\n'
+    '                if any(_tc.get("tool_call_id") == _tcid for _tc in (_s.get("tool_calls") or [])):\\n'
+    '                    _target = _s\\n'
+    '                    break\\n'
+    '            if _target is None and steps and steps[-1].get("source") == "agent":\\n'
+    '                _target = steps[-1]\\n'
+    '            if _target is not None:\\n'
+    '                _started_at = _target.get("timestamp")\\n'
     '                _completed_at = event.get("timestamp")\\n'
     '                _timing = {\\n'
     '                    key: value\\n'
@@ -543,16 +720,100 @@ new_d = (
     '                    except (TypeError, ValueError):\\n'
     '                        pass\\n'
     '                _result = {\\n'
-    '                    "source_call_id": event.get("tool_call_id"),\\n'
+    '                    "source_call_id": _tcid,\\n'
     '                    "content": event.get("content", ""),\\n'
     '                }\\n'
     '                if _timing:\\n'
     '                    _result["extra"] = _timing\\n'
-    '                steps[-1]["observation"] = {"results": [_result]}'
+    '                _obs = _target.setdefault("observation", {"results": []})\\n'
+    '                _obs.setdefault("results", []).append(_result)'
 )
 
 old_schema = '"schema_version": "ATIF-v1.5",'
 new_schema = '"schema_version": "ATIF-v1.7",'
+
+# Enable the LLM summarizing condenser when OH_CONDENSER_MAX_SIZE is set.
+old_cond_build = '    agent = Agent(**agent_kwargs)'
+new_cond_build = (
+    '    _cms = os.environ.get("OH_CONDENSER_MAX_SIZE")\\n'
+    '    if _cms:\\n'
+    '        from openhands.sdk.context.condenser import LLMSummarizingCondenser\\n'
+    '        _ck = {"llm": llm, "max_size": int(_cms), "keep_first": 4}\\n'
+    '        _cmt = os.environ.get("OH_CONDENSER_MAX_TOKENS")\\n'
+    '        if _cmt:\\n'
+    '            _ck["max_tokens"] = int(_cmt)\\n'
+    '        agent_kwargs["condenser"] = LLMSummarizingCondenser(**_ck)\\n'
+    '        print(f"Condenser enabled: max_size={_cms} max_tokens={_cmt}")\\n'
+    '    agent = Agent(**agent_kwargs)'
+)
+
+# Import the Condensation event type (used by the condensation logging below).
+old_cond_import = (
+    '    ActionEvent,\\n'
+    '    MessageEvent,'
+)
+new_cond_import = (
+    '    ActionEvent,\\n'
+    '    Condensation,\\n'
+    '    MessageEvent,'
+)
+
+# Initialise condensation tracking + per-event word counts before the event loop.
+old_cond_init = (
+    '    last_agent_timestamp: str | None = None\\n'
+    '    for event in conversation.state.events:\\n'
+    '        if isinstance(event, MessageEvent):'
+)
+new_cond_init = (
+    '    last_agent_timestamp: str | None = None\\n'
+    '    event_words_by_id = {}\\n'
+    '    _cond_records = []\\n'
+    '    for event in conversation.state.events:\\n'
+    '        event_words_by_id[getattr(event, "id", "")] = len(str(event).split())\\n'
+    '        if isinstance(event, MessageEvent):'
+)
+
+# Record each condensation event and persist the totals to metrics.
+old_cond_branch = (
+    '                        break\\n'
+    '\\n'
+    '    # Build and save trajectory\\n'
+    '    trajectory = build_trajectory('
+)
+new_cond_branch = (
+    '                        break\\n'
+    '        elif isinstance(event, Condensation):\\n'
+    '            _forgotten = list(event.forgotten_event_ids or [])\\n'
+    '            _summary = event.summary or ""\\n'
+    '            _cond_records.append({"forgotten_events": len(_forgotten), "forgotten_words": sum(event_words_by_id.get(fid, 0) for fid in _forgotten), "summary_words": len(_summary.split()), "summary_chars": len(_summary), "success": bool(_summary.strip())})\\n'
+    '            print(f"Condensation #{len(_cond_records)}: forgot {len(_forgotten)} events -> summary {len(_summary.split())} words ({len(_summary)} chars), success={bool(_summary.strip())}")\\n'
+    '\\n'
+    '    if _cond_records:\\n'
+    '        metrics["condensations"] = len(_cond_records)\\n'
+    '        metrics["condensation_details"] = _cond_records\\n'
+    '\\n'
+    '    # Build and save trajectory\\n'
+    '    trajectory = build_trajectory('
+)
+
+# Surface the condensation summary in build_trajectory's final_metrics.
+old_cond_final = (
+    '    }\\n'
+    '\\n'
+    '    return trajectory'
+)
+new_cond_final = (
+    '    }\\n'
+    '\\n'
+    '    if llm_metrics.get("condensations"):\\n'
+    '        trajectory["final_metrics"]["condensations"] = llm_metrics["condensations"]\\n'
+    '        trajectory["final_metrics"]["condensation_details"] = llm_metrics.get("condensation_details", [])\\n'
+    '\\n'
+    '    for _s in trajectory.get("steps", []):\\n'
+    '        _s.pop("llm_response_id", None)\\n'
+    '\\n'
+    '    return trajectory'
+)
 
 ok_a = old_a in c
 c = c.replace(old_a, new_a, 1) if ok_a else c
@@ -564,8 +825,19 @@ ok_d = old_d in c
 c = c.replace(old_d, new_d, 1) if ok_d else c
 ok_schema = old_schema in c
 c = c.replace(old_schema, new_schema, 1) if ok_d and ok_schema else c
+ok_cond_build = old_cond_build in c
+c = c.replace(old_cond_build, new_cond_build, 1) if ok_cond_build else c
+ok_cond_import = old_cond_import in c
+c = c.replace(old_cond_import, new_cond_import, 1) if ok_cond_import else c
+ok_cond_init = old_cond_init in c
+c = c.replace(old_cond_init, new_cond_init, 1) if ok_cond_init else c
+ok_cond_branch = old_cond_branch in c
+c = c.replace(old_cond_branch, new_cond_branch, 1) if ok_cond_branch else c
+ok_cond_final = old_cond_final in c
+c = c.replace(old_cond_final, new_cond_final, 1) if ok_cond_final else c
 open(p, 'w').write(c)
-print(f'reasoning+metrics+timing: msg={ok_a} action={ok_b} traj={ok_c} timing={ok_d} schema={ok_schema}')
+print(f'reasoning+metrics+timing: msg={ok_a} action={ok_b} traj={ok_c} obs_match={ok_d} schema={ok_schema}')
+print(f'condenser: build={ok_cond_build} import={ok_cond_import} init={ok_cond_init} branch={ok_cond_branch} final={ok_cond_final}')
 """
     encoded = base64.b64encode(_reasoning_script.encode()).decode()
     r3 = await sandbox.exec(
@@ -726,7 +998,7 @@ if ok:
         ind + '                    _entry = {"type": _entry_type, "content": _trajectory_text_from_event(_event), "timestamp": _event.timestamp}\\n' +
         ind + '                    _events_list.append(_entry)\\n' +
         ind + '            elif isinstance(_event, ActionEvent):\\n' +
-        ind + '                _events_list.append({"type": "assistant_message", "content": "", "timestamp": _event.timestamp, "tool_calls": [{"id": _event.tool_call_id, "name": _event.tool_name, "arguments": _trajectory_tool_args(_event)}]})\\n' +
+        ind + '                _events_list.append({"type": "assistant_message", "content": "", "timestamp": _event.timestamp, "llm_response_id": getattr(_event, "llm_response_id", None), "tool_calls": [{"id": _event.tool_call_id, "name": _event.tool_name, "arguments": _trajectory_tool_args(_event)}]})\\n' +
         ind + '        _trajectory = build_trajectory(_events_list, _metrics, model)\\n' +
         ind + '        _trajectory.setdefault("extra", {})["partial_trajectory"] = {"reason": _reason, "events": len(_events_list)}\\n' +
         ind + '        _path = Path(args.trajectory_path)\\n' +
@@ -907,6 +1179,105 @@ def _error_from_crash_marker(agent_logs_dir: Path) -> str | None:
     except Exception:
         logger.warning("HarborSolver: failed to read crash marker", exc_info=True)
         return None
+
+
+def _format_llm_error(etype: Any, emsg: Any) -> str:
+    etype_s = str(etype or "ModelError").strip() or "ModelError"
+    emsg_s = str(emsg or "").strip()
+    return f"{etype_s}: {emsg_s}" if emsg_s else etype_s
+
+
+def _last_llm_error_from_marker(
+    agent_logs_dir: Path,
+    *,
+    successful_tokens: int | None = None,
+) -> str | None:
+    marker = agent_logs_dir / "last_llm_error.json"
+    if not marker.is_file():
+        return None
+    try:
+        payload = json.loads(marker.read_text())
+    except Exception:
+        logger.warning("HarborSolver: failed to read last LLM error marker", exc_info=True)
+        return None
+    if not isinstance(payload, dict):
+        return None
+
+    currentness_fields = ("written_at", "request_timeout_seconds", "successful_tokens")
+    if not all(field in payload for field in currentness_fields):
+        logger.info("HarborSolver: ignoring legacy LLM error marker without currentness evidence")
+        return None
+
+    marker_at = payload.get("written_at")
+    if not isinstance(marker_at, (int, float)) or isinstance(marker_at, bool):
+        try:
+            marker_at = marker.stat().st_mtime
+        except OSError:
+            logger.warning("HarborSolver: failed to stat last LLM error marker", exc_info=True)
+            return None
+
+    marker_tokens = payload.get("successful_tokens")
+    if (
+        successful_tokens is not None
+        and isinstance(marker_tokens, (int, float))
+        and not isinstance(marker_tokens, bool)
+        and successful_tokens > marker_tokens
+    ):
+        logger.info("HarborSolver: ignoring LLM error marker superseded by later successful model activity")
+        return None
+
+    request_timeout = payload.get("request_timeout_seconds")
+    retry_after = payload.get("retry_after_seconds", 0)
+    if isinstance(request_timeout, (int, float)) and not isinstance(request_timeout, bool):
+        if not isinstance(retry_after, (int, float)) or isinstance(retry_after, bool):
+            retry_after = 0
+        evidence_window = max(0.0, float(request_timeout)) + max(0.0, float(retry_after))
+        marker_age = max(0.0, time.time() - marker_at)
+        if marker_age > evidence_window + _AGENT_TIMEOUT_RESPONSE_GRACE_SECONDS:
+            logger.info(
+                "HarborSolver: ignoring LLM error marker older than its request retry window (age=%.0fs window=%.0fs)",
+                marker_age,
+                evidence_window,
+            )
+            return None
+
+    return _format_llm_error(payload.get("etype"), payload.get("emsg"))
+
+
+def _is_turn_budget_exhausted_error(error: str) -> bool:
+    text = error.lower()
+    return "turn budget exhausted" in text or "turn budget exceeded" in text
+
+
+def _is_agent_crash_error(error: str) -> bool:
+    """Return whether *error* uses Harbor's canonical agent-crash envelope."""
+    return error.startswith("Agent crashed:")
+
+
+def _classify_workspace_failure(
+    error: str,
+    workspace_diff: str,
+    *,
+    default_error_kind: ErrorKind,
+    is_agent_crash: bool = False,
+) -> tuple[str | None, ErrorKind, dict[str, Any]]:
+    """Return solve metadata while preserving recoverable workspace changes."""
+    if not workspace_diff:
+        return error, default_error_kind, {}
+
+    if _is_turn_budget_exhausted_error(error):
+        logger.info("HarborSolver: agent hit turn budget with workspace changes — submitting for verification")
+        return (
+            None,
+            ErrorKind.SOLVE_TIMEOUT,
+            {"error": error, "error_category": "turn_budget_exhausted"},
+        )
+
+    if is_agent_crash:
+        logger.info("HarborSolver: agent crashed with workspace changes — submitting for verification")
+        return None, default_error_kind, {"error": error}
+
+    return error, default_error_kind, {}
 
 
 def _parse_atif(raw: Any) -> dict[str, Any] | None:
@@ -1295,6 +1666,7 @@ def _patch_terminus_unwind_min_pairs() -> None:
 
 _TERMINUS_API_ANCHOR_PATCHED = False
 _CHAT_TOKEN_ANCHOR_PATCHED = False
+_HARBOR_LITELLM_CTXLIM_PATCHED = False
 
 
 def _terminus2_count_total_tokens(self, chat) -> int:
@@ -1372,6 +1744,75 @@ def _patch_terminus_api_token_anchor() -> None:
     terminus2_mod.Terminus2._count_total_tokens = _terminus2_count_total_tokens
     _TERMINUS_API_ANCHOR_PATCHED = True
     logger.info("Patched Terminus2._count_total_tokens: anchor on API usage + litellm token remainder")
+
+
+# Matches the vLLM ``VLLMValidationError`` phrasing raised by self-hosted vLLM
+# deployments when a request exceeds the configured context length. The raw 400
+# body reads:
+#
+#   "You passed N input tokens and requested 0 output tokens. However, the
+#    model's context length is only M tokens..."
+#
+# Harbor 0.3.x's ``LiteLLM._is_context_length_error`` phrases tuple lists
+# ``"maximum context length"`` but NOT ``"model's context length"``, so this
+# text falls through to a plain ``LiteLLMBadRequestError``, Terminus-2's
+# ``except ContextLengthExceededError`` block never fires, and the agent
+# crashes instead of running its reactive-summarization fallback.
+#
+# Harbor v0.18.0 added exactly this substring upstream (see
+# ``harbor/llms/lite_llm.py`` with the comment ``# vllm 0.16.0 error
+# message``), so this patch becomes redundant the moment the ``harbor`` pin
+# in ``pyproject.toml`` is bumped to a release containing it.
+_VLLM_CTXLIM_PHRASES: tuple[str, ...] = (
+    "model's context length",  # vLLM VLLMValidationError; harbor >=0.18 catches this natively
+)
+
+# vLLM's ``VLLMValidationError`` is raised with ``parameter="input_tokens"`` as
+# a structured kwarg. On stringification, that appears verbatim in the wire
+# error body as ``parameter=input_tokens``. Grep of vLLM shows this kwarg is
+# emitted by a single call site — the context-overflow validator — so its
+# presence in an unclassified ``BadRequestError`` is a strong signal that the
+# free-text phrase list above has drifted behind a vLLM release. We do NOT
+# reclassify on this marker (a bad free-text detector should be fixed, not
+# silently papered over); instead we log loudly so the drift is visible.
+_VLLM_CTXLIM_DRIFT_MARKER = "parameter=input_tokens"
+
+
+def _patch_harbor_lite_llm_context_length_matcher() -> None:
+    global _HARBOR_LITELLM_CTXLIM_PATCHED
+    if _HARBOR_LITELLM_CTXLIM_PATCHED:
+        return
+
+    from harbor.llms import lite_llm as harbor_litellm
+
+    original = harbor_litellm.LiteLLM._is_context_length_error
+
+    def _patched(self: Any, error: Any) -> bool:
+        if original(self, error):
+            return True
+        parts = [
+            str(error),
+            str(getattr(error, "body", "") or ""),
+            str(getattr(error, "message", "") or ""),
+            str(getattr(error, "error", "") or ""),
+        ]
+        combined = " ".join(p for p in parts if p).lower()
+        if any(phrase in combined for phrase in _VLLM_CTXLIM_PHRASES):
+            return True
+        if _VLLM_CTXLIM_DRIFT_MARKER in combined:
+            logger.warning(
+                "BadRequestError body contains vLLM's stable ctx-overflow marker "
+                "'%s' but did not match any classifier phrase in "
+                "_VLLM_CTXLIM_PHRASES. vLLM's error phrasing has likely drifted "
+                "and _VLLM_CTXLIM_PHRASES needs an update. Body preview: %s",
+                _VLLM_CTXLIM_DRIFT_MARKER,
+                combined[:500],
+            )
+        return False
+
+    harbor_litellm.LiteLLM._is_context_length_error = _patched
+    _HARBOR_LITELLM_CTXLIM_PATCHED = True
+    logger.info('Patched Harbor LiteLLM._is_context_length_error to recognize vLLM "model\'s context length" phrasing')
 
 
 _TOKENIZER_REGISTRY: dict[str, dict] = {}
@@ -1453,6 +1894,32 @@ def _configure_terminus_tokenizer(*, is_terminus2: bool, model_name: str, tokeni
         _register_harbor_tokenizer(model_name, tokenizer)
 
 
+def _count_zero_token_agent_turns(trajectory: Any) -> int:
+    """Count agent LLM turns recorded with zero prompt+completion tokens.
+
+    A zero-token turn means an LLM response carried no usage — the symptom of a
+    context reset/condensation that failed to fire (local ``litellm.token_counter``
+    vs. API token-count mismatch). Surfaced for observability, not classified as
+    an infra error.
+    """
+    docs = trajectory if isinstance(trajectory, list) else [trajectory]
+    count = 0
+    for doc in docs:
+        if not isinstance(doc, dict):
+            continue
+        for step in doc.get("steps") or []:
+            if not isinstance(step, dict) or step.get("source") != "agent":
+                continue
+            metrics = step.get("metrics")
+            if (
+                isinstance(metrics, dict)
+                and metrics.get("prompt_tokens") == 0
+                and metrics.get("completion_tokens") == 0
+            ):
+                count += 1
+    return count
+
+
 class HarborSolver:
     """Runs any Harbor agent inside an evaluator :class:`Sandbox`.
 
@@ -1508,6 +1975,17 @@ class HarborSolver:
                 llm_timeout = llm_kw.get("timeout")
                 if llm_timeout is not None:
                     self._container_env.setdefault("LLM_TIMEOUT", str(int(float(llm_timeout))))
+            # Config-driven OpenHands condenser: agent_kwargs.condenser_max_size ->
+            # env var read by the run_agent.py patch (see _reasoning_script).
+            cms = self._harbor_agent_kwargs.get("condenser_max_size")
+            if cms is not None:
+                self._container_env.setdefault("OH_CONDENSER_MAX_SIZE", str(int(cms)))
+            cmt = self._harbor_agent_kwargs.get("condenser_max_tokens")
+            if cmt is not None:
+                self._container_env.setdefault("OH_CONDENSER_MAX_TOKENS", str(int(cmt)))
+            tool_concurrency = self._harbor_agent_kwargs.get("tool_concurrency_limit")
+            if tool_concurrency is not None:
+                self._container_env.setdefault("TOOL_CONCURRENCY_LIMIT", str(int(tool_concurrency)))
         self._max_input_tokens = max_input_tokens
         self._max_output_tokens = max_output_tokens
         self._tokenizer = tokenizer
@@ -1537,6 +2015,9 @@ class HarborSolver:
         _patch_terminus_tmux_send_keys()
 
         kwargs = dict(self._harbor_agent_kwargs)
+        # Consumed via OH_CONDENSER_MAX_SIZE env (see __init__); not a harbor agent kwarg.
+        kwargs.pop("condenser_max_size", None)
+        kwargs.pop("condenser_max_tokens", None)
         url = model_url or self._model_url
         model_id = _model_id_for_openai(self._model_id, bool(url), agent=self._harbor_agent) if self._model_id else ""
         is_terminus2 = self._harbor_agent.replace("_", "-").lower() == "terminus-2"
@@ -1544,6 +2025,7 @@ class HarborSolver:
             _patch_terminus_cle_reset()
             _patch_terminus_unwind_min_pairs()
             _patch_terminus_api_token_anchor()
+            _patch_harbor_lite_llm_context_length_matcher()
         if "model_name" not in kwargs and model_id:
             kwargs["model_name"] = model_id
         _configure_terminus_tokenizer(
@@ -1656,7 +2138,16 @@ class HarborSolver:
                 jitter,
                 self._timeout_strategy,
             )
-            if sandbox.is_running:
+            response_grace = _agent_timeout_response_grace(effective_timeout - jitter)
+            if response_grace > 0:
+                logger.info(
+                    "HarborSolver: allowing %.1fs for in-flight model response persistence before SIGTERM",
+                    response_grace,
+                )
+                done_after_response_grace, _ = await asyncio.wait({agent_task}, timeout=response_grace)
+                if agent_task in done_after_response_grace:
+                    logger.info("HarborSolver: timed-out agent completed during response persistence grace")
+            if not agent_task.done() and sandbox.is_running:
                 try:
                     await sandbox.exec(
                         "python3 - <<'PY'\n"
@@ -1678,9 +2169,11 @@ class HarborSolver:
                         "    if pid != me and 'python' in comm and '/installed-agent/run_agent.py' in args:\n"
                         "        os.kill(pid, signal.SIGTERM)\n"
                         "PY",
-                        timeout_sec=10,
+                        timeout_sec=_AGENT_TIMEOUT_SIGTERM_EXEC_SECONDS,
                     )
-                    done_after_signal, _ = await asyncio.wait({agent_task}, timeout=30.0)
+                    done_after_signal, _ = await asyncio.wait(
+                        {agent_task}, timeout=_AGENT_TIMEOUT_TRAJECTORY_FLUSH_SECONDS
+                    )
                     if agent_task in done_after_signal:
                         logger.info("HarborSolver: timed-out agent flushed after SIGTERM")
                 except Exception:
@@ -1784,6 +2277,7 @@ class HarborSolver:
         logs_dir = Path(tempfile.mkdtemp(prefix="eval_harbor_"))
         agent_logs_dir = logs_dir / "agent"
         agent_logs_dir.mkdir(parents=True, exist_ok=True)
+        retry_zero_progress = False
 
         try:
             resolved_url = sandbox.resolved_endpoint_url("MODEL_BASE_URL") or (
@@ -1794,18 +2288,46 @@ class HarborSolver:
             if resolved_url:
                 override["LLM_BASE_URL"] = resolved_url
 
+            task_timeout = task.metadata.get("agent_timeout_sec")
+            if task_timeout is not None and not isinstance(task_timeout, (int, float)):
+                logger.warning("agent_timeout_sec in metadata is not numeric: %r, ignoring", task_timeout)
+                task_timeout = None
+            run_timeout = _resolve_agent_timeout(
+                self._timeout_strategy,
+                self._run_timeout,
+                task_timeout,
+                self._max_agent_timeout,
+            )
+            logger.info(
+                "HarborSolver: timeout resolved: strategy=%s nel=%.0fs task=%s cap=%s → effective=%.0fs",
+                self._timeout_strategy,
+                self._run_timeout,
+                f"{task_timeout:.0f}s" if task_timeout is not None else "n/a",
+                f"{self._max_agent_timeout:.0f}s" if self._max_agent_timeout is not None else "n/a",
+                run_timeout,
+            )
+            jitter = random.uniform(0, min(120.0, run_timeout * 0.02))
+            effective_timeout = run_timeout + jitter
+            agent_exec_timeout = max(self._timeout, _sandbox_agent_exec_timeout(effective_timeout))
+            logger.info(
+                "HarborSolver: sandbox agent command timeout %.0fs (effective %.0fs + %.0fs jitter)",
+                agent_exec_timeout,
+                run_timeout,
+                jitter,
+            )
+
             adapter = SandboxEnvironmentAdapter(
                 sandbox,
                 session_id=task.metadata["task_id"],
                 logs_dir=logs_dir,
-                default_timeout=self._timeout,
+                default_timeout=agent_exec_timeout,
                 persistent_env=self._container_env,
                 override_env=override,
             )
 
-            agent = self._create_agent(agent_logs_dir, model_url=resolved_url)
+            agent = self._create_agent(agent_logs_dir, model_url=_host_agent_model_url(resolved_url))
             await sandbox.exec(
-                "mkdir -p /logs/agent /logs/verifier /logs/artifacts",
+                "mkdir -p /logs/agent /logs/verifier /logs/artifacts && rm -f /logs/agent/last_llm_error.json",
                 timeout_sec=10,
             )
 
@@ -1862,26 +2384,6 @@ class HarborSolver:
 
             agent_error: Exception | None = None
             agent_timed_out = False
-            task_timeout = task.metadata.get("agent_timeout_sec")
-            if task_timeout is not None and not isinstance(task_timeout, (int, float)):
-                logger.warning("agent_timeout_sec in metadata is not numeric: %r, ignoring", task_timeout)
-                task_timeout = None
-            run_timeout = _resolve_agent_timeout(
-                self._timeout_strategy,
-                self._run_timeout,
-                task_timeout,
-                self._max_agent_timeout,
-            )
-            logger.info(
-                "HarborSolver: timeout resolved: strategy=%s nel=%.0fs task=%s cap=%s → effective=%.0fs",
-                self._timeout_strategy,
-                self._run_timeout,
-                f"{task_timeout:.0f}s" if task_timeout is not None else "n/a",
-                f"{self._max_agent_timeout:.0f}s" if self._max_agent_timeout is not None else "n/a",
-                run_timeout,
-            )
-            jitter = random.uniform(0, min(120.0, run_timeout * 0.02))
-            effective_timeout = run_timeout + jitter
 
             prompt = await self._inject_skill(sandbox, task.prompt)
             agent_task = asyncio.create_task(agent.run(prompt, adapter, context))
@@ -1941,6 +2443,22 @@ class HarborSolver:
                     fm = doc.setdefault("final_metrics", {})
                     fm["workspace_diff_preview"] = workspace_diff[:100_000]
 
+            # OpenHands: flag zero-token agent turns — symptom of a context
+            # reset/condensation that failed to fire (litellm vs API token
+            # mismatch). Observability only; not classified as infra.
+            if self._harbor_agent.lower() in ("openhands", "openhands-sdk") and trajectory:
+                zero_token_turns = _count_zero_token_agent_turns(trajectory)
+                if zero_token_turns:
+                    logger.warning(
+                        "HarborSolver: OpenHands produced %d zero-token agent turn(s) — "
+                        "possible context-reset/condensation failure (litellm vs API token "
+                        "mismatch). See trajectory final_metrics.zero_token_turns.",
+                        zero_token_turns,
+                    )
+                    doc = trajectory[0] if isinstance(trajectory, list) and trajectory else None
+                    if isinstance(doc, dict):
+                        doc.setdefault("final_metrics", {})["zero_token_turns"] = zero_token_turns
+
             # Response: prefer actual agent text, sentinel if empty/echo.
             response = _extract_response(context) or recovered["response"]
             if not response or _is_prompt_echo(response, task.prompt):
@@ -1951,9 +2469,18 @@ class HarborSolver:
             completion_tokens = context.n_output_tokens or recovered["completion_tokens"]
 
             latency_ms = (time.monotonic() - t0) * 1000
+            last_llm_error = (
+                _last_llm_error_from_marker(
+                    agent_logs_dir,
+                    successful_tokens=prompt_tokens + completion_tokens,
+                )
+                if agent_timed_out
+                else None
+            )
 
             # Timeout with zero progress → model is likely dead.
-            if agent_timed_out and not workspace_diff and prompt_tokens + completion_tokens == 0:
+            if agent_timed_out and not workspace_diff and prompt_tokens + completion_tokens == 0 and not last_llm_error:
+                retry_zero_progress = True
                 raise InfraError(
                     f"Agent made no progress before run_timeout ({self._run_timeout:.0f}s). Model may be unreachable."
                 )
@@ -1967,14 +2494,27 @@ class HarborSolver:
 
             error = None
             error_kind = ErrorKind.NONE
+            scoring_details: dict[str, Any] = {}
+            crash_error = None
             if agent_error is not None:
                 etype = type(agent_error).__name__
                 if etype in _INFRA_ERROR_NAMES:
                     raise InfraError(f"Agent infrastructure failure: {etype}: {agent_error}") from agent_error
-                error = f"Agent crashed: {etype}: {agent_error}"
-                logger.warning("HarborSolver: %s", error)
-            elif crash_error := _error_from_crash_marker(agent_logs_dir):
-                error = crash_error
+                crash_error = f"Agent crashed: {etype}: {agent_error}"
+            else:
+                crash_error = _error_from_crash_marker(agent_logs_dir)
+
+            if crash_error:
+                error, error_kind, scoring_details = _classify_workspace_failure(
+                    crash_error,
+                    workspace_diff,
+                    default_error_kind=ErrorKind.NONE,
+                    is_agent_crash=True,
+                )
+                if error:
+                    logger.warning("HarborSolver: %s", error)
+            elif agent_timed_out and not response and last_llm_error:
+                error = f"Agent timed out after model API error: {last_llm_error}"
                 logger.warning("HarborSolver: %s", error)
             elif agent_timed_out and workspace_diff and _confirmed_zero_tokens:
                 error = (
@@ -2026,6 +2566,7 @@ class HarborSolver:
                 trajectory=trajectory,
                 error=error,
                 error_kind=error_kind,
+                scoring_details=scoring_details,
             )
 
         except InfraError as exc:
@@ -2039,6 +2580,9 @@ class HarborSolver:
                     await _download_agent_logs(sandbox, agent_logs_dir)
             except Exception:
                 logger.debug("Post-failure recovery failed", exc_info=True)
+
+            if retry_zero_progress and not workspace_diff:
+                raise
 
             recovered = _recover_from_logs(agent_logs_dir)
             trajectory = recovered["trajectory"] or build_atif_trajectory(
@@ -2057,6 +2601,12 @@ class HarborSolver:
             if not response or _is_prompt_echo(response, ""):
                 response = "[workspace modified]" if workspace_diff else ""
 
+            error, error_kind, scoring_details = _classify_workspace_failure(
+                str(exc),
+                workspace_diff,
+                default_error_kind=ErrorKind.INFRA,
+            )
+
             return SolveResult(
                 response=response,
                 model_response=ModelResponse(
@@ -2067,8 +2617,9 @@ class HarborSolver:
                     latency_ms=round(latency_ms, 2),
                 ),
                 trajectory=trajectory,
-                error=str(exc),
-                error_kind=ErrorKind.INFRA,
+                error=error,
+                error_kind=error_kind,
+                scoring_details=scoring_details,
             )
 
         except GracefulError as exc:
@@ -2100,6 +2651,13 @@ class HarborSolver:
             if not response or _is_prompt_echo(response, ""):
                 response = "[workspace modified]" if workspace_diff else ""
 
+            error, error_kind, scoring_details = _classify_workspace_failure(
+                str(exc),
+                workspace_diff,
+                default_error_kind=ErrorKind.NONE,
+                is_agent_crash=_is_agent_crash_error(str(exc)),
+            )
+
             return SolveResult(
                 response=response,
                 model_response=ModelResponse(
@@ -2110,7 +2668,9 @@ class HarborSolver:
                     latency_ms=round(latency_ms, 2),
                 ),
                 trajectory=trajectory,
-                error=str(exc),
+                error=error,
+                error_kind=error_kind,
+                scoring_details=scoring_details,
             )
 
         except Exception:

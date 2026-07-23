@@ -31,12 +31,38 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
+from nemo_evaluator.sandbox.git_scrub import build_git_history_scrub_cmd
+
 if TYPE_CHECKING:
     from nemo_evaluator.sandbox.base import OutsideEndpoint, Sandbox, SandboxSpec
     from nemo_evaluator.sandbox.manager import SandboxManager
     from nemo_evaluator.sandbox.transfer import WorkspaceTransfer
 
 logger = logging.getLogger(__name__)
+
+
+async def _run_pre_agent_cmd(sandbox: Sandbox, cmd: str) -> None:
+    """Run a pre-agent setup command in the agent sandbox, best-effort.
+
+    Failures are logged loudly but never raise: a broken setup step must not
+    abort the rollout. The command is expected to self-report via its exit
+    code (non-zero → failure) and to print its own audit line, so no
+    command-specific parsing lives here.
+    """
+    try:
+        result = await sandbox.exec(cmd, timeout_sec=900)
+        tail = (result.stdout or "").strip().splitlines()[-1:] or [""]
+        if result.return_code != 0:
+            logger.error(
+                "StatelessSandbox: pre_agent_cmd FAILED (rc=%d): %s | stderr=%s",
+                result.return_code,
+                tail[0][:500],
+                (result.stderr or "").strip()[:500],
+            )
+        else:
+            logger.info("StatelessSandbox: pre_agent_cmd OK — %s", tail[0][:500])
+    except Exception:
+        logger.error("StatelessSandbox: pre_agent_cmd errored", exc_info=True)
 
 
 # -- Context passed to lifecycle constructors --------------------------------
@@ -51,6 +77,7 @@ class LifecycleContext:
     apply_cmd: str | None
     verify_timeout: float = 600.0
     outside_endpoints: list[OutsideEndpoint] = field(default_factory=list)
+    pre_agent_cmd: str | None = None
 
 
 # -- Protocol ----------------------------------------------------------------
@@ -80,6 +107,8 @@ class SandboxLifecycle(Protocol):
 class NoSandbox:
     """No container needed (text-only benchmarks)."""
 
+    captures_workspace = False
+
     async def setup(self) -> None:
         pass
 
@@ -108,6 +137,8 @@ class StatefulSandbox:
     ``get_verify_sandbox``, so external solvers that skip the agent phase
     still get a sandbox for verification (e.g. HumanEval + ChatSolver).
     """
+
+    captures_workspace = False
 
     def __init__(
         self,
@@ -169,6 +200,8 @@ class StatelessSandbox:
        the sandbox to the scorer.
     """
 
+    captures_workspace = True
+
     def __init__(self, ctx: LifecycleContext, transfer: WorkspaceTransfer) -> None:
         self._ctx = ctx
         self._transfer = transfer
@@ -197,6 +230,8 @@ class StatelessSandbox:
             f"_h=$(cd {wd} 2>/dev/null && git rev-parse HEAD 2>/dev/null) && echo $_h > /tmp/_nel_base_commit || true",
             timeout_sec=10,
         )
+        if self._ctx.pre_agent_cmd:
+            await _run_pre_agent_cmd(self._agent_sandbox, self._ctx.pre_agent_cmd)
         return self._agent_sandbox
 
     async def transition_to_verify(
@@ -272,8 +307,11 @@ class StatelessSandbox:
         self._verify_sandbox = await self._ctx.sandbox_mgr.acquire(spec)
         await self._verify_sandbox.exec("mkdir -p /output /input", timeout_sec=10)
         await self._transfer.pre_restore(self._verify_sandbox)
+        # `test -s` dereferences the symlink and requires a non-empty target, so a dangling
+        # link (a workspace that never transferred) exits non-zero. The trailing stat only
+        # enriches the log.
         check = await self._verify_sandbox.exec(
-            "ls -lh /input/workspace.tar 2>&1",
+            "test -s /input/workspace.tar && stat -L -c '%s bytes' /input/workspace.tar 2>&1",
             timeout_sec=10,
         )
         ws_present = check.return_code == 0
@@ -350,6 +388,7 @@ def pick_lifecycle(
     config_capture_cmd: str | None = None,
     verify_timeout: float = 600.0,
     force_stateful: bool = False,
+    scrub_git_history: bool = False,
 ) -> SandboxLifecycle:
     """Select the appropriate lifecycle strategy for *seed*.
 
@@ -371,6 +410,11 @@ def pick_lifecycle(
 
         transfer = sandbox_mgr.get_transfer_strategy()
 
+        if scrub_git_history and agent_spec is not None:
+            pre_agent_cmd = build_git_history_scrub_cmd(agent_spec.workdir)
+        else:
+            pre_agent_cmd = seed.pre_agent_cmd
+
         logger.debug("pick_lifecycle: selected StatelessSandbox")
         return StatelessSandbox(
             LifecycleContext(
@@ -381,6 +425,7 @@ def pick_lifecycle(
                 apply_cmd=seed.apply_cmd,
                 verify_timeout=verify_timeout,
                 outside_endpoints=eps,
+                pre_agent_cmd=pre_agent_cmd,
             ),
             transfer=transfer,
         )

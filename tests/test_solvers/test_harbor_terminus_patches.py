@@ -24,6 +24,7 @@ import pytest
 import nemo_evaluator.solvers.harbor as harbor
 from nemo_evaluator.solvers.harbor import (
     _patch_chat_token_anchor,
+    _patch_harbor_lite_llm_context_length_matcher,
     _patch_terminus_api_token_anchor,
     _patch_terminus_cle_reset,
     _patch_terminus_unwind_min_pairs,
@@ -432,10 +433,14 @@ class TestCreateAgentGating:
         from unittest.mock import MagicMock, patch
 
         solver = self._solver("terminus-2")
-        cle, unwind, anchor = MagicMock(), MagicMock(), MagicMock()
+        cle, unwind, anchor, ctxlim = MagicMock(), MagicMock(), MagicMock(), MagicMock()
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_cle_reset", cle)
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_unwind_min_pairs", unwind)
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_api_token_anchor", anchor)
+        monkeypatch.setattr(
+            "nemo_evaluator.solvers.harbor._patch_harbor_lite_llm_context_length_matcher",
+            ctxlim,
+        )
 
         sentinel = object()
         with patch("harbor.agents.factory.AgentFactory.create_agent_from_name", return_value=sentinel):
@@ -445,15 +450,20 @@ class TestCreateAgentGating:
         cle.assert_called_once()
         unwind.assert_called_once()
         anchor.assert_called_once()
+        ctxlim.assert_called_once()
 
     def test_non_terminus_agent_skips_patches(self, tmp_path, monkeypatch):
         from unittest.mock import MagicMock, patch
 
         solver = self._solver("openhands")
-        cle, unwind, anchor = MagicMock(), MagicMock(), MagicMock()
+        cle, unwind, anchor, ctxlim = MagicMock(), MagicMock(), MagicMock(), MagicMock()
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_cle_reset", cle)
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_unwind_min_pairs", unwind)
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_api_token_anchor", anchor)
+        monkeypatch.setattr(
+            "nemo_evaluator.solvers.harbor._patch_harbor_lite_llm_context_length_matcher",
+            ctxlim,
+        )
 
         with patch("harbor.agents.factory.AgentFactory.create_agent_from_name", return_value=object()):
             solver._create_agent(tmp_path)
@@ -461,3 +471,157 @@ class TestCreateAgentGating:
         cle.assert_not_called()
         unwind.assert_not_called()
         anchor.assert_not_called()
+        ctxlim.assert_not_called()
+
+
+# ── _patch_harbor_lite_llm_context_length_matcher ────────────────────────
+
+
+@pytest.fixture
+def ctxlim_patch_sandbox():
+    """Snapshot harbor.llms.lite_llm.LiteLLM._is_context_length_error and the
+    module-level idempotency guard; restore after the test."""
+    from harbor.llms import lite_llm as harbor_litellm
+
+    saved_method = harbor_litellm.LiteLLM._is_context_length_error
+    saved_flag = harbor._HARBOR_LITELLM_CTXLIM_PATCHED
+    harbor._HARBOR_LITELLM_CTXLIM_PATCHED = False
+    try:
+        yield harbor_litellm
+    finally:
+        harbor_litellm.LiteLLM._is_context_length_error = saved_method
+        harbor._HARBOR_LITELLM_CTXLIM_PATCHED = saved_flag
+
+
+_VLLM_ACTUAL_BODY = (
+    "You passed 262145 input tokens and requested 0 output tokens. "
+    "However, the model's context length is only 262144 tokens, "
+    "resulting in a maximum input length of 262144 tokens. Please "
+    "reduce the length of the input prompt. "
+    "(parameter=input_tokens, value=262145)"
+)
+
+
+class _CtxlimFakeError(Exception):
+    """Exception subclass whose ``str(err)`` carries the phrase under test."""
+
+
+class TestHarborLiteLLMContextLengthMatcher:
+    """The patch widens Harbor's substring matcher to recognize vLLM's actual
+    ``VLLMValidationError`` phrasing (``"You passed N input tokens... However,
+    the model's context length is only M tokens..."``) raised by self-hosted
+    vLLM deployments when a request exceeds the configured context length.
+    Without this, the wire error stays a plain ``BadRequestError`` and
+    Terminus-2's reactive summarization (``terminus_2.py::_query_llm``
+    ``except ContextLengthExceededError`` block) never triggers."""
+
+    @staticmethod
+    def _install():
+        _patch_harbor_lite_llm_context_length_matcher()
+        from harbor.llms.lite_llm import LiteLLM
+
+        return LiteLLM.__new__(LiteLLM)
+
+    @pytest.mark.parametrize(
+        ("error", "expected"),
+        [
+            pytest.param(
+                SimpleNamespace(body="", message=_VLLM_ACTUAL_BODY, error=""),
+                True,
+                id="vllm_body_in_message_attr",
+            ),
+            pytest.param(
+                _CtxlimFakeError("litellm.BadRequestError: " + _VLLM_ACTUAL_BODY),
+                True,
+                id="vllm_body_only_in_str_of_exception",
+            ),
+            pytest.param(
+                SimpleNamespace(body=_VLLM_ACTUAL_BODY, message="", error=""),
+                True,
+                id="vllm_body_in_body_attr",
+            ),
+            pytest.param(
+                SimpleNamespace(
+                    body="",
+                    message="Error code: 400 - context length exceeded (see docs)",
+                    error="",
+                ),
+                True,
+                id="original_openai_phrasing_still_matches",
+            ),
+            pytest.param(
+                SimpleNamespace(
+                    body="",
+                    message="Invalid tool call format: expected JSON object",
+                    error="",
+                ),
+                False,
+                id="unrelated_error_does_not_match",
+            ),
+            pytest.param(
+                SimpleNamespace(
+                    body="",
+                    message="You asked about the context limit; here is the answer.",
+                    error="",
+                ),
+                False,
+                id="similar_but_non_overflow_phrase_does_not_match",
+            ),
+        ],
+    )
+    def test_is_context_length_error(self, ctxlim_patch_sandbox, error, expected):
+        instance = self._install()
+        assert instance._is_context_length_error(error) is expected
+
+    def test_idempotent(self, ctxlim_patch_sandbox):
+        _patch_harbor_lite_llm_context_length_matcher()
+        first = ctxlim_patch_sandbox.LiteLLM._is_context_length_error
+        _patch_harbor_lite_llm_context_length_matcher()
+        assert ctxlim_patch_sandbox.LiteLLM._is_context_length_error is first
+
+    def test_drift_marker_present_but_phrase_missing_logs_warning(self, ctxlim_patch_sandbox, caplog):
+        """If vLLM's `parameter=input_tokens` marker is in the body but no
+        classifier phrase matches, the patched matcher must still return False
+        (agent still crashes) but log a WARNING so the drift is visible."""
+        instance = self._install()
+        drifted = SimpleNamespace(
+            body="SomeFutureVLLMPhrasing: 262145 tokens is over the limit. (parameter=input_tokens, value=262145)",
+            message="",
+            error="",
+        )
+        with caplog.at_level(logging.WARNING, logger="nemo_evaluator.solvers.harbor"):
+            result = instance._is_context_length_error(drifted)
+        assert result is False, "drift alarm must NOT reclassify — fix the classifier instead"
+        assert any("stable ctx-overflow marker" in rec.getMessage() for rec in caplog.records), (
+            "expected drift-alarm WARNING when the marker is present but no phrase matches"
+        )
+
+    def test_no_drift_warning_when_phrase_matches(self, ctxlim_patch_sandbox, caplog):
+        """When a classifier phrase DOES match, the drift alarm must stay quiet
+        even if the marker is also present — otherwise every real overflow
+        would trigger a spurious warning."""
+        instance = self._install()
+        real_body = SimpleNamespace(
+            body=_VLLM_ACTUAL_BODY,  # contains BOTH "model's context length" AND parameter=input_tokens
+            message="",
+            error="",
+        )
+        with caplog.at_level(logging.WARNING, logger="nemo_evaluator.solvers.harbor"):
+            result = instance._is_context_length_error(real_body)
+        assert result is True
+        assert not any("stable ctx-overflow marker" in rec.getMessage() for rec in caplog.records), (
+            "drift alarm fired even though the classifier caught the overflow"
+        )
+
+    def test_no_drift_warning_when_neither_marker_nor_phrase(self, ctxlim_patch_sandbox, caplog):
+        """Unrelated BadRequestErrors must not trigger the drift alarm."""
+        instance = self._install()
+        err = SimpleNamespace(
+            body="",
+            message="Invalid tool call format: expected JSON object",
+            error="",
+        )
+        with caplog.at_level(logging.WARNING, logger="nemo_evaluator.solvers.harbor"):
+            result = instance._is_context_length_error(err)
+        assert result is False
+        assert not any("stable ctx-overflow marker" in rec.getMessage() for rec in caplog.records)

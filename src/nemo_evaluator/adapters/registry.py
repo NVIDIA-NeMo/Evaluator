@@ -47,6 +47,7 @@ _BUILTIN: dict[str, str] = {
     "caching": "nemo_evaluator.adapters.interceptors.caching",
     "log_tokens": "nemo_evaluator.adapters.interceptors.log_tokens",
     "response_stats": "nemo_evaluator.adapters.interceptors.response_stats",
+    "finish_reason": "nemo_evaluator.adapters.interceptors.finish_reason",
     "reasoning": "nemo_evaluator.adapters.interceptors.reasoning",
     "reasoning_replay": "nemo_evaluator.adapters.interceptors.reasoning_replay",
     "progress_tracking": "nemo_evaluator.adapters.interceptors.progress_tracking",
