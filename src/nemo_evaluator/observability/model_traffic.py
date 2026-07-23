@@ -391,7 +391,9 @@ class DrainedModelTrafficSession:
 
     A file-backed session may be streamed only once: iterating (or loading) it
     consumes and deletes the spool file. Any later access raises DrainedSessionError
-    rather than silently returning empty or partial data.
+    rather than silently returning empty or partial data. Truth-testing stays honest
+    after consumption ("did the session have records?"), so a stale ``if session:``
+    guard falls through to ``__iter__``, which raises.
     """
 
     def __init__(self, path: Path | None) -> None:
@@ -408,7 +410,15 @@ class DrainedModelTrafficSession:
     def __bool__(self) -> bool:
         if self._loaded_records is not None:
             return bool(self._loaded_records)
-        return self._path is not None and self._path.exists()
+        if self._path is not None and self._path.exists():
+            return True
+        # The spool file is gone: answer from completed stats if we have them
+        # (a consumed session keeps reading truthy so guarded reuse reaches
+        # __iter__ and fails loud there), otherwise surface the interruption.
+        if self._stats_complete:
+            return self._model_calls > 0
+        self._ensure_readable()
+        return False
 
     def __iter__(self) -> Iterator[dict[str, Any]]:
         # Lazy so a caller-triggered materialization (e.g. list()/len() consulting

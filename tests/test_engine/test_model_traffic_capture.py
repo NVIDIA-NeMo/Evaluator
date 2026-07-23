@@ -318,6 +318,10 @@ def test_drained_session_rejects_reuse_after_streaming(tmp_path: Path) -> None:
         assert len(streamed) == 1
         assert session.model_stats()["model_calls"] == 1
 
+        # Consumed but non-empty: truth-testing stays honest instead of
+        # reading falsy-empty, so `if session:` guards don't silently drop it.
+        assert bool(session) is True
+
         with pytest.raises(DrainedSessionError):
             list(iter(session))
         with pytest.raises(DrainedSessionError):
@@ -343,6 +347,8 @@ def test_drained_session_rejects_access_after_interrupted_iteration(tmp_path: Pa
             session.model_stats()
         with pytest.raises(DrainedSessionError):
             list(session)
+        with pytest.raises(DrainedSessionError):
+            bool(session)
     finally:
         store.close()
 
@@ -351,11 +357,39 @@ def test_drained_empty_session_is_not_treated_as_consumed(tmp_path: Path) -> Non
     store = ModelTrafficStore(service_name="solver", spool_dir=tmp_path / "spool")
     try:
         session = store.drain_session("missing-session")
+        assert not session
         assert list(session) == []
         assert list(session) == []
+        assert not session
         assert session.model_stats() is None
     finally:
         store.close()
+
+
+async def test_append_after_consumption_fails_loud_instead_of_dropping(tmp_path: Path) -> None:
+    store = ModelTrafficStore(service_name="solver", spool_dir=tmp_path / "spool")
+    log = StepLog(tmp_path / MODEL_TRAFFIC_LOG)
+    log.open(truncate=True)
+    try:
+        _record_call(store, "stats-first-session")
+        session = store.drain_session("stats-first-session")
+
+        # Aggregating first consumes the spool file; the append that follows
+        # must raise instead of silently writing nothing.
+        assert aggregate_model_traffic_stats(session)["model_calls"] == 1
+        with pytest.raises(DrainedSessionError):
+            await append_model_traffic_records(
+                log,
+                session,
+                benchmark="b",
+                problem_idx=0,
+                repeat=0,
+            )
+    finally:
+        log.close()
+        store.close()
+
+    assert _jsonl(tmp_path / MODEL_TRAFFIC_LOG) == []
 
 
 @pytest.mark.parametrize(
