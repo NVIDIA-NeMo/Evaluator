@@ -382,8 +382,17 @@ def _is_success(record: dict[str, Any]) -> bool:
     return 200 <= _int(record.get("status_code")) < 400
 
 
+class DrainedSessionError(RuntimeError):
+    """A DrainedModelTrafficSession was accessed after being consumed or interrupted."""
+
+
 class DrainedModelTrafficSession:
-    """Disk-backed drained traffic records for one Adapter session."""
+    """Disk-backed drained traffic records for one Adapter session.
+
+    A file-backed session may be streamed only once: iterating (or loading) it
+    consumes and deletes the spool file. Any later access raises DrainedSessionError
+    rather than silently returning empty or partial data.
+    """
 
     def __init__(self, path: Path | None) -> None:
         self._path = path
@@ -393,6 +402,8 @@ class DrainedModelTrafficSession:
         self._tool_count = 0
         self._tool_names: Counter[str] = Counter()
         self._stats_complete = False
+        self._iter_started = False
+        self._broken = False
 
     def __bool__(self) -> bool:
         if self._loaded_records is not None:
@@ -400,11 +411,14 @@ class DrainedModelTrafficSession:
         return self._path is not None and self._path.exists()
 
     def __iter__(self) -> Iterator[dict[str, Any]]:
+        # Lazy so a caller-triggered materialization (e.g. list()/len() consulting
+        # __len__ for a length hint) is observed here before we fall back to streaming.
         if self._loaded_records is not None:
             yield from self._loaded_records
             if not self._stats_complete:
                 self._compute_stats_from_records(self._loaded_records)
             return
+        self._ensure_readable()
         yield from self._iter_file()
 
     def __len__(self) -> int:
@@ -418,14 +432,26 @@ class DrainedModelTrafficSession:
     def __del__(self) -> None:
         self.discard()
 
+    def _ensure_readable(self) -> None:
+        if self._loaded_records is not None:
+            return
+        if self._broken:
+            raise DrainedSessionError("drained traffic session iteration was interrupted")
+        if self._iter_started:
+            raise DrainedSessionError("drained traffic session was already consumed and released")
+
     def _load(self) -> None:
-        if self._loaded_records is None:
-            self._loaded_records = list(self._iter_file())
+        if self._loaded_records is not None:
+            return
+        self._ensure_readable()
+        self._loaded_records = list(self._iter_file())
 
     def _iter_file(self) -> Iterator[dict[str, Any]]:
         path = self._path
         if path is None:
             return
+        self._iter_started = True
+        completed = False
         try:
             with path.open(encoding="utf-8") as f:
                 for line in f:
@@ -437,7 +463,10 @@ class DrainedModelTrafficSession:
                         yield record
                         self._add_stats(record)
             self._stats_complete = True
+            completed = True
         finally:
+            if not completed:
+                self._broken = True
             self.discard()
 
     def _add_stats(self, record: dict[str, Any]) -> None:
@@ -465,7 +494,8 @@ class DrainedModelTrafficSession:
             if self._loaded_records is not None:
                 self._compute_stats_from_records(self._loaded_records)
             else:
-                for _ in self:
+                self._ensure_readable()
+                for _ in self._iter_file():
                     pass
         if self._model_calls == 0:
             return None

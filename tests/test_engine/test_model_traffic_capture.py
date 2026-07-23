@@ -31,6 +31,7 @@ from nemo_evaluator.engine.model_traffic_log import append_model_traffic_records
 from nemo_evaluator.engine.step_log import INFERENCE_LOG, MODEL_TRAFFIC_LOG, StepLog
 from nemo_evaluator.environments.base import EvalEnvironment, SeedResult, VerifyResult
 from nemo_evaluator.observability.model_traffic import (
+    DrainedSessionError,
     ModelTrafficStore,
     aggregate_model_traffic_stats,
     register_store,
@@ -150,6 +151,23 @@ def _format_drained(
     )
     assert len(rows) == 1
     return rows[0]
+
+
+def _record_call(store: ModelTrafficStore, session_id: str, *, status_code: int = 200) -> None:
+    ctx = InterceptorContext()
+    ctx.extra["session_id"] = session_id
+    request_body = {"model": "m", "messages": [{"role": "user", "content": "hi"}]}
+    ctx.extra["upstream_request_body"] = request_body
+    store.start_request(AdapterRequest(method="POST", path="/chat/completions", headers={}, body=request_body, ctx=ctx))
+    store.finish_response(
+        AdapterResponse(
+            status_code=status_code,
+            headers={"content-type": "application/json"},
+            latency_ms=10.0,
+            ctx=ctx,
+            body=_capture_response_body(),
+        )
+    )
 
 
 def _capture_response_body(
@@ -284,6 +302,58 @@ def test_dropped_drained_session_unlinks_spool_without_iterating(tmp_path: Path)
 
         assert not drain_path.exists()
         assert not [p for p in spool_dir.rglob("*") if p.is_file()]
+    finally:
+        store.close()
+
+
+def test_drained_session_rejects_reuse_after_streaming(tmp_path: Path) -> None:
+    store = ModelTrafficStore(service_name="solver", spool_dir=tmp_path / "spool")
+    try:
+        _record_call(store, "reuse-session")
+        session = store.drain_session("reuse-session")
+
+        # Stream once (file-backed, not materialized). list(iter(...)) drains the
+        # iterator without letting list() consult __len__ and materialize the file.
+        streamed = list(iter(session))
+        assert len(streamed) == 1
+        assert session.model_stats()["model_calls"] == 1
+
+        with pytest.raises(DrainedSessionError):
+            list(iter(session))
+        with pytest.raises(DrainedSessionError):
+            len(session)
+        with pytest.raises(DrainedSessionError):
+            session[0]
+    finally:
+        store.close()
+
+
+def test_drained_session_rejects_access_after_interrupted_iteration(tmp_path: Path) -> None:
+    store = ModelTrafficStore(service_name="solver", spool_dir=tmp_path / "spool")
+    try:
+        _record_call(store, "broken-session")
+        _record_call(store, "broken-session")
+        session = store.drain_session("broken-session")
+
+        iterator = iter(session)
+        next(iterator)
+        iterator.close()
+
+        with pytest.raises(DrainedSessionError):
+            session.model_stats()
+        with pytest.raises(DrainedSessionError):
+            list(session)
+    finally:
+        store.close()
+
+
+def test_drained_empty_session_is_not_treated_as_consumed(tmp_path: Path) -> None:
+    store = ModelTrafficStore(service_name="solver", spool_dir=tmp_path / "spool")
+    try:
+        session = store.drain_session("missing-session")
+        assert list(session) == []
+        assert list(session) == []
+        assert session.model_stats() is None
     finally:
         store.close()
 
