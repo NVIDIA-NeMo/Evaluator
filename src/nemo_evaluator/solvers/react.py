@@ -374,8 +374,12 @@ class ReActSolver:
         messages: list[dict[str, Any]],
         last_tcr: ToolCallingResponse | None,
     ) -> str:
-        if last_tcr and last_tcr.content:
-            return last_tcr.content
+        # Fold in reasoning_content: reasoning checkpoints often place the final
+        # answer in the reasoning channel with empty content, which would score ~0.
+        if last_tcr and (last_tcr.content or getattr(last_tcr, "reasoning_content", "")):
+            c = last_tcr.content or ""
+            r = getattr(last_tcr, "reasoning_content", "") or ""
+            return f"{r}\n{c}".strip() if r else c
         for msg in reversed(messages):
             if msg.get("role") == "assistant" and msg.get("content"):
                 return msg["content"]
