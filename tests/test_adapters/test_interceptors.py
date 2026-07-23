@@ -262,6 +262,12 @@ async def test_turn_counter_skips_compaction_calls():
 
     req = _req(body)
     req.ctx.extra["session_id"] = "sess"
+    req.headers[NEL_CALL_KIND_HEADER] = NEL_CALL_KIND_COMPACTION
+    with pytest.raises(GracefulError, match="Skipping compaction"):
+        await ic.intercept_request(req)
+
+    req = _req(body)
+    req.ctx.extra["session_id"] = "sess"
     with pytest.raises(GracefulError, match="Turn budget exhausted"):
         await ic.intercept_request(req)
 
@@ -293,8 +299,53 @@ async def test_turn_counter_compaction_interleaved_with_agent_calls():
 
     req = _req(body)
     req.ctx.extra["session_id"] = "interleaved"
+    req.headers[NEL_CALL_KIND_HEADER] = NEL_CALL_KIND_COMPACTION
+    with pytest.raises(GracefulError, match="Skipping compaction"):
+        await ic.intercept_request(req)
+
+    req = _req(body)
+    req.ctx.extra["session_id"] = "interleaved"
     with pytest.raises(GracefulError, match="Turn budget exhausted"):
         await ic.intercept_request(req)
+
+
+async def test_turn_counter_rejects_compaction_when_no_agent_turns_remain():
+    from nemo_evaluator.adapters.call_kind import NEL_CALL_KIND_COMPACTION, NEL_CALL_KIND_HEADER
+
+    ic = InterceptorRegistry.create("turn_counter", {"max_turns": 2})
+    body = {"model": "test", "messages": [{"role": "user", "content": "hi"}]}
+
+    for _ in range(2):
+        req = _req(body)
+        req.ctx.extra["session_id"] = "exhausted"
+        await ic.intercept_request(req)
+
+    req = _req(body)
+    req.ctx.extra["session_id"] = "exhausted"
+    req.headers[NEL_CALL_KIND_HEADER] = NEL_CALL_KIND_COMPACTION
+    with pytest.raises(GracefulError, match="Skipping compaction because no further agent turns remain"):
+        await ic.intercept_request(req)
+
+
+async def test_turn_counter_allows_compaction_with_remaining_agent_turn():
+    from nemo_evaluator.adapters.call_kind import NEL_CALL_KIND_COMPACTION, NEL_CALL_KIND_HEADER
+
+    ic = InterceptorRegistry.create("turn_counter", {"max_turns": 2})
+    body = {"model": "test", "messages": [{"role": "user", "content": "hi"}]}
+
+    req = _req(body)
+    req.ctx.extra["session_id"] = "one-left"
+    await ic.intercept_request(req)
+
+    req = _req(body)
+    req.ctx.extra["session_id"] = "one-left"
+    req.headers[NEL_CALL_KIND_HEADER] = NEL_CALL_KIND_COMPACTION
+    result = await ic.intercept_request(req)
+    assert NEL_CALL_KIND_HEADER not in {k.lower() for k in result.headers}
+
+    req = _req(body)
+    req.ctx.extra["session_id"] = "one-left"
+    await ic.intercept_request(req)
 
 
 async def test_compaction_extra_headers_reach_turn_counter_like_litellm_wire(monkeypatch):

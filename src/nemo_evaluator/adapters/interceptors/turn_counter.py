@@ -120,15 +120,32 @@ class Interceptor(RequestInterceptor):
 
     async def intercept_request(self, req: AdapterRequest) -> AdapterRequest:
         kind = strip_call_kind_header(req.headers)
-        if is_compaction_call_kind(kind):
-            key = req.ctx.extra.get("session_id") or "?"
-            logger.debug("task %s skipping turn budget for compaction call", key)
-            return req
-
         key = req.ctx.extra.get("session_id")
         if not key:
             key = _session_key_from_body(req.body)
-            logger.warning("no session_id in context — falling back to body-hash key %s", key)
+            if not is_compaction_call_kind(kind):
+                logger.warning("no session_id in context — falling back to body-hash key %s", key)
+
+        if is_compaction_call_kind(kind):
+            if self._max is not None:
+                async with self._lock:
+                    sess = self._sessions.get(key)
+                    agent_turns = sess.count if sess is not None else 0
+                if agent_turns >= self._max:
+                    logger.warning(
+                        "task %s REJECTED compaction (agent turns %d/%d; no remaining agent turns)",
+                        key,
+                        agent_turns,
+                        self._max,
+                    )
+                    from nemo_evaluator.errors import GracefulError
+
+                    raise GracefulError(
+                        f"Turn budget exhausted: {agent_turns}/{self._max} turns used. "
+                        f"Skipping compaction because no further agent turns remain."
+                    )
+            logger.debug("task %s skipping turn budget for compaction call", key)
+            return req
 
         async with self._lock:
             now = time.monotonic()
