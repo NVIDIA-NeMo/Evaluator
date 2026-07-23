@@ -668,7 +668,7 @@ new_cond_build = (
     '        from openhands.sdk.context.condenser import LLMSummarizingCondenser\\n'
     '        _hdrs = dict(llm.extra_headers or {})\\n'
     '        _hdrs["x-nel-call-kind"] = "compaction"\\n'
-    '        _cond_llm = llm.model_copy(update={"extra_headers": _hdrs})\\n'
+    '        _cond_llm = llm.model_copy(update={"extra_headers": _hdrs, "usage_id": f"{llm.usage_id}-compaction"})\\n'
     '        _ck = {"llm": _cond_llm, "max_size": int(_cms), "keep_first": 4}\\n'
     '        _cmt = os.environ.get("OH_CONDENSER_MAX_TOKENS")\\n'
     '        if _cmt:\\n'

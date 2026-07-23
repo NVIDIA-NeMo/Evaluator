@@ -537,6 +537,7 @@ def main():
         assert condenser_patch is not None
         assert "model_copy" in condenser_patch
         assert '_hdrs["x-nel-call-kind"] = "compaction"' in condenser_patch
+        assert '"usage_id": f"{llm.usage_id}-compaction"' in condenser_patch
 
     async def test_runner_patch_skips_max_iteration_for_condensation(self):
         import base64
