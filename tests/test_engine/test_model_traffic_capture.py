@@ -14,6 +14,7 @@
 # limitations under the License.
 from __future__ import annotations
 
+import gc
 import http.server
 import json
 import stat
@@ -232,7 +233,8 @@ async def test_model_traffic_spools_and_flushes_session(tmp_path: Path) -> None:
     assert [(row["status_code"], row["problem_idx"], row["repeat"]) for row in rows] == [(200, 12, 3), (400, 12, 3)]
     assert all(row["request_body"] for row in rows)
     assert rows[1]["usage"] == {}
-    assert not list(spool_dir.rglob("*.jsonl"))
+    assert not list(spool_dir.rglob("*.drain"))
+    assert not [p for p in spool_dir.rglob("*") if p.is_file()]
     assert stats == {
         "usage": {
             "prompt_tokens": 3,
@@ -243,6 +245,47 @@ async def test_model_traffic_spools_and_flushes_session(tmp_path: Path) -> None:
         "tool_calls": {"count": 1, "names": {"w": 1}},
         "model_calls": 2,
     }
+
+
+def test_dropped_drained_session_unlinks_spool_without_iterating(tmp_path: Path) -> None:
+    session_id = "discard-session"
+    spool_dir = tmp_path / "spool"
+    store = ModelTrafficStore(service_name="solver", spool_dir=spool_dir)
+    try:
+        ctx = InterceptorContext()
+        ctx.extra["session_id"] = session_id
+        store.start_request(
+            AdapterRequest(
+                method="POST",
+                path="/chat/completions",
+                headers={},
+                body={"model": "m", "messages": [{"role": "user", "content": "turn"}]},
+                ctx=ctx,
+            )
+        )
+        store.finish_response(
+            AdapterResponse(
+                status_code=200,
+                headers={"content-type": "application/json"},
+                latency_ms=10.0,
+                ctx=ctx,
+                body=_capture_response_body(),
+            )
+        )
+
+        # The eval-loop error paths drain the session and drop the return value
+        # without iterating it, so only __del__ -> discard() unlinks the spool file.
+        drained = store.drain_session(session_id)
+        drain_path = drained._path
+        assert drain_path is not None and drain_path.exists()
+
+        del drained
+        gc.collect()
+
+        assert not drain_path.exists()
+        assert not [p for p in spool_dir.rglob("*") if p.is_file()]
+    finally:
+        store.close()
 
 
 @pytest.mark.parametrize(
