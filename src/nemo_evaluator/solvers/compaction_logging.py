@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Literal
@@ -130,6 +131,57 @@ class CompactionEvent:
     openhands_extra: OpenHandsCompactionExtra | None = None
     timestamp: str | None = None
     message: str = COMPACTION_MESSAGE
+    handoff_prompt: str | None = None
+
+
+def _content_to_text(content: Any) -> str:
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for part in content:
+            if isinstance(part, str):
+                parts.append(part)
+            elif isinstance(part, dict):
+                text = part.get("text")
+                if text is not None:
+                    parts.append(str(text))
+                else:
+                    parts.append(json.dumps(part, ensure_ascii=False))
+            else:
+                text = getattr(part, "text", None)
+                if text is not None:
+                    parts.append(str(text))
+                else:
+                    parts.append(str(part))
+        return "\n".join(parts)
+    return str(content)
+
+
+def normalize_chat_message(message: Any) -> dict[str, Any]:
+    if not isinstance(message, dict):
+        raise TypeError(f"Expected chat message dict, got {type(message)!r}")
+    role = message.get("role")
+    if role is None:
+        raise ValueError("Chat message is missing required 'role' field")
+    out: dict[str, Any] = {
+        "role": role,
+        "content": _content_to_text(message.get("content")),
+    }
+    if message.get("tool_calls") is not None:
+        out["tool_calls"] = message["tool_calls"]
+    if message.get("tool_call_id") is not None:
+        out["tool_call_id"] = message["tool_call_id"]
+    if message.get("name") is not None:
+        out["name"] = message["name"]
+    return out
+
+
+def serialize_chat_messages(messages: list[Any]) -> str:
+    normalized = [normalize_chat_message(message) for message in messages]
+    return json.dumps(normalized, ensure_ascii=False)
 
 
 def _subagent_ref_to_dict(ref: dict[str, Any]) -> dict[str, Any]:

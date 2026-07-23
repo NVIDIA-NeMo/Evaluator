@@ -706,6 +706,8 @@ class TestPatchCompactionLogging:
         assert hasattr(terminus, "_nel_flush_pending_compaction")
 
     def test_flush_appends_compaction_step_without_handoff_user_step(self, patch_sandbox, tmp_path):
+        import json
+
         from nemo_evaluator.solvers.compaction_logging import CompactionTokens
 
         _patch_terminus_compaction_logging()
@@ -731,7 +733,13 @@ class TestPatchCompactionLogging:
         )
         agent._nel_stashed_tokens_intermediate = None
         agent._nel_pending_compaction = None
-        chat = SimpleNamespace()
+        chat = SimpleNamespace(
+            messages=[
+                {"role": "system", "content": "system prompt"},
+                {"role": "user", "content": "question prompt"},
+                {"role": "assistant", "content": "model questions"},
+            ]
+        )
         from nemo_evaluator.solvers.harbor import _terminus2_nel_set_proactive_pending_compaction
 
         _terminus2_nel_set_proactive_pending_compaction(agent, chat, "handoff", None)
@@ -742,6 +750,13 @@ class TestPatchCompactionLogging:
         assert step.extra is not None
         assert step.extra["context_management"]["type"] == "compaction"
         assert step.extra["compaction"]["llm_call_count"] == 3
+        content = json.loads(step.observation.results[0].content)
+        assert content == [
+            {"role": "system", "content": "system prompt"},
+            {"role": "user", "content": "question prompt"},
+            {"role": "assistant", "content": "model questions"},
+            {"role": "user", "content": "handoff"},
+        ]
         assert agent._pending_handoff_prompt is None
 
     def test_idempotent_when_marker_present(self, patch_sandbox):

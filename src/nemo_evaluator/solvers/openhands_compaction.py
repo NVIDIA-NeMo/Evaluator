@@ -19,6 +19,7 @@ from nemo_evaluator.solvers.compaction_logging import (
     OpenHandsCompactionExtra,
     build_compaction_step,
     llm_call_count_for_strategy,
+    serialize_chat_messages,
 )
 
 DEFAULT_OPENHANDS_MAX_SIZE = 80
@@ -136,6 +137,38 @@ def token_snapshot(
     )
 
 
+def _openhands_message_to_chat_dict(message: Any) -> dict[str, Any]:
+    from openhands.sdk.llm import ImageContent, TextContent
+
+    texts: list[str] = []
+    for item in message.content:
+        if isinstance(item, TextContent):
+            texts.append(item.text)
+        elif isinstance(item, ImageContent):
+            texts.append(f"[Image: {len(item.image_urls)} URLs]")
+        else:
+            texts.append(str(item))
+    out: dict[str, Any] = {
+        "role": message.role,
+        "content": "\n".join(texts),
+    }
+    if message.tool_calls:
+        out["tool_calls"] = [tool_call.to_chat_dict() for tool_call in message.tool_calls]
+    if message.tool_call_id is not None:
+        out["tool_call_id"] = message.tool_call_id
+    if message.name is not None:
+        out["name"] = message.name
+    return out
+
+
+def serialize_openhands_view(view_events: list[Any]) -> str:
+    from openhands.sdk.event.base import LLMConvertibleEvent
+
+    llm_convertible = [event for event in view_events if isinstance(event, LLMConvertibleEvent)]
+    messages = LLMConvertibleEvent.events_to_messages(llm_convertible)
+    return serialize_chat_messages([_openhands_message_to_chat_dict(message) for message in messages])
+
+
 def _observation_extra_for_response(llm: LLM, response_id: str | None) -> CompactionObservationExtra | None:
     if not response_id:
         return None
@@ -224,7 +257,7 @@ def build_compaction_events_from_run(
             compaction_index=compaction_index,
             trigger=trigger,
             strategy="openhands_condensation",
-            replacement_content=event.summary or "",
+            replacement_content=serialize_openhands_view(view_after_events),
             tokens_before=tokens_before,
             tokens_after=tokens_after,
             llm_call_count=llm_call_count_for_strategy("openhands_condensation"),

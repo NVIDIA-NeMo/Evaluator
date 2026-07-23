@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
+import json
+
 from nemo_evaluator.solvers.compaction_logging import (
     CompactionAttempt,
     CompactionEvent,
@@ -12,6 +14,7 @@ from nemo_evaluator.solvers.compaction_logging import (
     build_compaction_step,
     compaction_event_to_harbor_step,
     llm_call_count_for_strategy,
+    serialize_chat_messages,
 )
 
 
@@ -20,7 +23,14 @@ def _minimal_event(**overrides) -> CompactionEvent:
         compaction_index=1,
         trigger="terminus_proactive_threshold",
         strategy="terminus_three_phase_subagent",
-        replacement_content="handoff text",
+        replacement_content=serialize_chat_messages(
+            [
+                {"role": "system", "content": "system prompt"},
+                {"role": "user", "content": "question prompt"},
+                {"role": "assistant", "content": "model questions"},
+                {"role": "user", "content": "handoff text"},
+            ]
+        ),
         tokens_before=CompactionTokens(
             prompt_tokens_approx=190_000,
             context_limit=200_000,
@@ -44,10 +54,24 @@ def _minimal_event(**overrides) -> CompactionEvent:
             }
         ],
         timestamp="2026-06-23T02:17:14.197933+00:00",
+        handoff_prompt="handoff text",
     )
     for key, value in overrides.items():
         setattr(base, key, value)
     return base
+
+
+def test_serialize_chat_messages_preserves_roles() -> None:
+    payload = serialize_chat_messages(
+        [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": [{"type": "text", "text": "hello"}]},
+        ]
+    )
+    assert json.loads(payload) == [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "hello"},
+    ]
 
 
 def test_build_compaction_step_full_three_phase() -> None:
@@ -58,7 +82,9 @@ def test_build_compaction_step_full_three_phase() -> None:
     assert step["extra"]["compaction"]["strategy"] == "terminus_three_phase_subagent"
     assert step["extra"]["compaction"]["tokens_before"]["prompt_tokens_approx"] == 190_000
     assert step["extra"]["compaction"]["tokens_after"]["prompt_tokens_approx"] == 8_000
-    assert step["observation"]["results"][0]["content"] == "handoff text"
+    content = json.loads(step["observation"]["results"][0]["content"])
+    assert content[-1] == {"role": "user", "content": "handoff text"}
+    assert len(content) == 4
     refs = step["observation"]["results"][0]["subagent_trajectory_ref"]
     assert len(refs) == 1
     assert refs[0]["session_id"] == "sess-summarization-1-summary"
@@ -161,6 +187,7 @@ def test_compaction_event_to_harbor_step() -> None:
     assert step.source == "system"
     assert step.extra["context_management"]["type"] == "compaction"
     assert step.observation is not None
-    assert step.observation.results[0].content == "handoff text"
+    content = json.loads(step.observation.results[0].content)
+    assert content[-1]["content"] == "handoff text"
     assert step.observation.results[0].subagent_trajectory_ref is not None
     assert step.observation.results[0].subagent_trajectory_ref[0].session_id == "sess-summarization-1-summary"

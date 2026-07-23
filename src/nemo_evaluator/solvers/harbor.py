@@ -1862,6 +1862,7 @@ def _terminus2_nel_make_compaction_event(
     tokens_before: CompactionTokens,
     tokens_after: CompactionTokens,
     tokens_intermediate: CompactionTokensIntermediate | None = None,
+    handoff_prompt: str | None = None,
 ) -> CompactionEvent:
     from nemo_evaluator.solvers.compaction_logging import (
         CompactionEvent,
@@ -1883,6 +1884,7 @@ def _terminus2_nel_make_compaction_event(
         llm_call_count=llm_call_count_for_strategy(strategy),
         mechanism=self._nel_compaction_mechanism(),
         subagent_trajectory_ref=subagent_trajectory_refs_to_dicts(subagent_refs),
+        handoff_prompt=handoff_prompt,
         attempts=attempts or None,
     )
 
@@ -1905,6 +1907,8 @@ def _terminus2_nel_record_failed_compaction_attempt(
 
 
 def _terminus2_nel_set_proactive_pending_compaction(self, chat, prompt: str, subagent_refs: Any) -> None:
+    from nemo_evaluator.solvers.compaction_logging import serialize_chat_messages
+
     self._nel_ensure_compaction_state()
     tokens_before = self._nel_stashed_tokens_before
     tokens_after = self._nel_stashed_tokens_after
@@ -1917,15 +1921,17 @@ def _terminus2_nel_set_proactive_pending_compaction(self, chat, prompt: str, sub
     self._nel_last_unwind_pairs = 0
     self._nel_last_unwind_target = None
     self._nel_cle_chat_reset_applied = False
+    replacement_messages = list(chat.messages) + [{"role": "user", "content": prompt}]
     self._nel_pending_compaction = self._nel_make_compaction_event(
         trigger="terminus_proactive_threshold",
         strategy="terminus_three_phase_subagent",
-        replacement_content=prompt,
+        replacement_content=serialize_chat_messages(replacement_messages),
         subagent_refs=subagent_refs,
         attempts=None,
         tokens_before=tokens_before,
         tokens_after=tokens_after,
         tokens_intermediate=tokens_intermediate,
+        handoff_prompt=prompt,
     )
     self._nel_stashed_tokens_before = None
     self._nel_stashed_tokens_after = None
@@ -1934,6 +1940,7 @@ def _terminus2_nel_set_proactive_pending_compaction(self, chat, prompt: str, sub
 
 def _terminus2_nel_set_cle_pending_compaction(
     self,
+    chat,
     summary_prompt: str,
     strategy: CompactionStrategy,
     attempts: list[CompactionAttempt],
@@ -1943,7 +1950,10 @@ def _terminus2_nel_set_cle_pending_compaction(
     tokens_after_unwind: CompactionTokens | None,
     tokens_after_chat_reset: CompactionTokens | None,
 ) -> None:
-    from nemo_evaluator.solvers.compaction_logging import CompactionTokensIntermediate
+    from nemo_evaluator.solvers.compaction_logging import (
+        CompactionTokensIntermediate,
+        serialize_chat_messages,
+    )
 
     self._nel_ensure_compaction_state()
     tokens_intermediate = None
@@ -1955,12 +1965,13 @@ def _terminus2_nel_set_cle_pending_compaction(
     self._nel_pending_compaction = self._nel_make_compaction_event(
         trigger="terminus_context_length_exceeded",
         strategy=strategy,
-        replacement_content=summary_prompt,
+        replacement_content=serialize_chat_messages(list(chat.messages)),
         subagent_refs=subagent_refs,
         attempts=attempts or None,
         tokens_before=tokens_before,
         tokens_after=tokens_after,
         tokens_intermediate=tokens_intermediate,
+        handoff_prompt=summary_prompt,
     )
 
 
@@ -1976,7 +1987,7 @@ def _terminus2_nel_flush_pending_compaction(self, chat) -> None:
     step = compaction_event_to_harbor_step(event, step_id)
     self._trajectory_steps.append(step)
 
-    handoff_prompt = event.replacement_content
+    handoff_prompt = event.handoff_prompt
     self._nel_pending_compaction = None
     self._pending_subagent_refs = None
     self._pending_handoff_prompt = None
@@ -2248,6 +2259,7 @@ _TERMINUS_COMPACTION_QUERY_LLM_PENDING_FLUSH_REPLACEMENT = (
     "                response_path.write_text(llm_response.content)\n"
     "            nel_cle_tokens_after = self._nel_token_snapshot(chat)\n"
     "            self._nel_set_cle_pending_compaction(\n"
+    "                chat,\n"
     "                summary_prompt,\n"
     "                nel_cle_strategy,\n"
     "                nel_cle_attempts,\n"

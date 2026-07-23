@@ -7,6 +7,7 @@ openhands-sdk is not a package dependency; the module skips when it is absent.
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -107,7 +108,14 @@ def test_build_compaction_events_proactive_events(mock_count: MagicMock, mock_ll
     _, compaction_event = entries[0]
     assert compaction_event.trigger == "openhands_condensation_events"
     assert compaction_event.strategy == "openhands_condensation"
-    assert compaction_event.replacement_content == "condensed summary"
+    replacement = json.loads(compaction_event.replacement_content)
+    assert isinstance(replacement, list)
+    assert len(replacement) >= 1
+    joined = "\n".join(message.get("content") or "" for message in replacement)
+    assert "condensed summary" in joined
+    assert "msg-40" in joined
+    assert "msg-89" in joined
+    assert "msg-0" not in joined
     assert compaction_event.openhands_extra is not None
     assert compaction_event.openhands_extra.reason == "events"
     assert compaction_event.openhands_extra.requirement == "soft"
@@ -175,7 +183,8 @@ def test_splice_compaction_steps_into_trajectory(mock_count: MagicMock, mock_llm
     assert compaction_step["extra"]["compaction"]["trigger"] == "openhands_condensation_request"
     assert compaction_step["extra"]["compaction"]["strategy_details"]["reason"] == "request"
     assert compaction_step["extra"]["compaction"]["strategy_details"]["requirement"] == "hard"
-    assert compaction_step["observation"]["results"][0]["content"] == "condensed summary"
+    replacement = json.loads(compaction_step["observation"]["results"][0]["content"])
+    assert any("condensed summary" in (message.get("content") or "") for message in replacement)
 
 
 def test_event_counts_toward_max_iterations() -> None:
