@@ -23,7 +23,6 @@ from openhands.sdk.llm import LLM, Message, TextContent
 from nemo_evaluator.solvers.openhands_compaction import (
     build_compaction_events_from_run,
     enrich_trajectory_with_compaction,
-    event_counts_toward_max_iterations,
     infer_openhands_trigger,
     is_hard_reset,
     splice_compaction_steps_into_trajectory,
@@ -187,21 +186,89 @@ def test_splice_compaction_steps_into_trajectory(mock_count: MagicMock, mock_llm
     assert any("condensed summary" in (message.get("content") or "") for message in replacement)
 
 
-def test_event_counts_toward_max_iterations() -> None:
-    user = _user_message("task")
-    agent = _agent_message("work")
-    condensation = _condensation({user.id})
-    request = CondensationRequest()
-    assert event_counts_toward_max_iterations(None) is True
-    assert event_counts_toward_max_iterations(user) is True
-    assert event_counts_toward_max_iterations(agent) is True
-    assert event_counts_toward_max_iterations(request) is True
-    assert event_counts_toward_max_iterations(condensation) is False
-
-
 @patch("nemo_evaluator.solvers.openhands_compaction.get_total_token_count", side_effect=[100, 20])
 def test_enrich_trajectory_no_condensation_is_noop(mock_count: MagicMock, mock_llm: LLM) -> None:
     trajectory = {"steps": [{"step_id": 1, "source": "user", "message": "hi"}]}
     result = enrich_trajectory_with_compaction(trajectory, [_user_message("hi")], mock_llm, 128_000)
     assert result is trajectory
     assert len(result["steps"]) == 1
+
+
+@patch(
+    "nemo_evaluator.solvers.openhands_compaction.get_total_token_count",
+    side_effect=[100, 50, 100, 50, 80, 30, 80, 30],
+)
+def test_multiple_condensations_produce_multiple_events(mock_count: MagicMock, mock_llm: LLM) -> None:
+    user1 = _user_message("task 1")
+    agent1 = _agent_message("reply 1")
+    cond1 = _condensation({user1.id}, summary="summary-1", response_id="resp-c1")
+    user2 = _user_message("task 2")
+    cond2 = _condensation({agent1.id}, summary="summary-2", response_id="resp-c2")
+    events = [user1, agent1, cond1, user2, cond2]
+    entries = build_compaction_events_from_run(events, mock_llm, context_limit=200_000)
+    assert len(entries) == 2
+    assert entries[0][1].compaction_index == 1
+    assert entries[1][1].compaction_index == 2
+    assert entries[0][1].strategy == "openhands_condensation"
+    assert entries[1][1].strategy == "openhands_condensation"
+
+
+def test_observation_extra_populated_from_llm_metrics(mock_llm: LLM) -> None:
+    from types import SimpleNamespace
+
+    usage = SimpleNamespace(
+        response_id="resp-c1",
+        prompt_tokens=4000,
+        completion_tokens=200,
+        cost=0.005,
+    )
+    mock_llm.metrics = SimpleNamespace(token_usages=[usage])
+
+    from nemo_evaluator.solvers.openhands_compaction import _observation_extra_for_response
+
+    obs_extra = _observation_extra_for_response(mock_llm, "resp-c1")
+    assert obs_extra is not None
+    assert obs_extra.compaction_prompt_tokens == 4000
+    assert obs_extra.compaction_completion_tokens == 200
+    assert abs(obs_extra.compaction_cost_usd - 0.005) < 1e-9
+
+
+def test_observation_extra_none_when_response_id_missing(mock_llm: LLM) -> None:
+    from nemo_evaluator.solvers.openhands_compaction import _observation_extra_for_response
+
+    assert _observation_extra_for_response(mock_llm, None) is None
+    assert _observation_extra_for_response(mock_llm, "nonexistent") is None
+
+
+@patch(
+    "nemo_evaluator.solvers.openhands_compaction.get_total_token_count",
+    side_effect=[100, 20, 100, 20],
+)
+def test_second_condensation_segment_does_not_include_first(mock_count: MagicMock, mock_llm: LLM) -> None:
+    """The second Condensation's trigger inference only looks at events since the first."""
+    user = _user_message("task")
+    cond1 = _condensation({user.id}, summary="s1")
+    request = CondensationRequest()
+    cond2 = _condensation(set(), summary="s2")
+    events = [user, cond1, request, cond2]
+    entries = build_compaction_events_from_run(events, mock_llm, context_limit=200_000)
+    assert len(entries) == 2
+    assert entries[1][1].trigger == "openhands_condensation_request"
+
+
+@patch(
+    "nemo_evaluator.solvers.openhands_compaction.get_total_token_count",
+    side_effect=[100, 20],
+)
+def test_splice_compaction_step_id_renumbered(mock_count: MagicMock, mock_llm: LLM) -> None:
+    user = _user_message("hi")
+    cond = _condensation({user.id})
+    entries = build_compaction_events_from_run([user, cond], mock_llm, context_limit=128_000)
+    trajectory = {
+        "steps": [
+            {"step_id": 5, "timestamp": user.timestamp, "source": "user", "message": "hi"},
+        ]
+    }
+    enriched = splice_compaction_steps_into_trajectory(trajectory, entries)
+    for i, step in enumerate(enriched["steps"], start=1):
+        assert step["step_id"] == i

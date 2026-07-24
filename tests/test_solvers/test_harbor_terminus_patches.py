@@ -32,6 +32,7 @@ from nemo_evaluator.solvers.harbor import (
     _patch_terminus_unwind_min_pairs,
     _terminus2_build_local_fallback_llm_content,
     _terminus2_count_total_tokens,
+    _terminus2_nel_dump_trajectory_with_continuation_index,
     _terminus2_nel_flush_pending_compaction,
 )
 
@@ -856,3 +857,99 @@ class TestPatchTerminusCompactionTurnMarker:
         assert marked["extra_headers"][NEL_CALL_KIND_HEADER] == NEL_CALL_KIND_COMPACTION
         assert agent._llm_call_kwargs == {"temperature": 0.2}
         assert "extra_headers" not in agent._llm_call_kwargs
+
+
+# ── _terminus2_nel_dump_trajectory_with_continuation_index ───────────────
+
+
+def _make_agent_for_dump(terminus_cls, tmp_path, *, linear_history=False, summarization_count=0):
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    from harbor.models.trajectories.step import Step
+
+    agent = terminus_cls(
+        logs_dir=tmp_path,
+        model_name="test-model",
+        model_info={"max_input_tokens": 1000, "max_output_tokens": 1000},
+    )
+    agent._trajectory_steps = [
+        Step(
+            step_id=1,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            source="user",
+            message="start",
+        )
+    ]
+    agent._linear_history = linear_history
+    agent._summarization_count = summarization_count
+    agent._session_id = "test-session"
+    agent._parser_name = "default"
+    agent._temperature = 0.0
+    agent._llm_kwargs = {}
+    agent._context = SimpleNamespace(
+        n_input_tokens=100,
+        n_output_tokens=50,
+        n_cache_tokens=0,
+        cost_usd=0.01,
+    )
+    return agent
+
+
+class TestDumpTrajectoryWithContinuationIndex:
+    def test_no_context_skips_write(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = terminus(
+            logs_dir=tmp_path,
+            model_name="test-model",
+            model_info={"max_input_tokens": 1000, "max_output_tokens": 1000},
+        )
+        agent._context = None
+        agent._trajectory_steps = []
+        agent._linear_history = False
+        agent._summarization_count = 0
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 0)
+        assert not (tmp_path / "trajectory.json").exists()
+
+    def test_non_linear_writes_trajectory_json(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = _make_agent_for_dump(terminus, tmp_path, linear_history=False)
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 0)
+        traj_path = tmp_path / "trajectory.json"
+        assert traj_path.exists()
+        data = json.loads(traj_path.read_text())
+        assert data["session_id"] == "test-session"
+        # Non-linear should not set continuation_index in agent extra
+        assert "continuation_index" not in (data.get("agent") or {}).get("extra", {})
+
+    def test_linear_continuation_index_gt_0_writes_cont_file(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = _make_agent_for_dump(terminus, tmp_path, linear_history=True, summarization_count=2)
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 1)
+        cont_path = tmp_path / "trajectory.cont-1.json"
+        assert cont_path.exists()
+        data = json.loads(cont_path.read_text())
+        assert data["agent"]["extra"]["continuation_index"] == 1
+
+    def test_linear_points_to_next_continuation_when_not_last(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = _make_agent_for_dump(terminus, tmp_path, linear_history=True, summarization_count=3)
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 1)
+        data = json.loads((tmp_path / "trajectory.cont-1.json").read_text())
+        assert data.get("continued_trajectory_ref") == "trajectory.cont-2.json"
+
+    def test_linear_last_segment_has_no_continued_ref(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = _make_agent_for_dump(terminus, tmp_path, linear_history=True, summarization_count=2)
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 2)
+        data = json.loads((tmp_path / "trajectory.cont-2.json").read_text())
+        assert not data.get("continued_trajectory_ref")
+
+    def test_root_in_linear_chain_points_to_first_continuation(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = _make_agent_for_dump(terminus, tmp_path, linear_history=True, summarization_count=1)
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 0)
+        data = json.loads((tmp_path / "trajectory.json").read_text())
+        assert data.get("continued_trajectory_ref") == "trajectory.cont-1.json"
+        # Root segment with index=0 must NOT carry continuation_index in agent extra
+        assert "continuation_index" not in data["agent"]["extra"]

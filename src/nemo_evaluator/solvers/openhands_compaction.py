@@ -3,13 +3,23 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from openhands.sdk.context.condenser.utils import get_total_token_count
-from openhands.sdk.context.view import View
-from openhands.sdk.event.base import Event
-from openhands.sdk.event.condenser import Condensation, CondensationRequest
-from openhands.sdk.llm import LLM
+try:
+    from openhands.sdk.context.condenser.utils import get_total_token_count
+    from openhands.sdk.context.view import View
+    from openhands.sdk.event.base import Event
+    from openhands.sdk.event.condenser import Condensation, CondensationRequest
+    from openhands.sdk.llm import LLM
+except ImportError:
+    pass
+
+if TYPE_CHECKING:
+    from openhands.sdk.context.condenser.utils import get_total_token_count
+    from openhands.sdk.context.view import View
+    from openhands.sdk.event.base import Event
+    from openhands.sdk.event.condenser import Condensation, CondensationRequest
+    from openhands.sdk.llm import LLM
 
 from nemo_evaluator.solvers.compaction_logging import (
     CompactionEvent,
@@ -24,12 +34,6 @@ from nemo_evaluator.solvers.compaction_logging import (
 
 DEFAULT_OPENHANDS_MAX_SIZE = 80
 DEFAULT_OPENHANDS_KEEP_FIRST = 4
-
-
-def event_counts_toward_max_iterations(event: Event | None) -> bool:
-    if event is None:
-        return True
-    return not isinstance(event, Condensation)
 
 
 def _parse_timestamp(value: str | None) -> datetime | None:

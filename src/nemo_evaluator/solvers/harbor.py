@@ -41,6 +41,10 @@ from nemo_evaluator.solvers.compaction_logging import (
     CompactionTokens,
     CompactionTokensIntermediate,
     CompactionTrigger,
+    compaction_event_to_harbor_step,
+    llm_call_count_for_strategy,
+    serialize_chat_messages,
+    subagent_trajectory_refs_to_dicts,
 )
 from nemo_evaluator.solvers.trajectory_util import build_atif_trajectory
 
@@ -1290,10 +1294,18 @@ def _flatten_atif_continuation_chain(root: dict[str, Any], agent_logs_dir: Path)
     merged = copy.deepcopy(root)
     steps: list[dict[str, Any]] = list(merged.get("steps") or [])
     current = root
+    seen: set[str] = set()
     while True:
         continued_ref = current.get("continued_trajectory_ref")
         if not continued_ref or not isinstance(continued_ref, str):
             break
+        if continued_ref in seen:
+            logger.warning(
+                "Cycle detected in trajectory continuation chain at %r; stopping merge",
+                continued_ref,
+            )
+            break
+        seen.add(continued_ref)
         next_path = agent_logs_dir / continued_ref
         if not next_path.is_file():
             logger.warning(
@@ -2112,8 +2124,6 @@ def _terminus2_nel_stash_compaction_token_snapshots(
 
 
 def _terminus2_nel_token_snapshot(self, chat) -> CompactionTokens:
-    from nemo_evaluator.solvers.compaction_logging import CompactionTokens
-
     context_limit = self._llm.get_model_context_limit()
     current_tokens = self._count_total_tokens(chat)
     return CompactionTokens(
@@ -2124,8 +2134,6 @@ def _terminus2_nel_token_snapshot(self, chat) -> CompactionTokens:
 
 
 def _terminus2_nel_compaction_mechanism(self) -> CompactionMechanism:
-    from nemo_evaluator.solvers.compaction_logging import CompactionMechanism
-
     unwind_pairs = int(getattr(self, "_nel_last_unwind_pairs", 0) or 0)
     return CompactionMechanism(
         unwind_applied=unwind_pairs > 0,
@@ -2148,12 +2156,6 @@ def _terminus2_nel_make_compaction_event(
     tokens_intermediate: CompactionTokensIntermediate | None = None,
     handoff_prompt: str | None = None,
 ) -> CompactionEvent:
-    from nemo_evaluator.solvers.compaction_logging import (
-        CompactionEvent,
-        llm_call_count_for_strategy,
-        subagent_trajectory_refs_to_dicts,
-    )
-
     self._nel_ensure_compaction_state()
     self._nel_compaction_count += 1
     compaction_index = self._nel_compaction_count
@@ -2179,8 +2181,6 @@ def _terminus2_nel_record_failed_compaction_attempt(
     strategy: CompactionStrategy,
     error: str,
 ) -> None:
-    from nemo_evaluator.solvers.compaction_logging import CompactionAttempt, llm_call_count_for_strategy
-
     attempts.append(
         CompactionAttempt(
             strategy=strategy,
@@ -2191,8 +2191,6 @@ def _terminus2_nel_record_failed_compaction_attempt(
 
 
 def _terminus2_nel_set_proactive_pending_compaction(self, chat, prompt: str, subagent_refs: Any) -> None:
-    from nemo_evaluator.solvers.compaction_logging import serialize_chat_messages
-
     self._nel_ensure_compaction_state()
     tokens_before = self._nel_stashed_tokens_before
     tokens_after = self._nel_stashed_tokens_after
@@ -2234,11 +2232,6 @@ def _terminus2_nel_set_cle_pending_compaction(
     tokens_after_unwind: CompactionTokens | None,
     tokens_after_chat_reset: CompactionTokens | None,
 ) -> None:
-    from nemo_evaluator.solvers.compaction_logging import (
-        CompactionTokensIntermediate,
-        serialize_chat_messages,
-    )
-
     self._nel_ensure_compaction_state()
     tokens_intermediate = None
     if tokens_after_unwind is not None or tokens_after_chat_reset is not None:
@@ -2260,8 +2253,6 @@ def _terminus2_nel_set_cle_pending_compaction(
 
 
 def _terminus2_nel_flush_pending_compaction(self, chat) -> None:
-    from nemo_evaluator.solvers.compaction_logging import compaction_event_to_harbor_step
-
     self._nel_ensure_compaction_state()
     event = self._nel_pending_compaction
     if event is None:

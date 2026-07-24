@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import tarfile
 import time
@@ -30,6 +31,7 @@ from nemo_evaluator.solvers.harbor import (
     _ensure_host_env,
     _error_from_crash_marker,
     _extract_response,
+    _flatten_atif_continuation_chain,
     _host_agent_model_url,
     _is_turn_budget_exhausted_error,
     _last_llm_error_from_marker,
@@ -2574,3 +2576,117 @@ class TestSolveZeroTokenFlag:
         )
 
         assert "final_metrics" not in result.trajectory[0]
+
+
+# ── _flatten_atif_continuation_chain ─────────────────────────────────────
+
+
+class TestFlattenAtifContinuationChain:
+    def test_single_file_renumbers_step_ids(self, tmp_path):
+        root = {
+            "session_id": "s",
+            "steps": [
+                {"step_id": 99, "source": "user", "message": "hi"},
+                {"step_id": 200, "source": "agent", "message": "done"},
+            ],
+        }
+        result = _flatten_atif_continuation_chain(root, tmp_path)
+        assert result["steps"][0]["step_id"] == 1
+        assert result["steps"][1]["step_id"] == 2
+        assert "continued_trajectory_ref" not in result
+
+    def test_two_file_chain_appends_and_renumbers(self, tmp_path):
+        cont = {
+            "steps": [{"step_id": 1, "source": "agent", "message": "done"}],
+            "final_metrics": {"total_prompt_tokens": 9, "total_completion_tokens": 5},
+        }
+        (tmp_path / "trajectory.cont-1.json").write_text(json.dumps(cont))
+        root = {
+            "session_id": "s",
+            "steps": [{"step_id": 1, "source": "user", "message": "go"}],
+            "final_metrics": {"total_prompt_tokens": 3, "total_completion_tokens": 1},
+            "continued_trajectory_ref": "trajectory.cont-1.json",
+        }
+        result = _flatten_atif_continuation_chain(root, tmp_path)
+        assert len(result["steps"]) == 2
+        assert result["steps"][0]["step_id"] == 1
+        assert result["steps"][1]["step_id"] == 2
+        assert "continued_trajectory_ref" not in result
+        assert result["final_metrics"]["total_prompt_tokens"] == 9
+
+    def test_three_file_chain(self, tmp_path):
+        (tmp_path / "trajectory.cont-2.json").write_text(
+            json.dumps({"steps": [{"step_id": 1, "source": "agent", "message": "c2"}]})
+        )
+        (tmp_path / "trajectory.cont-1.json").write_text(
+            json.dumps(
+                {
+                    "steps": [{"step_id": 1, "source": "agent", "message": "c1"}],
+                    "continued_trajectory_ref": "trajectory.cont-2.json",
+                }
+            )
+        )
+        root = {
+            "steps": [{"step_id": 1, "source": "user", "message": "root"}],
+            "continued_trajectory_ref": "trajectory.cont-1.json",
+        }
+        result = _flatten_atif_continuation_chain(root, tmp_path)
+        assert len(result["steps"]) == 3
+        assert [s["step_id"] for s in result["steps"]] == [1, 2, 3]
+
+    def test_missing_continuation_file_warns_and_stops(self, tmp_path, caplog):
+        root = {
+            "steps": [{"step_id": 1, "source": "user", "message": "x"}],
+            "continued_trajectory_ref": "trajectory.cont-1.json",
+        }
+        with caplog.at_level(logging.WARNING):
+            result = _flatten_atif_continuation_chain(root, tmp_path)
+        assert len(result["steps"]) == 1
+        assert any("missing file" in r.getMessage() for r in caplog.records)
+
+    def test_malformed_json_warns_and_stops(self, tmp_path, caplog):
+        (tmp_path / "trajectory.cont-1.json").write_text("not json {{{")
+        root = {
+            "steps": [{"step_id": 1, "source": "user", "message": "x"}],
+            "continued_trajectory_ref": "trajectory.cont-1.json",
+        }
+        with caplog.at_level(logging.WARNING):
+            result = _flatten_atif_continuation_chain(root, tmp_path)
+        assert len(result["steps"]) == 1
+        assert any("Failed to read" in r.getMessage() for r in caplog.records)
+
+    def test_cycle_breaks_with_warning(self, tmp_path, caplog):
+        (tmp_path / "trajectory.cont-2.json").write_text(
+            json.dumps(
+                {
+                    "steps": [{"step_id": 1, "source": "agent", "message": "c2"}],
+                    "continued_trajectory_ref": "trajectory.cont-1.json",
+                }
+            )
+        )
+        (tmp_path / "trajectory.cont-1.json").write_text(
+            json.dumps(
+                {
+                    "steps": [{"step_id": 1, "source": "agent", "message": "c1"}],
+                    "continued_trajectory_ref": "trajectory.cont-2.json",
+                }
+            )
+        )
+        root = {
+            "steps": [{"step_id": 1, "source": "user", "message": "root"}],
+            "continued_trajectory_ref": "trajectory.cont-1.json",
+        }
+        with caplog.at_level(logging.WARNING):
+            result = _flatten_atif_continuation_chain(root, tmp_path)
+        assert len(result["steps"]) == 3
+        assert any("Cycle detected" in r.getMessage() for r in caplog.records)
+
+    def test_does_not_mutate_original(self, tmp_path):
+        root = {
+            "steps": [{"step_id": 99, "source": "user", "message": "x"}],
+        }
+        import copy
+
+        original = copy.deepcopy(root)
+        _flatten_atif_continuation_chain(root, tmp_path)
+        assert root == original

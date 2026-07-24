@@ -270,14 +270,14 @@ def compaction_event_to_harbor_step(event: CompactionEvent, step_id: int) -> Any
     subagent_refs = observation_raw.get("subagent_trajectory_ref")
     if subagent_refs:
         refs = [SubagentTrajectoryRef.model_validate(item) for item in subagent_refs]
-    observation = Observation(
-        results=[
-            ObservationResult(
-                content=observation_raw.get("content"),
-                subagent_trajectory_ref=refs,
-            )
-        ]
-    )
+    obs_result_kwargs: dict[str, Any] = {
+        "content": observation_raw.get("content"),
+        "subagent_trajectory_ref": refs,
+    }
+    obs_extra = observation_raw.get("extra")
+    if obs_extra and "extra" in getattr(ObservationResult, "model_fields", {}):
+        obs_result_kwargs["extra"] = obs_extra
+    observation = Observation(results=[ObservationResult(**obs_result_kwargs)])
     step = Step(
         step_id=raw["step_id"],
         timestamp=raw["timestamp"],
