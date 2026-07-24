@@ -923,13 +923,12 @@ print(f'cmd_timeout_{{_MAX}}s={{ok}} at {{p}}')
 
     # -- Patch 4: flush trajectory when the runner is interrupted ----------
     # Anchor 1: wrap `conversation.send_message()` + `conversation.run()` in
-    # try/except BaseException so main() continues to the existing
+    # try/except BaseException so main() continues to the runner's existing
     # event-reconstruction + build_trajectory + save code on timeout/crash.
-    # SIGTERM/SIGINT are converted to a catchable BaseException so evaluator
-    # timeout cancellation gets the same flush path.  On interruption, first
-    # write a cheap partial trajectory from already-received model events.  The
-    # normal full writer below overwrites it if post-run serialization completes.
-    # Anchor 2: after the final print in main(), exit(0) cleanly so Harbor
+    # SIGTERM/SIGINT are converted to a catchable BaseException, then ignored
+    # while the already-existing post-run trajectory serialization completes.
+    # Anchor 2: add partial-run metadata and make the existing save atomic.
+    # Anchor 3: after the final print in main(), exit(0) cleanly so Harbor
     # treats the run as a normal completion and downloads the trajectory.
     _budget_flush_script = """\
 import sys
@@ -948,79 +947,34 @@ for line in c.splitlines():
     if 'Total cost:' in line and 'print' in line:
         old2 = line; break
 
+old_save = (
+    '    trajectory_path = Path(args.trajectory_path)\\n'
+    '    trajectory_path.parent.mkdir(parents=True, exist_ok=True)\\n'
+    '    with open(trajectory_path, "w") as f:\\n'
+    '        json.dump(trajectory, f, indent=2)'
+)
+
 already = '_trajectory_flush_exc' in c
-ok = old1 in c and old2 is not None and not already
+ok = old1 in c and old2 is not None and old_save in c and not already
 success = already or ok
-print(f'anchor1={repr(old1)} anchor2={repr(old2)} already={already} ok={ok}')
+print(f'anchor1={repr(old1)} anchor2={repr(old2)} save={old_save in c} already={already} ok={ok}')
 
 if ok:
-    partial = (
-        ind + 'def _trajectory_text_from_event(_event):\\n' +
-        ind + '    _msg = getattr(_event, "llm_message", None)\\n' +
-        ind + '    _raw = getattr(_msg, "content", None) if _msg is not None else None\\n' +
-        ind + '    if isinstance(_raw, list):\\n' +
-        ind + '        return chr(10).join(getattr(_c, "text", str(_c)) for _c in _raw if getattr(_c, "text", None))\\n' +
-        ind + '    return str(_raw) if _raw else ""\\n' +
-        ind + 'def _trajectory_tool_args(_event):\\n' +
-        ind + '    if getattr(_event, "tool_call", None) and hasattr(_event.tool_call, "function"):\\n' +
-        ind + '        _raw_args = getattr(_event.tool_call.function, "arguments", None)\\n' +
-        ind + '        if isinstance(_raw_args, str):\\n' +
-        ind + '            try:\\n' +
-        ind + '                return json.loads(_raw_args)\\n' +
-        ind + '            except json.JSONDecodeError:\\n' +
-        ind + '                return {"raw": _raw_args}\\n' +
-        ind + '        if isinstance(_raw_args, dict):\\n' +
-        ind + '            return _raw_args\\n' +
-        ind + '    if getattr(_event, "action", None):\\n' +
-        ind + '        try:\\n' +
-        ind + '            _ad = _event.action.model_dump() if hasattr(_event.action, "model_dump") else vars(_event.action)\\n' +
-        ind + '            return {_k: _v for _k, _v in _ad.items() if _k != "kind" and _v is not None}\\n' +
-        ind + '        except Exception:\\n' +
-        ind + '            pass\\n' +
-        ind + '    return {}\\n' +
-        ind + 'def _write_partial_trajectory(_reason):\\n' +
-        ind + '    import json, os, sys\\n' +
-        ind + '    from pathlib import Path\\n' +
-        ind + '    try:\\n' +
-        ind + '        _metric_obj = getattr(llm, "metrics", None)\\n' +
-        ind + '        _usage = getattr(_metric_obj, "accumulated_token_usage", None)\\n' +
-        ind + '        _metrics = {\\n' +
-        ind + '            "prompt_tokens": int(getattr(_usage, "prompt_tokens", 0) or 0),\\n' +
-        ind + '            "completion_tokens": int(getattr(_usage, "completion_tokens", 0) or 0),\\n' +
-        ind + '            "cached_tokens": int(getattr(_usage, "cache_read_tokens", 0) or 0),\\n' +
-        ind + '            "cost_usd": float(getattr(_metric_obj, "accumulated_cost", 0.0) or 0.0),\\n' +
-        ind + '        }\\n' +
-        ind + '        _events_list = []\\n' +
-        ind + '        for _event in list(getattr(getattr(conversation, "state", None), "events", []) or []):\\n' +
-        ind + '            if isinstance(_event, MessageEvent):\\n' +
-        ind + '                if _event.source in ("user", "agent"):\\n' +
-        ind + '                    _entry_type = "assistant_message" if _event.source == "agent" else "user_message"\\n' +
-        ind + '                    _entry = {"type": _entry_type, "content": _trajectory_text_from_event(_event), "timestamp": _event.timestamp}\\n' +
-        ind + '                    _events_list.append(_entry)\\n' +
-        ind + '            elif isinstance(_event, ActionEvent):\\n' +
-        ind + '                _events_list.append({"type": "assistant_message", "content": "", "timestamp": _event.timestamp, "llm_response_id": getattr(_event, "llm_response_id", None), "tool_calls": [{"id": _event.tool_call_id, "name": _event.tool_name, "arguments": _trajectory_tool_args(_event)}]})\\n' +
-        ind + '        _trajectory = build_trajectory(_events_list, _metrics, model)\\n' +
-        ind + '        _trajectory.setdefault("extra", {})["partial_trajectory"] = {"reason": _reason, "events": len(_events_list)}\\n' +
-        ind + '        _path = Path(args.trajectory_path)\\n' +
-        ind + '        _path.parent.mkdir(parents=True, exist_ok=True)\\n' +
-        ind + '        _tmp = _path.with_suffix(_path.suffix + ".partial")\\n' +
-        ind + '        with open(_tmp, "w") as _f:\\n' +
-        ind + '            json.dump(_trajectory, _f, indent=2)\\n' +
-        ind + '        os.replace(_tmp, _path)\\n' +
-        ind + '        print(f"trajectory flush: partial trajectory saved to {_path}", file=sys.stderr, flush=True)\\n' +
-        ind + '        return True\\n' +
-        ind + '    except Exception as _save_e:\\n' +
-        ind + '        print(f"trajectory flush: partial trajectory save failed: {type(_save_e).__name__}: {_save_e}", file=sys.stderr, flush=True)\\n' +
-        ind + '        return False\\n'
-    )
     wrap = (
         ind + '# Send instruction and run\\n' +
         ind + '_trajectory_flush_exc = None\\n' +
-        partial +
+        ind + '_trajectory_flush_reason = None\\n' +
         ind + 'class TrajectoryFlushRequested(BaseException):\\n' +
         ind + '    pass\\n' +
         ind + 'def _trajectory_timeout_handler(_signum, _frame):\\n' +
         ind + '    raise TrajectoryFlushRequested(f"signal {_signum}")\\n' +
+        ind + 'def _trajectory_ignore_interrupts():\\n' +
+        ind + '    try:\\n' +
+        ind + '        import signal as _trajectory_signal\\n' +
+        ind + '        _trajectory_signal.signal(_trajectory_signal.SIGTERM, _trajectory_signal.SIG_IGN)\\n' +
+        ind + '        _trajectory_signal.signal(_trajectory_signal.SIGINT, _trajectory_signal.SIG_IGN)\\n' +
+        ind + '    except BaseException:\\n' +
+        ind + '        pass\\n' +
         ind + 'try:\\n' +
         ind + '    import signal as _trajectory_signal\\n' +
         ind + '    _trajectory_signal.signal(_trajectory_signal.SIGTERM, _trajectory_timeout_handler)\\n' +
@@ -1032,14 +986,27 @@ if ok:
         ind + '    conversation.run()\\n' +
         ind + 'except TrajectoryFlushRequested as _e:\\n' +
         ind + '    _trajectory_flush_exc = _e\\n' +
+        ind + '    _trajectory_flush_reason = "timeout"\\n' +
         ind + '    print(f"trajectory flush: flushing after NEL timeout signal: {_e}", file=sys.stderr, flush=True)\\n' +
-        ind + '    _write_partial_trajectory("timeout")\\n' +
         ind + 'except BaseException as _e:\\n' +
         ind + '    _trajectory_flush_exc = _e\\n' +
+        ind + '    _trajectory_flush_reason = type(_e).__name__\\n' +
         ind + '    print(f"trajectory flush: flushing after {type(_e).__name__}: {_e}", file=sys.stderr, flush=True)\\n' +
-        ind + '    _write_partial_trajectory(type(_e).__name__)'
+        ind + 'finally:\\n' +
+        ind + '    _trajectory_ignore_interrupts()'
     )
     c = c.replace(old1, wrap, 1)
+    new_save = (
+        '    if _trajectory_flush_reason is not None:\\n'
+        '        trajectory.setdefault("extra", {})["partial_trajectory"] = {"reason": _trajectory_flush_reason, "events": len(events_list)}\\n'
+        '    trajectory_path = Path(args.trajectory_path)\\n'
+        '    trajectory_path.parent.mkdir(parents=True, exist_ok=True)\\n'
+        '    trajectory_tmp = trajectory_path.with_suffix(trajectory_path.suffix + ".partial")\\n'
+        '    with open(trajectory_tmp, "w") as f:\\n'
+        '        json.dump(trajectory, f, indent=2)\\n'
+        '    os.replace(trajectory_tmp, trajectory_path)'
+    )
+    c = c.replace(old_save, new_save, 1)
     exit_block = (
         ind + 'if _trajectory_flush_exc is not None:\\n' +
         ind + '    if not isinstance(_trajectory_flush_exc, TrajectoryFlushRequested):\\n' +
@@ -1098,13 +1065,28 @@ def _recover_from_logs(agent_logs_dir: Path) -> dict[str, Any]:
     }
 
     # -- 1. ATIF trajectory JSON (canonical agent output) -------------------
+    def _trajectory_file_rank(path: Path) -> tuple[int, str]:
+        name = path.name.lower()
+        if name == "trajectory.json":
+            return (0, name)
+        if name == "trajectory.partial.json":
+            return (1, name)
+        if name == "trajectory.json.partial":
+            return (2, name)
+        if name.endswith(".json"):
+            return (3, name)
+        return (4, name)
+
     traj_files = sorted(
-        (f for f in agent_logs_dir.glob("*.json") if "traj" in f.stem.lower()),
-        key=lambda p: (p.name != "trajectory.json", p.name),
+        (
+            f
+            for f in agent_logs_dir.glob("*")
+            if f.is_file()
+            and "traj" in f.name.lower()
+            and (f.name.lower().endswith(".json") or f.name.lower().endswith(".json.partial"))
+        ),
+        key=_trajectory_file_rank,
     )
-    canonical = agent_logs_dir / "trajectory.json"
-    if canonical.is_file() and canonical not in traj_files:
-        traj_files.insert(0, canonical)
 
     for tf in traj_files:
         try:

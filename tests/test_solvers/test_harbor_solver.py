@@ -13,6 +13,9 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import signal
+import subprocess
+import sys
 import tarfile
 import time
 from pathlib import Path
@@ -222,6 +225,30 @@ class TestCrashMarker:
 
         with pytest.raises(InfraError, match="Agent infrastructure failure: APIConnectionError: connection failed"):
             _error_from_crash_marker(tmp_path)
+
+
+class TestRecoverFromLogs:
+    def test_recovers_valid_partial_trajectory_before_text_fallback(self, tmp_path):
+        (tmp_path / "trajectory.json.partial").write_text(
+            json.dumps(
+                {
+                    "schema_version": "ATIF-v1.7",
+                    "session_id": "partial",
+                    "agent": {"name": "openhands-sdk", "model_name": "model"},
+                    "steps": [{"step_id": 1, "source": "agent", "message": "partial response"}],
+                    "final_metrics": {"total_steps": 1, "total_prompt_tokens": 11, "total_completion_tokens": 7},
+                    "extra": {"partial_trajectory": {"reason": "timeout", "events": 1}},
+                }
+            )
+        )
+        (tmp_path / "openhands_sdk.txt").write_text("text fallback")
+
+        recovered = harbor_mod._recover_from_logs(tmp_path)
+
+        assert recovered["response"] == "partial response"
+        assert recovered["prompt_tokens"] == 11
+        assert recovered["completion_tokens"] == 7
+        assert recovered["trajectory"][0]["extra"]["partial_trajectory"]["reason"] == "timeout"
 
 
 class TestLastLlmErrorMarker:
@@ -928,16 +955,17 @@ def build_trajectory(events, llm_metrics, model_name):
     )
 
     @staticmethod
-    def _stub_runner(module_imports: str, run_body: str, events: str) -> str:
+    def _stub_runner(module_imports: str, run_body: str, events: str, *, events_expr: str | None = None) -> str:
         """Build a minimal run_agent.py stub for the flush patch to wrap.
 
-        ``module_imports`` controls which names exist at module scope (used to
-        prove ``_write_partial_trajectory`` self-imports its dependencies).
+        ``module_imports`` controls which names exist at module scope.
         ``run_body`` is the indented body of ``_Conversation.run`` — raise to
         exercise the crash path, ``raise_signal`` to exercise the timeout path.
-        ``events`` is the comma-separated event constructor list; use message-
-        only events to keep the flush off the ``_trajectory_tool_args`` sibling
-        helper (which is not in change #5's self-sufficiency scope).
+        ``events`` is the comma-separated event constructor list; use
+        ``events_expr`` when the test needs a custom iterable.  The post-run
+        trajectory block intentionally represents the runner's existing generic
+        serialization path; the flush patch should annotate and protect this
+        block, not duplicate event-to-ATIF conversion.
         """
         return (
             module_imports
@@ -961,7 +989,21 @@ class ActionEvent:
 
 
 def build_trajectory(events, metrics, model):
-    return {"steps": events, "final_metrics": metrics, "model_name": model}
+    steps = []
+    for event in events:
+        if isinstance(event, MessageEvent):
+            steps.append({"source": event.source, "content": event.llm_message.content})
+        elif isinstance(event, ActionEvent):
+            steps.append(
+                {
+                    "source": "agent",
+                    "content": "",
+                    "tool_calls": [{"id": event.tool_call_id, "name": event.tool_name}],
+                }
+            )
+        else:
+            steps.append(event)
+    return {"steps": steps, "final_metrics": metrics, "model_name": model}
 
 
 class _Args:
@@ -985,14 +1027,25 @@ def main():
     args.trajectory_path = os.environ["NEL_TEST_TRAJECTORY_PATH"]
     model = "test-model"
     llm = type("LLM", (), {"metrics": None})()
-    conversation = _Conversation([__EVENTS__])
+    conversation = _Conversation(__EVENTS_EXPR__)
 
     # Send instruction and run
     conversation.send_message(args.instruction)
     conversation.run()
 
+    import json
+    from pathlib import Path
+
+    events_list = list(conversation.state.events)
+    trajectory = build_trajectory(events_list, {}, model)
+    trajectory_path = Path(args.trajectory_path)
+    trajectory_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(trajectory_path, "w") as f:
+        json.dump(trajectory, f, indent=2)
+
+    print(f"Agent completed. Trajectory saved to {trajectory_path}")
     print("Total cost: 0.0")
-""".replace("__EVENTS__", events)
+""".replace("__EVENTS_EXPR__", events_expr if events_expr is not None else f"[{events}]")
         )
 
     @staticmethod
@@ -1079,10 +1132,12 @@ def main():
         patched = await self._apply_flush_patch(runner)
 
         assert "_trajectory_flush_exc = None" in patched
-        assert "def _write_partial_trajectory" in patched
+        assert "def _write_partial_trajectory" not in patched
+        assert "_trajectory_text_from_event" not in patched
         assert "class TrajectoryFlushRequested" in patched
+        assert 'trajectory.setdefault("extra", {})["partial_trajectory"]' in patched
         # Crash marker is written atomically (tmp + os.replace), matching the
-        # partial-trajectory write, so a kill mid-write can't leave a truncated
+        # trajectory write, so a kill mid-write can't leave a truncated
         # marker that _error_from_crash_marker would silently drop.
         assert '_marker = "/logs/agent/agent_error.json"' in patched
         assert "_os.replace(_marker_tmp, _marker)" in patched
@@ -1125,32 +1180,83 @@ def main():
         assert data["extra"]["partial_trajectory"]["events"] == 2
         assert "/logs/agent" not in makedirs_calls, "the timeout path must not write a crash marker"
 
-    async def test_flush_patch_self_sufficient_without_module_imports(self, tmp_path, monkeypatch):
-        """_write_partial_trajectory flushes even without module-scope json/Path.
-
-        Proves change #5: the function self-imports its dependencies.  ``os``
-        and ``sys`` remain at module scope because the wrap/exit blocks (out of
-        scope for #5) still reference them there.
-        """
+    async def test_flush_patch_os_sigterm_writes_trajectory_no_marker(self, tmp_path, monkeypatch):
+        """A real SIGTERM from outside the process should flush trajectory."""
         traj_path = tmp_path / "trajectory" / "out.json"
         monkeypatch.setenv("NEL_TEST_TRAJECTORY_PATH", str(traj_path))
 
         runner = tmp_path / "run_agent.py"
         runner.write_text(
             self._stub_runner(
-                "import os\nimport sys",
-                '        raise RuntimeError("simulated crash")\n',
+                "import json\nimport os\nimport sys\nimport time\nfrom pathlib import Path",
+                '        Path(os.environ["NEL_TEST_READY_PATH"]).write_text("ready")\n        time.sleep(30)\n',
                 self._EVENTS_TWO_MESSAGES,
             )
         )
         patched = await self._apply_flush_patch(runner)
+        runner.write_text(f'{patched}\n\nif __name__ == "__main__":\n    main()\n')
 
-        self._run_patched_main(patched, runner, monkeypatch)
+        env = os.environ.copy()
+        env["NEL_TEST_TRAJECTORY_PATH"] = str(traj_path)
+        ready_path = tmp_path / "ready"
+        env["NEL_TEST_READY_PATH"] = str(ready_path)
+        proc = subprocess.Popen(
+            [sys.executable, str(runner)],
+            env=env,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        deadline = time.monotonic() + 10
+        while not ready_path.exists() and time.monotonic() < deadline:
+            await asyncio.sleep(0.01)
+        assert ready_path.exists(), "subprocess did not reach the signal-ready point"
+        proc.send_signal(signal.SIGTERM)
+        stdout, stderr = proc.communicate(timeout=10)
 
-        assert traj_path.is_file(), "flush must not depend on module-scope json/Path"
+        assert proc.returncode == 0, stdout + stderr
+        assert "trajectory flush: flushing after NEL timeout signal: signal 15" in stderr
+        assert traj_path.is_file(), "partial trajectory was not flushed on SIGTERM"
         data = json.loads(traj_path.read_text())
+        assert data["extra"]["partial_trajectory"]["reason"] == "timeout"
         assert data["extra"]["partial_trajectory"]["events"] == 2
-        assert len(data["steps"]) == 2
+        assert "/logs/agent" not in stderr
+
+    async def test_flush_patch_ignores_reentrant_signal_while_writing_trajectory(self, tmp_path, monkeypatch):
+        """A second SIGTERM during generic serialization must not abort persistence."""
+        traj_path = tmp_path / "trajectory" / "out.json"
+        monkeypatch.setenv("NEL_TEST_TRAJECTORY_PATH", str(traj_path))
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            self._stub_runner(
+                """
+import os
+import signal
+import sys
+
+
+class _EventStore:
+    def __iter__(self):
+        yield MessageEvent("agent", "before signal", 1)
+        signal.raise_signal(signal.SIGTERM)
+        yield MessageEvent("agent", "after signal", 2)
+""",
+                "        import signal as _sig\n        _sig.raise_signal(_sig.SIGINT)\n",
+                "",
+                events_expr="_EventStore()",
+            )
+        )
+        patched = await self._apply_flush_patch(runner)
+
+        makedirs_calls = self._run_patched_main(patched, runner, monkeypatch)
+
+        assert traj_path.is_file(), "reentrant signal must not abort the partial trajectory write"
+        data = json.loads(traj_path.read_text())
+        assert data["extra"]["partial_trajectory"]["reason"] == "timeout"
+        assert data["extra"]["partial_trajectory"]["events"] == 2
+        assert [step["content"] for step in data["steps"]] == ["before signal", "after signal"]
+        assert "/logs/agent" not in makedirs_calls
 
 
 class TestSandboxEnvironmentAdapter:
