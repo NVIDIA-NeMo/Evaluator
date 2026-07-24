@@ -65,6 +65,20 @@ async def _litellm_call_length_anchor_missing_locals(self, *args, **kwargs):
             raise exc
 
 
+async def _responses_api_length_anchor_missing_locals(self, *args, **kwargs):
+    from harbor.llms.base import OutputLengthExceededError
+
+    content = "missing responses local guard"
+    reason = "max_output_tokens"
+    if True:
+        if True:
+            if reason == "max_output_tokens":
+                raise OutputLengthExceededError(
+                    f"Model {self._model_name} hit max_tokens limit. Response was truncated.",
+                    truncated_response=content,
+                )
+
+
 _FLAGS = (
     "_TERMINUS_CLE_RESET_PATCHED",
     "_TERMINUS_UNWIND_PATCHED",
@@ -312,6 +326,20 @@ class TestPatchCleReset:
         assert patch_sandbox.terminus._query_llm is original_query
         assert "_apply_failed_llm_usage" not in patch_sandbox.terminus.__dict__
 
+    def test_responses_length_patch_requires_expected_locals_before_mutating(self, patch_sandbox):
+        from harbor.llms.lite_llm import LiteLLM
+
+        original_call = LiteLLM.call
+        original_query = patch_sandbox.terminus._query_llm
+        LiteLLM._call_responses = _responses_api_length_anchor_missing_locals
+        with pytest.raises(RuntimeError, match="required source pattern"):
+            _patch_terminus_cle_reset()
+
+        assert LiteLLM.call is original_call
+        assert LiteLLM._call_responses is _responses_api_length_anchor_missing_locals
+        assert patch_sandbox.terminus._query_llm is original_query
+        assert "_apply_failed_llm_usage" not in patch_sandbox.terminus.__dict__
+
 
 # ── _patch_terminus_unwind_min_pairs ─────────────────────────────────────
 
@@ -478,10 +506,23 @@ class _FakeLiteLLMChoice(dict):
 
 
 class _FakeLiteLLMResponse(dict):
-    def __init__(self, *, content, finish_reason, prompt_tokens, completion_tokens, model, reasoning):
+    def __init__(
+        self,
+        *,
+        content,
+        finish_reason,
+        prompt_tokens,
+        completion_tokens,
+        model,
+        reasoning,
+        reasoning_content=None,
+    ):
+        message = {"content": content, "reasoning": reasoning}
+        if reasoning_content is not None:
+            message["reasoning_content"] = reasoning_content
         choice = _FakeLiteLLMChoice(
             {
-                "message": {"content": content, "reasoning": reasoning},
+                "message": message,
                 "finish_reason": finish_reason,
                 "logprobs": {"content": [{"logprob": -0.1}] * completion_tokens},
             },
@@ -550,6 +591,70 @@ class _FakeLengthChat:
 
 
 class TestPatchFailedLLMResponseAccounting:
+    async def test_chat_completion_length_error_keeps_usage_model_and_reasoning(self, patch_sandbox, monkeypatch):
+        import litellm
+        from harbor.llms.base import OutputLengthExceededError
+        from harbor.llms.lite_llm import LiteLLM
+
+        _patch_terminus_cle_reset()
+
+        async def fake_acompletion(**_kwargs):
+            return _FakeLiteLLMResponse(
+                content="TRUNCATED_OUTPUT",
+                finish_reason="length",
+                prompt_tokens=23,
+                completion_tokens=9,
+                model="wire-model",
+                reasoning="fallback-reasoning",
+                reasoning_content="preferred-reasoning",
+            )
+
+        monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+
+        llm = LiteLLM(
+            model_name="openai/nano-v3.5",
+            api_base="http://model.test",
+            api_key="test-key",
+        )
+        with pytest.raises(OutputLengthExceededError) as excinfo:
+            await llm.call("prompt")
+
+        error = excinfo.value
+        assert error.truncated_response == "TRUNCATED_OUTPUT"
+        assert error.llm_model_name == "wire-model"
+        assert error.llm_reasoning_content == "preferred-reasoning"
+        assert error.llm_usage.prompt_tokens == 23
+        assert error.llm_usage.completion_tokens == 9
+
+    async def test_chat_completion_length_error_uses_reasoning_fallback(self, patch_sandbox, monkeypatch):
+        import litellm
+        from harbor.llms.base import OutputLengthExceededError
+        from harbor.llms.lite_llm import LiteLLM
+
+        _patch_terminus_cle_reset()
+
+        async def fake_acompletion(**_kwargs):
+            return _FakeLiteLLMResponse(
+                content="TRUNCATED_OUTPUT",
+                finish_reason="length",
+                prompt_tokens=5,
+                completion_tokens=4,
+                model="wire-model",
+                reasoning="fallback-reasoning",
+            )
+
+        monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+
+        llm = LiteLLM(
+            model_name="openai/nano-v3.5",
+            api_base="http://model.test",
+            api_key="test-key",
+        )
+        with pytest.raises(OutputLengthExceededError) as excinfo:
+            await llm.call("prompt")
+
+        assert excinfo.value.llm_reasoning_content == "fallback-reasoning"
+
     async def test_responses_api_length_error_keeps_usage_details(self, patch_sandbox, monkeypatch):
         import litellm
         from harbor.llms.base import OutputLengthExceededError
@@ -578,6 +683,33 @@ class TestPatchFailedLLMResponseAccounting:
         assert error.llm_usage.prompt_tokens == 13
         assert error.llm_usage.completion_tokens == 5
 
+    async def test_responses_api_length_error_keeps_details_via_call(self, patch_sandbox, monkeypatch):
+        import litellm
+        from harbor.llms.base import OutputLengthExceededError
+        from harbor.llms.lite_llm import LiteLLM
+
+        _patch_terminus_cle_reset()
+
+        async def fake_aresponses(**kwargs):
+            assert kwargs["input"] == [{"role": "user", "content": "prompt"}]
+            return _FakeResponsesAPIResponse()
+
+        monkeypatch.setattr(litellm, "aresponses", fake_aresponses)
+
+        llm = LiteLLM(
+            model_name="openai/nano-v3.5",
+            api_base="http://model.test",
+            api_key="test-key",
+            use_responses_api=True,
+        )
+        with pytest.raises(OutputLengthExceededError) as excinfo:
+            await llm.call("prompt")
+
+        assert excinfo.value.truncated_response == "TRUNCATED_RESPONSES_OUTPUT"
+        assert excinfo.value.llm_model_name == "responses-model"
+        assert excinfo.value.llm_usage.prompt_tokens == 13
+        assert excinfo.value.llm_usage.completion_tokens == 5
+
     async def test_salvaged_length_response_counts_usage_without_failed_step(self, patch_sandbox, tmp_path):
         from harbor.agents.terminus_2 import terminus_2
         from harbor.llms.base import OutputLengthExceededError
@@ -605,12 +737,77 @@ class TestPatchFailedLLMResponseAccounting:
 
         result = await agent._query_llm(chat, "prompt", (None, None, None))
 
-        assert result == salvaged
+        assert result.content == salvaged
+        assert result.model_name == "openai/nano-v3.5"
         assert chat.total_input_tokens == 19
         assert chat.total_output_tokens == 7
         assert chat.total_cache_tokens == 3
         assert chat.total_cost == 0.25
         assert chat._api_token_anchor == (0, 26)
+        assert getattr(agent, "_pending_failed_llm_response_steps", []) == []
+
+    async def test_salvaged_length_response_is_recorded_as_normal_step(self, patch_sandbox, monkeypatch, tmp_path):
+        import litellm
+        from harbor.agents.terminus_2 import terminus_2
+        from harbor.llms.chat import Chat
+        from harbor.models.trajectories import Step
+
+        _patch_terminus_cle_reset()
+
+        salvaged = (
+            "<response>\n"
+            "<analysis>salvaged analysis</analysis>\n"
+            "<plan>salvaged plan</plan>\n"
+            "<commands>\n"
+            "</commands>\n"
+            "<task_complete>false</task_complete>\n"
+            "</response>"
+        )
+
+        async def fake_acompletion(**_kwargs):
+            return _FakeLiteLLMResponse(
+                content=salvaged + "\nTRAILING_TRUNCATED_TEXT",
+                finish_reason="length",
+                prompt_tokens=13,
+                completion_tokens=5,
+                model="wire-model",
+                reasoning="salvaged-reasoning",
+            )
+
+        monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+
+        agent = terminus_2.Terminus2(
+            tmp_path,
+            model_name="openai/nano-v3.5",
+            parser_name="xml",
+            max_turns=1,
+            api_base="http://model.test",
+            collect_rollout_details=True,
+            enable_summarize=False,
+            record_terminal_session=False,
+            suppress_max_turns_warning=True,
+            llm_call_kwargs={"max_tokens": 5},
+        )
+        agent._context = SimpleNamespace(n_input_tokens=None, n_output_tokens=None, n_cache_tokens=None, cost_usd=None)
+        agent._session = SimpleNamespace(is_session_alive=lambda: _return_async(True))
+        agent._trajectory_steps = [Step(step_id=1, source="user", message="initial prompt")]
+        agent._dump_trajectory = lambda: None
+        agent._record_asciinema_marker = lambda *_args, **_kwargs: None
+
+        async def execute_commands(_commands, _session):
+            return False, "observation"
+
+        chat = Chat(agent._llm)
+        agent._execute_commands = execute_commands
+        await agent._run_agent_loop("initial prompt", chat)
+
+        assert [step.source for step in agent._trajectory_steps] == ["user", "agent"]
+        step = agent._trajectory_steps[1]
+        assert step.model_name == "wire-model"
+        assert step.reasoning_content == "salvaged-reasoning"
+        assert step.message == "Analysis: salvaged analysis\nPlan: salvaged plan"
+        assert step.metrics.prompt_tokens == 13
+        assert step.metrics.completion_tokens == 5
         assert getattr(agent, "_pending_failed_llm_response_steps", []) == []
 
     async def test_length_response_becomes_ordered_atif_step_without_double_count(
@@ -697,9 +894,16 @@ class TestPatchFailedLLMResponseAccounting:
         )
 
     def test_terminus_run_loop_diverged_source_raises(self, patch_sandbox):
+        from harbor.llms.lite_llm import LiteLLM
+
+        original_call = LiteLLM.call
+        original_responses = LiteLLM._call_responses
         patch_sandbox.terminus._run_agent_loop = _diverged_method
         with pytest.raises(RuntimeError, match="diverged"):
             _patch_terminus_cle_reset()
+        assert LiteLLM.call is original_call
+        assert LiteLLM._call_responses is original_responses
+        assert "_apply_failed_llm_usage" not in patch_sandbox.terminus.__dict__
 
 
 async def _return_async(value):

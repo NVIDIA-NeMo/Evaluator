@@ -1612,7 +1612,11 @@ _TERMINUS_LLM_ERROR_SALVAGE_REPLACEMENT = (
     "                    response_path.write_text(salvaged_response)\n"
     "\n"
     "                self._apply_failed_llm_usage(chat, e)\n"
-    "                return salvaged_response\n"
+    "                return LLMResponse(\n"
+    "                    content=salvaged_response,\n"
+    '                    reasoning_content=getattr(e, "llm_reasoning_content", None),\n'
+    '                    model_name=getattr(e, "llm_model_name", None) or self._model_name,\n'
+    "                )\n"
 )
 
 
