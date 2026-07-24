@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import tarfile
 import time
@@ -30,6 +31,7 @@ from nemo_evaluator.solvers.harbor import (
     _ensure_host_env,
     _error_from_crash_marker,
     _extract_response,
+    _flatten_atif_continuation_chain,
     _host_agent_model_url,
     _is_turn_budget_exhausted_error,
     _last_llm_error_from_marker,
@@ -290,7 +292,7 @@ class TestPatchOpenhandsSDK:
         sandbox = AsyncMock()
         sandbox.exec.return_value = MagicMock(stdout="stuck_detection disabled", stderr="", return_code=0)
         await _patch_openhands_sdk(sandbox)
-        assert sandbox.exec.call_count >= 4
+        assert sandbox.exec.call_count >= 6
 
     async def test_tool_concurrency_patch_failure_is_logged(self, caplog):
         import logging
@@ -631,6 +633,124 @@ def build_trajectory(events, llm_metrics, model_name):
             "completed_at": "2026-06-05T12:00:01.250Z",
             "duration_ms": 1250.0,
         }
+
+    async def test_runner_patch_injects_compaction_logging(self, tmp_path):
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            """\
+import os
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
+
+def build_trajectory(events_list, metrics, model, system_prompt=None, tool_definitions=None):
+    return {"steps": []}
+
+
+def main():
+    events_list = []
+    metrics = {}
+    model = "model"
+    system_prompt = None
+    tool_definitions = None
+    args = SimpleNamespace(trajectory_path="trajectory.json")
+    trajectory = build_trajectory(
+        events_list,
+        metrics,
+        model,
+        system_prompt=system_prompt,
+        tool_definitions=tool_definitions,
+    )
+
+    trajectory_path = Path(args.trajectory_path)
+"""
+        )
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        compaction_patch = next(
+            (s for s in decoded_scripts if "enrich_trajectory_with_compaction" in s),
+            None,
+        )
+        assert compaction_patch is not None, "compaction inject patch script not emitted"
+
+        compaction_patch = compaction_patch.replace(
+            "p = '/installed-agent/run_agent.py'",
+            f"p = {str(runner)!r}",
+        )
+        exec(compile(compaction_patch, "compaction_patch.py", "exec"), {})
+
+        patched = runner.read_text()
+        assert "enrich_trajectory_with_compaction" in patched
+        assert "OH_CONDENSER_MAX_SIZE" in patched
+        assert 'sys.path.insert(0, "/installed-agent/nel")' in patched
+
+    async def test_runner_patch_marks_condenser_llm_calls(self):
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        condenser_patch = next(
+            (s for s in decoded_scripts if "x-nel-call-kind" in s and "LLMSummarizingCondenser" in s),
+            None,
+        )
+        assert condenser_patch is not None
+        assert "model_copy" in condenser_patch
+        assert '_hdrs["x-nel-call-kind"] = "compaction"' in condenser_patch
+        assert '"usage_id": f"{llm.usage_id}-compaction"' in condenser_patch
+
+    async def test_runner_patch_skips_max_iteration_for_condensation(self):
+        import base64
+
+        from nemo_evaluator.solvers.harbor import _patch_openhands_sdk
+
+        sandbox = AsyncMock()
+        sandbox.exec.return_value = MagicMock(stdout="ok", stderr="", return_code=0)
+        await _patch_openhands_sdk(sandbox)
+
+        decoded_scripts = []
+        for call in sandbox.exec.call_args_list:
+            cmd = call.args[0] if call.args else call.kwargs.get("cmd", "")
+            if "base64 -d" in cmd:
+                encoded = cmd.split("echo ", 1)[1].split(" ", 1)[0]
+                decoded_scripts.append(base64.b64decode(encoded).decode())
+
+        max_iter_patch = next(
+            (
+                s
+                for s in decoded_scripts
+                if "local_conversation.py" in s and "_nel_last" in s and "isinstance(_nel_last, Condensation)" in s
+            ),
+            None,
+        )
+        assert max_iter_patch is not None
+        assert "iteration += 1" in max_iter_patch
+        assert "isinstance(_nel_last, (Condensation, CondensationRequest))" not in max_iter_patch
 
     async def test_runner_patch_matches_observations_per_tool_call(self, tmp_path):
         """Parallel/multi-tool turn: each tool-call step keeps its OWN result.
@@ -2456,3 +2576,117 @@ class TestSolveZeroTokenFlag:
         )
 
         assert "final_metrics" not in result.trajectory[0]
+
+
+# ── _flatten_atif_continuation_chain ─────────────────────────────────────
+
+
+class TestFlattenAtifContinuationChain:
+    def test_single_file_renumbers_step_ids(self, tmp_path):
+        root = {
+            "session_id": "s",
+            "steps": [
+                {"step_id": 99, "source": "user", "message": "hi"},
+                {"step_id": 200, "source": "agent", "message": "done"},
+            ],
+        }
+        result = _flatten_atif_continuation_chain(root, tmp_path)
+        assert result["steps"][0]["step_id"] == 1
+        assert result["steps"][1]["step_id"] == 2
+        assert "continued_trajectory_ref" not in result
+
+    def test_two_file_chain_appends_and_renumbers(self, tmp_path):
+        cont = {
+            "steps": [{"step_id": 1, "source": "agent", "message": "done"}],
+            "final_metrics": {"total_prompt_tokens": 9, "total_completion_tokens": 5},
+        }
+        (tmp_path / "trajectory.cont-1.json").write_text(json.dumps(cont))
+        root = {
+            "session_id": "s",
+            "steps": [{"step_id": 1, "source": "user", "message": "go"}],
+            "final_metrics": {"total_prompt_tokens": 3, "total_completion_tokens": 1},
+            "continued_trajectory_ref": "trajectory.cont-1.json",
+        }
+        result = _flatten_atif_continuation_chain(root, tmp_path)
+        assert len(result["steps"]) == 2
+        assert result["steps"][0]["step_id"] == 1
+        assert result["steps"][1]["step_id"] == 2
+        assert "continued_trajectory_ref" not in result
+        assert result["final_metrics"]["total_prompt_tokens"] == 9
+
+    def test_three_file_chain(self, tmp_path):
+        (tmp_path / "trajectory.cont-2.json").write_text(
+            json.dumps({"steps": [{"step_id": 1, "source": "agent", "message": "c2"}]})
+        )
+        (tmp_path / "trajectory.cont-1.json").write_text(
+            json.dumps(
+                {
+                    "steps": [{"step_id": 1, "source": "agent", "message": "c1"}],
+                    "continued_trajectory_ref": "trajectory.cont-2.json",
+                }
+            )
+        )
+        root = {
+            "steps": [{"step_id": 1, "source": "user", "message": "root"}],
+            "continued_trajectory_ref": "trajectory.cont-1.json",
+        }
+        result = _flatten_atif_continuation_chain(root, tmp_path)
+        assert len(result["steps"]) == 3
+        assert [s["step_id"] for s in result["steps"]] == [1, 2, 3]
+
+    def test_missing_continuation_file_warns_and_stops(self, tmp_path, caplog):
+        root = {
+            "steps": [{"step_id": 1, "source": "user", "message": "x"}],
+            "continued_trajectory_ref": "trajectory.cont-1.json",
+        }
+        with caplog.at_level(logging.WARNING):
+            result = _flatten_atif_continuation_chain(root, tmp_path)
+        assert len(result["steps"]) == 1
+        assert any("missing file" in r.getMessage() for r in caplog.records)
+
+    def test_malformed_json_warns_and_stops(self, tmp_path, caplog):
+        (tmp_path / "trajectory.cont-1.json").write_text("not json {{{")
+        root = {
+            "steps": [{"step_id": 1, "source": "user", "message": "x"}],
+            "continued_trajectory_ref": "trajectory.cont-1.json",
+        }
+        with caplog.at_level(logging.WARNING):
+            result = _flatten_atif_continuation_chain(root, tmp_path)
+        assert len(result["steps"]) == 1
+        assert any("Failed to read" in r.getMessage() for r in caplog.records)
+
+    def test_cycle_breaks_with_warning(self, tmp_path, caplog):
+        (tmp_path / "trajectory.cont-2.json").write_text(
+            json.dumps(
+                {
+                    "steps": [{"step_id": 1, "source": "agent", "message": "c2"}],
+                    "continued_trajectory_ref": "trajectory.cont-1.json",
+                }
+            )
+        )
+        (tmp_path / "trajectory.cont-1.json").write_text(
+            json.dumps(
+                {
+                    "steps": [{"step_id": 1, "source": "agent", "message": "c1"}],
+                    "continued_trajectory_ref": "trajectory.cont-2.json",
+                }
+            )
+        )
+        root = {
+            "steps": [{"step_id": 1, "source": "user", "message": "root"}],
+            "continued_trajectory_ref": "trajectory.cont-1.json",
+        }
+        with caplog.at_level(logging.WARNING):
+            result = _flatten_atif_continuation_chain(root, tmp_path)
+        assert len(result["steps"]) == 3
+        assert any("Cycle detected" in r.getMessage() for r in caplog.records)
+
+    def test_does_not_mutate_original(self, tmp_path):
+        root = {
+            "steps": [{"step_id": 99, "source": "user", "message": "x"}],
+        }
+        import copy
+
+        original = copy.deepcopy(root)
+        _flatten_atif_continuation_chain(root, tmp_path)
+        assert root == original

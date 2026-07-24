@@ -241,6 +241,158 @@ async def test_turn_counter_basic():
         await ic.intercept_request(_req({"model": "test", "messages": [{"role": "user", "content": "hi"}]}))
 
 
+async def test_turn_counter_skips_compaction_calls():
+    from nemo_evaluator.adapters.call_kind import NEL_CALL_KIND_COMPACTION, NEL_CALL_KIND_HEADER
+
+    ic = InterceptorRegistry.create("turn_counter", {"max_turns": 2})
+    body = {"model": "test", "messages": [{"role": "user", "content": "hi"}]}
+
+    for _ in range(5):
+        req = _req(body)
+        req.ctx.extra["session_id"] = "sess"
+        req.headers[NEL_CALL_KIND_HEADER] = NEL_CALL_KIND_COMPACTION
+        result = await ic.intercept_request(req)
+        assert NEL_CALL_KIND_HEADER not in result.headers
+        assert NEL_CALL_KIND_HEADER not in {k.lower() for k in result.headers}
+
+    for _ in range(2):
+        req = _req(body)
+        req.ctx.extra["session_id"] = "sess"
+        await ic.intercept_request(req)
+
+    req = _req(body)
+    req.ctx.extra["session_id"] = "sess"
+    req.headers[NEL_CALL_KIND_HEADER] = NEL_CALL_KIND_COMPACTION
+    with pytest.raises(GracefulError, match="Skipping compaction"):
+        await ic.intercept_request(req)
+
+    req = _req(body)
+    req.ctx.extra["session_id"] = "sess"
+    with pytest.raises(GracefulError, match="Turn budget exhausted"):
+        await ic.intercept_request(req)
+
+
+async def test_turn_counter_compaction_interleaved_with_agent_calls():
+    from nemo_evaluator.adapters.call_kind import NEL_CALL_KIND_COMPACTION, NEL_CALL_KIND_HEADER
+
+    ic = InterceptorRegistry.create("turn_counter", {"max_turns": 3})
+    body = {"model": "test", "messages": [{"role": "user", "content": "hi"}]}
+
+    async def agent_turn():
+        req = _req(body)
+        req.ctx.extra["session_id"] = "interleaved"
+        await ic.intercept_request(req)
+
+    async def compaction_turn():
+        req = _req(body)
+        req.ctx.extra["session_id"] = "interleaved"
+        req.headers[NEL_CALL_KIND_HEADER] = NEL_CALL_KIND_COMPACTION
+        result = await ic.intercept_request(req)
+        assert NEL_CALL_KIND_HEADER not in {k.lower() for k in result.headers}
+
+    await agent_turn()
+    await compaction_turn()
+    await agent_turn()
+    await compaction_turn()
+    await compaction_turn()
+    await agent_turn()
+
+    req = _req(body)
+    req.ctx.extra["session_id"] = "interleaved"
+    req.headers[NEL_CALL_KIND_HEADER] = NEL_CALL_KIND_COMPACTION
+    with pytest.raises(GracefulError, match="Skipping compaction"):
+        await ic.intercept_request(req)
+
+    req = _req(body)
+    req.ctx.extra["session_id"] = "interleaved"
+    with pytest.raises(GracefulError, match="Turn budget exhausted"):
+        await ic.intercept_request(req)
+
+
+async def test_turn_counter_rejects_compaction_when_no_agent_turns_remain():
+    from nemo_evaluator.adapters.call_kind import NEL_CALL_KIND_COMPACTION, NEL_CALL_KIND_HEADER
+
+    ic = InterceptorRegistry.create("turn_counter", {"max_turns": 2})
+    body = {"model": "test", "messages": [{"role": "user", "content": "hi"}]}
+
+    for _ in range(2):
+        req = _req(body)
+        req.ctx.extra["session_id"] = "exhausted"
+        await ic.intercept_request(req)
+
+    req = _req(body)
+    req.ctx.extra["session_id"] = "exhausted"
+    req.headers[NEL_CALL_KIND_HEADER] = NEL_CALL_KIND_COMPACTION
+    with pytest.raises(GracefulError, match="Skipping compaction because no further agent turns remain"):
+        await ic.intercept_request(req)
+
+
+async def test_turn_counter_allows_compaction_with_remaining_agent_turn():
+    from nemo_evaluator.adapters.call_kind import NEL_CALL_KIND_COMPACTION, NEL_CALL_KIND_HEADER
+
+    ic = InterceptorRegistry.create("turn_counter", {"max_turns": 2})
+    body = {"model": "test", "messages": [{"role": "user", "content": "hi"}]}
+
+    req = _req(body)
+    req.ctx.extra["session_id"] = "one-left"
+    await ic.intercept_request(req)
+
+    req = _req(body)
+    req.ctx.extra["session_id"] = "one-left"
+    req.headers[NEL_CALL_KIND_HEADER] = NEL_CALL_KIND_COMPACTION
+    result = await ic.intercept_request(req)
+    assert NEL_CALL_KIND_HEADER not in {k.lower() for k in result.headers}
+
+    req = _req(body)
+    req.ctx.extra["session_id"] = "one-left"
+    await ic.intercept_request(req)
+
+
+async def test_compaction_extra_headers_reach_turn_counter_like_litellm_wire(monkeypatch):
+    from nemo_evaluator.adapters.call_kind import (
+        NEL_CALL_KIND_COMPACTION,
+        NEL_CALL_KIND_HEADER,
+        merge_compaction_extra_headers,
+    )
+
+    captured: dict = {}
+
+    async def fake_acompletion(**kwargs):
+        captured.clear()
+        captured.update(kwargs)
+        raise RuntimeError("stop-after-header-capture")
+
+    import litellm
+
+    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    from harbor.llms.lite_llm import LiteLLM
+
+    llm = LiteLLM(model_name="openai/test-model", api_base="http://localhost:9")
+    with pytest.raises(RuntimeError, match="stop-after-header-capture"):
+        await llm.call(prompt="hi", **merge_compaction_extra_headers({}))
+
+    assert captured.get("extra_headers", {}).get(NEL_CALL_KIND_HEADER) == NEL_CALL_KIND_COMPACTION
+
+    ic = InterceptorRegistry.create("turn_counter", {"max_turns": 1})
+    wire_headers = {str(k).lower(): str(v) for k, v in (captured.get("extra_headers") or {}).items()}
+    body = {"model": "test", "messages": [{"role": "user", "content": "hi"}]}
+    for _ in range(3):
+        req = _req(body)
+        req.ctx.extra["session_id"] = "wire"
+        req.headers.update(wire_headers)
+        result = await ic.intercept_request(req)
+        assert NEL_CALL_KIND_HEADER not in {k.lower() for k in result.headers}
+
+    req = _req(body)
+    req.ctx.extra["session_id"] = "wire"
+    await ic.intercept_request(req)
+
+    req = _req(body)
+    req.ctx.extra["session_id"] = "wire"
+    with pytest.raises(GracefulError, match="Turn budget exhausted"):
+        await ic.intercept_request(req)
+
+
 async def test_turn_counter_session_isolation():
     """Repeats of the same problem get independent turn budgets when
     the proxy injects distinct session_id values."""

@@ -27,9 +27,13 @@ from nemo_evaluator.solvers.harbor import (
     _patch_harbor_lite_llm_context_length_matcher,
     _patch_terminus_api_token_anchor,
     _patch_terminus_cle_reset,
+    _patch_terminus_compaction_logging,
+    _patch_terminus_compaction_turn_marker,
     _patch_terminus_unwind_min_pairs,
     _terminus2_build_local_fallback_llm_content,
     _terminus2_count_total_tokens,
+    _terminus2_nel_dump_trajectory_with_continuation_index,
+    _terminus2_nel_flush_pending_compaction,
 )
 
 # Module-level stand-ins whose *source* the patch functions inspect. Defining
@@ -55,6 +59,21 @@ _FLAGS = (
     "_TERMINUS_UNWIND_PATCHED",
     "_TERMINUS_API_ANCHOR_PATCHED",
     "_CHAT_TOKEN_ANCHOR_PATCHED",
+    "_TERMINUS_COMPACTION_PATCHED",
+    "_TERMINUS_COMPACTION_TURN_MARKER_PATCHED",
+)
+
+_NEL_METHODS = (
+    "_nel_ensure_compaction_state",
+    "_nel_stash_compaction_token_snapshots",
+    "_nel_token_snapshot",
+    "_nel_compaction_mechanism",
+    "_nel_make_compaction_event",
+    "_nel_record_failed_compaction_attempt",
+    "_nel_set_proactive_pending_compaction",
+    "_nel_set_cle_pending_compaction",
+    "_nel_flush_pending_compaction",
+    "_nel_compaction_llm_call_kwargs",
 )
 
 
@@ -69,13 +88,20 @@ def patch_sandbox():
         "_query_llm": terminus._query_llm,
         "_unwind": terminus._unwind_messages_to_free_tokens,
         "_count": terminus._count_total_tokens,
+        "_run_agent_loop": terminus._run_agent_loop,
+        "_check_proactive": terminus._check_proactive_summarization,
+        "_dump": terminus._dump_trajectory_with_continuation_index,
+        "_run_subagent": terminus._run_subagent,
+        "_summarize": terminus._summarize,
         "chat_chat": Chat.chat,
     }
+    saved_nel = {name: terminus.__dict__.get(name) for name in _NEL_METHODS}
     had_fallback = "_build_local_fallback_llm_content" in terminus.__dict__
     fallback_val = terminus.__dict__.get("_build_local_fallback_llm_content")
     had_records = "_records_api_token_anchor" in Chat.__dict__
     records_val = Chat.__dict__.get("_records_api_token_anchor")
     saved_flags = {name: getattr(harbor, name) for name in _FLAGS}
+    saved_query_src = harbor._TERMINUS_QUERY_LLM_SRC
 
     for name in _FLAGS:
         setattr(harbor, name, False)
@@ -85,7 +111,17 @@ def patch_sandbox():
     terminus._query_llm = saved_methods["_query_llm"]
     terminus._unwind_messages_to_free_tokens = saved_methods["_unwind"]
     terminus._count_total_tokens = saved_methods["_count"]
+    terminus._run_agent_loop = saved_methods["_run_agent_loop"]
+    terminus._check_proactive_summarization = saved_methods["_check_proactive"]
+    terminus._dump_trajectory_with_continuation_index = saved_methods["_dump"]
+    terminus._run_subagent = saved_methods["_run_subagent"]
+    terminus._summarize = saved_methods["_summarize"]
     Chat.chat = saved_methods["chat_chat"]
+    for name, value in saved_nel.items():
+        if value is not None:
+            setattr(terminus, name, value)
+        elif name in terminus.__dict__:
+            delattr(terminus, name)
     if had_fallback:
         terminus._build_local_fallback_llm_content = fallback_val
     elif "_build_local_fallback_llm_content" in terminus.__dict__:
@@ -96,6 +132,7 @@ def patch_sandbox():
         delattr(Chat, "_records_api_token_anchor")
     for name, value in saved_flags.items():
         setattr(harbor, name, value)
+    harbor._TERMINUS_QUERY_LLM_SRC = saved_query_src
 
 
 # ── _terminus2_count_total_tokens ────────────────────────────────────────
@@ -433,13 +470,25 @@ class TestCreateAgentGating:
         from unittest.mock import MagicMock, patch
 
         solver = self._solver("terminus-2")
-        cle, unwind, anchor, ctxlim = MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        cle, unwind, anchor, ctxlim, compaction, turn_marker = (
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+        )
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_cle_reset", cle)
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_unwind_min_pairs", unwind)
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_api_token_anchor", anchor)
         monkeypatch.setattr(
             "nemo_evaluator.solvers.harbor._patch_harbor_lite_llm_context_length_matcher",
             ctxlim,
+        )
+        monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_compaction_logging", compaction)
+        monkeypatch.setattr(
+            "nemo_evaluator.solvers.harbor._patch_terminus_compaction_turn_marker",
+            turn_marker,
         )
 
         sentinel = object()
@@ -451,18 +500,32 @@ class TestCreateAgentGating:
         unwind.assert_called_once()
         anchor.assert_called_once()
         ctxlim.assert_called_once()
+        compaction.assert_called_once()
+        turn_marker.assert_called_once()
 
     def test_non_terminus_agent_skips_patches(self, tmp_path, monkeypatch):
         from unittest.mock import MagicMock, patch
 
         solver = self._solver("openhands")
-        cle, unwind, anchor, ctxlim = MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        cle, unwind, anchor, ctxlim, compaction, turn_marker = (
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+        )
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_cle_reset", cle)
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_unwind_min_pairs", unwind)
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_api_token_anchor", anchor)
         monkeypatch.setattr(
             "nemo_evaluator.solvers.harbor._patch_harbor_lite_llm_context_length_matcher",
             ctxlim,
+        )
+        monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_compaction_logging", compaction)
+        monkeypatch.setattr(
+            "nemo_evaluator.solvers.harbor._patch_terminus_compaction_turn_marker",
+            turn_marker,
         )
 
         with patch("harbor.agents.factory.AgentFactory.create_agent_from_name", return_value=object()):
@@ -472,6 +535,8 @@ class TestCreateAgentGating:
         unwind.assert_not_called()
         anchor.assert_not_called()
         ctxlim.assert_not_called()
+        compaction.assert_not_called()
+        turn_marker.assert_not_called()
 
 
 # ── _patch_harbor_lite_llm_context_length_matcher ────────────────────────
@@ -625,3 +690,266 @@ class TestHarborLiteLLMContextLengthMatcher:
             result = instance._is_context_length_error(err)
         assert result is False
         assert not any("stable ctx-overflow marker" in rec.getMessage() for rec in caplog.records)
+
+
+# ── _patch_terminus_compaction_logging ───────────────────────────────────
+
+
+class TestPatchCompactionLogging:
+    def test_apply_patches_run_loop_and_query_llm(self, patch_sandbox):
+        terminus = patch_sandbox.terminus
+        _patch_terminus_cle_reset()
+        _patch_terminus_unwind_min_pairs()
+        _patch_terminus_compaction_logging()
+        assert harbor._TERMINUS_COMPACTION_PATCHED is True
+        assert harbor._TERMINUS_QUERY_LLM_SRC is not None
+        assert "_nel_set_cle_pending_compaction" in harbor._TERMINUS_QUERY_LLM_SRC
+        assert hasattr(terminus, "_nel_flush_pending_compaction")
+
+    def test_flush_appends_compaction_step_without_handoff_user_step(self, patch_sandbox, tmp_path):
+        import json
+
+        from nemo_evaluator.solvers.compaction_logging import CompactionTokens
+
+        _patch_terminus_compaction_logging()
+        terminus = patch_sandbox.terminus
+        agent = terminus(
+            logs_dir=tmp_path,
+            model_name="test-model",
+            model_info={"max_input_tokens": 1000, "max_output_tokens": 1000},
+        )
+        agent._trajectory_steps = []
+        agent._linear_history = False
+        agent._summarization_count = 1
+        agent._pending_handoff_prompt = "handoff"
+        agent._nel_stashed_tokens_before = CompactionTokens(
+            prompt_tokens_approx=190_000,
+            context_limit=200_000,
+            free_tokens=10_000,
+        )
+        agent._nel_stashed_tokens_after = CompactionTokens(
+            prompt_tokens_approx=8_000,
+            context_limit=200_000,
+            free_tokens=192_000,
+        )
+        agent._nel_stashed_tokens_intermediate = None
+        agent._nel_pending_compaction = None
+        chat = SimpleNamespace(
+            messages=[
+                {"role": "system", "content": "system prompt"},
+                {"role": "user", "content": "question prompt"},
+                {"role": "assistant", "content": "model questions"},
+            ]
+        )
+        from nemo_evaluator.solvers.harbor import _terminus2_nel_set_proactive_pending_compaction
+
+        _terminus2_nel_set_proactive_pending_compaction(agent, chat, "handoff", None)
+        _terminus2_nel_flush_pending_compaction(agent, chat)
+        assert len(agent._trajectory_steps) == 1
+        step = agent._trajectory_steps[0]
+        assert step.source == "system"
+        assert step.extra is not None
+        assert step.extra["context_management"]["type"] == "compaction"
+        assert step.extra["compaction"]["llm_call_count"] == 3
+        content = json.loads(step.observation.results[0].content)
+        assert content == [
+            {"role": "system", "content": "system prompt"},
+            {"role": "user", "content": "question prompt"},
+            {"role": "assistant", "content": "model questions"},
+            {"role": "user", "content": "handoff"},
+        ]
+        assert agent._pending_handoff_prompt is None
+
+    def test_cle_fallback_does_not_mutate_summarization_count(self, patch_sandbox, tmp_path):
+        """Regression: NEL owns its own compaction counter and must not touch
+        Terminus's ``_summarization_count`` (which drives linear_history
+        continuation file naming). ``_summarize`` bumps that counter before it
+        can fail, so on the CLE short/ultimate fallback NEL previously
+        double-incremented it and corrupted the continuation chain."""
+        from nemo_evaluator.solvers.compaction_logging import CompactionTokens
+        from nemo_evaluator.solvers.harbor import _terminus2_nel_set_cle_pending_compaction
+
+        _patch_terminus_compaction_logging()
+        terminus = patch_sandbox.terminus
+        agent = terminus(
+            logs_dir=tmp_path,
+            model_name="test-model",
+            model_info={"max_input_tokens": 1000, "max_output_tokens": 1000},
+        )
+        agent._trajectory_steps = []
+        agent._linear_history = False
+        chat = SimpleNamespace(messages=[{"role": "system", "content": "s"}])
+
+        def _snap():
+            return CompactionTokens(prompt_tokens_approx=8_000, context_limit=200_000, free_tokens=192_000)
+
+        agent._summarization_count = 5
+
+        for expected_index in (1, 2):
+            _terminus2_nel_set_cle_pending_compaction(
+                agent,
+                chat,
+                "handoff",
+                "terminus_short_fallback",
+                [],
+                None,
+                _snap(),
+                _snap(),
+                None,
+                None,
+            )
+            assert agent._nel_pending_compaction.compaction_index == expected_index
+
+        assert agent._summarization_count == 5
+
+    def test_idempotent_when_marker_present(self, patch_sandbox):
+        terminus = patch_sandbox.terminus
+
+        async def _run_agent_loop_with_marker(self, *args, **kwargs):
+            self._nel_flush_pending_compaction(None)
+
+        terminus._run_agent_loop = _run_agent_loop_with_marker
+        original = terminus._run_agent_loop
+        _patch_terminus_compaction_logging()
+        assert harbor._TERMINUS_COMPACTION_PATCHED is True
+        assert terminus._run_agent_loop is original
+
+
+class TestPatchTerminusCompactionTurnMarker:
+    def test_marks_summarize_subagent_calls_not_generic_subagent(self, patch_sandbox):
+        terminus = patch_sandbox.terminus
+        _patch_terminus_compaction_logging()
+        _patch_terminus_compaction_turn_marker()
+        assert harbor._TERMINUS_COMPACTION_TURN_MARKER_PATCHED is True
+        assert hasattr(terminus, "_nel_compaction_llm_call_kwargs")
+        assert harbor._TERMINUS_QUERY_LLM_SRC is not None
+        assert "_nel_compaction_llm_call_kwargs()" in harbor._TERMINUS_QUERY_LLM_SRC
+        summarize_src = terminus._summarize.__code__.co_consts
+        assert (
+            any(isinstance(c, str) and "_nel_compaction_llm_call_kwargs" in c for c in summarize_src)
+            or "_nel_compaction_llm_call_kwargs" in terminus._summarize.__code__.co_names
+        )
+        assert "llm_call_kwargs" in terminus._run_subagent.__code__.co_varnames
+
+    def test_idempotent(self, patch_sandbox):
+        terminus = patch_sandbox.terminus
+        _patch_terminus_compaction_logging()
+        _patch_terminus_compaction_turn_marker()
+        first_subagent = terminus._run_subagent
+        first_summarize = terminus._summarize
+        _patch_terminus_compaction_turn_marker()
+        assert terminus._run_subagent is first_subagent
+        assert terminus._summarize is first_summarize
+
+    def test_compaction_kwargs_carry_header_default_subagent_does_not(self, patch_sandbox, tmp_path):
+        from nemo_evaluator.adapters.call_kind import NEL_CALL_KIND_COMPACTION, NEL_CALL_KIND_HEADER
+
+        terminus = patch_sandbox.terminus
+        _patch_terminus_compaction_logging()
+        _patch_terminus_compaction_turn_marker()
+        agent = terminus(
+            logs_dir=tmp_path,
+            model_name="test-model",
+            model_info={"max_input_tokens": 1000, "max_output_tokens": 1000},
+        )
+        agent._llm_call_kwargs = {"temperature": 0.2}
+        marked = agent._nel_compaction_llm_call_kwargs()
+        assert marked["extra_headers"][NEL_CALL_KIND_HEADER] == NEL_CALL_KIND_COMPACTION
+        assert agent._llm_call_kwargs == {"temperature": 0.2}
+        assert "extra_headers" not in agent._llm_call_kwargs
+
+
+# ── _terminus2_nel_dump_trajectory_with_continuation_index ───────────────
+
+
+def _make_agent_for_dump(terminus_cls, tmp_path, *, linear_history=False, summarization_count=0):
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    from harbor.models.trajectories.step import Step
+
+    agent = terminus_cls(
+        logs_dir=tmp_path,
+        model_name="test-model",
+        model_info={"max_input_tokens": 1000, "max_output_tokens": 1000},
+    )
+    agent._trajectory_steps = [
+        Step(
+            step_id=1,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            source="user",
+            message="start",
+        )
+    ]
+    agent._linear_history = linear_history
+    agent._summarization_count = summarization_count
+    agent._session_id = "test-session"
+    agent._parser_name = "default"
+    agent._temperature = 0.0
+    agent._llm_kwargs = {}
+    agent._context = SimpleNamespace(
+        n_input_tokens=100,
+        n_output_tokens=50,
+        n_cache_tokens=0,
+        cost_usd=0.01,
+    )
+    return agent
+
+
+class TestDumpTrajectoryWithContinuationIndex:
+    def test_no_context_skips_write(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = terminus(
+            logs_dir=tmp_path,
+            model_name="test-model",
+            model_info={"max_input_tokens": 1000, "max_output_tokens": 1000},
+        )
+        agent._context = None
+        agent._trajectory_steps = []
+        agent._linear_history = False
+        agent._summarization_count = 0
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 0)
+        assert not (tmp_path / "trajectory.json").exists()
+
+    def test_non_linear_writes_trajectory_json(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = _make_agent_for_dump(terminus, tmp_path, linear_history=False)
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 0)
+        traj_path = tmp_path / "trajectory.json"
+        assert traj_path.exists()
+        data = json.loads(traj_path.read_text())
+        assert data["session_id"] == "test-session"
+        # Non-linear should not set continuation_index in agent extra
+        assert "continuation_index" not in (data.get("agent") or {}).get("extra", {})
+
+    def test_linear_continuation_index_gt_0_writes_cont_file(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = _make_agent_for_dump(terminus, tmp_path, linear_history=True, summarization_count=2)
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 1)
+        cont_path = tmp_path / "trajectory.cont-1.json"
+        assert cont_path.exists()
+        data = json.loads(cont_path.read_text())
+        assert data["agent"]["extra"]["continuation_index"] == 1
+
+    def test_linear_points_to_next_continuation_when_not_last(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = _make_agent_for_dump(terminus, tmp_path, linear_history=True, summarization_count=3)
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 1)
+        data = json.loads((tmp_path / "trajectory.cont-1.json").read_text())
+        assert data.get("continued_trajectory_ref") == "trajectory.cont-2.json"
+
+    def test_linear_last_segment_has_no_continued_ref(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = _make_agent_for_dump(terminus, tmp_path, linear_history=True, summarization_count=2)
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 2)
+        data = json.loads((tmp_path / "trajectory.cont-2.json").read_text())
+        assert not data.get("continued_trajectory_ref")
+
+    def test_root_in_linear_chain_points_to_first_continuation(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = _make_agent_for_dump(terminus, tmp_path, linear_history=True, summarization_count=1)
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 0)
+        data = json.loads((tmp_path / "trajectory.json").read_text())
+        assert data.get("continued_trajectory_ref") == "trajectory.cont-1.json"
+        # Root segment with index=0 must NOT carry continuation_index in agent extra
+        assert "continuation_index" not in data["agent"]["extra"]
