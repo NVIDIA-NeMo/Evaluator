@@ -816,15 +816,29 @@ class TestPatchFailedLLMResponseAccounting:
         import litellm
         from harbor.agents.terminus_2 import terminus_2
         from harbor.llms.chat import Chat
-        from harbor.models.trajectories import Step
+        from harbor.models.trajectories import Agent, FinalMetrics, Step, Trajectory
+
+        from nemo_evaluator.reports.trajectories import generate_trajectories_report
 
         _patch_terminus_cle_reset()
 
-        wire_totals = []
+        wire_rows = []
 
         async def fake_acompletion(**_kwargs):
-            if not wire_totals:
-                wire_totals.append(11)
+            if not wire_rows:
+                wire_rows.append(
+                    {
+                        "problem_idx": 0,
+                        "repeat": 0,
+                        "session_id": "sess-length-retry",
+                        "status_code": 200,
+                        "finish_reason": "length",
+                        "timestamp": "2026-07-24T00:00:00.000Z",
+                        "model": "wire-model",
+                        "request_hash": "length-call",
+                        "usage": {"prompt_tokens": 7, "completion_tokens": 4, "total_tokens": 11},
+                    }
+                )
                 return _FakeLiteLLMResponse(
                     content="TRUNCATED_OUTPUT",
                     finish_reason="length",
@@ -833,7 +847,19 @@ class TestPatchFailedLLMResponseAccounting:
                     model="wire-model",
                     reasoning="raw-reasoning-field",
                 )
-            wire_totals.append(8)
+            wire_rows.append(
+                {
+                    "problem_idx": 0,
+                    "repeat": 0,
+                    "session_id": "sess-length-retry",
+                    "status_code": 200,
+                    "finish_reason": "stop",
+                    "timestamp": "2026-07-24T00:00:01.000Z",
+                    "model": "retry-model",
+                    "request_hash": "retry-call",
+                    "usage": {"prompt_tokens": 6, "completion_tokens": 2, "total_tokens": 8},
+                }
+            )
             return _FakeLiteLLMResponse(
                 content=json.dumps(
                     {
@@ -889,9 +915,58 @@ class TestPatchFailedLLMResponseAccounting:
         assert failed_step.reasoning_content == "raw-reasoning-field"
         assert failed_step.metrics.prompt_tokens + failed_step.metrics.completion_tokens == 11
         assert retry_step.metrics.prompt_tokens + retry_step.metrics.completion_tokens == 8
-        assert sum(wire_totals) == sum(
+        assert sum(row["usage"]["total_tokens"] for row in wire_rows) == sum(
             step.metrics.prompt_tokens + step.metrics.completion_tokens for step in agent._trajectory_steps[1:]
         )
+
+        bench_dir = tmp_path / "pb"
+        bench_dir.mkdir()
+        agent_steps = [step for step in agent._trajectory_steps if step.source == "agent"]
+        prompt_total = sum(step.metrics.prompt_tokens or 0 for step in agent_steps if step.metrics)
+        completion_total = sum(step.metrics.completion_tokens or 0 for step in agent_steps if step.metrics)
+        trajectory = Trajectory(
+            session_id="sess-length-retry",
+            agent=Agent(name="terminus-2", version="test", model_name="openai/nano-v3.5"),
+            steps=agent._trajectory_steps,
+            final_metrics=FinalMetrics(
+                total_prompt_tokens=prompt_total,
+                total_completion_tokens=completion_total,
+                total_steps=len(agent._trajectory_steps),
+            ),
+        )
+        trajectory_row = {
+            "problem_idx": 0,
+            "repeat": 0,
+            "reward": 0.0,
+            "trajectory": [trajectory.model_dump(mode="json", exclude_none=True)],
+        }
+        (bench_dir / "trajectories.jsonl").write_text(json.dumps(trajectory_row) + "\n", encoding="utf-8")
+        (bench_dir / "model_traffic.jsonl").write_text(
+            "".join(json.dumps(row) + "\n" for row in wire_rows),
+            encoding="utf-8",
+        )
+
+        report_path = generate_trajectories_report(tmp_path, enrich=True)
+        report = json.loads(report_path.read_text(encoding="utf-8"))["benchmarks"][0]
+        tokens = report["tokens_stats"]
+        assert tokens["per_step_sum"] == 19
+        assert tokens["wire_total"] == 19
+        assert tokens["wire_total_for_trajectory_comparison"] == 19
+        assert tokens["final_metrics_total"] == 19
+        assert tokens["problems_with_per_step_vs_final_metrics_mismatch"] == 0
+        assert tokens["problems_with_wire_vs_final_metrics_mismatch"] == 0
+        assert tokens["all_sources_match"] is True
+        assert report["wire_calls"]["problems_with_more_wire_than_steps"] == 0
+        assert report["wire_calls"]["problems_with_fewer_wire_than_steps"] == 0
+
+        enriched = json.loads((bench_dir / "trajectories_enriched.jsonl").read_text(encoding="utf-8"))
+        enriched_agent_steps = [step for step in enriched["trajectory"][0]["steps"] if step["source"] == "agent"]
+        assert [step["message"] for step in enriched_agent_steps] == [
+            "TRUNCATED_OUTPUT",
+            "Analysis: retry analysis\nPlan: retry plan",
+        ]
+        assert [step["metrics"]["total_tokens"] for step in enriched_agent_steps] == [11, 8]
+        assert [step["metrics"]["extra"]["finish_reason"] for step in enriched_agent_steps] == ["length", "stop"]
 
     def test_terminus_run_loop_diverged_source_raises(self, patch_sandbox):
         from harbor.llms.lite_llm import LiteLLM
