@@ -331,6 +331,11 @@ class StatelessSandbox:
                 _vwd = self._ctx.verify_spec.workdir
                 diag = await self._verify_sandbox.exec(
                     f"echo '=== git HEAD ===' && cd {_vwd} && git log --oneline -1 2>/dev/null; "
+                    "_NEL_TAR=/input/workspace.tar; "
+                    '[ -n "$_NEL_EFS_SESSION" ] && [ -f "/input/$_NEL_EFS_SESSION/workspace.tar" ] && '
+                    '_NEL_TAR="/input/$_NEL_EFS_SESSION/workspace.tar"; '
+                    "mkdir -p /tmp/_nel_ws; "
+                    "if [ -f $_NEL_TAR ]; then tar xf $_NEL_TAR -C /tmp/_nel_ws 2>/dev/null; fi; "
                     "echo '=== patch stat ===' && "
                     "git apply --stat /tmp/_nel_ws/_nel_patch.diff 2>&1 | head -30; "
                     "echo '=== patch header ===' && head -40 /tmp/_nel_ws/_nel_patch.diff 2>/dev/null; "
