@@ -1,0 +1,23 @@
+[metadata]
+author_name = "unknown"
+author_email = "unknown"
+difficulty = "<15 min fix"
+category = "debugging"
+tags = ["debugging", "swe-bench"]
+
+[verifier]
+# Overall time budget for the agent's work (seconds)
+timeout_sec = 3000
+# Hermetic httpbin: serve the suite's live-httpbin.org dependency locally
+# (see environment/pre-verify.sh; SWE-bench/SWE-bench#622).
+setup_script = "/opt/local-httpbin/pre-verify.sh"
+
+[agent]
+# Set to same as verifier unless you want to restrict agent time separately
+timeout_sec = 3000
+
+[environment]
+build_timeout_sec = 1800.0
+cpus = 1
+memory = '4G'
+storage = '10G'
