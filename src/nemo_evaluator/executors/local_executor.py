@@ -63,6 +63,11 @@ class LocalExecutor(Executor):
                 click.echo(f"  - {b.name} (repeats={b.repeats})")
             click.echo(f"Output: {config.output.dir}")
             return
+
+        from nemo_evaluator.config.snapshot import write_config_snapshot
+
+        write_config_snapshot(config, force=not resume)
+
         if background:
             self._run_background(config, resume=resume)
         else:

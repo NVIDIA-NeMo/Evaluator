@@ -743,12 +743,19 @@ def _resolve_service_connection(
     return url, config.get_model_id(service_name), config.get_api_key(service_name), config.get_service(service_name)
 
 
+def _adapter_proxy_listen_host(config: EvalConfig | None) -> str:
+    if config is not None and any(getattr(bench.sandbox, "type", None) == "docker" for bench in config.benchmarks):
+        return "0.0.0.0"
+    return "127.0.0.1"
+
+
 def _start_proxy(
     model_url: str,
     model_id: str,
     api_key: str | None,
     svc: Any,
     service_name: str | None = None,
+    config: EvalConfig | None = None,
 ) -> tuple[str, "ProxyHandle | None", "ModelTrafficStore | None"]:
     """Start the adapter proxy when *model_url* is set.
 
@@ -763,6 +770,7 @@ def _start_proxy(
         "upstream_url": model_url,
         "model_id": model_id,
         "api_key": api_key,
+        "listen_host": _adapter_proxy_listen_host(config),
     }
     proxy_cfg = getattr(svc, "proxy", None) if svc else None
     interceptor_specs: list[dict[str, Any]] = []
@@ -788,7 +796,8 @@ def _start_proxy(
         capture_tool_calls=getattr(capture_cfg, "capture_tool_calls", True),
         capture_reasoning=getattr(capture_cfg, "capture_reasoning", True),
         capture_messages=getattr(capture_cfg, "capture_messages", True),
-        max_content_chars=getattr(capture_cfg, "max_content_chars", 100_000),
+        capture_request_body=getattr(capture_cfg, "capture_request_body", False),
+        max_content_chars=getattr(capture_cfg, "max_content_chars", 0),
     )
     register_store(traffic_store)
     proxy_kwargs["model_traffic_store_id"] = traffic_store.store_id
@@ -1000,7 +1009,14 @@ async def _run_single_benchmark(
         proxy_handle = None
         model_traffic_store = None
     else:
-        model_url, proxy_handle, model_traffic_store = _start_proxy(model_url, model_id, api_key, svc, service_name)
+        model_url, proxy_handle, model_traffic_store = _start_proxy(
+            model_url,
+            model_id,
+            api_key,
+            svc,
+            service_name,
+            config,
+        )
 
     judge_client = None
     try:

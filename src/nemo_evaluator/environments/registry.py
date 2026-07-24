@@ -162,7 +162,11 @@ def _make_container(rest: str, **kwargs: Any) -> "EvalEnvironment":
 def _make_harbor(rest: str, **kwargs: Any) -> "EvalEnvironment":
     import os
 
-    from nemo_evaluator.environments.harbor import HarborEnvironment, auto_prepare
+    from nemo_evaluator.environments.harbor import (
+        HarborEnvironment,
+        auto_prepare,
+        warn_unapplied_task_overlays,
+    )
 
     datasets_dir = os.environ.get("HARBOR_DATASETS_DIR", "./harbor_datasets")
     safe_dir_name = rest.replace("/", "__")
@@ -172,6 +176,7 @@ def _make_harbor(rest: str, **kwargs: Any) -> "EvalEnvironment":
     if not auto_prepare(rest, dataset_path, limit=limit):
         if not dataset_path.is_dir():
             raise KeyError(f"Harbor dataset {rest!r} not found in registry and {dataset_path} does not exist on disk.")
+        warn_unapplied_task_overlays(rest, dataset_path)
 
     params = kwargs.get("params") or {}
     keep_hints = params.get("keep_swebench_multilingual_hints", True)

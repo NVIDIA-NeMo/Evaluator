@@ -47,6 +47,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from nemo_evaluator.observability.failure_classification import classify_model_failure
 from nemo_evaluator.reports.schemas import AgentStep, TrajectoryRow, fields_as_coverage_paths
 
 logger = logging.getLogger(__name__)
@@ -160,6 +161,69 @@ def _failure_category(row: dict[str, Any]) -> str:
 def _failure_error(row: dict[str, Any]) -> str:
     scoring_details = row.get("scoring_details") or {}
     return _truncate_text(scoring_details.get("error") or row.get("model_error") or row.get("error") or "")
+
+
+def _empty_final_response(row: dict[str, Any]) -> bool:
+    """Observational (FEP-1132): a final model payload exists but strips to empty.
+
+    An empty final message describes output shape, not failure attribution --
+    it is never a failure category. Rows without any captured content are not
+    flagged.
+    """
+    response = row.get("model_response")
+    if response is None:
+        model = row.get("model")
+        if isinstance(model, dict):
+            response = model.get("content")
+    if response is None:
+        return False
+    return not str(response).strip()
+
+
+def _wire_failure_text(record: dict[str, Any]) -> str:
+    parts = [
+        f"HTTP {record.get('status_code')}" if record.get("status_code") is not None else "",
+        record.get("error_type") or "",
+        record.get("error_code") or "",
+        record.get("error_message") or "",
+        record.get("error_body") or "",
+    ]
+    return " ".join(str(part) for part in parts if part)
+
+
+def _wire_failure_category(record: dict[str, Any]) -> str:
+    if not record or _is_successful_wire(record):
+        return ""
+    return classify_model_failure(_wire_failure_text(record), status_code=record.get("status_code")) or "model_error"
+
+
+def _trial_wire_failure(row: dict[str, Any], all_wire_rows: list[dict[str, Any]]) -> tuple[str, str]:
+    if not all_wire_rows:
+        return "", ""
+    last_wire = all_wire_rows[-1]
+    category = _wire_failure_category(last_wire)
+    if not category:
+        return "", ""
+    return category, _truncate_text(_wire_failure_text(last_wire))
+
+
+def _trial_failure_category(row: dict[str, Any], all_wire_rows: list[dict[str, Any]]) -> str:
+    category = _failure_category(row)
+    reward = row.get("reward")
+    successful_verified_outcome = isinstance(reward, (int, float)) and reward > 0
+    wire_category, _ = _trial_wire_failure(row, all_wire_rows)
+    # "empty_response" stays in the override set only for rows persisted by
+    # pre-FEP-1132 runs: this report audits any run directory, and that legacy
+    # label must still yield to the wire-derived category.
+    if wire_category and not successful_verified_outcome and category in {"", "empty_response", "model_error"}:
+        return wire_category
+    return category
+
+
+def _trial_failure_error(row: dict[str, Any], all_wire_rows: list[dict[str, Any]]) -> str:
+    error = _failure_error(row)
+    _, wire_error = _trial_wire_failure(row, all_wire_rows)
+    return error or wire_error
 
 
 def _has_final_metric_tokens(row: dict[str, Any]) -> bool:
@@ -324,17 +388,19 @@ def _trial_failure_example(
         "problem_idx": row.get("problem_idx"),
         "repeat": row.get("repeat"),
         "reward": row.get("reward"),
-        "failure_category": _failure_category(row),
-        "error": _failure_error(row),
+        "failure_category": _trial_failure_category(row, all_wire_rows),
+        "error": _trial_failure_error(row, all_wire_rows),
         "agent_steps": agent_step_count,
         "successful_wire_calls": successful_wire_count,
         "all_wire_calls": len(all_wire_rows),
         "last_wire_status_code": last_wire.get("status_code"),
         "last_wire_error_type": last_wire.get("error_type") or "",
+        "last_wire_failure_category": _wire_failure_category(last_wire),
         "last_wire_error_message": _truncate_text(last_wire.get("error_message")),
         "last_wire_error_body": _truncate_text(last_wire.get("error_body")),
         "missing_final_metrics_tokens": not _has_final_metric_tokens(row),
         "workspace_diff_preview_present": bool(fm.get("workspace_diff_preview")),
+        "empty_final_response": _empty_final_response(row),
     }
 
 
@@ -648,6 +714,7 @@ def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
     problems_missing_fm_tokens = 0
     final_metrics_token_sum = 0
     problems_with_last_wire_non_200 = 0
+    problems_with_empty_final_response = 0
     failure_examples: list[dict[str, Any]] = []
     timeout_examples: list[dict[str, Any]] = []
     no_agent_step_examples: list[dict[str, Any]] = []
@@ -656,14 +723,14 @@ def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
         steps = _agent_steps(r)
         all_agent_steps.extend(steps)
 
-        cat = _failure_category(r)
+        trial_wire_rows = traffic_by_trial.get(_trial_key(r), [])
+        all_trial_wire = traffic_by_trial_all.get(_trial_key(r), [])
+        cat = _trial_failure_category(r, all_trial_wire)
         if cat:
             failures[cat] += 1
 
         step_n = len(steps)
-        trial_wire_rows = traffic_by_trial.get(_trial_key(r), [])
         wire_n = len(trial_wire_rows)
-        all_trial_wire = traffic_by_trial_all.get(_trial_key(r), [])
         if wire_n > step_n:
             problems_more_wire += 1
         elif wire_n < step_n:
@@ -698,9 +765,14 @@ def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
         if all_trial_wire and not _is_successful_wire(all_trial_wire[-1]):
             problems_with_last_wire_non_200 += 1
 
+        empty_final = _empty_final_response(r)
+        if empty_final:
+            problems_with_empty_final_response += 1
+
         failure_signal = bool(
             cat
             or _failure_error(r)
+            or empty_final
             or step_n == 0
             or not fm_has_tokens
             or any(not _is_successful_wire(w) for w in all_trial_wire)
@@ -756,6 +828,7 @@ def _build_bench_report(bench_name: str, bench_dir: Path) -> dict[str, Any]:
             "mean_reward": traj_mean,
             "reported_mean": reported_mean,
             "failures_by_category": dict(failures),
+            "problems_with_empty_final_response": problems_with_empty_final_response,
             "failure_examples": failure_examples,
             "timeout_examples": timeout_examples,
             "no_agent_step_examples": no_agent_step_examples,
@@ -840,6 +913,7 @@ def _enrich_bench(bench_dir: Path) -> dict[str, int]:
     all_by_trial = _index_traffic_by_trial(traffic_rows, only_successful=False)
     selected_sessions = _selected_sessions_by_trial(traj_rows, all_by_trial)
     by_trial = _filter_traffic_to_selected_sessions(all_by_trial, selected_sessions)
+    by_trial_all = _filter_traffic_to_selected_sessions(all_by_trial, selected_sessions, only_successful=False)
 
     counts = {
         "trials_spliced": 0,
@@ -858,13 +932,34 @@ def _enrich_bench(bench_dir: Path) -> dict[str, int]:
         "steps_backfilled_reasoning_content": 0,
         "steps_backfilled_message": 0,
         "steps_backfilled_tool_calls": 0,
+        "rows_reclassified_from_wire_failure": 0,
         "rows_written": 0,
     }
+
+    def derive_missing_step_total_tokens(steps: list[dict[str, Any]]) -> None:
+        for step in steps:
+            metrics = step.get("metrics")
+            if not isinstance(metrics, dict) or metrics.get("total_tokens") not in (None, 0):
+                continue
+            prompt_tokens = metrics.get("prompt_tokens") or 0
+            completion_tokens = metrics.get("completion_tokens") or 0
+            if not prompt_tokens and not completion_tokens:
+                continue
+            try:
+                metrics["total_tokens"] = int(prompt_tokens) + int(completion_tokens)
+            except (TypeError, ValueError):
+                continue
+            counts["steps_backfilled_total_tokens"] += 1
 
     with enriched_path.open("w", encoding="utf-8") as fh:
         for r in traj_rows:
             steps = _agent_steps(r)
             wire = by_trial.get(_trial_key(r), [])
+            all_wire = by_trial_all.get(_trial_key(r), [])
+            category = _trial_failure_category(r, all_wire)
+            if category != _failure_category(r):
+                r["failure_category"] = category
+                counts["rows_reclassified_from_wire_failure"] += 1
             if not wire:
                 counts["trials_no_wire_data"] += 1
             elif len(steps) == len(wire):
@@ -922,6 +1017,7 @@ def _enrich_bench(bench_dir: Path) -> dict[str, int]:
                 traj = (r.get("trajectory") or [{}])[0]
                 traj.setdefault("extra", {})["captured_model_calls"] = wire
                 counts["trials_stashed_unmatched"] += 1
+            derive_missing_step_total_tokens(steps)
             fh.write(json.dumps(r) + "\n")
             counts["rows_written"] += 1
     return counts
@@ -975,6 +1071,7 @@ def generate_trajectories_report(
                     "message": counts["steps_backfilled_message"],
                     "tool_calls": counts["steps_backfilled_tool_calls"],
                 },
+                "rows_reclassified_from_wire_failure": counts["rows_reclassified_from_wire_failure"],
                 "quality": _piotr_quality_aggregate(enriched_rows),
                 "per_step_sum_after_enrichment": sum(_step_tokens(s) for s in enriched_steps),
                 "step_field_coverage_after_enrichment_missing": _missing_fields(
