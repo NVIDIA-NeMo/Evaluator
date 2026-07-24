@@ -39,7 +39,8 @@ from nemo_evaluator.solvers.harbor import (
 def _query_llm_with_marker(self, *args, **kwargs):
     full_summarize_failed_with_cle = False
     marker = "EVALUATOR_LLM_ERROR_TRAJECTORY_STEP"
-    return full_summarize_failed_with_cle, marker
+    usage_marker = "self._apply_failed_llm_usage(chat, e)"
+    return full_summarize_failed_with_cle, marker, usage_marker
 
 
 def _unwind_with_marker(self, chat, target_free_tokens=4000):
@@ -49,6 +50,19 @@ def _unwind_with_marker(self, chat, target_free_tokens=4000):
 
 def _diverged_method(self, *args, **kwargs):
     return None
+
+
+async def _litellm_call_length_anchor_missing_locals(self, *args, **kwargs):
+    from harbor.llms.base import OutputLengthExceededError
+
+    content = "missing local guard"
+    if True:
+        if True:
+            exc = OutputLengthExceededError(
+                "length",
+                truncated_response=content,
+            )
+            raise exc
 
 
 _FLAGS = (
@@ -74,9 +88,12 @@ def patch_sandbox():
         "_count": terminus._count_total_tokens,
         "chat_chat": Chat.chat,
         "litellm_call": LiteLLM.call,
+        "litellm_call_responses": LiteLLM._call_responses,
     }
     had_fallback = "_build_local_fallback_llm_content" in terminus.__dict__
     fallback_val = terminus.__dict__.get("_build_local_fallback_llm_content")
+    had_failed_llm_usage = "_apply_failed_llm_usage" in terminus.__dict__
+    failed_llm_usage_val = terminus.__dict__.get("_apply_failed_llm_usage")
     had_failed_llm_saver = "_save_failed_llm_response" in terminus.__dict__
     failed_llm_saver_val = terminus.__dict__.get("_save_failed_llm_response")
     had_failed_llm_appender = "_append_pending_failed_llm_response_steps" in terminus.__dict__
@@ -96,10 +113,15 @@ def patch_sandbox():
     terminus._count_total_tokens = saved_methods["_count"]
     Chat.chat = saved_methods["chat_chat"]
     LiteLLM.call = saved_methods["litellm_call"]
+    LiteLLM._call_responses = saved_methods["litellm_call_responses"]
     if had_fallback:
         terminus._build_local_fallback_llm_content = fallback_val
     elif "_build_local_fallback_llm_content" in terminus.__dict__:
         delattr(terminus, "_build_local_fallback_llm_content")
+    if had_failed_llm_usage:
+        terminus._apply_failed_llm_usage = failed_llm_usage_val
+    elif "_apply_failed_llm_usage" in terminus.__dict__:
+        delattr(terminus, "_apply_failed_llm_usage")
     if had_failed_llm_saver:
         terminus._save_failed_llm_response = failed_llm_saver_val
     elif "_save_failed_llm_response" in terminus.__dict__:
@@ -253,6 +275,7 @@ class TestPatchCleReset:
         assert harbor._TERMINUS_CLE_RESET_PATCHED is True
         assert terminus._query_llm is not original
         assert hasattr(terminus, "_build_local_fallback_llm_content")
+        assert hasattr(terminus, "_apply_failed_llm_usage")
         assert hasattr(terminus, "_save_failed_llm_response")
         assert hasattr(terminus, "_append_pending_failed_llm_response_steps")
 
@@ -274,6 +297,20 @@ class TestPatchCleReset:
         patch_sandbox.terminus._query_llm = _diverged_method
         with pytest.raises(RuntimeError, match="diverged"):
             _patch_terminus_cle_reset()
+
+    def test_litellm_length_patch_requires_expected_locals_before_mutating(self, patch_sandbox):
+        from harbor.llms.lite_llm import LiteLLM
+
+        LiteLLM.call = _litellm_call_length_anchor_missing_locals
+        original_responses = LiteLLM._call_responses
+        original_query = patch_sandbox.terminus._query_llm
+        with pytest.raises(RuntimeError, match="required source pattern"):
+            _patch_terminus_cle_reset()
+
+        assert LiteLLM.call is _litellm_call_length_anchor_missing_locals
+        assert LiteLLM._call_responses is original_responses
+        assert patch_sandbox.terminus._query_llm is original_query
+        assert "_apply_failed_llm_usage" not in patch_sandbox.terminus.__dict__
 
 
 # ── _patch_terminus_unwind_min_pairs ─────────────────────────────────────
@@ -460,7 +497,122 @@ class _FakeLiteLLMResponse(dict):
         self._hidden_params = {"response_cost": 0.0}
 
 
+class _FakeResponsesAPIResponse:
+    def __init__(self):
+        self.status = "incomplete"
+        self.incomplete_details = SimpleNamespace(reason="max_output_tokens")
+        self.model = "responses-model"
+        self.id = "resp-1"
+        self.usage = SimpleNamespace(input_tokens=13, output_tokens=5)
+        self.output = [
+            SimpleNamespace(
+                type="message",
+                content=[SimpleNamespace(type="output_text", text="TRUNCATED_RESPONSES_OUTPUT")],
+            )
+        ]
+        self._hidden_params = {"response_cost": 0.0}
+
+
+class _FakeLengthChat:
+    def __init__(self, error):
+        self._error = error
+        self._messages = []
+        self._cumulative_input_tokens = 0
+        self._cumulative_output_tokens = 0
+        self._cumulative_cache_tokens = 0
+        self._cumulative_cost = 0.0
+
+    @property
+    def messages(self):
+        return self._messages
+
+    @property
+    def total_input_tokens(self):
+        return self._cumulative_input_tokens
+
+    @property
+    def total_output_tokens(self):
+        return self._cumulative_output_tokens
+
+    @property
+    def total_cache_tokens(self):
+        return self._cumulative_cache_tokens
+
+    @property
+    def total_cost(self):
+        return self._cumulative_cost
+
+    async def chat(self, *_args, **_kwargs):
+        raise self._error
+
+    def reset_response_chain(self):
+        pass
+
+
 class TestPatchFailedLLMResponseAccounting:
+    async def test_responses_api_length_error_keeps_usage_details(self, patch_sandbox, monkeypatch):
+        import litellm
+        from harbor.llms.base import OutputLengthExceededError
+        from harbor.llms.lite_llm import LiteLLM
+
+        _patch_terminus_cle_reset()
+
+        async def fake_aresponses(**_kwargs):
+            return _FakeResponsesAPIResponse()
+
+        monkeypatch.setattr(litellm, "aresponses", fake_aresponses)
+
+        llm = LiteLLM(
+            model_name="openai/nano-v3.5",
+            api_base="http://model.test",
+            api_key="test-key",
+            use_responses_api=True,
+        )
+        with pytest.raises(OutputLengthExceededError) as excinfo:
+            await llm._call_responses("prompt")
+
+        error = excinfo.value
+        assert error.truncated_response == "TRUNCATED_RESPONSES_OUTPUT"
+        assert error.llm_model_name == "responses-model"
+        assert error.llm_reasoning_content is None
+        assert error.llm_usage.prompt_tokens == 13
+        assert error.llm_usage.completion_tokens == 5
+
+    async def test_salvaged_length_response_counts_usage_without_failed_step(self, patch_sandbox, tmp_path):
+        from harbor.agents.terminus_2 import terminus_2
+        from harbor.llms.base import OutputLengthExceededError
+        from harbor.models.metric.usage_info import UsageInfo
+
+        _patch_terminus_cle_reset()
+
+        salvaged = (
+            "<response><analysis>a</analysis><plan>p</plan><commands></commands>"
+            "<task_complete>false</task_complete></response>"
+        )
+        error = OutputLengthExceededError("length", truncated_response=salvaged + " trailing tokens")
+        error.llm_usage = UsageInfo(prompt_tokens=19, completion_tokens=7, cache_tokens=3, cost_usd=0.25)
+
+        chat = _FakeLengthChat(error)
+        agent = terminus_2.Terminus2(
+            tmp_path,
+            model_name="openai/nano-v3.5",
+            parser_name="xml",
+            max_turns=1,
+            api_base="http://model.test",
+            suppress_max_turns_warning=True,
+        )
+        agent._parser = SimpleNamespace(salvage_truncated_response=lambda _content: (salvaged, False))
+
+        result = await agent._query_llm(chat, "prompt", (None, None, None))
+
+        assert result == salvaged
+        assert chat.total_input_tokens == 19
+        assert chat.total_output_tokens == 7
+        assert chat.total_cache_tokens == 3
+        assert chat.total_cost == 0.25
+        assert chat._api_token_anchor == (0, 26)
+        assert getattr(agent, "_pending_failed_llm_response_steps", []) == []
+
     async def test_length_response_becomes_ordered_atif_step_without_double_count(
         self, patch_sandbox, monkeypatch, tmp_path
     ):
