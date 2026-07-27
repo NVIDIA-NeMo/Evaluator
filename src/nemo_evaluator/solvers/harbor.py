@@ -927,6 +927,8 @@ print(f'cmd_timeout_{{_MAX}}s={{ok}} at {{p}}')
     # event-reconstruction + build_trajectory + save code on timeout/crash.
     # SIGTERM/SIGINT are converted to a catchable BaseException, then ignored
     # while the already-existing post-run trajectory serialization completes.
+    # A SIGKILL/OOM cannot run cleanup, so keep a structured checkpoint during
+    # conversation.run() instead of relying only on the final flush path.
     # Anchor 2: add partial-run metadata and make the existing save atomic.
     # Anchor 3: after the final print in main(), exit(0) cleanly so Harbor
     # treats the run as a normal completion and downloads the trajectory.
@@ -956,10 +958,88 @@ old_save = (
 
 already = '_trajectory_flush_exc' in c
 ok = old1 in c and old2 is not None and old_save in c and not already
-success = already or ok
-print(f'anchor1={repr(old1)} anchor2={repr(old2)} save={old_save in c} already={already} ok={ok}')
 
+events_anchor = '    # Convert SDK events to dicts for build_trajectory()\\n'
+build_anchor = '\\n    # Build and save trajectory\\n    trajectory = build_trajectory('
+main_anchor = '\\ndef main():'
+events_ok = already
 if ok:
+    events_start = c.find(events_anchor)
+    events_end = c.find(build_anchor, events_start)
+    events_ok = events_start >= 0 and events_end >= 0 and main_anchor in c
+    if events_ok:
+        events_block = c[events_start:events_end]
+        collect_helper = (
+            '\\n\\n'
+            'def _collect_trajectory_events(conversation, llm, metrics):\\n'
+            + events_block
+            + '    return events_list\\n'
+        )
+        c = c[:events_start] + '    events_list = _collect_trajectory_events(conversation, llm, metrics)' + c[events_end:]
+        c = c.replace(main_anchor, collect_helper + main_anchor, 1)
+
+success = already or (ok and events_ok)
+print(f'anchor1={repr(old1)} anchor2={repr(old2)} save={old_save in c} events={events_ok} already={already} ok={ok}')
+
+checkpoint = (
+    ind + '_trajectory_checkpoint_stop = None\\n' +
+    ind + '_trajectory_checkpoint_thread = None\\n' +
+    ind + 'def _trajectory_current_metrics():\\n' +
+    ind + '    _llm_metrics = getattr(llm, "metrics", None)\\n' +
+    ind + '    _token_usage = getattr(_llm_metrics, "accumulated_token_usage", None)\\n' +
+    ind + '    return {"prompt_tokens": getattr(_token_usage, "prompt_tokens", 0) if _token_usage else 0, "completion_tokens": getattr(_token_usage, "completion_tokens", 0) if _token_usage else 0, "cached_tokens": getattr(_token_usage, "cache_read_tokens", 0) if _token_usage else 0, "cost_usd": getattr(_llm_metrics, "accumulated_cost", 0.0) if _llm_metrics else 0.0}\\n' +
+    ind + 'def _trajectory_agent_metadata():\\n' +
+    ind + '    _system_prompt = None\\n' +
+    ind + '    _tool_definitions = []\\n' +
+    ind + '    try:\\n' +
+    ind + '        _system_prompt = agent.static_system_message\\n' +
+    ind + '    except Exception as _e:\\n' +
+    ind + '        logger.warning(f"Could not extract system prompt for checkpoint: {_e}")\\n' +
+    ind + '    try:\\n' +
+    ind + '        for _tool_name, _tool_obj in agent.tools_map.items():\\n' +
+    ind + '            _tool_definitions.append(_tool_obj.to_openai_tool())\\n' +
+    ind + '    except Exception as _e:\\n' +
+    ind + '        logger.warning(f"Could not extract tool definitions for checkpoint: {_e}")\\n' +
+    ind + '    return _system_prompt, _tool_definitions\\n' +
+    ind + 'def _trajectory_mark_partial(_trajectory, _reason, _events_count, _checkpoint=False):\\n' +
+    ind + '    _partial = {"reason": _reason, "events": _events_count}\\n' +
+    ind + '    if _checkpoint:\\n' +
+    ind + '        _partial["checkpoint"] = True\\n' +
+    ind + '    _trajectory.setdefault("extra", {})["partial_trajectory"] = _partial\\n' +
+    ind + 'def _trajectory_save(_trajectory, _path):\\n' +
+    ind + '    import os as _trajectory_os\\n' +
+    ind + '    from pathlib import Path as _TrajectoryPath\\n' +
+    ind + '    _path = _TrajectoryPath(_path)\\n' +
+    ind + '    _path.parent.mkdir(parents=True, exist_ok=True)\\n' +
+    ind + '    _tmp = _path.with_suffix(_path.suffix + ".partial")\\n' +
+    ind + '    with open(_tmp, "w") as _f:\\n' +
+    ind + '        json.dump(_trajectory, _f, indent=2, default=str)\\n' +
+    ind + '    _trajectory_os.replace(_tmp, _path)\\n' +
+    ind + 'def _trajectory_checkpoint(_reason):\\n' +
+    ind + '    try:\\n' +
+    ind + '        _metrics = _trajectory_current_metrics()\\n' +
+    ind + '        _events_list = _collect_trajectory_events(conversation, llm, _metrics)\\n' +
+    ind + '        _system_prompt, _tool_definitions = _trajectory_agent_metadata()\\n' +
+    ind + '        _trajectory = build_trajectory(_events_list, _metrics, model, system_prompt=_system_prompt, tool_definitions=_tool_definitions)\\n' +
+    ind + '        if not any(_step.get("source") == "agent" for _step in _trajectory.get("steps", [])):\\n' +
+    ind + '            return\\n' +
+    ind + '        _trajectory_mark_partial(_trajectory, _reason, len(_events_list), True)\\n' +
+    ind + '        _trajectory_save(_trajectory, args.trajectory_path)\\n' +
+    ind + '    except BaseException as _e:\\n' +
+    ind + '        print(f"trajectory checkpoint failed: {_e}", file=sys.stderr, flush=True)\\n' +
+    ind + 'def _trajectory_checkpoint_loop():\\n' +
+    ind + '    while _trajectory_checkpoint_stop is not None and not _trajectory_checkpoint_stop.wait(2.0):\\n' +
+    ind + '        _trajectory_checkpoint("checkpoint")\\n' +
+    ind + 'try:\\n' +
+    ind + '    import threading as _trajectory_threading\\n' +
+    ind + '    _trajectory_checkpoint_stop = _trajectory_threading.Event()\\n' +
+    ind + '    _trajectory_checkpoint_thread = _trajectory_threading.Thread(target=_trajectory_checkpoint_loop, daemon=True)\\n' +
+    ind + '    _trajectory_checkpoint_thread.start()\\n' +
+    ind + 'except BaseException as _e:\\n' +
+    ind + '    print(f"trajectory checkpoint thread unavailable: {_e}", file=sys.stderr, flush=True)\\n'
+)
+
+if ok and events_ok:
     wrap = (
         ind + '# Send instruction and run\\n' +
         ind + '_trajectory_flush_exc = None\\n' +
@@ -975,6 +1055,7 @@ if ok:
         ind + '        _trajectory_signal.signal(_trajectory_signal.SIGINT, _trajectory_signal.SIG_IGN)\\n' +
         ind + '    except BaseException:\\n' +
         ind + '        pass\\n' +
+        checkpoint +
         ind + 'try:\\n' +
         ind + '    import signal as _trajectory_signal\\n' +
         ind + '    _trajectory_signal.signal(_trajectory_signal.SIGTERM, _trajectory_timeout_handler)\\n' +
@@ -983,6 +1064,7 @@ if ok:
         ind + '    pass\\n' +
         ind + 'try:\\n' +
         ind + '    conversation.send_message(args.instruction)\\n' +
+        ind + '    _trajectory_checkpoint("start")\\n' +
         ind + '    conversation.run()\\n' +
         ind + 'except TrajectoryFlushRequested as _e:\\n' +
         ind + '    _trajectory_flush_exc = _e\\n' +
@@ -993,18 +1075,21 @@ if ok:
         ind + '    _trajectory_flush_reason = type(_e).__name__\\n' +
         ind + '    print(f"trajectory flush: flushing after {type(_e).__name__}: {_e}", file=sys.stderr, flush=True)\\n' +
         ind + 'finally:\\n' +
+        ind + '    try:\\n' +
+        ind + '        if _trajectory_checkpoint_stop is not None:\\n' +
+        ind + '            _trajectory_checkpoint_stop.set()\\n' +
+        ind + '        if _trajectory_checkpoint_thread is not None:\\n' +
+        ind + '            _trajectory_checkpoint_thread.join(timeout=1.0)\\n' +
+        ind + '    except BaseException:\\n' +
+        ind + '        pass\\n' +
         ind + '    _trajectory_ignore_interrupts()'
     )
     c = c.replace(old1, wrap, 1)
     new_save = (
         '    if _trajectory_flush_reason is not None:\\n'
-        '        trajectory.setdefault("extra", {})["partial_trajectory"] = {"reason": _trajectory_flush_reason, "events": len(events_list)}\\n'
-        '    trajectory_path = Path(args.trajectory_path)\\n'
-        '    trajectory_path.parent.mkdir(parents=True, exist_ok=True)\\n'
-        '    trajectory_tmp = trajectory_path.with_suffix(trajectory_path.suffix + ".partial")\\n'
-        '    with open(trajectory_tmp, "w") as f:\\n'
-        '        json.dump(trajectory, f, indent=2)\\n'
-        '    os.replace(trajectory_tmp, trajectory_path)'
+        '        _trajectory_mark_partial(trajectory, _trajectory_flush_reason, len(events_list))\\n'
+        '    _trajectory_save(trajectory, args.trajectory_path)\\n'
+        '    trajectory_path = Path(args.trajectory_path)'
     )
     c = c.replace(old_save, new_save, 1)
     exit_block = (
@@ -1073,9 +1158,7 @@ def _recover_from_logs(agent_logs_dir: Path) -> dict[str, Any]:
             return (1, name)
         if name == "trajectory.json.partial":
             return (2, name)
-        if name.endswith(".json"):
-            return (3, name)
-        return (4, name)
+        return (3, name)
 
     traj_files = sorted(
         (

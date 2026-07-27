@@ -228,6 +228,20 @@ class TestCrashMarker:
 
 
 class TestRecoverFromLogs:
+    @staticmethod
+    def _write_atif(path: Path, message: str) -> None:
+        path.write_text(
+            json.dumps(
+                {
+                    "schema_version": "ATIF-v1.7",
+                    "session_id": "partial",
+                    "agent": {"name": "openhands-sdk", "model_name": "model"},
+                    "steps": [{"step_id": 1, "source": "agent", "message": message}],
+                    "final_metrics": {"total_steps": 1},
+                }
+            )
+        )
+
     def test_recovers_valid_partial_trajectory_before_text_fallback(self, tmp_path):
         (tmp_path / "trajectory.json.partial").write_text(
             json.dumps(
@@ -249,6 +263,33 @@ class TestRecoverFromLogs:
         assert recovered["prompt_tokens"] == 11
         assert recovered["completion_tokens"] == 7
         assert recovered["trajectory"][0]["extra"]["partial_trajectory"]["reason"] == "timeout"
+
+    def test_prefers_canonical_trajectory_names_by_rank(self, tmp_path):
+        self._write_atif(tmp_path / "z-other-trajectory.json", "other json")
+        self._write_atif(tmp_path / "trajectory.json.partial", "json partial")
+        self._write_atif(tmp_path / "trajectory.partial.json", "partial json")
+        self._write_atif(tmp_path / "trajectory.json", "canonical")
+
+        recovered = harbor_mod._recover_from_logs(tmp_path)
+
+        assert recovered["response"] == "canonical"
+
+    def test_prefers_partial_json_before_json_partial(self, tmp_path):
+        self._write_atif(tmp_path / "z-other-trajectory.json", "other json")
+        self._write_atif(tmp_path / "trajectory.json.partial", "json partial")
+        self._write_atif(tmp_path / "trajectory.partial.json", "partial json")
+
+        recovered = harbor_mod._recover_from_logs(tmp_path)
+
+        assert recovered["response"] == "partial json"
+
+    def test_prefers_json_partial_before_other_json(self, tmp_path):
+        self._write_atif(tmp_path / "z-other-trajectory.json", "other json")
+        self._write_atif(tmp_path / "trajectory.json.partial", "json partial")
+
+        recovered = harbor_mod._recover_from_logs(tmp_path)
+
+        assert recovered["response"] == "json partial"
 
 
 class TestLastLlmErrorMarker:
@@ -970,6 +1011,9 @@ def build_trajectory(events, llm_metrics, model_name):
         return (
             module_imports
             + """
+import json
+from pathlib import Path
+from typing import Any
 
 
 class MessageEvent:
@@ -988,22 +1032,35 @@ class ActionEvent:
         self.tool_call = type("TC", (), {"function": fn})()
 
 
-def build_trajectory(events, metrics, model):
+def build_trajectory(events, metrics, model, system_prompt=None, tool_definitions=None):
     steps = []
     for event in events:
-        if isinstance(event, MessageEvent):
-            steps.append({"source": event.source, "content": event.llm_message.content})
-        elif isinstance(event, ActionEvent):
+        if event["type"] == "user_message":
+            steps.append({"source": "user", "content": event["content"], "message": event["content"]})
+        elif event["type"] == "assistant_message":
+            step = {
+                "source": "agent",
+                "content": event.get("content", ""),
+                "message": event.get("content", ""),
+            }
+            if event.get("tool_calls"):
+                step["tool_calls"] = event["tool_calls"]
+            steps.append(step)
+        elif event["type"] == "tool_result":
             steps.append(
                 {
-                    "source": "agent",
-                    "content": "",
-                    "tool_calls": [{"id": event.tool_call_id, "name": event.tool_name}],
+                    "source": "system",
+                    "content": event.get("content", ""),
+                    "source_call_id": event.get("tool_call_id"),
                 }
             )
-        else:
-            steps.append(event)
-    return {"steps": steps, "final_metrics": metrics, "model_name": model}
+    return {
+        "steps": steps,
+        "final_metrics": metrics,
+        "model_name": model,
+        "system_prompt": system_prompt,
+        "tool_definitions": tool_definitions,
+    }
 
 
 class _Args:
@@ -1027,17 +1084,53 @@ def main():
     args.trajectory_path = os.environ["NEL_TEST_TRAJECTORY_PATH"]
     model = "test-model"
     llm = type("LLM", (), {"metrics": None})()
+    agent = type("Agent", (), {"static_system_message": None, "tools_map": {}})()
     conversation = _Conversation(__EVENTS_EXPR__)
 
     # Send instruction and run
     conversation.send_message(args.instruction)
     conversation.run()
 
-    import json
-    from pathlib import Path
+    metrics = {}
+    # Convert SDK events to dicts for build_trajectory()
+    events_list: list[dict[str, Any]] = []
+    for event in conversation.state.events:
+        if isinstance(event, MessageEvent):
+            content = str(event.llm_message.content) if event.llm_message else ""
+            if event.source == "user":
+                events_list.append(
+                    {
+                        "type": "user_message",
+                        "content": content,
+                        "timestamp": event.timestamp,
+                    }
+                )
+            elif event.source == "agent":
+                events_list.append(
+                    {
+                        "type": "assistant_message",
+                        "content": content,
+                        "timestamp": event.timestamp,
+                    }
+                )
+        elif isinstance(event, ActionEvent):
+            events_list.append(
+                {
+                    "type": "assistant_message",
+                    "content": "",
+                    "timestamp": event.timestamp,
+                    "tool_calls": [
+                        {
+                            "id": event.tool_call_id,
+                            "name": event.tool_name,
+                            "arguments": event.tool_call.function.arguments,
+                        }
+                    ],
+                }
+            )
 
-    events_list = list(conversation.state.events)
-    trajectory = build_trajectory(events_list, {}, model)
+    # Build and save trajectory
+    trajectory = build_trajectory(events_list, metrics, model)
     trajectory_path = Path(args.trajectory_path)
     trajectory_path.parent.mkdir(parents=True, exist_ok=True)
     with open(trajectory_path, "w") as f:
@@ -1132,8 +1225,9 @@ def main():
         patched = await self._apply_flush_patch(runner)
 
         assert "_trajectory_flush_exc = None" in patched
-        assert "def _write_partial_trajectory" not in patched
-        assert "_trajectory_text_from_event" not in patched
+        assert "_trajectory_checkpoint_loop" in patched
+        assert "def _collect_trajectory_events(conversation, llm, metrics):" in patched
+        assert "_trajectory_event_text" not in patched
         assert "class TrajectoryFlushRequested" in patched
         assert 'trajectory.setdefault("extra", {})["partial_trajectory"]' in patched
         # Crash marker is written atomically (tmp + os.replace), matching the
@@ -1221,6 +1315,61 @@ def main():
         assert data["extra"]["partial_trajectory"]["reason"] == "timeout"
         assert data["extra"]["partial_trajectory"]["events"] == 2
         assert "/logs/agent" not in stderr
+
+    async def test_flush_patch_sigkill_keeps_checkpointed_trajectory(self, tmp_path, monkeypatch):
+        """SIGKILL cannot run cleanup, so the background checkpoint must preserve ATIF."""
+        traj_path = tmp_path / "trajectory" / "out.json"
+        monkeypatch.setenv("NEL_TEST_TRAJECTORY_PATH", str(traj_path))
+
+        runner = tmp_path / "run_agent.py"
+        runner.write_text(
+            self._stub_runner(
+                "import json\nimport os\nimport sys\nimport time\nfrom pathlib import Path",
+                (
+                    '        self.state.events.append(MessageEvent("agent", "checkpointed response", 2.0))\n'
+                    '        Path(os.environ["NEL_TEST_READY_PATH"]).write_text("ready")\n'
+                    "        time.sleep(30)\n"
+                ),
+                'MessageEvent("user", "initial prompt", 1.0)',
+            )
+        )
+        patched = await self._apply_flush_patch(runner)
+        runner.write_text(f'{patched}\n\nif __name__ == "__main__":\n    main()\n')
+
+        env = os.environ.copy()
+        env["NEL_TEST_TRAJECTORY_PATH"] = str(traj_path)
+        ready_path = tmp_path / "ready"
+        env["NEL_TEST_READY_PATH"] = str(ready_path)
+        proc = subprocess.Popen(
+            [sys.executable, str(runner)],
+            env=env,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        deadline = time.monotonic() + 10
+        checkpointed = False
+        while time.monotonic() < deadline:
+            if ready_path.exists() and traj_path.exists():
+                data = json.loads(traj_path.read_text())
+                checkpointed = any(
+                    step.get("source") == "agent" and step.get("message") == "checkpointed response"
+                    for step in data.get("steps", [])
+                )
+                if checkpointed:
+                    break
+            await asyncio.sleep(0.05)
+        assert checkpointed, "background checkpoint did not write agent steps before hard kill"
+
+        proc.kill()
+        stdout, stderr = proc.communicate(timeout=10)
+
+        assert proc.returncode != 0, stdout + stderr
+        data = json.loads(traj_path.read_text())
+        assert data["extra"]["partial_trajectory"]["checkpoint"] is True
+        assert any(
+            step.get("source") == "agent" and step.get("message") == "checkpointed response" for step in data["steps"]
+        )
 
     async def test_flush_patch_ignores_reentrant_signal_while_writing_trajectory(self, tmp_path, monkeypatch):
         """A second SIGTERM during generic serialization must not abort persistence."""
