@@ -18,14 +18,16 @@ import http.server
 import json
 import threading
 import urllib.request
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
 from nemo_evaluator.adapters.interceptors.streaming import Interceptor
 from nemo_evaluator.adapters.proxy import start_adapter_proxy
 from nemo_evaluator.adapters.registry import InterceptorRegistry
-from nemo_evaluator.adapters.types import AdapterResponse, InterceptorContext
+from nemo_evaluator.adapters.types import AdapterRequest, AdapterResponse, InterceptorContext
+from nemo_evaluator.engine.model_traffic_log import format_model_traffic_log_records
+from nemo_evaluator.observability.model_traffic import ModelTrafficStore, register_store
 
 
 def _sse_body(chunks: list[dict[str, Any]]) -> bytes:
@@ -51,6 +53,35 @@ def _post_json(url: str, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     )
     with urllib.request.urlopen(req, timeout=5) as resp:
         return resp.status, json.loads(resp.read())
+
+
+def _send_json(handler: http.server.BaseHTTPRequestHandler, status: int, body: dict[str, Any]) -> None:
+    payload = json.dumps(body).encode()
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/json")
+    handler.send_header("Content-Length", str(len(payload)))
+    handler.end_headers()
+    handler.wfile.write(payload)
+
+
+def _send_sse(handler: http.server.BaseHTTPRequestHandler, chunks: list[dict[str, Any]]) -> None:
+    payload = _sse_body(chunks)
+    handler.send_response(200)
+    handler.send_header("Content-Type", "text/event-stream")
+    handler.send_header("Content-Length", str(len(payload)))
+    handler.end_headers()
+    handler.wfile.write(payload)
+
+
+def _traffic_row(store: ModelTrafficStore, session_id: str) -> dict[str, Any]:
+    rows = format_model_traffic_log_records(
+        store.drain_session(session_id),
+        benchmark="streaming-test",
+        problem_idx=0,
+        repeat=0,
+    )
+    assert len(rows) == 1
+    return rows[0]
 
 
 @pytest.fixture
@@ -268,3 +299,95 @@ def test_start_adapter_proxy_coalesces_endpoint_streaming_response(local_server)
     assert Handler.seen_body["stream"] is True
     assert body["id"] == "cmpl-proxy"
     assert body["choices"][0]["message"]["content"] == "done"
+
+
+@pytest.mark.parametrize(
+    ("tokenize_payload", "expected_prompt_ids", "expected_paths"),
+    [
+        ({"tokens": ["10", 11, 12]}, [10, 11, 12], ["/v1/chat/completions", "/tokenize"]),
+        (
+            None,
+            [40, 41],
+            ["/v1/chat/completions", "/tokenize", "/v1/tokenize", "/v1/chat/completions"],
+        ),
+    ],
+)
+async def test_streaming_capture_fetches_prompt_token_ids(
+    local_server,
+    tokenize_payload: dict[str, Any] | None,
+    expected_prompt_ids: list[int],
+    expected_paths: list[str],
+):
+    from nemo_evaluator.adapters.interceptors.endpoint import Interceptor as EndpointInterceptor
+
+    class Handler(_QuietHandler):
+        paths: ClassVar[list[str]] = []
+        chat_bodies: ClassVar[list[dict[str, Any]]] = []
+
+        def do_POST(self):
+            Handler.paths.append(self.path)
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            if self.path.endswith("/tokenize"):
+                _send_json(self, 200, tokenize_payload) if tokenize_payload else _send_json(self, 404, {})
+                return
+            assert self.path == "/v1/chat/completions"
+            Handler.chat_bodies.append(body)
+            if body.get("stream") is True:
+                _send_sse(
+                    self,
+                    [
+                        {
+                            "model": "test-model",
+                            "choices": [{"index": 0, "delta": {"content": "done"}, "token_ids": [31]}],
+                        },
+                        {
+                            "model": "test-model",
+                            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                            "usage": {"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3},
+                        },
+                    ],
+                )
+                return
+            _send_json(self, 200, {"model": "test-model", "prompt_token_ids": ["40", 41], "choices": []})
+
+    base = local_server(Handler)
+    store = ModelTrafficStore(service_name="solver", capture_token_ids=True)
+    register_store(store)
+    ic = EndpointInterceptor(
+        upstream_url=f"{base}/v1/chat/completions",
+        extra_body={"return_token_ids": True},
+        model_traffic_store_id=store.store_id,
+    )
+    try:
+        ctx = InterceptorContext()
+        ctx.extra["session_id"] = "stream-token-ids"
+        await ic.intercept_request(
+            AdapterRequest(
+                method="POST",
+                path="/chat/completions",
+                headers={},
+                body={
+                    "model": "test-model",
+                    "messages": [{"role": "user", "content": "hi"}],
+                    "stream": True,
+                    "max_tokens": 512,
+                    "max_completion_tokens": 512,
+                },
+                ctx=ctx,
+            )
+        )
+        row = _traffic_row(store, "stream-token-ids")
+    finally:
+        await ic.close()
+        store.close()
+
+    assert Handler.paths == expected_paths
+    assert Handler.chat_bodies[0]["stream"] is True
+    if tokenize_payload is None:
+        assert Handler.chat_bodies[1]["return_token_ids"] is True
+        assert "stream" not in Handler.chat_bodies[1]
+        assert "stream_options" not in Handler.chat_bodies[1]
+        assert Handler.chat_bodies[1]["max_tokens"] == 1
+        assert Handler.chat_bodies[1]["max_completion_tokens"] == 1
+    assert row["prompt_token_ids"] == expected_prompt_ids
+    assert row["completion_token_ids"] == [31]

@@ -10,9 +10,10 @@ import threading
 import time
 import uuid
 from collections import Counter
+from collections.abc import Iterator
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import TYPE_CHECKING, Any
 
 
 def _request_hash(body: Any) -> str | None:
@@ -33,14 +34,14 @@ def _request_hash(body: Any) -> str | None:
 if TYPE_CHECKING:
     from nemo_evaluator.adapters.types import AdapterRequest, AdapterResponse
 
-_REGISTRY: dict[str, "ModelTrafficStore"] = {}
+_REGISTRY: dict[str, ModelTrafficStore] = {}
 _REGISTRY_LOCK = threading.Lock()
 _USAGE_KEYS = ("prompt_tokens", "completion_tokens", "total_tokens", "reasoning_tokens", "cached_tokens")
 _PROVIDER = "provider_reported"
 _ERROR_SUMMARY_CHARS = 4000
 
 
-def register_store(store: "ModelTrafficStore") -> str:
+def register_store(store: ModelTrafficStore) -> str:
     with _REGISTRY_LOCK:
         _REGISTRY[store.store_id] = store
     return store.store_id
@@ -51,7 +52,7 @@ def unregister_store(store_id: str) -> None:
         _REGISTRY.pop(store_id, None)
 
 
-def get_store(store_id: str) -> "ModelTrafficStore":
+def get_store(store_id: str) -> ModelTrafficStore:
     with _REGISTRY_LOCK:
         store = _REGISTRY.get(store_id)
     if store is None:
@@ -106,6 +107,11 @@ def _first_token_list(data: Any, *keys: str) -> list[int] | None:
         if value is not None and empty is None:
             empty = value
     return empty
+
+
+def normalize_token_ids(value: Any) -> list[int] | None:
+    """Return *value* as a token-id list, or ``None`` when it is not one."""
+    return _token_list(value)
 
 
 def _prefer_token_list(current: list[int] | None, candidate: list[int] | None) -> list[int] | None:
@@ -381,9 +387,7 @@ def _iter_sse(body: Any) -> Iterator[dict[str, Any]]:
             continue
         if not line.startswith("data:"):
             continue
-        payload = line[5:]
-        if payload.startswith(" "):
-            payload = payload[1:]
+        payload = line[5:].removeprefix(" ")
         data_lines.append(payload)
 
     chunk = load_payload("\n".join(data_lines))
@@ -477,6 +481,19 @@ def _summary_from_sse(
 
 def _summary(body: Any, **opts: Any) -> dict[str, Any]:
     return _summary_from_json(body, **opts) if isinstance(body, dict) else _summary_from_sse(body, **opts)
+
+
+def prompt_token_ids_from_response(body: Any) -> list[int] | None:
+    """Extract provider-reported prompt token IDs from JSON or SSE response bodies."""
+    summary = _summary(
+        body,
+        capture_tool_calls=False,
+        capture_reasoning=False,
+        capture_messages=False,
+        capture_token_ids=True,
+        max_content_chars=0,
+    )
+    return normalize_token_ids(summary.get("prompt_token_ids"))
 
 
 def _is_success(record: dict[str, Any]) -> bool:
@@ -662,6 +679,10 @@ class ModelTrafficStore:
             "max_content_chars": max_content_chars,
         }
 
+    @property
+    def capture_token_ids(self) -> bool:
+        return bool(self._capture_opts["capture_token_ids"])
+
     def close(self) -> None:
         unregister_store(self.store_id)
         if self._spool_tmp is not None:
@@ -716,6 +737,9 @@ class ModelTrafficStore:
             }
 
         summary = _summary(resp.body, **self._capture_opts)
+        fallback_prompt_ids = normalize_token_ids(resp.ctx.extra.get("prompt_token_ids_fallback"))
+        if fallback_prompt_ids is not None and not summary.get("prompt_token_ids"):
+            summary["prompt_token_ids"] = fallback_prompt_ids
         success = 200 <= resp.status_code < 400
         record.update(
             {
