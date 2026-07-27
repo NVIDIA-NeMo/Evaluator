@@ -109,11 +109,6 @@ def _first_token_list(data: Any, *keys: str) -> list[int] | None:
     return empty
 
 
-def normalize_token_ids(value: Any) -> list[int] | None:
-    """Return *value* as a token-id list, or ``None`` when it is not one."""
-    return _token_list(value)
-
-
 def _prefer_token_list(current: list[int] | None, candidate: list[int] | None) -> list[int] | None:
     if candidate is None:
         return current
@@ -483,19 +478,6 @@ def _summary(body: Any, **opts: Any) -> dict[str, Any]:
     return _summary_from_json(body, **opts) if isinstance(body, dict) else _summary_from_sse(body, **opts)
 
 
-def prompt_token_ids_from_response(body: Any) -> list[int] | None:
-    """Extract provider-reported prompt token IDs from JSON or SSE response bodies."""
-    summary = _summary(
-        body,
-        capture_tool_calls=False,
-        capture_reasoning=False,
-        capture_messages=False,
-        capture_token_ids=True,
-        max_content_chars=0,
-    )
-    return normalize_token_ids(summary.get("prompt_token_ids"))
-
-
 def _is_success(record: dict[str, Any]) -> bool:
     return 200 <= _int(record.get("status_code")) < 400
 
@@ -679,10 +661,6 @@ class ModelTrafficStore:
             "max_content_chars": max_content_chars,
         }
 
-    @property
-    def capture_token_ids(self) -> bool:
-        return bool(self._capture_opts["capture_token_ids"])
-
     def close(self) -> None:
         unregister_store(self.store_id)
         if self._spool_tmp is not None:
@@ -737,9 +715,6 @@ class ModelTrafficStore:
             }
 
         summary = _summary(resp.body, **self._capture_opts)
-        fallback_prompt_ids = normalize_token_ids(resp.ctx.extra.get("prompt_token_ids_fallback"))
-        if fallback_prompt_ids is not None and not summary.get("prompt_token_ids"):
-            summary["prompt_token_ids"] = fallback_prompt_ids
         success = 200 <= resp.status_code < 400
         record.update(
             {

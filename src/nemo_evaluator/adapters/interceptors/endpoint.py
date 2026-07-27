@@ -28,11 +28,7 @@ from nemo_evaluator.adapters.types import (
     RequestToResponseInterceptor,
 )
 from nemo_evaluator.completions_guard import enforce_text_completions_body
-from nemo_evaluator.observability.model_traffic import (
-    get_store,
-    normalize_token_ids,
-    prompt_token_ids_from_response,
-)
+from nemo_evaluator.observability.model_traffic import get_store
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +83,6 @@ class Interceptor(RequestToResponseInterceptor):
         self._retry_on_status = set(retry_on_status or [429, 502, 503, 504])
         self._max_concurrent = max_concurrent
         self._model_traffic_store = get_store(model_traffic_store_id) if model_traffic_store_id else None
-        self._tokenize_unavailable = False
         self._session: aiohttp.ClientSession | None = None
         self._lock = asyncio.Lock()
         logger.info(
@@ -122,7 +117,9 @@ class Interceptor(RequestToResponseInterceptor):
 
     @staticmethod
     def _request_stream_usage_chunks(path: str, body: dict[str, Any]) -> None:
-        if not Interceptor._is_streaming_chat_request(path, body):
+        if body.get("stream") is not True:
+            return
+        if not path.rstrip("/").endswith("/chat/completions"):
             return
 
         stream_options = body.get("stream_options")
@@ -130,62 +127,6 @@ class Interceptor(RequestToResponseInterceptor):
             body["stream_options"] = {"include_usage": True}
         elif isinstance(stream_options, dict) and "include_usage" not in stream_options:
             body["stream_options"] = {**stream_options, "include_usage": True}
-
-    @staticmethod
-    def _is_streaming_chat_request(path: str, body: dict[str, Any]) -> bool:
-        return body.get("stream") is True and path.rstrip("/").endswith("/chat/completions")
-
-    @staticmethod
-    async def _post_json(
-        session: aiohttp.ClientSession, url: str, headers: dict[str, str], body: dict[str, Any]
-    ) -> Any:
-        async with session.post(url, data=json.dumps(body), headers=headers) as resp:
-            raw = await resp.read()
-            if resp.status >= 400:
-                return None
-            try:
-                return json.loads(raw)
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                return None
-
-    async def _stream_prompt_token_ids(
-        self,
-        session: aiohttp.ClientSession,
-        url: str,
-        headers: dict[str, str],
-        body: dict[str, Any],
-    ) -> list[int] | None:
-        tokenize_body = {
-            key: body[key] for key in ("model", "messages", "tools", "chat_template_kwargs") if key in body
-        }
-        if "messages" in tokenize_body and not self._tokenize_unavailable:
-            saw_missing_route = False
-            for tokenize_url in self._tokenize_urls():
-                payload = await self._post_json(session, tokenize_url, headers, tokenize_body)
-                if isinstance(payload, dict):
-                    ids = normalize_token_ids(payload.get("tokens")) or normalize_token_ids(
-                        payload.get("prompt_token_ids")
-                    )
-                    if ids is not None:
-                        return ids
-                saw_missing_route = saw_missing_route or payload is None
-            self._tokenize_unavailable = saw_missing_route
-
-        probe = dict(body)
-        probe.pop("stream", None)
-        probe.pop("stream_options", None)
-        probe["return_token_ids"] = True
-        if "max_tokens" in probe:
-            probe["max_tokens"] = 1
-        if "max_completion_tokens" in probe:
-            probe["max_completion_tokens"] = 1
-        probe.setdefault("max_tokens", 1)
-        payload = await self._post_json(session, url, headers, probe)
-        return prompt_token_ids_from_response(payload) if payload is not None else None
-
-    def _tokenize_urls(self) -> list[str]:
-        base = self._upstream_url.rstrip("/")
-        return [*dict.fromkeys(([f"{base[:-3]}/tokenize"] if base.endswith("/v1") else []) + [f"{base}/tokenize"])]
 
     def _capture_response(self, resp: AdapterResponse) -> AdapterResponse:
         if self._model_traffic_store is not None:
@@ -258,21 +199,6 @@ class Interceptor(RequestToResponseInterceptor):
 
                     if isinstance(parsed, dict):
                         self._normalize_content(parsed)
-
-                    if (
-                        self._model_traffic_store is not None
-                        and self._model_traffic_store.capture_token_ids
-                        and 200 <= status < 400
-                        and self._is_streaming_chat_request(req.path, body)
-                        and prompt_token_ids_from_response(parsed) is None
-                    ):
-                        try:
-                            ids = await self._stream_prompt_token_ids(session, url, headers, body)
-                        except (aiohttp.ClientError, TimeoutError) as exc:
-                            logger.debug("endpoint: prompt token id fallback failed: %s", exc)
-                        else:
-                            if ids is not None:
-                                req.ctx.extra["prompt_token_ids_fallback"] = ids
 
                     return self._capture_response(
                         AdapterResponse(
