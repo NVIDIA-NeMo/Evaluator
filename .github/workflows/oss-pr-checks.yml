@@ -34,7 +34,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install "ruff>=0.1"
+      - run: pip install "ruff==0.9.9"
       - run: ruff check src/ tests/
       - run: ruff format --check src/ tests/
 
