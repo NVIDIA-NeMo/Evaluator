@@ -309,9 +309,13 @@ class StatelessSandbox:
         await self._transfer.pre_restore(self._verify_sandbox)
         # `test -s` dereferences the symlink and requires a non-empty target, so a dangling
         # link (a workspace that never transferred) exits non-zero. The trailing stat only
-        # enriches the log.
+        # enriches the log. Resolve the EFS session path first so the check matches the
+        # same tar that apply_cmd and diagnostics will use.
         check = await self._verify_sandbox.exec(
-            "test -s /input/workspace.tar && stat -L -c '%s bytes' /input/workspace.tar 2>&1",
+            "_NEL_TAR=/input/workspace.tar; "
+            '[ -n "$_NEL_EFS_SESSION" ] && [ -f "/input/$_NEL_EFS_SESSION/workspace.tar" ] && '
+            '_NEL_TAR="/input/$_NEL_EFS_SESSION/workspace.tar"; '
+            "test -s $_NEL_TAR && stat -L -c '%s bytes' $_NEL_TAR 2>&1",
             timeout_sec=10,
         )
         ws_present = check.return_code == 0
@@ -322,7 +326,7 @@ class StatelessSandbox:
         )
         if not ws_present:
             logger.error(
-                "StatelessSandbox: /input/workspace.tar MISSING in verify "
+                "StatelessSandbox: workspace.tar MISSING in verify "
                 "container — agent changes will NOT be applied! "
                 "Verify results will be against unmodified base image.",
             )

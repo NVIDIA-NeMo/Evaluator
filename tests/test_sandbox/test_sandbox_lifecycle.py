@@ -174,6 +174,24 @@ class TestStatelessSandbox:
         await lc.teardown()
 
     @pytest.mark.asyncio
+    async def test_workspace_presence_check_resolves_efs_session_path(self):
+        """ws_present check resolves the EFS session tar path alongside the default."""
+        ctx, mgr = self._make_ctx()
+        transfer = HostVolumeTransfer()
+        lc = StatelessSandbox(ctx, transfer)
+
+        await lc.setup()
+        await lc.get_agent_sandbox()
+        await lc.transition_to_verify("response", solver_modified=False)
+        verify_sb = await lc.get_verify_sandbox()
+
+        ws_check_cmds = [cmd for cmd in verify_sb._exec_log if "_NEL_EFS_SESSION" in cmd and "test -s" in cmd]
+        assert ws_check_cmds, "workspace presence check must include EFS session path resolution"
+        assert "/input/$_NEL_EFS_SESSION/workspace.tar" in ws_check_cmds[0]
+        assert "test -s $_NEL_TAR" in ws_check_cmds[0]
+        await lc.teardown()
+
+    @pytest.mark.asyncio
     async def test_pre_apply_diagnostics_extract_tar_before_patch_checks(self):
         """Diagnostics extract workspace.tar into /tmp/_nel_ws before reading the patch."""
         apply_cmd = "APPLY_MARKER git apply /input/patch.diff"
