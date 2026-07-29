@@ -315,7 +315,7 @@ class StatelessSandbox:
             "_NEL_TAR=/input/workspace.tar; "
             '[ -n "$_NEL_EFS_SESSION" ] && [ -f "/input/$_NEL_EFS_SESSION/workspace.tar" ] && '
             '_NEL_TAR="/input/$_NEL_EFS_SESSION/workspace.tar"; '
-            "test -s $_NEL_TAR && stat -L -c '%s bytes' $_NEL_TAR 2>&1",
+            'test -s "$_NEL_TAR" && stat -L -c \'%s bytes\' "$_NEL_TAR" 2>&1',
             timeout_sec=10,
         )
         ws_present = check.return_code == 0
@@ -339,7 +339,9 @@ class StatelessSandbox:
                     '[ -n "$_NEL_EFS_SESSION" ] && [ -f "/input/$_NEL_EFS_SESSION/workspace.tar" ] && '
                     '_NEL_TAR="/input/$_NEL_EFS_SESSION/workspace.tar"; '
                     "mkdir -p /tmp/_nel_ws; "
-                    "if [ -f $_NEL_TAR ]; then tar xf $_NEL_TAR -C /tmp/_nel_ws 2>/dev/null; fi; "
+                    'if [ -f "$_NEL_TAR" ]; then '
+                    'tar xf "$_NEL_TAR" -C /tmp/_nel_ws 2>&1 || echo "TAR EXTRACT FAILED: $_NEL_TAR"; '
+                    'else echo "TAR NOT FOUND: $_NEL_TAR"; fi; '
                     "echo '=== patch stat ===' && "
                     "git apply --stat /tmp/_nel_ws/_nel_patch.diff 2>&1 | head -30; "
                     "echo '=== patch header ===' && head -40 /tmp/_nel_ws/_nel_patch.diff 2>/dev/null; "
