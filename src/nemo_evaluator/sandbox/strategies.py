@@ -309,9 +309,13 @@ class StatelessSandbox:
         await self._transfer.pre_restore(self._verify_sandbox)
         # `test -s` dereferences the symlink and requires a non-empty target, so a dangling
         # link (a workspace that never transferred) exits non-zero. The trailing stat only
-        # enriches the log.
+        # enriches the log. Resolve the EFS session path first so the check matches the
+        # same tar that apply_cmd and diagnostics will use.
         check = await self._verify_sandbox.exec(
-            "test -s /input/workspace.tar && stat -L -c '%s bytes' /input/workspace.tar 2>&1",
+            "_NEL_TAR=/input/workspace.tar; "
+            '[ -n "$_NEL_EFS_SESSION" ] && [ -f "/input/$_NEL_EFS_SESSION/workspace.tar" ] && '
+            '_NEL_TAR="/input/$_NEL_EFS_SESSION/workspace.tar"; '
+            'test -s "$_NEL_TAR" && stat -L -c \'%s bytes\' "$_NEL_TAR" 2>&1',
             timeout_sec=10,
         )
         ws_present = check.return_code == 0
@@ -322,7 +326,7 @@ class StatelessSandbox:
         )
         if not ws_present:
             logger.error(
-                "StatelessSandbox: /input/workspace.tar MISSING in verify "
+                "StatelessSandbox: workspace.tar MISSING in verify "
                 "container — agent changes will NOT be applied! "
                 "Verify results will be against unmodified base image.",
             )
@@ -331,6 +335,13 @@ class StatelessSandbox:
                 _vwd = self._ctx.verify_spec.workdir
                 diag = await self._verify_sandbox.exec(
                     f"echo '=== git HEAD ===' && cd {_vwd} && git log --oneline -1 2>/dev/null; "
+                    "_NEL_TAR=/input/workspace.tar; "
+                    '[ -n "$_NEL_EFS_SESSION" ] && [ -f "/input/$_NEL_EFS_SESSION/workspace.tar" ] && '
+                    '_NEL_TAR="/input/$_NEL_EFS_SESSION/workspace.tar"; '
+                    "mkdir -p /tmp/_nel_ws; "
+                    'if [ -f "$_NEL_TAR" ]; then '
+                    'tar xf "$_NEL_TAR" -C /tmp/_nel_ws 2>&1 || echo "TAR EXTRACT FAILED: $_NEL_TAR"; '
+                    'else echo "TAR NOT FOUND: $_NEL_TAR"; fi; '
                     "echo '=== patch stat ===' && "
                     "git apply --stat /tmp/_nel_ws/_nel_patch.diff 2>&1 | head -30; "
                     "echo '=== patch header ===' && head -40 /tmp/_nel_ws/_nel_patch.diff 2>/dev/null; "
