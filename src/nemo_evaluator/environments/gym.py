@@ -418,8 +418,16 @@ class ManagedGymEnvironment(EvalEnvironment):
                 output = ""
                 if self._process.stdout:
                     output = self._process.stdout.read().decode(errors="replace")
+                rc = self._process.returncode
+                # start_new_session=True makes the child the process-group leader,
+                # so pgid == pid. Kill any surviving children before clearing state
+                # so a subsequent start() can retry cleanly.
+                pgid = self._process.pid
+                self._signal_group(pgid, signal.SIGTERM)
+                self._wait_for_group_exit(pgid, timeout=5.0)
+                self._process = None
                 raise RuntimeError(
-                    f"Server exited with code {self._process.returncode} during startup.\nOutput:\n{output}"
+                    f"Server exited with code {rc} during startup.\nOutput:\n{output}"
                 )
             probe_timeout = min(2.0, remaining)
             for probe in ("/health", "/openapi.json"):
@@ -452,10 +460,10 @@ class ManagedGymEnvironment(EvalEnvironment):
         # app.py servers it spawned may still be handling SIGTERM. If we return
         # when only the shell is gone, those servers are orphaned with no one
         # left to reap them.
-        if not self._wait_for_group_exit(pgid, timeout=15.0):
+        if not self._wait_for_group_exit(pgid, timeout=15.0, process=self._process):
             logger.warning("Gym process group %d survived SIGTERM; sending SIGKILL", pgid)
             self._signal_group(pgid, signal.SIGKILL)
-            if not self._wait_for_group_exit(pgid, timeout=5.0):
+            if not self._wait_for_group_exit(pgid, timeout=5.0, process=self._process):
                 logger.error("Gym process group %d survived SIGKILL; leaving handle for retry", pgid)
                 return
 
@@ -469,16 +477,28 @@ class ManagedGymEnvironment(EvalEnvironment):
             os.killpg(pgid, sig)
 
     @staticmethod
-    def _wait_for_group_exit(pgid: int, timeout: float) -> bool:
+    def _wait_for_group_exit(
+        pgid: int, timeout: float, process: subprocess.Popen | None = None
+    ) -> bool:
         """Poll until no process remains in ``pgid``. Returns True if the group
-        is fully gone within ``timeout``, False otherwise."""
+        is fully gone within ``timeout``, False otherwise.
+
+        ``process`` is the direct child (group leader). Polling it with
+        ``poll()`` reaps it if it has exited, preventing it from lingering as a
+        zombie that keeps ``os.killpg(pgid, 0)`` returning success even when no
+        real processes remain.
+        """
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
+            if process is not None:
+                process.poll()
             try:
                 os.killpg(pgid, 0)  # signal 0: liveness probe, kills nothing
             except (ProcessLookupError, OSError):
                 return True
             time.sleep(0.2)
+        if process is not None:
+            process.poll()
         try:
             os.killpg(pgid, 0)
         except (ProcessLookupError, OSError):

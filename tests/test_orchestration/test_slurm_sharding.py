@@ -57,11 +57,17 @@ def _mode(path):
 
 
 def _make_single_node_container_config():
-    """Single node pool (use_het disabled) with a containerized eval (use_containers)."""
+    """Single node pool (use_het disabled) with a containerized eval and gym service.
+
+    The gym service has an image so its srun gets ``-w $MASTER_IP`` (single-pool
+    container jobs pin gym sruns to the master node). This exercises the invariant
+    that MASTER_IP is initialised before it is first referenced.
+    """
     return EvalConfig.model_validate(
         {
             "services": {
                 "model": {"type": "api", "url": "http://x/v1/chat/completions", "protocol": "chat_completions"},
+                "gym": {"type": "gym", "port": 9090, "image": "nvcr.io/nvidia/gym:latest", "server_cmd": "ng_run +config_paths=[gsm8k.yaml]"},
             },
             "benchmarks": [
                 {"name": "gsm8k", "repeats": 1, "solver": {"type": "simple", "service": "model"}},
@@ -85,6 +91,10 @@ class TestSbatchMasterIp:
         script, _, _ = generate_sbatch(cfg)
         assert 'MASTER_IP=$(scontrol show hostname "$SLURM_JOB_NODELIST"' in script
         assert "export MASTER_IP" in script
+        # Discovery block must precede the first srun that references $MASTER_IP.
+        init_pos = script.index("MASTER_IP=$(scontrol show hostname")
+        first_use_pos = script.index("-w $MASTER_IP")
+        assert init_pos < first_use_pos
 
 
 class TestSbatchShardGeneration:
