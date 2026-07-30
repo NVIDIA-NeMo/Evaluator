@@ -737,6 +737,43 @@ class TestResumeCaptureMarkers:
         assert result["scoring_details"]["resume_workspace_capture"] == "missing"
         assert any("capture marker" in rec.message for rec in caplog.records)
 
+    def test_verify_only_workspace_reexecuted_on_resume(self, tmp_path, monkeypatch, caplog):
+        """A verify-only sandbox rollout re-solves on resume (proper score) instead of
+        being committed as a workspace-missing zero-reward stub."""
+        self._patch_lifecycle(monkeypatch)
+        log_dir = tmp_path / "logs"
+
+        solves = {"count": 0}
+
+        class _CountingSandboxSolver(_SandboxAcceptingSolver):
+            async def solve(self, task, sandbox=None):
+                solves["count"] += 1
+                return await super().solve(task, sandbox=sandbox)
+
+        asyncio.run(
+            run_evaluation(_MockEnv(), _CountingSandboxSolver(), n_repeats=1, max_problems=1, step_log_dir=log_dir)
+        )
+        assert solves["count"] == 1
+        (log_dir / "verified_log.jsonl").unlink()
+
+        with caplog.at_level(logging.INFO, logger=EVAL_LOOP_LOGGER):
+            bundle = asyncio.run(
+                run_evaluation(
+                    _MockEnv(),
+                    _CountingSandboxSolver(),
+                    n_repeats=1,
+                    max_problems=1,
+                    step_log_dir=log_dir,
+                    resume=True,
+                )
+            )
+
+        (result,) = bundle["_results"]
+        assert "resume_workspace_capture" not in result["scoring_details"]  # not a stub
+        assert result["reward"] == 1.0  # re-verified against a real solve, not a pristine workspace
+        assert solves["count"] == 2  # re-solved on resume rather than replayed from cache
+        assert any("re-solved" in rec.message for rec in caplog.records)
+
     def test_stale_marker_invalidated_by_retry_inference(self, tmp_path, monkeypatch):
         """A verify retry re-solves and re-appends; a kill before the retry's capture
         must not be masked by the marker left over from the first attempt."""
@@ -799,6 +836,77 @@ class TestResumeCaptureMarkers:
 
         (result,) = bundle["_results"]
         assert result["scoring_details"]["resume_workspace_capture"] == "missing"
+
+
+class _MixedPopEnv(_MockEnv):
+    """Three sandbox rollouts mirroring the FEP-888 Run A population."""
+
+    async def seed(self, idx):
+        return SeedResult(prompt=f"q{idx}", expected_answer=f"a{idx}", metadata={"idx": idx})
+
+    async def verify(self, response, expected, **meta):
+        return VerifyResult(reward=1.0 if response == expected else 0.0, scoring_details={"method": "exact"})
+
+
+class _MixedPopSolver:
+    """Per-idx behavior: 0 = solved, 1 = diff-carrying timeout (error nulled, workspace-bound,
+    the p59/p368 case), 2 = genuine solve failure (error set, graded 0 without a workspace)."""
+
+    def __init__(self, calls):
+        self._calls = calls
+
+    async def solve(self, task, sandbox=None):
+        idx = task.metadata["idx"]
+        self._calls.append(idx)
+        if idx == 1:
+            return SolveResult(
+                response=task.expected_answer,
+                error_kind=ErrorKind.SOLVE_TIMEOUT,
+                scoring_details={"error": "turn budget exhausted", "error_category": "turn_budget_exhausted"},
+            )
+        if idx == 2:
+            return SolveResult(response="", error="litellm.BadRequestError: 400", error_kind=ErrorKind.NONE)
+        return SolveResult(response=task.expected_answer)
+
+    async def close(self):
+        pass
+
+
+class TestVerifyOnlyResumeReexecution:
+    """FEP-888 regression: a synthetic checkpoint mirroring Run A (real-schema, produced by
+    run_evaluation). On a kill that lands after the solve checkpoint but before verification,
+    verify-only sandbox rollouts with a recoverable/successful solve must re-execute, while a
+    genuine solve failure must replay graded-0 without a second attempt."""
+
+    def _patch_lifecycle(self, monkeypatch):
+        monkeypatch.setattr(
+            "nemo_evaluator.engine.eval_loop.pick_lifecycle",
+            lambda *args, **kwargs: _DummySandboxLifecycle(),
+        )
+
+    def test_reexecution_matrix_on_verify_only_resume(self, tmp_path, monkeypatch):
+        self._patch_lifecycle(monkeypatch)
+        log_dir = tmp_path / "logs"
+
+        calls_1 = []
+        asyncio.run(run_evaluation(_MixedPopEnv(), _MixedPopSolver(calls_1), n_repeats=1, step_log_dir=log_dir))
+        assert sorted(calls_1) == [0, 1, 2]  # cold run solves everything
+
+        # Simulate the crash window: solves are checkpointed, verification is not.
+        (log_dir / "verified_log.jsonl").unlink()
+
+        calls_2 = []
+        bundle = asyncio.run(
+            run_evaluation(_MixedPopEnv(), _MixedPopSolver(calls_2), n_repeats=1, step_log_dir=log_dir, resume=True)
+        )
+
+        # Success (0) and diff-carrying timeout (1) re-solve; genuine failure (2) does not.
+        assert sorted(calls_2) == [0, 1]
+        results = {r["problem_idx"]: r for r in bundle["_results"]}
+        assert results[0]["reward"] == 1.0
+        assert results[1]["reward"] == 1.0
+        assert results[2]["reward"] == 0.0
+        assert results[2]["scoring_details"]["method"] == "solve_failed"
 
 
 class TestSidecarReset:

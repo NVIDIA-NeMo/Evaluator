@@ -27,9 +27,13 @@ from nemo_evaluator.solvers.harbor import (
     _patch_harbor_lite_llm_context_length_matcher,
     _patch_terminus_api_token_anchor,
     _patch_terminus_cle_reset,
+    _patch_terminus_compaction_logging,
+    _patch_terminus_compaction_turn_marker,
     _patch_terminus_unwind_min_pairs,
     _terminus2_build_local_fallback_llm_content,
     _terminus2_count_total_tokens,
+    _terminus2_nel_dump_trajectory_with_continuation_index,
+    _terminus2_nel_flush_pending_compaction,
 )
 
 # Module-level stand-ins whose *source* the patch functions inspect. Defining
@@ -38,7 +42,9 @@ from nemo_evaluator.solvers.harbor import (
 
 def _query_llm_with_marker(self, *args, **kwargs):
     full_summarize_failed_with_cle = False
-    return full_summarize_failed_with_cle
+    marker = "EVALUATOR_LLM_ERROR_TRAJECTORY_STEP"
+    usage_marker = "self._apply_failed_llm_usage(chat, e)"
+    return full_summarize_failed_with_cle, marker, usage_marker
 
 
 def _unwind_with_marker(self, chat, target_free_tokens=4000):
@@ -50,11 +56,53 @@ def _diverged_method(self, *args, **kwargs):
     return None
 
 
+async def _litellm_call_length_anchor_missing_locals(self, *args, **kwargs):
+    from harbor.llms.base import OutputLengthExceededError
+
+    content = "missing local guard"
+    if True:
+        if True:
+            exc = OutputLengthExceededError(
+                "length",
+                truncated_response=content,
+            )
+            raise exc
+
+
+async def _responses_api_length_anchor_missing_locals(self, *args, **kwargs):
+    from harbor.llms.base import OutputLengthExceededError
+
+    content = "missing responses local guard"
+    reason = "max_output_tokens"
+    if True:
+        if True:
+            if reason == "max_output_tokens":
+                raise OutputLengthExceededError(
+                    f"Model {self._model_name} hit max_tokens limit. Response was truncated.",
+                    truncated_response=content,
+                )
+
+
 _FLAGS = (
     "_TERMINUS_CLE_RESET_PATCHED",
     "_TERMINUS_UNWIND_PATCHED",
     "_TERMINUS_API_ANCHOR_PATCHED",
     "_CHAT_TOKEN_ANCHOR_PATCHED",
+    "_TERMINUS_COMPACTION_PATCHED",
+    "_TERMINUS_COMPACTION_TURN_MARKER_PATCHED",
+)
+
+_NEL_METHODS = (
+    "_nel_ensure_compaction_state",
+    "_nel_stash_compaction_token_snapshots",
+    "_nel_token_snapshot",
+    "_nel_compaction_mechanism",
+    "_nel_make_compaction_event",
+    "_nel_record_failed_compaction_attempt",
+    "_nel_set_proactive_pending_compaction",
+    "_nel_set_cle_pending_compaction",
+    "_nel_flush_pending_compaction",
+    "_nel_compaction_llm_call_kwargs",
 )
 
 
@@ -63,19 +111,36 @@ def patch_sandbox():
     """Snapshot terminus-2/Chat patch targets and guard flags; restore after."""
     from harbor.agents.terminus_2 import terminus_2 as t2
     from harbor.llms.chat import Chat
+    from harbor.llms.lite_llm import LiteLLM
 
     terminus = t2.Terminus2
     saved_methods = {
         "_query_llm": terminus._query_llm,
+        "_run_agent_loop": terminus._run_agent_loop,
         "_unwind": terminus._unwind_messages_to_free_tokens,
         "_count": terminus._count_total_tokens,
+        "_check_proactive": terminus._check_proactive_summarization,
+        "_dump": terminus._dump_trajectory_with_continuation_index,
+        "_run_subagent": terminus._run_subagent,
+        "_summarize": terminus._summarize,
         "chat_chat": Chat.chat,
+        "litellm_call": LiteLLM.call,
+        "litellm_call_responses": LiteLLM._call_responses,
     }
+    saved_nel = {name: terminus.__dict__.get(name) for name in _NEL_METHODS}
     had_fallback = "_build_local_fallback_llm_content" in terminus.__dict__
     fallback_val = terminus.__dict__.get("_build_local_fallback_llm_content")
+    had_failed_llm_usage = "_apply_failed_llm_usage" in terminus.__dict__
+    failed_llm_usage_val = terminus.__dict__.get("_apply_failed_llm_usage")
+    had_failed_llm_saver = "_save_failed_llm_response" in terminus.__dict__
+    failed_llm_saver_val = terminus.__dict__.get("_save_failed_llm_response")
+    had_failed_llm_appender = "_append_pending_failed_llm_response_steps" in terminus.__dict__
+    failed_llm_appender_val = terminus.__dict__.get("_append_pending_failed_llm_response_steps")
     had_records = "_records_api_token_anchor" in Chat.__dict__
     records_val = Chat.__dict__.get("_records_api_token_anchor")
     saved_flags = {name: getattr(harbor, name) for name in _FLAGS}
+    saved_query_src = harbor._TERMINUS_QUERY_LLM_SRC
+    saved_run_loop_src = harbor._TERMINUS_RUN_AGENT_LOOP_SRC
 
     for name in _FLAGS:
         setattr(harbor, name, False)
@@ -83,19 +148,45 @@ def patch_sandbox():
     yield SimpleNamespace(harbor=harbor, t2=t2, terminus=terminus, Chat=Chat)
 
     terminus._query_llm = saved_methods["_query_llm"]
+    terminus._run_agent_loop = saved_methods["_run_agent_loop"]
     terminus._unwind_messages_to_free_tokens = saved_methods["_unwind"]
     terminus._count_total_tokens = saved_methods["_count"]
+    terminus._check_proactive_summarization = saved_methods["_check_proactive"]
+    terminus._dump_trajectory_with_continuation_index = saved_methods["_dump"]
+    terminus._run_subagent = saved_methods["_run_subagent"]
+    terminus._summarize = saved_methods["_summarize"]
     Chat.chat = saved_methods["chat_chat"]
+    LiteLLM.call = saved_methods["litellm_call"]
+    LiteLLM._call_responses = saved_methods["litellm_call_responses"]
+    for name, value in saved_nel.items():
+        if value is not None:
+            setattr(terminus, name, value)
+        elif name in terminus.__dict__:
+            delattr(terminus, name)
     if had_fallback:
         terminus._build_local_fallback_llm_content = fallback_val
     elif "_build_local_fallback_llm_content" in terminus.__dict__:
         delattr(terminus, "_build_local_fallback_llm_content")
+    if had_failed_llm_usage:
+        terminus._apply_failed_llm_usage = failed_llm_usage_val
+    elif "_apply_failed_llm_usage" in terminus.__dict__:
+        delattr(terminus, "_apply_failed_llm_usage")
+    if had_failed_llm_saver:
+        terminus._save_failed_llm_response = failed_llm_saver_val
+    elif "_save_failed_llm_response" in terminus.__dict__:
+        delattr(terminus, "_save_failed_llm_response")
+    if had_failed_llm_appender:
+        terminus._append_pending_failed_llm_response_steps = failed_llm_appender_val
+    elif "_append_pending_failed_llm_response_steps" in terminus.__dict__:
+        delattr(terminus, "_append_pending_failed_llm_response_steps")
     if had_records:
         Chat._records_api_token_anchor = records_val
     elif "_records_api_token_anchor" in Chat.__dict__:
         delattr(Chat, "_records_api_token_anchor")
     for name, value in saved_flags.items():
         setattr(harbor, name, value)
+    harbor._TERMINUS_QUERY_LLM_SRC = saved_query_src
+    harbor._TERMINUS_RUN_AGENT_LOOP_SRC = saved_run_loop_src
 
 
 # ── _terminus2_count_total_tokens ────────────────────────────────────────
@@ -235,6 +326,9 @@ class TestPatchCleReset:
         assert harbor._TERMINUS_CLE_RESET_PATCHED is True
         assert terminus._query_llm is not original
         assert hasattr(terminus, "_build_local_fallback_llm_content")
+        assert hasattr(terminus, "_apply_failed_llm_usage")
+        assert hasattr(terminus, "_save_failed_llm_response")
+        assert hasattr(terminus, "_append_pending_failed_llm_response_steps")
 
     def test_idempotent_when_flag_set(self, patch_sandbox):
         terminus = patch_sandbox.terminus
@@ -254,6 +348,34 @@ class TestPatchCleReset:
         patch_sandbox.terminus._query_llm = _diverged_method
         with pytest.raises(RuntimeError, match="diverged"):
             _patch_terminus_cle_reset()
+
+    def test_litellm_length_patch_requires_expected_locals_before_mutating(self, patch_sandbox):
+        from harbor.llms.lite_llm import LiteLLM
+
+        LiteLLM.call = _litellm_call_length_anchor_missing_locals
+        original_responses = LiteLLM._call_responses
+        original_query = patch_sandbox.terminus._query_llm
+        with pytest.raises(RuntimeError, match="required source pattern"):
+            _patch_terminus_cle_reset()
+
+        assert LiteLLM.call is _litellm_call_length_anchor_missing_locals
+        assert LiteLLM._call_responses is original_responses
+        assert patch_sandbox.terminus._query_llm is original_query
+        assert "_apply_failed_llm_usage" not in patch_sandbox.terminus.__dict__
+
+    def test_responses_length_patch_requires_expected_locals_before_mutating(self, patch_sandbox):
+        from harbor.llms.lite_llm import LiteLLM
+
+        original_call = LiteLLM.call
+        original_query = patch_sandbox.terminus._query_llm
+        LiteLLM._call_responses = _responses_api_length_anchor_missing_locals
+        with pytest.raises(RuntimeError, match="required source pattern"):
+            _patch_terminus_cle_reset()
+
+        assert LiteLLM.call is original_call
+        assert LiteLLM._call_responses is _responses_api_length_anchor_missing_locals
+        assert patch_sandbox.terminus._query_llm is original_query
+        assert "_apply_failed_llm_usage" not in patch_sandbox.terminus.__dict__
 
 
 # ── _patch_terminus_unwind_min_pairs ─────────────────────────────────────
@@ -411,6 +533,495 @@ class TestPatchApiTokenAnchor:
             _patch_terminus_api_token_anchor()
 
 
+# ── failed LLM response accounting ───────────────────────────────────────
+
+
+class _FakeLiteLLMChoice(dict):
+    def __init__(self, data, token_ids):
+        super().__init__(data)
+        self.provider_specific_fields = {"token_ids": token_ids}
+
+
+class _FakeLiteLLMResponse(dict):
+    def __init__(
+        self,
+        *,
+        content,
+        finish_reason,
+        prompt_tokens,
+        completion_tokens,
+        model,
+        reasoning,
+        reasoning_content=None,
+    ):
+        message = {"content": content, "reasoning": reasoning}
+        if reasoning_content is not None:
+            message["reasoning_content"] = reasoning_content
+        choice = _FakeLiteLLMChoice(
+            {
+                "message": message,
+                "finish_reason": finish_reason,
+                "logprobs": {"content": [{"logprob": -0.1}] * completion_tokens},
+            },
+            list(range(completion_tokens)),
+        )
+        super().__init__({"model": model, "choices": [choice]})
+        self.prompt_token_ids = list(range(prompt_tokens))
+        self.usage = SimpleNamespace(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            prompt_tokens_details=SimpleNamespace(cached_tokens=0),
+        )
+        self._hidden_params = {"response_cost": 0.0}
+
+
+class _FakeResponsesAPIResponse:
+    def __init__(self):
+        self.status = "incomplete"
+        self.incomplete_details = SimpleNamespace(reason="max_output_tokens")
+        self.model = "responses-model"
+        self.id = "resp-1"
+        self.usage = SimpleNamespace(input_tokens=13, output_tokens=5)
+        self.output = [
+            SimpleNamespace(
+                type="message",
+                content=[SimpleNamespace(type="output_text", text="TRUNCATED_RESPONSES_OUTPUT")],
+            )
+        ]
+        self._hidden_params = {"response_cost": 0.0}
+
+
+class _FakeLengthChat:
+    def __init__(self, error):
+        self._error = error
+        self._messages = []
+        self._cumulative_input_tokens = 0
+        self._cumulative_output_tokens = 0
+        self._cumulative_cache_tokens = 0
+        self._cumulative_cost = 0.0
+
+    @property
+    def messages(self):
+        return self._messages
+
+    @property
+    def total_input_tokens(self):
+        return self._cumulative_input_tokens
+
+    @property
+    def total_output_tokens(self):
+        return self._cumulative_output_tokens
+
+    @property
+    def total_cache_tokens(self):
+        return self._cumulative_cache_tokens
+
+    @property
+    def total_cost(self):
+        return self._cumulative_cost
+
+    async def chat(self, *_args, **_kwargs):
+        raise self._error
+
+    def reset_response_chain(self):
+        pass
+
+
+class TestPatchFailedLLMResponseAccounting:
+    async def test_chat_completion_length_error_keeps_usage_model_and_reasoning(self, patch_sandbox, monkeypatch):
+        import litellm
+        from harbor.llms.base import OutputLengthExceededError
+        from harbor.llms.lite_llm import LiteLLM
+
+        _patch_terminus_cle_reset()
+
+        async def fake_acompletion(**_kwargs):
+            return _FakeLiteLLMResponse(
+                content="TRUNCATED_OUTPUT",
+                finish_reason="length",
+                prompt_tokens=23,
+                completion_tokens=9,
+                model="wire-model",
+                reasoning="fallback-reasoning",
+                reasoning_content="preferred-reasoning",
+            )
+
+        monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+
+        llm = LiteLLM(
+            model_name="openai/nano-v3.5",
+            api_base="http://model.test",
+            api_key="test-key",
+        )
+        with pytest.raises(OutputLengthExceededError) as excinfo:
+            await llm.call("prompt")
+
+        error = excinfo.value
+        assert error.truncated_response == "TRUNCATED_OUTPUT"
+        assert error.llm_model_name == "wire-model"
+        assert error.llm_reasoning_content == "preferred-reasoning"
+        assert error.llm_usage.prompt_tokens == 23
+        assert error.llm_usage.completion_tokens == 9
+
+    async def test_chat_completion_length_error_uses_reasoning_fallback(self, patch_sandbox, monkeypatch):
+        import litellm
+        from harbor.llms.base import OutputLengthExceededError
+        from harbor.llms.lite_llm import LiteLLM
+
+        _patch_terminus_cle_reset()
+
+        async def fake_acompletion(**_kwargs):
+            return _FakeLiteLLMResponse(
+                content="TRUNCATED_OUTPUT",
+                finish_reason="length",
+                prompt_tokens=5,
+                completion_tokens=4,
+                model="wire-model",
+                reasoning="fallback-reasoning",
+            )
+
+        monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+
+        llm = LiteLLM(
+            model_name="openai/nano-v3.5",
+            api_base="http://model.test",
+            api_key="test-key",
+        )
+        with pytest.raises(OutputLengthExceededError) as excinfo:
+            await llm.call("prompt")
+
+        assert excinfo.value.llm_reasoning_content == "fallback-reasoning"
+
+    async def test_responses_api_length_error_keeps_usage_details(self, patch_sandbox, monkeypatch):
+        import litellm
+        from harbor.llms.base import OutputLengthExceededError
+        from harbor.llms.lite_llm import LiteLLM
+
+        _patch_terminus_cle_reset()
+
+        async def fake_aresponses(**_kwargs):
+            return _FakeResponsesAPIResponse()
+
+        monkeypatch.setattr(litellm, "aresponses", fake_aresponses)
+
+        llm = LiteLLM(
+            model_name="openai/nano-v3.5",
+            api_base="http://model.test",
+            api_key="test-key",
+            use_responses_api=True,
+        )
+        with pytest.raises(OutputLengthExceededError) as excinfo:
+            await llm._call_responses("prompt")
+
+        error = excinfo.value
+        assert error.truncated_response == "TRUNCATED_RESPONSES_OUTPUT"
+        assert error.llm_model_name == "responses-model"
+        assert error.llm_reasoning_content is None
+        assert error.llm_usage.prompt_tokens == 13
+        assert error.llm_usage.completion_tokens == 5
+
+    async def test_responses_api_length_error_keeps_details_via_call(self, patch_sandbox, monkeypatch):
+        import litellm
+        from harbor.llms.base import OutputLengthExceededError
+        from harbor.llms.lite_llm import LiteLLM
+
+        _patch_terminus_cle_reset()
+
+        async def fake_aresponses(**kwargs):
+            assert kwargs["input"] == [{"role": "user", "content": "prompt"}]
+            return _FakeResponsesAPIResponse()
+
+        monkeypatch.setattr(litellm, "aresponses", fake_aresponses)
+
+        llm = LiteLLM(
+            model_name="openai/nano-v3.5",
+            api_base="http://model.test",
+            api_key="test-key",
+            use_responses_api=True,
+        )
+        with pytest.raises(OutputLengthExceededError) as excinfo:
+            await llm.call("prompt")
+
+        assert excinfo.value.truncated_response == "TRUNCATED_RESPONSES_OUTPUT"
+        assert excinfo.value.llm_model_name == "responses-model"
+        assert excinfo.value.llm_usage.prompt_tokens == 13
+        assert excinfo.value.llm_usage.completion_tokens == 5
+
+    async def test_salvaged_length_response_counts_usage_without_failed_step(self, patch_sandbox, tmp_path):
+        from harbor.agents.terminus_2 import terminus_2
+        from harbor.llms.base import OutputLengthExceededError
+        from harbor.models.metric.usage_info import UsageInfo
+
+        _patch_terminus_cle_reset()
+
+        salvaged = (
+            "<response><analysis>a</analysis><plan>p</plan><commands></commands>"
+            "<task_complete>false</task_complete></response>"
+        )
+        error = OutputLengthExceededError("length", truncated_response=salvaged + " trailing tokens")
+        error.llm_usage = UsageInfo(prompt_tokens=19, completion_tokens=7, cache_tokens=3, cost_usd=0.25)
+
+        chat = _FakeLengthChat(error)
+        agent = terminus_2.Terminus2(
+            tmp_path,
+            model_name="openai/nano-v3.5",
+            parser_name="xml",
+            max_turns=1,
+            api_base="http://model.test",
+            suppress_max_turns_warning=True,
+        )
+        agent._parser = SimpleNamespace(salvage_truncated_response=lambda _content: (salvaged, False))
+
+        result = await agent._query_llm(chat, "prompt", (None, None, None))
+
+        assert result.content == salvaged
+        assert result.model_name == "openai/nano-v3.5"
+        assert chat.total_input_tokens == 19
+        assert chat.total_output_tokens == 7
+        assert chat.total_cache_tokens == 3
+        assert chat.total_cost == 0.25
+        assert chat._api_token_anchor == (0, 26)
+        assert getattr(agent, "_pending_failed_llm_response_steps", []) == []
+
+    async def test_salvaged_length_response_is_recorded_as_normal_step(self, patch_sandbox, monkeypatch, tmp_path):
+        import litellm
+        from harbor.agents.terminus_2 import terminus_2
+        from harbor.llms.chat import Chat
+        from harbor.models.trajectories import Step
+
+        _patch_terminus_cle_reset()
+
+        salvaged = (
+            "<response>\n"
+            "<analysis>salvaged analysis</analysis>\n"
+            "<plan>salvaged plan</plan>\n"
+            "<commands>\n"
+            "</commands>\n"
+            "<task_complete>false</task_complete>\n"
+            "</response>"
+        )
+
+        async def fake_acompletion(**_kwargs):
+            return _FakeLiteLLMResponse(
+                content=salvaged + "\nTRAILING_TRUNCATED_TEXT",
+                finish_reason="length",
+                prompt_tokens=13,
+                completion_tokens=5,
+                model="wire-model",
+                reasoning="salvaged-reasoning",
+            )
+
+        monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+
+        agent = terminus_2.Terminus2(
+            tmp_path,
+            model_name="openai/nano-v3.5",
+            parser_name="xml",
+            max_turns=1,
+            api_base="http://model.test",
+            collect_rollout_details=True,
+            enable_summarize=False,
+            record_terminal_session=False,
+            suppress_max_turns_warning=True,
+            llm_call_kwargs={"max_tokens": 5},
+        )
+        agent._context = SimpleNamespace(n_input_tokens=None, n_output_tokens=None, n_cache_tokens=None, cost_usd=None)
+        agent._session = SimpleNamespace(is_session_alive=lambda: _return_async(True))
+        agent._trajectory_steps = [Step(step_id=1, source="user", message="initial prompt")]
+        agent._dump_trajectory = lambda: None
+        agent._record_asciinema_marker = lambda *_args, **_kwargs: None
+
+        async def execute_commands(_commands, _session):
+            return False, "observation"
+
+        chat = Chat(agent._llm)
+        agent._execute_commands = execute_commands
+        await agent._run_agent_loop("initial prompt", chat)
+
+        assert [step.source for step in agent._trajectory_steps] == ["user", "agent"]
+        step = agent._trajectory_steps[1]
+        assert step.model_name == "wire-model"
+        assert step.reasoning_content == "salvaged-reasoning"
+        assert step.message == "Analysis: salvaged analysis\nPlan: salvaged plan"
+        assert step.metrics.prompt_tokens == 13
+        assert step.metrics.completion_tokens == 5
+        assert getattr(agent, "_pending_failed_llm_response_steps", []) == []
+
+    async def test_length_response_becomes_ordered_atif_step_without_double_count(
+        self, patch_sandbox, monkeypatch, tmp_path
+    ):
+        import litellm
+        from harbor.agents.terminus_2 import terminus_2
+        from harbor.llms.chat import Chat
+        from harbor.models.trajectories import Agent, FinalMetrics, Step, Trajectory
+
+        from nemo_evaluator.reports.trajectories import generate_trajectories_report
+
+        _patch_terminus_cle_reset()
+
+        wire_rows = []
+
+        async def fake_acompletion(**_kwargs):
+            if not wire_rows:
+                wire_rows.append(
+                    {
+                        "problem_idx": 0,
+                        "repeat": 0,
+                        "session_id": "sess-length-retry",
+                        "status_code": 200,
+                        "finish_reason": "length",
+                        "timestamp": "2026-07-24T00:00:00.000Z",
+                        "model": "wire-model",
+                        "request_hash": "length-call",
+                        "usage": {"prompt_tokens": 7, "completion_tokens": 4, "total_tokens": 11},
+                    }
+                )
+                return _FakeLiteLLMResponse(
+                    content="TRUNCATED_OUTPUT",
+                    finish_reason="length",
+                    prompt_tokens=7,
+                    completion_tokens=4,
+                    model="wire-model",
+                    reasoning="raw-reasoning-field",
+                )
+            wire_rows.append(
+                {
+                    "problem_idx": 0,
+                    "repeat": 0,
+                    "session_id": "sess-length-retry",
+                    "status_code": 200,
+                    "finish_reason": "stop",
+                    "timestamp": "2026-07-24T00:00:01.000Z",
+                    "model": "retry-model",
+                    "request_hash": "retry-call",
+                    "usage": {"prompt_tokens": 6, "completion_tokens": 2, "total_tokens": 8},
+                }
+            )
+            return _FakeLiteLLMResponse(
+                content=json.dumps(
+                    {
+                        "analysis": "retry analysis",
+                        "plan": "retry plan",
+                        "commands": [],
+                        "task_complete": False,
+                    }
+                ),
+                finish_reason="stop",
+                prompt_tokens=6,
+                completion_tokens=2,
+                model="retry-model",
+                reasoning="retry-reasoning",
+            )
+
+        monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+
+        agent = terminus_2.Terminus2(
+            tmp_path,
+            model_name="openai/nano-v3.5",
+            parser_name="json",
+            max_turns=1,
+            api_base="http://model.test",
+            collect_rollout_details=True,
+            enable_summarize=False,
+            record_terminal_session=False,
+            suppress_max_turns_warning=True,
+            llm_call_kwargs={"max_tokens": 4},
+        )
+        agent._context = SimpleNamespace(n_input_tokens=None, n_output_tokens=None, n_cache_tokens=None, cost_usd=None)
+        agent._session = SimpleNamespace(is_session_alive=lambda: _return_async(True))
+        agent._trajectory_steps = [Step(step_id=1, source="user", message="initial prompt")]
+        agent._llm.get_model_output_limit = lambda: 4
+        dumped_step_counts = []
+        agent._dump_trajectory = lambda: dumped_step_counts.append(len(agent._trajectory_steps))
+        agent._record_asciinema_marker = lambda *_args, **_kwargs: None
+
+        async def execute_commands(_commands, _session):
+            return False, "observation"
+
+        agent._execute_commands = execute_commands
+        await agent._run_agent_loop("initial prompt", Chat(agent._llm))
+
+        assert dumped_step_counts == [3]
+        assert [step.source for step in agent._trajectory_steps] == ["user", "agent", "agent"]
+        assert [step.message for step in agent._trajectory_steps] == [
+            "initial prompt",
+            "TRUNCATED_OUTPUT",
+            "Analysis: retry analysis\nPlan: retry plan",
+        ]
+        failed_step, retry_step = agent._trajectory_steps[1:]
+        assert failed_step.reasoning_content == "raw-reasoning-field"
+        assert failed_step.metrics.prompt_tokens + failed_step.metrics.completion_tokens == 11
+        assert retry_step.metrics.prompt_tokens + retry_step.metrics.completion_tokens == 8
+        assert sum(row["usage"]["total_tokens"] for row in wire_rows) == sum(
+            step.metrics.prompt_tokens + step.metrics.completion_tokens for step in agent._trajectory_steps[1:]
+        )
+
+        bench_dir = tmp_path / "pb"
+        bench_dir.mkdir()
+        agent_steps = [step for step in agent._trajectory_steps if step.source == "agent"]
+        prompt_total = sum(step.metrics.prompt_tokens or 0 for step in agent_steps if step.metrics)
+        completion_total = sum(step.metrics.completion_tokens or 0 for step in agent_steps if step.metrics)
+        trajectory = Trajectory(
+            session_id="sess-length-retry",
+            agent=Agent(name="terminus-2", version="test", model_name="openai/nano-v3.5"),
+            steps=agent._trajectory_steps,
+            final_metrics=FinalMetrics(
+                total_prompt_tokens=prompt_total,
+                total_completion_tokens=completion_total,
+                total_steps=len(agent._trajectory_steps),
+            ),
+        )
+        trajectory_row = {
+            "problem_idx": 0,
+            "repeat": 0,
+            "reward": 0.0,
+            "trajectory": [trajectory.model_dump(mode="json", exclude_none=True)],
+        }
+        (bench_dir / "trajectories.jsonl").write_text(json.dumps(trajectory_row) + "\n", encoding="utf-8")
+        (bench_dir / "model_traffic.jsonl").write_text(
+            "".join(json.dumps(row) + "\n" for row in wire_rows),
+            encoding="utf-8",
+        )
+
+        report_path = generate_trajectories_report(tmp_path, enrich=True)
+        report = json.loads(report_path.read_text(encoding="utf-8"))["benchmarks"][0]
+        tokens = report["tokens_stats"]
+        assert tokens["per_step_sum"] == 19
+        assert tokens["wire_total"] == 19
+        assert tokens["wire_total_for_trajectory_comparison"] == 19
+        assert tokens["final_metrics_total"] == 19
+        assert tokens["problems_with_per_step_vs_final_metrics_mismatch"] == 0
+        assert tokens["problems_with_wire_vs_final_metrics_mismatch"] == 0
+        assert tokens["all_sources_match"] is True
+        assert report["wire_calls"]["problems_with_more_wire_than_steps"] == 0
+        assert report["wire_calls"]["problems_with_fewer_wire_than_steps"] == 0
+
+        enriched = json.loads((bench_dir / "trajectories_enriched.jsonl").read_text(encoding="utf-8"))
+        enriched_agent_steps = [step for step in enriched["trajectory"][0]["steps"] if step["source"] == "agent"]
+        assert [step["message"] for step in enriched_agent_steps] == [
+            "TRUNCATED_OUTPUT",
+            "Analysis: retry analysis\nPlan: retry plan",
+        ]
+        assert [step["metrics"]["total_tokens"] for step in enriched_agent_steps] == [11, 8]
+        assert [step["metrics"]["extra"]["finish_reason"] for step in enriched_agent_steps] == ["length", "stop"]
+
+    def test_terminus_run_loop_diverged_source_raises(self, patch_sandbox):
+        from harbor.llms.lite_llm import LiteLLM
+
+        original_call = LiteLLM.call
+        original_responses = LiteLLM._call_responses
+        patch_sandbox.terminus._run_agent_loop = _diverged_method
+        with pytest.raises(RuntimeError, match="diverged"):
+            _patch_terminus_cle_reset()
+        assert LiteLLM.call is original_call
+        assert LiteLLM._call_responses is original_responses
+        assert "_apply_failed_llm_usage" not in patch_sandbox.terminus.__dict__
+
+
+async def _return_async(value):
+    return value
+
+
 # ── HarborSolver._create_agent gating ────────────────────────────────────
 
 
@@ -433,13 +1044,25 @@ class TestCreateAgentGating:
         from unittest.mock import MagicMock, patch
 
         solver = self._solver("terminus-2")
-        cle, unwind, anchor, ctxlim = MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        cle, unwind, anchor, ctxlim, compaction, turn_marker = (
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+        )
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_cle_reset", cle)
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_unwind_min_pairs", unwind)
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_api_token_anchor", anchor)
         monkeypatch.setattr(
             "nemo_evaluator.solvers.harbor._patch_harbor_lite_llm_context_length_matcher",
             ctxlim,
+        )
+        monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_compaction_logging", compaction)
+        monkeypatch.setattr(
+            "nemo_evaluator.solvers.harbor._patch_terminus_compaction_turn_marker",
+            turn_marker,
         )
 
         sentinel = object()
@@ -451,18 +1074,32 @@ class TestCreateAgentGating:
         unwind.assert_called_once()
         anchor.assert_called_once()
         ctxlim.assert_called_once()
+        compaction.assert_called_once()
+        turn_marker.assert_called_once()
 
     def test_non_terminus_agent_skips_patches(self, tmp_path, monkeypatch):
         from unittest.mock import MagicMock, patch
 
         solver = self._solver("openhands")
-        cle, unwind, anchor, ctxlim = MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        cle, unwind, anchor, ctxlim, compaction, turn_marker = (
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+        )
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_cle_reset", cle)
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_unwind_min_pairs", unwind)
         monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_api_token_anchor", anchor)
         monkeypatch.setattr(
             "nemo_evaluator.solvers.harbor._patch_harbor_lite_llm_context_length_matcher",
             ctxlim,
+        )
+        monkeypatch.setattr("nemo_evaluator.solvers.harbor._patch_terminus_compaction_logging", compaction)
+        monkeypatch.setattr(
+            "nemo_evaluator.solvers.harbor._patch_terminus_compaction_turn_marker",
+            turn_marker,
         )
 
         with patch("harbor.agents.factory.AgentFactory.create_agent_from_name", return_value=object()):
@@ -472,6 +1109,8 @@ class TestCreateAgentGating:
         unwind.assert_not_called()
         anchor.assert_not_called()
         ctxlim.assert_not_called()
+        compaction.assert_not_called()
+        turn_marker.assert_not_called()
 
 
 # ── _patch_harbor_lite_llm_context_length_matcher ────────────────────────
@@ -625,3 +1264,266 @@ class TestHarborLiteLLMContextLengthMatcher:
             result = instance._is_context_length_error(err)
         assert result is False
         assert not any("stable ctx-overflow marker" in rec.getMessage() for rec in caplog.records)
+
+
+# ── _patch_terminus_compaction_logging ───────────────────────────────────
+
+
+class TestPatchCompactionLogging:
+    def test_apply_patches_run_loop_and_query_llm(self, patch_sandbox):
+        terminus = patch_sandbox.terminus
+        _patch_terminus_cle_reset()
+        _patch_terminus_unwind_min_pairs()
+        _patch_terminus_compaction_logging()
+        assert harbor._TERMINUS_COMPACTION_PATCHED is True
+        assert harbor._TERMINUS_QUERY_LLM_SRC is not None
+        assert "_nel_set_cle_pending_compaction" in harbor._TERMINUS_QUERY_LLM_SRC
+        assert hasattr(terminus, "_nel_flush_pending_compaction")
+
+    def test_flush_appends_compaction_step_without_handoff_user_step(self, patch_sandbox, tmp_path):
+        import json
+
+        from nemo_evaluator.solvers.compaction_logging import CompactionTokens
+
+        _patch_terminus_compaction_logging()
+        terminus = patch_sandbox.terminus
+        agent = terminus(
+            logs_dir=tmp_path,
+            model_name="test-model",
+            model_info={"max_input_tokens": 1000, "max_output_tokens": 1000},
+        )
+        agent._trajectory_steps = []
+        agent._linear_history = False
+        agent._summarization_count = 1
+        agent._pending_handoff_prompt = "handoff"
+        agent._nel_stashed_tokens_before = CompactionTokens(
+            prompt_tokens_approx=190_000,
+            context_limit=200_000,
+            free_tokens=10_000,
+        )
+        agent._nel_stashed_tokens_after = CompactionTokens(
+            prompt_tokens_approx=8_000,
+            context_limit=200_000,
+            free_tokens=192_000,
+        )
+        agent._nel_stashed_tokens_intermediate = None
+        agent._nel_pending_compaction = None
+        chat = SimpleNamespace(
+            messages=[
+                {"role": "system", "content": "system prompt"},
+                {"role": "user", "content": "question prompt"},
+                {"role": "assistant", "content": "model questions"},
+            ]
+        )
+        from nemo_evaluator.solvers.harbor import _terminus2_nel_set_proactive_pending_compaction
+
+        _terminus2_nel_set_proactive_pending_compaction(agent, chat, "handoff", None)
+        _terminus2_nel_flush_pending_compaction(agent, chat)
+        assert len(agent._trajectory_steps) == 1
+        step = agent._trajectory_steps[0]
+        assert step.source == "system"
+        assert step.extra is not None
+        assert step.extra["context_management"]["type"] == "compaction"
+        assert step.extra["compaction"]["llm_call_count"] == 3
+        content = json.loads(step.observation.results[0].content)
+        assert content == [
+            {"role": "system", "content": "system prompt"},
+            {"role": "user", "content": "question prompt"},
+            {"role": "assistant", "content": "model questions"},
+            {"role": "user", "content": "handoff"},
+        ]
+        assert agent._pending_handoff_prompt is None
+
+    def test_cle_fallback_does_not_mutate_summarization_count(self, patch_sandbox, tmp_path):
+        """Regression: NEL owns its own compaction counter and must not touch
+        Terminus's ``_summarization_count`` (which drives linear_history
+        continuation file naming). ``_summarize`` bumps that counter before it
+        can fail, so on the CLE short/ultimate fallback NEL previously
+        double-incremented it and corrupted the continuation chain."""
+        from nemo_evaluator.solvers.compaction_logging import CompactionTokens
+        from nemo_evaluator.solvers.harbor import _terminus2_nel_set_cle_pending_compaction
+
+        _patch_terminus_compaction_logging()
+        terminus = patch_sandbox.terminus
+        agent = terminus(
+            logs_dir=tmp_path,
+            model_name="test-model",
+            model_info={"max_input_tokens": 1000, "max_output_tokens": 1000},
+        )
+        agent._trajectory_steps = []
+        agent._linear_history = False
+        chat = SimpleNamespace(messages=[{"role": "system", "content": "s"}])
+
+        def _snap():
+            return CompactionTokens(prompt_tokens_approx=8_000, context_limit=200_000, free_tokens=192_000)
+
+        agent._summarization_count = 5
+
+        for expected_index in (1, 2):
+            _terminus2_nel_set_cle_pending_compaction(
+                agent,
+                chat,
+                "handoff",
+                "terminus_short_fallback",
+                [],
+                None,
+                _snap(),
+                _snap(),
+                None,
+                None,
+            )
+            assert agent._nel_pending_compaction.compaction_index == expected_index
+
+        assert agent._summarization_count == 5
+
+    def test_idempotent_when_marker_present(self, patch_sandbox):
+        terminus = patch_sandbox.terminus
+
+        async def _run_agent_loop_with_marker(self, *args, **kwargs):
+            self._nel_flush_pending_compaction(None)
+
+        terminus._run_agent_loop = _run_agent_loop_with_marker
+        original = terminus._run_agent_loop
+        _patch_terminus_compaction_logging()
+        assert harbor._TERMINUS_COMPACTION_PATCHED is True
+        assert terminus._run_agent_loop is original
+
+
+class TestPatchTerminusCompactionTurnMarker:
+    def test_marks_summarize_subagent_calls_not_generic_subagent(self, patch_sandbox):
+        terminus = patch_sandbox.terminus
+        _patch_terminus_compaction_logging()
+        _patch_terminus_compaction_turn_marker()
+        assert harbor._TERMINUS_COMPACTION_TURN_MARKER_PATCHED is True
+        assert hasattr(terminus, "_nel_compaction_llm_call_kwargs")
+        assert harbor._TERMINUS_QUERY_LLM_SRC is not None
+        assert "_nel_compaction_llm_call_kwargs()" in harbor._TERMINUS_QUERY_LLM_SRC
+        summarize_src = terminus._summarize.__code__.co_consts
+        assert (
+            any(isinstance(c, str) and "_nel_compaction_llm_call_kwargs" in c for c in summarize_src)
+            or "_nel_compaction_llm_call_kwargs" in terminus._summarize.__code__.co_names
+        )
+        assert "llm_call_kwargs" in terminus._run_subagent.__code__.co_varnames
+
+    def test_idempotent(self, patch_sandbox):
+        terminus = patch_sandbox.terminus
+        _patch_terminus_compaction_logging()
+        _patch_terminus_compaction_turn_marker()
+        first_subagent = terminus._run_subagent
+        first_summarize = terminus._summarize
+        _patch_terminus_compaction_turn_marker()
+        assert terminus._run_subagent is first_subagent
+        assert terminus._summarize is first_summarize
+
+    def test_compaction_kwargs_carry_header_default_subagent_does_not(self, patch_sandbox, tmp_path):
+        from nemo_evaluator.adapters.call_kind import NEL_CALL_KIND_COMPACTION, NEL_CALL_KIND_HEADER
+
+        terminus = patch_sandbox.terminus
+        _patch_terminus_compaction_logging()
+        _patch_terminus_compaction_turn_marker()
+        agent = terminus(
+            logs_dir=tmp_path,
+            model_name="test-model",
+            model_info={"max_input_tokens": 1000, "max_output_tokens": 1000},
+        )
+        agent._llm_call_kwargs = {"temperature": 0.2}
+        marked = agent._nel_compaction_llm_call_kwargs()
+        assert marked["extra_headers"][NEL_CALL_KIND_HEADER] == NEL_CALL_KIND_COMPACTION
+        assert agent._llm_call_kwargs == {"temperature": 0.2}
+        assert "extra_headers" not in agent._llm_call_kwargs
+
+
+# ── _terminus2_nel_dump_trajectory_with_continuation_index ───────────────
+
+
+def _make_agent_for_dump(terminus_cls, tmp_path, *, linear_history=False, summarization_count=0):
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    from harbor.models.trajectories.step import Step
+
+    agent = terminus_cls(
+        logs_dir=tmp_path,
+        model_name="test-model",
+        model_info={"max_input_tokens": 1000, "max_output_tokens": 1000},
+    )
+    agent._trajectory_steps = [
+        Step(
+            step_id=1,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            source="user",
+            message="start",
+        )
+    ]
+    agent._linear_history = linear_history
+    agent._summarization_count = summarization_count
+    agent._session_id = "test-session"
+    agent._parser_name = "default"
+    agent._temperature = 0.0
+    agent._llm_kwargs = {}
+    agent._context = SimpleNamespace(
+        n_input_tokens=100,
+        n_output_tokens=50,
+        n_cache_tokens=0,
+        cost_usd=0.01,
+    )
+    return agent
+
+
+class TestDumpTrajectoryWithContinuationIndex:
+    def test_no_context_skips_write(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = terminus(
+            logs_dir=tmp_path,
+            model_name="test-model",
+            model_info={"max_input_tokens": 1000, "max_output_tokens": 1000},
+        )
+        agent._context = None
+        agent._trajectory_steps = []
+        agent._linear_history = False
+        agent._summarization_count = 0
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 0)
+        assert not (tmp_path / "trajectory.json").exists()
+
+    def test_non_linear_writes_trajectory_json(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = _make_agent_for_dump(terminus, tmp_path, linear_history=False)
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 0)
+        traj_path = tmp_path / "trajectory.json"
+        assert traj_path.exists()
+        data = json.loads(traj_path.read_text())
+        assert data["session_id"] == "test-session"
+        # Non-linear should not set continuation_index in agent extra
+        assert "continuation_index" not in (data.get("agent") or {}).get("extra", {})
+
+    def test_linear_continuation_index_gt_0_writes_cont_file(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = _make_agent_for_dump(terminus, tmp_path, linear_history=True, summarization_count=2)
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 1)
+        cont_path = tmp_path / "trajectory.cont-1.json"
+        assert cont_path.exists()
+        data = json.loads(cont_path.read_text())
+        assert data["agent"]["extra"]["continuation_index"] == 1
+
+    def test_linear_points_to_next_continuation_when_not_last(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = _make_agent_for_dump(terminus, tmp_path, linear_history=True, summarization_count=3)
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 1)
+        data = json.loads((tmp_path / "trajectory.cont-1.json").read_text())
+        assert data.get("continued_trajectory_ref") == "trajectory.cont-2.json"
+
+    def test_linear_last_segment_has_no_continued_ref(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = _make_agent_for_dump(terminus, tmp_path, linear_history=True, summarization_count=2)
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 2)
+        data = json.loads((tmp_path / "trajectory.cont-2.json").read_text())
+        assert not data.get("continued_trajectory_ref")
+
+    def test_root_in_linear_chain_points_to_first_continuation(self, patch_sandbox, tmp_path):
+        terminus = patch_sandbox.terminus
+        agent = _make_agent_for_dump(terminus, tmp_path, linear_history=True, summarization_count=1)
+        _terminus2_nel_dump_trajectory_with_continuation_index(agent, 0)
+        data = json.loads((tmp_path / "trajectory.json").read_text())
+        assert data.get("continued_trajectory_ref") == "trajectory.cont-1.json"
+        # Root segment with index=0 must NOT carry continuation_index in agent extra
+        assert "continuation_index" not in data["agent"]["extra"]

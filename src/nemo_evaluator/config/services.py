@@ -74,7 +74,8 @@ class ModelTrafficCaptureConfig(BaseModel):
     capture_tool_calls: bool = True  # full {id, name, arguments} per call
     capture_reasoning: bool = True  # message.reasoning_content (or SSE delta)
     capture_messages: bool = True  # message.content
-    max_content_chars: int = 100_000  # truncation guard for the three above
+    capture_request_body: bool = False  # effective upstream HTTP request body
+    max_content_chars: int = 0  # truncation guard for captured bodies/content; 0 = no limit
 
 
 class ProxyConfig(BaseModel):
