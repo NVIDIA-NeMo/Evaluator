@@ -90,6 +90,7 @@ packages = ["src/nemo_evaluator"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "harbor_datasets/registry_overrides" = "nemo_evaluator/_registry_overrides"
+"harbor_datasets/task_overlays" = "nemo_evaluator/_task_overlays"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

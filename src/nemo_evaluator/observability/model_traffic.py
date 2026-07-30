@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import tempfile
 import threading
 import time
 import uuid
 from collections import Counter
+from contextlib import suppress
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterator
 
 
@@ -99,14 +103,16 @@ def _usage(raw: Any) -> dict[str, int]:
     if total is None and prompt is not None and completion is not None:
         total = prompt + completion
 
-    out: dict[str, int] = {}
-    for key, value in {
+    values = {
         "prompt_tokens": prompt,
         "completion_tokens": completion,
         "total_tokens": total,
         "reasoning_tokens": reasoning,
         "cached_tokens": cached,
-    }.items():
+    }
+    out: dict[str, int] = {}
+    for key in _USAGE_KEYS:
+        value = values[key]
         if value is not None:
             out[key] = value
     return out
@@ -133,6 +139,16 @@ def _truncate(value: Any, limit: int) -> Any:
     return value
 
 
+def _capture_request_body_value(body: Any, max_content_chars: int) -> Any | None:
+    if not isinstance(body, dict):
+        return None
+    try:
+        serialized = json.dumps(body, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        return None
+    return _truncate(serialized, max_content_chars)
+
+
 def _first_str(data: dict[str, Any], *keys: str) -> str:
     for key in keys:
         value = data.get(key)
@@ -143,7 +159,7 @@ def _first_str(data: dict[str, Any], *keys: str) -> str:
 
 def _error_summary(body: Any, max_content_chars: int) -> dict[str, Any]:
     """Return a compact, non-request error summary for non-success responses."""
-    limit = min(max_content_chars, _ERROR_SUMMARY_CHARS)
+    limit = _ERROR_SUMMARY_CHARS if max_content_chars <= 0 else min(max_content_chars, _ERROR_SUMMARY_CHARS)
     out: dict[str, Any] = {}
 
     if isinstance(body, dict):
@@ -366,6 +382,150 @@ def _is_success(record: dict[str, Any]) -> bool:
     return 200 <= _int(record.get("status_code")) < 400
 
 
+class DrainedSessionError(RuntimeError):
+    """A DrainedModelTrafficSession was accessed after being consumed or interrupted."""
+
+
+class DrainedModelTrafficSession:
+    """Disk-backed drained traffic records for one Adapter session.
+
+    A file-backed session may be streamed only once: iterating (or loading) it
+    consumes and deletes the spool file. Any later access raises DrainedSessionError
+    rather than silently returning empty or partial data. Truth-testing stays honest
+    after consumption ("did the session have records?"), so a stale ``if session:``
+    guard falls through to ``__iter__``, which raises.
+    """
+
+    def __init__(self, path: Path | None) -> None:
+        self._path = path
+        self._loaded_records: list[dict[str, Any]] | None = None
+        self._model_calls = 0
+        self._usage: dict[str, int] = {}
+        self._tool_count = 0
+        self._tool_names: Counter[str] = Counter()
+        self._stats_complete = False
+        self._iter_started = False
+        self._broken = False
+
+    def __bool__(self) -> bool:
+        if self._loaded_records is not None:
+            return bool(self._loaded_records)
+        if self._path is not None and self._path.exists():
+            return True
+        # The spool file is gone: answer from completed stats if we have them
+        # (a consumed session keeps reading truthy so guarded reuse reaches
+        # __iter__ and fails loud there), otherwise surface the interruption.
+        if self._stats_complete:
+            return self._model_calls > 0
+        self._ensure_readable()
+        return False
+
+    def __iter__(self) -> Iterator[dict[str, Any]]:
+        # Lazy so a caller-triggered materialization (e.g. list()/len() consulting
+        # __len__ for a length hint) is observed here before we fall back to streaming.
+        if self._loaded_records is not None:
+            yield from self._loaded_records
+            if not self._stats_complete:
+                self._compute_stats_from_records(self._loaded_records)
+            return
+        self._ensure_readable()
+        yield from self._iter_file()
+
+    def __len__(self) -> int:
+        self._load()
+        return len(self._loaded_records or [])
+
+    def __getitem__(self, index: int) -> dict[str, Any]:
+        self._load()
+        return (self._loaded_records or [])[index]
+
+    def __del__(self) -> None:
+        self.discard()
+
+    def _ensure_readable(self) -> None:
+        if self._loaded_records is not None:
+            return
+        if self._broken:
+            raise DrainedSessionError("drained traffic session iteration was interrupted")
+        if self._iter_started:
+            raise DrainedSessionError("drained traffic session was already consumed and released")
+
+    def _load(self) -> None:
+        if self._loaded_records is not None:
+            return
+        self._ensure_readable()
+        self._loaded_records = list(self._iter_file())
+
+    def _iter_file(self) -> Iterator[dict[str, Any]]:
+        path = self._path
+        if path is None:
+            return
+        self._iter_started = True
+        completed = False
+        try:
+            with path.open(encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    record = json.loads(line)
+                    if isinstance(record, dict):
+                        yield record
+                        self._add_stats(record)
+            self._stats_complete = True
+            completed = True
+        finally:
+            if not completed:
+                self._broken = True
+            self.discard()
+
+    def _add_stats(self, record: dict[str, Any]) -> None:
+        self._model_calls += 1
+        if not _is_success(record):
+            return
+        for key, value in (record.get("usage") or {}).items():
+            if key in _USAGE_KEYS:
+                self._usage[key] = self._usage.get(key, 0) + _int(value)
+        stats = record.get("tool_calls") or {}
+        self._tool_count += _int(stats.get("count"))
+        self._tool_names.update(stats.get("names") or {})
+
+    def _compute_stats_from_records(self, records: list[dict[str, Any]]) -> None:
+        self._model_calls = 0
+        self._usage = {}
+        self._tool_count = 0
+        self._tool_names = Counter()
+        for record in records:
+            self._add_stats(record)
+        self._stats_complete = True
+
+    def model_stats(self) -> dict[str, Any] | None:
+        if not self._stats_complete:
+            if self._loaded_records is not None:
+                self._compute_stats_from_records(self._loaded_records)
+            else:
+                self._ensure_readable()
+                for _ in self._iter_file():
+                    pass
+        if self._model_calls == 0:
+            return None
+        usage = dict(self._usage)
+        if usage:
+            usage["token_provenance"] = _PROVIDER
+        return {
+            "usage": usage,
+            "tool_calls": {"count": self._tool_count, "names": dict(sorted(self._tool_names.items()))},
+            "model_calls": self._model_calls,
+        }
+
+    def discard(self) -> None:
+        path = self._path
+        self._path = None
+        if path is not None:
+            with suppress(OSError):
+                path.unlink(missing_ok=True)
+
+
 class ModelTrafficStore:
     def __init__(
         self,
@@ -374,14 +534,24 @@ class ModelTrafficStore:
         capture_tool_calls: bool = True,
         capture_reasoning: bool = True,
         capture_messages: bool = True,
-        max_content_chars: int = 100_000,
+        capture_request_body: bool = False,
+        max_content_chars: int = 0,
+        spool_dir: str | Path | None = None,
     ) -> None:
         self.store_id = uuid.uuid4().hex
         self.service_name = service_name
         self._lock = threading.Lock()
         self._pending: dict[str, dict[str, Any]] = {}
-        self._records_by_session: dict[str, list[dict[str, Any]]] = {}
-        # Capture options for extra response fields persisted to model_traffic.jsonl.
+        if spool_dir is None:
+            self._spool_tmp = tempfile.TemporaryDirectory(prefix="nemo-evaluator-model-traffic-")
+            spool_dir = self._spool_tmp.name
+        else:
+            self._spool_tmp = None
+            spool_dir = Path(spool_dir) / self.store_id
+        self._spool_dir = Path(spool_dir)
+        self._spool_dir.mkdir(parents=True, mode=0o700, exist_ok=True)
+        os.chmod(self._spool_dir, 0o700)
+        self._capture_request_body = capture_request_body
         self._capture_opts = {
             "capture_tool_calls": capture_tool_calls,
             "capture_reasoning": capture_reasoning,
@@ -391,6 +561,24 @@ class ModelTrafficStore:
 
     def close(self) -> None:
         unregister_store(self.store_id)
+        if self._spool_tmp is not None:
+            self._spool_tmp.cleanup()
+            self._spool_tmp = None
+
+    def _session_path(self, session_id: str) -> Path:
+        digest = hashlib.sha256(session_id.encode("utf-8")).hexdigest()
+        return self._spool_dir / f"{digest}.jsonl"
+
+    def _append_record(self, record: dict[str, Any]) -> None:
+        session_id = record.get("session_id")
+        if not session_id:
+            return
+        line = json.dumps(record, default=str)
+        path = self._session_path(str(session_id))
+        with self._lock:
+            fd = os.open(path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+            with os.fdopen(fd, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
 
     def start_request(self, req: AdapterRequest) -> None:
         body = req.ctx.extra.get("upstream_request_body") or req.body
@@ -407,6 +595,10 @@ class ModelTrafficStore:
             # exactly, instead of fingerprinting on response stats.
             "request_hash": _request_hash(body),
         }
+        if self._capture_request_body:
+            captured = _capture_request_body_value(body, self._capture_opts["max_content_chars"])
+            if captured is not None:
+                record["request_body"] = captured
         with self._lock:
             self._pending[req.ctx.request_id] = record
 
@@ -439,10 +631,7 @@ class ModelTrafficStore:
             for key in ("tool_calls_full", "reasoning_content", "message_content"):
                 if key in summary:
                     record[key] = summary[key]
-        session_id = record.get("session_id")
-        if session_id:
-            with self._lock:
-                self._records_by_session.setdefault(str(session_id), []).append(record)
+        self._append_record(record)
 
     def finish_error(self, req: AdapterRequest, *, latency_ms: float, error_type: str) -> None:
         with self._lock:
@@ -468,16 +657,18 @@ class ModelTrafficStore:
                 "error_type": error_type,
             }
         )
-        session_id = record.get("session_id")
-        if session_id:
-            with self._lock:
-                self._records_by_session.setdefault(str(session_id), []).append(record)
+        self._append_record(record)
 
-    def drain_session(self, session_id: str | None) -> list[dict[str, Any]]:
+    def drain_session(self, session_id: str | None) -> DrainedModelTrafficSession:
         if not session_id:
-            return []
+            return DrainedModelTrafficSession(None)
+        path = self._session_path(session_id)
+        drain_path = path.with_suffix(f".{uuid.uuid4().hex}.drain")
         with self._lock:
-            return self._records_by_session.pop(session_id, [])
+            if not path.exists():
+                return DrainedModelTrafficSession(None)
+            path.replace(drain_path)
+        return DrainedModelTrafficSession(drain_path)
 
 
 def _successful(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -503,7 +694,9 @@ def _aggregate_tool_stats(records: list[dict[str, Any]]) -> dict[str, Any]:
     return {"count": total, "names": dict(sorted(names.items()))}
 
 
-def aggregate_model_traffic_stats(records: list[dict[str, Any]]) -> dict[str, Any] | None:
+def aggregate_model_traffic_stats(records: list[dict[str, Any]] | DrainedModelTrafficSession) -> dict[str, Any] | None:
+    if isinstance(records, DrainedModelTrafficSession):
+        return records.model_stats()
     if not records:
         return None
     return {

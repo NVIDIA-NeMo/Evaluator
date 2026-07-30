@@ -42,3 +42,17 @@ def local_registry_override_dir() -> Path:
     if in_package.is_dir():
         return in_package
     return REPO_ROOT / "harbor_datasets" / "registry_overrides"
+
+
+def local_task_overlay_dir() -> Path:
+    """Harbor task-overlays directory.
+
+    Same wheel-vs-editable resolution as
+    :func:`local_registry_override_dir`: built wheels force-include the
+    overlay tree as ``nemo_evaluator/_task_overlays``; editable installs
+    read the repo-root copy.
+    """
+    in_package = Path(__file__).parent / "_task_overlays"
+    if in_package.is_dir():
+        return in_package
+    return REPO_ROOT / "harbor_datasets" / "task_overlays"

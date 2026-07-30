@@ -174,6 +174,86 @@ class TestStatelessSandbox:
         await lc.teardown()
 
     @pytest.mark.asyncio
+    async def test_workspace_presence_check_resolves_efs_session_path(self):
+        """ws_present check resolves the EFS session tar path alongside the default."""
+        ctx, _ = self._make_ctx()
+        transfer = HostVolumeTransfer()
+        lc = StatelessSandbox(ctx, transfer)
+
+        await lc.setup()
+        await lc.get_agent_sandbox()
+        await lc.transition_to_verify("response", solver_modified=False)
+        verify_sb = await lc.get_verify_sandbox()
+
+        ws_check_cmds = [cmd for cmd in verify_sb._exec_log if "_NEL_EFS_SESSION" in cmd and "test -s" in cmd]
+        assert ws_check_cmds, "workspace presence check must include EFS session path resolution"
+        assert "/input/$_NEL_EFS_SESSION/workspace.tar" in ws_check_cmds[0]
+        assert 'test -s "$_NEL_TAR"' in ws_check_cmds[0]
+        await lc.teardown()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("marker", "description"),
+        [
+            ("test -s", "workspace presence check"),
+            ("tar xf", "pre-apply diagnostics"),
+        ],
+        ids=["presence_check", "diagnostics"],
+    )
+    async def test_efs_session_tar_resolved_consistently(self, marker, description):
+        """Both tar consumers resolve the same session path, so they cannot disagree.
+
+        The selection itself happens in the container shell against $_NEL_EFS_SESSION;
+        what is asserted here is that neither command falls back to the bare
+        /input/workspace.tar literal that caused the presence check to report MISSING
+        while a valid session archive existed.
+        """
+        ctx, _ = self._make_ctx(apply_cmd="git apply /input/patch.diff")
+        transfer = HostVolumeTransfer()
+        lc = StatelessSandbox(ctx, transfer)
+
+        await lc.setup()
+        await lc.get_agent_sandbox()
+        await lc.transition_to_verify("response", solver_modified=False)
+        verify_sb = await lc.get_verify_sandbox()
+
+        cmds = [cmd for cmd in verify_sb._exec_log if marker in cmd and "_NEL_TAR=" in cmd]
+        assert cmds, f"{description} must resolve the tar path"
+        cmd = cmds[0]
+        assert '[ -f "/input/$_NEL_EFS_SESSION/workspace.tar" ]' in cmd
+        assert '_NEL_TAR="/input/$_NEL_EFS_SESSION/workspace.tar"' in cmd
+        assert cmd.index("_NEL_EFS_SESSION") < cmd.index(marker), (
+            f"{description} must resolve the session path before using $_NEL_TAR"
+        )
+        await lc.teardown()
+
+    @pytest.mark.asyncio
+    async def test_pre_apply_diagnostics_extract_tar_before_patch_checks(self):
+        """Diagnostics extract workspace.tar into /tmp/_nel_ws before reading the patch."""
+        apply_cmd = "APPLY_MARKER git apply /input/patch.diff"
+        ctx, mgr = self._make_ctx(apply_cmd=apply_cmd)
+        transfer = HostVolumeTransfer()
+        lc = StatelessSandbox(ctx, transfer)
+
+        await lc.setup()
+        await lc.get_agent_sandbox()
+        await lc.transition_to_verify("response", solver_modified=False)
+        verify_sb = await lc.get_verify_sandbox()
+
+        diag_cmds = [cmd for cmd in verify_sb._exec_log if "/tmp/_nel_ws/_nel_patch.diff" in cmd and "tar xf" in cmd]
+        assert diag_cmds, "expected a pre-apply diagnostic command that extracts the tar"
+        diag_cmd = diag_cmds[0]
+        assert 'tar xf "$_NEL_TAR" -C /tmp/_nel_ws' in diag_cmd
+        assert diag_cmd.index("tar xf") < diag_cmd.index("git apply --stat")
+        assert 'tar xf "$_NEL_TAR" -C /tmp/_nel_ws 2>&1' in diag_cmd
+        assert "TAR EXTRACT FAILED" in diag_cmd
+        assert "TAR NOT FOUND" in diag_cmd
+        apply_idx = verify_sb._exec_log.index(apply_cmd)
+        diag_idx = verify_sb._exec_log.index(diag_cmd)
+        assert diag_idx < apply_idx
+        await lc.teardown()
+
+    @pytest.mark.asyncio
     async def test_pre_agent_cmd_executed_after_acquire(self):
         """pre_agent_cmd runs in the agent container before the agent starts."""
         ctx, mgr = self._make_ctx(pre_agent_cmd="NEL_SCRUB_MARKER cleanup")

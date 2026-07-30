@@ -80,6 +80,24 @@ def _solve_failed_error_category(error: str, *, is_infra: bool, is_solve_timeout
     return "solve_timeout" if is_solve_timeout else "graceful"
 
 
+def _verify_only_workspace_keys(
+    inferred_cache: dict[tuple[int, int], dict[str, Any]],
+    verified_cache: dict[tuple[int, int], dict[str, Any]],
+) -> set[tuple[int, int]]:
+    """Candidate verify-only rollouts whose verification depends on a captured workspace.
+
+    A rollout that used a sandbox and solved without error is verified against a workspace
+    captured in the previous lifecycle's session, which a fresh resume lifecycle cannot
+    reattach. ``error`` is None only for these workspace-bound rollouts; genuine solve
+    failures keep it set and grade 0 without a workspace, so they are excluded. The caller
+    re-solves the returned rollouts that have a capture marker and leaves the rest to the
+    capture-missing path.
+    """
+    return {
+        k for k, v in inferred_cache.items() if k not in verified_cache and v.get("sandbox_used") and not v.get("error")
+    }
+
+
 async def run_evaluation(
     env: EvalEnvironment,
     solver: Solver,
@@ -215,6 +233,21 @@ async def run_evaluation(
                 if infra_inferred:
                     logger.info(
                         "resume: %d unverified infra-error inference entries will be re-solved", len(infra_inferred)
+                    )
+                # Re-solve verify-only rollouts whose workspace was captured (marker present)
+                # but can't be reattached in a fresh resume lifecycle. Rollouts with no capture
+                # marker fall through to the capture-missing flag path in the loop below.
+                verify_only_workspace = {
+                    k
+                    for k in _verify_only_workspace_keys(inferred_cache, verified_cache)
+                    if has_capture_marker(step_log_dir, *k)
+                }
+                inferred_cache = {k: v for k, v in inferred_cache.items() if k not in verify_only_workspace}
+                if verify_only_workspace:
+                    logger.info(
+                        "resume: %d verify-only workspace rollouts will be re-solved "
+                        "(captured workspace cannot be reattached across resume)",
+                        len(verify_only_workspace),
                     )
                 if inferred_cache:
                     meta = old_meta or {"config_hash": cfg_hash}
