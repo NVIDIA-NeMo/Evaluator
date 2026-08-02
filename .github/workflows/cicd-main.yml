@@ -37,7 +37,7 @@ permissions:
 
 jobs:
   pre-flight:
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@6dfd1b435cca9e3c2640f7b31c4f37e42c6bf796 # v1.4.0
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@c1a0837f362a1a696e647238ab1cf916b2a7cf4a # v1.8.6
     with:
       default_runner_prefix: nemo-ci-aws-gpu-x2
       non_nvidia_runner_prefix: nemo-ci-aws-gpu-x2-ephemeral
