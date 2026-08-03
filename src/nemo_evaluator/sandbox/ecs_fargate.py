@@ -132,6 +132,30 @@ def resolve_ecs_config_from_ssm(
 # ── Config dataclasses ───────────────────────────────────────────────
 
 
+def _dockerhub_login_cmd(secret_arn: str) -> str:
+    """Shell snippet that logs CodeBuild into Docker Hub, tolerating absence."""
+    return (
+        f"DOCKERHUB_CREDS=$(aws secretsmanager get-secret-value"
+        f" --secret-id {secret_arn}"
+        f" --query SecretString --output text --region $AWS_DEFAULT_REGION)"
+        f' && DH_USER=$(echo "$DOCKERHUB_CREDS" | python3 -c'
+        """ "import sys,json;print(json.load(sys.stdin)['username'])")"""
+        f' && if [ -n "$DH_USER" ]; then echo "$DOCKERHUB_CREDS" | python3 -c'
+        """ "import sys,json;print(json.load(sys.stdin)['password'])" """
+        f'| docker login -u "$DH_USER" --password-stdin; fi'
+        f' || echo "Docker Hub login failed — continuing without auth"'
+    )
+
+
+_DOCKER_HUB_REGISTRY = "registry-1.docker.io"
+_MANIFEST_MEDIA_TYPES = (
+    "application/vnd.docker.distribution.manifest.v2+json",
+    "application/vnd.docker.distribution.manifest.list.v2+json",
+    "application/vnd.oci.image.manifest.v1+json",
+    "application/vnd.oci.image.index.v1+json",
+)
+
+
 def _sanitize_id(value: str, max_len: int = 100) -> str:
     cleaned = re.sub(r"[^a-zA-Z0-9-]+", "-", value).strip("-")
     return cleaned[:max_len] or "task"
@@ -194,6 +218,12 @@ class EcsFargateConfig:
     efs_filesystem_id: str | None = None
     efs_access_point_id: str | None = None
     ssm_project: str = DEFAULT_SSM_PROJECT
+    image_mirror_mode: str = "off"
+    """How to obtain a task image that is already published upstream.
+
+    ``off`` builds ``environment_dir``'s Dockerfile.  ``codebuild`` copies
+    ``SandboxSpec.source_image`` into ECR instead, tagged by its upstream digest.
+    Ignored for tasks with no ``source_image``."""
 
 
 @dataclass(frozen=True)
@@ -919,6 +949,8 @@ class ImageBuilder:
     _inflight_builds: dict[str, threading.Event] = {}
     _build_semaphore: threading.Semaphore | None = None
     _build_semaphore_size: int = 0
+    _digest_cache: dict[str, str] = {}
+    _mirror_tag_cache: set[str] | None = None
 
     @staticmethod
     def get_ecr_image_tag(environment_dir: str | Path, environment_name: str) -> str:
@@ -929,6 +961,129 @@ class ImageBuilder:
                 h.update(str(p.relative_to(root)).encode())
                 h.update(p.read_bytes())
         return f"{environment_name}__{h.hexdigest()[:8]}"
+
+    @staticmethod
+    def get_ecr_mirror_tag_prefix(source_image: str) -> str:
+        """Tag prefix for any mirror of ``source_image``; needs no registry call."""
+        return f"{_sanitize_id(source_image, max_len=110)}__"
+
+    @classmethod
+    def find_mirrored_tag(cls, cfg: EcsFargateConfig, source_image: str) -> str | None:
+        """An existing mirror of ``source_image`` in ECR, or ``None``.
+
+        Prefix match, so the upstream digest — and the registry call to get it —
+        is only needed on a miss.
+        """
+        prefix = cls.get_ecr_mirror_tag_prefix(source_image)
+        with cls._lock:
+            cached = cls._mirror_tag_cache
+        if cached is None:
+            tags = cls.list_ecr_tags(cfg.ecr_repository or "", cfg.region)
+            with cls._lock:
+                if cls._mirror_tag_cache is None:
+                    cls._mirror_tag_cache = tags
+                cached = cls._mirror_tag_cache
+        return next((t for t in sorted(cached) if t.startswith(prefix)), None)
+
+    @classmethod
+    def resolve_source_digest_cached(cls, source_image: str, *, retries: int = 3, base_delay: float = 2.0) -> str:
+        """``resolve_source_digest`` memoised per ref, with retry.
+
+        Sandboxes start once per task, so unmemoised this issues hundreds of
+        calls from one egress IP and trips registry rate limits.  Retry is local
+        because ``_retry_with_backoff`` only matches AWS-shaped throttling.
+        """
+        with cls._lock:
+            if hit := cls._digest_cache.get(source_image):
+                return hit
+        for attempt in range(retries + 1):
+            try:
+                digest = cls.resolve_source_digest(source_image)
+                break
+            except Exception as exc:  # noqa: BLE001 - any registry failure is worth one more try
+                if attempt == retries:
+                    raise
+                delay = base_delay * (2**attempt) * (1 + random.uniform(-0.5, 0.5))
+                logger.warning(
+                    "registry manifest for %s failed (attempt %d/%d), retrying in %.1fs: %s",
+                    source_image,
+                    attempt + 1,
+                    retries + 1,
+                    delay,
+                    exc,
+                )
+                time.sleep(delay)
+        logger.info("Registry manifest resolved: %s -> %s", source_image, digest)
+        with cls._lock:
+            cls._digest_cache[source_image] = digest
+        return digest
+
+    @staticmethod
+    def get_ecr_mirror_tag(source_image: str, digest: str) -> str:
+        """ECR tag for a mirrored copy of ``source_image`` pinned at ``digest``.
+
+        Keyed on the digest rather than the upstream tag, so a re-pushed
+        upstream tag reads as a cache miss instead of silently reusing a stale
+        copy.  Bounded to ECR's 128-character tag limit.
+        """
+        digest_hex = digest.split(":")[-1][:12]
+        return f"{ImageBuilder.get_ecr_mirror_tag_prefix(source_image)}{digest_hex}"
+
+    @staticmethod
+    def _parse_image_ref(source_image: str) -> tuple[str, str, str]:
+        """Split an image reference into ``(registry, repository, reference)``.
+
+        ``reference`` is a tag or a ``sha256:`` digest.  Split on ``@`` first so
+        a digest's colon is not mistaken for a tag separator.
+        """
+        if "@" in source_image:
+            remainder, _, reference = source_image.partition("@")
+            head, sep, tail = remainder.rpartition(":")
+            if sep and "/" not in tail:
+                remainder = head
+        else:
+            remainder, sep, reference = source_image.rpartition(":")
+            if not sep or "/" in reference:
+                remainder, reference = source_image, "latest"
+        head, _, rest = remainder.partition("/")
+        if rest and ("." in head or ":" in head or head == "localhost"):
+            return head, rest, reference
+        repo = remainder if "/" in remainder else f"library/{remainder}"
+        return _DOCKER_HUB_REGISTRY, repo, reference
+
+    @staticmethod
+    def _registry_pull_token(registry: str, repository: str, timeout: float) -> str:
+        """Anonymous pull token, or empty when the registry needs no auth."""
+        import urllib.request
+
+        if registry == _DOCKER_HUB_REGISTRY:
+            auth_host, service = "auth.docker.io", "registry.docker.io"
+        else:
+            auth_host = service = registry
+        url = f"https://{auth_host}/token?service={service}&scope=repository:{repository}:pull"
+        try:
+            with urllib.request.urlopen(url, timeout=timeout) as resp:  # noqa: S310 - https scheme is fixed
+                return str(json.loads(resp.read()).get("token", ""))
+        except Exception:  # noqa: BLE001 - registries without token auth answer the manifest directly
+            return ""
+
+    @staticmethod
+    def resolve_source_digest(source_image: str, timeout: float = 30.0) -> str:
+        """Resolve ``source_image`` to its immutable manifest digest.
+
+        Plain HTTPS against the Registry v2 API — no Docker daemon required.
+        """
+        import urllib.request
+
+        registry, repository, tag = ImageBuilder._parse_image_ref(source_image)
+        headers = {"Accept": ", ".join(_MANIFEST_MEDIA_TYPES)}
+        if token := ImageBuilder._registry_pull_token(registry, repository, timeout):
+            headers["Authorization"] = f"Bearer {token}"
+        req = urllib.request.Request(f"https://{registry}/v2/{repository}/manifests/{tag}", headers=headers)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - https scheme is fixed
+            if digest := resp.headers.get("Docker-Content-Digest"):
+                return str(digest)
+            return "sha256:" + hashlib.sha256(resp.read()).hexdigest()
 
     @staticmethod
     def image_exists_in_ecr(ecr_repository: str, tag: str, region: str | None = None) -> bool:
@@ -1056,6 +1211,110 @@ class ImageBuilder:
                 cls._inflight_builds.pop(tag, None)
         return image_url
 
+    @classmethod
+    def ensure_image_mirrored(cls, *, cfg: EcsFargateConfig, source_image: str, digest: str | None = None) -> str:
+        """Copy a published upstream image into ECR, reusing it while it is there.
+
+        Idempotent, unlike a Dockerfile build: the tag comes from the upstream
+        digest, so an evicted image is restored byte-identical instead of being
+        rebuilt against whatever its unpinned references resolve to today.
+        """
+        ecr_repo = cfg.ecr_repository
+        if not ecr_repo:
+            raise ValueError("ecr_repository is required for image mirroring")
+
+        if digest is None and (existing := cls.find_mirrored_tag(cfg, source_image)):
+            logger.info("ECR mirror hit — skipping copy: %s:%s", ecr_repo, existing)
+            return f"{ecr_repo}:{existing}"
+
+        tag = cls.get_ecr_mirror_tag(source_image, digest or cls.resolve_source_digest_cached(source_image))
+        image_url = f"{ecr_repo}:{tag}"
+
+        with cls._lock:
+            if tag in cls._inflight_builds:
+                cls._inflight_builds[tag].wait()
+                return image_url
+        if cls.image_exists_in_ecr(ecr_repo, tag, cfg.region):
+            logger.info("ECR mirror hit — skipping copy: %s", image_url)
+            cls._remember_mirror_tag(tag)
+            return image_url
+
+        event = threading.Event()
+        with cls._lock:
+            if tag in cls._inflight_builds:
+                cls._inflight_builds[tag].wait()
+                return image_url
+            cls._inflight_builds[tag] = event
+        with cls._lock:
+            if cls._build_semaphore is None or cls._build_semaphore_size != cfg.build_parallelism:
+                cls._build_semaphore = threading.Semaphore(cfg.build_parallelism)
+                cls._build_semaphore_size = cfg.build_parallelism
+        try:
+            cls._build_semaphore.acquire()  # type: ignore[union-attr]
+            try:
+                if not cls.image_exists_in_ecr(ecr_repo, tag, cfg.region):
+                    cls._mirror_and_push(cfg=cfg, source_image=source_image, image_url=image_url)
+            finally:
+                cls._build_semaphore.release()  # type: ignore[union-attr]
+        finally:
+            event.set()
+            with cls._lock:
+                cls._inflight_builds.pop(tag, None)
+        cls._remember_mirror_tag(tag)
+        return image_url
+
+    @classmethod
+    def _remember_mirror_tag(cls, tag: str) -> None:
+        with cls._lock:
+            if cls._mirror_tag_cache is not None:
+                cls._mirror_tag_cache.add(tag)
+
+    @classmethod
+    def _mirror_and_push(cls, *, cfg: EcsFargateConfig, source_image: str, image_url: str) -> None:
+        boto3, *_ = _require_aws_sdks()
+        logger.info("Mirroring %s -> %s via CodeBuild", source_image, image_url)
+        cb = boto3.client("codebuild", region_name=cfg.region)
+        project_name = cls._resolve_codebuild_project(cfg, cb, uuid.uuid4().hex[:8])
+        buildspec = cls._generate_mirror_buildspec(cfg, source_image, image_url)
+        resp = _retry_with_backoff(
+            lambda: cb.start_build(
+                projectName=project_name,
+                buildspecOverride=buildspec,
+                timeoutInMinutesOverride=cfg.codebuild_build_timeout,
+                privilegedModeOverride=True,
+                environmentTypeOverride="LINUX_CONTAINER",
+                imageOverride="aws/codebuild/amazonlinux-x86_64-standard:5.0",
+                computeTypeOverride=cfg.codebuild_compute_type,
+            ),
+            operation_name="codebuild.start_build(mirror)",
+            max_retries=5,
+        )
+        build_id = resp["build"]["id"]
+        logger.info("CodeBuild mirror started: %s", build_id)
+        cls._poll_codebuild(cb, build_id, image_url)
+
+    @staticmethod
+    def _generate_mirror_buildspec(cfg: EcsFargateConfig, source_image: str, image_url: str) -> str:
+        ecr_registry = (cfg.ecr_repository or "").split("/")[0]
+        ecr_region = ImageBuilder._ecr_region(cfg.ecr_repository or "", fallback="$AWS_DEFAULT_REGION")
+        pre_build_cmds = [
+            f"aws ecr get-login-password --region {ecr_region}"
+            f" | docker login --username AWS --password-stdin {ecr_registry}",
+        ]
+        if cfg.dockerhub_secret_arn:
+            pre_build_cmds.append(_dockerhub_login_cmd(cfg.dockerhub_secret_arn))
+        pre_yaml = "\n".join(f"      - {c}" for c in pre_build_cmds)
+        pull_cmd = (
+            f"for i in 1 2 3; do docker pull {source_image} && break; "
+            f'echo "pull failed ($i/3), retry in 30s"; sleep 30; done'
+        )
+        return (
+            "version: 0.2\nphases:\n  pre_build:\n    commands:\n"
+            f"{pre_yaml}\n  build:\n    commands:\n"
+            f"      - {pull_cmd}\n      - docker tag {source_image} {image_url}\n"
+            f"  post_build:\n    commands:\n      - docker push {image_url}\n"
+        )
+
     @staticmethod
     def _upload_build_context(cfg: EcsFargateConfig, environment_name: str, nonce: str) -> str:
         boto3, *_ = _require_aws_sdks()
@@ -1117,17 +1376,7 @@ class ImageBuilder:
             f" | docker login --username AWS --password-stdin {ecr_registry}",
         ]
         if cfg.dockerhub_secret_arn:
-            pre_build_cmds.append(
-                f"DOCKERHUB_CREDS=$(aws secretsmanager get-secret-value"
-                f" --secret-id {cfg.dockerhub_secret_arn}"
-                f" --query SecretString --output text --region $AWS_DEFAULT_REGION)"
-                f' && DH_USER=$(echo "$DOCKERHUB_CREDS" | python3 -c'
-                """ "import sys,json;print(json.load(sys.stdin)['username'])")"""
-                f' && if [ -n "$DH_USER" ]; then echo "$DOCKERHUB_CREDS" | python3 -c'
-                """ "import sys,json;print(json.load(sys.stdin)['password'])" """
-                f'| docker login -u "$DH_USER" --password-stdin; fi'
-                f' || echo "Docker Hub login failed — continuing without auth"'
-            )
+            pre_build_cmds.append(_dockerhub_login_cmd(cfg.dockerhub_secret_arn))
         pre_yaml = "\n".join(f"      - {c}" for c in pre_build_cmds)
         build_cmd = (
             f"for i in 1 2 3; do docker build -t {repo_name}:{tag} . && break; "
@@ -1603,13 +1852,7 @@ class EcsFargateSandbox:
             raise ValueError("ssh_sidecar must be configured")
         self._init_aws_clients()
 
-        built_image: str | None = None
-        env_dir = cfg.environment_dir or self._spec.environment_dir
-        if cfg.ecr_repository and env_dir:
-            per_task_cfg = _dc_replace(cfg, environment_dir=env_dir)
-            built_image = ImageBuilder.ensure_image_built(
-                cfg=per_task_cfg, environment_name=_sanitize_id(self._spec.image or "sandbox")
-            )
+        built_image = self._ensure_image_in_ecr()
         image = self._resolve_image(built_image)
 
         if not sidecar.private_key_secret_arn or not sidecar.public_key_secret_arn:
@@ -1659,6 +1902,28 @@ class EcsFargateSandbox:
         self._ecs = boto3.client("ecs", region_name=self._cfg.region, config=boto_cfg)
         self._ec2 = boto3.client("ec2", region_name=self._cfg.region, config=boto_cfg)
         self._ssm = boto3.client("ssm", region_name=self._cfg.region, config=boto_cfg)
+
+    def _ensure_image_in_ecr(self) -> str | None:
+        """Get this task's image into ECR — by mirroring it, or by building it.
+
+        Mirroring wins when the task declares a published image; rebuilding its
+        Dockerfile would re-resolve every unpinned upstream reference.
+        """
+        cfg = self._cfg
+        if not cfg.ecr_repository:
+            return None
+
+        source_image = self._spec.source_image
+        if source_image and cfg.image_mirror_mode == "codebuild":
+            return ImageBuilder.ensure_image_mirrored(cfg=cfg, source_image=source_image)
+
+        env_dir = cfg.environment_dir or self._spec.environment_dir
+        if not env_dir:
+            return None
+        return ImageBuilder.ensure_image_built(
+            cfg=_dc_replace(cfg, environment_dir=env_dir),
+            environment_name=_sanitize_id(self._spec.image or "sandbox"),
+        )
 
     def _resolve_image(self, built_image: str | None = None) -> str:
         if built_image:

@@ -124,6 +124,12 @@ class SandboxSpec:
     environment_dir: str | None = None
     """Local directory containing a Dockerfile / build context.
     Used by ECS Fargate to build and push images via CodeBuild."""
+    source_image: str | None = None
+    """Pullable upstream ref for ``image`` when it is already published.
+
+    Backends needing the image in their own registry can copy it from here
+    instead of rebuilding ``environment_dir``, which would re-resolve the
+    Dockerfile's unpinned references against today's upstream state."""
 
 
 class Sandbox(Protocol):

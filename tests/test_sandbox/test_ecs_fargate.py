@@ -17,6 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from nemo_evaluator.sandbox.base import ExecResult, OutsideEndpoint, SandboxSpec
+from nemo_evaluator.sandbox.ecs_fargate import ImageBuilder
 
 _PATCH_PREFIX = "nemo_evaluator.sandbox.ecs_fargate"
 
@@ -1014,8 +1015,6 @@ class TestImageBuilder:
     """ImageBuilder with mocked ECR, S3, CodeBuild."""
 
     def test_get_ecr_image_tag(self, tmp_path):
-        from nemo_evaluator.sandbox.ecs_fargate import ImageBuilder
-
         env_dir = tmp_path / "env"
         env_dir.mkdir()
         (env_dir / "Dockerfile").write_text("FROM python:3.12")
@@ -1026,8 +1025,6 @@ class TestImageBuilder:
         assert len(tag.split("__")[1]) == 8
 
     def test_get_ecr_image_tag_deterministic(self, tmp_path):
-        from nemo_evaluator.sandbox.ecs_fargate import ImageBuilder
-
         env_dir = tmp_path / "env"
         env_dir.mkdir()
         (env_dir / "Dockerfile").write_text("FROM python:3.12")
@@ -1038,8 +1035,6 @@ class TestImageBuilder:
 
     @patch(f"{_PATCH_PREFIX}._require_aws_sdks")
     def test_image_exists_in_ecr_true(self, mock_aws):
-        from nemo_evaluator.sandbox.ecs_fargate import ImageBuilder
-
         ecr = MagicMock()
         ecr.describe_images.return_value = {"imageDetails": [{"imageDigest": "sha256:abc"}]}
         mock_boto3 = MagicMock()
@@ -1054,8 +1049,6 @@ class TestImageBuilder:
 
     @patch(f"{_PATCH_PREFIX}._require_aws_sdks")
     def test_image_exists_in_ecr_false(self, mock_aws):
-        from nemo_evaluator.sandbox.ecs_fargate import ImageBuilder
-
         class FakeClientError(Exception):
             def __init__(self):
                 self.response = {"Error": {"Code": "ImageNotFoundException"}}
@@ -1069,16 +1062,12 @@ class TestImageBuilder:
         assert ImageBuilder.image_exists_in_ecr("123.dkr.ecr.us-west-2.amazonaws.com/repo", "missing") is False
 
     def test_ecr_region_extraction(self):
-        from nemo_evaluator.sandbox.ecs_fargate import ImageBuilder
-
         assert ImageBuilder._ecr_region("123.dkr.ecr.us-west-2.amazonaws.com/repo") == "us-west-2"
         assert ImageBuilder._ecr_region("123.dkr.ecr.eu-west-1.amazonaws.com/repo") == "eu-west-1"
         assert ImageBuilder._ecr_region("my-repo", fallback="us-east-1") == "us-east-1"
 
     @patch(f"{_PATCH_PREFIX}.subprocess.run")
     def test_ecr_docker_login_success(self, mock_run):
-        from nemo_evaluator.sandbox.ecs_fargate import ImageBuilder
-
         mock_run.return_value = MagicMock(returncode=0)
         ImageBuilder.ecr_docker_login("123.dkr.ecr.us-west-2.amazonaws.com/repo", region="us-west-2")
         mock_run.assert_called_once()
@@ -1086,16 +1075,12 @@ class TestImageBuilder:
 
     @patch(f"{_PATCH_PREFIX}.subprocess.run")
     def test_ecr_docker_login_failure(self, mock_run):
-        from nemo_evaluator.sandbox.ecs_fargate import ImageBuilder
-
         mock_run.return_value = MagicMock(returncode=1, stderr="no credentials")
         with pytest.raises(RuntimeError, match="ECR docker login failed"):
             ImageBuilder.ecr_docker_login("123.dkr.ecr.us-west-2.amazonaws.com/repo")
 
     @patch(f"{_PATCH_PREFIX}.subprocess.run")
     def test_docker_push_to_ecr(self, mock_run):
-        from nemo_evaluator.sandbox.ecs_fargate import ImageBuilder
-
         mock_run.side_effect = [
             MagicMock(returncode=0),
             MagicMock(returncode=0, stderr=""),
@@ -1106,8 +1091,6 @@ class TestImageBuilder:
 
     @patch(f"{_PATCH_PREFIX}.ImageBuilder.image_exists_in_ecr", return_value=True)
     def test_ensure_image_built_cache_hit(self, mock_exists, tmp_path):
-        from nemo_evaluator.sandbox.ecs_fargate import ImageBuilder
-
         env_dir = tmp_path / "env"
         env_dir.mkdir()
         (env_dir / "Dockerfile").write_text("FROM alpine")
@@ -1396,3 +1379,259 @@ class TestPerInvocationEnvSplit:
 
         assert stable == env
         assert runtime == {}
+
+
+# ── TestImageMirror ───────────────────────────────────────────────────
+
+
+class TestImageMirror:
+    """Mirroring a prebuilt upstream image into ECR instead of rebuilding it.
+
+    Rebuilding a task Dockerfile re-resolves unpinned upstream references, so a
+    cache miss can silently change what the image contains.  Copying a pinned
+    upstream image is idempotent: a miss re-mirrors byte-identical content.
+    """
+
+    _SRC = "acme/task:20251031"
+    _DIGEST = "sha256:" + "ab" * 32
+    _REPO = "123.dkr.ecr.us-west-2.amazonaws.com/repo"
+
+    def test_mirror_mode_defaults_to_off(self):
+        assert _cfg().image_mirror_mode == "off"
+
+    def test_mirror_tag_is_deterministic(self):
+        tag1 = ImageBuilder.get_ecr_mirror_tag(self._SRC, self._DIGEST)
+        tag2 = ImageBuilder.get_ecr_mirror_tag(self._SRC, self._DIGEST)
+        assert tag1 == tag2
+        assert "acme-task-20251031" in tag1
+
+    def test_mirror_tag_tracks_the_upstream_digest(self):
+        """A moved upstream tag must not silently reuse the cached copy."""
+        tag1 = ImageBuilder.get_ecr_mirror_tag(self._SRC, self._DIGEST)
+        tag2 = ImageBuilder.get_ecr_mirror_tag(self._SRC, "sha256:" + "cd" * 32)
+        assert tag1 != tag2
+
+    def test_mirror_tag_is_a_valid_ecr_tag(self):
+        import re
+
+        tag = ImageBuilder.get_ecr_mirror_tag("registry.example.com/ns/img:1.2.3", self._DIGEST)
+        assert re.fullmatch(r"[A-Za-z0-9._-]{1,128}", tag), tag
+
+    def test_mirror_buildspec_copies_instead_of_building(self):
+        url = f"{self._REPO}:sometag"
+        spec = ImageBuilder._generate_mirror_buildspec(_cfg(ecr_repository=self._REPO), self._SRC, url)
+
+        assert f"docker pull {self._SRC}" in spec
+        assert f"docker push {url}" in spec
+        assert "docker build" not in spec
+
+    def test_mirror_buildspec_authenticates_to_dockerhub_when_configured(self):
+        cfg = _cfg(ecr_repository=self._REPO, dockerhub_secret_arn="arn:aws:secretsmanager:us-west-2:1:secret:dh")
+        spec = ImageBuilder._generate_mirror_buildspec(cfg, self._SRC, f"{self._REPO}:t")
+        assert "secretsmanager" in spec
+
+    @patch(f"{_PATCH_PREFIX}.ImageBuilder.image_exists_in_ecr", return_value=True)
+    def test_ensure_image_mirrored_cache_hit_skips_codebuild(self, mock_exists):
+        cfg = _cfg(ecr_repository=self._REPO)
+        with patch.object(ImageBuilder, "_mirror_and_push") as mock_copy:
+            url = ImageBuilder.ensure_image_mirrored(cfg=cfg, source_image=self._SRC, digest=self._DIGEST)
+
+        mock_copy.assert_not_called()
+        assert url.startswith(f"{self._REPO}:")
+
+    @patch(f"{_PATCH_PREFIX}.ImageBuilder.image_exists_in_ecr", return_value=False)
+    def test_ensure_image_mirrored_cache_miss_copies_upstream(self, mock_exists):
+        cfg = _cfg(ecr_repository=self._REPO)
+        with patch.object(ImageBuilder, "_mirror_and_push") as mock_copy:
+            url = ImageBuilder.ensure_image_mirrored(cfg=cfg, source_image=self._SRC, digest=self._DIGEST)
+
+        mock_copy.assert_called_once()
+        assert mock_copy.call_args.kwargs["image_url"] == url
+
+    def test_prebuilt_task_is_mirrored_not_rebuilt(self):
+        """A task declaring a published image must not have its Dockerfile rebuilt."""
+        from nemo_evaluator.sandbox.ecs_fargate import EcsFargateSandbox
+
+        spec = SandboxSpec(image=self._SRC, source_image=self._SRC, environment_dir="/tmp/env")
+        sb = EcsFargateSandbox(spec, ecs_config=_cfg(ecr_repository=self._REPO, image_mirror_mode="codebuild"))
+
+        with (
+            patch.object(ImageBuilder, "resolve_source_digest", return_value=self._DIGEST),
+            patch.object(ImageBuilder, "ensure_image_mirrored", return_value="mirrored") as mirror,
+            patch.object(ImageBuilder, "ensure_image_built") as build,
+        ):
+            assert sb._ensure_image_in_ecr() == "mirrored"
+
+        build.assert_not_called()
+        assert mirror.call_args.kwargs["source_image"] == self._SRC
+
+    def test_mirror_mode_off_still_builds_the_dockerfile(self):
+        """Default config must preserve the historical build path exactly."""
+        from nemo_evaluator.sandbox.ecs_fargate import EcsFargateSandbox
+
+        spec = SandboxSpec(image=self._SRC, source_image=self._SRC, environment_dir="/tmp/env")
+        sb = EcsFargateSandbox(spec, ecs_config=_cfg(ecr_repository=self._REPO))
+
+        with (
+            patch.object(ImageBuilder, "ensure_image_mirrored") as mirror,
+            patch.object(ImageBuilder, "ensure_image_built", return_value="built") as build,
+        ):
+            assert sb._ensure_image_in_ecr() == "built"
+
+        mirror.assert_not_called()
+        build.assert_called_once()
+
+    def test_task_without_source_image_always_builds(self):
+        """SWE-bench-style benchmarks construct images and have no upstream ref."""
+        from nemo_evaluator.sandbox.ecs_fargate import EcsFargateSandbox
+
+        spec = SandboxSpec(image="built-locally:latest", environment_dir="/tmp/env")
+        sb = EcsFargateSandbox(spec, ecs_config=_cfg(ecr_repository=self._REPO, image_mirror_mode="codebuild"))
+
+        with (
+            patch.object(ImageBuilder, "ensure_image_mirrored") as mirror,
+            patch.object(ImageBuilder, "ensure_image_built", return_value="built") as build,
+        ):
+            assert sb._ensure_image_in_ecr() == "built"
+
+        mirror.assert_not_called()
+        build.assert_called_once()
+
+    def test_digest_pinned_ref_parses_without_splitting_on_the_digest_colon(self):
+        registry, repo, ref = ImageBuilder._parse_image_ref(f"ubuntu@{self._DIGEST}")
+        assert repo == "library/ubuntu"
+        assert ref == self._DIGEST
+        assert registry.endswith("docker.io")
+
+        registry, repo, ref = ImageBuilder._parse_image_ref(f"reg.example.com/ns/img@{self._DIGEST}")
+        assert (registry, repo, ref) == ("reg.example.com", "ns/img", self._DIGEST)
+
+        registry, repo, ref = ImageBuilder._parse_image_ref(f"ubuntu:22.04@{self._DIGEST}")
+        assert (repo, ref) == ("library/ubuntu", self._DIGEST)
+        registry, repo, ref = ImageBuilder._parse_image_ref(f"reg.example.com/ns/img:1.2@{self._DIGEST}")
+        assert (registry, repo, ref) == ("reg.example.com", "ns/img", self._DIGEST)
+
+    def test_mirror_tag_handles_digest_pinned_source_refs(self):
+        src = f"acme/task@{self._DIGEST}"
+        tag = ImageBuilder.get_ecr_mirror_tag(src, self._DIGEST)
+        assert tag == ImageBuilder.get_ecr_mirror_tag(src, self._DIGEST)
+        assert tag != ImageBuilder.get_ecr_mirror_tag(src, "sha256:" + "cd" * 32)
+        assert len(tag) <= 128
+
+    @patch(f"{_PATCH_PREFIX}.ImageBuilder.image_exists_in_ecr", return_value=False)
+    def test_mirroring_respects_build_parallelism(self, _mock_exists):
+        """Copies share the build throttle — 89 tasks must not stampede CodeBuild."""
+        from nemo_evaluator.sandbox import ecs_fargate
+
+        ecs_fargate.ImageBuilder._build_semaphore = None
+        ecs_fargate.ImageBuilder._build_semaphore_size = 0
+        cfg = _cfg(ecr_repository=self._REPO, build_parallelism=3)
+
+        with patch.object(ImageBuilder, "_mirror_and_push"):
+            ImageBuilder.ensure_image_mirrored(cfg=cfg, source_image=self._SRC, digest=self._DIGEST)
+
+        assert ecs_fargate.ImageBuilder._build_semaphore_size == 3
+
+    def test_image_mirror_mode_is_reachable_from_yaml(self):
+        """The YAML schema forbids extra keys — the field must exist there too."""
+        from nemo_evaluator.config.sandboxes import EcsFargateSandbox
+
+        assert EcsFargateSandbox(type="ecs_fargate").image_mirror_mode == "off"
+        assert EcsFargateSandbox(type="ecs_fargate", image_mirror_mode="codebuild").image_mirror_mode == "codebuild"
+        with pytest.raises(Exception):
+            EcsFargateSandbox(type="ecs_fargate", image_mirror_mode="bogus")
+
+    @pytest.mark.parametrize(
+        "playbook",
+        ["terminal_bench_2", "terminal_bench_2_1", "swebench_verified", "swebench_multilingual", "swebench_pro"],
+    )
+    def test_no_shipped_playbook_opts_into_mirroring_yet(self, playbook):
+        """Mirroring rolls out per-config first; playbooks follow once proven."""
+        from pathlib import Path
+
+        import yaml
+
+        import nemo_evaluator
+
+        path = Path(nemo_evaluator.__file__).parent / "playbooks" / f"{playbook}.yaml"
+        assert "image_mirror_mode" not in (yaml.safe_load(path.read_text()).get("sandbox") or {})
+
+
+# ── TestMirrorRegistryTraffic ─────────────────────────────────────────
+
+
+class TestMirrorRegistryTraffic:
+    """The upstream registry must not be contacted once a mirror exists.
+
+    ``_do_start`` runs per *sandbox*, so a naive implementation resolves the
+    digest once per task — hundreds of calls from the orchestrator's single
+    egress IP, enough to trip anonymous registry rate limits.
+    """
+
+    _SRC = "acme/task:20251031"
+    _DIGEST = "sha256:" + "ab" * 32
+    _REPO = "123.dkr.ecr.us-west-2.amazonaws.com/repo"
+
+    @pytest.fixture(autouse=True)
+    def _reset(self):
+        ImageBuilder._digest_cache = {}
+        ImageBuilder._mirror_tag_cache = None
+        ImageBuilder._inflight_builds = {}
+        yield
+        ImageBuilder._digest_cache = {}
+        ImageBuilder._mirror_tag_cache = None
+
+    def test_existing_mirror_needs_no_registry_call(self):
+        existing = ImageBuilder.get_ecr_mirror_tag(self._SRC, self._DIGEST)
+        with (
+            patch.object(ImageBuilder, "list_ecr_tags", return_value={existing, "unrelated__deadbeef"}),
+            patch.object(ImageBuilder, "resolve_source_digest") as resolve,
+            patch.object(ImageBuilder, "_mirror_and_push") as copy,
+        ):
+            url = ImageBuilder.ensure_image_mirrored(cfg=_cfg(ecr_repository=self._REPO), source_image=self._SRC)
+
+        resolve.assert_not_called()
+        copy.assert_not_called()
+        assert url == f"{self._REPO}:{existing}"
+
+    def test_many_sandbox_starts_resolve_the_digest_once(self):
+        """200 task starts on a cold repo must not mean 200 registry calls."""
+        cfg = _cfg(ecr_repository=self._REPO)
+        with (
+            patch.object(ImageBuilder, "list_ecr_tags", return_value=set()),
+            patch.object(ImageBuilder, "image_exists_in_ecr", return_value=True),
+            patch.object(ImageBuilder, "resolve_source_digest", return_value=self._DIGEST) as resolve,
+        ):
+            urls = {ImageBuilder.ensure_image_mirrored(cfg=cfg, source_image=self._SRC) for _ in range(200)}
+
+        assert resolve.call_count == 1
+        assert len(urls) == 1
+
+    def test_digest_resolution_is_retried(self):
+        """A transient 429 must not fail the task — the boto retry helper won't catch it."""
+        with patch.object(
+            ImageBuilder, "resolve_source_digest", side_effect=[OSError("HTTP Error 429"), self._DIGEST]
+        ) as resolve:
+            assert ImageBuilder.resolve_source_digest_cached(self._SRC, base_delay=0) == self._DIGEST
+        assert resolve.call_count == 2
+
+    def test_freshly_mirrored_tag_is_reused_without_a_registry_call(self):
+        cfg = _cfg(ecr_repository=self._REPO)
+        with (
+            patch.object(ImageBuilder, "list_ecr_tags", return_value=set()),
+            patch.object(ImageBuilder, "image_exists_in_ecr", return_value=False),
+            patch.object(ImageBuilder, "resolve_source_digest", return_value=self._DIGEST) as resolve,
+            patch.object(ImageBuilder, "_mirror_and_push"),
+        ):
+            first = ImageBuilder.ensure_image_mirrored(cfg=cfg, source_image=self._SRC)
+            ImageBuilder._digest_cache = {}  # a later start would re-resolve if the tag were forgotten
+            second = ImageBuilder.ensure_image_mirrored(cfg=cfg, source_image=self._SRC)
+
+        assert first == second
+        assert resolve.call_count == 1
+
+    def test_digest_resolution_gives_up_after_retries(self):
+        with patch.object(ImageBuilder, "resolve_source_digest", side_effect=OSError("down")) as resolve:
+            with pytest.raises(OSError):
+                ImageBuilder.resolve_source_digest_cached(self._SRC, retries=2, base_delay=0)
+        assert resolve.call_count == 3

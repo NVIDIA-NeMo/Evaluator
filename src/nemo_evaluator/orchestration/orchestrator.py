@@ -229,6 +229,7 @@ def _build_ecs_sandbox_config(cfg: EcsFargateSandbox) -> Any:
         dockerhub_secret_arn=dockerhub_secret_arn,
         efs_filesystem_id=efs_filesystem_id,
         efs_access_point_id=efs_access_point_id,
+        image_mirror_mode=cfg.image_mirror_mode,
         ssm_project=cfg.ssm_project,
     )
 

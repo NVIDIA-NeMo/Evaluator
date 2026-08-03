@@ -919,16 +919,19 @@ class HarborEnvironment(EvalEnvironment):
                 or (_parse_workdir(dockerfile) if dockerfile.exists() else None)
                 or "/testbed"
             )
+            prebuilt = _parse_docker_image_from_toml(task_toml) if task_toml.exists() else None
             sandbox_spec = SandboxSpec(
                 image=image,
                 workdir=wd,
                 env={"HARBOR_TASK_DIR": str(task_dir)},
                 environment_dir=str(env_dir) if env_dir.is_dir() else None,
+                source_image=prebuilt,
             )
             verify_sandbox_spec = SandboxSpec(
                 image=image,
                 workdir=wd,
                 environment_dir=str(env_dir) if env_dir.is_dir() else None,
+                source_image=prebuilt,
             )
             capture_cmd = (
                 f"cd {wd} && "

@@ -140,6 +140,15 @@ class EcsFargateSandbox(_SandboxBase):
     efs_filesystem_id: str | None = None
     efs_access_point_id: str | None = None
 
+    image_mirror_mode: Literal["off", "codebuild"] = "off"
+    """How to obtain a task image the benchmark already publishes.
+
+    ``off`` builds the task's Dockerfile. ``codebuild`` copies the published
+    image into ECR instead, tagged by its upstream digest, so an image evicted
+    by the repository lifecycle policy is restored identically rather than
+    rebuilt against drifted upstream state. Benchmarks that build images
+    programmatically expose no upstream ref and always build."""
+
     ssm_project: str = DEFAULT_SSM_PROJECT
 
 

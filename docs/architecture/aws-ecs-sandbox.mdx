@@ -92,6 +92,37 @@ Once apply completes:
 
    See `EcsFargateSandbox` in [`src/nemo_evaluator/config/sandboxes.py`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/src/nemo_evaluator/config/sandboxes.py) for the complete schema.
 
+## How task images reach ECR
+
+Each task needs its image in ECR before Fargate can run it. There are two routes,
+selected by `image_mirror_mode`:
+
+```yaml
+sandbox:
+  type: ecs_fargate
+  region: us-west-2
+  image_mirror_mode: codebuild   # default: off
+```
+
+- **`off`** (default) — build the task's `environment/Dockerfile` via CodeBuild and push
+  the result. The ECR tag is a content hash of the build context.
+- **`codebuild`** — when the benchmark declares an already-published image (Harbor reads
+  `task.toml [environment] docker_image`), copy that image into ECR instead of rebuilding
+  it. The ECR tag is derived from the upstream manifest digest.
+
+Prefer mirroring where it applies. A task Dockerfile typically installs from apt, pip or
+`curl` without pinning, so rebuilding it resolves those references against whatever
+upstream looks like at build time — two builds of the same commit are not guaranteed to
+produce the same image. Because the repository carries a **500-image lifecycle policy
+shared across every benchmark**, a high-volume benchmark can evict another's cached
+images and silently trigger such a rebuild.
+
+Copying is idempotent: the digest-derived tag means an evicted image is restored
+byte-identical, so a cache miss costs latency rather than changing what the task runs.
+
+Benchmarks that construct images programmatically (SWE-bench and friends) have no
+upstream ref and always take the build path, regardless of this setting.
+
 ## State backend
 
 Local state by default. To switch to a remote S3 backend, copy
