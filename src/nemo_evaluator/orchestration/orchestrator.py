@@ -138,6 +138,22 @@ def _resolve_generation(config: EvalConfig, solver_cfg: Any) -> GenerationConfig
     return svc_gen
 
 
+def _resolve_request_timeout(config: EvalConfig, service_name: str | None) -> float:
+    """Client-hop timeout for a service, honoring ``proxy.request_timeout``.
+
+    ModelClient's 120s default silently abandons long generations (reasoning
+    models routinely exceed it); the response is then retried and finally
+    scored 0.0 as an infra error while the server completes each attempt.
+    The client hop must wait at least as long as the proxy's upstream hop.
+    """
+    if service_name:
+        svc = config.get_service(service_name)
+        proxy = getattr(svc, "proxy", None)
+        if proxy is not None:
+            return proxy.request_timeout
+    return 120.0
+
+
 def _build_ecs_sandbox_config(cfg: EcsFargateSandbox) -> Any:
     from nemo_evaluator.sandbox.ecs_fargate import (
         EcsFargateConfig as SandboxEcsConfig,
@@ -340,6 +356,7 @@ def _make_solver(
             base_url=model_url,
             model=model_id,
             api_key=api_key,
+            timeout=_resolve_request_timeout(config, solver_cfg.service),
             temperature=gen.temperature,
             max_tokens=gen.max_tokens,
             top_p=gen.top_p,
@@ -883,6 +900,7 @@ def _create_client_and_solver(
             presence_penalty=gen.presence_penalty,
             max_concurrent=concurrency,
             reasoning_pattern=reasoning_pat,
+            timeout=_resolve_request_timeout(config, service_name),
         )
     solver = _make_solver(bench, config, client, model_url, model_id, api_key)
     return client, solver
