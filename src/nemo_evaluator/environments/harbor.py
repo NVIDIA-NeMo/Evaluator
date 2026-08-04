@@ -1044,10 +1044,15 @@ class HarborEnvironment(EvalEnvironment):
         verifier_timeout = float(metadata.get("verifier_timeout_sec", DEFAULT_HARBOR_VERIFIER_TIMEOUT))
         setup_script = metadata.get("verifier_setup_script")
         setup_prefix = f"bash {shlex.quote(setup_script)} && " if setup_script else ""
+        # Toolchain dirs go AFTER $PATH so the image's own PATH wins for
+        # python/node/go. ${JAVA_HOME:+...} guards the unset case: a bare
+        # $JAVA_HOME/bin expands to /bin, which prepended would shadow the
+        # image's /usr/local/bin/python (has pytest) with /bin/python (no pytest).
         result = await sandbox.exec(
-            'export PATH="/root/.local/bin:/root/.cargo/bin:/usr/local/go/bin'
-            ":/usr/local/cargo/bin:$HOME/.local/bin:$HOME/.cargo/bin"
-            ':$HOME/go/bin:$JAVA_HOME/bin:$PATH" && '
+            'export PATH="$PATH:/root/.local/bin:/root/.cargo/bin'
+            ":/usr/local/go/bin:/usr/local/cargo/bin"
+            ":$HOME/.local/bin:$HOME/.cargo/bin:$HOME/go/bin"
+            '${JAVA_HOME:+:$JAVA_HOME/bin}" && '
             f"{setup_prefix}bash /tests/test.sh",
             timeout_sec=verifier_timeout,
         )
