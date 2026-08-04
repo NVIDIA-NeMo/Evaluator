@@ -37,10 +37,18 @@ def answer_line(sample: ScorerInput, pattern: str = r"(?i)Answer\s*:\s*([^\n]+)"
 
 
 def numeric_match(sample: ScorerInput) -> dict:
-    nums = re.findall(r"-?\d+\.?\d*", sample.response.replace(",", ""))
-    extracted = nums[-1].rstrip("0").rstrip(".") if nums else ""
-    target = str(sample.target).strip().rstrip("0").rstrip(".")
-    return {"correct": extracted == target, "extracted": extracted}
+    # Compare numerically, not as normalized strings: rstrip("0") maps
+    # 150 -> 15 and collides 10 with 100, so integer targets ending in 0
+    # false-positive/negative depending on the response.
+    nums = re.findall(r"-?\d+(?:\.\d+)?", sample.response.replace(",", ""))
+    extracted = nums[-1] if nums else ""
+    try:
+        correct = extracted != "" and float(extracted) == float(
+            str(sample.target).replace(",", "").strip()
+        )
+    except ValueError:
+        correct = False
+    return {"correct": correct, "extracted": extracted}
 
 
 def _normalize_math(s: str) -> str:
