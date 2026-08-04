@@ -429,10 +429,14 @@ class ManagedGymEnvironment(EvalEnvironment):
                 raise RuntimeError(
                     f"Server exited with code {rc} during startup.\nOutput:\n{output}"
                 )
-            probe_timeout = min(2.0, remaining)
             for probe in ("/health", "/openapi.json"):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
                 try:
-                    with urllib.request.urlopen(f"{self.endpoint}{probe}", timeout=probe_timeout) as r:
+                    with urllib.request.urlopen(
+                        f"{self.endpoint}{probe}", timeout=min(2.0, remaining)
+                    ) as r:
                         if r.status == 200:
                             return
                 except (urllib.error.URLError, OSError):

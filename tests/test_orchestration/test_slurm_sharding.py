@@ -56,7 +56,7 @@ def _mode(path):
     return path.stat().st_mode & 0o777
 
 
-def _make_single_node_container_config():
+def _make_single_node_container_config() -> EvalConfig:
     """Single node pool (use_het disabled) with a containerized eval and gym service.
 
     The gym service has an image so its srun gets ``-w $MASTER_IP`` (single-pool

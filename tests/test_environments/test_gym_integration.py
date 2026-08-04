@@ -506,7 +506,7 @@ class TestManagedGymEnvironment:
 
         timeouts: list[float] = []
 
-        def fake_urlopen(url, timeout):
+        def fake_urlopen(_url: str, timeout: float) -> None:
             timeouts.append(timeout)
             raise gym_mod.urllib.error.URLError("refused")
 

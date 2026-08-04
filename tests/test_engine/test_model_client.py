@@ -113,9 +113,11 @@ class TestModelClient:
         fake_client = MagicMock()
         fake_client.post = MagicMock(return_value=post_cm)
 
-        with patch.object(c, "_get_client", return_value=fake_client):
-            with pytest.raises(InfraError, match="non-object JSON"):
-                await c.chat(prompt="hello")
+        with (
+            patch.object(c, "_get_client", return_value=fake_client),
+            pytest.raises(InfraError, match="non-object JSON"),
+        ):
+            await c.chat(prompt="hello")
         await c.close()
 
     @pytest.mark.asyncio
