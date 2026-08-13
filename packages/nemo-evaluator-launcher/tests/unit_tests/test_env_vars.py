@@ -268,21 +268,21 @@ class TestBuildReexportCommands:
             },
         )
         cmd = build_reexport_commands("task_a", result)
-        secret = "test-secret-value"
+        expected_value = "sample-value"
 
         process = subprocess.run(
             [
                 "bash",
                 "-c",
-                f'export HF_TOKEN_abc_TASK_A="{secret}"\nset -x\n{cmd}\nset +x\nprintf %s "$HF_TOKEN"',
+                f'export HF_TOKEN_abc_TASK_A="{expected_value}"\nset -x\n{cmd}\nset +x\nprintf %s "$HF_TOKEN"',
             ],
             text=True,
             capture_output=True,
             check=True,
         )
 
-        assert process.stdout == secret
-        assert secret not in process.stderr
+        assert process.stdout == expected_value
+        assert expected_value not in process.stderr
 
 
 # --- Config collection with hierarchical merging ---
