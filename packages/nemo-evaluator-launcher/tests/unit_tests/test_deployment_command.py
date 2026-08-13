@@ -159,6 +159,74 @@ class TestVllmPdDeploymentCommand:
         )
         assert result.returncode == 0, result.stderr
 
+    def test_pd_command_supports_a_router_lifecycle_hook(self):
+        cfg = RunConfig.from_hydra(
+            hydra_overrides=[
+                "deployment=vllm_pd",
+                "deployment.served_model_name=test-model",
+                "deployment.checkpoint_path=/my/checkpoint",
+                "deployment.prefill_nodes=1",
+                "deployment.decode_nodes=1",
+                "deployment.router_background_command='echo gym-coordinator'",
+            ]
+        )
+
+        command = cfg.deployment.command
+
+        assert "VLLM_PD_ROUTER_BACKGROUND_COMMAND" in command
+        assert 'source "$router_background_command_file"' in command
+        assert "wait_for_router_or_background" in command
+        assert "echo gym-coordinator" in command
+
+        result = subprocess.run(
+            ["bash", "-n"], input=command, text=True, capture_output=True
+        )
+        assert result.returncode == 0, result.stderr
+
+    def test_pd_command_runs_router_lifecycle_hook(self, tmp_path: Path):
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "vllm").write_text("#!/bin/sh\nexec sleep 30\n")
+        (bin_dir / "vllm-router").write_text(
+            '#!/bin/sh\nif [ "${1:-}" = "--version" ]; then exit 0; fi\nexec sleep 30\n'
+        )
+        for executable in bin_dir.iterdir():
+            executable.chmod(0o755)
+
+        role_log_dir = tmp_path / "role-logs"
+        hook_marker = role_log_dir / "router-background-hook-ran"
+        node_ips_file = tmp_path / "node-ips.txt"
+        node_ips_file.write_text("10.0.0.1\n10.0.0.2\n")
+        cfg = RunConfig.from_hydra(
+            hydra_overrides=[
+                "deployment=vllm_pd",
+                "deployment.served_model_name=test-model",
+                "deployment.checkpoint_path=/my/checkpoint",
+                "deployment.prefill_nodes=1",
+                "deployment.decode_nodes=1",
+                f"deployment.node_ips_file={node_ips_file}",
+                f"deployment.role_log_dir={role_log_dir}",
+                "deployment.router_background_command='touch \"$ROLE_LOG_DIR/router-background-hook-ran\"'",
+            ]
+        )
+        env = {
+            **os.environ,
+            "PATH": f"{bin_dir}:{os.environ['PATH']}",
+            "NODES_PER_INSTANCE": "2",
+            "PROC_ID": "0",
+        }
+
+        result = subprocess.run(
+            ["bash", "-c", cfg.deployment.command],
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=5,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert hook_marker.exists()
+
     @pytest.mark.parametrize(
         (
             "proc_id",

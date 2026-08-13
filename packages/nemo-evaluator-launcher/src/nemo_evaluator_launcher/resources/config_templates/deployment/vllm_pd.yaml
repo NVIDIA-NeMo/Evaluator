@@ -24,4 +24,7 @@ deployment:
   runtime_provenance_dir: /results/pd-runtime
   runtime_image_sha256: ???
   node_ips_file: /results/vllm_pd_node_ips.txt
+  # Optional rank-zero hook that runs beside the router and controls the P/D
+  # lifecycle when it exits. Leave empty for a standalone serving deployment.
+  router_background_command: ""
   extra_args: ""

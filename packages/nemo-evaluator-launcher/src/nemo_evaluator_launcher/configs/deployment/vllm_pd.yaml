@@ -31,6 +31,11 @@ router_host: 0.0.0.0
 router_policy: consistent_hash
 router_request_timeout_secs: 86400
 router_extra_args: ""
+# Optional rank-zero lifecycle hook. It starts after the router and, when it
+# exits, terminates the router and controls the P/D deployment's outcome.
+# Evaluation frameworks can use it to coordinate work that must run beside the
+# router without coupling the generic P/D topology to one framework.
+router_background_command: ""
 prefill_extra_args: ""
 decode_extra_args: ""
 mount_checkpoint_to_evaluation: false
@@ -108,6 +113,10 @@ command: |
   echo "vllm_pd role=$VLLM_PD_ROLE rank=$PROC_ID prefill_nodes=$PREFILL_NODES decode_nodes=$DECODE_NODES"
 
   prefill_pid=""
+  router_pid=""
+  router_background_pid=""
+  router_background_command_file=""
+  VLLM_PD_EXEC=0
   write_role_status() {
     status_exit_code=""
     if [ -z "$ROLE_STATUS_DIR" ]; then
@@ -123,8 +132,17 @@ command: |
   }
   on_exit() {
     exit_code=$?
+    if [ -n "$router_background_pid" ] && kill -0 "$router_background_pid" 2>/dev/null; then
+      kill "$router_background_pid"
+    fi
+    if [ -n "$router_pid" ] && kill -0 "$router_pid" 2>/dev/null; then
+      kill "$router_pid"
+    fi
     if [ -n "$prefill_pid" ] && kill -0 "$prefill_pid" 2>/dev/null; then
       kill "$prefill_pid"
+    fi
+    if [ -n "$router_background_command_file" ]; then
+      rm -f "$router_background_command_file"
     fi
     if [ "$exit_code" -eq 0 ]; then
       write_role_status stopped "$exit_code"
@@ -163,6 +181,18 @@ command: |
   write_runtime_provenance
 
   run_vllm() {
+    if [ "$VLLM_PD_EXEC" = "1" ]; then
+      exec vllm serve "$MODEL" \
+        --tensor-parallel-size ${deployment.tensor_parallel_size} \
+        --pipeline-parallel-size ${deployment.pipeline_parallel_size} \
+        --trust-remote-code \
+        --served-model-name ${deployment.served_model_name} \
+        --gpu-memory-utilization ${deployment.gpu_memory_utilization} \
+        --distributed-executor-backend mp \
+        --data-parallel-backend mp \
+        --data-parallel-size-local ${deployment.data_parallel_size_local} \
+        ${deployment.extra_args} "$@"
+    fi
     vllm serve "$MODEL" \
       --tensor-parallel-size ${deployment.tensor_parallel_size} \
       --pipeline-parallel-size ${deployment.pipeline_parallel_size} \
@@ -175,7 +205,36 @@ command: |
       ${deployment.extra_args} "$@"
   }
 
+  is_background_running() {
+    jobs -pr | grep -Fxq "$1"
+  }
+
+  wait_for_router_or_background() {
+    while true; do
+      if ! is_background_running "$router_pid"; then
+        router_exit_code=0
+        wait "$router_pid" || router_exit_code=$?
+        if is_background_running "$router_background_pid"; then
+          kill "$router_background_pid" || true
+        fi
+        wait "$router_background_pid" || true
+        return "$router_exit_code"
+      fi
+      if ! is_background_running "$router_background_pid"; then
+        background_exit_code=0
+        wait "$router_background_pid" || background_exit_code=$?
+        if is_background_running "$router_pid"; then
+          kill "$router_pid" || true
+        fi
+        wait "$router_pid" || true
+        return "$background_exit_code"
+      fi
+      sleep 1
+    done
+  }
+
   if [ "$PROC_ID" -eq 0 ]; then
+    VLLM_PD_EXEC=1 \
     VLLM_NIXL_SIDE_CHANNEL_HOST="$THIS_NODE_IP" \
     VLLM_NIXL_SIDE_CHANNEL_PORT="$PREFILL_NIXL_PORT" \
     run_vllm \
@@ -196,7 +255,23 @@ command: |
       --host ${deployment.router_host} \
       --port ${deployment.port} \
       --intra-node-data-parallel-size ${deployment.data_parallel_size_local} \
-      --request-timeout-secs ${deployment.router_request_timeout_secs} ${deployment.router_extra_args}
+      --request-timeout-secs ${deployment.router_request_timeout_secs} ${deployment.router_extra_args} &
+    router_pid=$!
+
+    router_background_command_file=$(mktemp)
+    cat > "$router_background_command_file" <<'VLLM_PD_ROUTER_BACKGROUND_COMMAND'
+  ${deployment.router_background_command}
+  VLLM_PD_ROUTER_BACKGROUND_COMMAND
+    if grep -q '[^[:space:]]' "$router_background_command_file"; then
+      (
+        set -euo pipefail
+        source "$router_background_command_file"
+      ) &
+      router_background_pid=$!
+      wait_for_router_or_background
+    else
+      wait "$router_pid"
+    fi
   elif [ "$PROC_ID" -lt "$PREFILL_NODES" ]; then
     VLLM_NIXL_SIDE_CHANNEL_HOST="$THIS_NODE_IP" \
     VLLM_NIXL_SIDE_CHANNEL_PORT="$PREFILL_NIXL_PORT" \
