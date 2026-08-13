@@ -1,0 +1,232 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Prefill/decode-disaggregated vLLM deployment.
+#
+# A single Slurm instance launches one rank per node. Ranks [0, prefill_nodes)
+# are NIXL KV producers, the remaining ranks are consumers, and rank 0 owns the
+# vLLM router exposed through the inherited deployment port.
+defaults:
+  - vllm
+  - _self_
+
+type: vllm_pd
+
+prefill_nodes: ???
+decode_nodes: ???
+
+prefill_port: 8001
+decode_port: 8002
+prefill_data_parallel_rpc_port: 13345
+decode_data_parallel_rpc_port: 13346
+prefill_nixl_side_channel_port: 5600
+decode_nixl_side_channel_port: 5700
+
+data_parallel_size_local: 1
+api_server_count: 1
+kv_connector: NixlConnector
+kv_load_failure_policy: fail
+router_command: vllm-router
+router_host: 0.0.0.0
+router_policy: consistent_hash
+router_request_timeout_secs: 86400
+router_extra_args: ""
+prefill_extra_args: ""
+decode_extra_args: ""
+mount_checkpoint_to_evaluation: false
+role_status_dir: ""
+role_log_dir: ""
+runtime_provenance_dir: ""
+runtime_image_sha256: ""
+# The Slurm executor writes one IP per deployment node to this shared artifact
+# before launching ranks. This avoids Pyxis parsing multi-value environment
+# variables inside the deployment container.
+node_ips_file: /results/vllm_pd_node_ips.txt
+
+command: |
+  #!/bin/bash
+  set -euo pipefail
+
+  PREFILL_NODES=${deployment.prefill_nodes}
+  DECODE_NODES=${deployment.decode_nodes}
+  TOTAL_NODES=$((PREFILL_NODES + DECODE_NODES))
+  MODEL=${select_not_null:deployment.hf_model_handle,/checkpoint}
+  PREFILL_PORT=${deployment.prefill_port}
+  DECODE_PORT=${deployment.decode_port}
+  PREFILL_DP_RPC_PORT=${deployment.prefill_data_parallel_rpc_port}
+  DECODE_DP_RPC_PORT=${deployment.decode_data_parallel_rpc_port}
+  PREFILL_NIXL_PORT=${deployment.prefill_nixl_side_channel_port}
+  DECODE_NIXL_PORT=${deployment.decode_nixl_side_channel_port}
+  ROLE_STATUS_DIR="${deployment.role_status_dir}"
+  ROLE_LOG_DIR="${deployment.role_log_dir}"
+  RUNTIME_PROVENANCE_DIR="${deployment.runtime_provenance_dir}"
+  RUNTIME_IMAGE_SHA256="${deployment.runtime_image_sha256}"
+  NODE_IPS_FILE="${deployment.node_ips_file}"
+
+  if [ "$PROC_ID" -eq 0 ]; then
+    VLLM_PD_ROLE=prefill-head-router
+  elif [ "$PROC_ID" -lt "$PREFILL_NODES" ]; then
+    VLLM_PD_ROLE=prefill-worker
+  elif [ "$PROC_ID" -eq "$PREFILL_NODES" ]; then
+    VLLM_PD_ROLE=decode-head
+  else
+    VLLM_PD_ROLE=decode-worker
+  fi
+  if [ -n "$ROLE_LOG_DIR" ]; then
+    mkdir -p "$ROLE_LOG_DIR"
+    exec > >(tee -a "$ROLE_LOG_DIR/$VLLM_PD_ROLE-$PROC_ID.log") 2>&1
+  fi
+
+  if [ "$NODES_PER_INSTANCE" -ne "$TOTAL_NODES" ]; then
+    echo "vllm_pd requires $TOTAL_NODES nodes, received $NODES_PER_INSTANCE" >&2
+    exit 1
+  fi
+
+  if [ ! -r "$NODE_IPS_FILE" ]; then
+    echo "vllm_pd node IP artifact is unavailable: $NODE_IPS_FILE" >&2
+    exit 1
+  fi
+
+  NODE_COUNT=$(awk 'END { print NR }' "$NODE_IPS_FILE")
+  if [ "$NODE_COUNT" -ne "$TOTAL_NODES" ]; then
+    echo "vllm_pd expected $TOTAL_NODES node IPs, received $NODE_COUNT" >&2
+    exit 1
+  fi
+
+  PREFILL_HEAD=$(awk 'NR == 1 { print; exit }' "$NODE_IPS_FILE")
+  DECODE_HEAD=$(awk -v line=$((PREFILL_NODES + 1)) \
+    'NR == line { print; exit }' "$NODE_IPS_FILE")
+  THIS_NODE_IP=$(awk -v line=$((PROC_ID + 1)) \
+    'NR == line { print; exit }' "$NODE_IPS_FILE")
+  if [ -z "$PREFILL_HEAD" ] || [ -z "$DECODE_HEAD" ] || [ -z "$THIS_NODE_IP" ]; then
+    echo "vllm_pd node IP artifact contains an empty required address" >&2
+    exit 1
+  fi
+  PREFILL_KV_TRANSFER_CONFIG='{"kv_connector":"${deployment.kv_connector}","kv_role":"kv_producer","kv_load_failure_policy":"${deployment.kv_load_failure_policy}"}'
+  DECODE_KV_TRANSFER_CONFIG='{"kv_connector":"${deployment.kv_connector}","kv_role":"kv_consumer","kv_load_failure_policy":"${deployment.kv_load_failure_policy}"}'
+
+  echo "vllm_pd role=$VLLM_PD_ROLE rank=$PROC_ID prefill_nodes=$PREFILL_NODES decode_nodes=$DECODE_NODES"
+
+  prefill_pid=""
+  write_role_status() {
+    status_exit_code=""
+    if [ -z "$ROLE_STATUS_DIR" ]; then
+      return
+    fi
+    if [ "$#" -gt 1 ]; then
+      status_exit_code="$2"
+    fi
+    mkdir -p "$ROLE_STATUS_DIR"
+    printf 'state=%s\nrole=%s\nrank=%s\nnode_ip=%s\nexit_code=%s\n' \
+      "$1" "$VLLM_PD_ROLE" "$PROC_ID" "$THIS_NODE_IP" "$status_exit_code" \
+      > "$ROLE_STATUS_DIR/$VLLM_PD_ROLE-$PROC_ID.status"
+  }
+  on_exit() {
+    exit_code=$?
+    if [ -n "$prefill_pid" ] && kill -0 "$prefill_pid" 2>/dev/null; then
+      kill "$prefill_pid"
+    fi
+    if [ "$exit_code" -eq 0 ]; then
+      write_role_status stopped "$exit_code"
+    else
+      write_role_status failed "$exit_code"
+    fi
+    return "$exit_code"
+  }
+  trap on_exit EXIT
+  write_role_status starting
+
+  write_runtime_provenance() {
+    if [ "$PROC_ID" -ne 0 ] || [ -z "$RUNTIME_PROVENANCE_DIR" ]; then
+      return
+    fi
+    mkdir -p "$RUNTIME_PROVENANCE_DIR"
+    {
+      printf 'configured_image_sha256=%s\n' "$RUNTIME_IMAGE_SHA256"
+      printf 'router_command_version=%s\n' "$( ${deployment.router_command} --version 2>&1 || true )"
+      python3 - <<'PY'
+  from importlib.metadata import PackageNotFoundError, version
+
+  for package in ("vllm", "vllm-router", "ray", "fastokens", "instanttensor", "nixl"):
+      try:
+          print(f"{package}={version(package)}")
+      except PackageNotFoundError:
+          print(f"{package}=not-installed")
+  PY
+    } > "$RUNTIME_PROVENANCE_DIR/runtime.env"
+  }
+
+  command -v "${deployment.router_command}" >/dev/null || {
+    echo "vllm_pd requires ${deployment.router_command} in the deployment image" >&2
+    exit 1
+  }
+  write_runtime_provenance
+
+  run_vllm() {
+    vllm serve "$MODEL" \
+      --tensor-parallel-size ${deployment.tensor_parallel_size} \
+      --pipeline-parallel-size ${deployment.pipeline_parallel_size} \
+      --trust-remote-code \
+      --served-model-name ${deployment.served_model_name} \
+      --gpu-memory-utilization ${deployment.gpu_memory_utilization} \
+      --distributed-executor-backend mp \
+      --data-parallel-backend mp \
+      --data-parallel-size-local ${deployment.data_parallel_size_local} \
+      ${deployment.extra_args} "$@"
+  }
+
+  if [ "$PROC_ID" -eq 0 ]; then
+    VLLM_NIXL_SIDE_CHANNEL_HOST="$THIS_NODE_IP" \
+    VLLM_NIXL_SIDE_CHANNEL_PORT="$PREFILL_NIXL_PORT" \
+    run_vllm \
+      --host 0.0.0.0 \
+      --port "$PREFILL_PORT" \
+      --data-parallel-size "$PREFILL_NODES" \
+      --data-parallel-address "$PREFILL_HEAD" \
+      --data-parallel-rpc-port "$PREFILL_DP_RPC_PORT" \
+      --api-server-count ${deployment.api_server_count} \
+      --kv-transfer-config "$PREFILL_KV_TRANSFER_CONFIG" ${deployment.prefill_extra_args} &
+    prefill_pid=$!
+
+    ${deployment.router_command} \
+      --policy ${deployment.router_policy} \
+      --vllm-pd-disaggregation \
+      --prefill "http://$PREFILL_HEAD:$PREFILL_PORT" \
+      --decode "http://$DECODE_HEAD:$DECODE_PORT" \
+      --host ${deployment.router_host} \
+      --port ${deployment.port} \
+      --intra-node-data-parallel-size ${deployment.data_parallel_size_local} \
+      --request-timeout-secs ${deployment.router_request_timeout_secs} ${deployment.router_extra_args}
+  elif [ "$PROC_ID" -lt "$PREFILL_NODES" ]; then
+    VLLM_NIXL_SIDE_CHANNEL_HOST="$THIS_NODE_IP" \
+    VLLM_NIXL_SIDE_CHANNEL_PORT="$PREFILL_NIXL_PORT" \
+    run_vllm \
+      --headless \
+      --data-parallel-size "$PREFILL_NODES" \
+      --data-parallel-start-rank "$PROC_ID" \
+      --data-parallel-address "$PREFILL_HEAD" \
+      --data-parallel-rpc-port "$PREFILL_DP_RPC_PORT" \
+      --kv-transfer-config "$PREFILL_KV_TRANSFER_CONFIG" ${deployment.prefill_extra_args}
+  elif [ "$PROC_ID" -eq "$PREFILL_NODES" ]; then
+    VLLM_NIXL_SIDE_CHANNEL_HOST="$THIS_NODE_IP" \
+    VLLM_NIXL_SIDE_CHANNEL_PORT="$DECODE_NIXL_PORT" \
+    run_vllm \
+      --host 0.0.0.0 \
+      --port "$DECODE_PORT" \
+      --data-parallel-size "$DECODE_NODES" \
+      --data-parallel-address "$DECODE_HEAD" \
+      --data-parallel-rpc-port "$DECODE_DP_RPC_PORT" \
+      --api-server-count ${deployment.api_server_count} \
+      --kv-transfer-config "$DECODE_KV_TRANSFER_CONFIG" ${deployment.decode_extra_args}
+  else
+    DECODE_RANK=$((PROC_ID - PREFILL_NODES))
+    VLLM_NIXL_SIDE_CHANNEL_HOST="$THIS_NODE_IP" \
+    VLLM_NIXL_SIDE_CHANNEL_PORT="$DECODE_NIXL_PORT" \
+    run_vllm \
+      --headless \
+      --data-parallel-size "$DECODE_NODES" \
+      --data-parallel-start-rank "$DECODE_RANK" \
+      --data-parallel-address "$DECODE_HEAD" \
+      --data-parallel-rpc-port "$DECODE_DP_RPC_PORT" \
+      --kv-transfer-config "$DECODE_KV_TRANSFER_CONFIG" ${deployment.decode_extra_args}
+  fi

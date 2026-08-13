@@ -263,15 +263,16 @@ def generate_secrets_env(
 def build_reexport_commands(group_name: str, result: SecretsEnvResult) -> str:
     """Build shell commands to re-export disambiguated vars back to original names.
 
-    For a group, generates commands like:
-        export HF_TOKEN=$HF_TOKEN_a3f1b2_TASK_A
+    The generated block preserves the caller's xtrace state while hiding the
+    assignments themselves. This keeps host-derived values out of Slurm logs
+    when the outer script uses ``set -x``.
 
     Args:
         group_name: The group to generate re-export commands for.
         result: The SecretsEnvResult from generate_secrets_env().
 
     Returns:
-        Shell command string (semicolon-separated exports), or empty string.
+        Shell command block, or empty string.
     """
     commands = []
     # Resolved vars (literal + host) first — they source from .secrets.env
@@ -287,7 +288,22 @@ def build_reexport_commands(group_name: str, result: SecretsEnvResult) -> str:
             'export %s="${%s}"'
             % (remapping.original_name, remapping.disambiguated_name)
         )
-    return " ; ".join(commands)
+    if not commands:
+        return ""
+
+    exports = "\n".join(f"    {command}" for command in commands)
+    return (
+        'case "$-" in\n'
+        "  *x*)\n"
+        "    set +x\n"
+        f"{exports}\n"
+        "    set -x\n"
+        "    ;;\n"
+        "  *)\n"
+        f"{exports}\n"
+        "    ;;\n"
+        "esac"
+    )
 
 
 def redact_secrets_env_content(

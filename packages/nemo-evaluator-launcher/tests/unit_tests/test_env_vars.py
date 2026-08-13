@@ -16,6 +16,7 @@
 """Tests for nemo_evaluator_launcher.common.env_vars module."""
 
 import os
+import subprocess
 from unittest import mock
 
 import pytest
@@ -221,7 +222,8 @@ class TestBuildReexportCommands:
             },
         )
         cmd = build_reexport_commands("task_a", result)
-        assert cmd == 'export HF_TOKEN="${HF_TOKEN_abc_TASK_A}"'
+        assert cmd.startswith('case "$-" in\n  *x*)\n')
+        assert cmd.count('export HF_TOKEN="${HF_TOKEN_abc_TASK_A}"') == 2
 
     def test_multiple_vars(self):
         result = SecretsEnvResult(
@@ -236,7 +238,8 @@ class TestBuildReexportCommands:
         cmd = build_reexport_commands("task_a", result)
         assert 'export HF_TOKEN="${HF_TOKEN_abc_TASK_A}"' in cmd
         assert 'export API_KEY="${API_KEY_abc_TASK_A}"' in cmd
-        assert " ; " in cmd
+        assert "set +x" in cmd
+        assert "set -x" in cmd
 
     def test_empty_group(self):
         result = SecretsEnvResult(secrets_content="")
@@ -256,6 +259,30 @@ class TestBuildReexportCommands:
         cmd = build_reexport_commands("task_a", result)
         assert 'export HF_TOKEN="${HF_TOKEN_abc_TASK_A}"' in cmd
         assert 'export API_KEY="${NGC_API_TOKEN}"' in cmd
+
+    def test_xtrace_never_prints_reexported_value(self):
+        result = SecretsEnvResult(
+            secrets_content="",
+            group_remappings={
+                "task_a": [VarRemapping("HF_TOKEN", "HF_TOKEN_abc_TASK_A")]
+            },
+        )
+        cmd = build_reexport_commands("task_a", result)
+        secret = "test-secret-value"
+
+        process = subprocess.run(
+            [
+                "bash",
+                "-c",
+                f'export HF_TOKEN_abc_TASK_A="{secret}"\nset -x\n{cmd}\nset +x\nprintf %s "$HF_TOKEN"',
+            ],
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+        assert process.stdout == secret
+        assert secret not in process.stderr
 
 
 # --- Config collection with hierarchical merging ---

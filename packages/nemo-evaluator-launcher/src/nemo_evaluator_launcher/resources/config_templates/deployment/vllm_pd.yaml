@@ -1,0 +1,27 @@
+defaults:
+  - deployment: vllm_pd
+
+# P/D runs one Slurm instance with one rank per prefill or decode node.
+execution:
+  num_nodes: 2
+  num_instances: 1
+
+deployment:
+  env_vars:
+    HF_TOKEN: host:HF_TOKEN # Required for gated HuggingFace models
+  # Must include vllm-router and NIXL support; do not use a generic vLLM image.
+  image: ???
+  checkpoint_path: ???
+  hf_model_handle: null
+  served_model_name: ???
+  prefill_nodes: 1
+  decode_nodes: 1
+  tensor_parallel_size: 1
+  data_parallel_size_local: 1
+  mount_checkpoint_to_evaluation: true
+  role_status_dir: /results/pd-role-status
+  role_log_dir: /results/pd-role-logs
+  runtime_provenance_dir: /results/pd-runtime
+  runtime_image_sha256: ???
+  node_ips_file: /results/vllm_pd_node_ips.txt
+  extra_args: ""

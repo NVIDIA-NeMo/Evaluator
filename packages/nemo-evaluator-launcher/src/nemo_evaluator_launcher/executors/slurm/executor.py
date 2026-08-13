@@ -838,13 +838,10 @@ def _create_slurm_sbatch_script(
         ):
             deployment_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
-        # Re-export deployment vars right before deployment srun.
-        # Bracket with `set +x`/`set -x` so xtrace doesn't expand
-        # `${HF_TOKEN_xxx}` (and similar) into the slurm log.
+        # Re-export deployment variables immediately before the deployment
+        # srun. The generated block preserves xtrace state safely.
         if deploy_reexport_cmd:
-            s += "set +x\n"
             s += f"{deploy_reexport_cmd}\n"
-            s += "set -x\n"
 
         # add deployment srun command
         deployment_srun_cmd, deployment_is_unsafe, deployment_debug = (
@@ -902,9 +899,7 @@ def _create_slurm_sbatch_script(
 
         # Re-export aux deployment vars right before aux deployment srun
         if aux.reexport_cmd:
-            s += "set +x\n"
             s += f"{aux.reexport_cmd}\n"
-            s += "set -x\n"
 
         # Add auxiliary deployment srun command
         aux_srun_cmd, aux_unsafe, aux_debug = (
@@ -954,6 +949,10 @@ def _create_slurm_sbatch_script(
     evaluation_mounts_list = [
         "{}:/results".format(remote_task_subdir / "artifacts"),
     ]
+    if (
+        checkpoint_path := cfg.deployment.get("checkpoint_path")
+    ) and cfg.deployment.get("mount_checkpoint_to_evaluation", False):
+        evaluation_mounts_list.append(f"{checkpoint_path}:/checkpoint:ro")
     for source_mnt, target_mnt in (
         cfg.execution.get("mounts", {}).get("evaluation", {}).items()
     ):
@@ -990,9 +989,7 @@ def _create_slurm_sbatch_script(
 
     # Re-export eval vars right before eval srun
     if eval_reexport_cmd:
-        s += "set +x\n"
         s += f"{eval_reexport_cmd}\n"
-        s += "set -x\n"
 
     # Export auxiliary endpoint information for evaluation containers
     aux_extra_env_names = []
@@ -1150,9 +1147,7 @@ def _generate_auto_export_section(
 
     if secrets:
         reexport_cmd = build_reexport_commands("export", secrets)
-        s += "    set +x\n"
         s += f"    {reexport_cmd}\n"
-        s += "    set -x\n"
 
     export_config = {"export": cfg.get("export", {})}
 
@@ -1901,7 +1896,19 @@ def _generate_deployment_srun_command(
 
     s += 'export NODES_IPS_ARRAY=($(for node in "${DEPLOY_NODES_ARRAY[@]}"; do srun --nodelist="$node" --ntasks=1 --nodes=1 hostname --ip-address; done))\n'
     s += 'echo "Node IPs: ${NODES_IPS_ARRAY[@]}"\n'
-    s += 'export ALL_NODE_IPS=$(IFS=,; echo "${NODES_IPS_ARRAY[*]}")\n'
+    is_vllm_pd = cfg.deployment.get("type") == "vllm_pd"
+    if is_vllm_pd:
+        # Pyxis parses container environment values as comma-separated fields and
+        # does not preserve alternative separators consistently. Share P/D node
+        # addresses through the deployment's existing /results artifact mount.
+        node_ips_file = remote_task_subdir / "artifacts" / "vllm_pd_node_ips.txt"
+        s += f"mkdir -p {shlex.quote(str(node_ips_file.parent))}\n"
+        s += (
+            'printf "%s\\n" "${NODES_IPS_ARRAY[@]}" > '
+            f"{shlex.quote(str(node_ips_file))}\n"
+        )
+    else:
+        s += 'export ALL_NODE_IPS=$(IFS=,; echo "${NODES_IPS_ARRAY[*]}")\n'
 
     num_instances = cfg.execution.get("num_instances", 1)
     nodes_per_instance = cfg.execution.num_nodes // num_instances
@@ -1925,10 +1932,15 @@ def _generate_deployment_srun_command(
     if deployment_env_var_names is None:
         deployment_env_var_names = []
 
-    # Always pass MASTER_IP and ALL_NODE_IPS into each instance container
+    # Always pass MASTER_IP into each instance container. P/D reads its node
+    # addresses from the shared artifact mount rather than a Pyxis environment.
     if "MASTER_IP" not in deployment_env_var_names:
         deployment_env_var_names.append("MASTER_IP")
-    if "ALL_NODE_IPS" not in deployment_env_var_names:
+    if is_vllm_pd:
+        deployment_env_var_names = [
+            name for name in deployment_env_var_names if name != "ALL_NODE_IPS"
+        ]
+    elif "ALL_NODE_IPS" not in deployment_env_var_names:
         deployment_env_var_names.append("ALL_NODE_IPS")
 
     # Build the command that runs inside each instance container:

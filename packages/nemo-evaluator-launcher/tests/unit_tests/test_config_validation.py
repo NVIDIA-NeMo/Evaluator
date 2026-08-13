@@ -28,7 +28,10 @@ import pytest
 import yaml
 from omegaconf import OmegaConf
 
-from nemo_evaluator_launcher.api.functional import _validate_config_sections
+from nemo_evaluator_launcher.api.functional import (
+    _validate_config_sections,
+    _validate_pd_deployment,
+)
 
 # Minimal valid sections; use make_config() to build full configs.
 MINIMAL_EVALUATION: Dict[str, Any] = {
@@ -283,6 +286,162 @@ class TestStructuralValidation:
         # Then ValueError is raised naming the problematic section
         with pytest.raises(ValueError, match=expected_error):
             _validate_config_sections(cfg)
+
+
+class TestVllmPdDeploymentValidation:
+    @pytest.mark.parametrize(
+        "prefill_nodes,decode_nodes,num_nodes,num_instances,n_tasks,error",
+        [
+            (1, 1, 2, 1, 2, None),
+            (0, 1, 1, 1, 1, "prefill_nodes must be a positive integer"),
+            (1, 0, 1, 1, 1, "decode_nodes must be a positive integer"),
+            (1, 1, 3, 1, 3, r"must equal prefill_nodes \+ decode_nodes"),
+            (1, 1, 2, 2, 2, "requires execution.num_instances == 1"),
+            (1, 1, 2, 1, 1, "execution.deployment.n_tasks must equal"),
+            (1, 1, "2", "1", "2", None),
+            (1, 1, 2, 1.5, 2, "execution.num_instances must be 1"),
+            (1, 1, 2.5, 1, 2, "execution.num_nodes must be an integer"),
+            (1, 1, 2, 1, 2.5, "execution.deployment.n_tasks must be an integer"),
+        ],
+        ids=[
+            "valid",
+            "zero_prefill",
+            "zero_decode",
+            "node_count_mismatch",
+            "multiple_instances",
+            "task_count_mismatch",
+            "stringified_execution_values",
+            "fractional_instance_count",
+            "fractional_node_count",
+            "fractional_task_count",
+        ],
+    )
+    def test_topology_validation(
+        self,
+        prefill_nodes,
+        decode_nodes,
+        num_nodes,
+        num_instances,
+        n_tasks,
+        error,
+    ):
+        cfg = OmegaConf.create(
+            {
+                "deployment": {
+                    "type": "vllm_pd",
+                    "prefill_nodes": prefill_nodes,
+                    "decode_nodes": decode_nodes,
+                },
+                "execution": {
+                    "type": "slurm",
+                    "num_nodes": num_nodes,
+                    "num_instances": num_instances,
+                    "deployment": {"n_tasks": n_tasks},
+                },
+            }
+        )
+
+        if error is None:
+            _validate_pd_deployment(cfg)
+        else:
+            with pytest.raises(ValueError, match=error):
+                _validate_pd_deployment(cfg)
+
+    def test_defaults_tasks_to_nodes_when_execution_deployment_is_null(self):
+        cfg = OmegaConf.create(
+            {
+                "deployment": {
+                    "type": "vllm_pd",
+                    "prefill_nodes": 1,
+                    "decode_nodes": 1,
+                },
+                "execution": {
+                    "type": "slurm",
+                    "num_nodes": 2,
+                    "num_instances": 1,
+                    "deployment": None,
+                },
+            }
+        )
+
+        _validate_pd_deployment(cfg)
+
+    @pytest.mark.parametrize(
+        "port_config,error",
+        [
+            (
+                {"port": 8001, "prefill_port": 8001},
+                "deployment.port must differ from deployment.prefill_port",
+            ),
+            (
+                {"port": 0},
+                "deployment.port must be an integer between 1 and 65535",
+            ),
+            (
+                {"decode_nixl_side_channel_port": 65536},
+                "deployment.decode_nixl_side_channel_port must be an integer between 1 and 65535",
+            ),
+        ],
+        ids=[
+            "router_prefill_port_collision",
+            "zero_router_port",
+            "oversized_nixl_port",
+        ],
+    )
+    def test_rejects_invalid_ports(self, port_config, error):
+        cfg = OmegaConf.create(
+            {
+                "deployment": {
+                    "type": "vllm_pd",
+                    "prefill_nodes": 1,
+                    "decode_nodes": 1,
+                    **port_config,
+                },
+                "execution": {
+                    "type": "slurm",
+                    "num_nodes": 2,
+                    "num_instances": 1,
+                    "deployment": {"n_tasks": 2},
+                },
+            }
+        )
+
+        with pytest.raises(ValueError, match=error):
+            _validate_pd_deployment(cfg)
+
+    @pytest.mark.parametrize(
+        "runtime_image_sha256,error",
+        [
+            ("", None),
+            ("a" * 64, None),
+            ("sha256:" + "a" * 64, "must be a 64-character SHA-256 digest"),
+            ("not-a-digest", "must be a 64-character SHA-256 digest"),
+        ],
+        ids=["unset", "valid", "prefixed", "invalid"],
+    )
+    def test_runtime_image_digest(self, runtime_image_sha256, error):
+        cfg = OmegaConf.create(
+            {
+                "deployment": {
+                    "type": "vllm_pd",
+                    "prefill_nodes": 1,
+                    "decode_nodes": 1,
+                    "runtime_image_sha256": runtime_image_sha256,
+                },
+                "execution": {
+                    "type": "slurm",
+                    "num_nodes": 2,
+                    "num_instances": 1,
+                    "deployment": {"n_tasks": 2},
+                },
+            }
+        )
+
+        if error is None:
+            _validate_pd_deployment(cfg)
+        else:
+            with pytest.raises(ValueError, match=error):
+                _validate_pd_deployment(cfg)
 
 
 # ---------------------------------------------------------------------------

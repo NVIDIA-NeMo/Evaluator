@@ -26,6 +26,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from omegaconf import OmegaConf
 
+from nemo_evaluator_launcher.api.types import RunConfig
 from nemo_evaluator_launcher.common.env_vars import SecretsEnvResult
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.executors.base import ExecutionState, ExecutionStatus
@@ -245,6 +246,81 @@ class TestSlurmExecutorFeatures:
         # Check that evaluation mounts are added to evaluation container
         assert "/host/eval1:/container/eval1" in script
         assert "/host/eval2:/container/eval2" in script
+
+    def test_mount_checkpoint_to_evaluation(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """Test opt-in checkpoint visibility for evaluation-side tokenizers."""
+        base_config["deployment"]["checkpoint_path"] = "/host/model"
+        base_config["deployment"]["mount_checkpoint_to_evaluation"] = True
+
+        cfg = OmegaConf.create(base_config)
+
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+            task_idx=0,
+        ).cmd
+
+        evaluation_script = script.split("# evaluation client", maxsplit=1)[1]
+        assert "/host/model:/checkpoint:ro" in evaluation_script
+
+    def test_vllm_pd_renders_one_router_topology(self, mock_task, mock_dependencies):
+        """P/D launches all roles in one srun and waits for the rank-zero router."""
+        cfg = RunConfig.from_hydra(
+            hydra_overrides=[
+                "execution=slurm/default",
+                "execution.hostname=test-slurm-host",
+                "execution.account=test-account",
+                "execution.output_dir=/test/output",
+                "deployment=vllm_pd",
+                "deployment.served_model_name=test-model",
+                "deployment.checkpoint_path=/host/model",
+                "deployment.prefill_nodes=1",
+                "deployment.decode_nodes=1",
+                "execution.num_nodes=2",
+                "execution.num_instances=1",
+                "execution.deployment.n_tasks=2",
+                "+execution.gpus_per_node=4",
+                "execution.gres=null",
+            ]
+        )
+        cfg.evaluation = {"env_vars": {}}
+        cfg.target = {"api_endpoint": {"api_key_name": None}}
+        mock_dependencies["get_task_definition_for_job"].return_value[
+            "endpoint_type"
+        ] = "chat"
+
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+            task_idx=0,
+        ).cmd
+
+        deployment_script = script.split("# evaluation client", maxsplit=1)[0]
+        assert deployment_script.count("srun --mpi pmix --overlap") == 1
+        assert "#SBATCH --gpus-per-node 4" in deployment_script
+        assert "#SBATCH --gres" not in deployment_script
+        assert (
+            '--nodelist "$INSTANCE_NODELIST" --nodes 2 --ntasks 2 ' in deployment_script
+        )
+        assert "NODES_PER_INSTANCE=2" in deployment_script
+        assert "/test/remote/artifacts/vllm_pd_node_ips.txt" in deployment_script
+        assert 'printf "%s\\n" "${NODES_IPS_ARRAY[@]}"' in deployment_script
+        assert "ALL_NODE_IPS" not in deployment_script
+        assert "/test/remote/artifacts:/results" in deployment_script
+        assert 'ROLE_STATUS_DIR=""' in deployment_script
+        assert "vllm-router" in deployment_script
+        assert 'for ip in "127.0.0.1"; do' in deployment_script
+        assert "http://$ip:8000/health" in deployment_script
 
     def test_mount_home_flag_enabled(self, base_config, mock_task, mock_dependencies):
         """Test mount_home flag when enabled (default behavior)."""

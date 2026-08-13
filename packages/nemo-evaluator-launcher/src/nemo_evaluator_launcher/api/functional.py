@@ -20,6 +20,7 @@ This module provides the main functional entry points for running evaluations, q
 
 import copy
 import os
+import re
 import tempfile
 from collections import defaultdict
 from pathlib import Path
@@ -118,6 +119,109 @@ def _validate_config_sections(cfg: RunConfig) -> None:
                 f"Invalid 'execution.mounts' config:\n{e}\n"
                 f"Allowed mounts keys: {_allowed_keys(MountsModel)}"
             ) from e
+
+
+def _as_integer(value: Any, field: str) -> int:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if text.lstrip("-").isdigit():
+            return int(text)
+    raise ValueError(f"vllm_pd {field} must be an integer")
+
+
+def _port(value: Any, field: str) -> int:
+    port = _as_integer(value, field)
+    if not 1 <= port <= 65535:
+        raise ValueError(f"vllm_pd {field} must be an integer between 1 and 65535")
+    return port
+
+
+def _validate_pd_deployment(cfg: RunConfig) -> None:
+    """Validate the single-instance Slurm topology required by vllm_pd."""
+    if cfg.get("deployment", {}).get("type") != "vllm_pd":
+        return
+
+    if cfg.execution.get("type") != "slurm":
+        raise ValueError("vllm_pd requires execution.type=slurm")
+
+    try:
+        num_instances = _as_integer(
+            cfg.execution.get("num_instances", 1), "execution.num_instances"
+        )
+    except ValueError as e:
+        raise ValueError("vllm_pd execution.num_instances must be 1") from e
+    if num_instances != 1:
+        raise ValueError("vllm_pd requires execution.num_instances == 1")
+
+    try:
+        prefill_nodes = _as_integer(cfg.deployment.prefill_nodes, "prefill_nodes")
+    except (AttributeError, ValueError) as e:
+        raise ValueError("vllm_pd prefill_nodes must be a positive integer") from e
+    if prefill_nodes <= 0:
+        raise ValueError("vllm_pd prefill_nodes must be a positive integer")
+
+    try:
+        decode_nodes = _as_integer(cfg.deployment.decode_nodes, "decode_nodes")
+    except (AttributeError, ValueError) as e:
+        raise ValueError("vllm_pd decode_nodes must be a positive integer") from e
+    if decode_nodes <= 0:
+        raise ValueError("vllm_pd decode_nodes must be a positive integer")
+
+    try:
+        execution_nodes = _as_integer(cfg.execution.num_nodes, "execution.num_nodes")
+    except (AttributeError, ValueError) as e:
+        raise ValueError("vllm_pd execution.num_nodes must be an integer") from e
+
+    total_nodes = prefill_nodes + decode_nodes
+    if execution_nodes != total_nodes:
+        raise ValueError(
+            "vllm_pd execution.num_nodes must equal prefill_nodes + decode_nodes "
+            f"({total_nodes}), received {execution_nodes}"
+        )
+
+    execution_deployment = cfg.execution.get("deployment") or {}
+    n_tasks = execution_deployment.get("n_tasks", cfg.execution.num_nodes)
+    try:
+        deployment_tasks = _as_integer(n_tasks, "execution.deployment.n_tasks")
+    except ValueError as e:
+        raise ValueError(
+            "vllm_pd execution.deployment.n_tasks must be an integer"
+        ) from e
+    if deployment_tasks != total_nodes:
+        raise ValueError(
+            "vllm_pd execution.deployment.n_tasks must equal prefill_nodes + "
+            f"decode_nodes ({total_nodes}), received {deployment_tasks}"
+        )
+
+    ports: dict[str, int] = {}
+    for field in (
+        "port",
+        "prefill_port",
+        "decode_port",
+        "prefill_data_parallel_rpc_port",
+        "decode_data_parallel_rpc_port",
+        "prefill_nixl_side_channel_port",
+        "decode_nixl_side_channel_port",
+    ):
+        value = cfg.deployment.get(field)
+        if value is not None:
+            ports[field] = _port(value, f"deployment.{field}")
+
+    if "port" in ports and ports["port"] == ports.get("prefill_port"):
+        raise ValueError(
+            "vllm_pd deployment.port must differ from deployment.prefill_port"
+        )
+
+    image_sha256 = cfg.deployment.get("runtime_image_sha256", "")
+    if image_sha256 and (
+        not isinstance(image_sha256, str)
+        or re.fullmatch(r"[0-9a-fA-F]{64}", image_sha256) is None
+    ):
+        raise ValueError(
+            "vllm_pd deployment.runtime_image_sha256 must be a 64-character SHA-256 digest"
+        )
 
 
 def _validate_nemo_evaluator_config_params(
@@ -307,6 +411,7 @@ def run_eval(
     # Validate that no MISSING values exist in the configuration
     _validate_no_missing_values(cfg)
     _validate_config_sections(cfg)
+    _validate_pd_deployment(cfg)
 
     if dry_run:
         print(OmegaConf.to_yaml(cfg))
