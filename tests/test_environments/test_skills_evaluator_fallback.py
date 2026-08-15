@@ -99,3 +99,21 @@ class TestScoringTimeFailure:
         reward, details = env._score("anything", "anything else", {})
         assert reward == 1.0
         assert details["method"] == "skills_code"
+
+
+class TestFactoryForwarding:
+    """The skills:// factory must forward allow_exact_match_fallback."""
+
+    def _captured_kwargs(self, **factory_kwargs):
+        from nemo_evaluator.environments import registry
+
+        with patch(f"{MOD}.SkillsEnvironment") as ctor:
+            registry._make_skills("gsm8k", **factory_kwargs)
+        return ctor.call_args.kwargs
+
+    def test_default_is_false(self):
+        assert self._captured_kwargs()["allow_exact_match_fallback"] is False
+
+    def test_explicit_optin_is_forwarded(self):
+        kwargs = self._captured_kwargs(allow_exact_match_fallback=True)
+        assert kwargs["allow_exact_match_fallback"] is True
