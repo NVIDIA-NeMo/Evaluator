@@ -18,16 +18,18 @@ from nemo_evaluator.adapters.cache.disk_cache import DiskCache
 from nemo_evaluator.adapters.interceptors.caching import Interceptor
 from nemo_evaluator.adapters.types import AdapterRequest, AdapterResponse, InterceptorContext
 
+_REQUEST_PATH = "/chat/completions"
+
 
 def _compute_key(body):
-    return DiskCache.cache_key(body)
+    return DiskCache.cache_key(body, request_path=_REQUEST_PATH)
 
 
 def test_golden_key_simple():
     body = {"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}], "temperature": 0.7}
     key = _compute_key(body)
     assert key == _compute_key(body)
-    assert key == "47b19779cd5d48c963c4e1d3c4a2a0266d3b3f99efb770950de1f9f71b80af13"
+    assert key == "a645af96c78b89c2ff7ecacf9766427df863e5bcc7a6422a57c2d3d790244200"
 
 
 def test_golden_key_with_tools():
@@ -38,7 +40,7 @@ def test_golden_key_with_tools():
     }
     key = _compute_key(body)
     assert key == _compute_key(body)
-    assert key == "211169e5d6fd15019805b70d9369f704c3f103c2f603be4e7288e6f2c9f32100"
+    assert key == "53411c91ed09778aca705d15f5f85372812fe755a0e033dcae49676d9996a5be"
 
 
 def test_key_changes_with_stream_mode():
@@ -94,12 +96,12 @@ def test_key_is_stable_across_mapping_order():
 def test_key_differs_with_session_prefix():
     """Session prefix ensures repeats of the same problem never share cache entries."""
     body = {"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}]}
-    k_none = DiskCache.cache_key(body)
-    k_a = DiskCache.cache_key(body, session_prefix="repeat-0")
-    k_b = DiskCache.cache_key(body, session_prefix="repeat-1")
+    k_none = DiskCache.cache_key(body, request_path=_REQUEST_PATH)
+    k_a = DiskCache.cache_key(body, request_path=_REQUEST_PATH, session_prefix="repeat-0")
+    k_b = DiskCache.cache_key(body, request_path=_REQUEST_PATH, session_prefix="repeat-1")
     assert k_none != k_a
     assert k_a != k_b
-    assert k_none == DiskCache.cache_key(body, session_prefix="")
+    assert k_none == DiskCache.cache_key(body, request_path=_REQUEST_PATH, session_prefix="")
 
 
 async def test_response_affecting_field_does_not_reuse_cached_response(tmp_path):

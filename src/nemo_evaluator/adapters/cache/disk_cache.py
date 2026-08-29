@@ -67,7 +67,7 @@ class DiskCache:
     def cache_key(
         body: dict[str, Any],
         *,
-        request_path: str = "",
+        request_path: str,
         session_prefix: str = "",
     ) -> str:
         # Retain the complete incoming request body so new provider parameters
