@@ -148,6 +148,7 @@ benchmarks:
 - **`max_drop`**: Maximum tolerated absolute regression on the 0-1 scale.  `0.01` = 1 percentage point.
 - **`max_relative_drop`**: Optional relative guardrail.  `0.02` = 2%.  Only meaningful for low-baseline benchmarks where a small absolute drop is a large relative change.
 - **`relative_guard_below`**: The relative guardrail only activates when the baseline score is below this value.  At 80% accuracy, a 1 pp drop is a 1.25% relative change (harmless).  At 10% accuracy, a 1 pp drop is a 10% relative change (significant).
+- **`excluded_error_categories`**: Samples whose `scoring_details.error_category` is one of these are left out of paired gating, because their `0.0` came from the infrastructure (a sandbox outage, a system error that exhausted its retries) rather than from the model.  Defaults to `["infra_error", "system"]`; set `[]` to gate on every sample.  The gate report records how many samples were excluded per run.
 
 **Benchmarks not listed in the policy** inherit the defaults.  If the gate discovers an eval bundle for an unlisted benchmark, it applies the default tier and threshold.  If you want to require specific benchmarks, list them explicitly -- the gate will report MISSING for any listed benchmark not found in the results.
 
