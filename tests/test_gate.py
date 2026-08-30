@@ -488,8 +488,63 @@ class TestGateVerdicts:
         with pytest.raises(ValueError, match="explicit metric"):
             gate_runs(base_dir, cand_dir, policy)
 
+    # ── TestPairedDeltaCI ─────────────────────────────────────────────────
 
-# ── TestPairedDeltaCI ─────────────────────────────────────────────────
+    def test_infra_errored_candidate_samples_are_excluded(self, tmp_path):
+        """A sandbox outage in the candidate run is not a regression.
+
+        The eval loop scores an exhausted infra error 0.0 and tags it
+        ``error_category: infra_error``.  Six such samples out of twenty
+        used to read as six wrong answers and turn a clean run into NO-GO.
+        """
+        base = _simple_records(20, 1.0)
+        cand = _simple_records(14, 1.0) + [
+            {
+                "problem_idx": i,
+                "repeat": 0,
+                "reward": 0.0,
+                "expected_answer": "ans",
+                "scoring_details": {"error": "sandbox unreachable", "error_category": "infra_error"},
+            }
+            for i in range(14, 20)
+        ]
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {"mmlu": (base, cand, _scores(1.0), _scores(0.7))},
+        )
+        policy = self._policy(benchmarks={"mmlu": {}})
+        report = gate_runs(base_dir, cand_dir, policy)
+        bench = report.benchmarks[0]
+        assert report.verdict == "GO"
+        assert bench.status == "PASS"
+        assert bench.n_paired == 14
+        assert bench.n_infra_excluded_candidate == 6
+        assert bench.n_infra_excluded_baseline == 0
+        assert any("infra-errored" in r for r in bench.reasons)
+
+    def test_model_attributable_failures_still_count(self, tmp_path):
+        """Negative control: a solve timeout is the model's failure and stays a 0.0."""
+        base = _simple_records(20, 1.0)
+        cand = _simple_records(14, 1.0) + [
+            {
+                "problem_idx": i,
+                "repeat": 0,
+                "reward": 0.0,
+                "expected_answer": "ans",
+                "scoring_details": {"error": "timed out", "error_category": "solve_timeout"},
+            }
+            for i in range(14, 20)
+        ]
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {"mmlu": (base, cand, _scores(1.0), _scores(0.7))},
+        )
+        policy = self._policy(benchmarks={"mmlu": {}})
+        report = gate_runs(base_dir, cand_dir, policy)
+        bench = report.benchmarks[0]
+        assert report.verdict == "NO-GO"
+        assert bench.n_paired == 20
+        assert bench.n_infra_excluded_candidate == 0
 
 
 class TestPairedDeltaCI:

@@ -57,6 +57,23 @@ _MIN_PAIRED_ITEMS = 10
 _GATE_REPORT_VERSION = 1
 _SUPPORTED_GATED_METRICS = frozenset({"mean_reward", "pass@1"})
 
+# The eval loop scores a sample 0.0 when the *infrastructure* failed, not the
+# model: sandbox or system errors that exhausted their retries.  It tags those
+# records with ``scoring_details.error_category`` so they can be told apart
+# from a wrong answer.  Nothing downstream read that tag, so a sandbox outage in
+# the candidate run looked to the gate like a batch of wrong answers and could
+# turn a GO into a NO-GO.  These categories are excluded from paired gating;
+# model-attributable failures (graceful errors, solve timeouts) still count.
+_INFRA_ERROR_CATEGORIES = frozenset({"infra_error", "system"})
+
+
+def _is_infra_errored(record: dict[str, Any]) -> bool:
+    """True when the record's 0.0 came from infrastructure, not the model."""
+    details = record.get("scoring_details")
+    if not isinstance(details, dict):
+        return False
+    return details.get("error_category") in _INFRA_ERROR_CATEGORIES
+
 
 # ── Dataclasses ───────────────────────────────────────────────────────
 
@@ -76,6 +93,8 @@ class BenchmarkGateResult:
     delta_ci_lower: float | None = None
     delta_ci_upper: float | None = None
     n_paired: int = 0
+    n_infra_excluded_baseline: int = 0
+    n_infra_excluded_candidate: int = 0
     max_drop_threshold: float = 0.0
     max_relative_drop_threshold: float | None = None
     direction: str = "higher_is_better"
@@ -234,7 +253,13 @@ def _evaluate_benchmark(
 
     metric = policy.metric or _select_metric(reg_report)
     result.metric = metric
-
+    result.n_infra_excluded_baseline = sum(1 for r in base_records.values() if _is_infra_errored(r))
+    result.n_infra_excluded_candidate = sum(1 for r in cand_records.values() if _is_infra_errored(r))
+    if result.n_infra_excluded_baseline or result.n_infra_excluded_candidate:
+        result.reasons.append(
+            "Excluded infra-errored samples from pairing: "
+            f"{result.n_infra_excluded_baseline} baseline, {result.n_infra_excluded_candidate} candidate"
+        )
     base_values = _metric_problem_values(base_records, metric)
     cand_values = _metric_problem_values(cand_records, metric)
     if base_values is None or cand_values is None:
@@ -340,6 +365,8 @@ def _metric_problem_values(
     """Return per-problem values for a supported gated metric."""
     by_problem: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for (pid, _repeat), record in records.items():
+        if _is_infra_errored(record):
+            continue
         by_problem[pid].append(record)
 
     values: dict[int, float] = {}
