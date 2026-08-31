@@ -104,6 +104,7 @@ class EndpointInterceptor(RequestToResponseInterceptor):
                             "message" in choice
                             and "content" in choice["message"]
                             and choice["message"]["content"] is None
+                            and not choice["message"].get("tool_calls")
                         ):
                             self.logger.warning(
                                 f"choices[{i}].message.content is None, replacing with empty string"
