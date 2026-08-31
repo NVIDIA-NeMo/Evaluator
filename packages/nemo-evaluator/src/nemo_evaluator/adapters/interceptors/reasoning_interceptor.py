@@ -363,6 +363,15 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
             ):
                 self.logger.info(**self._reasoning_stats)
 
+    @staticmethod
+    def _get_reasoning_content(msg: dict) -> Optional[str]:
+        """Return the reasoning text from msg, checking `reasoning_content`
+        then the newer `reasoning` field used by some LLM APIs."""
+        reasoning_content = msg.get("reasoning_content")
+        if reasoning_content is not None:
+            return reasoning_content
+        return msg.get("reasoning")
+
     def _process_reasoning_message(
         self, msg: dict, usage: dict = None
     ) -> tuple[dict, dict]:
@@ -382,9 +391,10 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
         updated_content_tokens = "unknown"
         reasoning_tokens = "unknown"
 
-        # Check if reasoning_content exists in the message and is not empty
-        if "reasoning_content" in msg and msg["reasoning_content"] is not None:
-            reasoning_content = msg["reasoning_content"]
+        # Check if reasoning_content (or the newer `reasoning` field) exists
+        # in the message and is not empty
+        reasoning_content = self._get_reasoning_content(msg)
+        if reasoning_content is not None:
             updated_message_content = content
             reasoning_started = (
                 True
@@ -493,12 +503,8 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
     def _migrate_reasoning_content(self, msg: dict):
         """Migrate reasoning content to the content field with reasoning tokens."""
         modified_msg = msg.copy()
-        if (
-            "reasoning_content" in msg
-            and msg["reasoning_content"]
-            and msg["reasoning_content"].strip()
-        ):
-            reasoning_content = msg["reasoning_content"]
+        reasoning_content = self._get_reasoning_content(msg)
+        if reasoning_content and reasoning_content.strip():
             content = msg.get("content", "")
             updated_message_content = (
                 self.start_reasoning_token
