@@ -45,11 +45,12 @@ All configs expect `NVIDIA_API_KEY` (or `OPENAI_API_KEY`) set as an environment 
 | 21 | `21_tool_calling_gym.yaml` | SWE-bench Multilingual | tool_calling | Gym HTTP tools | NEL-driven ReAct loop with Gym Resource Server |
 | 22 | `22_tool_calling_sandbox.yaml` | SWE-bench Verified | tool_calling | Docker sandbox | NEL as the coding agent (bash, file tools) |
 | 23 | `23_tool_calling_combined.yaml` | Research bench | tool_calling | Gym + Docker | Combined HTTP + sandbox tools |
+| 24 | `24_aime26_skills_sglang.yaml` | skills://aime26 | simple | Local + SGLang API | Native Skills AIME26 smoke evaluation |
 
 ## Scenarios Covered
 
 ### By Solver Type
-- **simple** (01, 02, 03, 04, 05, 06, 13, 15, 15a, 15c, 15d, 17): Standard chat/completions/VLM
+- **simple** (01, 02, 03, 04, 05, 06, 13, 15, 15a, 15c, 15d, 17, 24): Standard chat/completions/VLM
 - **harbor** (07, 07a, 07b, 07c, 07d, 08, 08a, 08b, 10a, 11, 16): Agentic evaluation via Harbor agents
 - **tool_calling** (21, 22, 23): NEL-driven ReAct loop — full observability over model calls and tool dispatch
 - **openclaw** (12): Agentic evaluation via OpenClaw
@@ -57,7 +58,7 @@ All configs expect `NVIDIA_API_KEY` (or `OPENAI_API_KEY`) set as an environment 
 - **container** (14): Legacy container harness
 
 ### By Verification Method
-- **Regex/numeric extraction** (01, 02, 03, 04, 15, 15a, 15c, 15d): Automated scoring
+- **Regex/numeric extraction** (01, 02, 03, 04, 15, 15a, 15c, 15d, 24): Automated scoring
 - **LLM-as-judge** (05, 12, 17): Model judges model
 - **Docker sandbox** (06, 17): Sandboxed code execution
 - **SWE-bench/Terminal-Bench two-container** (07, 07b, 07c, 07d, 08, 08b, 09, 16, 19, 20): Patch apply + test
@@ -66,7 +67,7 @@ All configs expect `NVIDIA_API_KEY` (or `OPENAI_API_KEY`) set as an environment 
 - **Container-owned** (14): Legacy harness handles everything
 
 ### By Execution Backend
-- **Local + external API** (01–05, 13): NVIDIA API or any OpenAI-compatible endpoint
+- **Local + external API** (01–05, 13, 24): NVIDIA API or any OpenAI-compatible endpoint
 - **Local + Docker sandbox** (06, 07a, 08a, 09, 10a, 11, 14): Docker for code/agent execution
 - **AWS ECS Fargate** (07, 07b, 07c, 07d, 08, 08b, 12, 18, 19): Remote sandbox on ECS — no local Docker needed
 - **SLURM + auto-deployed vLLM/Dynamo** (15, 15a, 15c, 15d, 16, 20): Full cluster deployment

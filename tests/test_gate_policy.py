@@ -195,12 +195,22 @@ class TestGateValidation:
         p = GatePolicy.model_validate(
             {
                 "version": 1,
-                "defaults": {"metric": "scorer:rouge"},
+                "defaults": {"metric": "rouge"},
                 "benchmarks": {"mmlu": {"tier": "critical"}},
             }
         )
         with pytest.raises(ValueError, match="unsupported metric"):
             p.validate_for_gate({"mean_reward", "pass@1"})
+
+    def test_validate_for_gate_accepts_secondary_scorer_metric(self):
+        p = GatePolicy.model_validate(
+            {
+                "version": 1,
+                "defaults": {"metric": "scorer:numeric_match"},
+                "benchmarks": {"gsm8k": {"tier": "critical"}},
+            }
+        )
+        p.validate_for_gate({"mean_reward", "pass@1"})
 
     def test_validate_for_gate_ignores_advisory_without_metric(self):
         p = GatePolicy.model_validate(
