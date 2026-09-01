@@ -232,6 +232,56 @@ def test_migration(
     assert migrated_content == expected_content
 
 
+@pytest.mark.parametrize(
+    "reasoning,content,expected_content",
+    [
+        (
+            "This is my reasoning process that should be migrated",
+            "Here's my final answer.",
+            "<think>This is my reasoning process that should be migrated</think>Here's my final answer.",
+        ),
+        ("", "Here's my final answer.", "Here's my final answer."),
+        (None, "Here's my final answer.", "Here's my final answer."),
+    ],
+)
+def test_migration_reasoning_field(
+    adapter_server_migration,
+    fake_openai_endpoint,
+    reasoning,
+    content,
+    expected_content,
+):
+    """Same as test_migration, but reasoning is returned in the newer
+    `reasoning` field instead of `reasoning_content`."""
+    url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{adapter_server_migration.port}"
+
+    wait_for_server("localhost", adapter_server_migration.port)
+
+    response_data = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": content,
+                    "reasoning": reasoning,
+                }
+            }
+        ]
+    }
+    data = {
+        "prompt": "This is a test prompt",
+        "max_tokens": 100,
+        "temperature": 0.5,
+        "fake_response": response_data,
+    }
+    response = requests.post(url, json=data)
+
+    assert response.status_code == 200
+    migrated_data = response.json()
+    migrated_content = migrated_data["choices"][0]["message"]["content"]
+    assert migrated_content == expected_content
+
+
 def test_multiple_choices(
     adapter_server,
     fake_openai_endpoint,
