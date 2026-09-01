@@ -210,7 +210,7 @@ class Interceptor(RequestToResponseInterceptor):
                         )
                     )
 
-            except asyncio.TimeoutError as exc:
+            except TimeoutError as exc:
                 latency = (time.perf_counter() - t0) * 1000
                 if attempt < self._max_retries:
                     delay = min(2**attempt, 60)

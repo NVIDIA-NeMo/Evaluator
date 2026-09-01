@@ -19,6 +19,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from nemo_evaluator.config.sandboxes import NoSandbox as NoSandboxConfig
+from nemo_evaluator.config.services import InterceptorConfig, ModelTrafficCaptureConfig, ProxyConfig
+from nemo_evaluator.orchestration.orchestrator import _start_proxy
+
+
+def _token_id_proxy(**kwargs: Any) -> ProxyConfig:
+    return ProxyConfig(model_traffic=ModelTrafficCaptureConfig(capture_token_ids=True), **kwargs)
+
+
+def _svc(proxy: ProxyConfig | None = None) -> SimpleNamespace:
+    return SimpleNamespace(type="api", protocol="chat_completions", proxy=proxy, generation=None)
 
 
 class TestMakeSandboxManager:
@@ -204,7 +214,6 @@ class TestInterceptorSpecs:
 class TestStartProxyFinishReason:
     def _run(self, svc: object, config: object | None = None) -> dict[str, Any]:
         import nemo_evaluator.adapters.proxy as proxy_mod
-        from nemo_evaluator.orchestration.orchestrator import _start_proxy
 
         captured: dict[str, Any] = {}
 
@@ -240,6 +249,13 @@ class TestStartProxyFinishReason:
         names = self._names(svc)
         assert names == ["payload_modifier", "finish_reason"]
 
+    def test_proxy_token_id_request(self):
+        assert "extra_body" not in self._run(_svc())
+        assert self._run(_svc(proxy=_token_id_proxy(extra_body={"top_k": 20})))["extra_body"] == {
+            "top_k": 20,
+            "return_token_ids": True,
+        }
+
     def test_docker_sandbox_proxy_listens_on_all_interfaces(self):
         svc = MagicMock()
         svc.proxy = None
@@ -261,8 +277,6 @@ class TestStartProxyFinishReason:
         assert captured["listen_host"] == "127.0.0.1"
 
     def test_not_duplicated_when_configured(self):
-        from nemo_evaluator.config.services import InterceptorConfig, ProxyConfig
-
         svc = MagicMock()
         svc.generation = None
         svc.proxy = ProxyConfig(interceptors=[InterceptorConfig(name="finish_reason")])
@@ -270,8 +284,6 @@ class TestStartProxyFinishReason:
         assert names.count("finish_reason") == 1
 
     def test_preconfigured_finish_reason_moved_to_end(self):
-        from nemo_evaluator.config.services import InterceptorConfig, ProxyConfig
-
         svc = MagicMock()
         gen = MagicMock()
         gen.model_dump.return_value = {"max_tokens": 16}
@@ -288,8 +300,6 @@ class TestStartProxyFinishReason:
         assert names.index("finish_reason") > names.index("payload_modifier")
 
     def test_opt_out_via_proxy_flag(self):
-        from nemo_evaluator.config.services import ProxyConfig
-
         svc = MagicMock()
         svc.generation = None
         svc.proxy = ProxyConfig(finish_reason_fixup=False)
@@ -297,8 +307,6 @@ class TestStartProxyFinishReason:
         assert "finish_reason" not in names
 
     def test_opt_out_still_keeps_other_interceptors(self):
-        from nemo_evaluator.config.services import InterceptorConfig, ProxyConfig
-
         svc = MagicMock()
         svc.generation = None
         svc.proxy = ProxyConfig(
