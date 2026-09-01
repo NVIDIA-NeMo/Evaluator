@@ -29,7 +29,12 @@ def _normalize_message_content(body: dict[str, Any]) -> None:
         if not isinstance(choice, dict):
             continue
         message = choice.get("message")
-        if isinstance(message, dict) and "content" in message and message["content"] is None and not message.get("tool_calls"):
+        if (
+            isinstance(message, dict)
+            and "content" in message
+            and message["content"] is None
+            and not message.get("tool_calls")
+        ):
             message["content"] = ""
 
 
