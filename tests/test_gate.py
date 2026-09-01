@@ -488,8 +488,101 @@ class TestGateVerdicts:
         with pytest.raises(ValueError, match="explicit metric"):
             gate_runs(base_dir, cand_dir, policy)
 
+    # ── TestPairedDeltaCI ─────────────────────────────────────────────────
 
-# ── TestPairedDeltaCI ─────────────────────────────────────────────────
+    @staticmethod
+    def _errored_records(start, stop, category, error="sandbox unreachable"):
+        return [
+            {
+                "problem_idx": i,
+                "repeat": 0,
+                "reward": 0.0,
+                "expected_answer": "ans",
+                "scoring_details": {"error": error, "error_category": category},
+            }
+            for i in range(start, stop)
+        ]
+
+    @pytest.mark.parametrize("category", ["infra_error", "system"])
+    def test_infra_errored_candidate_samples_are_excluded(self, tmp_path, category):
+        """A sandbox outage in the candidate run is not a regression.
+
+        The eval loop scores an exhausted infra error 0.0 and tags it
+        ``error_category: infra_error`` (or ``system``).  Six such samples out
+        of twenty used to read as six wrong answers and turn a clean run into
+        NO-GO.
+        """
+        base = _simple_records(20, 1.0)
+        cand = _simple_records(14, 1.0) + self._errored_records(14, 20, category)
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {"mmlu": (base, cand, _scores(1.0), _scores(0.7))},
+        )
+        policy = self._policy(benchmarks={"mmlu": {}})
+        report = gate_runs(base_dir, cand_dir, policy)
+        bench = report.benchmarks[0]
+        assert report.verdict == "GO"
+        assert bench.status == "PASS"
+        assert bench.n_paired == 14
+        assert bench.n_infra_excluded_candidate == 6
+        assert bench.n_infra_excluded_baseline == 0
+        assert any("infra-errored" in r for r in bench.reasons)
+
+    def test_model_attributable_failures_still_count(self, tmp_path):
+        """Negative control: a solve timeout is the model's failure and stays a 0.0."""
+        base = _simple_records(20, 1.0)
+        cand = _simple_records(14, 1.0) + self._errored_records(14, 20, "solve_timeout", error="timed out")
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {"mmlu": (base, cand, _scores(1.0), _scores(0.7))},
+        )
+        policy = self._policy(benchmarks={"mmlu": {}})
+        report = gate_runs(base_dir, cand_dir, policy)
+        bench = report.benchmarks[0]
+        assert report.verdict == "NO-GO"
+        assert bench.n_paired == 20
+        assert bench.n_infra_excluded_candidate == 0
+
+    def test_excluded_error_categories_is_policy_controlled(self, tmp_path):
+        """An empty ``excluded_error_categories`` gates on every sample, infra errors included."""
+        base = _simple_records(20, 1.0)
+        cand = _simple_records(14, 1.0) + self._errored_records(14, 20, "infra_error")
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {"mmlu": (base, cand, _scores(1.0), _scores(0.7))},
+        )
+        policy = self._policy(benchmarks={"mmlu": {"excluded_error_categories": []}})
+        report = gate_runs(base_dir, cand_dir, policy)
+        bench = report.benchmarks[0]
+        assert report.verdict == "NO-GO"
+        assert bench.n_paired == 20
+        assert bench.n_infra_excluded_candidate == 0
+
+    def test_infra_exclusion_does_not_fall_back_to_bundle_scores(self, tmp_path):
+        """Too few pairs after exclusion must not BREACH on the bundle-level CI.
+
+        The bundle scores were computed over every sample, including the
+        infra-errored ones, so using them as fallback evidence would bring the
+        excluded 0.0s straight back.
+        """
+        base = _simple_records(20, 1.0)
+        cand = _simple_records(5, 1.0) + self._errored_records(5, 20, "infra_error")
+        # Bundle CIs that would BREACH on their own: candidate 0.25 vs baseline 1.0.
+        base_scores = {"mean_reward": _score_entry(1.0, 0.95, 1.0)}
+        cand_scores = {"mean_reward": _score_entry(0.25, 0.15, 0.35)}
+        base_dir, cand_dir = _make_gate_dirs(
+            tmp_path,
+            {"mmlu": (base, cand, base_scores, cand_scores)},
+        )
+        policy = self._policy(benchmarks={"mmlu": {}})
+        report = gate_runs(base_dir, cand_dir, policy)
+        bench = report.benchmarks[0]
+        assert bench.status == "INSUFFICIENT_EVIDENCE"
+        assert report.verdict == "INCONCLUSIVE"
+        assert bench.n_paired == 5
+        assert bench.n_infra_excluded_candidate == 15
+        assert bench.candidate_score is None
+        assert any("not used as fallback" in r for r in bench.reasons)
 
 
 class TestPairedDeltaCI:
