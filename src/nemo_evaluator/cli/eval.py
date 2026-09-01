@@ -474,6 +474,7 @@ def eval_logs(run_id, output_dir, job_id, host, follow, tail_lines, shard_idx):
     ex = _get_executor_for_run(run_meta)
 
     if follow and run_meta.executor == "slurm":
+        import shlex
         import subprocess
         import sys
 
@@ -482,7 +483,7 @@ def eval_logs(run_id, output_dir, job_id, host, follow, tail_lines, shard_idx):
         username = details.get("username") or None
         rdir = details.get("remote_dir", run_meta.output_dir)
         job_ids = details.get("job_ids", [])
-        is_sharded_run = len(job_ids) > 1
+        is_sharded_run = bool(details.get("is_sharded")) or len(job_ids) > 1
 
         if is_sharded_run and shard_idx is None:
             from nemo_evaluator.executors.slurm_executor import (
@@ -530,10 +531,15 @@ def eval_logs(run_id, output_dir, job_id, host, follow, tail_lines, shard_idx):
             latest_id = _resolve_latest_job_id_from_meta(details)
             log_file = f"{rdir}/logs/slurm-{latest_id}.log"
 
-        target = f"{username}@{hostname}" if username else hostname
-        n_arg = f"-n {tail_lines}" if tail_lines else "-n 50"
-        cmd = ["ssh", target, f"tail {n_arg} -f {log_file}"]
-        click.echo(f"Streaming: {target}:{log_file}", err=True)
+        tail_cmd = ["tail", "-n", str(tail_lines or 50), "-f", log_file]
+        if hostname:
+            target = f"{username}@{hostname}" if username else hostname
+            cmd = ["ssh", target, shlex.join(tail_cmd)]
+            location = f"{target}:{log_file}"
+        else:
+            cmd = tail_cmd
+            location = log_file
+        click.echo(f"Streaming: {location}", err=True)
         try:
             subprocess.run(cmd, check=False)
         except KeyboardInterrupt:

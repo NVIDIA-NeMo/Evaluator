@@ -106,6 +106,82 @@ class TestEvalRun:
         assert call_kwargs.kwargs.get("dry_run") is True or call_kwargs[1].get("dry_run") is True
 
 
+class TestEvalLogs:
+    def test_follow_local_slurm_uses_tail_without_ssh(self, runner):
+        from nemo_evaluator.run_store import RunMeta
+
+        run_meta = RunMeta(
+            run_id="local-slurm-run",
+            executor="slurm",
+            output_dir="/shared/eval/run",
+            started_at="2026-07-21T00:00:00+00:00",
+            details={
+                "job_id": "12345",
+                "hostname": "",
+                "remote_dir": "/shared/eval/run",
+            },
+        )
+
+        with (
+            patch("nemo_evaluator.cli.eval._resolve_run_or_fail", return_value=run_meta),
+            patch("nemo_evaluator.cli.eval._get_executor_for_run", return_value=MagicMock()),
+            patch(
+                "nemo_evaluator.executors.slurm_executor._resolve_latest_job_id_from_meta",
+                return_value="12345",
+            ),
+            patch("subprocess.run") as mock_run,
+        ):
+            result = runner.invoke(
+                cli,
+                ["eval", "logs", "--run-id", run_meta.run_id, "--follow", "--tail", "25"],
+            )
+
+        assert result.exit_code == 0, result.output
+        mock_run.assert_called_once_with(
+            ["tail", "-n", "25", "-f", "/shared/eval/run/logs/slurm-12345.log"],
+            check=False,
+        )
+        assert "ssh" not in mock_run.call_args.args[0]
+
+    def test_follow_single_shard_local_slurm_uses_shard_zero_log(self, runner):
+        from nemo_evaluator.run_store import RunMeta
+
+        run_meta = RunMeta(
+            run_id="single-shard-local-slurm-run",
+            executor="slurm",
+            output_dir="/shared/eval/run",
+            started_at="2026-07-21T00:00:00+00:00",
+            details={
+                "job_id": "12345",
+                "job_ids": ["12345"],
+                "hostname": "",
+                "remote_dir": "/shared/eval/run",
+                "is_sharded": True,
+            },
+        )
+
+        with (
+            patch("nemo_evaluator.cli.eval._resolve_run_or_fail", return_value=run_meta),
+            patch("nemo_evaluator.cli.eval._get_executor_for_run", return_value=MagicMock()),
+            patch(
+                "nemo_evaluator.executors.slurm_executor._resolve_latest_job_id",
+                return_value="12345",
+            ) as mock_resolve_latest,
+            patch("subprocess.run") as mock_run,
+        ):
+            result = runner.invoke(
+                cli,
+                ["eval", "logs", "--run-id", run_meta.run_id, "--follow", "--shard", "0"],
+            )
+
+        assert result.exit_code == 0, result.output
+        mock_resolve_latest.assert_called_once_with("", "/shared/eval/run/shard_0", "12345", None)
+        mock_run.assert_called_once_with(
+            ["tail", "-n", "50", "-f", "/shared/eval/run/shard_0/logs/slurm-12345.log"],
+            check=False,
+        )
+
+
 class TestValidateCommand:
     def test_validate_missing_file(self, runner):
         result = runner.invoke(cli, ["eval", "validate", "/nonexistent_xyz.yaml"])
