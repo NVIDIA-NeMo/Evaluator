@@ -177,6 +177,21 @@ class NoSandbox(_SandboxBase):
     stateful: bool = False
 
 
+class LocalSandbox(_SandboxBase):
+    """In-process sandbox: tool commands run as subprocesses in a temp dir
+    inside the eval container itself — no container isolation, no remote infra.
+
+    Ideal for plain-python tool benchmarks (e.g. gpqa/aime25 with tools) on
+    clusters where the other backends are unavailable: docker has no daemon,
+    the slurm backend needs nested pyxis, and apptainer may not be installed.
+    The eval image already ships python3/bash, so the model's tool code runs
+    right there. Backed by nemo_evaluator.sandbox.local.LocalSandbox (the
+    SandboxManager 'local' backend, which already exists)."""
+
+    type: Literal["local"] = "local"
+    concurrency: int = 4
+
+
 class CustomSandbox(BaseModel):
     """Plugin sandbox backend — dynamically imported from class_path."""
 
@@ -205,6 +220,7 @@ SandboxConfig = Annotated[
     | Annotated[SlurmSandbox, Tag("slurm")]
     | Annotated[ApptainerSandbox, Tag("apptainer")]
     | Annotated[NoSandbox, Tag("none")]
+    | Annotated[LocalSandbox, Tag("local")]
     | Annotated[CustomSandbox, Tag("custom")],
     Discriminator(_sandbox_discriminator),
 ]

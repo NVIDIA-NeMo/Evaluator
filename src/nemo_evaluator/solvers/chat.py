@@ -37,15 +37,27 @@ class ChatSolver:
             resp = await self._client.chat(messages=task.messages)
         else:
             resp = await self._client.chat(task.prompt, system=effective_system)
+        # Score the FULL model output. Reasoning models served with a reasoning
+        # parser often emit the final "Answer: X" inside the reasoning channel and
+        # leave `content` empty, so scoring `content` alone mis-scores ~0. Fold in
+        # `reasoning_content` (already captured by the model client).
+        content = resp.content or ""
+        reasoning = getattr(resp, "reasoning_content", "") or ""
+        scored = f"{reasoning}\n{content}".strip() if reasoning else content
+        # The eval loop persists `model_response` separately from `response`, so keep its
+        # content aligned with what we actually scored — otherwise a reasoning-only model
+        # records an empty answer artifact. (ReActSolver normalizes ModelResponse.content
+        # to the final text the same way.)
+        resp.content = scored
         trajectory = build_single_turn_atif(
             task.prompt,
-            resp.content,
+            scored,
             system=effective_system,
             model_name=getattr(resp, "model", None),
             prompt_tokens=getattr(resp, "prompt_tokens", None),
             completion_tokens=getattr(resp, "completion_tokens", None),
         )
-        return SolveResult(response=resp.content, model_response=resp, trajectory=trajectory)
+        return SolveResult(response=scored, model_response=resp, trajectory=trajectory)
 
     async def close(self) -> None:
         await self._client.close()
