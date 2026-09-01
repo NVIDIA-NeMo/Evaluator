@@ -18,6 +18,8 @@ import pytest
 
 from nemo_evaluator.adapters.cache.disk_cache import DiskCache
 
+_REQUEST_PATH = "/chat/completions"
+
 
 @pytest.fixture
 def cache(tmp_path):
@@ -26,17 +28,21 @@ def cache(tmp_path):
 
 def test_cache_key_deterministic():
     body = {"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}]}
-    assert DiskCache.cache_key(body) == DiskCache.cache_key(body)
+    assert DiskCache.cache_key(body, request_path=_REQUEST_PATH) == DiskCache.cache_key(
+        body, request_path=_REQUEST_PATH
+    )
 
 
 def test_cache_key_varies_with_model():
     base = {"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}]}
     other = {**base, "model": "gpt-3.5-turbo"}
-    assert DiskCache.cache_key(base) != DiskCache.cache_key(other)
+    assert DiskCache.cache_key(base, request_path=_REQUEST_PATH) != DiskCache.cache_key(
+        other, request_path=_REQUEST_PATH
+    )
 
 
 async def test_get_set_roundtrip(cache):
-    key = DiskCache.cache_key({"model": "x", "messages": []})
+    key = DiskCache.cache_key({"model": "x", "messages": []}, request_path=_REQUEST_PATH)
     value = {"choices": [{"message": {"content": "hi"}}]}
     await cache.set(key, value)
     result = await cache.get(key)
