@@ -20,6 +20,13 @@ Browse benchmark categories and choose the ones best suited for your model and u
 Detailed description of all available tasks, groupped by evaluation harness.
 :::
 
+:::{grid-item-card} {octicon}`container;1.5em;sd-mr-1` RASB 26H1
+:link: rasb-26h1
+:link-type: ref
+
+Run the RASB 26H1 benchmark with its nested Docker evaluation runtime.
+:::
+
 ::::
 
 
@@ -30,5 +37,6 @@ Detailed description of all available tasks, groupped by evaluation harness.
 
 About Selecting Benchmarks <about>
 Available Benchmarks <catalog/index>
+RASB 26H1 <rasb-26h1>
 
 :::

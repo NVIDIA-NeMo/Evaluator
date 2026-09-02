@@ -1,0 +1,65 @@
+framework:
+  name: rasb-26h1
+  pkg_name: rasb_26h1
+  full_name: RASB 26H1
+  description: Real Agent Scaffolds Bench 2026 H1 snapshot.
+  url: https://github.com/NVIDIA-NeMo/Evaluator
+defaults:
+  command: >-
+    python -m nemo_evaluator.rasb_26h1.runner
+    --output-dir {{config.output_dir}}
+    --task {{config.params.task}}
+    --model-id {{target.api_endpoint.model_id}}
+    --model-url {{target.api_endpoint.url}}
+    {% if target.api_endpoint.api_key_name is not none %} --api-key-name {{target.api_endpoint.api_key_name}}{% endif %}
+    {% if config.params.limit_samples is not none %} --limit-samples {{config.params.limit_samples}}{% endif %}
+    {% if config.params.parallelism is not none %} --benchmark-workers {{config.params.parallelism}}{% endif %}
+    {% if config.params.request_timeout is not none %} --benchmark-timeout {{config.params.request_timeout}}{% endif %}
+    {% if config.params.temperature is not none %} --temperature {{config.params.temperature}}{% endif %}
+    {% if config.params.extra.rasb_root is not none %} --rasb-root {{config.params.extra.rasb_root}}{% endif %}
+    {% if config.params.extra.callable is not none %} --callable {{config.params.extra.callable}}{% endif %}
+    {% if config.params.extra.environments is not none %} --environments {{config.params.extra.environments}}{% endif %}
+    {% if config.params.extra.env_file is not none %} --env-file {{config.params.extra.env_file}}{% endif %}
+    {% if config.params.extra.only is not none %} --only {{config.params.extra.only}}{% endif %}
+    {% if config.params.extra.slice is not none %} --slice {{config.params.extra.slice}}{% endif %}
+    {% if config.params.extra.benchmark_workers is not none %} --benchmark-workers {{config.params.extra.benchmark_workers}}{% endif %}
+    {% if config.params.extra.benchmark_timeout is not none %} --benchmark-timeout {{config.params.extra.benchmark_timeout}}{% endif %}
+    {% if config.params.extra.run_name is not none %} --run-name {{config.params.extra.run_name}}{% endif %}
+    {% if config.params.extra.judge_model is not none %} --judge-model {{config.params.extra.judge_model}}{% endif %}
+    {% if config.params.extra.keep_containers %} --keep-containers{% endif %}
+    {% if config.params.extra.clean %} --clean{% endif %}
+    {% if config.params.extra.redo_on_error %} --redo-on-error{% endif %}
+  config:
+    params:
+      task: rasb_26h1
+      limit_samples: null
+      parallelism: 2
+      request_timeout: 3600
+      temperature: null
+      extra:
+        rasb_root: null
+        callable: null
+        environments: null
+        env_file: null
+        only: null
+        slice: null
+        benchmark_workers: null
+        benchmark_timeout: null
+        run_name: null
+        judge_model: null
+        keep_containers: false
+        clean: false
+        redo_on_error: false
+  target:
+    api_endpoint:
+      type: chat
+      adapter_config:
+        mode: client
+evaluations:
+  - name: rasb_26h1
+    description: Real Agent Scaffolds Bench 2026 H1 snapshot.
+    defaults:
+      config:
+        type: rasb_26h1
+        supported_endpoint_types:
+          - chat

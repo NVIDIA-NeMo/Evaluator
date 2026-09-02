@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Build the local RASB image first:
+#
+#   export DATASET_DIR=/path/to/rasb-26h1
+#   docker/rasb-26h1-local/build.sh "$DATASET_DIR"
+#
+# Run:
+#
+#   nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_rasb_26h1.yaml
+#
+# RASB starts Docker containers while running, so the local executor mounts the
+# host Docker socket into the evaluation container.
+
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: nel-results
+  mode: sequential
+  extra_docker_args: "-v /var/run/docker.sock:/var/run/docker.sock"
+
+target:
+  api_endpoint:
+    model_id: azure/anthropic/claude-opus-4-5
+    url: https://inference-api.nvidia.com
+    api_key_name: NVAPI_KEY
+
+evaluation:
+  nemo_evaluator_config:
+    config:
+      params:
+        parallelism: 1
+        request_timeout: 3600
+  tasks:
+    - name: rasb-26h1.rasb_26h1
+      container: localhost/rasb-26h1:local
+      dataset_dir: ${oc.env:DATASET_DIR}
+      # Keep this identical to dataset_dir. RASB uses the host Docker socket and
+      # starts nested containers, so volume paths passed to Docker must exist on
+      # the host as well as inside this evaluation container.
+      dataset_mount_path: ${oc.env:DATASET_DIR}
+      nemo_evaluator_config:
+        config:
+          params:
+            extra:
+              # TEST ONLY. Remove this line to run all 193 environments.
+              slice: "1"

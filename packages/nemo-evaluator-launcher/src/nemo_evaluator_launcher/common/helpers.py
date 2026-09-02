@@ -515,17 +515,19 @@ def get_eval_factory_dataset_size_from_run_config(run_config: dict) -> Optional[
 
 
 def is_local_image_path(container: str | None) -> bool:
-    """Check if a container reference is a local image path (e.g. a squash .sqsh file).
+    """Check if a container reference points to an explicitly local image.
 
-    Local image paths are explicitly user-provided and should bypass the
+    Local image references are explicitly user-provided and should bypass the
     unlisted-task safeguard since the user has already made an explicit choice
     about which container to run.
 
     Args:
-        container: The container image string (e.g. "nvcr.io/foo:latest" or "/path/to/image.sqsh").
+        container: The container image string (e.g. "nvcr.io/foo:latest",
+            "/path/to/image.sqsh", or "localhost/my-image:latest").
 
     Returns:
-        True if the container looks like a local file path rather than a registry image reference.
+        True if the container looks like a local file path or loopback image
+        reference rather than a remote registry image reference.
     """
     if not container:
         return False
@@ -534,6 +536,14 @@ def is_local_image_path(container: str | None) -> bool:
         return True
     # Also treat absolute paths as local images (e.g. /mnt/containers/my-image)
     if container.startswith("/"):
+        return True
+    image_host = container.split("/", 1)[0]
+    # Docker images tagged under localhost/loopback are explicit local references.
+    if image_host == "localhost" or image_host.startswith("localhost:"):
+        return True
+    if image_host == "127.0.0.1" or image_host.startswith("127.0.0.1:"):
+        return True
+    if image_host == "::1" or image_host.startswith("[::1]:"):
         return True
     return False
 
