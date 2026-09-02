@@ -12,3 +12,11 @@ execution:
   # walltime: "04:00:00" # Job time limit (HH:MM:SS)
   # partition: "batch" # SLURM partition name
   # gres: "gpu:1" # Generic resources (e.g., GPUs)
+
+  # Eval-only multi-node Ray cluster (requires deployment: none and num_nodes > 1).
+  # Stirrup-style agents are spread across all allocated nodes via Ray; only the
+  # head runs `nemo-evaluator run_eval`. Combine with examples/slurm_eval_only_ray_cluster.yaml.
+  # eval_ray_cluster: true
+  # eval_ray_port: 6379
+  # eval_per_node_pre_cmd: |
+  #   apt update && apt install -y squashfuse fuse3

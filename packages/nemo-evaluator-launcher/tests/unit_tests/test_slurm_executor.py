@@ -4168,3 +4168,205 @@ class TestCollectMountPaths:
         )
         paths = _collect_mount_paths(cfg)
         assert "/lustre/cache/uv" not in paths
+
+
+class TestEvalRayCluster:
+    """Tests for the cfg.execution.eval_ray_cluster mode (multi-node CPU Ray
+    cluster for deployment.type == 'none').
+    """
+
+    @pytest.fixture
+    def base_config(self):
+        return {
+            "deployment": {
+                "type": "none",
+                "endpoints": {"health": "/health"},
+            },
+            "execution": {
+                "type": "slurm",
+                "output_dir": "/test/output",
+                "walltime": "01:00:00",
+                "account": "test-account",
+                "partition": "cpu",
+                "num_nodes": 8,
+                "num_instances": 1,
+                "ntasks_per_node": 1,
+                "subproject": "test-subproject",
+                "eval_ray_cluster": True,
+                "eval_ray_port": 6379,
+                "eval_ray_dashboard_port": 8265,
+                "eval_ray_ready_timeout": 600,
+            },
+            "evaluation": {"env_vars": {}},
+            "target": {"api_endpoint": {"url": "http://example/v1"}},
+        }
+
+    @pytest.fixture
+    def mock_task(self):
+        return OmegaConf.create({"name": "test_task"})
+
+    @pytest.fixture
+    def mock_dependencies(self):
+        with (
+            patch(
+                "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
+            ) as mock_load_tasks,
+            patch(
+                "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_eval_factory_command"
+            ) as mock_get_eval_command,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_served_model_name"
+            ) as mock_get_model_name,
+        ):
+            mock_load_tasks.return_value = {}
+            mock_get_task_def.return_value = {
+                "container": "test-eval-container:latest",
+                "endpoint_type": "openai",
+                "task": "test_task",
+            }
+            from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+            mock_get_eval_command.return_value = CmdAndReadableComment(
+                cmd="nemo-evaluator run_eval --test", debug="# Test command"
+            )
+            mock_get_model_name.return_value = "test-model"
+            yield
+
+    def _run(self, cfg_dict, mock_task):
+        cfg = OmegaConf.create(cfg_dict)
+        return _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+            task_idx=0,
+        )
+
+    def test_flag_off_no_bootstrap_emitted(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        base_config["execution"]["eval_ray_cluster"] = False
+        result = self._run(base_config, mock_task)
+        assert "Eval-only Ray cluster bootstrap" not in result.cmd
+        assert "RAY_HEAD_NODE_ADDRESS" not in result.cmd
+
+    def test_flag_on_emits_head_and_worker_sruns(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        result = self._run(base_config, mock_task)
+        script = result.cmd
+        assert "Eval-only Ray cluster bootstrap" in script
+        assert "Start Ray head on PRIMARY_NODE" in script
+        assert "Start Ray workers on remaining nodes" in script
+        assert '--nodelist "$PRIMARY_NODE"' in script
+        assert '--nodelist "$WORKER_NODES"' in script
+        assert "--nodes 7" in script  # N-1 workers when N=8
+        assert "export RAY_HEAD_NODE_ADDRESS=$PRIMARY_IP:$EVAL_RAY_PORT" in script
+        assert "export EVAL_RAY_PORT=6379" in script
+
+    def test_flag_on_single_node_skips_bootstrap(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        # Gate requires num_nodes > 1; num_nodes=1 must skip the whole bootstrap.
+        base_config["execution"]["num_nodes"] = 1
+        result = self._run(base_config, mock_task)
+        assert "Eval-only Ray cluster bootstrap" not in result.cmd
+
+    def test_flag_with_deployment_not_none_skips_bootstrap(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        # deployment.type != "none" disables the gate.
+        base_config["deployment"] = {
+            "type": "vllm",
+            "image": "test-image",
+            "command": "run",
+            "served_model_name": "m",
+            "port": 8000,
+            "endpoints": {"health": "/health"},
+        }
+        result = self._run(base_config, mock_task)
+        assert "Eval-only Ray cluster bootstrap" not in result.cmd
+
+    def test_per_node_pre_cmd_emitted_and_marks_unsafe(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        base_config["execution"]["eval_per_node_pre_cmd"] = "apt install -y squashfuse"
+        result = self._run(base_config, mock_task)
+        assert "apt install -y squashfuse" in result.cmd
+        assert "Per-node container setup" in result.cmd
+        assert result.is_potentially_unsafe is True
+
+    def test_adapter_host_exported_default_0_0_0_0(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        result = self._run(base_config, mock_task)
+        assert 'export ADAPTER_HOST="${ADAPTER_HOST:-0.0.0.0}"' in result.cmd
+
+    def test_eval_srun_env_includes_ray_head_and_adapter_host(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        result = self._run(base_config, mock_task)
+        # All eval-srun --container-env lists include both vars when bootstrap is on.
+        # The eval-srun is the last one with `client-%A.log` output path.
+        assert "ADAPTER_HOST" in result.cmd
+        assert "RAY_HEAD_NODE_ADDRESS" in result.cmd
+        # Concretely, on the eval srun line:
+        eval_srun_line = [
+            line for line in result.cmd.splitlines() if "client-%A.log" in line
+        ]
+        assert eval_srun_line, "eval srun output line not found"
+        assert "ADAPTER_HOST" in eval_srun_line[0]
+        assert "RAY_HEAD_NODE_ADDRESS" in eval_srun_line[0]
+
+    def test_wait_handler_inline_tcp_check(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        result = self._run(base_config, mock_task)
+        # Wait handler is now inline (no srun, no container) — bash /dev/tcp
+        # probe against $PRIMARY_IP:$EVAL_RAY_PORT. Liveness via $RAY_HEAD_PID
+        # and $RAY_WORKER_PID kill -0 checks.
+        assert (
+            "Wait for Ray head GCS to be reachable (inline TCP check)" in result.cmd
+        )
+        assert "/dev/tcp/${PRIMARY_IP}/${EVAL_RAY_PORT}" in result.cmd
+        assert "targeting 8 nodes" in result.cmd
+        assert 'kill -0 "$RAY_HEAD_PID"' in result.cmd
+        assert 'kill -0 "$RAY_WORKER_PID"' in result.cmd
+
+    def test_cleanup_kills_ray_pids(self, base_config, mock_task, mock_dependencies):
+        result = self._run(base_config, mock_task)
+        assert 'kill "$RAY_HEAD_PID" 2>/dev/null || true' in result.cmd
+        assert 'kill "$RAY_WORKER_PID" 2>/dev/null || true' in result.cmd
+
+    def test_ray_stop_idempotency_on_resume(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        # Auto-resume re-runs the bootstrap; `ray stop` must precede `ray start`.
+        result = self._run(base_config, mock_task)
+        head_idx = result.cmd.index("ray start --head ")
+        # Find the most recent `ray stop` before that head start.
+        before = result.cmd[:head_idx]
+        assert "ray stop 2>/dev/null || true" in before
+
+    def test_aux_deployment_combo_raises(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        # Aux deployments + eval_ray_cluster=true must raise at config-load time.
+        base_config["auxiliary_deployments"] = {
+            "judge": {
+                "type": "vllm",
+                "image": "judge-img",
+                "command": "run",
+                "served_model_name": "judge-m",
+                "port": 8001,
+                "num_nodes": 1,
+                "endpoints": {"health": "/health"},
+            }
+        }
+        with pytest.raises(ValueError, match="eval_ray_cluster=true"):
+            self._run(base_config, mock_task)

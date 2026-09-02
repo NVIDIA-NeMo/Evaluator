@@ -50,3 +50,27 @@ proxy:
     haproxy_port: 5009
     health_check_path: /health
     health_check_status: 200
+
+# Eval-only multi-node Ray cluster. Active only when deployment.type == "none"
+# AND num_nodes > 1 AND eval_ray_cluster == true. Aux deployments are rejected
+# in combination with eval_ray_cluster=true.
+eval_ray_cluster: false        # Opt in to spread eval Ray actors across all allocated nodes.
+eval_ray_port: 6379            # Ray GCS port on the head node.
+eval_ray_dashboard_port: 8265  # Ray dashboard port.
+eval_ray_ready_timeout: 600    # Seconds to wait for all N Ray daemons to join.
+eval_per_node_pre_cmd: null    # Optional bash snippet run on every node inside the
+                               # eval container before `ray start` (e.g. install
+                               # apptainer / squashfuse). When set, requires
+                               # NEMO_EVALUATOR_TRUST_PRE_CMD=1.
+eval_ray_pre_start_cmd: null   # Optional bash snippet prepended to each `ray start`
+                               # (head + workers) and `ray status` wait handler. Use
+                               # to put `ray` on PATH when the eval container ships
+                               # it inside a venv (e.g. Gym: `source /opt/Gym/.venv/bin/activate`).
+eval_ray_head_workload_cmd: null  # Optional bash snippet that REPLACES `sleep infinity`
+                                  # in the ray-head's inner_cmd, so the head's bootstrap
+                                  # container runs the actual workload (e.g. bash a
+                                  # lustre-rendezvous deployment script that invokes
+                                  # ng_e2e_collect_rollouts). Driver + Ray actors then
+                                  # share one venv → eliminates pickle-ABI skew. Mirror
+                                  # canonical vllm_ray pre_cmd's lustre-rendezvous pattern.
+                                  # When unset, head stays `sleep infinity`.
