@@ -1784,3 +1784,72 @@ class TestAggregateLogprobMetrics:
         assert "acc_greedy" in keys
         assert keys["acc"]["value"] == pytest.approx(2.0 / 3, abs=1e-3)
         assert keys["acc_norm"]["value"] == pytest.approx(2.0 / 3, abs=1e-3)
+
+
+class TestNVCFRequestHandling:
+    def test_prepare_request_headers_adds_nvcf_poll_seconds(self):
+        from nemo_evaluator.contrib.byob.runner import _prepare_request_headers
+
+        headers = _prepare_request_headers(
+            api_key="secret",
+            endpoint_url="https://integrate.api.nvidia.com/v1/chat/completions",
+            stream=False,
+            extra_headers={"X-Test": "1"},
+        )
+
+        assert headers["Authorization"] == "Bearer secret"
+        assert headers["X-Test"] == "1"
+        assert headers["NVCF-POLL-SECONDS"] == "1800"
+
+    def test_prepare_request_headers_skips_nvcf_poll_seconds_for_streaming(self):
+        from nemo_evaluator.contrib.byob.runner import _prepare_request_headers
+
+        headers = _prepare_request_headers(
+            api_key=None,
+            endpoint_url="https://integrate.api.nvidia.com/v1/chat/completions",
+            stream=True,
+        )
+
+        assert "NVCF-POLL-SECONDS" not in headers
+
+    def test_call_model_chat_stream_parses_sse(self):
+        mock_session = MagicMock()
+        mock_response = MagicMock()
+        mock_response.iter_lines.return_value = iter(
+            [
+                'data: {"choices":[{"delta":{"content":"Hello"}}]}',
+                "",
+                'data: {"choices":[{"delta":{"content":" world"}}]}',
+                "",
+                "data: [DONE]",
+            ]
+        )
+        mock_session.post.return_value = mock_response
+
+        result = call_model_chat(
+            url="https://integrate.api.nvidia.com/v1",
+            model_id="test-model",
+            prompt="Test prompt",
+            session=mock_session,
+            stream=True,
+        )
+
+        _args, kwargs = mock_session.post.call_args
+        assert kwargs["json"]["stream"] is True
+        assert kwargs["stream"] is True
+        assert result == "Hello world"
+
+
+class TestNVCFRetrySession:
+    def test_create_session_nvcf_policy_excludes_504_and_read_retries(self):
+        session = create_session(
+            max_retries=4,
+            backoff_factor=1.0,
+            status_forcelist=[429, 500, 502, 503],
+            retry_read_timeouts=False,
+        )
+
+        retry = session.get_adapter("https://integrate.api.nvidia.com").max_retries
+
+        assert 504 not in retry.status_forcelist
+        assert retry.read == 0

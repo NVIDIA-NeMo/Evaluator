@@ -94,3 +94,106 @@ def test_get_eval_factory_command_basic(monkeypatch):
 
     # The command to run eval is present
     assert "$cmd run_eval --run_config config_ef.yaml" in result.cmd
+
+
+def test_get_eval_factory_command_applies_nvcf_stream_default(monkeypatch):
+    monkeypatch.setattr(
+        "nemo_evaluator_launcher.common.helpers.get_versions", lambda: "TEST_VER"
+    )
+
+    cfg = OmegaConf.create(
+        {
+            "evaluation": {"nemo_evaluator_config": {"config": {}}},
+            "deployment": {"type": "none"},
+            "target": {
+                "api_endpoint": {
+                    "url": "https://integrate.api.nvidia.com/v1/chat/completions",
+                    "model_id": "model-123",
+                    "api_key_name": "MY_API_KEY",
+                }
+            },
+        }
+    )
+    user_task_config = OmegaConf.create({"nemo_evaluator_config": {"config": {}}})
+    task_definition = {"endpoint_type": "chat", "task": "my_task"}
+
+    result = get_eval_factory_command(cfg, user_task_config, task_definition)
+    b64 = _extract_b64_from_echo_cmd(result.cmd)
+    merged = yaml.safe_load(base64.b64decode(b64.encode("utf-8")).decode("utf-8"))
+
+    assert merged["target"]["api_endpoint"]["stream"] is True
+
+
+def test_get_eval_factory_command_applies_nvcf_poll_header_when_stream_disabled(monkeypatch):
+    monkeypatch.setattr(
+        "nemo_evaluator_launcher.common.helpers.get_versions", lambda: "TEST_VER"
+    )
+
+    cfg = OmegaConf.create(
+        {
+            "evaluation": {
+                "nemo_evaluator_config": {
+                    "target": {"api_endpoint": {"stream": False}},
+                    "config": {},
+                }
+            },
+            "deployment": {"type": "none"},
+            "target": {
+                "api_endpoint": {
+                    "url": "https://integrate.api.nvidia.com/v1/chat/completions",
+                    "model_id": "model-123",
+                    "api_key_name": "MY_API_KEY",
+                }
+            },
+        }
+    )
+    user_task_config = OmegaConf.create({"nemo_evaluator_config": {"config": {}}})
+    task_definition = {"endpoint_type": "chat", "task": "my_task"}
+
+    result = get_eval_factory_command(cfg, user_task_config, task_definition)
+    b64 = _extract_b64_from_echo_cmd(result.cmd)
+    merged = yaml.safe_load(base64.b64decode(b64.encode("utf-8")).decode("utf-8"))
+
+    assert merged["target"]["api_endpoint"]["stream"] is False
+    assert (
+        merged["target"]["api_endpoint"]["headers"]["NVCF-POLL-SECONDS"]
+        == "1800"
+    )
+
+
+def test_get_eval_factory_command_preserves_top_level_endpoint_stream_and_headers(monkeypatch):
+    monkeypatch.setattr(
+        "nemo_evaluator_launcher.common.helpers.get_versions", lambda: "TEST_VER"
+    )
+
+    cfg = OmegaConf.create(
+        {
+            "evaluation": {"nemo_evaluator_config": {"config": {}}},
+            "deployment": {"type": "none"},
+            "target": {
+                "api_endpoint": {
+                    "url": "https://integrate.api.nvidia.com/v1/chat/completions",
+                    "model_id": "model-123",
+                    "api_key_name": "MY_API_KEY",
+                    "stream": True,
+                    "headers": {
+                        "NVCF-POLL-SECONDS": "3600",
+                        "X-Test-Header": "present",
+                    },
+                }
+            },
+        }
+    )
+    user_task_config = OmegaConf.create({"nemo_evaluator_config": {"config": {}}})
+    task_definition = {"endpoint_type": "chat", "task": "my_task"}
+
+    result = get_eval_factory_command(cfg, user_task_config, task_definition)
+    b64 = _extract_b64_from_echo_cmd(result.cmd)
+    merged = yaml.safe_load(base64.b64decode(b64.encode("utf-8")).decode("utf-8"))
+
+    assert merged["target"]["api_endpoint"]["stream"] is True
+    assert merged["target"]["api_endpoint"]["headers"] == {
+        "NVCF-POLL-SECONDS": "3600",
+        "X-Test-Header": "present",
+    }
+

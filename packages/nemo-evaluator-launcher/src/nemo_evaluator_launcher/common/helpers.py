@@ -19,7 +19,8 @@ import os
 import shlex
 import sys
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
+from urllib.parse import urlparse
 
 import yaml
 from omegaconf import DictConfig, OmegaConf
@@ -29,6 +30,30 @@ from nemo_evaluator_launcher.common.env_vars import SecretsEnvResult
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 CONTAINER_RESULTS_DIR = "/results"
+# Kept in sync with nemo_evaluator.common.nvcf; intentionally duplicated so the
+# launcher does not bind to a specific core version beyond what pyproject pins.
+DEFAULT_NVCF_POLL_SECONDS = "1800"
+_NVCF_HOSTNAMES = frozenset({"integrate.api.nvidia.com", "api.nvcf.nvidia.com"})
+
+
+def _is_nvcf_endpoint(url: str | None) -> bool:
+    if not url:
+        return False
+    hostname = urlparse(url).hostname or ""
+    return hostname in _NVCF_HOSTNAMES
+
+
+def _apply_nvcf_defaults(merged_config: dict[str, Any]) -> None:
+    api_endpoint = merged_config.setdefault("target", {}).setdefault("api_endpoint", {})
+    if not _is_nvcf_endpoint(api_endpoint.get("url")):
+        return
+
+    if api_endpoint.get("stream") is None and api_endpoint.get("type") in {"chat", "completions"}:
+        api_endpoint["stream"] = True
+
+    if not api_endpoint.get("stream"):
+        headers = api_endpoint.setdefault("headers", {})
+        headers.setdefault("NVCF-POLL-SECONDS", DEFAULT_NVCF_POLL_SECONDS)
 
 
 @dataclass(frozen=True)
@@ -222,6 +247,26 @@ def get_eval_factory_command(
         ["target", "api_endpoint", "type"],
         task_definition["endpoint_type"],
     )
+
+    api_endpoint_cfg = cfg.get("target", {}).get("api_endpoint", {})
+    stream = api_endpoint_cfg.get("stream", None)
+    if stream is not None:
+        _set_nested_optionally_overriding(
+            merged_nemo_evaluator_config,
+            ["target", "api_endpoint", "stream"],
+            stream,
+        )
+    headers = api_endpoint_cfg.get("headers", None)
+    if headers is not None:
+        if OmegaConf.is_config(headers):
+            headers = OmegaConf.to_container(headers, resolve=True)
+        _set_nested_optionally_overriding(
+            merged_nemo_evaluator_config,
+            ["target", "api_endpoint", "headers"],
+            headers,
+        )
+
+    _apply_nvcf_defaults(merged_nemo_evaluator_config)
     # For unlisted tasks, use the full harness.task format
     # For listed tasks, use just the task name (existing behavior)
     if task_definition.get("is_unlisted"):

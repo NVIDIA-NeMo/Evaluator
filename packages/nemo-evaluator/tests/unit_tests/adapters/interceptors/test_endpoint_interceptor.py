@@ -254,3 +254,19 @@ def test_response_with_none_content_preserves_other_fields(
     assert result_json["choices"][0]["message"]["content"] == ""  # Changed from None
     assert result_json["choices"][0]["finish_reason"] == "stop"
     assert result_json["usage"]["total_tokens"] == 30
+
+
+def test_endpoint_interceptor_injects_context_request_headers(
+    endpoint_interceptor, mock_adapter_request, mock_global_context
+):
+    response_data = {"object": "chat.completion", "choices": []}
+    mock_response = create_mock_response(200, response_data)
+    mock_global_context.request_headers = {"NVCF-POLL-SECONDS": "1800"}
+
+    with patch("requests.request", return_value=mock_response) as mock_request:
+        endpoint_interceptor.intercept_request(
+            mock_adapter_request, mock_global_context
+        )
+
+    headers = mock_request.call_args.kwargs["headers"]
+    assert headers["NVCF-POLL-SECONDS"] == "1800"
