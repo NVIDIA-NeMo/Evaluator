@@ -112,7 +112,7 @@ class Interceptor(RequestToResponseInterceptor):
     def _normalize_content(body: dict[str, Any]) -> None:
         for choice in body.get("choices", []):
             msg = choice.get("message") or choice.get("delta") or {}
-            if "content" in msg and msg["content"] is None:
+            if "content" in msg and msg["content"] is None and not msg.get("tool_calls"):
                 msg["content"] = ""
 
     @staticmethod
