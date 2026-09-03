@@ -33,10 +33,11 @@ class ChatSolver:
 
     async def solve(self, task: SeedResult) -> SolveResult:
         effective_system = self._system or task.system
+        tools = (task.metadata or {}).get("tools") or None
         if task.messages:
-            resp = await self._client.chat(messages=task.messages)
+            resp = await self._client.chat(messages=task.messages, tools=tools)
         else:
-            resp = await self._client.chat(task.prompt, system=effective_system)
+            resp = await self._client.chat(task.prompt, system=effective_system, tools=tools)
         trajectory = build_single_turn_atif(
             task.prompt,
             resp.content,
