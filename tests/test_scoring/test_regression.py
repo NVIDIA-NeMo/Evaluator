@@ -65,12 +65,14 @@ def _make_paired_dirs(
     return b, c
 
 
-def _record(pid, reward, repeat=0, expected="ans", category=None, model_response=None):
+def _record(pid, reward, repeat=0, expected="ans", category=None, model_response=None, *, unscored=False):
     r = {"problem_idx": pid, "repeat": repeat, "reward": reward, "expected_answer": expected}
     if category:
         r["metadata"] = {"category": category}
     if model_response:
         r["model_response"] = model_response
+    if unscored:
+        r["scoring_details"] = {"unscored": True, "unscored_reason": "format_error"}
     return r
 
 
@@ -137,6 +139,17 @@ class TestCompareRuns:
         assert "verdict" in report
         # No results.jsonl → no paired data → INCONCLUSIVE (not PASS)
         assert report["verdict"] == "INCONCLUSIVE"
+
+    def test_unscored_count_is_not_a_score_delta(self, tmp_path):
+        """A count of skipped samples rendered as a percentage delta reads as a
+        catastrophic regression exactly when the exclusion is working."""
+        b = tmp_path / "b.json"
+        c = tmp_path / "c.json"
+        _write_bundle(b, "b", {"pass@1": {"value": 0.7}, "unscored_count": {"value": 30}})
+        _write_bundle(c, "c", {"pass@1": {"value": 0.7}, "unscored_count": {"value": 12}})
+        report = compare_runs(b, c)
+        assert "unscored_count" not in report["score_deltas"]
+        assert "pass@1" in report["score_deltas"]
 
 
 class TestPairedAnalysis:
@@ -364,6 +377,69 @@ class TestPairedAnalysis:
         assert reg.get("baseline_response") == "correct answer here"
         assert reg.get("candidate_response") == "wrong answer"
 
+    def test_fully_unscored_candidate_problems_are_excluded(self, tmp_path):
+        """Issue #1140: an unscorable sample must drop out of the pairing, not
+        count as a wrong answer and read as a regression."""
+        pytest.importorskip("scipy")
+        base = [_record(i, 1.0) for i in range(10)]
+        cand = [_record(i, 1.0) for i in range(8)] + [_record(i, 0.0, unscored=True) for i in (8, 9)]
+        b, c = _make_paired_dirs(tmp_path, base, cand)
+        report = compare_runs(b, c)
+
+        s = report["flip_report"]["summary"]
+        assert s["n_paired"] == 8
+        assert s["n_regressions"] == 0
+        assert s["n_unscored_excluded_candidate"] == 2
+        assert s["n_unscored_excluded_baseline"] == 0
+        assert report["verdict"] != "BLOCK"
+
+    def test_asymmetric_unscored_repeat_stays_paired(self, tmp_path):
+        """One arm losing a repeat must not un-pair the problem: each arm's mean is
+        taken over what that arm actually scored, so the denominators differ.
+
+        The threshold sits between the two candidate means -- 2/3 if the unscored
+        repeat is averaged in as a zero, 2/2 if it is dropped -- so a regression here
+        means the denominator was wrong."""
+        pytest.importorskip("scipy")
+        base = [_record(0, 1.0, repeat=r) for r in range(3)] + [_record(1, 0.0, repeat=r) for r in range(3)]
+        cand = [_record(0, 1.0, repeat=0), _record(0, 0.0, repeat=1, unscored=True), _record(0, 1.0, repeat=2)] + [
+            _record(1, 0.0, repeat=r) for r in range(3)
+        ]
+        b, c = _make_paired_dirs(tmp_path, base, cand)
+        report = compare_runs(b, c, reward_threshold=0.8)
+
+        s = report["flip_report"]["summary"]
+        assert s["n_paired"] == 2
+        assert s["n_unscored_excluded_candidate"] == 0
+        assert s["n_regressions"] == 0
+        assert s["n_stable_correct"] == 1
+
+    @pytest.mark.parametrize(
+        ("base_unscored", "cand_unscored", "n_excluded_baseline", "n_excluded_candidate"),
+        [
+            pytest.param(False, True, 0, 3, id="candidate-scored-nothing"),
+            pytest.param(True, False, 3, 0, id="baseline-scored-nothing"),
+            pytest.param(True, True, 3, 3, id="both-arms-scored-nothing"),
+        ],
+    )
+    def test_zero_paired_problems_is_inconclusive(
+        self, tmp_path, base_unscored, cand_unscored, n_excluded_baseline, n_excluded_candidate
+    ):
+        """Issue #1140: every problem excluded as unscored leaves nothing to compare.
+        Reporting PASS there would call a run that scored nothing a clean run."""
+        pytest.importorskip("scipy")
+        base = [_record(i, 0.0 if base_unscored else 1.0, unscored=base_unscored) for i in range(3)]
+        cand = [_record(i, 0.0 if cand_unscored else 1.0, unscored=cand_unscored) for i in range(3)]
+        b, c = _make_paired_dirs(tmp_path, base, cand)
+        report = compare_runs(b, c)
+
+        s = report["flip_report"]["summary"]
+        assert s["n_paired"] == 0
+        assert s["n_unscored_excluded_baseline"] == n_excluded_baseline
+        assert s["n_unscored_excluded_candidate"] == n_excluded_candidate
+        assert report["verdict"] == "INCONCLUSIVE"
+        assert any("no paired problems" in r for r in report["verdict_reasons"])
+
 
 class TestCompareResults:
     """Item #20: in-memory comparison API."""
@@ -377,6 +453,15 @@ class TestCompareResults:
         assert report["test_used"] == "mcnemar"
         assert "flip_report" in report
         assert report["flip_report"]["summary"]["n_paired"] == 5
+
+    def test_all_records_unscored_is_inconclusive_not_pass(self):
+        """Issue #1140: same guard on the in-memory call path (compare_results)."""
+        pytest.importorskip("scipy")
+        base = {(i, 0): {"reward": 0.0, "scoring_details": {"unscored": True}} for i in range(5)}
+        cand = {(i, 0): {"reward": 0.0, "scoring_details": {"unscored": True}} for i in range(5)}
+        report = compare_results(base, cand)
+        assert report["flip_report"]["summary"]["n_paired"] == 0
+        assert report["verdict"] == "INCONCLUSIVE"
 
 
 class TestPublicAPI:
@@ -543,6 +628,52 @@ class TestAggregateRepeats:
         # After repeat aggregation, rewards are 0.67, 0.33, etc. → non-binary → permutation
         assert report["test_used"] == "permutation"
         assert "permutation_test" in report
+
+    def test_unscored_repeat_excluded_from_mean(self):
+        from nemo_evaluator.engine.comparison import aggregate_repeats
+
+        records = {
+            (0, 0): {"reward": 1.0, "problem_idx": 0},
+            (0, 1): {"reward": 1.0, "problem_idx": 0},
+            (0, 2): {"reward": 0.0, "problem_idx": 0, "scoring_details": {"unscored": True}},
+        }
+        result = aggregate_repeats(records)
+        assert result[(0, 0)]["reward"] == 1.0
+        assert result[(0, 0)]["_aggregated_from_repeats"] == 2
+
+    def test_lone_scored_repeat_keeps_the_zero_key(self):
+        """A lone survivor of a repeated problem must still key to (pid, 0), or it
+        un-pairs from the other arm's aggregate."""
+        from nemo_evaluator.engine.comparison import aggregate_repeats
+
+        records = {
+            (0, 0): {"reward": 0.0, "problem_idx": 0, "scoring_details": {"unscored": True}},
+            (0, 1): {"reward": 0.0, "problem_idx": 0, "scoring_details": {"unscored": True}},
+            (0, 2): {"reward": 1.0, "problem_idx": 0},
+        }
+        result = aggregate_repeats(records)
+        assert list(result) == [(0, 0)]
+        assert result[(0, 0)]["reward"] == 1.0
+
+    def test_fully_unscored_problem_is_dropped(self):
+        from nemo_evaluator.engine.comparison import aggregate_repeats
+
+        records = {(0, r): {"reward": 0.0, "problem_idx": 0, "scoring_details": {"unscored": True}} for r in range(3)}
+        records[(1, 0)] = {"reward": 1.0, "problem_idx": 1}
+        result = aggregate_repeats(records)
+        assert list(result) == [(1, 0)]
+
+    def test_single_unscored_record_is_dropped(self):
+        from nemo_evaluator.engine.comparison import aggregate_repeats
+
+        records = {(0, 0): {"reward": 0.0, "problem_idx": 0, "scoring_details": {"unscored": True}}}
+        assert aggregate_repeats(records) == {}
+
+    def test_scoring_details_without_unscored_key_is_kept(self):
+        from nemo_evaluator.engine.comparison import aggregate_repeats
+
+        records = {(0, 0): {"reward": 0.0, "problem_idx": 0, "scoring_details": {"method": "exact"}}}
+        assert list(aggregate_repeats(records)) == [(0, 0)]
 
 
 class TestWriteRegression:

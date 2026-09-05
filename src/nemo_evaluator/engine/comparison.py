@@ -33,6 +33,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from nemo_evaluator.metrics.aggregation import _is_unscored
 from nemo_evaluator.metrics.paired_tests import (
     POWER_80_FACTOR,
     SIGNIFICANCE_THRESHOLD,
@@ -82,6 +83,9 @@ class FlipSummary:
     regression_rate: float | None = None  # n_regressions / n_paired
     improvement_rate: float | None = None
     category_breakdown: dict[str, dict[str, int]] | None = None
+    # Per *problem*, unlike the per-record ``unscored_count`` on the bundle scores.
+    n_unscored_excluded_baseline: int = 0
+    n_unscored_excluded_candidate: int = 0
 
 
 @dataclass
@@ -194,6 +198,11 @@ def compare_runs(
     b_scores = base.get("benchmark", {}).get("scores", {})
     c_scores = cand.get("benchmark", {}).get("scores", {})
     for metric in sorted(set(list(b_scores.keys()) + list(c_scores.keys()))):
+        if metric == "unscored_count":
+            # A count of skipped samples, not a score.  Rendered as a percentage
+            # delta it reads as a catastrophic regression exactly when the
+            # exclusion below is doing its job.
+            continue
         bv = b_scores.get(metric, {})
         cv = c_scores.get(metric, {})
         if not (isinstance(bv, dict) and isinstance(cv, dict)):
@@ -271,6 +280,8 @@ def compare_runs(
         if base_records and cand_records:
             base_agg = aggregate_repeats(base_records)
             cand_agg = aggregate_repeats(cand_records)
+            n_unscored_base = _n_problems_dropped(base_records, base_agg)
+            n_unscored_cand = _n_problems_dropped(cand_records, cand_agg)
 
             selected_test = test if test != "auto" else detect_test(base_agg, cand_agg)
             report.test_used = selected_test
@@ -281,6 +292,8 @@ def compare_runs(
                     base_agg,
                     cand_agg,
                     threshold=reward_threshold,
+                    n_unscored_excluded_baseline=n_unscored_base,
+                    n_unscored_excluded_candidate=n_unscored_cand,
                 )
                 report.mcnemar = mcnemar_test(
                     report.flip_report.contingency, report.flip_report.summary.n_paired, alpha=alpha
@@ -291,6 +304,8 @@ def compare_runs(
                     base_agg,
                     cand_agg,
                     threshold=reward_threshold,
+                    n_unscored_excluded_baseline=n_unscored_base,
+                    n_unscored_excluded_candidate=n_unscored_cand,
                 )
                 paired_keys = sorted(set(base_agg) & set(cand_agg))
                 paired_deltas = [
@@ -338,7 +353,13 @@ def compare_results(
     selected_test = test if test != "auto" else detect_test(base_agg, cand_agg)
     report.test_used = selected_test
 
-    flip = build_flip_report(base_agg, cand_agg, threshold=reward_threshold)
+    flip = build_flip_report(
+        base_agg,
+        cand_agg,
+        threshold=reward_threshold,
+        n_unscored_excluded_baseline=_n_problems_dropped(baseline_records, base_agg),
+        n_unscored_excluded_candidate=_n_problems_dropped(candidate_records, cand_agg),
+    )
     report.flip_report = flip
 
     if selected_test == "mcnemar":
@@ -382,8 +403,16 @@ def build_flip_report(
     base_records: dict[tuple[int, int], dict[str, Any]],
     cand_records: dict[tuple[int, int], dict[str, Any]],
     threshold: float = 0.0,
+    n_unscored_excluded_baseline: int = 0,
+    n_unscored_excluded_candidate: int = 0,
 ) -> FlipReport:
-    """Build a 2x2 contingency table and per-sample flip lists from paired results."""
+    """Build a 2x2 contingency table and per-sample flip lists from paired results.
+
+    Both records dicts are expected post-``aggregate_repeats``, where problems with
+    no scored repeat left are already gone -- so the two exclusion counts cannot be
+    derived here and must be passed in by the caller.  A direct caller that omits
+    them gets 0, not a count.
+    """
     paired_keys = sorted(set(base_records) & set(cand_records))
 
     both_correct = 0
@@ -448,6 +477,8 @@ def build_flip_report(
             regression_rate=round(baseline_only / n_paired, 4) if n_paired else None,
             improvement_rate=round(candidate_only / n_paired, 4) if n_paired else None,
             category_breakdown=cat_breakdown,
+            n_unscored_excluded_baseline=n_unscored_excluded_baseline,
+            n_unscored_excluded_candidate=n_unscored_excluded_candidate,
         ),
     )
 
@@ -459,7 +490,14 @@ def aggregate_repeats(
 
     If a problem has repeats (0, 1, 2, ...), collapse to a single entry
     keyed by (problem_idx, 0) with the mean reward. Preserves metadata
-    from the first repeat.
+    from the first surviving repeat.
+
+    Unscored repeats (see :func:`_is_unscored`) are dropped before averaging, and a
+    problem left with none is omitted entirely rather than averaged in as a zero.
+    Filtering is per arm, so a problem unscored on only one side keeps a pair whose
+    two means are taken over different repeat sets -- each unbiased over what that
+    arm actually scored.  ``_aggregated_from_repeats`` therefore counts surviving
+    repeats, not original ones.
     """
     from collections import defaultdict
 
@@ -468,14 +506,19 @@ def aggregate_repeats(
         by_problem[pid].append((rep, record))
 
     aggregated: dict[tuple[int, int], dict[str, Any]] = {}
-    for pid, entries in by_problem.items():
-        if len(entries) == 1:
+    for pid, all_entries in by_problem.items():
+        entries = [(rep, r) for rep, r in all_entries if not _is_unscored(r)]
+        if not entries:
+            continue
+        # Branch on the *original* count: a lone survivor of a repeated problem must
+        # still key to (pid, 0), or it stops pairing with the other arm's aggregate.
+        if len(all_entries) == 1:
             rep, record = entries[0]
             aggregated[(pid, rep)] = record
         else:
             rewards = [float(r.get("reward", 0)) for _, r in entries]
             mean_reward = sum(rewards) / len(rewards)
-            _, base_record = sorted(entries, key=lambda x: x[0])[0]
+            _, base_record = min(entries, key=lambda x: x[0])
             agg_record = dict(base_record)
             agg_record["reward"] = mean_reward
             agg_record["repeat"] = 0
@@ -493,6 +536,14 @@ def write_regression(report: dict[str, Any], output_path: str | Path) -> Path:
 
 
 # ── Private helpers ────────────────────────────────────────────────────
+
+
+def _n_problems_dropped(
+    raw: dict[tuple[int, int], dict[str, Any]],
+    aggregated: dict[tuple[int, int], dict[str, Any]],
+) -> int:
+    """Problems ``aggregate_repeats`` dropped because no repeat was scored."""
+    return len({pid for pid, _ in raw} - {pid for pid, _ in aggregated})
 
 
 def _load_bundle(path: str | Path) -> dict[str, Any]:
@@ -586,6 +637,15 @@ def _compute_verdict(
         n_discordant = m.n_discordant
     else:
         return "INCONCLUSIVE", ["no test result available; cannot determine regression status"]
+
+    if s.n_paired == 0:
+        return "INCONCLUSIVE", [
+            (
+                f"no paired problems available (baseline excluded {s.n_unscored_excluded_baseline}, "
+                f"candidate excluded {s.n_unscored_excluded_candidate} as unscored); "
+                "cannot determine regression status"
+            )
+        ]
 
     if p_value is None:
         return "INCONCLUSIVE", ["scipy not installed; statistical test skipped (install nemo-evaluator[stats])"]

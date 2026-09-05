@@ -112,6 +112,32 @@ def scoring_details_breakdown(
     return breakdowns
 
 
+def _is_unscored(record: dict[str, Any]) -> bool:
+    """True when the scorer produced no verdict for this sample.
+
+    ``reward`` is a plain float, so an unscorable sample and a wrong answer both
+    land on 0.0.  ``scoring_details["unscored"]`` is the only thing that tells
+    them apart; everything that averages rewards has to consult it.
+    """
+    return bool((record.get("scoring_details") or {}).get("unscored"))
+
+
+def unscored_metrics(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Per-*record* counts of samples the scorer could not score.
+
+    ``unscored_count`` is ``{"value": n}``-shaped because ``nel gate`` and the
+    report renderers only read scores of that shape; ``unscored_reasons`` is a
+    plain mapping so it is never mistaken for a gateable metric.
+    """
+    reasons: dict[str, int] = {}
+    for r in results:
+        if not _is_unscored(r):
+            continue
+        reason = (r.get("scoring_details") or {}).get("unscored_reason") or "unknown"
+        reasons[reason] = reasons.get(reason, 0) + 1
+    return {"unscored_count": {"value": sum(reasons.values())}, "unscored_reasons": reasons}
+
+
 def summary_stats(rewards: list[float]) -> dict[str, float]:
     """Compute basic summary statistics over a list of reward values."""
     if not rewards:
