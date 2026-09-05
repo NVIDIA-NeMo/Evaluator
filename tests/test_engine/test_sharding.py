@@ -96,20 +96,23 @@ def _write_shard(
     rewards_by_problem: dict[int, list[float]],
     benchmark: str = "testbench",
     repeats: int = 1,
+    unscored_by_problem: dict[int, list[bool]] | None = None,
 ) -> None:
     """Minimal on-disk shard fixture: ``results.jsonl`` + one ``eval-*.json``."""
     shard_dir.mkdir(parents=True, exist_ok=True)
     rows: list[dict] = []
     for pid, rewards in rewards_by_problem.items():
+        flags = (unscored_by_problem or {}).get(pid, [])
         for rep, reward in enumerate(rewards):
-            rows.append(
-                {
-                    "problem_idx": pid,
-                    "repeat": rep,
-                    "reward": reward,
-                    "metadata": {},
-                }
-            )
+            row = {
+                "problem_idx": pid,
+                "repeat": rep,
+                "reward": reward,
+                "metadata": {},
+            }
+            if rep < len(flags) and flags[rep]:
+                row["scoring_details"] = {"unscored": True, "unscored_reason": "format_error"}
+            rows.append(row)
     (shard_dir / "results.jsonl").write_text(
         "\n".join(json.dumps(r) for r in rows) + ("\n" if rows else ""), encoding="utf-8"
     )
@@ -226,3 +229,32 @@ class TestMergeResults:
         # Summary is binary-shaped (min=0, max=1, median=1.0 here).
         assert scores["summary"]["min"] == 0.0
         assert scores["summary"]["max"] == 1.0
+
+    def test_unscored_counts_are_summed_across_shards(self, tmp_path):
+        """Issue #1140: the merged bundle must report how many samples took the
+        unscorable path, or a sharded run hides it."""
+        s0 = tmp_path / "shard_0"
+        s1 = tmp_path / "shard_1"
+        _write_shard(
+            s0,
+            rewards_by_problem={0: [1.0, 0.0], 1: [1.0, 1.0]},
+            repeats=2,
+            unscored_by_problem={0: [False, True]},
+        )
+        _write_shard(
+            s1,
+            rewards_by_problem={2: [0.0, 0.0], 3: [1.0, 1.0]},
+            repeats=2,
+            unscored_by_problem={2: [True, True]},
+        )
+
+        scores = merge_results([s0, s1], tmp_path / "merged", n_repeats=2)["benchmark"]["scores"]
+        assert scores["unscored_count"] == {"value": 3}
+        assert scores["unscored_reasons"] == {"format_error": 3}
+
+    def test_unscored_keys_present_on_a_clean_run(self, tmp_path):
+        s0 = tmp_path / "shard_0"
+        _write_shard(s0, rewards_by_problem={0: [1.0], 1: [0.0]})
+        scores = merge_results([s0], tmp_path / "merged", n_repeats=1)["benchmark"]["scores"]
+        assert scores["unscored_count"] == {"value": 0}
+        assert scores["unscored_reasons"] == {}
