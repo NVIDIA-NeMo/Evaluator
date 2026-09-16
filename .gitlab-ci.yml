@@ -1,0 +1,178 @@
+# GitLab CI for dev/0.3.0 — builds public dev containers.
+#
+# This file is intentionally public. It contains no secrets or sensitive config:
+# all credentials come from GitLab CI/CD project variables at runtime.
+#
+# When GitLab's pull-mirror updates this branch from GitHub, this config builds
+# containers tagged dev-{timestamp}-{sha} using the public dev/0.3.0 code.
+# The internal nv-internal-main branch has its own CI that builds internal-tagged
+# containers with the _internal/ additions.
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "dev/0.3.0"
+
+variables:
+  REGISTRY: "${CI_REGISTRY_IMAGE}"
+
+stages:
+  - containers
+  - multiarch
+
+# ---------------------------------------------------------------------------
+# Shared container build template
+# ---------------------------------------------------------------------------
+
+.container-build:
+  stage: containers
+  image: docker:27
+  before_script:
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - TS=$(echo "$CI_COMMIT_TIMESTAMP" | sed 's/[-:]//g; s/T/-/; s/+.*//')
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        export TAG="${CI_COMMIT_TAG}"
+      else
+        export TAG="dev-${TS}-${CI_COMMIT_SHORT_SHA}"
+      fi
+    - echo "TAG=${TAG} ARCH=${ARCH} COMPONENT=${COMPONENT}"
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "dev/0.3.0"
+
+container-build-base:
+  extends: .container-build
+  parallel:
+    matrix:
+      - ARCH: amd64
+        RUNNER_TAG: nv-core-evals-x86
+      - ARCH: arm64
+        RUNNER_TAG: nv-core-evals-arm64-aws
+  tags:
+    - ${RUNNER_TAG}
+  script:
+    - DOCKERFILE="docker/Dockerfile.base"
+    - IMAGE_TAG="${TAG}-${ARCH}"
+    - docker pull "${REGISTRY}:latest-base-${ARCH}" || true
+    - |
+      BUILD_CMD="docker build --platform linux/${ARCH} --pull"
+      BUILD_CMD="${BUILD_CMD} --cache-from ${REGISTRY}:latest-base-${ARCH}"
+      BUILD_CMD="${BUILD_CMD} --tag ${REGISTRY}:${IMAGE_TAG}"
+      BUILD_CMD="${BUILD_CMD} -f ${DOCKERFILE} ."
+      eval $BUILD_CMD
+    - docker push "${REGISTRY}:${IMAGE_TAG}"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "${REGISTRY}:${IMAGE_TAG}" "${REGISTRY}:latest-base-${ARCH}"
+        docker push "${REGISTRY}:latest-base-${ARCH}"
+      fi
+
+container-build-components:
+  extends: .container-build
+  parallel:
+    matrix:
+      - ARCH: amd64
+        COMPONENT: [lm-eval, skills, gym, full]
+        RUNNER_TAG: nv-core-evals-x86
+      - ARCH: arm64
+        COMPONENT: [lm-eval, skills, gym, full]
+        RUNNER_TAG: nv-core-evals-arm64-aws
+  tags:
+    - ${RUNNER_TAG}
+  needs:
+    - job: container-build-base
+      parallel:
+        matrix:
+          - ARCH: amd64
+            RUNNER_TAG: nv-core-evals-x86
+          - ARCH: arm64
+            RUNNER_TAG: nv-core-evals-arm64-aws
+  script:
+    - DOCKERFILE="docker/Dockerfile.${COMPONENT}"
+    - IMAGE_TAG="${TAG}-${COMPONENT}-${ARCH}"
+    - docker pull "${REGISTRY}:latest-${COMPONENT}-${ARCH}" || true
+    - |
+      BUILD_CMD="docker build --platform linux/${ARCH}"
+      BUILD_CMD="${BUILD_CMD} --build-arg BASE_IMAGE=${REGISTRY}:${TAG}-${ARCH}"
+      BUILD_CMD="${BUILD_CMD} --cache-from ${REGISTRY}:latest-${COMPONENT}-${ARCH}"
+      BUILD_CMD="${BUILD_CMD} --tag ${REGISTRY}:${IMAGE_TAG}"
+      BUILD_CMD="${BUILD_CMD} -f ${DOCKERFILE} ."
+      eval $BUILD_CMD
+    - docker push "${REGISTRY}:${IMAGE_TAG}"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "${REGISTRY}:${IMAGE_TAG}" "${REGISTRY}:latest-${COMPONENT}-${ARCH}"
+        docker push "${REGISTRY}:latest-${COMPONENT}-${ARCH}"
+      fi
+
+# ---------------------------------------------------------------------------
+# Multi-arch manifests
+# ---------------------------------------------------------------------------
+
+.manifest-base:
+  stage: multiarch
+  image: docker:27
+  tags:
+    - nv-core-evals-x86
+  before_script:
+    - docker login -u "${CI_REGISTRY_USER}" -p "${CI_REGISTRY_PASSWORD}" "${CI_REGISTRY}"
+    - TS=$(echo "$CI_COMMIT_TIMESTAMP" | sed 's/[-:]//g; s/T/-/; s/+.*//')
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        export TAG="${CI_COMMIT_TAG}"
+      else
+        export TAG="dev-${TS}-${CI_COMMIT_SHORT_SHA}"
+      fi
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "dev/0.3.0"
+
+multiarch-manifest-base:
+  extends: .manifest-base
+  needs:
+    - job: container-build-base
+      artifacts: false
+      parallel:
+        matrix:
+          - ARCH: amd64
+            RUNNER_TAG: nv-core-evals-x86
+          - ARCH: arm64
+            RUNNER_TAG: nv-core-evals-arm64-aws
+  script:
+    - docker pull "${REGISTRY}:${TAG}-amd64"
+    - docker pull "${REGISTRY}:${TAG}-arm64"
+    - docker manifest create "${REGISTRY}:${TAG}"
+        --amend "${REGISTRY}:${TAG}-amd64"
+        --amend "${REGISTRY}:${TAG}-arm64"
+    - docker manifest push "${REGISTRY}:${TAG}"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker manifest create "${REGISTRY}:latest"
+          --amend "${REGISTRY}:latest-amd64"
+          --amend "${REGISTRY}:latest-arm64"
+        docker manifest push "${REGISTRY}:latest"
+      fi
+
+multiarch-manifest-components:
+  extends: .manifest-base
+  parallel:
+    matrix:
+      - COMPONENT: [lm-eval, skills, gym, full]
+  needs:
+    - job: container-build-components
+  script:
+    - docker pull "${REGISTRY}:${TAG}-${COMPONENT}-amd64"
+    - docker pull "${REGISTRY}:${TAG}-${COMPONENT}-arm64"
+    - docker manifest create "${REGISTRY}:${TAG}-${COMPONENT}"
+        --amend "${REGISTRY}:${TAG}-${COMPONENT}-amd64"
+        --amend "${REGISTRY}:${TAG}-${COMPONENT}-arm64"
+    - docker manifest push "${REGISTRY}:${TAG}-${COMPONENT}"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker manifest create "${REGISTRY}:latest-${COMPONENT}"
+          --amend "${REGISTRY}:latest-${COMPONENT}-amd64"
+          --amend "${REGISTRY}:latest-${COMPONENT}-arm64"
+        docker manifest push "${REGISTRY}:latest-${COMPONENT}"
+      fi
