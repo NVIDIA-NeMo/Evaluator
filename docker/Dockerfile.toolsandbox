@@ -1,0 +1,36 @@
+# ToolSandbox evaluation container for NEL Next.
+#
+# Bundles Apple's ToolSandbox benchmark with a custom NVIDIA NIM agent/user
+# that routes model calls through any OpenAI-compatible endpoint.
+#
+# Build:
+#   docker build -f docker/Dockerfile.toolsandbox -t toolsandbox-nel:latest .
+#
+# Pin to a specific commit for reproducible builds:
+#   docker build -f docker/Dockerfile.toolsandbox \
+#     --build-arg TOOLSANDBOX_REF=<commit-sha> \
+#     -t toolsandbox-nel:<commit-sha> .
+#
+# Required env vars at runtime (injected by ToolSandboxEnvironment.run_batch):
+#   NVIDIA_BASE_URL    – OpenAI-compatible base URL
+#   NVIDIA_API_KEY     – API key
+#   NVIDIA_AGENT_MODEL – Model ID for the agent under evaluation
+#   NVIDIA_USER_MODEL  – Model ID for the user simulator
+
+FROM python:3.11-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG TOOLSANDBOX_REF=main
+
+# ToolSandbox pins openai==1.17.0 and other specific versions — install in
+# a clean environment separate from any NEL dependencies.
+RUN pip install --no-cache-dir \
+    "tool-sandbox[dev] @ git+https://github.com/apple/ToolSandbox.git@${TOOLSANDBOX_REF}" \
+    "httpx<0.28.0"
+
+COPY docker/toolsandbox_entrypoint.py /opt/toolsandbox_entrypoint.py
+
+ENTRYPOINT ["python", "/opt/toolsandbox_entrypoint.py"]
