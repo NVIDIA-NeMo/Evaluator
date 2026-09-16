@@ -179,6 +179,14 @@ class GymEnvironment(EvalEnvironment):
         if "reasoning" in rcp:
             meta["reasoning"] = rcp["reasoning"]
 
+        # Carry the row index through to verify: the eval loop calls
+        # env.verify(..., **seed.metadata), and _verify_native looks the full row
+        # up by problem_idx to forward per-sample fields a dataset-graded server
+        # requires (e.g. ifbench's id/instruction_id_list/kwargs). Without it the
+        # row lookup fails and required-field servers 422. (_verify_native excludes
+        # problem_idx from the /verify body, so this is metadata-only.)
+        meta["problem_idx"] = idx
+
         return SeedResult(
             prompt=prompt,
             expected_answer=expected,
@@ -199,7 +207,7 @@ class GymEnvironment(EvalEnvironment):
         return SeedResult(
             prompt=d.get("prompt", ""),
             expected_answer=d.get("expected_answer", ""),
-            metadata=d.get("metadata", {}),
+            metadata=(d.get("metadata") or {}),
             messages=d.get("messages"),
             system=d.get("system"),
             sandbox_spec=sandbox_spec,
@@ -224,7 +232,7 @@ class GymEnvironment(EvalEnvironment):
             reward=float(d.get("reward", 0.0)),
             extracted_answer=d.get("extracted_answer"),
             scoring_details=d.get("scoring_details", {}),
-            metadata=d.get("metadata", {}),
+            metadata=(d.get("metadata") or {}),
         )
 
     async def _verify_native(self, response: str, expected: str, **meta: Any) -> VerifyResult:
@@ -248,6 +256,11 @@ class GymEnvironment(EvalEnvironment):
         body: dict[str, Any] = {
             "responses_create_params": rcp,
             "response": wrap_text_as_gym_response(response),
+            # In native mode the evaluator holds the dataset and never calls
+            # /seed_session, so the resource server can't learn the gold any
+            # other way — forward it. Dataset-graded servers (e.g. mcqa) read
+            # `body.expected_answer`; without it every reward is 0.
+            "expected_answer": expected,
         }
         # Forward benchmark-specific fields from the original row
         for k, v in row.items():
@@ -273,7 +286,7 @@ class GymEnvironment(EvalEnvironment):
             reward=float(d.get("reward", 0.0)),
             extracted_answer=d.get("extracted_sql") or d.get("extracted_answer"),
             scoring_details={k: v for k, v in d.items() if k not in ("reward", "responses_create_params", "response")},
-            metadata=d.get("metadata", {}),
+            metadata=(d.get("metadata") or {}),
         )
 
     # -- dataset_size -------------------------------------------------------

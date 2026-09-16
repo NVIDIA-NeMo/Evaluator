@@ -193,6 +193,66 @@ class TestExportHappyPath:
         assert logged["accuracy"] == 0.9
         assert "non_numeric" not in logged
 
+    def test_export_logs_runtime_token_metrics(self, mlflow_fake, monkeypatch):
+        """The nested ``runtime`` stats block is flattened into ``runtime_*``
+        metrics and per-sample token averages are derived from total_steps."""
+        from nemo_evaluator.engine.exporters import mlflow_export
+
+        logged: dict = {}
+        monkeypatch.setattr(
+            mlflow_export.mlflow,
+            "log_metrics",
+            staticmethod(lambda m: logged.update(m)),
+            raising=False,
+        )
+
+        exp = mlflow_export.MLflowExporter(tracking_uri="http://mlflow")
+        bundle = _make_bundle(
+            "gsm8k",
+            scores={
+                "pass@1": {"value": 0.6},
+                "runtime": {
+                    "total_steps": 4,
+                    "total_tokens": 1000,
+                    "total_completion_tokens": 800,
+                    "model_errors": 0,
+                    "n_shards": 2,
+                },
+            },
+        )
+        exp.export([bundle])
+        # nested runtime counters flattened
+        assert logged["runtime_total_steps"] == 4.0
+        assert logged["runtime_total_completion_tokens"] == 800.0
+        assert logged["runtime_n_shards"] == 2.0
+        # derived per-sample averages (tokens / steps)
+        assert logged["runtime_avg_completion_tokens"] == 200.0
+        assert logged["runtime_avg_total_tokens"] == 250.0
+        # the headline score is still logged alongside
+        assert logged["pass_at_1"] == 0.6
+
+    def test_runtime_avg_skipped_when_no_steps(self, mlflow_fake, monkeypatch):
+        """Zero/absent total_steps must not raise (no divide-by-zero) and must
+        not emit a derived average."""
+        from nemo_evaluator.engine.exporters import mlflow_export
+
+        logged: dict = {}
+        monkeypatch.setattr(
+            mlflow_export.mlflow,
+            "log_metrics",
+            staticmethod(lambda m: logged.update(m)),
+            raising=False,
+        )
+
+        exp = mlflow_export.MLflowExporter(tracking_uri="http://mlflow")
+        bundle = _make_bundle(
+            "gsm8k",
+            scores={"runtime": {"total_steps": 0, "total_completion_tokens": 800}},
+        )
+        exp.export([bundle])
+        assert logged["runtime_total_completion_tokens"] == 800.0
+        assert "runtime_avg_completion_tokens" not in logged
+
     def test_export_logs_tags_and_run_name(self, mlflow_fake, monkeypatch):
         from nemo_evaluator.engine.exporters import mlflow_export
 
