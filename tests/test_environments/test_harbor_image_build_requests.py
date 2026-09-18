@@ -32,14 +32,16 @@ async def test_image_build_requests_respects_declared_image(
 
     env = HarborEnvironment(dataset_path=dataset)
     requests = await env.image_build_requests()
+    seed = await env.seed(0)
+    assert seed.sandbox_spec is not None
 
     if not needs_build:
         assert requests is None
-        assert env._resolve_image(task_dir) == "example/prebuilt:1.0"
+        assert seed.sandbox_spec.image == "example/prebuilt:1.0"
     else:
         assert requests is not None
         assert len(requests) == 1
         expected_image = _built_image_tag(dataset.name, task_dir.name, env_dir)
         assert requests[0].specs == [ImageSpec(image=expected_image, source={"task_dir": str(task_dir)})]
         assert callable(requests[0].docker_build_fn)
-        assert env._resolve_image(task_dir) == expected_image
+        assert seed.sandbox_spec.image == expected_image
