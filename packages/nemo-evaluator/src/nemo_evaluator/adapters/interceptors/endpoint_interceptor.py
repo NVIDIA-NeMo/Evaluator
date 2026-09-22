@@ -81,10 +81,14 @@ class EndpointInterceptor(RequestToResponseInterceptor):
         start_time = time.time()
 
         # This is a final interceptor, we'll need the flask_request and api
+        headers = {k: v for k, v in ar.r.headers if k.lower() != "host"}
+        for key, value in (context.request_headers or {}).items():
+            headers.setdefault(key, value)
+
         raw_response = requests.request(
             method=ar.r.method,
             url=context.url,
-            headers={k: v for k, v in ar.r.headers if k.lower() != "host"},
+            headers=headers,
             json=ar.r.json,
             cookies=ar.r.cookies,
             allow_redirects=False,

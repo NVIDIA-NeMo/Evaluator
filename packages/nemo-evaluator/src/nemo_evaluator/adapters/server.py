@@ -131,6 +131,7 @@ def _run_adapter_server(
     adapter_config: AdapterConfig,
     port: int,
     model_name: str | None = None,
+    request_headers: dict[str, str] | None = None,
 ) -> None:
     """Internal function to run the adapter server."""
     _increase_file_descriptor_limit()
@@ -142,6 +143,7 @@ def _run_adapter_server(
         adapter_config=adapter_config,
         port=port,
         model_name=model_name,
+        request_headers=request_headers,
     )
 
     def signal_handler(signum, frame):
@@ -189,6 +191,7 @@ class AdapterServer:
         adapter_config: AdapterConfig,
         port: int = DEFAULT_ADAPTER_PORT,
         model_name: str | None = None,
+        request_headers: dict[str, str] | None = None,
     ):
         """
         Initialize the adapter server.
@@ -217,6 +220,7 @@ class AdapterServer:
         self.output_dir = output_dir
         self.adapter_config = adapter_config
         self.model_name = model_name
+        self.request_headers = request_headers
 
         # Initialize the shared adapter pipeline
         self.pipeline = AdapterPipeline(adapter_config, output_dir, model_name)
@@ -337,6 +341,7 @@ class AdapterServer:
                 output_dir=self.output_dir,
                 url=self.api_url,
                 model_name=self.model_name,
+                request_headers=self.request_headers,
             )
 
             # Create adapter request
@@ -542,7 +547,14 @@ class AdapterServerProcess:
         self.process = multiprocessing.get_context("spawn").Process(
             target=_run_adapter_server,
             daemon=True,
-            args=(self.original_url, output_dir, adapter_config, self.port, model_name),
+            kwargs={
+                "api_url": self.original_url,
+                "output_dir": output_dir,
+                "adapter_config": adapter_config,
+                "port": self.port,
+                "model_name": model_name,
+                "request_headers": self.evaluation.target.api_endpoint.headers,
+            },
         )
         self.process.start()
 
