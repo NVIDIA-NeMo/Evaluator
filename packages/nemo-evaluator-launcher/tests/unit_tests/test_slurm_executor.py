@@ -649,6 +649,98 @@ class TestSlurmExecutorFeatures:
         else:
             assert "#SBATCH --gres" not in script
 
+    @pytest.mark.parametrize(
+        "num_instances, num_nodes",
+        [(1, 1), (2, 2)],
+        ids=["single_instance", "multi_instance_with_proxy"],
+    )
+    def test_eval_exit_code_is_captured_directly_after_evaluation_srun(
+        self, base_config, mock_task, mock_dependencies, num_instances, num_nodes
+    ):
+        """`$?` must read the evaluation client, not the server teardown.
+
+        This is asserted on the fully generated script rather than on any single
+        section, because the defect is one of ordering *between* sections: the
+        teardown loop ends in `|| true`, so any capture emitted after it is
+        deterministically 0 and a failed evaluation reports success and
+        auto-exports anyway. A section-level test cannot see that.
+        """
+        base_config["execution"]["num_instances"] = num_instances
+        base_config["execution"]["num_nodes"] = num_nodes
+        base_config["execution"]["auto_export"] = {"destinations": ["mlflow"]}
+        base_config["export"] = {}
+
+        cfg = OmegaConf.create(base_config)
+
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+            task_idx=0,
+        ).cmd
+
+        lines = script.splitlines()
+
+        # The evaluation client srun is `srun ... bash -c '<payload>'`, spanning
+        # several lines; locate its first and last line.
+        marker = lines.index("# evaluation client")
+        srun_start = next(
+            i for i in range(marker + 1, len(lines)) if lines[i].startswith("srun ")
+        )
+        assert lines[srun_start].endswith("bash -c '")
+        srun_end = next(
+            i for i in range(srun_start + 1, len(lines)) if lines[i].endswith("'")
+        )
+
+        capture = lines.index("EVAL_EXIT_CODE=$?")
+
+        # Nothing at all between the end of the srun and the capture.
+        assert capture > srun_end
+        assert [line for line in lines[srun_end + 1 : capture] if line.strip()] == []
+
+        # And the teardown, which is what used to clobber `$?`, comes after it.
+        teardown = next(
+            i for i, line in enumerate(lines) if "terminate servers" in line
+        )
+        assert teardown > capture
+
+        # Exactly one `$?` capture in the whole script: a second one anywhere
+        # downstream would reintroduce the defect.
+        assert script.count("=$?") == 1
+
+    def test_auto_export_section_does_not_capture_exit_code_itself(self):
+        """The section reads the caller's variable; it must not re-read `$?`.
+
+        It is emitted after server teardown, so a capture of its own would
+        always observe the teardown's status.
+        """
+        cfg = OmegaConf.create(
+            {
+                "execution": {
+                    "account": "test_account",
+                    "partition": "batch",
+                    "output_dir": "/tmp/out",
+                    "auto_export": {"destinations": ["mlflow"]},
+                },
+                "export": {},
+            }
+        )
+
+        section = _generate_auto_export_section(
+            cfg=cfg,
+            job_id="abc12345.0",
+            destinations=["mlflow"],
+            env_var_names=[],
+            secrets=SecretsEnvResult(secrets_content=""),
+            remote_task_subdir=Path("/tmp/out/test_task"),
+        )
+
+        assert "$?" not in section
+        assert "if [ $EVAL_EXIT_CODE -eq 0 ]; then" in section
+
 
 class TestMaxWalltimeFeature:
     """Test maximum wall-clock time feature for preventing infinite job resuming."""

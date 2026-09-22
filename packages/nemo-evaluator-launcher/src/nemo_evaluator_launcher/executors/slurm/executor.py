@@ -81,6 +81,11 @@ from nemo_evaluator_launcher.executors.base import (
 )
 from nemo_evaluator_launcher.executors.registry import register_executor
 
+# Shell variable in the generated batch script that holds the evaluation
+# client's exit status. It is assigned immediately after the client `srun` and
+# read later on; nothing between the two may clobber `$?`.
+EVAL_EXIT_CODE_VAR = "EVAL_EXIT_CODE"
+
 
 @register_executor("slurm")
 class SlurmExecutor(BaseExecutor):
@@ -1057,6 +1062,13 @@ def _create_slurm_sbatch_script(
     s += eval_factory_command
     s += "'\n\n"
 
+    # Capture the evaluation client's status here and nowhere else. `$?` reflects
+    # only the most recent command, and everything emitted below (server
+    # teardown, auxiliary teardown) would overwrite it -- the teardown ends in
+    # `|| true`, so a later read would deterministically see 0 and report a
+    # failed evaluation as a success.
+    s += f"{EVAL_EXIT_CODE_VAR}=$?\n\n"
+
     # terminate the server after all evaluation clients finish
     if cfg.deployment.type != "none":
         s += 'for _pid in "${SERVER_PIDS[@]}"; do kill "$_pid" 2>/dev/null || true; done  # terminate servers\n'
@@ -1127,8 +1139,15 @@ def _generate_auto_export_section(
     secrets: SecretsEnvResult,
     remote_task_subdir: Path,
     export_image: str = "python:3.12.7-slim",
+    exit_code_var: str = EVAL_EXIT_CODE_VAR,
 ) -> str:
-    """Generate simple auto-export section for sbatch script."""
+    """Generate simple auto-export section for sbatch script.
+
+    ``exit_code_var`` names a shell variable the caller has *already* assigned
+    from the evaluation client's exit status. This section must not capture
+    ``$?`` itself: it is emitted after server teardown, so ``$?`` would report
+    the teardown rather than the evaluation.
+    """
     if not destinations:
         return ""
 
@@ -1138,13 +1157,12 @@ def _generate_auto_export_section(
     )
 
     s = "\n# Auto-export on success\n"
-    s += "EVAL_EXIT_CODE=$?\n"
     s += f'EVAL_INTERRUPTED_MARKER="{interrupted_marker}"\n'
-    s += 'if [ $EVAL_EXIT_CODE -eq 0 ] && [ -f "$EVAL_INTERRUPTED_MARKER" ]; then\n'
+    s += f'if [ ${exit_code_var} -eq 0 ] && [ -f "$EVAL_INTERRUPTED_MARKER" ]; then\n'
     s += "    echo 'Evaluation exited 0 after SIGTERM. Skipping auto-export.'\n"
-    s += "    EVAL_EXIT_CODE=143\n"
+    s += f"    {exit_code_var}=143\n"
     s += "fi\n"
-    s += "if [ $EVAL_EXIT_CODE -eq 0 ]; then\n"
+    s += f"if [ ${exit_code_var} -eq 0 ]; then\n"
     s += "    echo 'Evaluation completed successfully. Starting auto-export...'\n"
     s += f'    cd "{remote_task_subdir}/artifacts"\n'
 
@@ -1257,7 +1275,7 @@ def _generate_auto_export_section(
     s += '        echo "WARNING: Failed to submit export job: $_export_out"\n'
     s += "    fi\n"
     s += "else\n"
-    s += "    echo 'Evaluation failed with exit code $EVAL_EXIT_CODE. Skipping auto-export.'\n"
+    s += f'    echo "Evaluation failed with exit code ${exit_code_var}. Skipping auto-export."\n'
     s += "fi\n"
 
     return s
