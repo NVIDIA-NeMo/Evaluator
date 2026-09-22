@@ -1,0 +1,97 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# ==============================================================================
+# Eval-only multi-node Ray cluster (deployment: none, agentic Gym evals)
+# ==============================================================================
+# Target use case: agentic Gym evals (GDPVal, SWE-bench, terminalbench) against
+# an external policy endpoint, where Stirrup actor concurrency needs to spread
+# over multiple CPU nodes to avoid per-node CPU/FUSE saturation during agent boot.
+#
+# Architecture (handled by the SLURM executor when eval_ray_cluster=true):
+#   - Allocates N CPU nodes.
+#   - On every node, runs the eval container and a per-node pre_cmd
+#     (apptainer install, FUSE deps).
+#   - Starts `ray start --head` on PRIMARY_NODE and `ray start --address=...`
+#     on the remaining nodes; waits for all N daemons to join.
+#   - `nemo-evaluator run_eval` runs ONLY on PRIMARY_NODE. Gym's
+#     `ng_e2e_collect_rollouts` connects to the Ray cluster via
+#     `++ray_head_node_address=$RAY_HEAD_NODE_ADDRESS`. Stirrup actors are
+#     scheduled across all N nodes; each actor FUSE-mounts its SIF locally.
+#
+# Policy routing mirrors canonical Ultra V3 GDPVal:
+#     ++use_absolute_ip=true
+#     ++policy_base_url={{target.api_endpoint.url}}
+# `use_absolute_ip=true` rewrites policy_base_url so worker-node actors hit
+# the head node's external IP. The adapter binds to 0.0.0.0:3825 because the
+# executor exports `ADAPTER_HOST=0.0.0.0` when eval_ray_cluster=true.
+#
+# Prerequisite (verify before submitting): Gym's actor placement must be SPREAD,
+# not Ray's default PACK. Otherwise actors fill the head node first and the
+# multi-node setup buys nothing. Check Gym's `ng_e2e_collect_rollouts` source
+# for the relevant placement_strategy flag and pass it via `common_params` if
+# needed.
+# ==============================================================================
+
+defaults:
+  - execution: slurm/default
+  - deployment: none
+  - _self_
+
+execution:
+  hostname: ???     # SLURM login hostname
+  account: ???
+  output_dir: ???   # Absolute path on compute nodes
+  partition: cpu
+  num_nodes: 8
+  gpus_per_node: 0
+  walltime: "06:00:00"
+  sbatch_extra_flags:
+    qos: cpu-normal
+
+  # Multi-node eval Ray cluster
+  eval_ray_cluster: true
+  eval_ray_port: 6379
+  eval_ray_dashboard_port: 8265
+  eval_ray_ready_timeout: 600
+  eval_per_node_pre_cmd: |
+    set -e
+    apt-get update -qq && apt-get install -y -qq squashfuse fuse3 git-lfs rpm2cpio cpio
+    if ! command -v apptainer >/dev/null 2>&1; then
+      curl -sSL https://raw.githubusercontent.com/apptainer/apptainer/main/tools/install-unprivileged.sh \
+        | bash -s - /opt/apptainer
+      ln -sf /opt/apptainer/bin/apptainer /usr/local/bin/apptainer
+    fi
+    ln -sf /usr/local/sbin/apptainer /usr/local/bin/apptainer 2>/dev/null || true
+    mkdir -p /usr/local/var/apptainer/mnt/session
+
+  mounts:
+    mount_home: false
+    evaluation: {}
+      # Canonical GDPVal apptainer/SIF mounts go here, e.g.:
+      # /lustre/.../mengxiwu/apptainer/bin: /usr/local/sbin
+      # /lustre/.../mengxiwu/apptainer/etc/apptainer: /usr/local/etc/apptainer
+      # /lustre/.../mengxiwu/apptainer/libexec/apptainer: /usr/local/libexec/apptainer
+      # /lustre/.../agronskiy/images/apptainer: /gdpval/sif
+
+target:
+  api_endpoint:
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    model_id: meta/llama-3.1-405b-instruct  # Replace with your target model.
+    api_key_name: NVIDIA_API_KEY
+
+env_vars:
+  NVIDIA_API_KEY: host:NVIDIA_API_KEY
+
+evaluation:
+  # Placeholder task — replace with your agentic Gym benchmark (e.g. nemo_gym_agentic
+  # with a container and nemo_evaluator_config including common_params:
+  #   ++use_absolute_ip=true
+  #   ++policy_base_url={{target.api_endpoint.url}}
+  #   ++policy_api_key={{target.api_endpoint.api_key_name}}
+  #   ++policy_model_name={{target.api_endpoint.model_id}}
+  #   ++ray_head_node_address=$RAY_HEAD_NODE_ADDRESS
+  #   ++gdpval_stirrup_agent.responses_api_agents.stirrup_agent.concurrency=192
+  # )
+  tasks:
+    - name: AIME_2024
