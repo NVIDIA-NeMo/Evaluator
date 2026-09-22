@@ -81,9 +81,6 @@ from nemo_evaluator_launcher.executors.base import (
 )
 from nemo_evaluator_launcher.executors.registry import register_executor
 
-# Shell variable in the generated batch script that holds the evaluation
-# client's exit status. It is assigned immediately after the client `srun` and
-# read later on; nothing between the two may clobber `$?`.
 EVAL_EXIT_CODE_VAR = "EVAL_EXIT_CODE"
 
 
@@ -1062,11 +1059,8 @@ def _create_slurm_sbatch_script(
     s += eval_factory_command
     s += "'\n\n"
 
-    # Capture the evaluation client's status here and nowhere else. `$?` reflects
-    # only the most recent command, and everything emitted below (server
-    # teardown, auxiliary teardown) would overwrite it -- the teardown ends in
-    # `|| true`, so a later read would deterministically see 0 and report a
-    # failed evaluation as a success.
+    # Must stay directly after the client srun: the teardown below ends in
+    # `|| true`, so a later `$?` would always read 0.
     s += f"{EVAL_EXIT_CODE_VAR}=$?\n\n"
 
     # terminate the server after all evaluation clients finish
