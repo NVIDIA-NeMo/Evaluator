@@ -828,12 +828,20 @@ class HarborEnvironment(EvalEnvironment):
         return len(self._tasks)
 
     async def image_build_requests(self) -> list[Any] | None:
+        """Plan extra-layer Dockerfile builds for tasks without a declared image.
+
+        Return ``None`` when no task needs a Dockerfile build.
+        """
         from nemo_evaluator.sandbox.base import ImageBuildRequest, ImageSpec
 
         specs: list[ImageSpec] = []
         build_contexts: dict[str, Path] = {}
 
         for task_dir in self._tasks:
+            task_toml = task_dir / "task.toml"
+            if task_toml.exists() and _parse_docker_image_from_toml(task_toml):
+                # Match _resolve_image: declared images take precedence over Dockerfiles.
+                continue
             env_dir = task_dir / "environment"
             dockerfile = env_dir / "Dockerfile"
             if dockerfile.exists() and _dockerfile_has_extra_layers(dockerfile):
