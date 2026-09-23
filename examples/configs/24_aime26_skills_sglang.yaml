@@ -1,0 +1,53 @@
+# Flavor: Native NeMo Skills AIME 2026 against an external SGLang endpoint.
+# This is an integration smoke configuration, not a model-card reproduction:
+# Qwen thinking is disabled and the solver uses a concise boxed-answer prompt.
+#
+# Prerequisites:
+#   - pip install nemo-evaluator[skills]
+#   - An OpenAI-compatible endpoint serving the configured model
+#   - Network access on first run to prepare MathArena/aime_2026
+#
+# Defaults target a local port-forward:
+#   kubectl port-forward service/qwen36-native-sglang 30000:30000
+#
+# Run the two-problem smoke test:
+#   nel eval run examples/configs/24_aime26_skills_sglang.yaml
+#
+# Run all 30 problems:
+#   nel eval run examples/configs/24_aime26_skills_sglang.yaml \
+#     -O benchmarks.0.max_problems=30
+
+services:
+  model:
+    type: api
+    url: ${MODEL_URL:-http://localhost:30000/v1/chat/completions}
+    protocol: chat_completions
+    model: ${MODEL_ID:-Qwen/Qwen3.6-35B-A3B-FP8}
+    api_key: ${MODEL_API_KEY:-dummy}
+    generation:
+      temperature: 0
+      max_tokens: 32768
+    proxy:
+      request_timeout: 300
+      max_concurrent_upstream: 2
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: false
+
+benchmarks:
+  - name: skills://aime26
+    solver:
+      type: simple
+      service: model
+      system_prompt: >-
+        Solve the problem directly and concisely. Do not restate the problem,
+        explore abandoned approaches, or provide meta-commentary. Give only the
+        necessary derivation and put the final answer in \boxed{}.
+    repeats: 1
+    max_problems: 2
+    max_concurrent: 2
+    max_system_retries: 1
+    shuffle_seed: 42
+
+output:
+  dir: ./eval_results/aime26-smoke
