@@ -22,7 +22,7 @@ from typing import Any
 
 import numpy as np
 
-from nemo_evaluator.metrics.aggregation import category_breakdown, summary_stats
+from nemo_evaluator.metrics.aggregation import category_breakdown, summary_stats, unscored_metrics
 from nemo_evaluator.metrics.headline import headline_score_metrics
 
 logger = logging.getLogger(__name__)
@@ -98,6 +98,7 @@ def merge_results(shard_dirs: list[str | Path], output_dir: str | Path, n_repeat
 
     all_rewards = [r.get("reward", 0) for r in all_results]
     metrics["summary"] = summary_stats(all_rewards)
+    metrics.update(unscored_metrics(all_results))
 
     if all_runtime_stats:
         merged_rt: dict[str, Any] = {

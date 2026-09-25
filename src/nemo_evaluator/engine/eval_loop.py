@@ -40,7 +40,12 @@ from nemo_evaluator.engine.step_log import (
 )
 from nemo_evaluator.environments.base import EvalEnvironment, VerifyResult
 from nemo_evaluator.errors import GracefulError, InfraError
-from nemo_evaluator.metrics.aggregation import category_breakdown, scoring_details_breakdown, summary_stats
+from nemo_evaluator.metrics.aggregation import (
+    category_breakdown,
+    scoring_details_breakdown,
+    summary_stats,
+    unscored_metrics,
+)
 from nemo_evaluator.metrics.confidence import bootstrap_ci
 from nemo_evaluator.metrics.headline import headline_score_metrics
 from nemo_evaluator.observability.collector import ArtifactCollector
@@ -294,6 +299,7 @@ async def run_evaluation(
                 "summary": summary_stats([]),
                 "runtime": ArtifactCollector().build(0.0).runtime.to_dict(),
                 "failures": ArtifactCollector().build(0.0).failures.to_dict(),
+                **unscored_metrics([]),
             },
             config=config,
             categories=None,
@@ -931,6 +937,7 @@ async def run_evaluation(
     )
 
     metrics["summary"] = summary_stats(all_rewards)
+    metrics.update(unscored_metrics(results))
 
     cats = None
     if results and "category" in results[0].get("metadata", {}):

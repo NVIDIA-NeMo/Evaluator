@@ -945,3 +945,47 @@ class TestSidecarReset:
 
         assert not (log_dir / "trajectory_overflow").exists()
         assert not (log_dir / "capture_markers").exists()
+
+
+class _UnscorableEnv(EvalEnvironment):
+    """Second of three problems cannot be scored at all (issue #1140)."""
+
+    name = "mock_unscorable"
+
+    def __init__(self):
+        super().__init__()
+        self._dataset = [{"a": "1"}, {"a": "2"}, {"a": "3"}]
+
+    async def seed(self, idx):
+        return SeedResult(prompt=f"q{idx}", expected_answer=self._dataset[idx]["a"], metadata={"idx": idx})
+
+    async def verify(self, response, expected, **meta):
+        if expected == "2":
+            return VerifyResult(
+                reward=0.0,
+                scoring_details={"method": "mock", "unscored": True, "unscored_reason": "format_error"},
+            )
+        return VerifyResult(reward=1.0, scoring_details={"method": "mock"})
+
+
+class _EchoSolver:
+    async def solve(self, task):
+        return SolveResult(response=task.expected_answer)
+
+    async def close(self):
+        pass
+
+
+class TestUnscoredMetrics:
+    def test_unscored_count_and_reasons_reported(self):
+        bundle = asyncio.run(run_evaluation(_UnscorableEnv(), _EchoSolver(), n_repeats=2))
+        scores = bundle["benchmark"]["scores"]
+        # Per *record*, not per problem: 1 problem x 2 repeats.
+        assert scores["unscored_count"] == {"value": 2}
+        assert scores["unscored_reasons"] == {"format_error": 2}
+
+    def test_unscored_keys_present_on_a_clean_run(self):
+        bundle = asyncio.run(run_evaluation(_MockEnv(), _MockSolver(), n_repeats=1))
+        scores = bundle["benchmark"]["scores"]
+        assert scores["unscored_count"] == {"value": 0}
+        assert scores["unscored_reasons"] == {}
