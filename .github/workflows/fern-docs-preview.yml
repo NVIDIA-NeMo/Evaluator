@@ -13,66 +13,95 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: "Preview Fern Docs: Comment"
+name: Preview Fern Docs
 
 on:
-  workflow_run:
-    workflows: ["Preview Fern Docs: Build"]
-    types: [completed]
+  push:
+    branches:
+      - "pull-request/[0-9]+"
 
 permissions:
   contents: read
-  actions: read
-  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  changed-files:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      docs: ${{ steps.changed-files.outputs.docs_any_changed }}
+      same_repository: ${{ fromJSON(steps.get-pr-info.outputs.pr-info).head.repo.full_name == github.repository }}
+    steps:
+      - name: Checkout approved PR mirror
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Get PR info
+        id: get-pr-info
+        uses: nv-gha-runners/get-pr-info@090577647b8ddc4e06e809e264f7881650ecdccf # main
+      - name: Get changed files
+        id: changed-files
+        uses: step-security/changed-files@2e07db73e5ccdb319b9a6c7766bd46d39d304bad # v47.0.5
+        with:
+          base_sha: ${{ fromJSON(steps.get-pr-info.outputs.pr-info).base.sha }}
+          files_yaml: |
+            docs:
+              - docs/**
+              - .github/workflows/fern-docs-ci.yml
+
   preview:
+    needs: changed-files
+    if: needs.changed-files.outputs.docs == 'true' && needs.changed-files.outputs.same_repository == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Keep fork validation in the token-free pull_request workflow.
-    if: >-
-      github.event.workflow_run.conclusion == 'success'
-      && github.event.workflow_run.event == 'pull_request'
-      && github.event.workflow_run.head_repository.full_name == github.repository
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Checkout trusted preview tooling
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ github.sha }}
+          ref: main
           path: trusted-source
           persist-credentials: false
 
-      - name: Verify originating run and PR
+      - name: Verify current PR against mirror push
         env:
           GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           set -euo pipefail
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" > "$RUNNER_TEMP/fern-run.json"
-          PR_NUMBER=$(jq -er '.pull_requests | select(length == 1) | .[0].number | select(type == "number" and . > 0 and . == floor)' "$RUNNER_TEMP/fern-run.json")
+          [[ "$GITHUB_REF" =~ ^refs/heads/pull-request/([1-9][0-9]*)$ ]]
+          PR_NUMBER=${BASH_REMATCH[1]}
           gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/fern-pr.json"
+          python3 trusted-source/.github/scripts/fern_preview.py verify \
+            --ref "$GITHUB_REF" --sha "$GITHUB_SHA" --pr "$RUNNER_TEMP/fern-pr.json"
 
-      - name: Download docs and metadata from the originating run
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+      - name: Checkout approved PR content
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          name: fern-preview
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ github.token }}
-          path: incoming
+          ref: ${{ github.sha }}
+          path: pr-source
+          persist-credentials: false
 
-      - name: Validate metadata and stage preview content
+      - name: Stage content with trusted configuration
         id: metadata
         run: |
           python3 trusted-source/.github/scripts/fern_preview.py stage \
-            --artifact incoming --trusted trusted-source --destination "$RUNNER_TEMP/fern-preview" \
-            --run "$RUNNER_TEMP/fern-run.json" --pr "$RUNNER_TEMP/fern-pr.json"
+            --artifact pr-source --trusted trusted-source --destination "$RUNNER_TEMP/fern-preview" \
+            --ref "$GITHUB_REF" --sha "$GITHUB_SHA" --pr "$RUNNER_TEMP/fern-pr.json"
 
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '20'
 
-      - name: Install fixed Fern CLI outside the artifact
+      - name: Install fixed Fern CLI outside the PR checkout
         working-directory: ${{ runner.temp }}
         run: npm install --prefix "$RUNNER_TEMP/fern-cli" --ignore-scripts --no-audit --no-fund fern-api@5.29.0
 
@@ -98,7 +127,8 @@ jobs:
           set -euo pipefail
           # Recheck the head before commenting; a newer PR revision needs its own preview.
           gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/fern-current-pr.json"
-          jq -e --slurpfile run "$RUNNER_TEMP/fern-run.json" '.state == "open" and .head.sha == $run[0].head_sha' "$RUNNER_TEMP/fern-current-pr.json" > /dev/null
+          python3 trusted-source/.github/scripts/fern_preview.py verify \
+            --ref "$GITHUB_REF" --sha "$GITHUB_SHA" --pr "$RUNNER_TEMP/fern-current-pr.json"
           BODY=$(printf ':herb: **Preview your docs:** <%s>\n\n<!-- preview-docs -->' "$PREVIEW_URL")
           COMMENT_ID=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
             --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- preview-docs -->"))) | .id' | head -1)

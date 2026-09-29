@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fern_preview import FERN_VERSION, preview_url, stage_content, verify_metadata
+from fern_preview import FERN_VERSION, preview_url, stage_content, verify_mirror
 
 
 class PreviewTests(unittest.TestCase):
@@ -27,28 +27,14 @@ class PreviewTests(unittest.TestCase):
         (self.trusted / "docs/fern/docs.yml").write_text("instances: []\n")
         (self.trusted / "docs/index.mdx").write_text("old content")
         self.repo = "NVIDIA-NeMo/Evaluator"
-        self.run = {
-            "status": "completed",
-            "path": ".github/workflows/fern-docs-preview-build.yml",
-            "id": 123,
-            "run_attempt": 2,
-            "event": "pull_request",
-            "conclusion": "success",
-            "repository": {"full_name": self.repo},
-            "head_repository": {"full_name": self.repo},
-            "head_sha": "a" * 40,
-            "pull_requests": [{"number": 42}],
-        }
+        self.ref = "refs/heads/pull-request/42"
+        self.sha = "a" * 40
         self.pr = {
             "number": 42,
             "state": "open",
             "head": {"repo": {"full_name": self.repo}, "sha": "a" * 40},
             "base": {"repo": {"full_name": self.repo}},
         }
-        metadata = self.artifact / "preview-metadata"
-        metadata.mkdir()
-        for name, value in {"pr_number": "42", "head_sha": "a" * 40, "run_id": "123", "run_attempt": "2"}.items():
-            (metadata / name).write_text(value + "\n")
 
     def test_normal_content_uses_trusted_configuration(self):
         (self.artifact / "docs/index.mdx").write_text("new content")
@@ -75,31 +61,30 @@ class PreviewTests(unittest.TestCase):
         for name in ("package.json", ".npmrc", "tool.js"):
             self.assertFalse((docs / "fern" / name).exists())
 
-    def test_publisher_uses_fixed_cli_and_isolated_artifact(self):
-        workflow = (Path(__file__).parents[1] / "workflows/fern-docs-preview-comment.yml").read_text()
-        self.assertIn(f"fern-api@{FERN_VERSION}", workflow)
-        self.assertIn('"$RUNNER_TEMP/fern-cli/node_modules/.bin/fern"', workflow)
-        self.assertIn("path: incoming", workflow)
-        self.assertIn("ref: ${{ github.sha }}", workflow)
-        self.assertIn("persist-credentials: false", workflow)
-        self.assertIn("github.event.workflow_run.head_repository.full_name == github.repository", workflow)
-        self.assertIn("run-id: ${{ github.event.workflow_run.id }}\n", workflow)
-        self.assertNotIn("npm run", workflow)
-        self.assertNotIn("npx", workflow)
-        self.assertNotIn("jq -r .version", workflow)
-        self.assertNotIn("get-slug-for-file", workflow)
-
-    def test_run_type_status_and_workflow_are_verified(self):
-        for field, value in (
-            ("event", "push"),
-            ("status", "in_progress"),
-            ("path", ".github/workflows/other.yml"),
-            ("head_sha", "invalid"),
+    def test_publisher_uses_fixed_cli_and_mirror(self):
+        workflow = (Path(__file__).parents[1] / "workflows/fern-docs-preview.yml").read_text()
+        for value in (
+            f"fern-api@{FERN_VERSION}",
+            "--ignore-scripts",
+            "ref: main",
+            "persist-credentials: false",
+            "pull-request/[0-9]+",
+            "docs/**",
+            ".github/workflows/fern-docs-ci.yml",
+            "same_repository",
         ):
-            run = copy.deepcopy(self.run)
-            run[field] = value
-            with self.subTest(field=field), self.assertRaises(ValueError):
-                verify_metadata(self.artifact, run, self.pr, self.repo)
+            self.assertIn(value, workflow)
+        for value in (
+            "npm run",
+            "npx",
+            "jq -r .version",
+            "get-slug-for-file",
+            "workflow_run:",
+            "download-artifact",
+            "upload-artifact",
+        ):
+            self.assertNotIn(value, workflow)
+        self.assertEqual(workflow.count("FERN_TOKEN:"), 1)
 
     def test_deleted_pages_are_not_restored(self):
         stage_content(self.artifact, self.trusted, self.destination)
@@ -110,34 +95,40 @@ class PreviewTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             stage_content(self.artifact, self.trusted, self.destination)
 
-    def test_current_pr_metadata(self):
-        self.assertEqual(verify_metadata(self.artifact, self.run, self.pr, self.repo), 42)
+    def test_current_mirror(self):
+        self.assertEqual(verify_mirror(self.ref, self.sha, self.pr, self.repo), 42)
 
-    def test_mismatched_metadata(self):
-        for field in ("pr_number", "head_sha", "run_id", "run_attempt"):
-            path = self.artifact / "preview-metadata" / field
-            original = path.read_text()
-            path.write_text("999\n")
-            with self.subTest(field=field), self.assertRaises(ValueError):
-                verify_metadata(self.artifact, self.run, self.pr, self.repo)
-            path.write_text(original)
+    def test_invalid_mirror_refs_and_sha(self):
+        for ref in (
+            "refs/heads/main",
+            "refs/heads/pull-request/0",
+            "refs/heads/pull-request/43",
+            "refs/heads/pull-request/42/suffix",
+            "refs/heads/pull-request/042",
+        ):
+            with self.subTest(ref=ref), self.assertRaises(ValueError):
+                verify_mirror(ref, self.sha, self.pr, self.repo)
+        with self.assertRaises(ValueError):
+            verify_mirror(self.ref, "invalid", self.pr, self.repo)
 
-    def test_forks_stale_heads_closed_and_unassociated_prs(self):
-        for mutation in ("fork", "stale", "closed", "unassociated"):
-            run, pr = copy.deepcopy(self.run), copy.deepcopy(self.pr)
+    def test_forks_stale_closed_and_wrong_base(self):
+        for mutation in ("fork", "stale", "closed", "base", "number"):
+            pr = copy.deepcopy(self.pr)
             if mutation == "fork":
                 pr["head"]["repo"]["full_name"] = "example/Evaluator"
             elif mutation == "stale":
                 pr["head"]["sha"] = "b" * 40
             elif mutation == "closed":
                 pr["state"] = "closed"
+            elif mutation == "base":
+                pr["base"]["repo"]["full_name"] = "example/Evaluator"
             else:
-                run["pull_requests"] = []
+                pr["number"] = "42"
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
-                verify_metadata(self.artifact, run, pr, self.repo)
+                verify_mirror(self.ref, self.sha, pr, self.repo)
 
     def test_url_is_display_only_and_requires_fern_https(self):
-        url = "https://example.docs.buildwithfern.com/nemo/evaluator"
+        url = "https://nvidia-preview-example.docs.buildwithfern.com/nemo/evaluator"
         self.assertEqual(preview_url(f"Published docs to {url} (preview)"), url)
         for value in (
             "https://example.invalid",

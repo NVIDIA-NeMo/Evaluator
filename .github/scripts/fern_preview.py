@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stage preview content without importing tooling or configuration from artifacts."""
+"""Stage mirror docs without importing PR tooling or configuration."""
 
 import argparse
 import json
@@ -16,47 +16,31 @@ FERN_DIRECTORY = "docs/fern"
 CONTENT_SUFFIXES = {".md", ".mdx", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico", ".pdf"}
 
 
-def verify_metadata(artifact: Path, run: dict, pr: dict, repository: str) -> int:
-    """Require API-verified same-repository PR provenance and matching metadata."""
+def verify_mirror(ref: str, sha: str, pr: dict, repository: str) -> int:
+    """Bind an approved mirror push to a current, same-repository open PR."""
+    match = re.fullmatch(r"refs/heads/pull-request/([1-9][0-9]*)", ref)
     number = pr["number"]
-    if type(number) is not int or number <= 0:
-        raise ValueError("Invalid PR number")
     if (
-        run["event"] != "pull_request"
-        or run["conclusion"] != "success"
-        or run["status"] != "completed"
-        or run["path"] != ".github/workflows/fern-docs-preview-build.yml"
-        or not re.fullmatch(r"[0-9a-f]{40}", run["head_sha"])
-        or run["repository"]["full_name"] != repository
-        or run["head_repository"]["full_name"] != repository
+        not match
+        or type(number) is not int
+        or number != int(match[1])
+        or not re.fullmatch(r"[0-9a-f]{40}", sha)
+        or pr["state"] != "open"
+        or pr["head"]["sha"] != sha
         or pr["head"]["repo"]["full_name"] != repository
         or pr["base"]["repo"]["full_name"] != repository
-        or pr["state"] != "open"
-        or pr["head"]["sha"] != run["head_sha"]
-        or [entry["number"] for entry in run["pull_requests"]] != [number]
     ):
-        raise ValueError("Preview run does not identify a current same-repository PR")
-    expected = {
-        "pr_number": str(number),
-        "head_sha": run["head_sha"],
-        "run_id": str(run["id"]),
-        "run_attempt": str(run["run_attempt"]),
-    }
-    for name, value in expected.items():
-        path = artifact / "preview-metadata" / name
-        if path.is_symlink() or path.read_text().strip() != value:
-            raise ValueError(f"Preview metadata mismatch: {name}")
+        raise ValueError("Mirror does not identify a current same-repository PR")
     return number
 
 
 def stage_content(artifact: Path, trusted: Path, destination: Path) -> None:
     """Overlay document content onto trusted docs; never copy executable tooling."""
     # Reject links even when their suffix would otherwise be ignored.
-    for path in artifact.rglob("*"):
-        if path.is_symlink():
-            raise ValueError("Artifact links are not supported")
     for root in CONTENT_ROOTS:
         source = artifact / root
+        if source.is_symlink() or any(path.is_symlink() for path in source.rglob("*")):
+            raise ValueError("Content links are not supported")
         if not source.is_dir():
             raise ValueError(f"Missing content directory: {root}")
         shutil.copytree(trusted / root, destination / root, symlinks=False)
@@ -87,9 +71,9 @@ def preview_url(output: str) -> str:
     if (
         parsed.username
         or parsed.password
-        or parsed.port
+        or parsed.port is not None
         or not parsed.hostname
-        or not parsed.hostname.endswith(".docs.buildwithfern.com")
+        or not re.fullmatch(r"nvidia-preview-[a-z0-9-]+\.docs\.buildwithfern\.com", parsed.hostname)
         or parsed.query
         or parsed.fragment
     ):
@@ -100,22 +84,23 @@ def preview_url(output: str) -> str:
 def main() -> None:
     """Validate preview inputs or emit a display-only URL."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["stage", "url"])
+    parser.add_argument("command", choices=["verify", "stage", "url"])
     parser.add_argument("--artifact", type=Path)
     parser.add_argument("--trusted", type=Path)
     parser.add_argument("--destination", type=Path)
-    parser.add_argument("--run", type=Path)
+    parser.add_argument("--ref")
+    parser.add_argument("--sha")
     parser.add_argument("--pr", type=Path)
     parser.add_argument("--log", type=Path)
     args = parser.parse_args()
     if args.command == "url":
         outputs = {"preview_url": preview_url(args.log.read_text())}
     else:
-        run = json.loads(args.run.read_text())
         pr = json.loads(args.pr.read_text())
-        number = verify_metadata(args.artifact, run, pr, os.environ["GITHUB_REPOSITORY"])
-        stage_content(args.artifact, args.trusted, args.destination)
-        outputs = {"pr_number": str(number), "preview_id": f"pr-{number}-{run['head_sha'][:12]}"}
+        number = verify_mirror(args.ref, args.sha, pr, os.environ["GITHUB_REPOSITORY"])
+        if args.command == "stage":
+            stage_content(args.artifact, args.trusted, args.destination)
+        outputs = {"pr_number": str(number), "preview_id": f"pr-{number}-{args.sha[:12]}"}
     with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
         for key, value in outputs.items():
             stream.write(f"{key}={value}\n")
