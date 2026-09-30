@@ -26,7 +26,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_RELEVANT_KEYS = ("model", "messages", "tools", "temperature", "max_tokens", "top_p", "seed")
+_CACHE_KEY_VERSION = 2
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS cache_v1 (
@@ -64,13 +64,19 @@ class DiskCache:
             logger.warning("Failed to initialize cache DB at %s", self._db_path, exc_info=True)
 
     @staticmethod
-    def cache_key(body: dict[str, Any], *, session_prefix: str = "") -> str:
-        canonical: dict[str, Any] = {}
-        for k in _RELEVANT_KEYS:
-            if k in body:
-                canonical[k] = body[k]
-        if "extra_body" in body and isinstance(body["extra_body"], dict):
-            canonical["extra_body"] = body["extra_body"]
+    def cache_key(
+        body: dict[str, Any],
+        *,
+        request_path: str,
+        session_prefix: str = "",
+    ) -> str:
+        # Retain the complete incoming request body so new provider parameters
+        # cannot silently alias an older request.
+        canonical = {
+            "version": _CACHE_KEY_VERSION,
+            "path": request_path,
+            "body": body,
+        }
         raw = json.dumps(canonical, sort_keys=True, ensure_ascii=False)
         if session_prefix:
             raw = session_prefix + "|" + raw
