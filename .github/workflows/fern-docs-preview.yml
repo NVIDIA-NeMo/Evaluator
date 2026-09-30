@@ -35,7 +35,6 @@ jobs:
       pull-requests: read
     outputs:
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
-      same_repository: ${{ fromJSON(steps.get-pr-info.outputs.pr-info).head.repo.full_name == github.repository }}
     steps:
       - name: Checkout approved PR mirror
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -50,14 +49,25 @@ jobs:
         uses: step-security/changed-files@2e07db73e5ccdb319b9a6c7766bd46d39d304bad # v47.0.5
         with:
           base_sha: ${{ fromJSON(steps.get-pr-info.outputs.pr-info).base.sha }}
+          sha: ${{ github.sha }}
           files_yaml: |
             docs:
               - docs/**
               - .github/workflows/fern-docs-ci.yml
+              - .github/workflows/fern-docs-preview.yml
+      - name: Report docs preview gate
+        env:
+          DOCS_CHANGED: ${{ steps.changed-files.outputs.docs_any_changed }}
+        run: |
+          printf 'Docs or preview workflow changed: %s\n' "$DOCS_CHANGED" | tee -a "$GITHUB_STEP_SUMMARY"
 
   preview:
     needs: changed-files
-    if: needs.changed-files.outputs.docs == 'true' && needs.changed-files.outputs.same_repository == 'true'
+    # An approved upstream mirror is the trust boundary, even for a fork PR.
+    # The original PR head repository does not change when its commit is mirrored.
+    if: >-
+      github.repository == 'NVIDIA-NeMo/Evaluator' &&
+      needs.changed-files.outputs.docs == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -75,7 +85,7 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" | jq -e \
             --arg repo "$GITHUB_REPOSITORY" --arg sha "$GITHUB_SHA" --argjson number "$PR_NUMBER" \
             '.number == $number and .state == "open" and .head.sha == $sha and
-             .head.repo.full_name == $repo and .base.repo.full_name == $repo'
+             .base.repo.full_name == $repo'
           echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
 
       - name: Checkout trusted configuration
