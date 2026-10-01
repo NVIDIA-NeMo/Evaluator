@@ -147,6 +147,13 @@ class TestParseEvalConfig:
                 id="model-traffic-request-body-enabled",
             ),
             pytest.param(
+                {"proxy": {"model_traffic": {"capture_token_ids": True}}},
+                {},
+                {"messages": True, "reasoning": True, "tool_calls": True, "request_body": False, "token_ids": True},
+                True,
+                id="model-traffic-token-ids-enabled",
+            ),
+            pytest.param(
                 {"proxy": {}},
                 {"trajectories": {"enrich": False}},
                 {"messages": True, "reasoning": True, "tool_calls": True, "request_body": False},
@@ -187,6 +194,7 @@ class TestParseEvalConfig:
         assert capture.capture_reasoning is expected_capture["reasoning"]
         assert capture.capture_tool_calls is expected_capture["tool_calls"]
         assert capture.capture_request_body is expected_capture["request_body"]
+        assert capture.capture_token_ids is expected_capture.get("token_ids", False)
         assert capture.max_content_chars == 0
         assert cfg.output.trajectories.enrich is expected_enrich
 

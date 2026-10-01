@@ -788,15 +788,20 @@ def _start_proxy(
             max_concurrent_upstream=proxy_cfg.max_concurrent_upstream,
         )
 
+    capture_cfg = getattr(proxy_cfg, "model_traffic", None) if proxy_cfg is not None else None
+
+    if getattr(capture_cfg, "capture_token_ids", False):
+        proxy_kwargs["extra_body"] = {**(proxy_kwargs.get("extra_body") or {}), "return_token_ids": True}
+
     from nemo_evaluator.observability.model_traffic import ModelTrafficStore, register_store
 
-    capture_cfg = getattr(proxy_cfg, "model_traffic", None) if proxy_cfg is not None else None
     traffic_store = ModelTrafficStore(
         service_name=service_name,
         capture_tool_calls=getattr(capture_cfg, "capture_tool_calls", True),
         capture_reasoning=getattr(capture_cfg, "capture_reasoning", True),
         capture_messages=getattr(capture_cfg, "capture_messages", True),
         capture_request_body=getattr(capture_cfg, "capture_request_body", False),
+        capture_token_ids=getattr(capture_cfg, "capture_token_ids", False),
         max_content_chars=getattr(capture_cfg, "max_content_chars", 0),
     )
     register_store(traffic_store)

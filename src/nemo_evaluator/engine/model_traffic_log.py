@@ -99,7 +99,15 @@ def _iter_model_traffic_log_records(
                 row[key] = record[key]
         if record.get("request_hash"):
             row["request_hash"] = record["request_hash"]
-        for key in ("request_body", "tool_calls_full", "reasoning_content", "message_content"):
+        for key in (
+            "request_body",
+            "tool_calls_full",
+            "reasoning_content",
+            "message_content",
+            "prompt_token_ids",
+            "completion_token_ids",
+            "completion_token_ids_by_choice",
+        ):
             if key in record:
                 row[key] = record[key]
         yield row
