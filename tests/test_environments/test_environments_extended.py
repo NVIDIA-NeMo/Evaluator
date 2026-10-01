@@ -17,7 +17,9 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from pathlib import Path
+from types import ModuleType
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -533,6 +535,34 @@ class TestSkillsEnvironment:
 
         SkillsEnvironment(benchmark="gsm8k")
         mock_init.assert_called_once_with(benchmark="gsm8k")
+
+    def test_score_math_uses_current_math_grader_api(self):
+        from nemo_evaluator.environments.skills import SkillsEnvironment
+
+        math_grader = ModuleType("nemo_skills.evaluation.math_grader")
+        math_grader.extract_answer = MagicMock(return_value="42")
+        math_grader.math_equal = MagicMock(return_value=True)
+
+        with patch.dict(sys.modules, {"nemo_skills.evaluation.math_grader": math_grader}):
+            reward, details = SkillsEnvironment._score_math(MagicMock(), r"The answer is \boxed{42}", "42")
+
+        math_grader.extract_answer.assert_called_once_with(r"The answer is \boxed{42}")
+        math_grader.math_equal.assert_called_once_with("42", "42")
+        assert reward == 1.0
+        assert details == {"method": "skills_math_equal", "extracted": "42", "match": True}
+
+    def test_score_multichoice_uses_current_math_grader_api(self):
+        from nemo_evaluator.environments.skills import SkillsEnvironment
+
+        math_grader = ModuleType("nemo_skills.evaluation.math_grader")
+        math_grader.extract_answer = MagicMock(return_value="B")
+
+        with patch.dict(sys.modules, {"nemo_skills.evaluation.math_grader": math_grader}):
+            reward, details = SkillsEnvironment._score_multichoice(MagicMock(), r"\boxed{B}", "B", {})
+
+        math_grader.extract_answer.assert_called_once_with(r"\boxed{B}")
+        assert reward == 1.0
+        assert details == {"method": "multichoice", "extracted": "B", "match": True}
 
 
 # ── HarborEnvironment ───────────────────────────────────────────────────
