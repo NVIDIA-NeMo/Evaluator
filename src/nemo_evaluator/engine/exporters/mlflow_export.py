@@ -313,8 +313,29 @@ class MLflowExporter:
         for metric, val in scores.items():
             if isinstance(val, dict) and "value" in val:
                 val = val["value"]
-            if isinstance(val, (int, float)):
+            # bool is an int subclass; exclude so flags aren't logged as 0/1 metrics.
+            if isinstance(val, (int, float)) and not isinstance(val, bool):
                 safe_metrics[mlflow_sanitize(metric, "metric")] = float(val)
+
+        # The `runtime` block (token/step/latency counters) is a nested dict with no
+        # top-level "value", so the loop above drops it. Flatten its numeric children
+        # into flat `runtime_*` metrics and derive per-sample token averages, so
+        # downstream dashboards can surface tokens-per-sample for a run.
+        runtime = scores.get("runtime")
+        if isinstance(runtime, dict):
+            for rk, rv in runtime.items():
+                if isinstance(rv, (int, float)) and not isinstance(rv, bool):
+                    safe_metrics[mlflow_sanitize(f"runtime_{rk}", "metric")] = float(rv)
+            steps = runtime.get("total_steps")
+            if isinstance(steps, (int, float)) and not isinstance(steps, bool) and steps:
+                for src, dst in (
+                    ("total_completion_tokens", "runtime_avg_completion_tokens"),
+                    ("total_tokens", "runtime_avg_total_tokens"),
+                    ("total_reasoning_tokens", "runtime_avg_reasoning_tokens"),
+                ):
+                    tot = runtime.get(src)
+                    if isinstance(tot, (int, float)) and not isinstance(tot, bool):
+                        safe_metrics[dst] = float(tot) / float(steps)
         return safe_metrics
 
     def _export_one_bundle(self, bundle: dict[str, Any], output_dir: Path) -> str:

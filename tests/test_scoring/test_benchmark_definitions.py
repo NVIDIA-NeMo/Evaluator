@@ -14,6 +14,8 @@
 # limitations under the License.
 """Golden tests: verify benchmark scorers produce correct results on known data."""
 
+import pytest
+
 from nemo_evaluator.scoring import (
     ScorerInput,
     answer_line,
@@ -25,25 +27,65 @@ from nemo_evaluator.scoring import (
 
 
 class TestMultichoiceRegex:
-    def test_correct_answer(self):
-        s = ScorerInput(response="I think the answer is B.\n\nAnswer: B", target="B")
-        assert multichoice_regex(s)["correct"] is True
+    @pytest.mark.parametrize(
+        ("response", "target", "letters", "correct", "expected_extracted"),
+        [
+            # basic extraction with the default A-D pattern
+            ("I think the answer is B.\n\nAnswer: B", "B", "A-D", True, "B"),
+            # wrong target still extracts the right letter
+            ("Answer: C", "A", "A-D", False, "C"),
+            ("answer: d", "D", "A-D", True, "D"),
+            ("I'm not sure about this one", "A", "A-D", False, None),
+            # LaTeX/markdown wrapper tolerance
+            ("Final reasoning.\nAnswer: $B$", "B", "A-D", True, "B"),
+            ("Answer: **C**", "C", "A-D", True, "C"),
+            ("Answer: (A)", "A", "A-D", True, "A"),
+            (r"Answer: \boxed{D}", "D", "A-D", True, "D"),
+            # the final answer wins over an intermediate mention in the reasoning trace
+            ("At first Answer: A, but on reflection Answer: D", "D", "A-D", True, "D"),
+            # an unfilled template placeholder must not extract a letter
+            ("Answer: $LETTER", "B", "A-D", False, None),
+            # 10-choice via the generic letters arg still gets wrapper tolerance
+            ("...corresponds to option **H**.\nAnswer: $H$", "H", "A-J", True, "H"),
+            # a letter outside the configured range is not recognized
+            ("Answer: H", "H", "A-D", False, None),
+        ],
+        ids=[
+            "plain-correct",
+            "wrong-letter",
+            "case-insensitive",
+            "no-answer",
+            "latex",
+            "markdown",
+            "paren",
+            "boxed",
+            "last-match",
+            "placeholder",
+            "ten-choice",
+            "out-of-range",
+        ],
+    )
+    def test_multichoice_extraction(self, response, target, letters, correct, expected_extracted):
+        r = multichoice_regex(ScorerInput(response=response, target=target), letters=letters)
+        assert r["correct"] is correct
+        assert r["extracted"] == expected_extracted
 
-    def test_wrong_answer(self):
-        s = ScorerInput(response="Answer: C", target="A")
-        assert multichoice_regex(s)["correct"] is False
-
-    def test_case_insensitive(self):
-        s = ScorerInput(response="answer: d", target="D")
-        assert multichoice_regex(s)["correct"] is True
-
-    def test_no_answer_found(self):
-        s = ScorerInput(response="I'm not sure about this one", target="A")
-        assert multichoice_regex(s)["correct"] is False
-
-    def test_10_choice(self):
+    @pytest.mark.parametrize(
+        "pattern",
+        [
+            r"(?i)Answer\s*:\s*([A-J])",  # single-group override (e.g. explicit 10-choice)
+            r"(?i)Answer\s*:\s*([A-J])(\b)?",  # extra capture group: findall would yield a tuple
+        ],
+        ids=["single-group", "multi-group"],
+    )
+    def test_pattern_override_supports_extra_groups(self, pattern):
+        # An explicit `pattern` overrides `letters`. With more than one capturing group,
+        # finditer + group(1) must keep working where findall+`[-1].upper()` would crash
+        # on a tuple. group(1) is the answer letter in both patterns.
         s = ScorerInput(response="Answer: H", target="H")
-        assert multichoice_regex(s, pattern=r"(?i)Answer\s*:\s*([A-J])")["correct"] is True
+        result = multichoice_regex(s, pattern=pattern)
+        assert result["correct"] is True
+        assert result["extracted"] == "H"
 
 
 class TestAnswerLine:

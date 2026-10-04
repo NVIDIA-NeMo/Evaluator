@@ -670,6 +670,16 @@ class SandboxManager:
             if proc.returncode != 0:
                 raise RuntimeError(f"docker pull {image} failed: {stderr.decode()[:500]}")
         elif self._backend == "slurm":
+            # A local .sqsh or absolute-path image is consumed directly by pyxis
+            # (--container-image=<path>); there's nothing to import. Mirrors both the
+            # apptainer .sif skip and the slurm_gen.py pre-pull gate (which treats
+            # .sqsh OR "/"-prefixed images as local). Without this, `enroot import
+            # docker://<path>` fails on registry-restricted clusters. No Path.exists()
+            # check: the image lives on a node-visible filesystem, not necessarily
+            # inside this (eval) container — pyxis resolves it at launch time on the node.
+            if image.endswith(".sqsh") or image.startswith("/"):
+                logger.debug("Image %s is a local artifact, skipping import", image)
+                return
             het_group = self._backend_kwargs.get("het_group")
             for node in self._slurm_nodes:
                 srun_args = [
