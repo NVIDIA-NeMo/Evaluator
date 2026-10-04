@@ -1,0 +1,43 @@
+# Flavor: ToolSandbox — stateful multi-turn tool-use benchmark
+#
+# Evaluates an LLM's ability to use tools across stateful, multi-turn
+# conversations (Apple's ToolSandbox: https://github.com/apple/ToolSandbox).
+# Both the agent under evaluation AND the user simulator call the NVIDIA
+# Inference API — no OpenAI key required.
+#
+# Prerequisites:
+#   - INFERENCE_API_KEY set in environment
+#   - Docker running locally
+#   - toolsandbox-nel image built (once):
+#       docker build -f docker/Dockerfile.toolsandbox -t toolsandbox-nel:latest .
+#
+# Run: nel eval run examples/configs/toolsandbox.yaml
+
+services:
+  nemotron:
+    type: api
+    url: https://inference-api.nvidia.com/v1/chat/completions
+    protocol: chat_completions
+    model: azure/openai/gpt-4o
+    api_key: ${INFERENCE_API_KEY}
+
+benchmarks:
+  - name: toolsandbox
+    params:
+      image: toolsandbox-nel:latest
+      # Model used as user simulator (must be available on the same API)
+      user_model: azure/openai/gpt-4o
+      # Number of scenarios to run in parallel inside the container
+      parallel: 4
+      # Set to true to run only a small predefined subset for quick validation
+      test_mode: false
+      # Specific scenarios to run — omit or set [] to run the full suite
+      # scenarios: [wifi_off, cellular_off, make_call]
+    solver:
+      type: simple
+      service: nemotron
+    timeout: 7200.0
+
+output:
+  dir: ./results/toolsandbox
+  report: [markdown, json]
