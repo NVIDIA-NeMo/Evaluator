@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for the SSH-based remote SLURM submission helpers.
+"""Tests for local/SSH SLURM command and remote submission helpers.
 
-The functions under test shell out to ``ssh`` / ``scp`` so we patch
-``_ssh`` and ``_scp`` and assert on the calls they would have made.
+The functions under test shell out to local commands, ``ssh``, or ``scp``,
+so tests patch those process boundaries and assert on the exact calls.
 """
 
 from __future__ import annotations
@@ -27,6 +27,64 @@ def _record_calls():
         return ""
 
     return ssh_calls, scp_calls, fake_ssh, fake_scp
+
+
+def test_run_on_slurm_host_local_uses_bash_without_ssh():
+    with (
+        patch.object(ssh_mod, "_run", return_value="local output") as run_mock,
+        patch.object(ssh_mod, "ssh_run") as ssh_mock,
+    ):
+        output = ssh_mod.run_on_slurm_host(None, "squeue --me", timeout=17.0)
+
+    assert output == "local output"
+    run_mock.assert_called_once_with(["bash", "-c", "squeue --me"], timeout=17.0)
+    ssh_mock.assert_not_called()
+
+
+def test_run_on_slurm_host_remote_delegates_to_ssh():
+    with (
+        patch.object(ssh_mod, "_run") as run_mock,
+        patch.object(ssh_mod, "ssh_run", return_value="remote output") as ssh_mock,
+    ):
+        output = ssh_mod.run_on_slurm_host("loginhost", "squeue --me", username="user", timeout=19.0)
+
+    assert output == "remote output"
+    ssh_mock.assert_called_once_with("loginhost", "squeue --me", username="user", timeout=19.0)
+    run_mock.assert_not_called()
+
+
+def test_submit_sbatch_local_uses_parsable_and_accepts_cluster_suffix():
+    with patch.object(ssh_mod, "run_on_slurm_host", return_value="12345;cluster-a\n") as run_mock:
+        job_id = ssh_mod.submit_sbatch(None, "/shared/eval run/nel_eval.sbatch")
+
+    assert job_id == "12345"
+    run_mock.assert_called_once_with(
+        None,
+        "sbatch --parsable '/shared/eval run/nel_eval.sbatch'",
+        username=None,
+    )
+
+
+def test_check_job_status_local_falls_back_from_squeue_to_sacct():
+    def fake_run(command, timeout=30.0):
+        assert command[:2] == ["bash", "-c"]
+        if command[2].startswith("squeue "):
+            return ""
+        if command[2].startswith("sacct "):
+            return "12345|COMPLETED|0:0\n"
+        raise AssertionError(f"unexpected command: {command}")
+
+    with (
+        patch.object(ssh_mod, "_run", side_effect=fake_run) as run_mock,
+        patch.object(ssh_mod, "ssh_run") as ssh_mock,
+    ):
+        status = ssh_mod.check_job_status(None, "12345")
+
+    assert status == {"job_id": "12345", "state": "COMPLETED", "exit_code": "0:0"}
+    assert run_mock.call_count == 2
+    assert "squeue --job 12345" in run_mock.call_args_list[0].args[0][2]
+    assert "sacct -j 12345" in run_mock.call_args_list[1].args[0][2]
+    ssh_mock.assert_not_called()
 
 
 def test_copy_to_remote_local_base_preserves_subdir_structure(tmp_path: Path):

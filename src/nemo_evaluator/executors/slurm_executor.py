@@ -62,18 +62,18 @@ def _is_sharded(meta: dict) -> bool:
 
 
 def _resolve_latest_job_id(
-    hostname: str,
+    hostname: str | None,
     remote_dir: str,
     fallback_id: str,
     username: str | None = None,
 ) -> str:
-    """Follow .nel_job_chain on the remote host to get the latest job ID."""
-    if not remote_dir or not hostname:
+    """Follow .nel_job_chain on the Slurm host to get the latest job ID."""
+    if not remote_dir:
         return fallback_id
     try:
-        from nemo_evaluator.executors.ssh import ssh_run
+        from nemo_evaluator.executors.ssh import run_on_slurm_host
 
-        chain = ssh_run(
+        chain = run_on_slurm_host(
             hostname,
             f"tail -1 {shlex.quote(remote_dir + '/.nel_job_chain')} 2>/dev/null",
             username=username,
@@ -86,7 +86,7 @@ def _resolve_latest_job_id(
 
 
 def _resolve_shard_latest_ids(
-    hostname: str,
+    hostname: str | None,
     parent_dir: str,
     job_ids: list[str],
     username: str | None = None,
@@ -103,9 +103,9 @@ def _resolve_shard_latest_ids(
         chain_path = shlex.quote(f"{parent_dir}/shard_{i}/.nel_job_chain")
         cmds.append(f'c=$(tail -1 {chain_path} 2>/dev/null); echo "${{c:-{fb}}}"')
     try:
-        from nemo_evaluator.executors.ssh import ssh_run
+        from nemo_evaluator.executors.ssh import run_on_slurm_host
 
-        output = ssh_run(hostname, "; ".join(cmds), username=username, timeout=15.0)
+        output = run_on_slurm_host(hostname, "; ".join(cmds), username=username, timeout=15.0)
         lines = _extract_job_id_lines(output)
         if len(lines) == n:
             return [ln or fb for ln, fb in zip(lines, job_ids)]
@@ -115,7 +115,7 @@ def _resolve_shard_latest_ids(
 
 
 def _find_pending_successors(
-    hostname: str,
+    hostname: str | None,
     job_ids: list[str],
     username: str | None = None,
     remote_dir: str | None = None,
@@ -133,9 +133,9 @@ def _find_pending_successors(
     if not job_ids or not remote_dir:
         return {}
     try:
-        from nemo_evaluator.executors.ssh import ssh_run
+        from nemo_evaluator.executors.ssh import run_on_slurm_host
 
-        output = ssh_run(
+        output = run_on_slurm_host(
             hostname,
             "squeue -u $USER -h -o '%i %T %o' -t PENDING,RUNNING 2>/dev/null",
             username=username,
@@ -192,7 +192,7 @@ def _find_pending_successors(
 
 
 def _collect_successor_ids(
-    hostname: str,
+    hostname: str | None,
     job_ids: list[str],
     username: str | None,
     remote_dir: str,
@@ -206,9 +206,9 @@ def _collect_successor_ids(
     if not job_ids or not remote_dir:
         return set()
     try:
-        from nemo_evaluator.executors.ssh import ssh_run
+        from nemo_evaluator.executors.ssh import run_on_slurm_host
 
-        output = ssh_run(
+        output = run_on_slurm_host(
             hostname,
             "squeue -u $USER -h -o '%i %T %o' -t PENDING,RUNNING 2>/dev/null",
             username=username,
@@ -244,16 +244,19 @@ def _collect_successor_ids(
 
 def _update_aggregate_meta(remote_dir: str, new_job_ids: list[str]) -> None:
     """Find and update the sharded aggregate meta by remote_dir match."""
-    jobs_dir = _jobs_store()
-    if not jobs_dir.is_dir():
+    if not new_job_ids:
         return
-    for meta_path in jobs_dir.glob(f"sharded_*/{_META_FILE}"):
+    jobs_dir = _jobs_store()
+    meta_paths = list(jobs_dir.glob(f"sharded_*/{_META_FILE}")) if jobs_dir.is_dir() else []
+    local_meta_path = Path(remote_dir) / _META_FILE
+    if local_meta_path.is_file():
+        meta_paths.append(local_meta_path)
+    for meta_path in meta_paths:
         try:
             agg = json.loads(meta_path.read_text())
             if agg.get("remote_dir") == remote_dir:
                 agg["job_ids"] = new_job_ids
                 meta_path.write_text(json.dumps(agg, indent=2))
-                return
         except (json.JSONDecodeError, OSError):
             continue
 
@@ -273,15 +276,15 @@ class _ShardProgress:
 
 
 def _fetch_eval_progress(
-    hostname: str,
+    hostname: str | None,
     rdir: str,
     shard_count: int | None = None,
     username: str | None = None,
 ) -> dict[str, _ShardProgress]:
-    """Count verified samples, expected total, and avg reward per shard via one SSH call."""
+    """Count verified samples, expected total, and avg reward in one host command."""
     import re as _re
 
-    from nemo_evaluator.executors.ssh import ssh_run
+    from nemo_evaluator.executors.ssh import run_on_slurm_host
 
     qdir = shlex.quote(rdir)
     glob = f"{qdir}/shard_*" if shard_count else qdir
@@ -297,7 +300,7 @@ def _fetch_eval_progress(
         f"for f in {glob}/*/*/verified_log.jsonl; do "
         f'[ -f "$f" ] && {awk_reward}"$f"; done 2>/dev/null'
     )
-    output = ssh_run(hostname, cmd, username=username, timeout=15.0)
+    output = run_on_slurm_host(hostname, cmd, username=username, timeout=15.0)
     sections = output.split("---")
     wc_out = sections[0] if sections else ""
     log_out = sections[1].strip() if len(sections) > 1 else ""
@@ -378,6 +381,8 @@ class SlurmExecutor(Executor):
 
         from nemo_evaluator.orchestration.slurm_gen import stamp_output_dir, write_sbatch
 
+        if not config.cluster.hostname:
+            config.output.dir = str(Path(config.output.dir).expanduser().resolve())
         parent_dir = config.output.dir
         stamped_run_id = stamp_output_dir(config)
         resolved_dir = config.output.dir  # may now include timestamped subdir
@@ -433,138 +438,137 @@ class SlurmExecutor(Executor):
                 click.echo(f"\nAfter all shards complete:  nel eval merge {resolved_dir}")
             return
 
-        if is_remote:
-            from nemo_evaluator.executors.ssh import copy_to_remote, submit_eval
+        from nemo_evaluator.executors.ssh import copy_to_remote, submit_eval, submit_sbatch
 
-            job_ids: list[str] = []
-            submission_error: Exception | None = None
-            snapshot_upload_failed = False
-            try:
-                if snapshot_path is not None:
-                    # Best-effort: never block submission on the snapshot upload.
-                    try:
-                        copy_to_remote(
-                            config.cluster.hostname,
-                            [snapshot_path],
-                            resolved_dir,
-                            config.cluster.username,
-                            local_base=staging_root,
-                        )
-                    except Exception as exc:  # noqa: BLE001
-                        snapshot_upload_failed = True
-                        click.echo(f"Warning: could not upload config snapshot: {exc}")
-                for script_path in script_paths:
+        hostname = config.cluster.hostname or ""
+        username = config.cluster.username or ""
+        job_ids: list[str] = []
+        submission_error: Exception | None = None
+        snapshot_upload_failed = False
+        try:
+            if is_remote and snapshot_path is not None:
+                # Best-effort: never block submission on the snapshot upload.
+                try:
+                    copy_to_remote(
+                        hostname,
+                        [snapshot_path],
+                        resolved_dir,
+                        username,
+                        local_base=staging_root,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    snapshot_upload_failed = True
+                    click.echo(f"Warning: could not upload config snapshot: {exc}")
+            for script_path in script_paths:
+                if is_remote:
                     # Include all extras under the script's staging dir, not
                     # just direct siblings — legacy container:// benchmarks
                     # write run_config.yaml under {staging}/{safe_name}/ which
-                    # the sbatch then bind-mounts.  Filter by ancestor.
+                    # the sbatch then bind-mounts. Filter by ancestor.
                     local_base = script_path.parent
                     shard_extras = [p for p in extra_paths if local_base in p.parents]
-                    shard_remote = f"{resolved_dir}/{script_path.parent.name}" if is_sharded else resolved_dir
+                    shard_dir = f"{resolved_dir}/{script_path.parent.name}" if is_sharded else resolved_dir
                     meta = submit_eval(
                         script_path=script_path,
-                        hostname=config.cluster.hostname,
-                        remote_dir=shard_remote,
-                        username=config.cluster.username,
+                        hostname=hostname,
+                        remote_dir=shard_dir,
+                        username=username,
                         extra_files=shard_extras,
                         local_base=local_base,
                     )
-                    meta["parent_dir"] = parent_dir
-                    meta["submitted_at"] = datetime.now(timezone.utc).isoformat()
+                else:
+                    shard_dir = str(script_path.parent)
+                    job_id = submit_sbatch(None, str(script_path))
+                    meta = {
+                        "job_id": job_id,
+                        "hostname": "",
+                        "username": "",
+                        "remote_dir": shard_dir,
+                        "script": str(script_path),
+                    }
 
-                    meta_dir = _jobs_store() / meta["job_id"]
-                    meta_dir.mkdir(parents=True, exist_ok=True)
-                    meta_path = meta_dir / _META_FILE
-                    meta_path.write_text(json.dumps(meta, indent=2))
-                    job_ids.append(meta["job_id"])
+                job_id = str(meta["job_id"])
+                job_ids.append(job_id)
+                click.echo(f"SLURM job submitted: {job_id}  ({script_path.name})")
+                meta["job_id"] = job_id
+                meta["parent_dir"] = parent_dir
+                meta["submitted_at"] = datetime.now(timezone.utc).isoformat()
 
-                    click.echo(f"SLURM job submitted: {meta['job_id']}  ({script_path.name})")
-            except Exception as exc:
-                submission_error = exc
-            finally:
-                if local_staging:
-                    if snapshot_upload_failed and snapshot_path is not None:
-                        # Keep only the secret-free snapshot; staging also holds .secrets.env.
-                        try:
-                            kept = shutil.move(str(snapshot_path), tempfile.mkdtemp(prefix="nel-snapshot-"))
-                            click.echo("Config snapshot kept locally. To retry the upload:")
-                            click.echo(f"  scp {kept} {config.cluster.hostname}:{resolved_dir}/")
-                        except OSError as exc:
-                            click.echo(f"Warning: could not preserve config snapshot: {exc}")
-                    shutil.rmtree(local_staging, ignore_errors=True)
+                meta_dir = _jobs_store() / job_id
+                meta_dir.mkdir(parents=True, exist_ok=True)
+                (meta_dir / _META_FILE).write_text(json.dumps(meta, indent=2))
+                if not is_remote:
+                    (Path(shard_dir) / _META_FILE).write_text(json.dumps(meta, indent=2))
 
-            from nemo_evaluator.run_store import (
-                RunMeta,
-                config_summary,
-                generate_run_id,
-            )
+        except Exception as exc:
+            submission_error = exc
+        finally:
+            if local_staging:
+                if snapshot_upload_failed and snapshot_path is not None:
+                    # Keep only the secret-free snapshot; staging also holds .secrets.env.
+                    try:
+                        kept = shutil.move(str(snapshot_path), tempfile.mkdtemp(prefix="nel-snapshot-"))
+                        click.echo("Config snapshot kept locally. To retry the upload:")
+                        click.echo(f"  scp {kept} {hostname}:{resolved_dir}/")
+                    except OSError as exc:
+                        click.echo(f"Warning: could not preserve config snapshot: {exc}")
+                shutil.rmtree(local_staging, ignore_errors=True)
 
-            if not job_ids:
-                raise click.ClickException(f"No shards submitted: {submission_error}")
+        from nemo_evaluator.run_store import (
+            RunMeta,
+            config_summary,
+            generate_run_id,
+        )
 
-            run_id = stamped_run_id or generate_run_id(config)
-            run_meta = RunMeta(
-                run_id=run_id,
-                executor="slurm",
-                output_dir=resolved_dir,
-                started_at=datetime.now(timezone.utc).isoformat(),
-                config_summary=config_summary(config),
-                details={
-                    "job_id": job_ids[0],
-                    "job_ids": job_ids,
-                    "hostname": config.cluster.hostname,
-                    "remote_dir": resolved_dir,
-                    "username": config.cluster.username or "",
-                    "parent_dir": parent_dir,
-                    "is_sharded": is_sharded,
-                },
-            )
-            run_meta.save()
+        if not job_ids:
+            raise click.ClickException(f"No shards submitted: {submission_error}")
 
-            if is_sharded and job_ids:
-                agg_meta = {
-                    "job_id": job_ids[0],
-                    "job_ids": job_ids,
-                    "hostname": config.cluster.hostname,
-                    "remote_dir": resolved_dir,
-                    "username": config.cluster.username or "",
-                    "parent_dir": parent_dir,
-                    "is_sharded": True,
-                    "num_shards": len(job_ids),
-                    "submitted_at": datetime.now(timezone.utc).isoformat(),
-                }
-                agg_dir = _jobs_store() / f"sharded_{job_ids[0]}"
-                agg_dir.mkdir(parents=True, exist_ok=True)
-                (agg_dir / _META_FILE).write_text(json.dumps(agg_meta, indent=2))
+        run_id = stamped_run_id or generate_run_id(config)
+        submitted_at = datetime.now(timezone.utc).isoformat()
+        run_details = {
+            "job_id": job_ids[0],
+            "job_ids": job_ids,
+            "hostname": hostname,
+            "remote_dir": resolved_dir,
+            "username": username,
+            "parent_dir": parent_dir,
+            "is_sharded": is_sharded,
+        }
+        RunMeta(
+            run_id=run_id,
+            executor="slurm",
+            output_dir=resolved_dir,
+            started_at=submitted_at,
+            config_summary=config_summary(config),
+            details=run_details,
+        ).save()
 
-            host = config.cluster.hostname
-            click.echo(f"\nrun_id: {run_id}  |  {len(job_ids)} job(s)")
-            click.echo(f"Remote dir: {host}:{resolved_dir}")
-            click.echo(f"Metadata:   {_jobs_store()}")
-            click.echo(f"\nTail logs:  nel eval logs -r {run_id} -f")
-            click.echo(f"Status:     nel eval status -r {run_id}")
-            if is_sharded:
-                click.echo(f"Merge:      nel eval merge {resolved_dir}")
-            if submission_error:
-                click.echo(
-                    f"\nWARNING: Only {len(job_ids)}/{len(script_paths)} shards submitted. Error: {submission_error}",
-                    err=True,
-                )
-            return
-
-        import subprocess
-
-        for script_path in script_paths:
-            result = subprocess.run(
-                ["sbatch", str(script_path)],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                raise click.ClickException(f"sbatch failed for {script_path}: {result.stderr}")
-            click.echo(result.stdout.strip())
         if is_sharded:
-            click.echo(f"\nAfter all shards complete:  nel eval merge {resolved_dir}")
+            aggregate_meta = {
+                **run_details,
+                "is_sharded": True,
+                "num_shards": len(job_ids),
+                "submitted_at": submitted_at,
+            }
+            aggregate_dir = _jobs_store() / f"sharded_{job_ids[0]}"
+            aggregate_dir.mkdir(parents=True, exist_ok=True)
+            (aggregate_dir / _META_FILE).write_text(json.dumps(aggregate_meta, indent=2))
+            if not is_remote:
+                (Path(resolved_dir) / _META_FILE).write_text(json.dumps(aggregate_meta, indent=2))
+
+        click.echo(f"\nrun_id: {run_id}  |  {len(job_ids)} job(s)")
+        location = f"{hostname}:{resolved_dir}" if is_remote else resolved_dir
+        click.echo(f"Output dir:  {location}")
+        click.echo(f"Metadata:    {_jobs_store()}")
+        click.echo(f"\nTail logs:  nel eval logs -r {run_id} -f")
+        click.echo(f"Status:     nel eval status -r {run_id}")
+        if is_sharded:
+            click.echo(f"Merge:      nel eval merge {resolved_dir}")
+        if submission_error:
+            click.echo(
+                f"\nWARNING: Only {len(job_ids)}/{len(script_paths)} shards submitted. Error: {submission_error}",
+                err=True,
+            )
 
     def status(self, output_dir: str | Path) -> ProcessState:
         meta = _read_meta(output_dir)
@@ -572,7 +576,7 @@ class SlurmExecutor(Executor):
             return ProcessState("slurm", False, {"error": f"No {_META_FILE} found"})
 
         job_ids = _get_job_ids(meta)
-        hostname = meta["hostname"]
+        hostname = meta.get("hostname") or None
         username = meta.get("username") or None
 
         if not _is_sharded(meta):
@@ -664,10 +668,10 @@ class SlurmExecutor(Executor):
         details = {"shards": shards_summary, **details}
 
         try:
-            from nemo_evaluator.executors.ssh import ssh_run
+            from nemo_evaluator.executors.ssh import run_on_slurm_host
 
             qdir = shlex.quote(rdir)
-            merge_out = ssh_run(
+            merge_out = run_on_slurm_host(
                 hostname,
                 f"[[ -f {qdir}/.merge_lock/.done ]] && echo DONE "
                 f"|| ([[ -d {qdir}/.merge_lock ]] && echo IN_PROGRESS || echo PENDING)",
@@ -687,7 +691,7 @@ class SlurmExecutor(Executor):
             return False
 
         job_ids = _get_job_ids(meta)
-        hostname = meta["hostname"]
+        hostname = meta.get("hostname") or None
         username = meta.get("username") or None
         rdir = meta.get("remote_dir", str(output_dir))
 
@@ -699,28 +703,29 @@ class SlurmExecutor(Executor):
             if shard_idx < 0 or shard_idx >= len(job_ids):
                 logger.error("Shard index %d out of range (0-%d)", shard_idx, len(job_ids) - 1)
                 return False
-            latest = _resolve_latest_job_id(hostname, f"{rdir}/shard_{shard_idx}", job_ids[shard_idx], username)
-            return self._cancel_with_successors(hostname, rdir, [latest], username)
+            shard_dir = f"{rdir}/shard_{shard_idx}"
+            latest = _resolve_latest_job_id(hostname, shard_dir, job_ids[shard_idx], username)
+            return self._cancel_with_successors(hostname, shard_dir, [latest], username)
 
         latest_ids = _resolve_shard_latest_ids(hostname, rdir, job_ids, username)
         return self._cancel_with_successors(hostname, rdir, latest_ids, username)
 
     @staticmethod
     def _cancel_with_successors(
-        hostname: str,
+        hostname: str | None,
         rdir: str,
         target_ids: list[str],
         username: str | None,
     ) -> bool:
-        from nemo_evaluator.executors.ssh import ssh_run
+        from nemo_evaluator.executors.ssh import run_on_slurm_host
 
         all_ids = set(target_ids)
 
         all_ids.update(_collect_successor_ids(hostname, target_ids, username, rdir))
 
-        ids_str = " ".join(sorted(all_ids))
+        ids_str = " ".join(shlex.quote(job_id) for job_id in sorted(all_ids))
         try:
-            ssh_run(hostname, f"scancel {ids_str}", username=username, timeout=15.0)
+            run_on_slurm_host(hostname, f"scancel {ids_str}", username=username, timeout=15.0)
             logger.info("Cancelled SLURM jobs: %s", ids_str)
         except Exception as e:
             logger.error("Failed to cancel jobs %s: %s", ids_str, e)
@@ -734,7 +739,12 @@ class SlurmExecutor(Executor):
         if late:
             logger.info("Cancelling late-started successors: %s", " ".join(sorted(late)))
             try:
-                ssh_run(hostname, f"scancel {' '.join(sorted(late))}", username=username, timeout=15.0)
+                run_on_slurm_host(
+                    hostname,
+                    f"scancel {' '.join(shlex.quote(job_id) for job_id in sorted(late))}",
+                    username=username,
+                    timeout=15.0,
+                )
             except Exception:
                 logger.warning("Failed to cancel late successors: %s", " ".join(sorted(late)))
 
@@ -751,9 +761,9 @@ class SlurmExecutor(Executor):
         meta = _read_meta(output_dir)
         if meta is None:
             return None
-        from nemo_evaluator.executors.ssh import ssh_run
+        from nemo_evaluator.executors.ssh import run_on_slurm_host
 
-        hostname = meta["hostname"]
+        hostname = meta.get("hostname") or None
         username = meta.get("username") or None
         rdir = meta.get("remote_dir", str(output_dir))
         job_ids = _get_job_ids(meta)
@@ -762,8 +772,18 @@ class SlurmExecutor(Executor):
             latest_id = _resolve_latest_job_id(hostname, rdir, job_ids[0] if job_ids else "", username)
             log_file = f"{rdir}/logs/slurm-{latest_id}.log"
             if tail:
-                return ssh_run(hostname, f"tail -n {tail} {log_file}", username=username, timeout=30.0)
-            return ssh_run(hostname, f"cat {log_file}", username=username, timeout=60.0)
+                return run_on_slurm_host(
+                    hostname,
+                    f"tail -n {tail} {shlex.quote(log_file)}",
+                    username=username,
+                    timeout=30.0,
+                )
+            return run_on_slurm_host(
+                hostname,
+                f"cat {shlex.quote(log_file)}",
+                username=username,
+                timeout=60.0,
+            )
 
         if shard_idx is not None:
             if shard_idx < 0 or shard_idx >= len(job_ids):
@@ -772,61 +792,68 @@ class SlurmExecutor(Executor):
             latest_id = _resolve_latest_job_id(hostname, shard_rdir, job_ids[shard_idx], username)
             log_file = f"{shard_rdir}/logs/slurm-{latest_id}.log"
             if tail:
-                return ssh_run(hostname, f"tail -n {tail} {log_file}", username=username, timeout=30.0)
-            return ssh_run(hostname, f"cat {log_file}", username=username, timeout=60.0)
+                return run_on_slurm_host(
+                    hostname,
+                    f"tail -n {tail} {shlex.quote(log_file)}",
+                    username=username,
+                    timeout=30.0,
+                )
+            return run_on_slurm_host(
+                hostname,
+                f"cat {shlex.quote(log_file)}",
+                username=username,
+                timeout=60.0,
+            )
 
         tail_n = tail or 20
         cmds = []
         for i, fb in enumerate(job_ids):
             sdir = shlex.quote(f"{rdir}/shard_{i}")
             cmds.append(
-                f'echo "=== shard_{i} (job {fb}) ==="; '
-                f'_l=$(tail -1 {sdir}/.nel_job_chain 2>/dev/null); _l="${{_l:-{fb}}}"; '
-                f'tail -n {tail_n} {sdir}/logs/slurm-$_l.log 2>/dev/null || echo "(no log yet)"'
+                f'echo "=== shard_{i} (job {fb}) ==="; _sdir={sdir}; '
+                f'_l=$(tail -1 "$_sdir/.nel_job_chain" 2>/dev/null); _l="${{_l:-{fb}}}"; '
+                f'tail -n {tail_n} "$_sdir/logs/slurm-$_l.log" 2>/dev/null || echo "(no log yet)"'
             )
         script = '; echo ""; '.join(cmds)
         try:
-            return ssh_run(hostname, script, username=username, timeout=60.0)
+            return run_on_slurm_host(hostname, script, username=username, timeout=60.0)
         except Exception as e:
             return f"Failed to fetch logs: {e}"
 
     def resume_run(self, run_meta, **kwargs) -> None:
-        import re
-        import shlex as shlex_mod
-
         import click
 
         details = run_meta.details
-        hostname = details.get("hostname", "")
+        hostname = details.get("hostname") or None
         username = details.get("username") or None
         rdir = details.get("remote_dir", run_meta.output_dir)
         job_ids = _get_job_ids(details)
         continue_attempts = kwargs.get("continue_attempts", False)
         shard_idx = kwargs.get("shard_idx")
 
-        from nemo_evaluator.executors.ssh import ssh_run
+        from nemo_evaluator.executors.ssh import run_on_slurm_host, submit_sbatch
 
         if not _is_sharded(details):
             script = f"{rdir}/nel_eval.sbatch"
             if not continue_attempts:
-                ssh_run(
+                run_on_slurm_host(
                     hostname,
-                    f"rm -f {shlex_mod.quote(rdir)}/.nel_infra_retries {shlex_mod.quote(rdir)}/.nel_accumulated_walltime",
+                    f"rm -f {shlex.quote(rdir)}/.nel_infra_retries {shlex.quote(rdir)}/.nel_accumulated_walltime",
                     username=username,
                     timeout=10.0,
                 )
-            output = ssh_run(hostname, f"sbatch {shlex_mod.quote(script)}", username=username, timeout=30.0)
-            click.echo(f"Resubmitted: {output.strip()}")
-            m = re.search(r"(\d+)", output)
-            if m:
-                new_id = m.group(1)
-                run_meta.update_details(job_id=new_id, job_ids=[new_id])
-                new_meta_dir = _jobs_store() / new_id
-                new_meta_dir.mkdir(parents=True, exist_ok=True)
-                (new_meta_dir / _META_FILE).write_text(json.dumps({**details, "job_id": new_id}, indent=2))
-                click.echo(f"New job ID: {new_id}")
-                click.echo(f"Tail logs:  nel eval logs -r {run_meta.run_id} -f")
-                click.echo(f"Status:     nel eval status -r {run_meta.run_id}")
+            new_id = submit_sbatch(hostname, script, username)
+            click.echo(f"Resubmitted: {new_id}")
+            new_meta = {**details, "job_id": new_id, "job_ids": [new_id]}
+            new_meta_dir = _jobs_store() / new_id
+            new_meta_dir.mkdir(parents=True, exist_ok=True)
+            (new_meta_dir / _META_FILE).write_text(json.dumps(new_meta, indent=2))
+            if hostname is None:
+                (Path(rdir) / _META_FILE).write_text(json.dumps(new_meta, indent=2))
+            run_meta.update_details(job_id=new_id, job_ids=[new_id])
+            click.echo(f"New job ID: {new_id}")
+            click.echo(f"Tail logs:  nel eval logs -r {run_meta.run_id} -f")
+            click.echo(f"Status:     nel eval status -r {run_meta.run_id}")
             return
 
         from nemo_evaluator.executors.ssh import batch_check_job_status
@@ -865,21 +892,35 @@ class SlurmExecutor(Executor):
             script = f"{shard_dir}/nel_eval.sbatch"
             try:
                 if not continue_attempts:
-                    ssh_run(
+                    run_on_slurm_host(
                         hostname,
-                        f"rm -f {shlex_mod.quote(shard_dir)}/.nel_infra_retries "
-                        f"{shlex_mod.quote(shard_dir)}/.nel_accumulated_walltime",
+                        f"rm -f {shlex.quote(shard_dir)}/.nel_infra_retries "
+                        f"{shlex.quote(shard_dir)}/.nel_accumulated_walltime",
                         username=username,
                         timeout=10.0,
                     )
-                output = ssh_run(hostname, f"sbatch {shlex_mod.quote(script)}", username=username, timeout=30.0)
-                click.echo(f"  shard_{i}: {output.strip()}")
-                m = re.search(r"(\d+)", output)
-                if m:
-                    new_job_ids[i] = m.group(1)
+                new_id = submit_sbatch(hostname, script, username)
+                click.echo(f"  shard_{i}: {new_id}")
             except Exception as e:
                 click.echo(f"  shard_{i}: FAILED — {e}", err=True)
                 failed_shards.append(i)
+                continue
+
+            new_meta = {
+                **details,
+                "job_id": new_id,
+                "job_ids": [new_id],
+                "remote_dir": shard_dir,
+                "script": script,
+                "is_sharded": False,
+            }
+            new_meta.pop("num_shards", None)
+            new_meta_dir = _jobs_store() / new_id
+            new_meta_dir.mkdir(parents=True, exist_ok=True)
+            (new_meta_dir / _META_FILE).write_text(json.dumps(new_meta, indent=2))
+            if hostname is None:
+                (Path(shard_dir) / _META_FILE).write_text(json.dumps(new_meta, indent=2))
+            new_job_ids[i] = new_id
 
         if new_job_ids != list(job_ids):
             run_meta.update_details(job_ids=new_job_ids)
@@ -899,7 +940,7 @@ class SlurmExecutor(Executor):
 
 
 def _resolve_latest_job_id_from_meta(meta: dict) -> str:
-    """Follow .nel_job_chain on the remote host to get the latest job ID.
+    """Follow .nel_job_chain on the Slurm host to get the latest job ID.
 
     Backward-compatible wrapper — delegates to _resolve_latest_job_id.
     """
