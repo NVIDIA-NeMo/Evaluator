@@ -89,6 +89,34 @@ class TestChatSolver:
         result = await solver.solve(_make_seed())
         assert result.response == ""
 
+    @pytest.mark.asyncio
+    async def test_tools_forwarded_from_metadata(self):
+        from nemo_evaluator.solvers.chat import ChatSolver
+
+        mock_client = AsyncMock()
+        mock_client.chat = AsyncMock(return_value=_make_model_response("ok"))
+
+        seed = _make_seed()
+        tools = [{"type": "function", "function": {"name": "get_page"}}]
+        seed.metadata = {"tools": tools}
+
+        solver = ChatSolver(client=mock_client)
+        await solver.solve(seed)
+
+        assert mock_client.chat.await_args.kwargs["tools"] == tools
+
+    @pytest.mark.asyncio
+    async def test_no_tools_passes_none(self):
+        from nemo_evaluator.solvers.chat import ChatSolver
+
+        mock_client = AsyncMock()
+        mock_client.chat = AsyncMock(return_value=_make_model_response("ok"))
+
+        solver = ChatSolver(client=mock_client)
+        await solver.solve(_make_seed())
+
+        assert mock_client.chat.await_args.kwargs["tools"] is None
+
 
 # ---------------------------------------------------------------------------
 # NatSolver
