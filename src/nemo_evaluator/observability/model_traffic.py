@@ -10,9 +10,10 @@ import threading
 import time
 import uuid
 from collections import Counter
+from collections.abc import Iterator
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import TYPE_CHECKING, Any
 
 
 def _request_hash(body: Any) -> str | None:
@@ -33,14 +34,14 @@ def _request_hash(body: Any) -> str | None:
 if TYPE_CHECKING:
     from nemo_evaluator.adapters.types import AdapterRequest, AdapterResponse
 
-_REGISTRY: dict[str, "ModelTrafficStore"] = {}
+_REGISTRY: dict[str, ModelTrafficStore] = {}
 _REGISTRY_LOCK = threading.Lock()
 _USAGE_KEYS = ("prompt_tokens", "completion_tokens", "total_tokens", "reasoning_tokens", "cached_tokens")
 _PROVIDER = "provider_reported"
 _ERROR_SUMMARY_CHARS = 4000
 
 
-def register_store(store: "ModelTrafficStore") -> str:
+def register_store(store: ModelTrafficStore) -> str:
     with _REGISTRY_LOCK:
         _REGISTRY[store.store_id] = store
     return store.store_id
@@ -51,7 +52,7 @@ def unregister_store(store_id: str) -> None:
         _REGISTRY.pop(store_id, None)
 
 
-def get_store(store_id: str) -> "ModelTrafficStore":
+def get_store(store_id: str) -> ModelTrafficStore:
     with _REGISTRY_LOCK:
         store = _REGISTRY.get(store_id)
     if store is None:
@@ -75,12 +76,93 @@ def _token_value(value: Any) -> int | None:
         return None
 
 
+def _token_list(value: Any) -> list[int] | None:
+    if not isinstance(value, list):
+        return None
+    out: list[int] = []
+    for item in value:
+        if isinstance(item, bool):
+            return None
+        if isinstance(item, int):
+            out.append(item)
+            continue
+        if isinstance(item, str):
+            text = item.strip()
+            digits = text[1:] if text[:1] in {"+", "-"} else text
+            if digits.isdecimal():
+                out.append(int(text))
+                continue
+        return None
+    return out
+
+
+def _first_token_list(data: Any, *keys: str) -> list[int] | None:
+    if not isinstance(data, dict):
+        return None
+    empty: list[int] | None = None
+    for key in keys:
+        value = _token_list(data.get(key))
+        if value:
+            return value
+        if value is not None and empty is None:
+            empty = value
+    return empty
+
+
+def _prefer_token_list(current: list[int] | None, candidate: list[int] | None) -> list[int] | None:
+    if candidate is None:
+        return current
+    if current is None or (candidate and not current):
+        return candidate
+    return current
+
+
+def _choice_key(choice: dict[str, Any], fallback: int) -> str:
+    value = choice.get("index")
+    if isinstance(value, bool):
+        return str(fallback)
+    try:
+        return str(int(value))
+    except (TypeError, ValueError):
+        return str(fallback)
+
+
+def _add_choice_token_ids(
+    by_choice: dict[str, list[int]], choice: dict[str, Any], fallback: int, token_ids: list[int] | None
+) -> None:
+    if token_ids:
+        by_choice.setdefault(_choice_key(choice, fallback), []).extend(token_ids)
+
+
 def _first_token(data: dict[str, Any], *keys: str) -> int | None:
     for key in keys:
         value = _token_value(data.get(key))
         if value is not None:
             return value
     return None
+
+
+def _collect_token_ids(
+    choice: dict[str, Any],
+    message: dict[str, Any],
+    prompt_token_ids: list[int] | None,
+) -> tuple[list[int] | None, list[int] | None]:
+    prompt_token_ids = _prefer_token_list(prompt_token_ids, _first_token_list(message, "prompt_token_ids"))
+    choice_token_ids = (
+        _first_token_list(choice, "token_ids", "completion_token_ids", "generation_token_ids")
+        or _first_token_list(choice.get("provider_specific_fields"), "token_ids")
+        or _first_token_list(message, "token_ids", "completion_token_ids", "generation_token_ids")
+    )
+    return prompt_token_ids, choice_token_ids
+
+
+def _add_token_id_fields(out: dict[str, Any], by_choice: dict[str, list[int]]) -> None:
+    if not by_choice:
+        return
+    ordered = dict(sorted(by_choice.items(), key=lambda item: int(item[0])))
+    out["completion_token_ids"] = [token for token_ids in ordered.values() for token in token_ids]
+    if len(ordered) > 1:
+        out["completion_token_ids_by_choice"] = ordered
 
 
 def _usage(raw: Any) -> dict[str, int]:
@@ -225,6 +307,7 @@ def _summary_from_json(
     capture_tool_calls: bool = True,
     capture_reasoning: bool = True,
     capture_messages: bool = True,
+    capture_token_ids: bool = False,
     max_content_chars: int = 100_000,
 ) -> dict[str, Any]:
     tool_names: list[str] = []
@@ -232,11 +315,16 @@ def _summary_from_json(
     full_tool_calls: list[dict[str, Any]] = []
     reasoning_parts: list[str] = []
     message_parts: list[str] = []
-    for choice in body.get("choices") or []:
+    prompt_token_ids = _first_token_list(body, "prompt_token_ids") if capture_token_ids else None
+    completion_token_ids_by_choice: dict[str, list[int]] = {}
+    for choice_idx, choice in enumerate(body.get("choices") or []):
         if not isinstance(choice, dict):
             continue
         finish_reason = str(choice.get("finish_reason") or finish_reason)
         message = choice.get("message") or choice.get("delta") or {}
+        if capture_token_ids:
+            prompt_token_ids, choice_token_ids = _collect_token_ids(choice, message, prompt_token_ids)
+            _add_choice_token_ids(completion_token_ids_by_choice, choice, choice_idx, choice_token_ids)
         if isinstance(message, dict):
             tool_names.extend(_tool_names_from_message(message))
             if capture_tool_calls:
@@ -261,6 +349,9 @@ def _summary_from_json(
         out["reasoning_content"] = _truncate("".join(reasoning_parts), max_content_chars)
     if capture_messages:
         out["message_content"] = _truncate("".join(message_parts), max_content_chars)
+    if prompt_token_ids is not None:
+        out["prompt_token_ids"] = prompt_token_ids
+    _add_token_id_fields(out, completion_token_ids_by_choice)
     return out
 
 
@@ -291,9 +382,7 @@ def _iter_sse(body: Any) -> Iterator[dict[str, Any]]:
             continue
         if not line.startswith("data:"):
             continue
-        payload = line[5:]
-        if payload.startswith(" "):
-            payload = payload[1:]
+        payload = line[5:].removeprefix(" ")
         data_lines.append(payload)
 
     chunk = load_payload("\n".join(data_lines))
@@ -307,6 +396,7 @@ def _summary_from_sse(
     capture_tool_calls: bool = True,
     capture_reasoning: bool = True,
     capture_messages: bool = True,
+    capture_token_ids: bool = False,
     max_content_chars: int = 100_000,
 ) -> dict[str, Any]:
     model = ""
@@ -317,17 +407,24 @@ def _summary_from_sse(
     tool_full: dict[tuple[int, int], dict[str, Any]] = {}
     reasoning_parts: list[str] = []
     message_parts: list[str] = []
+    prompt_token_ids: list[int] | None = None
+    completion_token_ids_by_choice: dict[str, list[int]] = {}
     for chunk in _iter_sse(body):
         model = str(chunk.get("model") or model)
         if isinstance(chunk.get("usage"), dict):
             usage = _usage(chunk["usage"])
-        for choice in chunk.get("choices") or []:
+        if capture_token_ids:
+            prompt_token_ids = _prefer_token_list(prompt_token_ids, _first_token_list(chunk, "prompt_token_ids"))
+        for choice_idx, choice in enumerate(chunk.get("choices") or []):
             if not isinstance(choice, dict):
                 continue
             finish_reason = str(choice.get("finish_reason") or finish_reason)
             delta = choice.get("delta") or choice.get("message") or {}
             if not isinstance(delta, dict):
                 continue
+            if capture_token_ids:
+                prompt_token_ids, choice_token_ids = _collect_token_ids(choice, delta, prompt_token_ids)
+                _add_choice_token_ids(completion_token_ids_by_choice, choice, choice_idx, choice_token_ids)
             for raw in delta.get("tool_calls") or []:
                 if not isinstance(raw, dict):
                     continue
@@ -371,6 +468,9 @@ def _summary_from_sse(
         out["reasoning_content"] = _truncate("".join(reasoning_parts), max_content_chars)
     if capture_messages:
         out["message_content"] = _truncate("".join(message_parts), max_content_chars)
+    if prompt_token_ids is not None:
+        out["prompt_token_ids"] = prompt_token_ids
+    _add_token_id_fields(out, completion_token_ids_by_choice)
     return out
 
 
@@ -535,6 +635,7 @@ class ModelTrafficStore:
         capture_reasoning: bool = True,
         capture_messages: bool = True,
         capture_request_body: bool = False,
+        capture_token_ids: bool = False,
         max_content_chars: int = 0,
         spool_dir: str | Path | None = None,
     ) -> None:
@@ -556,6 +657,7 @@ class ModelTrafficStore:
             "capture_tool_calls": capture_tool_calls,
             "capture_reasoning": capture_reasoning,
             "capture_messages": capture_messages,
+            "capture_token_ids": capture_token_ids,
             "max_content_chars": max_content_chars,
         }
 
@@ -628,7 +730,14 @@ class ModelTrafficStore:
             record.update(_error_summary(resp.body, self._capture_opts["max_content_chars"]))
         # Persist opt-in capture fields when present (and the call succeeded).
         if success:
-            for key in ("tool_calls_full", "reasoning_content", "message_content"):
+            for key in (
+                "tool_calls_full",
+                "reasoning_content",
+                "message_content",
+                "prompt_token_ids",
+                "completion_token_ids",
+                "completion_token_ids_by_choice",
+            ):
                 if key in summary:
                     record[key] = summary[key]
         self._append_record(record)
