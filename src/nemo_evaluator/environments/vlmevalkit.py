@@ -177,15 +177,23 @@ class VLMEvalKitEnvironment(EvalEnvironment):
     def _score_mcq(self, response: str, expected: str, choices: dict[str, str]) -> VerifyResult:
         predicted = _extract_mcq_answer(response, choices)
         correct = predicted is not None and predicted.upper() == expected.upper()
+        details: dict[str, Any] = {
+            "method": "vlmevalkit_mcq",
+            "predicted_option": predicted,
+            "expected_option": expected,
+            "exact_match": correct,
+        }
+        if predicted is None:
+            # No option could be recovered, so the reward below is "no verdict", not
+            # "wrong answer" -- VLMEvalKit's judge-based option inference is not
+            # implemented here.  Aggregation reads this flag and skips the sample
+            # instead of averaging it in as a zero.
+            details["unscored"] = True
+            details["unscored_reason"] = "empty_final_response" if not response.strip() else "format_error"
         return VerifyResult(
             reward=1.0 if correct else 0.0,
             extracted_answer=predicted or response[:200],
-            scoring_details={
-                "method": "vlmevalkit_mcq",
-                "predicted_option": predicted,
-                "expected_option": expected,
-                "exact_match": correct,
-            },
+            scoring_details=details,
         )
 
     def _score_yorn(self, response: str, expected: str) -> VerifyResult:
