@@ -62,7 +62,7 @@ skills = ["nemo-skills"]
 lm-eval = ["lm_eval>=0.4"]
 harbor = ["harbor>=0.3.0,<0.4.0"]
 inspect = ["inspect_ai"]
-export = ["wandb", "mlflow"]
+export = ["wandb==0.30.0", "mlflow"]
 harnesses = ["nemo-evaluator[lm-eval]"]
 all = ["nemo-evaluator[scoring,stats,ray,lm-eval,harbor]"]
 dev = [
