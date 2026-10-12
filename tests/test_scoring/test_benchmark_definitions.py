@@ -14,6 +14,8 @@
 # limitations under the License.
 """Golden tests: verify benchmark scorers produce correct results on known data."""
 
+import pytest
+
 from nemo_evaluator.scoring import (
     ScorerInput,
     answer_line,
@@ -103,6 +105,55 @@ class TestExactMatch:
     def test_article_removal(self):
         s = ScorerInput(response="The Eiffel Tower", target="Eiffel Tower")
         assert exact_match(s)["correct"] is True
+
+
+class TestMgsmAnswerNumber:
+    """MGSM's gold answers come out of the loader as strings; they must stay whole."""
+
+    @pytest.mark.parametrize(
+        ("answer_number", "expected"),
+        [
+            pytest.param(100, "100", id="hundred-keeps-its-zeros"),
+            pytest.param(70000, "70000", id="seventy-thousand-keeps-its-zeros"),
+            pytest.param(540, "540", id="trailing-zero-only"),
+            pytest.param(20, "20", id="two-digits"),
+            pytest.param(42, "42", id="no-trailing-zero"),
+            pytest.param(5.0, "5", id="whole-float-loses-the-point"),
+            pytest.param(2.5, "2.5", id="fractional-float-kept"),
+        ],
+    )
+    def test_normalization_keeps_the_number(self, answer_number, expected):
+        from nemo_evaluator.benchmarks.mgsm import _normalize_answer_number
+
+        assert _normalize_answer_number(answer_number) == expected
+
+    @pytest.mark.parametrize(
+        "gold",
+        [
+            pytest.param(100, id="hundred"),
+            pytest.param(70000, id="seventy-thousand"),
+            pytest.param(540, id="five-forty"),
+        ],
+    )
+    def test_the_seed_carries_the_whole_answer(self, gold):
+        """What a run records as the expected answer, and what a float-comparing
+        scorer would be handed. ``numeric_match`` still collapses both sides
+        itself, which is a separate line in scoring/pattern.py."""
+        from nemo_evaluator.benchmarks.mgsm import _normalize_answer_number, _seed_mgsm
+
+        row = {
+            "question": "q",
+            "answer": _normalize_answer_number(gold),
+            "language": "en",
+        }
+        assert _seed_mgsm(row, 0).expected_answer == str(gold)
+
+    @pytest.mark.parametrize("gold", [pytest.param(100, id="hundred"), pytest.param(70000, id="seventy-thousand")])
+    def test_the_right_answer_still_scores(self, gold):
+        from nemo_evaluator.benchmarks.mgsm import _normalize_answer_number, mgsm_scorer
+
+        s = ScorerInput(response=f"Answer: {gold}", target=_normalize_answer_number(gold))
+        assert mgsm_scorer(s)["correct"] is True
 
 
 class TestBenchmarkScorerImport:

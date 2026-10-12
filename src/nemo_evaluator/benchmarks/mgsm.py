@@ -35,6 +35,20 @@ _INSTRUCTIONS = {
 }
 
 
+def _normalize_answer_number(value) -> str:
+    """The gold answer as a string, without the trailing ``.0`` of a whole float.
+
+    ``str(value).rstrip("0").rstrip(".")`` did this, but ``str.rstrip`` is not
+    decimal-aware and ``answer_number`` in ``juletxara/mgsm`` is an ``int32``.
+    With no decimal point for the second strip to find, the first one eats
+    significant digits: 100 became "1" and 70000 became "7".
+    """
+    if isinstance(value, int):
+        return str(value)
+    number = float(value)
+    return str(int(number)) if number.is_integer() else str(value)
+
+
 def _load_mgsm():
     from datasets import load_dataset
 
@@ -42,7 +56,7 @@ def _load_mgsm():
     for lang in _LANGS:
         ds = load_dataset("juletxara/mgsm", lang, split="test", trust_remote_code=True)
         for row in ds:
-            answer = str(row["answer_number"]).rstrip("0").rstrip(".")
+            answer = _normalize_answer_number(row["answer_number"])
             rows.append({"question": row["question"], "answer": answer, "language": lang})
     return rows
 
