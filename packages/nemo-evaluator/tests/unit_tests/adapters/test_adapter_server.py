@@ -526,11 +526,10 @@ def test_adapter_server_process_uses_original_url_in_args():
         adapter_process = AdapterServerProcess(evaluation)
 
         with adapter_process:
-            # Verify that the process was created with original_url as first argument
+            # Verify that the process was created with original_url
             mock_context.return_value.Process.assert_called_once()
             call_args = mock_context.return_value.Process.call_args
-            # The first argument to _run_adapter_server should be original_url
-            assert call_args[1]["args"][0] == original_url
+            assert call_args.kwargs["kwargs"]["api_url"] == original_url
 
 
 def test_evaluate_function_url_replacement():

@@ -68,6 +68,9 @@ class ApiEndpoint(BaseModel):
     stream: Optional[bool] = Field(
         description="Whether responses should be streamed", default=None
     )
+    headers: Optional[Dict[str, str]] = Field(
+        description="Extra HTTP headers to send to the endpoint", default=None
+    )
     type: Optional[EndpointType] = Field(
         description="The type of the target", default=None
     )
@@ -93,6 +96,9 @@ class EndpointModelConfig(BaseModel):
     )
     stream: Optional[bool] = Field(
         description="Whether responses should be streamed", default=None
+    )
+    headers: Optional[Dict[str, str]] = Field(
+        description="Extra HTTP headers to send to the endpoint", default=None
     )
     type: Optional[EndpointType] = Field(
         description="The type of the target", default=None

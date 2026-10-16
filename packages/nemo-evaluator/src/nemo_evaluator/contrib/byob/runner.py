@@ -26,6 +26,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from nemo_evaluator.common.nvcf import DEFAULT_NVCF_POLL_SECONDS, is_nvcf_url
 from nemo_evaluator.contrib.byob.aggregation import (
     aggregate_scores,  # noqa: F401 — re-export for backward compat
 )
@@ -46,10 +47,88 @@ from nemo_evaluator.logging import get_logger
 
 logger = get_logger(__name__)
 
+DEFAULT_RETRY_STATUS_CODES = [429, 500, 502, 503, 504]
+NVCF_RETRY_STATUS_CODES = [429, 500, 502, 503]
+
+
+def _prepare_request_headers(
+    api_key: Optional[str],
+    *,
+    endpoint_url: str,
+    stream: bool = False,
+    extra_headers: Optional[Dict[str, str]] = None,
+) -> Dict[str, str]:
+    headers: Dict[str, str] = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    if extra_headers:
+        headers.update(extra_headers)
+    if is_nvcf_url(endpoint_url) and not stream:
+        headers.setdefault("NVCF-POLL-SECONDS", DEFAULT_NVCF_POLL_SECONDS)
+    return headers
+
+
+def _iter_stream_text(response: requests.Response) -> str:
+    chunks: list[str] = []
+    for raw_line in response.iter_lines(decode_unicode=True):
+        if not raw_line or not raw_line.startswith("data:"):
+            continue
+        payload = raw_line[len("data:") :].strip()
+        if payload == "[DONE]":
+            continue
+        try:
+            event = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+        for choice in event.get("choices", []):
+            delta = choice.get("delta") or {}
+            # Reasoning-model traces are intentionally excluded; eval scoring
+            # runs against the final answer only.
+            if delta.get("content"):
+                chunks.append(delta["content"])
+                continue
+            message = choice.get("message") or {}
+            if message.get("content"):
+                chunks.append(message["content"])
+                continue
+            if choice.get("text"):
+                chunks.append(choice["text"])
+    return "".join(chunks)
+
+
+def _parse_header_args(header_args: Optional[List[str]]) -> Dict[str, str]:
+    headers: Dict[str, str] = {}
+    for raw_header in header_args or []:
+        if "=" not in raw_header:
+            raise ValueError(
+                f"Invalid header '{raw_header}'. Expected KEY=VALUE format."
+            )
+        key, value = raw_header.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            raise ValueError(f"Invalid header '{raw_header}'. Header name is empty.")
+        headers[key] = value
+    return headers
+
+
+def _str_to_bool(value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise argparse.ArgumentTypeError(
+        f"Invalid boolean value '{value}'. Use true/false."
+    )
+
 
 def create_session(
     max_retries: int = 3,
     backoff_factor: float = 0.5,
+    *,
+    status_forcelist: Optional[List[int]] = None,
+    retry_read_timeouts: bool = True,
 ) -> requests.Session:
     """Create a requests.Session with connection pooling and retry logic.
 
@@ -66,8 +145,12 @@ def create_session(
     session = requests.Session()
     retry = Retry(
         total=max_retries,
+        connect=max_retries,
+        read=max_retries if retry_read_timeouts else 0,
+        status=max_retries,
+        other=0,
         backoff_factor=backoff_factor,
-        status_forcelist=[429, 500, 502, 503, 504],
+        status_forcelist=status_forcelist or DEFAULT_RETRY_STATUS_CODES,
         allowed_methods=["POST"],
         raise_on_status=False,
     )
@@ -89,6 +172,8 @@ def call_model_chat(
     session: Optional[requests.Session] = None,
     *,
     system_prompt: Optional[str] = None,
+    stream: bool = False,
+    extra_headers: Optional[Dict[str, str]] = None,
 ) -> str:
     """Call OpenAI-compatible chat completions endpoint.
 
@@ -112,9 +197,12 @@ def call_model_chat(
         requests.Timeout: On timeout.
     """
     endpoint = f"{url}/chat/completions"
-    headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
+    headers = _prepare_request_headers(
+        api_key,
+        endpoint_url=endpoint,
+        stream=stream,
+        extra_headers=extra_headers,
+    )
 
     messages = []
     if system_prompt:
@@ -129,10 +217,23 @@ def call_model_chat(
     }
     if top_p is not None:
         payload["top_p"] = top_p
+    payload["stream"] = stream
 
     http = session or requests
-    response = http.post(endpoint, json=payload, headers=headers, timeout=timeout)
+    response = http.post(
+        endpoint,
+        json=payload,
+        headers=headers,
+        timeout=timeout,
+        stream=stream,
+    )
     response.raise_for_status()
+
+    if stream:
+        try:
+            return _iter_stream_text(response)
+        finally:
+            response.close()
 
     return response.json()["choices"][0]["message"]["content"]
 
@@ -294,6 +395,8 @@ def call_model_completions(
     session: Optional[requests.Session] = None,
     *,
     system_prompt: Optional[str] = None,
+    stream: bool = False,
+    extra_headers: Optional[Dict[str, str]] = None,
 ) -> str:
     """Call OpenAI-compatible completions endpoint.
 
@@ -317,9 +420,12 @@ def call_model_completions(
         requests.Timeout: On timeout.
     """
     endpoint = f"{url}/completions"
-    headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
+    headers = _prepare_request_headers(
+        api_key,
+        endpoint_url=endpoint,
+        stream=stream,
+        extra_headers=extra_headers,
+    )
 
     full_prompt = f"{system_prompt}\n{prompt}" if system_prompt else prompt
 
@@ -331,10 +437,23 @@ def call_model_completions(
     }
     if top_p is not None:
         payload["top_p"] = top_p
+    payload["stream"] = stream
 
     http = session or requests
-    response = http.post(endpoint, json=payload, headers=headers, timeout=timeout)
+    response = http.post(
+        endpoint,
+        json=payload,
+        headers=headers,
+        timeout=timeout,
+        stream=stream,
+    )
     response.raise_for_status()
+
+    if stream:
+        try:
+            return _iter_stream_text(response)
+        finally:
+            response.close()
 
     return response.json()["choices"][0]["text"]
 
@@ -525,6 +644,8 @@ def _create_session_model_call_fn(
                 timeout=effective_timeout,
                 session=session,
                 system_prompt=system_prompt,
+                stream=args.stream,
+                extra_headers=_parse_header_args(args.header),
             )
         return call_model_completions(
             url=args.model_url,
@@ -537,6 +658,8 @@ def _create_session_model_call_fn(
             timeout=effective_timeout,
             session=session,
             system_prompt=system_prompt,
+            stream=args.stream,
+            extra_headers=_parse_header_args(args.header),
         )
 
     return model_call_fn
@@ -577,8 +700,14 @@ def create_client_model_call_fn(
         url=args.model_url,
         model_id=args.model_id,
         api_key_name=args.api_key_name,
+        stream=args.stream,
+        headers=_parse_header_args(args.header),
         temperature=args.temperature,
+        top_p=args.top_p,
         max_new_tokens=args.max_tokens,
+        max_retries=args.max_retries,
+        parallelism=args.parallelism,
+        request_timeout=args.request_timeout,
         is_base_url=url_is_base,
     )
     client = NeMoEvaluatorClient(endpoint_config, output_dir=args.output_dir)
@@ -761,6 +890,18 @@ def main():
         default=42,
         help="Random seed for few-shot example sampling (default: 42).",
     )
+    parser.add_argument(
+        "--stream",
+        type=_str_to_bool,
+        default=False,
+        help="Use streaming responses when supported by the endpoint (default: false)",
+    )
+    parser.add_argument(
+        "--header",
+        action="append",
+        default=[],
+        help="Additional HTTP header in KEY=VALUE format. Can be specified multiple times.",
+    )
 
     args = parser.parse_args()
 
@@ -826,9 +967,12 @@ def main():
             "NeMoEvaluatorClient not available, using raw HTTP requests",
             reason=str(e),
         )
+        is_nvcf = is_nvcf_url(args.model_url)
         session = create_session(
             max_retries=args.max_retries,
             backoff_factor=args.retry_backoff,
+            status_forcelist=NVCF_RETRY_STATUS_CODES if is_nvcf else None,
+            retry_read_timeouts=not is_nvcf,
         )
         model_call_fn = _create_session_model_call_fn(args, api_key, session)
 

@@ -87,6 +87,27 @@ execution:
 
 If the server does not respond within the timeout, the job fails instead of hanging indefinitely.
 
+
+### NVCF Reliability Defaults
+
+For NVCF-backed endpoints such as `https://integrate.api.nvidia.com`, the Local executor now applies safer defaults during config generation:
+
+- If `target.api_endpoint.stream` is unset, chat/completions evaluations default to `stream: true`. This reduces gateway idle timeouts for long reasoning requests.
+- If you explicitly set `target.api_endpoint.stream: false`, the launcher injects `target.api_endpoint.headers.NVCF-POLL-SECONDS: "1800"` unless you already set that header yourself.
+- NVCF `504` responses and request timeouts are treated as non-retryable in the built-in BYOB and client paths to avoid duplicating work that may still be running behind the gateway.
+
+You can still override these defaults explicitly in your config:
+
+```yaml
+target:
+  api_endpoint:
+    stream: false
+    headers:
+      NVCF-POLL-SECONDS: "1800"
+```
+
+For large reasoning models, keep `parallelism` conservative and set `request_timeout` high enough to cover long generations even when streaming is enabled.
+
 ## Rerunning Evaluations
 
 The Local executor generates reusable scripts for rerunning evaluations:
