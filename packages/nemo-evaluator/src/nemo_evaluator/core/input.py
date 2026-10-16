@@ -629,7 +629,18 @@ def verify_capabilities(evaluation: Evaluation) -> bool:
     for capability in evaluation.config.required_capabilities:
         payload = copy.deepcopy(BENCHMARK_CAPABILITIES[capability].payload)
         payload["model"] = model_id
-        response = requests.post(url, json=payload, timeout=30, headers=headers)
+        try:
+            response = requests.post(url, json=payload, timeout=30, headers=headers)
+        except requests.exceptions.RequestException as e:
+            all_successful = False
+            _logger.warning(
+                "Could not verify capability, endpoint request failed",
+                url=url,
+                model=model_id,
+                capability=capability,
+                error=str(e),
+            )
+            continue
         if response.status_code != 200:
             all_successful = False
             _logger.warning(
