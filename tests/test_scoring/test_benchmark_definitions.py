@@ -14,6 +14,9 @@
 # limitations under the License.
 """Golden tests: verify benchmark scorers produce correct results on known data."""
 
+import sys
+import types
+
 import pytest
 
 from nemo_evaluator.scoring import (
@@ -127,26 +130,19 @@ class TestMgsmAnswerNumber:
 
         assert _normalize_answer_number(answer_number) == expected
 
-    @pytest.mark.parametrize(
-        "gold",
-        [
-            pytest.param(100, id="hundred"),
-            pytest.param(70000, id="seventy-thousand"),
-            pytest.param(540, id="five-forty"),
-        ],
-    )
-    def test_the_seed_carries_the_whole_answer(self, gold):
-        """What a run records as the expected answer, and what a float-comparing
-        scorer would be handed. ``numeric_match`` still collapses both sides
-        itself, which is a separate line in scoring/pattern.py."""
-        from nemo_evaluator.benchmarks.mgsm import _normalize_answer_number, _seed_mgsm
+    def test_the_loader_keeps_the_whole_answer(self, monkeypatch):
+        """The call site in ``_load_mgsm``, with ``datasets`` replaced by a fake."""
+        from nemo_evaluator.benchmarks.mgsm import _load_mgsm
 
-        row = {
-            "question": "q",
-            "answer": _normalize_answer_number(gold),
-            "language": "en",
-        }
-        assert _seed_mgsm(row, 0).expected_answer == str(gold)
+        fake = types.ModuleType("datasets")
+        fake.load_dataset = lambda *args, **kwargs: [
+            {"question": "q", "answer_number": 100},
+            {"question": "q", "answer_number": 70000},
+            {"question": "q", "answer_number": 540},
+        ]
+        monkeypatch.setitem(sys.modules, "datasets", fake)
+
+        assert {row["answer"] for row in _load_mgsm()} == {"100", "70000", "540"}
 
     @pytest.mark.parametrize("gold", [pytest.param(100, id="hundred"), pytest.param(70000, id="seventy-thousand")])
     def test_the_right_answer_still_scores(self, gold):

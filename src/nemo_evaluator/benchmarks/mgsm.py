@@ -38,10 +38,8 @@ _INSTRUCTIONS = {
 def _normalize_answer_number(value) -> str:
     """The gold answer as a string, without the trailing ``.0`` of a whole float.
 
-    ``str(value).rstrip("0").rstrip(".")`` did this, but ``str.rstrip`` is not
-    decimal-aware and ``answer_number`` in ``juletxara/mgsm`` is an ``int32``.
-    With no decimal point for the second strip to find, the first one eats
-    significant digits: 100 became "1" and 70000 became "7".
+    Not ``rstrip("0")``: ``answer_number`` is an ``int32``, so there is no decimal
+    point to stop at and 100 would become "1".
     """
     if isinstance(value, int):
         return str(value)
