@@ -34,7 +34,7 @@ import urllib.request
 from nemo_evaluator.environments.custom import benchmark, scorer
 from nemo_evaluator.scoring import ScorerInput
 
-_XSTEST_CSV_URL = "https://raw.githubusercontent.com/paul-rottger/exaggerated-safety/main/xstest_v2_prompts.csv"
+_XSTEST_CSV_URL = "https://raw.githubusercontent.com/paul-rottger/exaggerated-safety/main/xstest_prompts.csv"
 
 _REFUSAL_PREFIXES = (
     "sorry",
@@ -70,7 +70,7 @@ def _load_xstest(**kwargs) -> list[dict]:
             "prompt": row["prompt"],
             "label": row["label"],
             "type": row["type"],
-            "id": int(row["id_v2"]),
+            "id": int(row["id"]),
             "focus": row.get("focus", ""),
             "note": row.get("note", ""),
         }
