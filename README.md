@@ -1,12 +1,12 @@
 > [!WARNING]
-> ## NeMo Evaluator is being deprecated in December 2026
+> ## NeMo Evaluator is in maintenance mode and will be deprecated in December 2026
 >
-> NeMo Evaluator will be **deprecated in December 2026** in favor of **[NeMo Gym](https://github.com/NVIDIA-NeMo/Gym)**. NeMo Gym has **feature parity** with NeMo Evaluator, so you can move your evaluations over today.
+> **All new development and investment are focused on [NeMo Gym](https://github.com/NVIDIA-NeMo/Gym).** NeMo Evaluator is no longer receiving new features.
 >
-> **We recommend that all users migrate to NeMo Gym now.**
+> NeMo Gym provides feature parity with NeMo Evaluator and brings evaluation and training into a single framework. **We recommend migrating existing evaluation workloads now and using NeMo Gym for all new evaluations.**
 >
-> - [**NeMo Gym repository**](https://github.com/NVIDIA-NeMo/Gym)
-> - [**NeMo Gym documentation**](https://docs.nvidia.com/nemo/gym/main/about/)
+> - **[Get started with NeMo Gym](https://docs.nvidia.com/nemo/gym/main/about/)**
+> - **[Explore the NeMo Gym repository](https://github.com/NVIDIA-NeMo/Gym)**
 
 # NeMo Evaluator
 
