@@ -35,6 +35,18 @@ _INSTRUCTIONS = {
 }
 
 
+def _normalize_answer_number(value) -> str:
+    """The gold answer as a string, without the trailing ``.0`` of a whole float.
+
+    Not ``rstrip("0")``: ``answer_number`` is an ``int32``, so there is no decimal
+    point to stop at and 100 would become "1".
+    """
+    if isinstance(value, int):
+        return str(value)
+    number = float(value)
+    return str(int(number)) if number.is_integer() else str(value)
+
+
 def _load_mgsm():
     from datasets import load_dataset
 
@@ -42,7 +54,7 @@ def _load_mgsm():
     for lang in _LANGS:
         ds = load_dataset("juletxara/mgsm", lang, split="test", trust_remote_code=True)
         for row in ds:
-            answer = str(row["answer_number"]).rstrip("0").rstrip(".")
+            answer = _normalize_answer_number(row["answer_number"])
             rows.append({"question": row["question"], "answer": answer, "language": lang})
     return rows
 
