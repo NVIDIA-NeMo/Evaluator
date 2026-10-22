@@ -852,3 +852,34 @@ class TestChatWithTools:
 
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0].arguments == {"raw": "not valid json {{{"}
+
+
+class TestReActExtractLastText:
+    def test_folds_reasoning_only_final_answer(self):
+        # Reasoning models can put the final answer in reasoning_content with empty
+        # content; the tool-loop end path must score that reasoning, not "".
+        from nemo_evaluator.solvers.react import ReActSolver
+
+        tcr = ToolCallingResponse(
+            content="",
+            tool_calls=[],
+            finish_reason="stop",
+            reasoning_content="...weighing the options, so the answer is.\nAnswer: B",
+            model_response=ModelResponse(
+                content="",
+                model="test-model",
+                finish_reason="stop",
+                prompt_tokens=100,
+                completion_tokens=50,
+                total_tokens=150,
+                latency_ms=42.0,
+            ),
+        )
+        out = ReActSolver._extract_last_text([], tcr)
+        assert "Answer: B" in out
+
+    def test_plain_content_unchanged(self):
+        from nemo_evaluator.solvers.react import ReActSolver
+
+        tcr = _make_tool_calling_response(content="Answer: C")
+        assert ReActSolver._extract_last_text([], tcr) == "Answer: C"

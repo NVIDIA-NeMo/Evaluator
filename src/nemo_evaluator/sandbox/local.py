@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import shutil
+import signal
 import tempfile
 from pathlib import Path
 from typing import Self
@@ -73,12 +75,23 @@ class LocalSandbox:
         if env:
             merged_env = {**(merged_env or {}), **env}
         effective_cwd = Path(cwd) if cwd else self._workdir
+        if not effective_cwd.exists():
+            # The tool backend defaults cwd to the spec workdir ("/workspace"),
+            # which does not exist for an in-container LocalSandbox. Fall back to
+            # our tempdir workspace so bash/file tools run somewhere real. Only the
+            # missing-path case falls back; a real-but-non-dir path still errors.
+            effective_cwd = self._workdir
         proc = await asyncio.create_subprocess_shell(
             command,
             cwd=effective_cwd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=merged_env,
+            # New session => the shell and every child it spawns share a process
+            # group (pgid == proc.pid). On timeout we SIGKILL the whole group, so
+            # a wedged grandchild (e.g. a model-written `python3` infinite loop or
+            # a process holding the stdout pipe open) cannot keep exec() blocked.
+            start_new_session=True,
         )
         try:
             stdout, stderr = await asyncio.wait_for(
@@ -86,10 +99,33 @@ class LocalSandbox:
                 timeout=timeout_sec,
             )
         except asyncio.TimeoutError:
-            proc.kill()
-            await proc.wait()
-            return ExecResult("", "timeout", -1)
+            await self._kill_process_group(proc)
+            msg = f"Command exceeded the {timeout_sec:.0f}s execution time limit and was killed."
+            # exit code 124 = conventional "timed out"; marks the tool result as an error.
+            return ExecResult("", msg, 124)
         return ExecResult(stdout.decode(), stderr.decode(), proc.returncode or 0)
+
+    @staticmethod
+    async def _kill_process_group(proc: asyncio.subprocess.Process) -> None:
+        """SIGKILL the process's whole group, then reap it without hanging.
+
+        ``proc.kill()`` only signals the direct child (the shell); orphaned
+        grandchildren survive and can keep the stdout pipe open, so a plain
+        ``await proc.wait()`` may never return. Killing the group reaps them all;
+        the wait is itself time-bounded as a final guard.
+        """
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            # Group already gone, or we can't signal it — fall back to the child.
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=10)
+        except asyncio.TimeoutError:
+            logger.warning("LocalSandbox: process %s did not reap within 10s of SIGKILL", proc.pid)
 
     async def upload(self, local_path: Path, remote_path: str) -> None:
         if not self._workdir:

@@ -78,6 +78,11 @@ def wrap_text_as_gym_response(text: str) -> dict[str, Any]:
                 ],
             }
         ],
+        # Required by newer openai `Response` schema (e.g. openai>=2.x that recent
+        # NeMo-Gym resource servers validate against); omitting them → 422 at /verify.
+        "parallel_tool_calls": False,
+        "tool_choice": "none",
+        "tools": [],
         "output_text": text,
     }
 
