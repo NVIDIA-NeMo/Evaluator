@@ -373,3 +373,25 @@ class TestIntegration:
         handle.stop()
         with pytest.raises((urllib.error.URLError, ConnectionRefusedError, OSError)):
             _http_get(f"{url}/health")
+
+    def test_a_request_to_response_interceptor_starts_alongside_a_request_one(self, echo_upstream, tmp_path):
+        """`caching` is a request_to_response interceptor, and the orchestrator
+        appends the request-stage `finish_reason` after the user's list by
+        default. Sorting into two buckets left the two interleaved and
+        `AdapterPipeline._validate_order` refused the whole chain, so the proxy
+        never came up."""
+        handle = start_adapter_proxy(
+            upstream_url=echo_upstream,
+            model_id="m",
+            port=0,
+            interceptor_specs=[
+                {"name": "caching", "config": {"cache_dir": str(tmp_path / "cache")}},
+                {"name": "finish_reason", "config": {}},
+            ],
+        )
+        try:
+            status, body = _http_post(f"{handle.url}/v1/chat/completions", {"messages": []})
+            assert status == 200
+            assert body["echo_path"] == "/v1/chat/completions"
+        finally:
+            handle.stop()
