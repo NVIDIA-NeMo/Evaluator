@@ -41,7 +41,11 @@ class Interceptor(RequestToResponseInterceptor, ResponseInterceptor):
         if self._bypass:
             return req
         session_prefix = req.ctx.extra.get("session_id", "")
-        key = DiskCache.cache_key(req.body, session_prefix=session_prefix)
+        key = DiskCache.cache_key(
+            req.body,
+            request_path=req.path,
+            session_prefix=session_prefix,
+        )
         hit = await self._cache.get(key)
         if hit is not None:
             logger.debug("cache hit key=%s", key[:16])
