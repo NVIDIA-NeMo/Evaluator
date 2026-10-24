@@ -31,6 +31,7 @@ import json
 import logging
 import math
 from collections import defaultdict
+from collections.abc import Collection
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -57,6 +58,26 @@ _MIN_PAIRED_ITEMS = 10
 _GATE_REPORT_VERSION = 1
 _SUPPORTED_GATED_METRICS = frozenset({"mean_reward", "pass@1"})
 
+# The eval loop scores a sample 0.0 when the *infrastructure* failed, not the
+# model: sandbox or system errors that exhausted their retries.  It tags those
+# records with ``scoring_details.error_category`` so they can be told apart
+# from a wrong answer.  Nothing downstream read that tag, so a sandbox outage in
+# the candidate run looked to the gate like a batch of wrong answers and could
+# turn a GO into a NO-GO.  Which categories are excluded from paired gating is
+# set per benchmark by ``excluded_error_categories`` in the gate policy YAML
+# (default: ``infra_error`` and ``system``); model-attributable failures such as
+# graceful errors and solve timeouts still count.
+
+
+def _is_infra_errored(record: dict[str, Any], excluded_categories: Collection[str]) -> bool:
+    """True when the record's 0.0 came from infrastructure, not the model."""
+    if not excluded_categories:
+        return False
+    details = record.get("scoring_details")
+    if not isinstance(details, dict):
+        return False
+    return details.get("error_category") in excluded_categories
+
 
 # ── Dataclasses ───────────────────────────────────────────────────────
 
@@ -76,6 +97,8 @@ class BenchmarkGateResult:
     delta_ci_lower: float | None = None
     delta_ci_upper: float | None = None
     n_paired: int = 0
+    n_infra_excluded_baseline: int = 0
+    n_infra_excluded_candidate: int = 0
     max_drop_threshold: float = 0.0
     max_relative_drop_threshold: float | None = None
     direction: str = "higher_is_better"
@@ -234,9 +257,16 @@ def _evaluate_benchmark(
 
     metric = policy.metric or _select_metric(reg_report)
     result.metric = metric
-
-    base_values = _metric_problem_values(base_records, metric)
-    cand_values = _metric_problem_values(cand_records, metric)
+    excluded = frozenset(policy.excluded_error_categories)
+    result.n_infra_excluded_baseline = sum(1 for r in base_records.values() if _is_infra_errored(r, excluded))
+    result.n_infra_excluded_candidate = sum(1 for r in cand_records.values() if _is_infra_errored(r, excluded))
+    if result.n_infra_excluded_baseline or result.n_infra_excluded_candidate:
+        result.reasons.append(
+            "Excluded infra-errored samples from pairing: "
+            f"{result.n_infra_excluded_baseline} baseline, {result.n_infra_excluded_candidate} candidate"
+        )
+    base_values = _metric_problem_values(base_records, metric, excluded)
+    cand_values = _metric_problem_values(cand_records, metric, excluded)
     if base_values is None or cand_values is None:
         result.status = "INSUFFICIENT_EVIDENCE"
         result.reasons.append(f"Metric {metric!r} is not supported for paired gating")
@@ -249,6 +279,14 @@ def _evaluate_benchmark(
     if result.n_paired < _MIN_PAIRED_ITEMS:
         result.status = "INSUFFICIENT_EVIDENCE"
         result.reasons.append(f"Only {result.n_paired} paired items (minimum {_MIN_PAIRED_ITEMS})")
+        if result.n_infra_excluded_baseline or result.n_infra_excluded_candidate:
+            # The bundle-level scores and CIs were computed over every sample,
+            # including the ones just excluded, so falling back to them would
+            # reintroduce the infra 0.0s the exclusion removed.
+            result.reasons.append(
+                "Bundle-level scores not used as fallback: they include the excluded infra-errored samples"
+            )
+            return result
         _populate_from_bundle_scores(result, base_path, cand_path, reg_report, policy)
         return result
 
@@ -336,10 +374,17 @@ def _extract_clusters(
 def _metric_problem_values(
     records: dict[tuple[int, int], dict[str, Any]],
     metric: str,
+    excluded_categories: Collection[str] = (),
 ) -> dict[int, float] | None:
-    """Return per-problem values for a supported gated metric."""
+    """Return per-problem values for a supported gated metric.
+
+    Records whose ``scoring_details.error_category`` is in ``excluded_categories``
+    are left out before per-problem aggregation.
+    """
     by_problem: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for (pid, _repeat), record in records.items():
+        if _is_infra_errored(record, excluded_categories):
+            continue
         by_problem[pid].append(record)
 
     values: dict[int, float] = {}

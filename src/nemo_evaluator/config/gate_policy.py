@@ -51,6 +51,10 @@ class BenchmarkGateDefaults(BaseModel):
     relative_guard_below: float | None = None
     metric: str | None = None
     direction: Direction = Direction.higher_is_better
+    # ``scoring_details.error_category`` values that mean the infrastructure
+    # failed rather than the model.  Samples tagged with one of these are left
+    # out of paired gating.  Set to ``[]`` to gate on every sample.
+    excluded_error_categories: list[str] = Field(default_factory=lambda: ["infra_error", "system"])
 
     @field_validator("max_drop")
     @classmethod
@@ -85,6 +89,7 @@ class BenchmarkGateEntry(BaseModel):
     relative_guard_below: float | None = Field(default=None)
     metric: str | None = None
     direction: Direction | None = None
+    excluded_error_categories: list[str] | None = None
 
     @field_validator("max_drop")
     @classmethod
@@ -119,6 +124,7 @@ class ResolvedBenchmarkPolicy(BaseModel):
     relative_guard_below: float | None
     metric: str | None
     direction: Direction
+    excluded_error_categories: list[str]
 
 
 class GatePolicy(BaseModel):
@@ -149,6 +155,7 @@ class GatePolicy(BaseModel):
                 relative_guard_below=d.relative_guard_below,
                 metric=d.metric,
                 direction=d.direction,
+                excluded_error_categories=list(d.excluded_error_categories),
             )
         return ResolvedBenchmarkPolicy(
             tier=entry.tier if entry.tier is not None else d.tier,
@@ -159,6 +166,11 @@ class GatePolicy(BaseModel):
             ),
             metric=entry.metric if entry.metric is not None else d.metric,
             direction=entry.direction if entry.direction is not None else d.direction,
+            excluded_error_categories=list(
+                entry.excluded_error_categories
+                if entry.excluded_error_categories is not None
+                else d.excluded_error_categories
+            ),
         )
 
     def required_benchmarks(self) -> set[str]:
