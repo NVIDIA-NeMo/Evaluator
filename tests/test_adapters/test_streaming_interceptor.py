@@ -164,6 +164,29 @@ async def test_merges_tool_call_deltas():
     assert result.body["choices"][0]["finish_reason"] == "tool_calls"
 
 
+async def test_merges_tool_call_deltas_without_index():
+    def chunk(tool_call, finish_reason=None):
+        return {"choices": [{"index": 0, "delta": {"tool_calls": [tool_call]}, "finish_reason": finish_reason}]}
+
+    resp = _resp(
+        _sse_body(
+            [
+                chunk({"id": "call_1", "function": {"name": "search", "arguments": '{"q"'}}),
+                chunk({"function": {"arguments": ':"x"}'}}),
+                chunk({"id": "call_2", "function": {"name": "fetch", "arguments": '{"u":1}'}}, "tool_calls"),
+            ]
+        )
+    )
+
+    result = await Interceptor().intercept_response(resp)
+
+    tool_calls = result.body["choices"][0]["message"]["tool_calls"]
+    assert [(c["id"], c["function"]["name"], c["function"]["arguments"]) for c in tool_calls] == [
+        ("call_1", "search", '{"q":"x"}'),
+        ("call_2", "fetch", '{"u":1}'),
+    ]
+
+
 async def test_streamed_error_event_overrides_partial_delta():
     error = {"message": "upstream failed", "type": "server_error"}
     resp = _resp(

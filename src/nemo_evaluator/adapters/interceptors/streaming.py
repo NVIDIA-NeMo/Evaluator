@@ -177,6 +177,19 @@ def _merge_chunk(
             finish_reasons[idx] = choice["finish_reason"]
 
 
+def _tool_call_index(tool_call_delta: dict[str, Any], tool_call_by_idx: dict[int, dict[str, Any]]) -> int:
+    if tool_call_delta.get("index") is not None:
+        return int(tool_call_delta["index"])
+    # Some providers omit `index`: a delta carrying a new id opens a call, any other delta continues the latest one.
+    delta_id = tool_call_delta.get("id")
+    if delta_id:
+        for idx, call in tool_call_by_idx.items():
+            if call["id"] == delta_id:
+                return idx
+        return max(tool_call_by_idx, default=-1) + 1
+    return max(tool_call_by_idx, default=0)
+
+
 def _merge_tool_calls(
     choice_idx: int,
     tool_call_deltas: list[Any],
@@ -185,8 +198,8 @@ def _merge_tool_calls(
     for tool_call_delta in tool_call_deltas:
         if not isinstance(tool_call_delta, dict):
             continue
-        tool_call_idx = int(tool_call_delta.get("index", 0) or 0)
         tool_call_by_idx = tool_calls_map.setdefault(choice_idx, {})
+        tool_call_idx = _tool_call_index(tool_call_delta, tool_call_by_idx)
         if tool_call_idx not in tool_call_by_idx:
             tool_call_by_idx[tool_call_idx] = {
                 "id": tool_call_delta.get("id") or "",
