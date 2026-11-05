@@ -560,13 +560,24 @@ def _parse_from_image(dockerfile: Path) -> str | None:
     try:
         for line in dockerfile.read_text(encoding="utf-8").splitlines():
             stripped = line.strip()
-            if stripped.upper().startswith("FROM "):
-                parts = stripped.split()
-                if len(parts) >= 2:
-                    image = parts[1]
-                    if image.startswith("$") or image.lower() == "scratch":
-                        return None
-                    return image.split(" AS ")[0].split(" as ")[0].strip()
+            if not stripped.upper().startswith("FROM "):
+                continue
+            # Skip ``--platform=linux/amd64`` (and the space form) before the image.
+            tokens = stripped.split()[1:]
+            image = None
+            index = 0
+            while index < len(tokens):
+                token = tokens[index]
+                if token.upper() == "AS":
+                    break
+                if token.startswith("--"):
+                    index += 1 if "=" in token else 2
+                    continue
+                image = token
+                break
+            if image is None or image.startswith("$") or image.lower() == "scratch":
+                return None
+            return image.split(" AS ")[0].split(" as ")[0].strip()
     except Exception:
         pass
     return None
