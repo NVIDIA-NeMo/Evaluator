@@ -393,20 +393,30 @@ async def test_append_after_consumption_fails_loud_instead_of_dropping(tmp_path:
 
 
 @pytest.mark.parametrize(
-    "capture_kwargs,expect_response_fields",
+    "capture_kwargs,expect_response_fields,expect_token_ids",
     [
-        pytest.param({}, True, id="default-capture"),
+        pytest.param({}, True, False, id="default-capture"),
         pytest.param(
             {"capture_tool_calls": False, "capture_reasoning": False, "capture_messages": False},
             False,
+            False,
             id="capture-disabled",
         ),
+        pytest.param({"capture_token_ids": True}, True, True, id="token-ids-enabled"),
     ],
 )
-def test_format_log_record_response_capture_fields(capture_kwargs: dict, expect_response_fields: bool) -> None:
+def test_format_log_record_response_capture_fields(
+    capture_kwargs: dict, expect_response_fields: bool, expect_token_ids: bool
+) -> None:
     ctx = InterceptorContext()
     ctx.extra["session_id"] = "cap-session"
     store = ModelTrafficStore(service_name="solver", **capture_kwargs)
+    body = _capture_response_body()
+    body["prompt_token_ids"] = []
+    body["choices"][0]["message"]["prompt_token_ids"] = [1, "2"]
+    body["choices"][0]["token_ids"] = [1.9]
+    body["choices"][0]["provider_specific_fields"] = {"token_ids": ["3", 4]}
+    body["choices"].append({"index": 1, "message": {}, "provider_specific_fields": {"token_ids": [5]}})
     store.start_request(
         AdapterRequest(method="POST", path="/chat/completions", headers={}, body={"model": "m"}, ctx=ctx)
     )
@@ -416,7 +426,7 @@ def test_format_log_record_response_capture_fields(capture_kwargs: dict, expect_
             headers={"content-type": "application/json"},
             latency_ms=10.0,
             ctx=ctx,
-            body=_capture_response_body(),
+            body=body,
         )
     )
     row = _format_drained(store, "cap-session")
@@ -430,6 +440,14 @@ def test_format_log_record_response_capture_fields(capture_kwargs: dict, expect_
         assert "tool_calls_full" not in row
         assert "reasoning_content" not in row
         assert "message_content" not in row
+    if expect_token_ids:
+        assert row["prompt_token_ids"] == [1, 2]
+        assert row["completion_token_ids"] == [3, 4, 5]
+        assert row["completion_token_ids_by_choice"] == {"0": [3, 4], "1": [5]}
+    else:
+        assert "prompt_token_ids" not in row
+        assert "completion_token_ids" not in row
+        assert "completion_token_ids_by_choice" not in row
 
 
 @pytest.mark.parametrize(
@@ -546,7 +564,7 @@ def test_non_success_response_forwards_compact_error_summary() -> None:
 def test_model_traffic_parses_streaming_sse_usage_and_tool_calls() -> None:
     ctx = InterceptorContext()
     ctx.extra["session_id"] = "stream-session"
-    store = ModelTrafficStore(service_name="solver")
+    store = ModelTrafficStore(service_name="solver", capture_token_ids=True)
     store.start_request(
         AdapterRequest(
             method="POST",
@@ -558,12 +576,14 @@ def test_model_traffic_parses_streaming_sse_usage_and_tool_calls() -> None:
     )
 
     body = b"""
-data: {"model":"stream-model",
-data: "choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"ba"}}]}}]}
+data: {"model":"stream-model","prompt_token_ids":[],
+data: "choices":[{"index":0,"provider_specific_fields":{"token_ids":[102]},
+data: "delta":{"tool_calls":[{"index":0,"function":{"name":"ba"}}]}}]}
 
-data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"sh"}}]}},{"index":1,"delta":{"tool_calls":[{"index":0,"function":{"name":"python"}}]}}]}
+data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"sh"}}]}},
+data: {"index":1,"delta":{"tool_calls":[{"index":0,"function":{"name":"python"}}]}}]}
 
-data: {"choices":[{"index":0,"finish_reason":"tool_calls"}],
+data: {"prompt_token_ids":[100,101],"choices":[{"index":0,"finish_reason":"tool_calls","token_ids":[103]}],
 data: "usage":{"prompt_tokens":7,"completion_tokens":5,"total_tokens":12,
 data: "completion_tokens_details":{"reasoning_tokens":3}}}
 
@@ -596,6 +616,9 @@ data: [DONE]
         "reasoning_tokens": 3,
     }
     assert row["tool_calls"] == {"count": 2, "names": {"bash": 1, "python": 1}}
+    assert row["prompt_token_ids"] == [100, 101]
+    assert row["completion_token_ids"] == [102, 103]
+    assert "completion_token_ids_by_choice" not in row
     assert row["token_provenance"] == "provider_reported"
 
 
