@@ -349,6 +349,7 @@ def _make_solver(
             presence_penalty=gen.presence_penalty,
             max_concurrent=bench.max_concurrent,
             reasoning_pattern=reasoning_pat,
+            timeout=float(bench.timeout),
         )
 
         http_backend = None
@@ -892,6 +893,7 @@ def _create_client_and_solver(
             presence_penalty=gen.presence_penalty,
             max_concurrent=concurrency,
             reasoning_pattern=reasoning_pat,
+            timeout=float(bench.timeout),
         )
     solver = _make_solver(bench, config, client, model_url, model_id, api_key)
     return client, solver
