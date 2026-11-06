@@ -11,6 +11,7 @@ include = ["nemo_evaluator", "nemo_evaluator.*"]
 
 [tool.setuptools.package-data]
 nemo_evaluator = ["resources/**/*"]
+"nemo_evaluator.rasb_26h1" = ["framework.yml", "README.md", "QUICKSTART.md"]
 
 [tool.setuptools.dynamic]
 version = { attr = "nemo_evaluator.package_info.__version__" }
