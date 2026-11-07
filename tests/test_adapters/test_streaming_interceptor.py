@@ -117,6 +117,55 @@ async def test_coalesces_streaming_response():
     assert result.body["usage"]["total_tokens"] == 5
 
 
+def _tool_call_chunk(*calls: dict[str, Any], finish: str | None = None) -> dict[str, Any]:
+    choice: dict[str, Any] = {"index": 0, "delta": {"role": "assistant", "tool_calls": list(calls)}}
+    if finish:
+        choice["finish_reason"] = finish
+    return {"id": "cmpl-tools", "created": 1, "model": "test-model", "choices": [choice]}
+
+
+@pytest.mark.asyncio
+async def test_merges_tool_calls_without_index_by_id():
+    resp = _resp(
+        _sse_body(
+            [
+                _tool_call_chunk({"id": "call_a", "function": {"name": "search", "arguments": '{"q":"a"}'}}),
+                _tool_call_chunk({"id": "call_b", "function": {"name": "fetch", "arguments": '{"u":"b"}'}}),
+                _tool_call_chunk({"id": "call_b", "function": {"arguments": ""}}, finish="tool_calls"),
+            ]
+        )
+    )
+
+    result = await Interceptor().intercept_response(resp)
+
+    calls = result.body["choices"][0]["message"]["tool_calls"]
+    assert [(c["id"], c["function"]["name"], c["function"]["arguments"]) for c in calls] == [
+        ("call_a", "search", '{"q":"a"}'),
+        ("call_b", "fetch", '{"u":"b"}'),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_merges_tool_calls_without_index_or_id():
+    resp = _resp(
+        _sse_body(
+            [
+                _tool_call_chunk({"function": {"name": "search", "arguments": '{"q"'}}),
+                _tool_call_chunk({"function": {"arguments": ':"a"}'}}),
+                _tool_call_chunk({"function": {"name": "fetch", "arguments": "{}"}}, finish="tool_calls"),
+            ]
+        )
+    )
+
+    result = await Interceptor().intercept_response(resp)
+
+    calls = result.body["choices"][0]["message"]["tool_calls"]
+    assert [(c["function"]["name"], c["function"]["arguments"]) for c in calls] == [
+        ("search", '{"q":"a"}'),
+        ("fetch", "{}"),
+    ]
+
+
 async def test_merges_tool_call_deltas():
     resp = _resp(
         _sse_body(
