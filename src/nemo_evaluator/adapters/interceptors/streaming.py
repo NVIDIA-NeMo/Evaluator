@@ -177,6 +177,36 @@ def _merge_chunk(
             finish_reasons[idx] = choice["finish_reason"]
 
 
+def _resolve_tool_call_index(
+    tool_call_delta: dict[str, Any],
+    tool_call_by_idx: dict[int, dict[str, Any]],
+) -> int:
+    """Pick the slot for a tool-call delta.
+
+    OpenAI always sends ``index``; some compatible servers (Mistral, Ollama,
+    Gemini) omit it. Without it, a delta carrying a different ``id`` (or a new
+    function name after a named call) starts a new call instead of being
+    merged into slot 0.
+    """
+    raw_index = tool_call_delta.get("index")
+    if isinstance(raw_index, int):
+        return raw_index
+    if not tool_call_by_idx:
+        return 0
+    last_idx = max(tool_call_by_idx)
+    last = tool_call_by_idx[last_idx]
+    delta_id = tool_call_delta.get("id")
+    if delta_id:
+        for idx, call in tool_call_by_idx.items():
+            if call["id"] == delta_id:
+                return idx
+        return last_idx if not last["id"] and not last["function"]["arguments"] else last_idx + 1
+    function_delta = tool_call_delta.get("function")
+    if isinstance(function_delta, dict) and function_delta.get("name") and last["function"]["name"]:
+        return last_idx + 1
+    return last_idx
+
+
 def _merge_tool_calls(
     choice_idx: int,
     tool_call_deltas: list[Any],
@@ -185,8 +215,8 @@ def _merge_tool_calls(
     for tool_call_delta in tool_call_deltas:
         if not isinstance(tool_call_delta, dict):
             continue
-        tool_call_idx = int(tool_call_delta.get("index", 0) or 0)
         tool_call_by_idx = tool_calls_map.setdefault(choice_idx, {})
+        tool_call_idx = _resolve_tool_call_index(tool_call_delta, tool_call_by_idx)
         if tool_call_idx not in tool_call_by_idx:
             tool_call_by_idx[tool_call_idx] = {
                 "id": tool_call_delta.get("id") or "",
