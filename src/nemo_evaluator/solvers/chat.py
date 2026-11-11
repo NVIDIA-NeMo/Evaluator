@@ -24,6 +24,18 @@ from .base import SolveResult
 from .trajectory_util import build_single_turn_atif
 
 
+def with_system_prompt(messages: list[dict[str, Any]], system: str | None) -> list[dict[str, Any]]:
+    """Apply a solver-level system prompt to a seeded conversation.
+
+    Mirrors ``system_prompt or task.system`` on the prompt path: the solver's
+    prompt replaces a leading system turn, or is prepended if there is none.
+    """
+    if not system:
+        return messages
+    rest = messages[1:] if messages and messages[0].get("role") == "system" else messages
+    return [{"role": "system", "content": system}, *rest]
+
+
 class ChatSolver:
     """Single model call. Default for standard benchmarks."""
 
@@ -34,7 +46,7 @@ class ChatSolver:
     async def solve(self, task: SeedResult) -> SolveResult:
         effective_system = self._system or task.system
         if task.messages:
-            resp = await self._client.chat(messages=task.messages)
+            resp = await self._client.chat(messages=with_system_prompt(task.messages, self._system))
         else:
             resp = await self._client.chat(task.prompt, system=effective_system)
         trajectory = build_single_turn_atif(

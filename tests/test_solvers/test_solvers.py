@@ -76,7 +76,67 @@ class TestChatSolver:
         solver = ChatSolver(client=mock_client, system_prompt="Override system")
         await solver.solve(seed)
 
-        assert mock_client.chat.call_args is not None
+        assert mock_client.chat.call_args.kwargs["messages"] == [
+            {"role": "system", "content": "Override system"},
+            {"role": "user", "content": "What is 2+2?"},
+        ]
+
+    @pytest.mark.parametrize("solver_name", ["chat", "vlm"])
+    @pytest.mark.parametrize(
+        ("system_prompt", "seed_messages", "expected"),
+        [
+            (
+                "Be brief.",
+                [{"role": "user", "content": "Q"}],
+                [{"role": "system", "content": "Be brief."}, {"role": "user", "content": "Q"}],
+            ),
+            (
+                "Be brief.",
+                [{"role": "system", "content": "Benchmark system"}, {"role": "user", "content": "Q"}],
+                [{"role": "system", "content": "Be brief."}, {"role": "user", "content": "Q"}],
+            ),
+            (
+                None,
+                [{"role": "system", "content": "Benchmark system"}, {"role": "user", "content": "Q"}],
+                [{"role": "system", "content": "Benchmark system"}, {"role": "user", "content": "Q"}],
+            ),
+        ],
+        ids=["prepends", "replaces-leading-system", "no-solver-prompt-keeps-seed"],
+    )
+    @pytest.mark.asyncio
+    async def test_solver_system_prompt_applies_to_seeded_messages(
+        self, solver_name, system_prompt, seed_messages, expected
+    ):
+        from nemo_evaluator.solvers.chat import ChatSolver
+        from nemo_evaluator.solvers.vlm import VLMSolver
+
+        mock_client = AsyncMock()
+        mock_client.chat = AsyncMock(return_value=_make_model_response("4"))
+        solver_cls = {"chat": ChatSolver, "vlm": VLMSolver}[solver_name]
+        seed = SeedResult(prompt="Q", expected_answer="4", messages=seed_messages)
+
+        await solver_cls(client=mock_client, system_prompt=system_prompt).solve(seed)
+
+        assert mock_client.chat.call_args.kwargs["messages"] == expected
+        assert seed.messages == seed_messages
+
+    @pytest.mark.asyncio
+    async def test_system_prompt_reaches_model_for_byob_benchmark(self):
+        from nemo_evaluator.environments.custom import BenchmarkDefinition, ByobEnvironment
+        from nemo_evaluator.solvers.chat import ChatSolver
+
+        env = ByobEnvironment(
+            BenchmarkDefinition(name="sys-prompt", dataset=lambda: [{"q": "2+2?", "target": "4"}], prompt="{q}")
+        )
+        mock_client = AsyncMock()
+        mock_client.chat = AsyncMock(return_value=_make_model_response("4"))
+
+        await ChatSolver(client=mock_client, system_prompt="Put the answer in \\boxed{}.").solve(await env.seed(0))
+
+        assert mock_client.chat.call_args.kwargs["messages"][0] == {
+            "role": "system",
+            "content": "Put the answer in \\boxed{}.",
+        }
 
     @pytest.mark.asyncio
     async def test_empty_response_handled(self):
