@@ -14,6 +14,10 @@
 # limitations under the License.
 """Golden tests: verify benchmark scorers produce correct results on known data."""
 
+import json
+
+import pytest
+
 from nemo_evaluator.scoring import (
     ScorerInput,
     answer_line,
@@ -22,6 +26,7 @@ from nemo_evaluator.scoring import (
     multichoice_regex,
     numeric_match,
 )
+from tests.conftest import FIXTURE_DIR
 
 
 class TestMultichoiceRegex:
@@ -143,3 +148,32 @@ class TestBenchmarkScorerImport:
 
         s = ScorerInput(response="The result is 15", target="15")
         assert mgsm_scorer(s)["correct"] is True
+
+
+class TestDropScorer:
+    @pytest.mark.parametrize(
+        ("response", "answers", "correct"),
+        [
+            ("Raiders kicked 2, Texans kicked 2, so 2 + 2 = 4.\n\nAnswer: 4", ["2"], False),
+            ("Russell threw to Chaz Schilens.\n\nAnswer: Chaz Schilens", ["Chaz Schilens", "JaMarcus Russell"], True),
+            ("Oakland held on.\n\nAnswer: Oakland Raiders", ["Raiders", "the Raiders"], True),
+            ("Raiders", ["Raiders"], True),
+        ],
+        ids=["gold-only-in-reasoning", "answer-line-match", "answer-line-contains-gold", "no-answer-line"],
+    )
+    def test_scores_the_answer_line(self, response, answers, correct):
+        from nemo_evaluator.benchmarks.drop import drop_scorer
+
+        s = ScorerInput(response=response, target=answers[0], metadata={"correct_answers": answers})
+        assert drop_scorer(s)["correct"] is correct
+
+    @pytest.mark.parametrize(
+        "row",
+        json.loads((FIXTURE_DIR / "drop.json").read_text(encoding="utf-8")),
+        ids=lambda row: f"idx{row['idx']}",
+    )
+    def test_golden_fixture_rewards(self, row):
+        from nemo_evaluator.benchmarks.drop import drop_scorer
+
+        s = ScorerInput(response=row["model_response"], target=row["expected_answer"], metadata=row["metadata"])
+        assert float(drop_scorer(s)["correct"]) == row["reward"]

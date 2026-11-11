@@ -14,7 +14,9 @@
 # limitations under the License.
 """DROP -- reading comprehension requiring discrete reasoning (few-shot)."""
 
+import dataclasses
 import random
+import re
 
 from nemo_evaluator.environments.base import SeedResult
 from nemo_evaluator.environments.custom import benchmark, scorer
@@ -24,6 +26,8 @@ _HEADER = (
     "You will be asked to read a passage and answer a question. Some examples of passages and Q&A are provided below."
 )
 _FOOTER = '\nThink step by step, then write a line of the form "Answer: $ANSWER" at the end of your response.\n'
+# Same extraction as simple-evals drop_eval.py (common.ANSWER_PATTERN, whole response as fallback).
+_ANSWER_RE = re.compile(r"(?i)Answer\s*:\s*([^\n]+)")
 
 # DROP data comes from HF but needs special parsing
 _TRAIN_CACHE: list[dict] = []
@@ -84,4 +88,6 @@ def _load_drop_data():
 @benchmark(name="drop", dataset=_load_drop_data, target_field="answers", prompt="", seed_fn=_seed_drop)
 @scorer
 def drop_scorer(sample: ScorerInput) -> dict:
-    return fuzzy_match(sample)
+    m = _ANSWER_RE.search(sample.response)
+    answer = m.group(1) if m else sample.response
+    return fuzzy_match(dataclasses.replace(sample, response=answer))
