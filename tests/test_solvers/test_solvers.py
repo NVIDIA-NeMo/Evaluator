@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import copy
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -114,11 +115,12 @@ class TestChatSolver:
         mock_client.chat = AsyncMock(return_value=_make_model_response("4"))
         solver_cls = {"chat": ChatSolver, "vlm": VLMSolver}[solver_name]
         seed = SeedResult(prompt="Q", expected_answer="4", messages=seed_messages)
+        seed_snapshot = copy.deepcopy(seed_messages)
 
         await solver_cls(client=mock_client, system_prompt=system_prompt).solve(seed)
 
         assert mock_client.chat.call_args.kwargs["messages"] == expected
-        assert seed.messages == seed_messages
+        assert seed.messages == seed_snapshot
 
     @pytest.mark.asyncio
     async def test_system_prompt_reaches_model_for_byob_benchmark(self):
