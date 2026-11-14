@@ -544,6 +544,30 @@ class TestAggregateRepeats:
         assert report["test_used"] == "permutation"
         assert "permutation_test" in report
 
+    @pytest.mark.parametrize(
+        ("test", "test_used"),
+        [("auto", "permutation"), ("sign", "sign")],
+        ids=["auto-permutation", "sign"],
+    )
+    def test_drop_without_threshold_flips_blocks(self, test, test_used):
+        """Every problem keeps at least one correct repeat, so no pair crosses reward_threshold."""
+        base_correct = [3 if pid % 2 else 4 for pid in range(40)]
+        cand_correct = [1 if pid % 3 else 2 for pid in range(40)]
+        base = {(pid, r): _record(pid, float(r < c), repeat=r) for pid, c in enumerate(base_correct) for r in range(4)}
+        cand = {(pid, r): _record(pid, float(r < c), repeat=r) for pid, c in enumerate(cand_correct) for r in range(4)}
+
+        report = compare_results(base, cand, test=test)
+
+        assert report["test_used"] == test_used
+        assert report["flip_report"]["summary"]["n_regressions"] == 0
+        assert report["verdict"] == "BLOCK"
+
+    def test_identical_repeats_pass(self):
+        records = {(pid, r): _record(pid, float(r < 3), repeat=r) for pid in range(40) for r in range(4)}
+        report = compare_results(records, dict(records))
+        assert report["test_used"] == "permutation"
+        assert report["verdict"] == "PASS"
+
 
 class TestWriteRegression:
     def test_write(self, tmp_path):
