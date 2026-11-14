@@ -83,6 +83,7 @@ class PermutationResult:
     significant: bool | None = None
     n_permutations: int = 10_000
     effect_size: float | None = None  # Cohen's d paired
+    n_nonzero: int = 0  # pairs with a non-zero delta
     method: str = "permutation"
 
     def to_dict(self) -> dict[str, Any]:
@@ -212,6 +213,7 @@ def permutation_test(
         significant=p_value < alpha,
         n_permutations=n_permutations,
         effect_size=effect_size,
+        n_nonzero=int(np.count_nonzero(deltas)),
     )
 
 
