@@ -81,7 +81,9 @@ def _validate(data: Any, schema: dict[str, Any], path: str = "$") -> list[str]:
             "null": type(None),
         }
         expected = type_map.get(expected_type)
-        if expected and not isinstance(data, expected):
+        # bool subclasses int in Python, but JSON Schema does not count true/false as numbers.
+        is_bool_as_number = isinstance(data, bool) and expected_type in ("number", "integer")
+        if expected and (not isinstance(data, expected) or is_bool_as_number):
             errors.append(f"{path}: expected {expected_type}, got {type(data).__name__}")
             return errors
 
