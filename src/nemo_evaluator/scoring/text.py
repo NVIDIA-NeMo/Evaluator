@@ -25,7 +25,8 @@ from nemo_evaluator.scoring.types import ScorerInput
 _MCQ_LETTER = re.compile(
     r"(?:"
     r"\\boxed\{([A-Za-z])\}"
-    r"|(?:answer|ans)[\s:]*([A-Za-z])\b"
+    # Letter guards keep "answers" and "means" from yielding a fake option letter.
+    r"|(?<![A-Za-z])(?:answer|ans)(?![A-Za-z])[\s:]*([A-Za-z])\b"
     r"|\(([A-Za-z])\)"
     r"|^([A-Za-z])[\.\)\s]*$"
     r")",

@@ -14,10 +14,13 @@
 # limitations under the License.
 """Golden tests: verify benchmark scorers produce correct results on known data."""
 
+import pytest
+
 from nemo_evaluator.scoring import (
     ScorerInput,
     answer_line,
     exact_match,
+    extract_mcq_letter,
     fuzzy_match,
     multichoice_regex,
     numeric_match,
@@ -93,6 +96,23 @@ class TestFuzzyMatch:
     def test_no_match(self):
         s = ScorerInput(response="Paris", target="London", metadata={"correct_answers": ["London"]})
         assert fuzzy_match(s)["correct"] is False
+
+
+class TestExtractMcqLetter:
+    @pytest.mark.parametrize(
+        ("response", "expected"),
+        [
+            pytest.param("Answer: B", "B", id="answer-colon"),
+            pytest.param("ANS: c", "C", id="ans-abbreviation"),
+            pytest.param("final_answer: D", "D", id="underscore-prefix"),
+            pytest.param("\\boxed{A}", "A", id="boxed"),
+            pytest.param("Answer: B. The other answers are wrong.", "B", id="plural-answers-after"),
+            pytest.param("Answer: B\nBoth answers differ in scope.", "B", id="plural-answers-next-line"),
+            pytest.param("Answer: B. This means A is wrong.", "B", id="ans-inside-word"),
+        ],
+    )
+    def test_extracts_option_letter(self, response, expected):
+        assert extract_mcq_letter(response) == expected
 
 
 class TestExactMatch:
