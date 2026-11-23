@@ -565,25 +565,33 @@ def _compute_verdict(
     effect_size: float | None = None
     test_label = report.test_used or "mcnemar"
     n_discordant = 0
+    regressed = False
 
+    # The permutation and sign tests run on paired reward deltas.  The flip
+    # table only counts pairs that cross reward_threshold, so a drop from 0.75
+    # to 0.25 on every problem leaves it empty; take counts and direction from
+    # the test result instead.
     if report.test_used == "permutation" and report.permutation_result:
         pr = report.permutation_result
         p_value = pr.p_value
         significant = pr.significant
         effect_size = pr.effect_size
-        n_discordant = s.n_regressions + s.n_improvements
+        n_discordant = pr.n_nonzero
+        regressed = pr.observed_mean_diff > 0
     elif report.test_used == "sign" and report.sign_test_result:
         sr = report.sign_test_result
         p_value = sr.p_value
         significant = sr.significant
         n_discordant = sr.n_positive + sr.n_negative
-        effect_size = (s.n_regressions - s.n_improvements) / s.n_paired if s.n_paired > 0 else None
+        effect_size = (sr.n_positive - sr.n_negative) / s.n_paired if s.n_paired > 0 else None
+        regressed = sr.n_positive > sr.n_negative
     elif report.mcnemar:
         m = report.mcnemar
         p_value = m.p_value
         significant = m.significant
         effect_size = m.effect_size
         n_discordant = m.n_discordant
+        regressed = s.n_regressions > s.n_improvements
     else:
         return "INCONCLUSIVE", ["no test result available; cannot determine regression status"]
 
@@ -599,7 +607,7 @@ def _compute_verdict(
     reasons: list[str] = []
 
     if significant and effect_size is not None and abs(effect_size) > min_effect:
-        if s.n_regressions > s.n_improvements:
+        if regressed:
             reasons.append(f"{test_label} p={p_value:.4f}, effect={effect_size:.4f} > {min_effect}")
             return "BLOCK", reasons
 
