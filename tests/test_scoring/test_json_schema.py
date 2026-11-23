@@ -14,6 +14,8 @@
 # limitations under the License.
 """Tests for JSON schema validation scoring."""
 
+import pytest
+
 from nemo_evaluator.scoring.json_schema import extract_json, validate_json_schema
 
 
@@ -88,3 +90,11 @@ class TestValidateJsonSchema:
         result = validate_json_schema("no json here", {"type": "object"})
         assert not result["valid"]
         assert result["extracted"] is None
+
+    @pytest.mark.parametrize("schema_type", ["integer", "number"])
+    @pytest.mark.parametrize("value", ["true", "false"])
+    def test_boolean_is_not_numeric(self, schema_type, value):
+        schema = {"type": "object", "properties": {"count": {"type": schema_type}}}
+        result = validate_json_schema(f'{{"count": {value}}}', schema)
+        assert not result["valid"]
+        assert result["errors"] == [f"$.count: expected {schema_type}, got bool"]
