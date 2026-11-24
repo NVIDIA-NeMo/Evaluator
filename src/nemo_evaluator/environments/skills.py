@@ -98,12 +98,28 @@ def _load_dataset(benchmark: str, split: str | None, data_dir: str | None) -> li
     return samples
 
 
+class SkillsEvaluatorError(RuntimeError):
+    """The configured NeMo Skills evaluator is unavailable or failed.
+
+    Raised instead of silently falling back to whole-response exact string
+    matching, which measures something else entirely and turns an
+    infrastructure failure into a plausible-looking score. Pass
+    ``allow_exact_match_fallback=True`` to opt in to the old behavior.
+    """
+
+
 def _get_evaluator(eval_type: str):
     try:
         from nemo_skills.evaluation.evaluator import get_evaluator_class
 
         return get_evaluator_class(eval_type, config={})
-    except (ImportError, KeyError, ValueError, TypeError):
+    except (ImportError, KeyError, ValueError, TypeError) as e:
+        logger.warning(
+            "NeMo Skills evaluator for eval_type=%r could not be constructed: %s: %s",
+            eval_type,
+            type(e).__name__,
+            e,
+        )
         return None
 
 
@@ -131,6 +147,7 @@ class SkillsEnvironment(EvalEnvironment):
         data_dir: str | None = None,
         prompt_template: str | None = None,
         eval_type: str | None = None,
+        allow_exact_match_fallback: bool = False,
     ) -> None:
         super().__init__()
         self._benchmark = benchmark
@@ -143,9 +160,31 @@ class SkillsEnvironment(EvalEnvironment):
 
         self._eval_type = eval_type or getattr(self._module, "METRICS_TYPE", "math")
         self._evaluator = _get_evaluator(self._eval_type)
+        self._allow_exact_match_fallback = allow_exact_match_fallback
         self._prompt_template = prompt_template
 
-        logger.info("Skills: %s (%d samples, eval_type=%s)", benchmark, len(self._samples), self._eval_type)
+        if self._evaluator is None and self._eval_type not in self._score_handlers:
+            if not allow_exact_match_fallback:
+                raise SkillsEvaluatorError(
+                    f"eval_type={self._eval_type!r} for benchmark {benchmark!r} requires a "
+                    "NeMo Skills evaluator, but none could be constructed (see the warning "
+                    "above for the reason). Refusing to score by exact string matching; "
+                    "pass allow_exact_match_fallback=True to opt in to that fallback."
+                )
+            logger.warning(
+                "Skills: %s will score by EXACT STRING MATCH because no evaluator is "
+                "available for eval_type=%s (allow_exact_match_fallback=True)",
+                benchmark,
+                self._eval_type,
+            )
+
+        logger.info(
+            "Skills: %s (%d samples, eval_type=%s, evaluator=%s)",
+            benchmark,
+            len(self._samples),
+            self._eval_type,
+            "constructed" if self._evaluator is not None else "none",
+        )
 
     def __len__(self) -> int:
         return len(self._samples)
@@ -212,8 +251,19 @@ class SkillsEnvironment(EvalEnvironment):
             result = self._evaluator.eval_single(sample)
             return float(result.get("is_correct", 0)), {"method": f"skills_{self._eval_type}", **result}
         except Exception as e:
-            logger.warning("Skills evaluator failed: %s", e)
-            return self._score_exact(response, expected)
+            if self._allow_exact_match_fallback:
+                logger.warning(
+                    "Skills evaluator failed (%s: %s); scoring by exact string match "
+                    "(allow_exact_match_fallback=True)",
+                    type(e).__name__,
+                    e,
+                )
+                return self._score_exact(response, expected)
+            raise SkillsEvaluatorError(
+                f"NeMo Skills evaluator for eval_type={self._eval_type!r} failed while "
+                f"scoring; refusing to rescore by exact string matching. Pass "
+                f"allow_exact_match_fallback=True to opt in to that fallback."
+            ) from e
 
     def _score_exact(self, response: str, expected: str) -> tuple[float, dict]:
         correct = response.strip().lower() == expected.strip().lower()

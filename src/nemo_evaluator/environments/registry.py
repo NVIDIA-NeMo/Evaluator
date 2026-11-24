@@ -131,6 +131,7 @@ def _make_skills(rest: str, **kwargs: Any) -> "EvalEnvironment":
         data_dir=kwargs.get("data_dir"),
         prompt_template=kwargs.get("prompt_template"),
         eval_type=kwargs.get("eval_type"),
+        allow_exact_match_fallback=kwargs.get("allow_exact_match_fallback", False),
     )
 
 
