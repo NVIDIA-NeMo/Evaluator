@@ -18,11 +18,11 @@
     "system": null,
     "model_response": "The passage says Oakland got the early lead in the first quarter when JaMarcus Russell threw a 20-yard touchdown pass to rookie wide receiver Chaz Schilens. That was the first touchdown mentioned, so it was the first touchdown of the game.\n\nAnswer: Chaz Schilens",
     "reward": 1.0,
-    "extracted_answer": "The passage says Oakland got the early lead in the first quarter when JaMarcus Russell threw a 20-yard touchdown pass to rookie wide receiver Chaz Schilens. That was the first touchdown mentioned, so ",
+    "extracted_answer": "Chaz Schilens",
     "scoring_details": {
       "method": "byob_drop",
       "correct": true,
-      "extracted": "The passage says Oakland got the early lead in the first quarter when JaMarcus Russell threw a 20-yard touchdown pass to rookie wide receiver Chaz Schilens. That was the first touchdown mentioned, so "
+      "extracted": "Chaz Schilens"
     }
   },
   {
@@ -47,11 +47,11 @@
     "system": null,
     "model_response": "Kris Brown is described as kicking two field goals in the second quarter (53-yard and 24-yard) and one in the fourth quarter (40-yard). That totals 3 field goals.\n\nAnswer: 3",
     "reward": 1.0,
-    "extracted_answer": "Kris Brown is described as kicking two field goals in the second quarter (53-yard and 24-yard) and one in the fourth quarter (40-yard). That totals 3 field goals.\n\nAnswer: 3",
+    "extracted_answer": "3",
     "scoring_details": {
       "method": "byob_drop",
       "correct": true,
-      "extracted": "Kris Brown is described as kicking two field goals in the second quarter (53-yard and 24-yard) and one in the fourth quarter (40-yard). That totals 3 field goals.\n\nAnswer: 3"
+      "extracted": "3"
     }
   },
   {
@@ -76,11 +76,11 @@
     "system": null,
     "model_response": "Oakland scored first and kept answering Houston’s scores, including two third-quarter touchdowns (a passing TD and an 80-yard punt return TD). Houston only managed field goals after that, and the Raiders’ defense held them off in the fourth quarter.\n\nAnswer: Oakland Raiders",
     "reward": 1.0,
-    "extracted_answer": "Oakland scored first and kept answering Houston’s scores, including two third-quarter touchdowns (a passing TD and an 80-yard punt return TD). Houston only managed field goals after that, and the Raid",
+    "extracted_answer": "Oakland Raiders",
     "scoring_details": {
       "method": "byob_drop",
       "correct": true,
-      "extracted": "Oakland scored first and kept answering Houston’s scores, including two third-quarter touchdowns (a passing TD and an 80-yard punt return TD). Houston only managed field goals after that, and the Raid"
+      "extracted": "Oakland Raiders"
     }
   },
   {
@@ -104,12 +104,12 @@
     ],
     "system": null,
     "model_response": "In the first quarter, the Raiders kicked 2 field goals (33-yard and 30-yard).  \nIn the second quarter, the Texans kicked 2 field goals (53-yard and 24-yard).  \nTotal field goals in the first half = 2 + 2 = 4.\n\nAnswer: 4",
-    "reward": 1.0,
-    "extracted_answer": "In the first quarter, the Raiders kicked 2 field goals (33-yard and 30-yard).  \nIn the second quarter, the Texans kicked 2 field goals (53-yard and 24-yard).  \nTotal field goals in the first half = 2 ",
+    "reward": 0.0,
+    "extracted_answer": "4",
     "scoring_details": {
       "method": "byob_drop",
-      "correct": true,
-      "extracted": "In the first quarter, the Raiders kicked 2 field goals (33-yard and 30-yard).  \nIn the second quarter, the Texans kicked 2 field goals (53-yard and 24-yard).  \nTotal field goals in the first half = 2 "
+      "correct": false,
+      "extracted": "4"
     }
   },
   {
@@ -134,11 +134,11 @@
     "system": null,
     "model_response": "Kris Brown made two field goals in the second quarter: one from 53 yards and one from 24 yards.  \nCompute the difference: \\(53 - 24 = 29\\) yards.\n\nAnswer: 29",
     "reward": 1.0,
-    "extracted_answer": "Kris Brown made two field goals in the second quarter: one from 53 yards and one from 24 yards.  \nCompute the difference: \\(53 - 24 = 29\\) yards.\n\nAnswer: 29",
+    "extracted_answer": "29",
     "scoring_details": {
       "method": "byob_drop",
       "correct": true,
-      "extracted": "Kris Brown made two field goals in the second quarter: one from 53 yards and one from 24 yards.  \nCompute the difference: \\(53 - 24 = 29\\) yards.\n\nAnswer: 29"
+      "extracted": "29"
     }
   }
 ]
