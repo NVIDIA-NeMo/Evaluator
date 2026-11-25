@@ -21,6 +21,7 @@ from typing import Any
 from nemo_evaluator.environments.base import SeedResult
 
 from .base import SolveResult
+from .chat import with_system_prompt
 from .trajectory_util import build_single_turn_atif
 
 
@@ -43,7 +44,7 @@ class VLMSolver:
                 detail=self._detail,
             )
         elif task.messages:
-            resp = await self._client.chat(messages=task.messages)
+            resp = await self._client.chat(messages=with_system_prompt(task.messages, self._system))
         else:
             resp = await self._client.chat(task.prompt, system=effective_system)
         trajectory = build_single_turn_atif(
