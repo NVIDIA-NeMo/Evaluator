@@ -181,9 +181,12 @@ class GatePolicy(BaseModel):
             if not resolved.metric:
                 errors.append(f"{name}: required benchmark must resolve to an explicit metric")
                 continue
-            if resolved.metric not in supported_metrics:
+            if resolved.metric not in supported_metrics and not resolved.metric.startswith("scorer:"):
                 supported = ", ".join(sorted(supported_metrics))
-                errors.append(f"{name}: unsupported metric {resolved.metric!r}; supported metrics: {supported}")
+                errors.append(
+                    f"{name}: unsupported metric {resolved.metric!r}; "
+                    f"supported metrics: {supported}, or any secondary scorer as 'scorer:<name>'"
+                )
         if errors:
             raise ValueError("Invalid gate policy:\n" + "\n".join(errors))
 

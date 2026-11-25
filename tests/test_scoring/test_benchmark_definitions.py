@@ -14,6 +14,8 @@
 # limitations under the License.
 """Golden tests: verify benchmark scorers produce correct results on known data."""
 
+import pytest
+
 from nemo_evaluator.scoring import (
     ScorerInput,
     answer_line,
@@ -143,3 +145,38 @@ class TestBenchmarkScorerImport:
 
         s = ScorerInput(response="The result is 15", target="15")
         assert mgsm_scorer(s)["correct"] is True
+
+
+class TestNumericMatchNormalizationBugs:
+    """Regression tests for the rstrip("0") normalization defect: it mapped
+    150 -> 15 and collided 10 with 100, so integer answers ending in zero
+    scored wrongly in both directions."""
+
+    @pytest.mark.parametrize(
+        ("response", "target", "correct"),
+        [
+            ("The total is 150", "150", True),
+            ("The total is 15", "150", False),
+            ("Count: 100", "10", False),
+            ("Count: 10", "100", False),
+            ("**The answer is 45,000**", "45000", True),
+            ("It takes 16 hours.", "16", True),
+            ("The answer is **83**.", "83", True),
+            ("Roughly 2.50 units", "2.5", True),
+            ("no digits here", "5", False),
+        ],
+        ids=[
+            "trailing-zero-int-exact",
+            "rstrip-collision-15-vs-150",
+            "rstrip-collision-100-vs-10",
+            "rstrip-collision-10-vs-100",
+            "markdown-and-comma",
+            "trailing-unit",
+            "markdown-bold",
+            "decimal-trailing-zero",
+            "no-number-in-response",
+        ],
+    )
+    def test_numeric_match(self, response, target, correct):
+        s = ScorerInput(response=response, target=target)
+        assert numeric_match(s)["correct"] is correct
