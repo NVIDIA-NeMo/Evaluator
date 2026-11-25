@@ -93,7 +93,7 @@ jobs:
       validate-only: ${{ github.event_name != 'workflow_dispatch' }}
       dry-run: ${{ inputs.dry-run || false }}
       version-bump-branch: ${{ inputs.version-bump-branch || github.ref_name }}
-      create-gh-release: ${{ inputs.create-gh-release || true }}
+      create-gh-release: ${{ (github.event_name != 'workflow_dispatch') || inputs.create-gh-release }}
       gh-release-use-changelog-builder: ${{ inputs.generate-changelog || false }}
       gh-release-from-tag: ${{ inputs.gh-release-from-tag || '' }}
       packaging: uv
