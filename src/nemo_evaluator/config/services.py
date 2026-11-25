@@ -75,6 +75,7 @@ class ModelTrafficCaptureConfig(BaseModel):
     capture_reasoning: bool = True  # message.reasoning_content (or SSE delta)
     capture_messages: bool = True  # message.content
     capture_request_body: bool = False  # effective upstream HTTP request body
+    capture_token_ids: bool = False
     max_content_chars: int = 0  # truncation guard for captured bodies/content; 0 = no limit
 
 
