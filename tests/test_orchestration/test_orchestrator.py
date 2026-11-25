@@ -405,3 +405,30 @@ class TestBuildBatchConfigEnvVars:
 
         cfg = _build_batch_config("u", "m", None, solver_cfg, svc, cluster=cluster)
         assert cfg["env_vars"] == {"HF_TOKEN": "per-bench", "HF_HOME": "/cache"}
+
+
+class TestBenchTimeoutReachesModelClient:
+    """BenchmarkConfig.timeout must reach ModelClient, whose default is 120s."""
+
+    @pytest.mark.parametrize("timeout", [1800.0, 45.0])
+    def test_client_uses_bench_timeout(self, timeout):
+        from nemo_evaluator.orchestration.orchestrator import _create_client_and_solver
+
+        bench = SimpleNamespace(
+            name="bench",
+            timeout=timeout,
+            max_concurrent=4,
+            solver=SimpleNamespace(type="simple", service="model"),
+            params={},
+            fewshot=None,
+            verifier=None,
+            instruction_template=None,
+            sandbox=NoSandboxConfig(),
+        )
+        solver_cfg = SimpleNamespace(type="simple", service="model")
+        config = MagicMock()
+        client, _ = _create_client_and_solver(
+            bench, config, solver_cfg, "model", "http://x/v1", "m", None, 4, None
+        )
+        assert client is not None
+        assert client.timeout == timeout
