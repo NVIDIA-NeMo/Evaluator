@@ -31,7 +31,7 @@ def _load_healthbench():
     except Exception:
         pass
 
-    url = "https://huggingface.co/datasets/openai/HealthBench/resolve/main/data/test.jsonl"
+    url = "https://huggingface.co/datasets/openai/HealthBench/resolve/main/2025-05-07-06-14-12_oss_eval.jsonl"
     with urllib.request.urlopen(url, timeout=60) as resp:
         text = resp.read().decode()
     rows = [_json.loads(line) for line in text.strip().splitlines() if line.strip()]
