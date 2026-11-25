@@ -100,6 +100,18 @@ def ssh_run(hostname: str, remote_cmd: str, username: str | None = None, timeout
     return _ssh(target, remote_cmd, timeout=timeout)
 
 
+def run_on_slurm_host(
+    hostname: str | None,
+    command: str,
+    username: str | None = None,
+    timeout: float = 30.0,
+) -> str:
+    """Run a command where Slurm is available, locally or through SSH."""
+    if hostname:
+        return ssh_run(hostname, command, username=username, timeout=timeout)
+    return _run(["bash", "-c", command], timeout=timeout)
+
+
 def _scp(local_path: str, remote_dest: str, target: str, timeout: float = 60.0) -> str:
     _ensure_master(target)
     return _run(["scp", "-p", *_ssh_opts(target), local_path, remote_dest], timeout=timeout)
@@ -205,39 +217,44 @@ def copy_to_remote(
 
 
 def submit_sbatch(
-    hostname: str,
+    hostname: str | None,
     remote_script: str,
     username: str | None = None,
 ) -> str:
-    """Submit an sbatch script on the remote host and return the SLURM job ID."""
-    target = _ssh_target(hostname, username)
-    output = _ssh(target, f"sbatch {shlex.quote(remote_script)}")
+    """Submit an sbatch script and return the SLURM job ID."""
+    output = run_on_slurm_host(
+        hostname,
+        f"sbatch --parsable {shlex.quote(remote_script)}",
+        username=username,
+    )
 
-    # sbatch output: "Submitted batch job 12345"
-    parts = output.split()
-    if len(parts) >= 4 and parts[-1].isdigit():
-        return parts[-1]
+    # ``--parsable`` emits ``job_id`` or ``job_id;cluster``. Use the final
+    # non-empty line so an SSH login banner cannot hide an otherwise valid ID.
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    job_id = lines[-1].split(";", 1)[0] if lines else ""
+    if job_id.isdigit():
+        return job_id
     raise SSHError(f"Could not parse sbatch output: {output}")
 
 
 def check_job_status(
-    hostname: str,
+    hostname: str | None,
     job_id: str,
     username: str | None = None,
 ) -> dict[str, str]:
     """Check SLURM job status via squeue, falling back to sacct."""
-    target = _ssh_target(hostname, username)
     try:
-        output = _ssh(
-            target,
-            f"squeue --job {shlex.quote(job_id)} --noheader --format=%i|%j|%T|%M|%N",
+        output = run_on_slurm_host(
+            hostname,
+            f"squeue --job {shlex.quote(job_id)} --noheader --format='%i|%j|%T|%M|%N'",
+            username=username,
             timeout=15.0,
         )
     except SSHError:
         return {"job_id": job_id, "state": "UNKNOWN"}
 
     if not output.strip():
-        return _sacct_status(target, job_id)
+        return _sacct_status(hostname, job_id, username)
 
     fields = output.strip().split("|")
     if len(fields) >= 5:
@@ -251,12 +268,13 @@ def check_job_status(
     return {"job_id": job_id, "state": output.strip()}
 
 
-def _sacct_status(target: str, job_id: str) -> dict[str, str]:
+def _sacct_status(hostname: str | None, job_id: str, username: str | None = None) -> dict[str, str]:
     """Fall back to sacct for completed/failed jobs no longer in squeue."""
     try:
-        output = _ssh(
-            target,
+        output = run_on_slurm_host(
+            hostname,
             f"sacct -j {shlex.quote(job_id)} --noheader --parsable2 --format=JobID,State,ExitCode -n",
+            username=username,
             timeout=15.0,
         )
     except SSHError:
@@ -274,21 +292,21 @@ def _sacct_status(target: str, job_id: str) -> dict[str, str]:
 
 
 def batch_check_job_status(
-    hostname: str,
+    hostname: str | None,
     job_ids: list[str],
     username: str | None = None,
 ) -> dict[str, dict[str, str]]:
     """Check multiple SLURM jobs in one squeue + sacct round-trip."""
     if not job_ids:
         return {}
-    target = _ssh_target(hostname, username)
     ids_str = ",".join(shlex.quote(j) for j in job_ids)
 
     results: dict[str, dict[str, str]] = {}
     try:
-        output = _ssh(
-            target,
-            f"squeue --jobs {ids_str} --noheader --format=%i|%j|%T|%M|%N",
+        output = run_on_slurm_host(
+            hostname,
+            f"squeue --jobs {ids_str} --noheader --format='%i|%j|%T|%M|%N'",
+            username=username,
             timeout=15.0,
         )
         for line in output.strip().splitlines():
@@ -310,9 +328,10 @@ def batch_check_job_status(
     if missing:
         sacct_ids = ",".join(shlex.quote(j) for j in missing)
         try:
-            output = _ssh(
-                target,
+            output = run_on_slurm_host(
+                hostname,
                 f"sacct -j {sacct_ids} --noheader --parsable2 --format=JobID,State,ExitCode -n",
+                username=username,
                 timeout=15.0,
             )
             for line in output.strip().splitlines():
@@ -334,13 +353,17 @@ def batch_check_job_status(
 
 
 def cancel_job(
-    hostname: str,
+    hostname: str | None,
     job_id: str,
     username: str | None = None,
 ) -> None:
     """Cancel a SLURM job via scancel."""
-    target = _ssh_target(hostname, username)
-    _ssh(target, f"scancel {shlex.quote(job_id)}", timeout=15.0)
+    run_on_slurm_host(
+        hostname,
+        f"scancel {shlex.quote(job_id)}",
+        username=username,
+        timeout=15.0,
+    )
     logger.info("Cancelled SLURM job %s", job_id)
 
 
