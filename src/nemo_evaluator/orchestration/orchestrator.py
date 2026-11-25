@@ -40,6 +40,7 @@ from nemo_evaluator.config import (
     GymResourceService,
     HarborSolverConfig,
     InterceptorConfig,
+    LocalSandbox,
     NatAgentService,
     NatSolverConfig,
     NoSandbox,
@@ -136,6 +137,14 @@ def _resolve_generation(config: EvalConfig, solver_cfg: Any) -> GenerationConfig
     if solver_gen is not None:
         return solver_gen.merge_onto(svc_gen)
     return svc_gen
+
+
+def _resolve_request_timeout(service: object | None) -> float:
+    """Timeout for the eval->proxy model client: the service's ``proxy.request_timeout``
+    if set, else 120s. The 120s default is too short for reasoning models that emit long
+    outputs under concurrency. (A falsy ``0`` also falls back to the default — 0 is not a
+    meaningful request timeout here.)"""
+    return getattr(getattr(service, "proxy", None), "request_timeout", None) or 120.0
 
 
 def _build_ecs_sandbox_config(cfg: EcsFargateSandbox) -> Any:
@@ -336,6 +345,9 @@ def _make_solver(
         reasoning_pat = None
         svc = config.get_service(solver_cfg.service)
         reasoning_pat = getattr(svc, "reasoning_pattern", None)
+        # honor the service's request_timeout for the eval->proxy client (see note in
+        # _create_client_and_solver); 120s default is too short for long tool-use turns.
+        _req_timeout = _resolve_request_timeout(svc)
         tc_client = ModelClient(
             base_url=model_url,
             model=model_id,
@@ -347,6 +359,7 @@ def _make_solver(
             stop=gen.stop,
             frequency_penalty=gen.frequency_penalty,
             presence_penalty=gen.presence_penalty,
+            timeout=_req_timeout,
             max_concurrent=bench.max_concurrent,
             reasoning_pattern=reasoning_pat,
         )
@@ -636,6 +649,22 @@ def _make_sandbox_manager(sb: Any) -> Any:
 
     sandbox_env = getattr(sb, "container_env", {}) or {}
 
+    if isinstance(sb, LocalSandbox):
+        # In-container subprocess backend (no image, no remote infra). The
+        # manager already implements backend="local" -> sandbox.local.LocalSandbox.
+        # default_image is a DUMMY: LocalSandbox ignores spec.image (it runs a
+        # subprocess in a tempdir), and _pull_image is a no-op for the local
+        # backend. But resolve_spec() must return a non-None spec so that
+        # pick_lifecycle() provisions a sandbox for tool benchmarks whose seeds
+        # carry no sandbox_spec (gpqa/aime25); without it the tool_calling solver
+        # gets sandbox=None -> "No tool backends configured".
+        return SandboxManager(
+            backend="local",
+            concurrency=sb.concurrency,
+            default_image="local",
+            global_env=sandbox_env,
+        )
+
     if isinstance(sb, DockerSandbox):
         return SandboxManager(
             backend="docker",
@@ -879,6 +908,11 @@ def _create_client_and_solver(
         client = None
     else:
         gen = _resolve_generation(config, solver_cfg) if service_name else GenerationConfig()
+        # request_timeout governs the eval->proxy model client too (not only the
+        # proxy->server hop). The 120s default is too short for reasoning models that
+        # emit long outputs under concurrency, so honor the service's request_timeout.
+        _svc = config.get_service(service_name) if service_name else None
+        _req_timeout = _resolve_request_timeout(_svc)
         client = ModelClient(
             base_url=model_url,
             model=model_id,
@@ -890,6 +924,7 @@ def _create_client_and_solver(
             stop=gen.stop,
             frequency_penalty=gen.frequency_penalty,
             presence_penalty=gen.presence_penalty,
+            timeout=_req_timeout,
             max_concurrent=concurrency,
             reasoning_pattern=reasoning_pat,
         )

@@ -48,4 +48,5 @@ def _prepare(row, idx, rng):
 )
 @scorer
 def mmlu_pro_scorer(sample: ScorerInput) -> dict:
-    return multichoice_regex(sample, pattern=r"(?i)Answer\s*:\s*([A-J])")
+    # 10-choice; the wrapper-tolerant pattern is built from the letter set.
+    return multichoice_regex(sample, letters="A-J")
