@@ -30,7 +30,7 @@ def _prepare(row, idx, rng):
 def _load_triviaqa():
     from datasets import load_dataset
 
-    ds = load_dataset("trivia_qa", "rc.nocontext", split="validation")
+    ds = load_dataset("mandarjoshi/trivia_qa", "rc.nocontext", split="validation")
     return [dict(row) for row in ds]
 
 
