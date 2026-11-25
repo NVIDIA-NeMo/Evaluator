@@ -255,17 +255,27 @@ def start_adapter_proxy(
     }
     endpoint_spec = {"name": "endpoint", "config": endpoint_config}
 
+    # One bucket per stage. Two buckets put a request_to_response interceptor
+    # wherever it sat in the user's list, interleaved with request-stage ones,
+    # and AdapterPipeline._validate_order then refuses the chain. `caching` is
+    # the one selectable interceptor at that stage, so enabling it stopped the
+    # proxy from starting at all.
     request_side: list[dict[str, Any]] = []
+    request_to_response_side: list[dict[str, Any]] = []
     response_side: list[dict[str, Any]] = []
     for spec in interceptor_specs or []:
         cls = InterceptorRegistry.resolve_class(spec["name"])
         stage = getattr(cls, "stage", Stage.REQUEST)
         if stage == Stage.RESPONSE:
             response_side.append(spec)
+        elif stage == Stage.REQUEST_TO_RESPONSE:
+            request_to_response_side.append(spec)
         else:
             request_side.append(spec)
 
-    chain_specs = request_side + [endpoint_spec] + response_side
+    # Ahead of `endpoint`, where the two-bucket split also put them: a cache
+    # that answers has to be reached before the upstream call.
+    chain_specs = request_side + request_to_response_side + [endpoint_spec] + response_side
     pipeline = AdapterPipeline.from_config(chain_specs)
 
     actual_port = _find_free_port(port, listen_host)
