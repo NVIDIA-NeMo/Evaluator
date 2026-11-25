@@ -200,6 +200,30 @@ class TestModelClient:
             assert payload["stop"] == ["OVERRIDE"]
         await c.close()
 
+    @pytest.mark.asyncio
+    async def test_chat_with_tools_strips_reasoning_pattern(self):
+        c = ModelClient(
+            base_url="https://api.example.com/v1",
+            model="test",
+            reasoning_pattern=r"<think>.*?</think>",
+        )
+        response = {
+            "choices": [
+                {
+                    "message": {"content": "<think>scratch work</think>\nfinal answer", "tool_calls": None},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7},
+            "model": "test",
+        }
+        tools = [{"type": "function", "function": {"name": "test_fn", "parameters": {}}}]
+        with patch.object(c, "_post_with_retry", new_callable=AsyncMock, return_value=response):
+            result = await c.chat_with_tools(messages=[{"role": "user", "content": "hi"}], tools=tools)
+        assert result.content == "final answer"
+        assert result.model_response.content == "final answer"
+        await c.close()
+
     def test_all_generation_fields_stored(self):
         c = ModelClient(
             base_url="https://api.example.com/v1",

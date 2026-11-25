@@ -287,6 +287,10 @@ class ModelClient:
         usage = data.get("usage", {})
 
         content = message.get("content") or ""
+        if self.reasoning_pattern:
+            import re as _re
+
+            content = _re.sub(self.reasoning_pattern, "", content, flags=_re.DOTALL).strip()
         reasoning_content = message.get("reasoning_content") or message.get("reasoning") or ""
         finish_reason = choice.get("finish_reason", "")
 
