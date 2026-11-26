@@ -192,7 +192,7 @@ Use `nel compare` when you want to compare two runs of the same benchmark and in
 nel compare ./results/baseline ./results/candidate --strict
 ```
 
-Full tutorial: [`docs/tutorials/compare.md`](docs/tutorials/compare.md)
+Full tutorial: [`docs/tutorials/compare.mdx`](docs/tutorials/compare.mdx)
 
 ## Implement Quality Gates
 
@@ -205,7 +205,7 @@ nel gate ./results/baseline ./results/candidate \
   --output gate_report.json
 ```
 
-Full tutorial: [`docs/tutorials/quality-gate.md`](docs/tutorials/quality-gate.md)
+Full tutorial: [`docs/tutorials/quality-gate.mdx`](docs/tutorials/quality-gate.mdx)
 
 ## Examples
 

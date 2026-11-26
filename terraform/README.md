@@ -2,7 +2,7 @@
 
 This directory contains a **reference implementation** of the AWS infrastructure that NEL's `ECSFargateSandbox` backend targets — i.e. the per-problem sandbox executor where each agent / code-execution task is run as an ECS Fargate task. **NEL itself is not deployed here**; the orchestrator (eval loop) keeps running wherever you launch `nel eval run` (local machine, SLURM login node, Docker, K8s pod, etc.) and submits per-task `RunTask` calls to this cluster.
 
-It is intended as a minimum working example: external users can `terraform apply` it in their own AWS account and end up with the same topology that NEL's [`ECSFargateSandbox`](../docs/architecture/sandbox.md#ecsfargatesandbox) expects.
+It is intended as a minimum working example: external users can `terraform apply` it in their own AWS account and end up with the same topology that NEL's [`ECSFargateSandbox`](../docs/architecture/sandbox.mdx#ecsfargatesandbox) expects.
 
 > [!IMPORTANT]
 > Running this stack creates real AWS resources (VPC, ECS cluster, ECR repo, S3 bucket, EFS, Secrets Manager, IAM users/roles). You are responsible for the costs and the lifecycle. Use `terraform destroy` to tear everything down.
@@ -180,7 +180,7 @@ terraform destroy
 
 ## What is intentionally not included
 
-- **NEL itself.** This stack only provisions the per-task sandbox executor. The orchestrator process runs wherever you choose; see the [Deployment Guide](../docs/deployment/index.md) for those options.
+- **NEL itself.** This stack only provisions the per-task sandbox executor. The orchestrator process runs wherever you choose; see the [Deployment Guide](../docs/deployment/index.mdx) for those options.
 - **State bucket bootstrap.** Bring your own S3 + DynamoDB if you want a remote backend.
 - **GitLab runners or other CI fleets.** Out of scope for this reference.
 - **Live apply in CI.** Applying happens from your machine. The repo's CI only runs static analysis (`terraform fmt`/`validate` and Sonar's IaC scanner).

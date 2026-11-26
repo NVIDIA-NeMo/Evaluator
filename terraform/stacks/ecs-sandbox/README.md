@@ -1,6 +1,6 @@
 # Stack: `ecs-sandbox`
 
-Root stack for the AWS infrastructure consumed by NEL's `ECSFargateSandbox` backend (see [Sandbox Orchestration → ECSFargateSandbox](../../../docs/architecture/sandbox.md#ecsfargatesandbox)). Creates global IAM (shared across regions) and instantiates [`modules/ecs-sandbox-region`](../../modules/ecs-sandbox-region) once per region listed in `var.regions`. NEL itself is **not** deployed here.
+Root stack for the AWS infrastructure consumed by NEL's `ECSFargateSandbox` backend (see [Sandbox Orchestration → ECSFargateSandbox](../../../docs/architecture/sandbox.mdx#ecsfargatesandbox)). Creates global IAM (shared across regions) and instantiates [`modules/ecs-sandbox-region`](../../modules/ecs-sandbox-region) once per region listed in `var.regions`. NEL itself is **not** deployed here.
 
 ## Files
 
