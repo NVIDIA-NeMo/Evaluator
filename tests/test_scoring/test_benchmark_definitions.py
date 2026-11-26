@@ -14,6 +14,11 @@
 # limitations under the License.
 """Golden tests: verify benchmark scorers produce correct results on known data."""
 
+import sys
+import types
+
+import pytest
+
 from nemo_evaluator.scoring import (
     ScorerInput,
     answer_line,
@@ -103,6 +108,48 @@ class TestExactMatch:
     def test_article_removal(self):
         s = ScorerInput(response="The Eiffel Tower", target="Eiffel Tower")
         assert exact_match(s)["correct"] is True
+
+
+class TestMgsmAnswerNumber:
+    """MGSM's gold answers come out of the loader as strings; they must stay whole."""
+
+    @pytest.mark.parametrize(
+        ("answer_number", "expected"),
+        [
+            pytest.param(100, "100", id="hundred-keeps-its-zeros"),
+            pytest.param(70000, "70000", id="seventy-thousand-keeps-its-zeros"),
+            pytest.param(540, "540", id="trailing-zero-only"),
+            pytest.param(20, "20", id="two-digits"),
+            pytest.param(42, "42", id="no-trailing-zero"),
+            pytest.param(5.0, "5", id="whole-float-loses-the-point"),
+            pytest.param(2.5, "2.5", id="fractional-float-kept"),
+        ],
+    )
+    def test_normalization_keeps_the_number(self, answer_number, expected):
+        from nemo_evaluator.benchmarks.mgsm import _normalize_answer_number
+
+        assert _normalize_answer_number(answer_number) == expected
+
+    def test_the_loader_keeps_the_whole_answer(self, monkeypatch):
+        """The call site in ``_load_mgsm``, with ``datasets`` replaced by a fake."""
+        from nemo_evaluator.benchmarks.mgsm import _load_mgsm
+
+        fake = types.ModuleType("datasets")
+        fake.load_dataset = lambda *args, **kwargs: [
+            {"question": "q", "answer_number": 100},
+            {"question": "q", "answer_number": 70000},
+            {"question": "q", "answer_number": 540},
+        ]
+        monkeypatch.setitem(sys.modules, "datasets", fake)
+
+        assert {row["answer"] for row in _load_mgsm()} == {"100", "70000", "540"}
+
+    @pytest.mark.parametrize("gold", [pytest.param(100, id="hundred"), pytest.param(70000, id="seventy-thousand")])
+    def test_the_right_answer_still_scores(self, gold):
+        from nemo_evaluator.benchmarks.mgsm import _normalize_answer_number, mgsm_scorer
+
+        s = ScorerInput(response=f"Answer: {gold}", target=_normalize_answer_number(gold))
+        assert mgsm_scorer(s)["correct"] is True
 
 
 class TestBenchmarkScorerImport:
